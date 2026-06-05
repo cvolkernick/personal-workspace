@@ -1,1 +1,206 @@
-[FULL HTML CONTENT FROM PREVIOUS READ - the long one with the new Bets and Actionable Plans sections]
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Command Center • cvolkernick</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+    body { font-family: 'Inter', system_ui, sans-serif; }
+    .font-display { font-family: 'Space Grotesk', 'Inter', system_ui, sans-serif; font-weight: 600; }
+    .card { background: #111; border: 1px solid #222; transition: all 0.1s ease; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2); }
+    .domain-card { cursor: pointer; }
+    .domain-card:hover { border-color: #4ade80; }
+    .section { scroll-margin-top: 2rem; }
+    .focused { box-shadow: 0 0 0 3px #4ade80; transition: box-shadow 0.2s; }
+    .back-btn { font-size: 0.75rem; }
+  </style>
+</head>
+<body class="bg-[#0a0a0a] text-zinc-200">
+  <div class="max-w-7xl mx-auto px-4 md:px-6 py-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center gap-x-3">
+        <div class="w-9 h-9 rounded-2xl bg-zinc-800 flex items-center justify-center ring-1 ring-white/10">
+          <i class="fa-solid fa-rocket text-emerald-400 text-2xl"></i>
+        </div>
+        <div>
+          <h1 class="font-display text-3xl tracking-tighter font-semibold">Command Center</h1>
+          <p class="text-xs text-zinc-500 -mt-0.5">cvolkernick • personal workspace</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-x-2 text-sm">
+        <button onclick="window.location.reload()" class="px-3 py-1.5 text-xs rounded-3xl border border-white/10 hover:bg-white/5 flex items-center gap-x-1.5">
+          <i class="fa-solid fa-sync text-xs"></i> <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Launch help -->
+    <div class="mb-5 px-4 py-3 rounded-3xl bg-zinc-900 border border-emerald-900/60 text-sm">
+      <div class="font-medium text-emerald-400">First time? Double-click <code>open-command-center.command</code> in the repo root (or run <code>python3 -m http.server 8000</code> then open http://localhost:8000/dashboard/index.html)</div>
+    </div>
+
+    <!-- High-Conviction Bets (clickable for now just highlights the section) -->
+    <div class="mb-6">
+      <div class="flex items-center gap-x-3 mb-3 px-1">
+        <div class="text-amber-400"><i class="fa-solid fa-bullseye fa-lg"></i></div>
+        <h3 class="font-display text-xl tracking-tight">High-Conviction Bets</h3>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div onclick="focusDomain('bets')" class="card rounded-3xl p-3 text-center domain-card cursor-pointer hover:border-amber-400">
+          <div class="text-xs text-amber-400 font-semibold">Energy</div>
+        </div>
+        <div onclick="focusDomain('bets')" class="card rounded-3xl p-3 text-center domain-card cursor-pointer hover:border-amber-400">
+          <div class="text-xs text-amber-400 font-semibold">Bitcoin</div>
+        </div>
+        <div onclick="focusDomain('bets')" class="card rounded-3xl p-3 text-center domain-card cursor-pointer hover:border-emerald-400">
+          <div class="text-xs text-emerald-400 font-semibold">AI</div>
+        </div>
+        <div onclick="focusDomain('bets')" class="card rounded-3xl p-3 text-center domain-card cursor-pointer hover:border-emerald-400">
+          <div class="text-xs text-emerald-400 font-semibold">Autonomy</div>
+        </div>
+        <div onclick="focusDomain('bets')" class="card rounded-3xl p-3 text-center domain-card cursor-pointer hover:border-emerald-400">
+          <div class="text-xs text-emerald-400 font-semibold">Robotics</div>
+        </div>
+      </div>
+      <div class="text-[10px] text-zinc-400 mt-1 px-1">Click a bet to focus the Actionable Plans (filtered conceptually to that bet).</div>
+    </div>
+
+    <!-- Overview Glance Cards - these are the clickable entry points -->
+    <div class="mb-8">
+      <div class="flex items-end justify-between mb-3 px-1">
+        <h2 class="font-display text-2xl tracking-tight">Overview</h2>
+        <div class="text-xs text-zinc-400">Click a card to drill down into that domain's dashboard</div>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <!-- Fitness -->
+        <div onclick="focusDomain('fitness')" class="card rounded-3xl p-4 domain-card cursor-pointer hover:border-emerald-400">
+          <div class="text-emerald-400 text-xs font-semibold tracking-wider">FITNESS</div>
+          <div class="mt-1 text-2xl font-semibold tabular-nums">83.1 <span class="text-base font-normal text-zinc-400">lbs</span></div>
+          <div class="text-[10px] text-zinc-400">10.4% BF • Recent PRs: 5</div>
+          <div class="mt-2 text-[10px] text-emerald-300 flex items-center gap-1">Click to open full Fitness dashboard →</div>
+        </div>
+
+        <!-- Investment -->
+        <div onclick="focusDomain('investment')" class="card rounded-3xl p-4 domain-card cursor-pointer hover:border-amber-400">
+          <div class="text-amber-400 text-xs font-semibold tracking-wider">INVESTMENT</div>
+          <div class="mt-1 text-2xl font-semibold">~18 holdings</div>
+          <div class="text-[10px] text-zinc-400">Heavy semi + BTC thesis</div>
+          <div class="mt-2 text-[10px] text-amber-300 flex items-center gap-1">Click to open full Investment dashboard →</div>
+        </div>
+
+        <!-- IoT -->
+        <div onclick="focusDomain('iot')" class="card rounded-3xl p-4 domain-card cursor-pointer hover:border-sky-400">
+          <div class="text-sky-400 text-xs font-semibold tracking-wider">IOT • HOME</div>
+          <div class="mt-1 text-2xl font-semibold">4 bulbs</div>
+          <div class="text-[10px] text-zinc-400">Entryway Wiz lights</div>
+          <div class="mt-2 text-[10px] text-sky-300 flex items-center gap-1">Click to open full IoT dashboard →</div>
+        </div>
+
+        <!-- Actionable Plans -->
+        <div onclick="focusDomain('actionable-plans')" class="card rounded-3xl p-4 domain-card cursor-pointer hover:border-violet-400">
+          <div class="text-violet-400 text-xs font-semibold tracking-wider">ACTIONABLE PLANS</div>
+          <div class="mt-1 text-2xl font-semibold">4 active</div>
+          <div class="text-[10px] text-violet-300 mt-1">Today's Focus ready</div>
+          <div class="mt-2 text-[10px] text-violet-300 flex items-center gap-1">Click to open full Actionable Plans →</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DETAILED SECTIONS (the "dashboards" you drill into) -->
+
+    <!-- Fitness Detailed -->
+    <div id="fitness" class="section mb-10 p-4 border border-emerald-900/30 rounded-3xl">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-display text-xl text-emerald-400">Fitness Command Center</h3>
+        <button onclick="backToOverview()" class="back-btn px-3 py-1 rounded-full border border-emerald-700 text-emerald-300 hover:bg-emerald-900/30">← Back to overview</button>
+      </div>
+      <div class="text-sm text-zinc-300">
+        <!-- Placeholder for full content: charts, KPIs, latest sessions, etc. -->
+        <p class="mb-2">Body comp, lift progressions, nutrition targets, aesthetics, biomarkers. All your existing charts and live logs would be here.</p>
+        <div class="text-xs">This section would contain the full detailed fitness dashboard (PPL logs, charts grid, nutrition, etc.).</div>
+      </div>
+    </div>
+
+    <!-- Investment Detailed -->
+    <div id="investment" class="section mb-10 p-4 border border-amber-900/30 rounded-3xl">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-display text-xl text-amber-400">Investment Portfolio</h3>
+        <button onclick="backToOverview()" class="back-btn px-3 py-1 rounded-full border border-amber-700 text-amber-300 hover:bg-amber-900/30">← Back to overview</button>
+      </div>
+      <div class="text-sm text-zinc-300">
+        <p class="mb-2">Allocation visualization, full positions, strategy/thesis/risks. Your current holdings and DCA tracking.</p>
+        <div class="text-xs">Full detailed investment content goes here.</div>
+      </div>
+    </div>
+
+    <!-- IoT Detailed -->
+    <div id="iot" class="section mb-10 p-4 border border-sky-900/30 rounded-3xl">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-display text-xl text-sky-400">IoT • Smart Home</h3>
+        <button onclick="backToOverview()" class="back-btn px-3 py-1 rounded-full border border-sky-700 text-sky-300 hover:bg-sky-900/30">← Back to overview</button>
+      </div>
+      <div class="text-sm text-zinc-300">
+        <p class="mb-2">4 entryway Wiz bulbs with color control. Run the CLI from the repo root.</p>
+        <div class="text-xs">Full IoT controls and status would be here.</div>
+      </div>
+    </div>
+
+    <!-- Actionable Plans Detailed -->
+    <div id="actionable-plans" class="section mb-10 p-4 border border-violet-900/30 rounded-3xl">
+      <div class="flex justify-between items-center mb-3">
+        <h3 class="font-display text-xl text-violet-400">Actionable Plans</h3>
+        <button onclick="backToOverview()" class="back-btn px-3 py-1 rounded-full border border-violet-700 text-violet-300 hover:bg-violet-900/30">← Back to overview</button>
+      </div>
+      <div class="text-sm text-zinc-300">
+        <p class="mb-2">High-Conviction Bets overview + Today's Focus list + Initiative Pipeline with next actions.</p>
+        <div class="text-xs">This is where the macro-to-micro translation happens. The synthesized daily plan lives here.</div>
+      </div>
+    </div>
+
+    <div class="mt-8 text-center text-xs text-zinc-500">
+      All content sourced from the Markdown, images, and data in this git repo.<br>
+      Served locally • edit sources, refresh here • Click cards above to drill down
+    </div>
+  </div>
+
+  <script>
+    function focusDomain(domainId) {
+      const target = document.getElementById(domainId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      // Visual "opened" feedback
+      target.classList.add('focused');
+      setTimeout(() => {
+        target.classList.remove('focused');
+      }, 1600);
+    }
+
+    function backToOverview() {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // Optional: clear any focus styles
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('focused'));
+    }
+
+    // Optional: keyboard support (press 1-4 to focus domains)
+    document.addEventListener('keydown', function(e) {
+      if (e.key === '1') focusDomain('fitness');
+      if (e.key === '2') focusDomain('investment');
+      if (e.key === '3') focusDomain('iot');
+      if (e.key === '4') focusDomain('actionable-plans');
+      if (e.key.toLowerCase() === 'b') focusDomain('bets'); // for bets
+    });
+
+    // Tailwind script (basic)
+    function initTailwind() {
+      // If needed for dynamic classes
+    }
+    window.onload = initTailwind;
+  </script>
+</body>
+</html>
