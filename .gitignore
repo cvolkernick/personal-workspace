@@ -1,0 +1,32 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs / temp
+*.log
+tmp/
+temp/
+*.tmp
+
+# The command center server is local only
+# (no need to ignore the launchers, they are useful)
+
+# Add more as needed for your projects
