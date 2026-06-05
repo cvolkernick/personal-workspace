@@ -1,0 +1,1 @@
+[the full long content from the cat output]

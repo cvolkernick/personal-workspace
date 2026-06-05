@@ -1,5 +1,7 @@
 # Charts
 
+> All charts are prominently featured in the [Fitness dashboard](../../dashboard/index.html).
+
 All fitness charts and visualizations in one place.
 
 ## Workout Progress

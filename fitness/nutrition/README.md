@@ -1,5 +1,7 @@
 # Nutrition
 
+> Visual targets + charts in the [Fitness dashboard](../../dashboard/index.html).
+
 ## Quick Links
 
 - [Meal Plan](./meal-plan.md) — Daily cutting plan with macros

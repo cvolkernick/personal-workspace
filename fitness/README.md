@@ -1,5 +1,7 @@
 # Fitness Repository
 
+> **Visual dashboard available:** Open [../dashboard/index.html](../dashboard/index.html) (serve from repo root with `python -m http.server`). All charts + latest sessions + KPIs in one beautiful view.
+
 Comprehensive fitness tracking system for TruColors.
 
 ## 📁 Directories

@@ -1,5 +1,7 @@
 # Workouts
 
+> Visual version: [../../dashboard/index.html](../../dashboard/index.html) (Fitness section) — charts + latest sessions.
+
 ## Daily Routines
 
 - [Push Day](./push.md) — Chest / Shoulders / Triceps

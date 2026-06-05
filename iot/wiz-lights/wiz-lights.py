@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Wiz lights control script"""
+"""Wiz lights control script
+Run from repo root for best results with the Personal Command Center:
+  python iot/wiz-lights/wiz-lights.py all cyan
+  python iot/wiz-lights/wiz-lights.py entryway1 red
+"""
 import asyncio
 import json
+import os
 import sys
 from pywizlight import wizlight, PilotBuilder
 
-BULBS_FILE = "/home/forge-agent/.openclaw/workspace/skills/wiz-lights/bulbs.json"
+BULBS_FILE = os.path.join(os.path.dirname(__file__), "bulbs.json")
 
 # Color presets
 COLORS = {
