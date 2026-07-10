@@ -1,1 +1,84 @@
-placeholder
+{
+  "source_note": "Derived from fitbit-report-may2026.md for dashboard recovery",
+  "weight": [
+    {
+      "date": "2026-05-13",
+      "weight_lbs": 85.0,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-14",
+      "weight_lbs": 84.0,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-15",
+      "weight_lbs": 83.7,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-16",
+      "weight_lbs": 83.8,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-17",
+      "weight_lbs": 84.8,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-18",
+      "weight_lbs": 83.2,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-19",
+      "weight_lbs": 83.1,
+      "source": "fitbit_report"
+    }
+  ],
+  "sleep": [
+    {
+      "date": "2026-05-13",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-14",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-15",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-16",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-17",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-18",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    },
+    {
+      "date": "2026-05-19",
+      "sleep_hours": 7.0,
+      "efficiency_pct": null,
+      "source": "fitbit_report"
+    }
+  ]
+}
