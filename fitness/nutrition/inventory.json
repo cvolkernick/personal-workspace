@@ -1,0 +1,151 @@
+{
+  "updated_at": "2026-07-11",
+  "notes": "Curated pantry/fridge inventory. serving macros are per serving_label amount.",
+  "ingredients": [
+    {
+      "id": "chicken-breast",
+      "name": "Chicken breast",
+      "category": "protein",
+      "serving_label": "8 oz cooked",
+      "calories": 370,
+      "protein_g": 70,
+      "carbs_g": 0,
+      "fat_g": 8,
+      "in_stock": true,
+      "notes": "Primary lunch protein"
+    },
+    {
+      "id": "tilapia",
+      "name": "Tilapia",
+      "category": "protein",
+      "serving_label": "6 oz cooked",
+      "calories": 220,
+      "protein_g": 45,
+      "carbs_g": 0,
+      "fat_g": 4,
+      "in_stock": true
+    },
+    {
+      "id": "turkey-breast",
+      "name": "Turkey breast",
+      "category": "protein",
+      "serving_label": "5 oz",
+      "calories": 210,
+      "protein_g": 40,
+      "carbs_g": 0,
+      "fat_g": 4,
+      "in_stock": true
+    },
+    {
+      "id": "eggs-whole",
+      "name": "Whole eggs",
+      "category": "protein",
+      "serving_label": "3 eggs",
+      "calories": 210,
+      "protein_g": 18,
+      "carbs_g": 2,
+      "fat_g": 15,
+      "in_stock": true
+    },
+    {
+      "id": "egg-whites",
+      "name": "Egg whites",
+      "category": "protein",
+      "serving_label": "1 cup",
+      "calories": 125,
+      "protein_g": 26,
+      "carbs_g": 2,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "greek-yogurt",
+      "name": "Greek yogurt (nonfat)",
+      "category": "protein",
+      "serving_label": "1.5 cups",
+      "calories": 200,
+      "protein_g": 30,
+      "carbs_g": 12,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "brown-rice",
+      "name": "Brown rice",
+      "category": "carb",
+      "serving_label": "1 cup cooked",
+      "calories": 215,
+      "protein_g": 5,
+      "carbs_g": 45,
+      "fat_g": 2,
+      "in_stock": true
+    },
+    {
+      "id": "sweet-potato",
+      "name": "Sweet potato",
+      "category": "carb",
+      "serving_label": "1.5 medium",
+      "calories": 160,
+      "protein_g": 3,
+      "carbs_g": 37,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "banana",
+      "name": "Banana",
+      "category": "carb",
+      "serving_label": "1 medium",
+      "calories": 105,
+      "protein_g": 1,
+      "carbs_g": 27,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "broccoli",
+      "name": "Broccoli",
+      "category": "veg",
+      "serving_label": "1 cup",
+      "calories": 55,
+      "protein_g": 4,
+      "carbs_g": 11,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "salad-mix",
+      "name": "Salad mix",
+      "category": "veg",
+      "serving_label": "2 cups",
+      "calories": 20,
+      "protein_g": 2,
+      "carbs_g": 4,
+      "fat_g": 0,
+      "in_stock": true
+    },
+    {
+      "id": "oats",
+      "name": "Oats",
+      "category": "carb",
+      "serving_label": "1/2 cup dry",
+      "calories": 150,
+      "protein_g": 5,
+      "carbs_g": 27,
+      "fat_g": 3,
+      "in_stock": true
+    },
+    {
+      "id": "jocko-molk",
+      "name": "Jocko Molk protein",
+      "category": "protein",
+      "serving_label": "1 shake",
+      "calories": 140,
+      "protein_g": 30,
+      "carbs_g": 4,
+      "fat_g": 1,
+      "in_stock": true,
+      "notes": "High protein per dollar"
+    }
+  ]
+}
