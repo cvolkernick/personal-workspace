@@ -1,0 +1,35 @@
+{
+  "bucket": [
+    {
+      "startTimeMillis": "1717200000000",
+      "endTimeMillis": "1717286400000",
+      "dataset": [
+        {
+          "dataSourceId": "derived:com.google.weight:com.google.android.gms:merge_weight",
+          "point": [
+            {
+              "startTimeNanos": "1717243200000000000",
+              "endTimeNanos": "1717243200000000000",
+              "value": [{ "fpVal": 90.7185 }]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "startTimeMillis": "1717286400000",
+      "endTimeMillis": "1717372800000",
+      "dataset": [
+        {
+          "point": [
+            {
+              "startTimeNanos": "1717329600000000000",
+              "endTimeNanos": "1717329600000000000",
+              "value": [{ "fpVal": 90.265 }]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

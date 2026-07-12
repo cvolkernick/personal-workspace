@@ -28,5 +28,11 @@ temp/
 
 # The command center server is local only
 # (no need to ignore the launchers, they are useful)
+dashboard/current-branch.txt
+dashboard/branches.txt
 
 # Add more as needed for your projects
+
+# Resistance dashboard local secrets (if ever placed under repo)
+resistance-dashboard/.env
+resistance-dashboard/.env.local

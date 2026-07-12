@@ -1,0 +1,13 @@
+{
+  "updated_at": "2026-07-12",
+  "split": "ppl",
+  "rotation": ["push", "pull", "legs"],
+  "goal": "strength_hypertrophy",
+  "sessions_per_week_target": 5,
+  "exercises_per_session": 5,
+  "prefer_compounds_first": true,
+  "progression": "double_progression",
+  "notes": "Push/Pull/Legs rotation. Double progression: hit top of rep range, then add weight.",
+  "focus_muscles": [],
+  "rest_if_recovery_below": 40
+}

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f1419" />
+    <title>Resistance Training Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="app-header">
+        <div>
+          <h1>Resistance Training</h1>
+          <p>Live lift logs · Google Health recovery, nutrition &amp; hydration</p>
+        </div>
+        <div class="actions">
+          <button type="button" id="btn-refresh" title="Force pull Google Health + GitHub now">
+            Refresh remotes
+          </button>
+          <button type="button" class="primary" id="btn-focus-log">Log workout</button>
+        </div>
+      </header>
+
+      <div id="alerts"></div>
+
+      <section class="grid stats" id="stats" aria-label="Summary stats">
+        <div class="card stat">
+          <div class="label">Sessions</div>
+          <div class="value" id="stat-sessions">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Total volume</div>
+          <div class="value" id="stat-volume">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Latest weight</div>
+          <div class="value" id="stat-weight">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Recovery</div>
+          <div class="value" id="stat-recovery">—</div>
+        </div>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem">
+        <article class="card" id="recovery-card">
+          <h2>Recovery status</h2>
+          <div id="recovery-badge"></div>
+          <ul class="reasons" id="recovery-reasons"></ul>
+          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
+        </article>
+
+        <article class="card" id="log-card">
+          <h2>Log workout</h2>
+          <form class="log-form" id="log-form">
+            <div class="row cols-3">
+              <label>
+                Session type
+                <select name="session_type" id="session_type" required>
+                  <option value="push">Push</option>
+                  <option value="pull">Pull</option>
+                  <option value="legs">Legs</option>
+                </select>
+              </label>
+              <label>
+                Date
+                <input type="date" name="date" id="log-date" required />
+              </label>
+              <label>
+                Notes
+                <input type="text" name="notes" id="log-notes" placeholder="Optional" />
+              </label>
+            </div>
+            <div id="exercise-rows"></div>
+            <div class="actions">
+              <button type="button" id="btn-add-ex">+ Exercise</button>
+              <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
+            </div>
+            <p class="muted" id="log-status" style="margin: 0"></p>
+          </form>
+        </article>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem">
+        <article class="card">
+          <h2>Weekly volume</h2>
+          <div class="chart-box"><canvas id="chart-volume" aria-label="Volume chart"></canvas></div>
+        </article>
+        <article class="card">
+          <h2>Strength trend</h2>
+          <div class="tabs" id="exercise-tabs"></div>
+          <div class="chart-box"><canvas id="chart-strength" aria-label="Strength chart"></canvas></div>
+        </article>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem">
+        <article class="card">
+          <h2>Body weight (90 days)</h2>
+          <div class="chart-box"><canvas id="chart-weight" aria-label="Weight chart"></canvas></div>
+          <p class="muted" id="weight-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+        <article class="card">
+          <h2>Sleep (hours) · 7d rolling avg</h2>
+          <div class="chart-box"><canvas id="chart-sleep" aria-label="Sleep chart"></canvas></div>
+          <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+      </section>
+
+      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" aria-label="Nutrition summary">
+        <div class="card stat">
+          <div class="label">Calories (latest day)</div>
+          <div class="value" id="stat-calories">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Protein</div>
+          <div class="value" id="stat-protein">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Carbs</div>
+          <div class="value" id="stat-carbs">—</div>
+        </div>
+        <div class="card stat">
+          <div class="label">Fat</div>
+          <div class="value" id="stat-fat">—</div>
+        </div>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem">
+        <article class="card">
+          <h2>Calories intake vs burned</h2>
+          <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart"></canvas></div>
+          <p class="muted" id="nutrition-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+        <article class="card">
+          <h2>Macros (g) &amp; hydration</h2>
+          <div class="chart-box"><canvas id="chart-macros" aria-label="Macros chart"></canvas></div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 1rem">
+        <h2>Hydration (ml)</h2>
+        <div class="chart-box"><canvas id="chart-hydration" aria-label="Hydration chart"></canvas></div>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem" id="inventory-section">
+        <article class="card">
+          <h2>Ingredient inventory</h2>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Pantry/fridge catalog stored in
+            <code>fitness/nutrition/inventory.json</code> on GitHub.
+          </p>
+          <form class="log-form" id="ingredient-form">
+            <div class="row cols-3">
+              <label>
+                Name
+                <input type="text" id="ing-name" required placeholder="e.g. Chicken breast" />
+              </label>
+              <label>
+                Category
+                <select id="ing-category">
+                  <option value="protein">Protein</option>
+                  <option value="carb">Carb</option>
+                  <option value="veg">Veg</option>
+                  <option value="fat">Fat</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label>
+                Serving label
+                <input type="text" id="ing-serving" placeholder="e.g. 8 oz cooked" />
+              </label>
+            </div>
+            <div class="row cols-4">
+              <label>Cal<input type="number" id="ing-cal" min="0" step="1" value="100" required /></label>
+              <label>Protein (g)<input type="number" id="ing-p" min="0" step="0.1" value="20" required /></label>
+              <label>Carbs (g)<input type="number" id="ing-c" min="0" step="0.1" value="0" required /></label>
+              <label>Fat (g)<input type="number" id="ing-f" min="0" step="0.1" value="0" required /></label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Add / update ingredient</button>
+            </div>
+            <p class="muted" id="ing-status" style="margin: 0"></p>
+          </form>
+          <ul class="session-list" id="inventory-list" style="margin-top: 0.75rem"></ul>
+        </article>
+
+        <article class="card" id="meal-plan-card">
+          <h2>Daily targets &amp; meal plan</h2>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Targets in <code>fitness/nutrition/targets.json</code>. The rest-of-day
+            plan updates automatically on each load from Google Health intake +
+            in-stock ingredients. Use <strong>Refresh plan</strong> after edits.
+          </p>
+          <form class="log-form" id="targets-form">
+            <div class="row cols-4">
+              <label>Cal target<input type="number" id="tgt-cal" min="0" step="1" required /></label>
+              <label>Protein<input type="number" id="tgt-p" min="0" step="1" required /></label>
+              <label>Carbs<input type="number" id="tgt-c" min="0" step="1" required /></label>
+              <label>Fat<input type="number" id="tgt-f" min="0" step="1" required /></label>
+            </div>
+            <div class="actions">
+              <button type="submit">Save targets</button>
+              <button type="button" class="primary" id="btn-generate-plan">
+                Refresh plan
+              </button>
+            </div>
+            <p class="muted" id="targets-status" style="margin: 0"></p>
+          </form>
+          <div id="remaining-macros" class="muted" style="margin-top: 0.75rem; font-size: 0.9rem"></div>
+          <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
+        </article>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem" id="workout-plan-section">
+        <article class="card">
+          <h2>Exercise catalog</h2>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Library in <code>fitness/exercises/catalog.json</code> — muscles,
+            session type (push/pull/legs), equipment. Toggle availability to
+            control what the planner can pick.
+          </p>
+          <form class="log-form" id="exercise-form">
+            <div class="row cols-3">
+              <label>
+                Name
+                <input type="text" id="excat-name" required placeholder="e.g. DB Flat Press" />
+              </label>
+              <label>
+                Session
+                <select id="excat-session">
+                  <option value="push">Push</option>
+                  <option value="pull">Pull</option>
+                  <option value="legs">Legs</option>
+                </select>
+              </label>
+              <label>
+                Primary muscle
+                <input type="text" id="excat-muscle" placeholder="e.g. chest" />
+              </label>
+            </div>
+            <div class="row cols-3">
+              <label>
+                Movement
+                <select id="excat-movement">
+                  <option value="compound">Compound</option>
+                  <option value="isolation">Isolation</option>
+                </select>
+              </label>
+              <label>Default sets<input type="number" id="excat-sets" min="1" value="3" /></label>
+              <label>Default reps<input type="number" id="excat-reps" min="1" value="10" /></label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Add / update exercise</button>
+            </div>
+            <p class="muted" id="excat-status" style="margin: 0"></p>
+          </form>
+          <ul class="session-list" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
+        </article>
+
+        <article class="card" id="workout-plan-card">
+          <h2>Today’s workout plan</h2>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Built like the meal plan: catalog + PPL rotation + last loads +
+            recovery. Goals in <code>fitness/exercises/goals.json</code>.
+          </p>
+          <form class="log-form" id="workout-goals-form">
+            <div class="row cols-3">
+              <label>
+                Split
+                <select id="wg-split">
+                  <option value="ppl">Push / Pull / Legs</option>
+                </select>
+              </label>
+              <label>
+                Exercises / session
+                <input type="number" id="wg-count" min="3" max="8" value="5" />
+              </label>
+              <label>
+                Rest if recovery &lt;
+                <input type="number" id="wg-rest" min="0" max="100" value="40" />
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit">Save goals</button>
+              <button type="button" class="primary" id="btn-generate-workout">
+                Refresh plan
+              </button>
+              <button type="button" id="btn-force-session-push">Push</button>
+              <button type="button" id="btn-force-session-pull">Pull</button>
+              <button type="button" id="btn-force-session-legs">Legs</button>
+            </div>
+            <p class="muted" id="workout-goals-status" style="margin: 0"></p>
+          </form>
+          <div id="workout-plan-result" style="margin-top: 0.75rem"></div>
+        </article>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="ask-card">
+        <h2>Ask Grok about your data</h2>
+        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          Uses your SuperGrok / Grok Build login (<code>~/.grok/auth.json</code>).
+          Your question and Grok’s reply show in the chat box below. Expect
+          <strong>about 30–90 seconds</strong> (up to ~2 minutes) — it reloads
+          live data first, then calls Grok. Stay on this page until the timer
+          finishes; don’t refresh mid-wait.
+        </p>
+        <p class="muted" id="ask-auth-status" style="margin: 0.35rem 0 0.5rem; font-size: 0.85rem"></p>
+        <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
+        <form class="log-form ask-form" id="ask-form">
+          <label class="ask-input-label">
+            Question
+            <textarea
+              id="ask-question"
+              rows="2"
+              required
+              maxlength="4000"
+              placeholder="e.g. Am I recovering enough for legs this week? What's left for protein today?"
+            ></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-ask">Ask</button>
+            <button type="button" id="btn-ask-clear">Clear chat</button>
+          </div>
+          <p class="muted" id="ask-status" style="margin: 0"></p>
+        </form>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="history-card">
+        <h2>Workout history</h2>
+        <ul class="session-list" id="session-list"></ul>
+      </section>
+
+      <footer>
+        Data sources: GitHub lift logs · Google Health (weight, sleep, nutrition, hydration) ·
+        SuperGrok ask ·
+        <span id="meta-line"></span>
+      </footer>
+    </div>
+  </body>
+</html>

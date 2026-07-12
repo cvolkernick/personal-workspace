@@ -26,3 +26,13 @@
 | Fat | ~45g | Keep moderate |
 
 **Expected:** ~1 lb/week weight loss
+
+
+## Dashboard inventory & meal planning
+
+| File | Purpose |
+|------|---------|
+| `inventory.json` | Curated ingredients you currently have (add/remove from dashboard) |
+| `targets.json` | Daily calorie + macro targets used by rest-of-day meal planner |
+
+The resistance dashboard reads today's intake from Google Health, compares to `targets.json`, and builds a plan from **in-stock** items in `inventory.json`.

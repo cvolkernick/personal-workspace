@@ -1,0 +1,3 @@
+# Stdlib-only runtime (urllib, http.server). No third-party deps required.
+# Optional for local dev convenience:
+# pytest>=7.0

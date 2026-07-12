@@ -1,0 +1,18 @@
+{
+  "session": [
+    {
+      "id": "sleep-1",
+      "name": "Sleep",
+      "activityType": 72,
+      "startTimeMillis": "1717200000000",
+      "endTimeMillis": "1717227000000"
+    },
+    {
+      "id": "sleep-2",
+      "name": "Sleep",
+      "activityType": 72,
+      "startTimeMillis": "1717286400000",
+      "endTimeMillis": "1717311600000"
+    }
+  ]
+}
