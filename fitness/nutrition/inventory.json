@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-11",
+  "updated_at": "2026-07-12",
   "notes": "Curated pantry/fridge inventory. serving macros are per serving_label amount.",
   "ingredients": [
     {
@@ -88,17 +88,6 @@
       "calories": 160,
       "protein_g": 3,
       "carbs_g": 37,
-      "fat_g": 0,
-      "in_stock": true
-    },
-    {
-      "id": "banana",
-      "name": "Banana",
-      "category": "carb",
-      "serving_label": "1 medium",
-      "calories": 105,
-      "protein_g": 1,
-      "carbs_g": 27,
       "fat_g": 0,
       "in_stock": true
     },
