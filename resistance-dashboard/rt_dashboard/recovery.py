@@ -59,11 +59,12 @@ def compute_recovery_status(
       - Caution (30-49)
       - Needs Rest (0-29)
     """
-    # Default to today (UTC) so "last 7d volume" is calendar-relative, not
-    # anchored to the most recent historical log date (which mislabels long-ago
-    # mesocycles as "very high training volume this week").
+    # Default to local civil today so "last 7d volume" matches the host timezone
+    # (not UTC midnight, and not the most recent historical log date).
     if as_of is None:
-        as_of = datetime.utcnow().strftime("%Y-%m-%d")
+        from .timeutil import local_today_iso
+
+        as_of = local_today_iso()
 
     avg_sleep = _avg_sleep_hours(sleep, days=7)
     latest_w = _latest_weight(weight)

@@ -22,6 +22,8 @@ from .models import (
 )
 
 DEFAULT_TTL_SEC = int(os.environ.get("DASHBOARD_CACHE_TTL_SEC", "3600"))
+# Failed/empty health pulls should retry sooner than a successful cache hit.
+DEFAULT_FAIL_TTL_SEC = int(os.environ.get("DASHBOARD_CACHE_FAIL_TTL_SEC", "300"))
 CACHE_DIR = Path(
     os.environ.get(
         "DASHBOARD_CACHE_DIR",
@@ -69,11 +71,47 @@ def cache_age_sec(fetched_at: Optional[float]) -> Optional[float]:
     return max(0.0, time.time() - float(fetched_at))
 
 
+def fail_ttl_sec() -> int:
+    try:
+        return max(60, int(os.environ.get("DASHBOARD_CACHE_FAIL_TTL_SEC", str(DEFAULT_FAIL_TTL_SEC))))
+    except ValueError:
+        return DEFAULT_FAIL_TTL_SEC
+
+
 def is_fresh(fetched_at: Optional[float], ttl: Optional[int] = None) -> bool:
     age = cache_age_sec(fetched_at)
     if age is None:
         return False
     return age < float(ttl if ttl is not None else ttl_sec())
+
+
+def health_cache_is_fresh(
+    fetched_at: Optional[float],
+    health: Optional[HealthSnapshot],
+    last_error: Optional[str] = None,
+    ttl: Optional[int] = None,
+) -> bool:
+    """Success with data → full TTL; empty/error → short fail TTL so we retry soon."""
+    age = cache_age_sec(fetched_at)
+    if age is None:
+        return False
+    has_data = bool(
+        health
+        and (
+            health.weight
+            or health.sleep
+            or health.nutrition
+            or health.hydration
+            or health.calories_burned
+        )
+    )
+    if has_data and not last_error:
+        return age < float(ttl if ttl is not None else ttl_sec())
+    if has_data:
+        # Partial success still uses full TTL (some streams may error).
+        return age < float(ttl if ttl is not None else ttl_sec())
+    # Empty or timed-out pull: don't block retries for a full hour.
+    return age < float(fail_ttl_sec())
 
 
 # --- Health -----------------------------------------------------------------
@@ -149,17 +187,72 @@ def load_health_cache() -> Tuple[Optional[HealthSnapshot], Optional[float], dict
     except (TypeError, ValueError):
         fetched_at_f = None
     snap = health_from_dict(raw.get("health") or {})
+    last_error = raw.get("last_error") or (snap.error if snap else None)
     age = cache_age_sec(fetched_at_f)
+    fresh = health_cache_is_fresh(fetched_at_f, snap, last_error=str(last_error) if last_error else None)
     return (
         snap,
         fetched_at_f,
         {
             "hit": True,
-            "fresh": is_fresh(fetched_at_f),
+            "fresh": fresh,
             "age_sec": round(age, 1) if age is not None else None,
             "fetched_at": raw.get("fetched_at_iso"),
+            "last_error": last_error,
             "path": str(cache_dir() / HEALTH_CACHE),
+            "fail_ttl_sec": fail_ttl_sec(),
         },
+    )
+
+
+def _merge_dated(old_list: list, new_list: list, *, key: str = "date") -> list:
+    """Merge list of dicts/objects by date; newer list wins on collision."""
+    by: Dict[str, Any] = {}
+    for item in old_list or []:
+        if hasattr(item, "to_dict"):
+            d = item.to_dict()
+        elif isinstance(item, dict):
+            d = item
+        else:
+            continue
+        dk = str(d.get(key) or "")
+        if dk:
+            by[dk] = d
+    for item in new_list or []:
+        if hasattr(item, "to_dict"):
+            d = item.to_dict()
+        elif isinstance(item, dict):
+            d = item
+        else:
+            continue
+        dk = str(d.get(key) or "")
+        if dk:
+            by[dk] = d
+    return [by[k] for k in sorted(by.keys())]
+
+
+def merge_health_snapshots(
+    base: Optional[HealthSnapshot],
+    update: HealthSnapshot,
+) -> HealthSnapshot:
+    """Overlay a recent incremental pull onto a longer cached history."""
+    if base is None:
+        return update
+    w = _merge_dated(base.weight, update.weight)
+    s = _merge_dated(base.sleep, update.sleep)
+    n = _merge_dated(base.nutrition, update.nutrition)
+    h = _merge_dated(base.hydration, update.hydration)
+    b = _merge_dated(base.calories_burned, update.calories_burned)
+    # Rebuild typed snapshot
+    return health_from_dict(
+        {
+            "weight": w,
+            "sleep": s,
+            "nutrition": n,
+            "hydration": h,
+            "calories_burned": b,
+            "error": update.error or base.error,
+        }
     )
 
 

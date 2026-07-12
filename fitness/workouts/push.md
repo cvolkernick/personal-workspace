@@ -3,18 +3,6 @@
 ![Push Day Progress](../charts/push-chart.png)
 
 
-## July 10, 2026 - Session Complete
-- Skeptic2 Persist Press: 44 lbs x 2 x 6
-
-Notes: skeptic2
-## July 10, 2026 - Session Complete
-- Persist Probe Press: 44 lbs x 3 x 7
-
-Notes: persist probe
-## July 10, 2026 - Session Complete
-- Skeptic Press: 10 lbs x 1 x 1
-
-Notes: skeptic
 ## May 26, 2026 - Session Complete
 - DB Flat Press: 50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12
 - Tricep Pushdowns: 47.5 lbs x 3 x 12 (PR!)

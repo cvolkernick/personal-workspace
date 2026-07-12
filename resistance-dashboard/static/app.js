@@ -13,9 +13,24 @@
   let selectedExercise = null;
 
   function todayISO() {
+    // Browser local civil date (matches host TZ when you open dashboard on this Mac).
     const d = new Date();
     const z = (n) => String(n).padStart(2, "0");
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
+  }
+
+  /** Keep charts snappy on long series (e.g. 90d). */
+  function downsamplePoints(points, maxPoints = 45) {
+    if (!Array.isArray(points) || points.length <= maxPoints) return points || [];
+    const out = [];
+    const n = points.length;
+    const step = (n - 1) / (maxPoints - 1);
+    for (let i = 0; i < maxPoints; i++) {
+      out.push(points[Math.round(i * step)]);
+    }
+    // ensure last point is exact end
+    out[out.length - 1] = points[n - 1];
+    return out;
   }
 
   function fmtNum(n) {
@@ -195,7 +210,12 @@
     });
     renderStrength(data);
 
-    const weights = (data.health && data.health.weight) || [];
+    const weights = downsamplePoints(
+      [...((data.health && data.health.weight) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      45
+    );
     const weightVals = weights.map((w) => w.weight_lbs);
     const weightTrend = linearTrend(weightVals);
     const wSlope = trendSlopePerDay(weightVals);
@@ -240,7 +260,12 @@
       }
     }
 
-    const sleep = (data.health && data.health.sleep) || [];
+    const sleep = downsamplePoints(
+      [...((data.health && data.health.sleep) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      45
+    );
     const sleepVals = sleep.map((s) => s.sleep_hours);
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
@@ -322,9 +347,24 @@
       }
     }
 
-    const nutrition = (data.health && data.health.nutrition) || [];
-    const burned = (data.health && data.health.calories_burned) || [];
-    const hydration = (data.health && data.health.hydration) || [];
+    const nutrition = downsamplePoints(
+      [...((data.health && data.health.nutrition) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      45
+    );
+    const burned = downsamplePoints(
+      [...((data.health && data.health.calories_burned) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      45
+    );
+    const hydration = downsamplePoints(
+      [...((data.health && data.health.hydration) || [])].sort((a, b) =>
+        String(a.date).localeCompare(String(b.date))
+      ),
+      45
+    );
     const calLabels = [
       ...new Set([
         ...nutrition.map((n) => n.date),
@@ -368,26 +408,37 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
+      // Chronological order; only days that have at least one macro value.
+      const macroDays = downsamplePoints(
+        [...nutrition]
+          .filter(
+            (n) =>
+              n &&
+              (n.protein_g != null || n.carbs_g != null || n.fat_g != null)
+          )
+          .sort((a, b) => String(a.date).localeCompare(String(b.date))),
+        45
+      );
       macrosChart = new Chart($("chart-macros"), {
         type: "bar",
         data: {
-          labels: nutrition.map((n) => n.date),
+          labels: macroDays.map((n) => n.date),
           datasets: [
             {
               label: "Protein (g)",
-              data: nutrition.map((n) => n.protein_g),
+              data: macroDays.map((n) => n.protein_g),
               backgroundColor: "rgba(61,156,240,0.65)",
               borderRadius: 4,
             },
             {
               label: "Carbs (g)",
-              data: nutrition.map((n) => n.carbs_g),
+              data: macroDays.map((n) => n.carbs_g),
               backgroundColor: "rgba(240,180,41,0.65)",
               borderRadius: 4,
             },
             {
               label: "Fat (g)",
-              data: nutrition.map((n) => n.fat_g),
+              data: macroDays.map((n) => n.fat_g),
               backgroundColor: "rgba(240,113,120,0.55)",
               borderRadius: 4,
             },
@@ -547,7 +598,7 @@
     };
     if ($("remaining-macros")) {
       $("remaining-macros").innerHTML = `
-        <strong>Today so far</strong> (Google Health ${c.date || "today"}):
+        <strong>Today so far</strong> (local day ${c.date || "today"}, Google Health):
         ${fmtNum(c.calories)} kcal · P${fmtNum(c.protein_g)} C${fmtNum(c.carbs_g)} F${fmtNum(c.fat_g)}
         <br/>
         <strong>Remaining to target</strong>:
@@ -734,8 +785,10 @@
     const cacheNote = cacheBits.length
       ? ` · cache: ${cacheBits.join(", ")} (ttl ${ttlMin}m; Refresh forces pull)`
       : ` · cache ttl ${ttlMin}m`;
+    const tzBit = meta.timezone ? ` · tz ${meta.timezone}` : "";
+    const todayBit = meta.local_today ? ` · today ${meta.local_today}` : "";
     $("meta-line").textContent =
-      `source=${meta.source || "?"} · generated ${meta.generated_at || ""}${loadMs}${cacheNote}`;
+      `source=${meta.source || "?"} · generated ${meta.generated_at || ""}${loadMs}${cacheNote}${todayBit}${tzBit}`;
 
     const nutrition = (data.health && data.health.nutrition) || [];
     const latestN = nutrition.length ? nutrition[nutrition.length - 1] : null;

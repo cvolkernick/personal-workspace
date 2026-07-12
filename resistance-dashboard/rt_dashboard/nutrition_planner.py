@@ -94,8 +94,13 @@ def stocked_ingredients(inventory: dict) -> List[dict]:
 def today_consumed_from_nutrition(
     nutrition: Sequence[NutritionDay], as_of: Optional[str] = None
 ) -> dict:
-    """Sum macros for as_of (default today UTC) from Google Health nutrition days."""
-    day = as_of or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    """Sum macros for as_of (default local civil today) from Google Health nutrition days."""
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = as_of
     total = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "date": day}
     for n in nutrition:
         if n.date != day:

@@ -11,10 +11,13 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 XAI_API_BASE = os.environ.get("XAI_API_BASE", "https://api.x.ai/v1").rstrip("/")
-DEFAULT_MODEL = os.environ.get("XAI_MODEL", "grok-3-mini")
+DEFAULT_MODEL = os.environ.get("XAI_MODEL", "grok-4.20-non-reasoning")
 AUTH_PATH = Path.home() / ".grok" / "auth.json"
-MAX_CONTEXT_CHARS = int(os.environ.get("GROK_ASK_MAX_CONTEXT_CHARS", "90000"))
+# Lighter default pack for Ask (override with GROK_ASK_MAX_CONTEXT_CHARS).
+MAX_CONTEXT_CHARS = int(os.environ.get("GROK_ASK_MAX_CONTEXT_CHARS", "28000"))
 REQUEST_TIMEOUT = int(os.environ.get("GROK_ASK_TIMEOUT_SEC", "90"))
+ASK_SESSION_LIMIT = int(os.environ.get("GROK_ASK_SESSION_LIMIT", "20"))
+ASK_HEALTH_DAYS = int(os.environ.get("GROK_ASK_HEALTH_DAYS", "14"))
 
 SYSTEM_PROMPT = """You are a fitness coach assistant for the user's personal resistance-training dashboard.
 
@@ -181,8 +184,12 @@ def _series_tail(points: Any, n: int = 90) -> List[Any]:
     return points[-n:]
 
 
-def build_fitness_context(dashboard: dict) -> dict:
-    """Compact snapshot of everything the dashboard reflects."""
+def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
+    """Snapshot of dashboard data for the model.
+
+    compact=True (default for Ask): last ~20 sessions, ~14d health, stocked
+    inventory only, weekly volume truncated — keeps latency/tokens down.
+    """
     health = dashboard.get("health") or {}
     nut = dashboard.get("nutrition_store") or {}
     inventory = nut.get("inventory") or {}
@@ -198,67 +205,96 @@ def build_fitness_context(dashboard: dict) -> dict:
             "carbs_g": i.get("carbs_g"),
             "fat_g": i.get("fat_g"),
             "in_stock": i.get("in_stock", True),
-            "notes": i.get("notes") or "",
         }
         for i in (ingredients or [])
-        if isinstance(i, dict)
+        if isinstance(i, dict) and i.get("in_stock", True)
     ]
 
     meal_plan = nut.get("meal_plan") or {}
     if isinstance(meal_plan, dict):
         meal_plan = {
             "message": meal_plan.get("message"),
-            "items": meal_plan.get("items") or meal_plan.get("meals") or [],
-            "totals": meal_plan.get("totals"),
+            "items": (meal_plan.get("items") or meal_plan.get("meals") or [])[:12],
+            "totals": meal_plan.get("totals") or meal_plan.get("planned_totals"),
             "remaining_before_plan": meal_plan.get("remaining_before_plan"),
-            "remaining_after_plan": meal_plan.get("remaining_after_plan"),
             "targets": meal_plan.get("targets"),
         }
 
-    # Strength / volume summaries if present on payload
+    sess_limit = ASK_SESSION_LIMIT if compact else 40
+    h_days = ASK_HEALTH_DAYS if compact else 90
+    meta_keys = (
+        "generated_at",
+        "source",
+        "local_today",
+        "timezone",
+        "load_ms",
+        "health_weight_points",
+        "health_sleep_points",
+        "health_nutrition_days",
+        "cache_ttl_sec",
+    )
+    full_meta = dashboard.get("meta") or {}
+    meta = {k: full_meta.get(k) for k in meta_keys if full_meta.get(k) is not None}
+
+    # Strength: only top few exercises, last points
+    trends_in = dashboard.get("strength_trends") or {}
+    trends_out = {}
+    if isinstance(trends_in, dict):
+        for name in list(trends_in.keys())[:8]:
+            series = trends_in.get(name) or []
+            if isinstance(series, list):
+                trends_out[name] = series[-8:]
+
+    weekly = dashboard.get("weekly_volume") or dashboard.get("volume_by_week") or []
+    if isinstance(weekly, list):
+        weekly = weekly[-12:]
+
+    wo = dashboard.get("workout_store") or {}
+    plan = wo.get("plan") or {}
+    if isinstance(plan, dict):
+        plan = {
+            "date": plan.get("date"),
+            "session_type": plan.get("session_type"),
+            "is_rest_day": plan.get("is_rest_day"),
+            "message": plan.get("message"),
+            "exercises": [
+                {
+                    "name": e.get("name"),
+                    "prescription": e.get("prescription"),
+                    "primary_muscles": e.get("primary_muscles"),
+                }
+                for e in (plan.get("exercises") or [])[:8]
+                if isinstance(e, dict)
+            ],
+        }
+
     context = {
-        "generated_at": (dashboard.get("meta") or {}).get("generated_at"),
-        "meta": {
-            k: v
-            for k, v in (dashboard.get("meta") or {}).items()
-            if k
-            not in (
-                # keep compact; omit nothing sensitive-looking beyond tokens (none expected)
-            )
-        },
+        "generated_at": full_meta.get("generated_at"),
+        "local_today": full_meta.get("local_today"),
+        "timezone": full_meta.get("timezone"),
+        "meta": meta,
         "recovery": dashboard.get("recovery"),
-        "summary": dashboard.get("summary") or dashboard.get("stats"),
-        "weekly_volume": dashboard.get("weekly_volume") or dashboard.get("volume_by_week"),
-        "strength_trends": dashboard.get("strength_trends")
-        or dashboard.get("exercise_trends"),
-        "sessions": _trim_sessions(dashboard.get("sessions"), limit=40),
+        "weekly_volume": weekly,
+        "strength_trends": trends_out,
+        "sessions": _trim_sessions(dashboard.get("sessions"), limit=sess_limit),
         "health": {
-            "weight": _series_tail(health.get("weight"), 90),
-            "sleep": _series_tail(health.get("sleep"), 90),
-            "nutrition": _series_tail(health.get("nutrition"), 30),
-            "hydration": _series_tail(health.get("hydration"), 30),
-            "calories_burned": _series_tail(health.get("calories_burned"), 30),
-            "source": health.get("source"),
-            "notes": health.get("notes") or health.get("error"),
+            "weight": _series_tail(health.get("weight"), h_days),
+            "sleep": _series_tail(health.get("sleep"), h_days),
+            "nutrition": _series_tail(health.get("nutrition"), h_days),
+            "hydration": _series_tail(health.get("hydration"), h_days),
+            "calories_burned": _series_tail(health.get("calories_burned"), min(h_days, 14)),
+            "notes": health.get("error"),
         },
         "nutrition_store": {
             "targets": nut.get("targets"),
             "today_consumed": nut.get("today_consumed"),
-            "sources": nut.get("sources"),
-            "inventory": stocked,
+            "inventory": stocked[:40],
             "meal_plan": meal_plan,
         },
         "workout_store": {
-            "goals": (dashboard.get("workout_store") or {}).get("goals"),
-            "plan": (dashboard.get("workout_store") or {}).get("plan"),
-            "catalog_count": len(
-                (
-                    ((dashboard.get("workout_store") or {}).get("catalog") or {}).get(
-                        "exercises"
-                    )
-                    or []
-                )
-            ),
+            "goals": wo.get("goals"),
+            "plan": plan,
+            "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),
         },
     }
     return context
@@ -269,10 +305,9 @@ def _shrink_context(context: dict, max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[
     ctx = json.loads(json.dumps(context))  # deep copy via JSON
     trimmed = False
     for limit_sessions, limit_health, limit_ex in (
-        (40, 90, 30),
-        (25, 60, 20),
-        (15, 30, 12),
-        (10, 14, 8),
+        (20, 14, 12),
+        (15, 14, 10),
+        (10, 10, 8),
         (5, 7, 6),
         (3, 5, 4),
     ):
@@ -394,7 +429,7 @@ def ask_about_dashboard(
     if len(q) > 4000:
         raise GrokAskError("question too long (max 4000 chars)", status=400)
 
-    context, trimmed = _shrink_context(build_fitness_context(dashboard))
+    context, trimmed = _shrink_context(build_fitness_context(dashboard, compact=True))
     context_json = json.dumps(context, indent=2)
 
     user_block = (

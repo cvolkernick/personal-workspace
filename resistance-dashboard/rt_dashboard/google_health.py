@@ -16,6 +16,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -152,7 +153,8 @@ class GoogleHealthClient:
             headers["Content-Type"] = "application/json"
         req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            with urllib.request.urlopen(req, timeout=45) as resp:
+            # Per-call timeout stays modest; streams run in parallel in fetch_health.
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 raw = resp.read().decode("utf-8")
                 return json.loads(raw) if raw else {}
         except urllib.error.HTTPError as e:
@@ -181,7 +183,8 @@ class GoogleHealthClient:
         """Google Health API: GET .../dataTypes/weight/dataPoints"""
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        max_pages = 12 if days >= 60 else 8
+        # Cap pages: ~100 pts/page is plenty for daily weigh-ins over 90d.
+        max_pages = 3 if days >= 60 else 2
         data = self._paginate_data_points("weight", max_pages=max_pages)
         return parse_health_api_weight(data, start=start)
 
@@ -189,8 +192,8 @@ class GoogleHealthClient:
         """Google Health API: GET .../dataTypes/sleep/dataPoints"""
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        # More pages for longer windows (e.g. 90d rolling averages)
-        max_pages = 12 if days >= 60 else 5
+        # Sleep segments can be denser than weight; still bound pages tightly.
+        max_pages = 4 if days >= 60 else 2
         data = self._paginate_data_points("sleep", max_pages=max_pages)
         return parse_health_api_sleep(data, start=start)
 
@@ -283,28 +286,34 @@ class GoogleHealthClient:
 
     def fetch_nutrition(self, days: int = 30) -> List[NutritionDay]:
         """Food log macros/calories — needs googlehealth.nutrition.readonly."""
-        # Prefer raw list (meal-level), fall back to daily rollup
+        # Prefer daily rollup (one call) over multi-page meal logs for speed.
         try:
-            data = self._paginate_data_points("nutrition-log", max_pages=6)
-            days_list = parse_nutrition_log_points(data, days=days)
+            data = self.daily_rollup("nutrition-log", days=min(days, 30))
+            days_list = parse_nutrition_rollup(data)
             if days_list:
                 return days_list
         except GoogleHealthError:
             pass
-        data = self.daily_rollup("nutrition-log", days=days)
-        return parse_nutrition_rollup(data)
+        try:
+            data = self._paginate_data_points("nutrition-log", max_pages=3)
+            return parse_nutrition_log_points(data, days=days)
+        except GoogleHealthError:
+            return []
 
     def fetch_hydration(self, days: int = 30) -> List[HydrationDay]:
         """Water intake — needs googlehealth.nutrition.readonly."""
         try:
-            data = self._paginate_data_points("hydration-log", max_pages=4)
-            days_list = parse_hydration_log_points(data, days=days)
+            data = self.daily_rollup("hydration-log", days=min(days, 30))
+            days_list = parse_hydration_rollup(data)
             if days_list:
                 return days_list
         except GoogleHealthError:
             pass
-        data = self.daily_rollup("hydration-log", days=days)
-        return parse_hydration_rollup(data)
+        try:
+            data = self._paginate_data_points("hydration-log", max_pages=2)
+            return parse_hydration_log_points(data, days=days)
+        except GoogleHealthError:
+            return []
 
     def fetch_calories_burned(self, days: int = 14) -> List[CaloriesBurnedDay]:
         """Activity total calories — needs activity_and_fitness.readonly."""
@@ -319,34 +328,66 @@ class GoogleHealthClient:
                     "(or set GOOGLE_CLIENT_ID / SECRET / REFRESH_TOKEN)."
                 )
             )
+        # Warm token once on this thread before parallel workers share it.
+        try:
+            self.ensure_access_token()
+        except GoogleHealthError as e:
+            return HealthSnapshot(error=str(e))
+
         errors: List[str] = []
         weight: List[WeightSample] = []
         sleep: List[SleepSample] = []
         nutrition: List[NutritionDay] = []
         hydration: List[HydrationDay] = []
         calories_burned: List[CaloriesBurnedDay] = []
-        try:
-            weight = self.fetch_weight(days=days)
-        except GoogleHealthError as e:
-            errors.append(f"weight: {e}")
-        try:
-            # Sleep needs enough history for rolling averages (e.g. 90d charts)
-            sleep = self.fetch_sleep(days=days)
-        except GoogleHealthError as e:
-            errors.append(f"sleep: {e}")
-        try:
-            nutrition = self.fetch_nutrition(days=min(days, 30))
-        except GoogleHealthError as e:
-            errors.append(f"nutrition: {e}")
-        try:
-            hydration = self.fetch_hydration(days=min(days, 30))
-        except GoogleHealthError as e:
-            errors.append(f"hydration: {e}")
-        try:
-            # total-calories rollup max window is 14 days per API
-            calories_burned = self.fetch_calories_burned(days=min(days, 14))
-        except GoogleHealthError as e:
-            errors.append(f"calories_burned: {e}")
+
+        def _weight() -> List[WeightSample]:
+            return self.fetch_weight(days=days)
+
+        def _sleep() -> List[SleepSample]:
+            return self.fetch_sleep(days=days)
+
+        def _nutrition() -> List[NutritionDay]:
+            return self.fetch_nutrition(days=min(days, 30))
+
+        def _hydration() -> List[HydrationDay]:
+            return self.fetch_hydration(days=min(days, 30))
+
+        def _burned() -> List[CaloriesBurnedDay]:
+            return self.fetch_calories_burned(days=min(days, 14))
+
+        jobs = {
+            "weight": _weight,
+            "sleep": _sleep,
+            "nutrition": _nutrition,
+            "hydration": _hydration,
+            "calories_burned": _burned,
+        }
+        # Parallel streams — sequential 5× calls was exceeding the dashboard
+        # 20s wall timeout even when Google was healthy.
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futs = {pool.submit(fn): name for name, fn in jobs.items()}
+            for fut in as_completed(futs):
+                name = futs[fut]
+                try:
+                    result = fut.result()
+                except GoogleHealthError as e:
+                    errors.append(f"{name}: {e}")
+                    continue
+                except Exception as e:  # noqa: BLE001
+                    errors.append(f"{name}: {e}")
+                    continue
+                if name == "weight":
+                    weight = result  # type: ignore[assignment]
+                elif name == "sleep":
+                    sleep = result  # type: ignore[assignment]
+                elif name == "nutrition":
+                    nutrition = result  # type: ignore[assignment]
+                elif name == "hydration":
+                    hydration = result  # type: ignore[assignment]
+                elif name == "calories_burned":
+                    calories_burned = result  # type: ignore[assignment]
+
         err = "; ".join(errors) if errors else None
         if (
             not weight
@@ -520,14 +561,78 @@ def _deep_find_num(obj: Any, keys: Tuple[str, ...]) -> Optional[float]:
     return None
 
 
+def _mass_grams(obj: Any) -> Optional[float]:
+    """Read grams / gramsSum from a mass object or bare number."""
+    if obj is None:
+        return None
+    if isinstance(obj, (int, float)):
+        return float(obj)
+    if isinstance(obj, dict):
+        return _num(obj.get("grams"), obj.get("gramsSum"), obj.get("value"), obj.get("sum"))
+    return None
+
+
+def _energy_kcal(obj: Any) -> Optional[float]:
+    if obj is None:
+        return None
+    if isinstance(obj, (int, float)):
+        return float(obj)
+    if isinstance(obj, dict):
+        return _num(obj.get("kcal"), obj.get("kcalSum"), obj.get("calories"), obj.get("value"))
+    return None
+
+
 def _nutrient_grams_from_list(nlog: dict, name: str) -> Optional[float]:
+    want = name.upper()
+    aliases = {want}
+    if want == "PROTEIN":
+        aliases |= {"PROTEIN", "TOTAL_PROTEIN"}
+    if want in ("CARBOHYDRATES", "CARBS"):
+        aliases |= {"CARBOHYDRATES", "CARBS", "TOTAL_CARBOHYDRATE", "TOTAL_CARBOHYDRATES"}
+    if want in ("FAT", "TOTAL_FAT"):
+        aliases |= {"FAT", "TOTAL_FAT"}
     for item in nlog.get("nutrients") or []:
         if not isinstance(item, dict):
             continue
-        if str(item.get("nutrient", "")).upper() == name.upper():
+        if str(item.get("nutrient", "")).upper() in aliases:
             q = item.get("quantity") or {}
-            return _num(q.get("grams"), q.get("value"))
+            g = _mass_grams(q)
+            if g is not None:
+                return g
     return None
+
+
+def _macros_from_nutrition_log(nlog: dict) -> Dict[str, Optional[float]]:
+    """Extract calories + macros from a meal log or daily rollup nutritionLog block.
+
+    Meal shape: energy.kcal, totalCarbohydrate.grams, nutrients[].quantity.grams
+    Rollup shape: energy.kcalSum, totalCarbohydrate.gramsSum,
+                  nutrients[].quantity.gramsSum (PROTEIN often only here)
+    """
+    # Prefer total food energy — never energyFromFat (that is only fat-derived kcal).
+    cal = _energy_kcal(nlog.get("energy"))
+    if cal is None:
+        cal = _num(nlog.get("calories"), nlog.get("kcal"))
+
+    carbs = _mass_grams(nlog.get("totalCarbohydrate") or nlog.get("total_carbohydrate"))
+    fat = _mass_grams(nlog.get("totalFat") or nlog.get("total_fat"))
+    protein = _mass_grams(nlog.get("totalProtein") or nlog.get("total_protein"))
+
+    if protein is None:
+        protein = _nutrient_grams_from_list(nlog, "PROTEIN")
+    if carbs is None:
+        carbs = _nutrient_grams_from_list(nlog, "CARBOHYDRATES")
+    if fat is None:
+        fat = _nutrient_grams_from_list(nlog, "FAT") or _nutrient_grams_from_list(
+            nlog, "TOTAL_FAT"
+        )
+
+    return {
+        "calories": cal,
+        "protein_g": protein,
+        "carbs_g": carbs,
+        "fat_g": fat,
+    }
 
 
 def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionDay]:
@@ -555,31 +660,13 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
         if not date or date < cutoff:
             continue
 
-        energy = nlog.get("energy") or {}
-        cal = _num(energy.get("kcal"), energy.get("calories"))
-        carbs = _num((nlog.get("totalCarbohydrate") or {}).get("grams"))
-        fat = _num((nlog.get("totalFat") or {}).get("grams"))
-        protein = _num((nlog.get("totalProtein") or {}).get("grams"))
-        if protein is None:
-            protein = _nutrient_grams_from_list(nlog, "PROTEIN")
-        if carbs is None:
-            carbs = _nutrient_grams_from_list(nlog, "CARBOHYDRATES")
-        if fat is None:
-            fat = _nutrient_grams_from_list(nlog, "FAT") or _nutrient_grams_from_list(
-                nlog, "TOTAL_FAT"
-            )
-
+        macros = _macros_from_nutrition_log(nlog)
         bucket = by_date.setdefault(
             date, {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
         )
-        if cal is not None:
-            bucket["calories"] += cal
-        if protein is not None:
-            bucket["protein_g"] += protein
-        if carbs is not None:
-            bucket["carbs_g"] += carbs
-        if fat is not None:
-            bucket["fat_g"] += fat
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            if macros.get(k) is not None:
+                bucket[k] += float(macros[k])  # type: ignore[arg-type]
     out: List[NutritionDay] = []
     for d in sorted(by_date.keys()):
         b = by_date[d]
@@ -599,28 +686,38 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
 
 
 def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
+    """Parse dailyRollUp nutrition-log points.
+
+    Observed Fitbit→Google Health shape (2026)::
+      rollupDataPoints[].civilStartTime.date
+      nutritionLog.energy.kcalSum
+      nutritionLog.totalCarbohydrate.gramsSum / totalFat.gramsSum
+      nutritionLog.nutrients[{nutrient: PROTEIN, quantity.gramsSum}]
+    """
     out: List[NutritionDay] = []
     for pt in payload.get("rollupDataPoints") or []:
         date = _civil_date_str(pt.get("civilStartTime"))
         if not date:
             continue
         n = pt.get("nutritionLog") or pt.get("nutrition_log") or {}
-        cal = _deep_find_num(n, ("calories", "calorieskcal", "calorieskcalsum", "kcalsum", "kcal"))
-        protein = _deep_find_num(n, ("proteingrams", "proteingramssum", "protein"))
-        carbs = _deep_find_num(n, ("carbohydratesgrams", "carbohydratesgramssum", "carbs"))
-        fat = _deep_find_num(n, ("fatgrams", "fatgramssum", "fat"))
-        if cal is None and protein is None and carbs is None and fat is None:
+        if not isinstance(n, dict):
+            continue
+        macros = _macros_from_nutrition_log(n)
+        if all(macros.get(k) is None for k in ("calories", "protein_g", "carbs_g", "fat_g")):
             continue
         out.append(
             NutritionDay(
                 date=date,
-                calories=round(cal, 1) if cal is not None else None,
-                protein_g=round(protein, 1) if protein is not None else None,
-                carbs_g=round(carbs, 1) if carbs is not None else None,
-                fat_g=round(fat, 1) if fat is not None else None,
+                calories=round(macros["calories"], 1) if macros["calories"] is not None else None,
+                protein_g=round(macros["protein_g"], 1)
+                if macros["protein_g"] is not None
+                else None,
+                carbs_g=round(macros["carbs_g"], 1) if macros["carbs_g"] is not None else None,
+                fat_g=round(macros["fat_g"], 1) if macros["fat_g"] is not None else None,
                 source="google_health",
             )
         )
+    out.sort(key=lambda x: x.date)
     return out
 
 

@@ -254,7 +254,12 @@ def next_session_type(sessions: Sequence[Session], goals: dict) -> str:
 def days_since_last_session(sessions: Sequence[Session], as_of: Optional[str] = None) -> Optional[int]:
     if not sessions:
         return None
-    day = as_of or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = as_of
     ordered = sorted(sessions, key=lambda s: s.date, reverse=True)
     try:
         last = datetime.strptime(ordered[0].date, "%Y-%m-%d")
@@ -338,7 +343,16 @@ def generate_workout_plan(
     Similar role to generate_meal_plan for nutrition.
     """
     goals = normalize_goals(goals)
-    day = as_of or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = as_of
+    # Ignore canary / probe lifts when choosing rotation and loads
+    from .test_noise import filter_sessions
+
+    sessions = filter_sessions(list(sessions))
     available = available_exercises(catalog)
     by_id = {ex["id"]: ex for ex in available}
 

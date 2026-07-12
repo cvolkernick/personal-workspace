@@ -63,15 +63,19 @@ def _bootstrap_env() -> None:
 _bootstrap_env()
 
 from rt_dashboard.analytics import dashboard_payload  # noqa: E402
+from rt_dashboard.background_refresh import maybe_schedule_background_refresh  # noqa: E402
 from rt_dashboard.dashboard_cache import (  # noqa: E402
     cache_status,
+    health_cache_is_fresh,
     is_fresh,
     load_github_sessions_cache,
     load_health_cache,
+    merge_health_snapshots,
     save_github_sessions_cache,
     save_health_cache,
     ttl_sec,
 )
+from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
@@ -231,10 +235,17 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     t0 = datetime.utcnow()
     local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
     remote_timeout = float(os.environ.get("GITHUB_PULL_TIMEOUT_SEC", "12"))
-    health_timeout = float(os.environ.get("HEALTH_PULL_TIMEOUT_SEC", "20"))
+    # Full Health pull (parallel streams) typically finishes in ~10–25s; keep headroom.
+    health_timeout = float(os.environ.get("HEALTH_PULL_TIMEOUT_SEC", "60"))
     force_local = os.environ.get("GITHUB_PREFER_LOCAL", "").lower() in ("1", "true", "yes")
     token = os.environ.get("GITHUB_TOKEN", "")
     cache_ttl = ttl_sec()
+    local_today = local_today_iso()
+    tz_name = local_tz_name()
+    try:
+        incremental_days = max(3, int(os.environ.get("HEALTH_INCREMENTAL_DAYS", "14")))
+    except ValueError:
+        incremental_days = 14
 
     # --- Local lifts + inventory (always live) ---
     local_sessions: List[Session] = []
@@ -272,7 +283,17 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     cached_health, health_fetched_at, health_cache_meta = load_health_cache()
     cached_remote, gh_fetched_at, gh_cache_meta = load_github_sessions_cache()
 
-    health_fresh = bool(cached_health is not None and is_fresh(health_fetched_at, cache_ttl))
+    # Use health-aware freshness (empty/error pulls expire in ~5m, not 1h).
+    health_fresh = bool(
+        health_cache_meta.get("hit")
+        and health_cache_meta.get("fresh")
+        and health_cache_is_fresh(
+            health_fetched_at,
+            cached_health,
+            last_error=health_cache_meta.get("last_error"),
+            ttl=cache_ttl,
+        )
+    )
     gh_fresh = bool(gh_cache_meta.get("hit") and is_fresh(gh_fetched_at, cache_ttl))
 
     need_health = force_refresh or not health_fresh
@@ -310,12 +331,22 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         return remote.pull_sessions()
 
     def _fetch_health() -> HealthSnapshot:
-        google_health = health_client.fetch_health(days=90)
-        return resolve_health_snapshot(
+        # Full 90d on force / cold cache; otherwise recent window + merge.
+        use_full = force_refresh or cached_health is None
+        days = 90 if use_full else incremental_days
+        google_health = health_client.fetch_health(days=days)
+        resolved = resolve_health_snapshot(
             google_health,
             workspace_dir=local_dir,
             github_token=token,
         )
+        if not use_full and cached_health is not None:
+            return merge_health_snapshots(cached_health, resolved)
+        if use_full and cached_health is not None:
+            # Force refresh still merges so we don't drop older points if
+            # pagination was capped short.
+            return merge_health_snapshots(cached_health, resolved)
+        return resolved
 
     if need_health or need_github:
         pool = ThreadPoolExecutor(max_workers=2)
@@ -406,12 +437,13 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         weight=health.weight,
         sleep=health.sleep,
         sessions=sessions,
+        as_of=local_today,
     )
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
     payload["recovery"] = recovery.to_dict()
 
-    consumed = today_consumed_from_nutrition(health.nutrition)
+    consumed = today_consumed_from_nutrition(health.nutrition, as_of=local_today)
     auto_plan = generate_meal_plan(
         nut["inventory"] or {"ingredients": []},
         nut["targets"] or {},
@@ -434,6 +466,7 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             sessions,
             recovery_label=(recovery.label if recovery else None),
             recovery_score=(recovery.score if recovery else None),
+            as_of=local_today,
         )
         payload["workout_store"] = {
             "catalog": wo["catalog"],
@@ -468,8 +501,18 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "load_ms": elapsed_ms,
         "cache": cache_notes,
         "cache_ttl_sec": cache_ttl,
+        "local_today": local_today,
+        "timezone": tz_name,
         "generated_at": datetime.utcnow().isoformat() + "Z",
     }
+
+    # Serve cache-fast responses, then refresh remotes in the background.
+    if not force_refresh:
+        maybe_schedule_background_refresh(
+            local_dir=local_dir or "",
+            token=token,
+            health_age_sec=(health_cache_meta or {}).get("age_sec"),
+        )
     return payload
 
 
@@ -479,7 +522,7 @@ def parse_log_body(data: dict) -> Session:
     if st not in ("push", "pull", "legs"):
         raise ValueError("session_type must be push, pull, or legs")
     if not date:
-        date = datetime.utcnow().strftime("%Y-%m-%d")
+        date = local_today_iso()
     # validate date
     datetime.strptime(date, "%Y-%m-%d")
     exercises_in = data.get("exercises") or []
@@ -734,9 +777,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 question = str(body.get("question") or body.get("q") or "").strip()
                 history = body.get("history") if isinstance(body.get("history"), list) else []
                 model = body.get("model")
-                # Prefer cached remotes so asks stay fast; local lifts still live.
-                qs_force = bool(body.get("refresh") or body.get("force_refresh"))
-                dashboard = load_dashboard_data(force_refresh=qs_force)
+                # Never force remote Health on Ask — use disk cache + local lifts.
+                dashboard = load_dashboard_data(force_refresh=False)
                 result = ask_about_dashboard(
                     question,
                     dashboard,

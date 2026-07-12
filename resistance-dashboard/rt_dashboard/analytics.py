@@ -149,19 +149,27 @@ def top_exercises(sessions: Sequence[Session], limit: int = 12) -> List[str]:
 
 
 def dashboard_payload(sessions: Sequence[Session]) -> Dict[str, Any]:
-    exercises = top_exercises(sessions)
-    trends = {name: strength_trend(sessions, name) for name in exercises}
+    from .test_noise import filter_sessions, is_test_exercise_name
+
+    clean = filter_sessions(sessions)
+    exercises = [
+        n for n in top_exercises(clean) if not is_test_exercise_name(n)
+    ]
+    trends = {name: strength_trend(clean, name) for name in exercises}
     slopes = {
-        name: exercise_strength_slope_lbs_per_day(sessions, name)
+        name: exercise_strength_slope_lbs_per_day(clean, name)
         for name in exercises
     }
     return {
+        # Keep raw sessions for history (includes everything logged);
+        # charts/trends use cleaned series above.
         "sessions": [s.to_dict() for s in sessions],
-        "volume_by_session": volume_by_session(sessions),
-        "volume_by_week": volume_by_week(sessions),
+        "volume_by_session": volume_by_session(clean),
+        "volume_by_week": volume_by_week(clean),
         "top_exercises": exercises,
         "strength_trends": trends,
         "strength_slopes": slopes,
         "session_count": len(sessions),
         "total_volume": sum(session_volume(s) for s in sessions),
+        "session_count_clean": len(clean),
     }
