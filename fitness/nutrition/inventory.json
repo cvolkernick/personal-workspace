@@ -92,17 +92,6 @@
       "in_stock": true
     },
     {
-      "id": "salad-mix",
-      "name": "Salad mix",
-      "category": "veg",
-      "serving_label": "2 cups",
-      "calories": 20,
-      "protein_g": 2,
-      "carbs_g": 4,
-      "fat_g": 0,
-      "in_stock": true
-    },
-    {
       "id": "oats",
       "name": "Oats",
       "category": "carb",
