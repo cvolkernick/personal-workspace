@@ -3,18 +3,6 @@
   "notes": "Curated pantry/fridge inventory. serving macros are per serving_label amount.",
   "ingredients": [
     {
-      "id": "chicken-breast",
-      "name": "Chicken breast",
-      "category": "protein",
-      "serving_label": "8 oz cooked",
-      "calories": 370,
-      "protein_g": 70,
-      "carbs_g": 0,
-      "fat_g": 8,
-      "in_stock": true,
-      "notes": "Primary lunch protein"
-    },
-    {
       "id": "tilapia",
       "name": "Tilapia",
       "category": "protein",
