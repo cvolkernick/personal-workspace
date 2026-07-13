@@ -58,38 +58,99 @@
     $("alerts").innerHTML = "";
   }
 
-  function addExerciseRow(prefill = {}) {
-    const wrap = $("exercise-rows");
+  function addSetRow(setsWrap, prefill = {}) {
     const row = document.createElement("div");
-    row.className = "exercise-row";
+    row.className = "set-row";
     row.innerHTML = `
-      <label>Exercise
-        <input type="text" class="ex-name" required placeholder="e.g. DB Flat Press" value="${prefill.name || ""}" />
-      </label>
       <label>Weight (lbs)
-        <input type="number" class="ex-weight" required min="0" step="0.5" value="${prefill.weight_lbs ?? ""}" />
+        <input type="number" class="set-weight" required min="0" step="0.5" value="${prefill.weight_lbs ?? ""}" />
       </label>
       <label>Sets
-        <input type="number" class="ex-sets" required min="1" step="1" value="${prefill.sets ?? 3}" />
+        <input type="number" class="set-sets" required min="1" step="1" value="${prefill.sets ?? 1}" />
       </label>
       <label>Reps
-        <input type="number" class="ex-reps" required min="1" step="1" value="${prefill.reps ?? 10}" />
+        <input type="number" class="set-reps" required min="1" step="1" value="${prefill.reps ?? 10}" />
       </label>
-      <button type="button" class="ex-remove" aria-label="Remove">✕</button>
+      <button type="button" class="set-remove" aria-label="Remove set">✕</button>
     `;
-    row.querySelector(".ex-remove").addEventListener("click", () => {
-      if ($("exercise-rows").children.length > 1) row.remove();
+    row.querySelector(".set-remove").addEventListener("click", () => {
+      if (setsWrap.querySelectorAll(".set-row").length > 1) row.remove();
     });
-    wrap.appendChild(row);
+    setsWrap.appendChild(row);
+  }
+
+  /**
+   * One exercise card with multiple set groups.
+   * Saves as: Name: 50 lbs x 1 x 10, 45 lbs x 1 x 8  (matches existing logs)
+   * prefill: { name, sets: [{weight_lbs, sets, reps}, ...] } or flat weight/sets/reps
+   */
+  function addExerciseRow(prefill = {}) {
+    const wrap = $("exercise-rows");
+    const card = document.createElement("div");
+    card.className = "exercise-card";
+
+    let setPrefills = [];
+    if (Array.isArray(prefill.sets) && prefill.sets.length) {
+      setPrefills = prefill.sets;
+    } else if (prefill.weight_lbs != null || prefill.reps != null) {
+      setPrefills = [
+        {
+          weight_lbs: prefill.weight_lbs,
+          sets: prefill.sets ?? 3,
+          reps: prefill.reps ?? 10,
+        },
+      ];
+    } else {
+      setPrefills = [{ weight_lbs: "", sets: 1, reps: 10 }];
+    }
+
+    card.innerHTML = `
+      <div class="exercise-card-head">
+        <label class="ex-name-label">Exercise
+          <input type="text" class="ex-name" required placeholder="e.g. DB Flat Press" value="${prefill.name || ""}" />
+        </label>
+        <button type="button" class="ex-remove" aria-label="Remove exercise">Remove</button>
+      </div>
+      <div class="set-rows"></div>
+      <div class="exercise-card-actions">
+        <button type="button" class="btn-add-set">+ Set</button>
+        <span class="muted set-hint">Different weights? Add a set per load. Same load ×3 → set Sets=3. PR is auto-tagged from history on save.</span>
+      </div>
+    `;
+
+    const setsWrap = card.querySelector(".set-rows");
+    setPrefills.forEach((s) => addSetRow(setsWrap, s));
+
+    card.querySelector(".btn-add-set").addEventListener("click", () => {
+      const last = setsWrap.querySelector(".set-row:last-child");
+      const pref = last
+        ? {
+            weight_lbs: last.querySelector(".set-weight").value,
+            sets: 1,
+            reps: last.querySelector(".set-reps").value || 10,
+          }
+        : { sets: 1, reps: 10 };
+      addSetRow(setsWrap, pref);
+      setsWrap.querySelector(".set-row:last-child .set-weight")?.focus();
+    });
+
+    card.querySelector(".ex-remove").addEventListener("click", () => {
+      if ($("exercise-rows").children.length > 1) card.remove();
+    });
+
+    wrap.appendChild(card);
   }
 
   function collectExercises() {
-    return [...$("exercise-rows").querySelectorAll(".exercise-row")].map((row) => ({
-      name: row.querySelector(".ex-name").value.trim(),
-      weight_lbs: Number(row.querySelector(".ex-weight").value),
-      sets: Number(row.querySelector(".ex-sets").value),
-      reps: Number(row.querySelector(".ex-reps").value),
-    }));
+    return [...$("exercise-rows").querySelectorAll(".exercise-card")].map((card) => {
+      const name = card.querySelector(".ex-name").value.trim();
+      const sets = [...card.querySelectorAll(".set-row")].map((row) => ({
+        weight_lbs: Number(row.querySelector(".set-weight").value),
+        sets: Number(row.querySelector(".set-sets").value) || 1,
+        reps: Number(row.querySelector(".set-reps").value),
+      }));
+      return { name, sets };
+    });
   }
 
   function destroyChart(c) {
@@ -408,7 +469,7 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
-      // Chronological order; only days that have at least one macro value.
+      // Chronological; % of calories from P/C/F (4/4/9 kcal per gram).
       const macroDays = downsamplePoints(
         [...nutrition]
           .filter(
@@ -419,33 +480,187 @@
           .sort((a, b) => String(a.date).localeCompare(String(b.date))),
         45
       );
+      const splits = macroDays.map((n) => {
+        const p = Number(n.protein_g) || 0;
+        const c = Number(n.carbs_g) || 0;
+        const f = Number(n.fat_g) || 0;
+        const pK = p * 4;
+        const cK = c * 4;
+        const fK = f * 9;
+        const tot = pK + cK + fK;
+        if (tot <= 0) return { p: null, c: null, f: null, grams: { p, c, f } };
+        return {
+          p: Math.round((pK / tot) * 1000) / 10,
+          c: Math.round((cK / tot) * 1000) / 10,
+          f: Math.round((fK / tot) * 1000) / 10,
+          grams: { p, c, f },
+        };
+      });
+      const pPct = splits.map((s) => s.p);
+      const cPct = splits.map((s) => s.c);
+      const fPct = splits.map((s) => s.f);
+      const rollWin = 7;
+      const pRoll = rollingAverage(pPct, rollWin).map((v) =>
+        v == null ? null : Math.round(v * 10) / 10
+      );
+      const cRoll = rollingAverage(cPct, rollWin).map((v) =>
+        v == null ? null : Math.round(v * 10) / 10
+      );
+      const fRoll = rollingAverage(fPct, rollWin).map((v) =>
+        v == null ? null : Math.round(v * 10) / 10
+      );
+      const base = chartDefaults();
       macrosChart = new Chart($("chart-macros"), {
-        type: "bar",
         data: {
           labels: macroDays.map((n) => n.date),
           datasets: [
             {
-              label: "Protein (g)",
-              data: macroDays.map((n) => n.protein_g),
-              backgroundColor: "rgba(61,156,240,0.65)",
-              borderRadius: 4,
+              type: "bar",
+              label: "Protein %",
+              data: pPct,
+              backgroundColor: "rgba(61,156,240,0.45)",
+              borderRadius: 2,
+              stack: "macros",
+              yAxisID: "y",
+              order: 2,
             },
             {
-              label: "Carbs (g)",
-              data: macroDays.map((n) => n.carbs_g),
-              backgroundColor: "rgba(240,180,41,0.65)",
-              borderRadius: 4,
+              type: "bar",
+              label: "Carbs %",
+              data: cPct,
+              backgroundColor: "rgba(240,180,41,0.45)",
+              borderRadius: 2,
+              stack: "macros",
+              yAxisID: "y",
+              order: 2,
             },
             {
-              label: "Fat (g)",
-              data: macroDays.map((n) => n.fat_g),
-              backgroundColor: "rgba(240,113,120,0.55)",
-              borderRadius: 4,
+              type: "bar",
+              label: "Fat %",
+              data: fPct,
+              backgroundColor: "rgba(240,113,120,0.4)",
+              borderRadius: 2,
+              stack: "macros",
+              yAxisID: "y",
+              order: 2,
+            },
+            {
+              type: "line",
+              label: "Protein 7d avg",
+              data: pRoll,
+              borderColor: "#3d9cf0",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true,
+              yAxisID: "y2",
+              order: 1,
+            },
+            {
+              type: "line",
+              label: "Carbs 7d avg",
+              data: cRoll,
+              borderColor: "#f0b429",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true,
+              yAxisID: "y2",
+              order: 1,
+            },
+            {
+              type: "line",
+              label: "Fat 7d avg",
+              data: fRoll,
+              borderColor: "#f07178",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true,
+              yAxisID: "y2",
+              order: 1,
             },
           ],
         },
-        options: chartDefaults(),
+        options: {
+          ...base,
+          scales: {
+            x: {
+              ...base.scales.x,
+              stacked: true,
+            },
+            y: {
+              ...base.scales.y,
+              stacked: true,
+              min: 0,
+              max: 100,
+              ticks: {
+                ...base.scales.y.ticks,
+                callback: (v) => `${v}%`,
+              },
+              title: {
+                display: true,
+                text: "Daily split",
+                color: "#8b9bb4",
+                font: { size: 11 },
+              },
+            },
+            // Separate axis so rolling lines are not stacked on the bars.
+            y2: {
+              display: false,
+              min: 0,
+              max: 100,
+              stacked: false,
+              grid: { drawOnChartArea: false },
+            },
+          },
+          plugins: {
+            ...base.plugins,
+            tooltip: {
+              callbacks: {
+                label(ctx) {
+                  const i = ctx.dataIndex;
+                  const label = ctx.dataset.label || "";
+                  const pct = ctx.parsed.y;
+                  if (pct == null || Number.isNaN(pct)) return label;
+                  if (label.includes("7d avg")) {
+                    return `${label}: ${pct}%`;
+                  }
+                  const key = ["p", "c", "f"][ctx.datasetIndex];
+                  const s = splits[i];
+                  const g = s?.grams?.[key];
+                  const name = label.replace(" %", "");
+                  return `${name}: ${pct}%${g != null ? ` (${Math.round(g)} g)` : ""}`;
+                },
+              },
+            },
+          },
+        },
       });
+      if ($("macros-note")) {
+        const last = splits.length ? splits[splits.length - 1] : null;
+        const lastRoll = (() => {
+          for (let i = pRoll.length - 1; i >= 0; i--) {
+            if (pRoll[i] != null && cRoll[i] != null && fRoll[i] != null) {
+              return { p: pRoll[i], c: cRoll[i], f: fRoll[i] };
+            }
+          }
+          return null;
+        })();
+        if (!last || last.p == null) {
+          $("macros-note").textContent =
+            "Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %.";
+        } else {
+          const rollTxt = lastRoll
+            ? ` · 7d avg P ${lastRoll.p}% · C ${lastRoll.c}% · F ${lastRoll.f}%`
+            : "";
+          $("macros-note").textContent =
+            `Latest day: P ${last.p}% · C ${last.c}% · F ${last.f}% ` +
+            `(${Math.round(last.grams.p)} / ${Math.round(last.grams.c)} / ${Math.round(last.grams.f)} g)` +
+            rollTxt +
+            ` · bars = daily split, lines = ${rollWin}d rolling avg`;
+        }
+      }
     }
 
     destroyChart(hydrationChart);
@@ -517,6 +732,13 @@
     });
   }
 
+  function applyInventoryUpdate(inventory) {
+    if (!state) state = {};
+    if (!state.nutrition_store) state.nutrition_store = {};
+    state.nutrition_store.inventory = inventory;
+    renderInventory(state.nutrition_store);
+  }
+
   function renderInventory(store) {
     const list = $("inventory-list");
     if (!list) return;
@@ -530,54 +752,86 @@
     items.forEach((ing) => {
       const li = document.createElement("li");
       const stock = ing.in_stock !== false;
+      const iid = String(ing.id || "").replace(/"/g, "&quot;");
+      const iname = String(ing.name || "").replace(/"/g, "&quot;");
       li.innerHTML = `
         <div class="title">${ing.name} ${stock ? "" : "<span class='muted'>(out)</span>"}</div>
         <div class="meta">${ing.category || "other"} · ${ing.serving_label || "1 serving"} ·
           ${fmtNum(ing.calories)} kcal · P${fmtNum(ing.protein_g)} C${fmtNum(ing.carbs_g)} F${fmtNum(ing.fat_g)}</div>
         <div class="actions" style="margin-top:0.35rem">
-          <button type="button" class="btn-stock" data-id="${ing.id}" data-stock="${stock ? "0" : "1"}">
+          <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
             ${stock ? "Mark out of stock" : "Mark in stock"}
           </button>
-          <button type="button" class="btn-remove" data-id="${ing.id}">Remove</button>
+          <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">Remove</button>
         </div>
       `;
       list.appendChild(li);
     });
-    list.querySelectorAll(".btn-remove").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-id");
-        try {
+  }
+
+  /** One delegated listener — survives re-renders and avoids dead buttons. */
+  function bindInventoryListOnce() {
+    const list = $("inventory-list");
+    if (!list || list.dataset.bound === "1") return;
+    list.dataset.bound = "1";
+    list.addEventListener("click", async (ev) => {
+      const btn = ev.target.closest("button[data-action]");
+      if (!btn || !list.contains(btn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const action = btn.getAttribute("data-action");
+      const id = (btn.getAttribute("data-id") || "").trim();
+      const name = (btn.getAttribute("data-name") || "").trim();
+      if (!id && !name) {
+        showAlert("Remove failed: missing ingredient id", "err");
+        return;
+      }
+      btn.disabled = true;
+      try {
+        if (action === "remove") {
           const res = await fetch("/api/inventory/remove", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id }),
+            body: JSON.stringify({ id, name }),
           });
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-          showAlert(`Removed ${id}`, "ok");
-          await loadDashboard();
-        } catch (e) {
-          showAlert(`Remove failed: ${e.message}`, "err");
-        }
-      });
-    });
-    list.querySelectorAll(".btn-stock").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-id");
-        const in_stock = btn.getAttribute("data-stock") === "1";
-        try {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+          applyInventoryUpdate(data.inventory);
+          showAlert(`Removed ${name || id}`, "ok");
+          // Refresh meal plan only (no full remote pull)
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
+        } else if (action === "stock") {
+          const in_stock = btn.getAttribute("data-stock") === "1";
           const res = await fetch("/api/inventory/stock", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ id, in_stock }),
           });
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-          await loadDashboard();
-        } catch (e) {
-          showAlert(`Stock update failed: ${e.message}`, "err");
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+          applyInventoryUpdate(data.inventory);
+          showAlert(
+            in_stock ? `Marked ${name || id} in stock` : `Marked ${name || id} out of stock`,
+            "ok"
+          );
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
         }
-      });
+      } catch (e) {
+        showAlert(`${action === "remove" ? "Remove" : "Stock update"} failed: ${e.message}`, "err");
+        btn.disabled = false;
+      }
     });
   }
 
@@ -844,8 +1098,12 @@
   }
 
   async function loadDashboard(forceRefresh = false) {
+    // Guard: if used as a raw click handler, first arg is an Event (truthy).
+    if (forceRefresh && typeof forceRefresh !== "boolean") {
+      forceRefresh = false;
+    }
     $("btn-refresh").disabled = true;
-    clearAlerts();
+    // Don't wipe success toasts from inventory remove/add mid-action.
     const meta = $("meta-line");
     const started = Date.now();
     if (meta) {
@@ -861,7 +1119,7 @@
         : `Loading… ${sec}s (uses 1h cache for Health/GitHub)`;
     }, 500);
     try {
-      const url = forceRefresh ? "/api/dashboard?refresh=1" : "/api/dashboard";
+      const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
       const res = await fetch(url, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
@@ -904,9 +1162,16 @@
       if (!res.ok || !data.ok) {
         throw new Error(data.error || `HTTP ${res.status}`);
       }
-      status.textContent = `Saved to ${data.write.path} · verified=${data.write.verified_on_readback}`;
-      showAlert("Workout logged and re-read successfully.", "ok");
-      await loadDashboard();
+      const prs = data.auto_prs || [];
+      const prBit = prs.length ? ` · PRs: ${prs.join(", ")}` : "";
+      status.textContent = `Saved to ${data.write.path} · verified=${data.write.verified_on_readback}${prBit}`;
+      showAlert(
+        prs.length
+          ? `Workout saved. Auto-PR: ${prs.join(", ")}`
+          : "Workout logged and re-read successfully.",
+        "ok"
+      );
+      await loadDashboard(false);
     } catch (e) {
       status.textContent = "";
       showAlert(`Log failed: ${e.message}`, "err");
@@ -940,7 +1205,14 @@
       if (status) status.textContent = `Saved ${body.name}`;
       showAlert(`Inventory updated: ${body.name}`, "ok");
       $("ing-name").value = "";
-      await loadDashboard();
+      if (data.inventory) {
+        applyInventoryUpdate(data.inventory);
+      }
+      try {
+        await generatePlan();
+      } catch (_) {
+        /* optional */
+      }
     } catch (e) {
       if (status) status.textContent = "";
       showAlert(`Inventory save failed: ${e.message}`, "err");
@@ -1202,6 +1474,7 @@
   function init() {
     $("log-date").value = todayISO();
     addExerciseRow();
+    bindInventoryListOnce();
     $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     $("log-form").addEventListener("submit", submitWorkout);
     $("btn-refresh").addEventListener("click", () => loadDashboard(true));

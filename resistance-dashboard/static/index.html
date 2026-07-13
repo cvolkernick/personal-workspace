@@ -26,7 +26,36 @@
 
       <div id="alerts"></div>
 
-      <section class="grid stats" id="stats" aria-label="Summary stats">
+      <section class="card" style="margin-top: 0" id="ask-card">
+        <h2>Ask Grok about your data</h2>
+        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          Uses your SuperGrok / Grok Build login (<code>~/.grok/auth.json</code>).
+          Your question and Grok’s reply show in the chat box below. Answers use a
+          compact snapshot of this dashboard (lifts, recovery, nutrition, plans).
+          Expect <strong>about 15–60 seconds</strong>; stay on this page until it finishes.
+        </p>
+        <p class="muted" id="ask-auth-status" style="margin: 0.35rem 0 0.5rem; font-size: 0.85rem"></p>
+        <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
+        <form class="log-form ask-form" id="ask-form">
+          <label class="ask-input-label">
+            Question
+            <textarea
+              id="ask-question"
+              rows="2"
+              required
+              maxlength="4000"
+              placeholder="e.g. Am I recovering enough for legs this week? What's left for protein today?"
+            ></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary" id="btn-ask">Ask</button>
+            <button type="button" id="btn-ask-clear">Clear chat</button>
+          </div>
+          <p class="muted" id="ask-status" style="margin: 0"></p>
+        </form>
+      </section>
+
+      <section class="grid stats" style="margin-top: 1rem" id="stats" aria-label="Summary stats">
         <div class="card stat">
           <div class="label">Sessions</div>
           <div class="value" id="stat-sessions">—</div>
@@ -45,43 +74,39 @@
         </div>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem">
-        <article class="card" id="recovery-card">
-          <h2>Recovery status</h2>
-          <div id="recovery-badge"></div>
-          <ul class="reasons" id="recovery-reasons"></ul>
-          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
-        </article>
-
-        <article class="card" id="log-card">
-          <h2>Log workout</h2>
-          <form class="log-form" id="log-form">
-            <div class="row cols-3">
-              <label>
-                Session type
-                <select name="session_type" id="session_type" required>
-                  <option value="push">Push</option>
-                  <option value="pull">Pull</option>
-                  <option value="legs">Legs</option>
-                </select>
-              </label>
-              <label>
-                Date
-                <input type="date" name="date" id="log-date" required />
-              </label>
-              <label>
-                Notes
-                <input type="text" name="notes" id="log-notes" placeholder="Optional" />
-              </label>
-            </div>
-            <div id="exercise-rows"></div>
-            <div class="actions">
-              <button type="button" id="btn-add-ex">+ Exercise</button>
-              <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
-            </div>
-            <p class="muted" id="log-status" style="margin: 0"></p>
-          </form>
-        </article>
+      <section class="card" style="margin-top: 1rem" id="log-card">
+        <h2>Log workout</h2>
+        <form class="log-form" id="log-form">
+          <div class="row cols-3">
+            <label>
+              Session type
+              <select name="session_type" id="session_type" required>
+                <option value="push">Push</option>
+                <option value="pull">Pull</option>
+                <option value="legs">Legs</option>
+              </select>
+            </label>
+            <label>
+              Date
+              <input type="date" name="date" id="log-date" required />
+            </label>
+            <label>
+              Notes
+              <input type="text" name="notes" id="log-notes" placeholder="Optional" />
+            </label>
+          </div>
+          <p class="muted" style="margin: 0; font-size: 0.85rem">
+            One card per exercise. Use <strong>+ Set</strong> for different weights/reps
+            (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
+            sets: one set row with Sets = 3. PR is auto-tagged from history on save.
+          </p>
+          <div id="exercise-rows"></div>
+          <div class="actions">
+            <button type="button" id="btn-add-ex">+ Exercise</button>
+            <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
+          </div>
+          <p class="muted" id="log-status" style="margin: 0"></p>
+        </form>
       </section>
 
       <section class="grid two" style="margin-top: 1rem">
@@ -135,14 +160,23 @@
           <p class="muted" id="nutrition-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
         <article class="card">
-          <h2>Macros (g) &amp; hydration</h2>
-          <div class="chart-box"><canvas id="chart-macros" aria-label="Macros chart"></canvas></div>
+          <h2>Macro split (%)</h2>
+          <div class="chart-box"><canvas id="chart-macros" aria-label="Macro split chart"></canvas></div>
+          <p class="muted" id="macros-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
       </section>
 
-      <section class="card" style="margin-top: 1rem">
-        <h2>Hydration (ml)</h2>
-        <div class="chart-box"><canvas id="chart-hydration" aria-label="Hydration chart"></canvas></div>
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-hydration-row">
+        <article class="card card-fill" id="recovery-card">
+          <h2>Recovery status</h2>
+          <div id="recovery-badge"></div>
+          <ul class="reasons" id="recovery-reasons"></ul>
+          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
+        </article>
+        <article class="card card-fill" id="hydration-card">
+          <h2>Hydration (ml)</h2>
+          <div class="chart-box"><canvas id="chart-hydration" aria-label="Hydration chart"></canvas></div>
+        </article>
       </section>
 
       <section class="grid two" style="margin-top: 1rem" id="inventory-section">
@@ -296,36 +330,6 @@
           </form>
           <div id="workout-plan-result" style="margin-top: 0.75rem"></div>
         </article>
-      </section>
-
-      <section class="card" style="margin-top: 1rem" id="ask-card">
-        <h2>Ask Grok about your data</h2>
-        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
-          Uses your SuperGrok / Grok Build login (<code>~/.grok/auth.json</code>).
-          Your question and Grok’s reply show in the chat box below. Expect
-          <strong>about 30–90 seconds</strong> (up to ~2 minutes) — it reloads
-          live data first, then calls Grok. Stay on this page until the timer
-          finishes; don’t refresh mid-wait.
-        </p>
-        <p class="muted" id="ask-auth-status" style="margin: 0.35rem 0 0.5rem; font-size: 0.85rem"></p>
-        <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
-        <form class="log-form ask-form" id="ask-form">
-          <label class="ask-input-label">
-            Question
-            <textarea
-              id="ask-question"
-              rows="2"
-              required
-              maxlength="4000"
-              placeholder="e.g. Am I recovering enough for legs this week? What's left for protein today?"
-            ></textarea>
-          </label>
-          <div class="actions">
-            <button type="submit" class="primary" id="btn-ask">Ask</button>
-            <button type="button" id="btn-ask-clear">Clear chat</button>
-          </div>
-          <p class="muted" id="ask-status" style="margin: 0"></p>
-        </form>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="history-card">

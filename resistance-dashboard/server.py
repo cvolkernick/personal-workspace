@@ -75,6 +75,7 @@ from rt_dashboard.dashboard_cache import (  # noqa: E402
     save_health_cache,
     ttl_sec,
 )
+from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
@@ -550,20 +551,24 @@ def parse_log_body(data: dict) -> Session:
             sets_in = []
         set_entries = []
         for s in sets_in:
-            set_entries.append(
-                SetEntry(
-                    weight_lbs=float(s["weight_lbs"]),
-                    sets=int(s["sets"]),
-                    reps=int(s["reps"]),
-                )
-            )
+            if not isinstance(s, dict):
+                continue
+            try:
+                w = float(s.get("weight_lbs"))
+                sn = int(s.get("sets") if s.get("sets") is not None else 1)
+                r = int(s.get("reps"))
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"invalid set for {name}: {e}") from e
+            if sn < 1 or r < 1:
+                raise ValueError(f"sets and reps must be >= 1 for {name}")
+            set_entries.append(SetEntry(weight_lbs=w, sets=sn, reps=r))
         if not set_entries:
             raise ValueError(f"no sets for exercise {name}")
         exercises.append(
             ExerciseEntry(
                 name=name,
                 sets=set_entries,
-                is_pr=bool(ex.get("is_pr", False)),
+                is_pr=False,  # set by apply_auto_prs after history is loaded
             )
         )
     notes = str(data.get("notes") or "")
@@ -656,8 +661,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 body = self._read_json()
                 session = parse_log_body(body)
+                # Auto-tag PRs from history (prior sessions only), then write.
+                history, _, _, _ = pull_merged_sessions()
+                apply_auto_prs(session, history)
+                pr_names = [e.name for e in session.exercises if e.is_pr]
                 client = build_github_client(for_write=True)
-                # Prefer safe append (remote if token; else local workspace)
                 result = client.append_workout_safe(session)
                 # Reload via merged pull so response matches subsequent GET /api/dashboard
                 sessions, source, _err, _gh = pull_merged_sessions()
@@ -668,6 +676,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         "source": source,
                         "session_count": len(sessions),
                         "sessions_head": [s.to_dict() for s in sessions[:5]],
+                        "auto_prs": pr_names,
+                        "session": session.to_dict(),
                     }
                 )
             except (ValueError, json.JSONDecodeError) as e:

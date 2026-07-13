@@ -328,8 +328,9 @@ def remove_ingredient(inventory: dict, ingredient_id: str = "", name: str = "") 
 def set_in_stock(inventory: dict, ingredient_id: str, in_stock: bool) -> dict:
     inv = deepcopy(inventory) if inventory else {"ingredients": []}
     found = False
+    want = str(ingredient_id or "").strip().lower()
     for existing in inv.get("ingredients") or []:
-        if str(existing.get("id")) == ingredient_id:
+        if str(existing.get("id") or "").strip().lower() == want:
             existing["in_stock"] = bool(in_stock)
             found = True
             break

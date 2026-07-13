@@ -107,6 +107,22 @@ button:disabled {
   }
 }
 
+.grid.equal-cards {
+  align-items: stretch;
+}
+
+.grid.equal-cards > .card-fill {
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+  height: 100%;
+}
+
+.grid.equal-cards > .card-fill .chart-box {
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
 .card {
   background: var(--bg-card);
   border: 1px solid var(--border);
@@ -226,6 +242,73 @@ textarea {
   resize: vertical;
 }
 
+/* Multi-set exercise log cards */
+.exercise-card {
+  display: grid;
+  gap: 0.55rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem;
+}
+
+.exercise-card-head {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  align-items: end;
+}
+
+@media (min-width: 700px) {
+  .exercise-card-head {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+.ex-name-label {
+  min-width: 0;
+}
+
+.set-rows {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.set-row {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: 1fr;
+  align-items: end;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 0.5rem 0.55rem;
+}
+
+@media (min-width: 600px) {
+  .set-row {
+    grid-template-columns: 1.2fr 0.8fr 0.8fr auto;
+  }
+}
+
+.set-remove,
+.ex-remove {
+  font-size: 0.85rem;
+  padding: 0.45rem 0.65rem;
+}
+
+.exercise-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.set-hint {
+  font-size: 0.8rem;
+}
+
+/* legacy class kept for any remaining markup */
 .exercise-row {
   display: grid;
   gap: 0.4rem;
