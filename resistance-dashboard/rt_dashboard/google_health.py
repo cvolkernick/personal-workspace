@@ -253,8 +253,16 @@ class GoogleHealthClient:
             pass
         return self.fetch_sleep_fit(days=days)
 
-    def _civil_range_body(self, days: int, page_size: int = 60) -> dict:
-        end = datetime.now(timezone.utc).date()
+    def _civil_range_body(
+        self,
+        days: int,
+        page_size: int = 60,
+        *,
+        end_date: Optional[datetime] = None,
+    ) -> dict:
+        end = (end_date or datetime.now(timezone.utc)).date()
+        if isinstance(end, datetime):
+            end = end.date()
         start = end - timedelta(days=max(1, days - 1))
         # Google enforces windowSizeDays * pageSize <= maxDuration for some types
         page_size = min(page_size, max(1, days))
@@ -279,46 +287,110 @@ class GoogleHealthClient:
             "pageSize": page_size,
         }
 
-    def daily_rollup(self, data_type: str, days: int = 30) -> dict:
-        body = self._civil_range_body(days=days)
+    def daily_rollup(
+        self,
+        data_type: str,
+        days: int = 30,
+        *,
+        end_date: Optional[datetime] = None,
+    ) -> dict:
+        body = self._civil_range_body(days=days, end_date=end_date)
         url = f"{HEALTH_BASE}/dataTypes/{data_type}/dataPoints:dailyRollUp"
         return self._request("POST", url, body=body)
 
-    def fetch_nutrition(self, days: int = 30) -> List[NutritionDay]:
+    def _chunked_daily_rollup(
+        self,
+        data_type: str,
+        days: int,
+        chunk_days: int,
+    ) -> dict:
+        """Fetch rollups in chunks ending today, walking backward."""
+        days = max(1, int(days))
+        chunk_days = max(1, int(chunk_days))
+        end = datetime.now(timezone.utc)
+        remaining = days
+        all_pts: List[dict] = []
+        while remaining > 0:
+            take = min(chunk_days, remaining)
+            try:
+                data = self.daily_rollup(data_type, days=take, end_date=end)
+            except GoogleHealthError:
+                # Shrink chunk if API rejects larger windows
+                if take > 7:
+                    take = 7
+                    data = self.daily_rollup(data_type, days=take, end_date=end)
+                else:
+                    raise
+            pts = data.get("rollupDataPoints") or []
+            all_pts.extend(pts)
+            remaining -= take
+            end = end - timedelta(days=take)
+        return {"rollupDataPoints": all_pts}
+
+    def fetch_nutrition(self, days: int = 90) -> List[NutritionDay]:
         """Food log macros/calories — needs googlehealth.nutrition.readonly."""
-        # Prefer daily rollup (one call) over multi-page meal logs for speed.
+        days = max(1, min(int(days), 90))
+        # Prefer daily rollup; chunk if a single long window fails.
         try:
-            data = self.daily_rollup("nutrition-log", days=min(days, 30))
+            data = self.daily_rollup("nutrition-log", days=days)
             days_list = parse_nutrition_rollup(data)
             if days_list:
                 return days_list
         except GoogleHealthError:
-            pass
+            try:
+                data = self._chunked_daily_rollup("nutrition-log", days, chunk_days=30)
+                days_list = parse_nutrition_rollup(data)
+                if days_list:
+                    return days_list
+            except GoogleHealthError:
+                pass
         try:
-            data = self._paginate_data_points("nutrition-log", max_pages=3)
+            data = self._paginate_data_points("nutrition-log", max_pages=6)
             return parse_nutrition_log_points(data, days=days)
         except GoogleHealthError:
             return []
 
-    def fetch_hydration(self, days: int = 30) -> List[HydrationDay]:
+    def fetch_hydration(self, days: int = 90) -> List[HydrationDay]:
         """Water intake — needs googlehealth.nutrition.readonly."""
+        days = max(1, min(int(days), 90))
         try:
-            data = self.daily_rollup("hydration-log", days=min(days, 30))
+            data = self.daily_rollup("hydration-log", days=days)
             days_list = parse_hydration_rollup(data)
             if days_list:
                 return days_list
         except GoogleHealthError:
-            pass
+            try:
+                data = self._chunked_daily_rollup("hydration-log", days, chunk_days=30)
+                days_list = parse_hydration_rollup(data)
+                if days_list:
+                    return days_list
+            except GoogleHealthError:
+                pass
         try:
-            data = self._paginate_data_points("hydration-log", max_pages=2)
+            data = self._paginate_data_points("hydration-log", max_pages=4)
             return parse_hydration_log_points(data, days=days)
         except GoogleHealthError:
             return []
 
-    def fetch_calories_burned(self, days: int = 14) -> List[CaloriesBurnedDay]:
-        """Activity total calories — needs activity_and_fitness.readonly."""
-        data = self.daily_rollup("total-calories", days=min(days, 14))
-        return parse_total_calories_rollup(data)
+    def fetch_calories_burned(self, days: int = 90) -> List[CaloriesBurnedDay]:
+        """Activity total calories — needs activity_and_fitness.readonly.
+
+        Google often caps a single total-calories dailyRollUp window (~14d), so
+        we walk backward in chunks to cover a full 90-day chart span.
+        """
+        days = max(1, min(int(days), 90))
+        chunk = 14
+        try:
+            # Try one shot first (works for small windows)
+            if days <= chunk:
+                data = self.daily_rollup("total-calories", days=days)
+                return parse_total_calories_rollup(data)
+            data = self._chunked_daily_rollup("total-calories", days, chunk_days=chunk)
+            return parse_total_calories_rollup(data)
+        except GoogleHealthError:
+            # Last resort: single 14d window
+            data = self.daily_rollup("total-calories", days=min(days, chunk))
+            return parse_total_calories_rollup(data)
 
     def fetch_health(self, days: int = 30) -> HealthSnapshot:
         if not self.credentials_present():
@@ -348,13 +420,13 @@ class GoogleHealthClient:
             return self.fetch_sleep(days=days)
 
         def _nutrition() -> List[NutritionDay]:
-            return self.fetch_nutrition(days=min(days, 30))
+            return self.fetch_nutrition(days=days)
 
         def _hydration() -> List[HydrationDay]:
-            return self.fetch_hydration(days=min(days, 30))
+            return self.fetch_hydration(days=days)
 
         def _burned() -> List[CaloriesBurnedDay]:
-            return self.fetch_calories_burned(days=min(days, 14))
+            return self.fetch_calories_burned(days=days)
 
         jobs = {
             "weight": _weight,
@@ -694,7 +766,7 @@ def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
       nutritionLog.totalCarbohydrate.gramsSum / totalFat.gramsSum
       nutritionLog.nutrients[{nutrient: PROTEIN, quantity.gramsSum}]
     """
-    out: List[NutritionDay] = []
+    by_date: Dict[str, NutritionDay] = {}
     for pt in payload.get("rollupDataPoints") or []:
         date = _civil_date_str(pt.get("civilStartTime"))
         if not date:
@@ -705,20 +777,17 @@ def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
         macros = _macros_from_nutrition_log(n)
         if all(macros.get(k) is None for k in ("calories", "protein_g", "carbs_g", "fat_g")):
             continue
-        out.append(
-            NutritionDay(
-                date=date,
-                calories=round(macros["calories"], 1) if macros["calories"] is not None else None,
-                protein_g=round(macros["protein_g"], 1)
-                if macros["protein_g"] is not None
-                else None,
-                carbs_g=round(macros["carbs_g"], 1) if macros["carbs_g"] is not None else None,
-                fat_g=round(macros["fat_g"], 1) if macros["fat_g"] is not None else None,
-                source="google_health",
-            )
+        by_date[date] = NutritionDay(
+            date=date,
+            calories=round(macros["calories"], 1) if macros["calories"] is not None else None,
+            protein_g=round(macros["protein_g"], 1)
+            if macros["protein_g"] is not None
+            else None,
+            carbs_g=round(macros["carbs_g"], 1) if macros["carbs_g"] is not None else None,
+            fat_g=round(macros["fat_g"], 1) if macros["fat_g"] is not None else None,
+            source="google_health",
         )
-    out.sort(key=lambda x: x.date)
-    return out
+    return [by_date[k] for k in sorted(by_date.keys())]
 
 
 def parse_hydration_log_points(payload: dict, days: int = 30) -> List[HydrationDay]:
@@ -772,7 +841,7 @@ def parse_hydration_rollup(payload: dict) -> List[HydrationDay]:
 
 
 def parse_total_calories_rollup(payload: dict) -> List[CaloriesBurnedDay]:
-    out: List[CaloriesBurnedDay] = []
+    by_date: Dict[str, CaloriesBurnedDay] = {}
     for pt in payload.get("rollupDataPoints") or []:
         date = _civil_date_str(pt.get("civilStartTime"))
         if not date:
@@ -781,10 +850,10 @@ def parse_total_calories_rollup(payload: dict) -> List[CaloriesBurnedDay]:
         kcal = _num(tc.get("kcalSum"), tc.get("kcal"), tc.get("calories"))
         if kcal is None:
             continue
-        out.append(
-            CaloriesBurnedDay(date=date, calories=round(kcal, 1), source="google_health")
+        by_date[date] = CaloriesBurnedDay(
+            date=date, calories=round(kcal, 1), source="google_health"
         )
-    return out
+    return [by_date[k] for k in sorted(by_date.keys())]
 
 
 def parse_weight_aggregate(payload: dict) -> List[WeightSample]:

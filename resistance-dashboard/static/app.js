@@ -426,20 +426,128 @@
       ),
       45
     );
-    const calLabels = [
-      ...new Set([
-        ...nutrition.map((n) => n.date),
-        ...burned.map((b) => b.date),
-      ]),
-    ].sort();
+    // Align calories chart x-axis with weight chart: full ~90-day civil span.
+    const calSpanDays = 90;
+    const calEnd = new Date();
+    calEnd.setHours(0, 0, 0, 0);
+    const calLabels = [];
+    for (let i = calSpanDays - 1; i >= 0; i--) {
+      const d = new Date(calEnd);
+      d.setDate(d.getDate() - i);
+      const z = (n) => String(n).padStart(2, "0");
+      calLabels.push(
+        `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+      );
+    }
+    // Prefer full series (not downsampled) so 90d axis is dense where data exists.
+    const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
+      (a, b) => String(a.date).localeCompare(String(b.date))
+    );
+    const burnedAll = [
+      ...((data.health && data.health.calories_burned) || []),
+    ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const intakeByDate = Object.fromEntries(
-      nutrition.map((n) => [n.date, n.calories])
+      nutritionAll.map((n) => [n.date, n.calories])
     );
     const burnedByDate = Object.fromEntries(
-      burned.map((b) => [b.date, b.calories])
+      burnedAll.map((b) => [b.date, b.calories])
     );
+    const intakeSeries = calLabels.map((d) => {
+      const v = intakeByDate[d];
+      return v == null || Number.isNaN(Number(v)) ? null : Number(v);
+    });
+    const burnedSeries = calLabels.map((d) => {
+      const v = burnedByDate[d];
+      return v == null || Number.isNaN(Number(v)) ? null : Number(v);
+    });
     destroyChart(caloriesChart);
     if ($("chart-calories")) {
+      // Shade band between intake & burned: green surplus, red deficit.
+      const surplusDeficitFill = {
+        id: "surplusDeficitFill",
+        beforeDatasetsDraw(chart) {
+          const { ctx, chartArea, scales } = chart;
+          if (!chartArea) return;
+          const metaIn = chart.getDatasetMeta(0);
+          const metaBurn = chart.getDatasetMeta(1);
+          if (!metaIn?.data?.length || !metaBurn?.data?.length) return;
+
+          const yScale = scales.y;
+          const pts = [];
+          for (let i = 0; i < metaIn.data.length; i++) {
+            const pin = metaIn.data[i];
+            const pburn = metaBurn.data[i];
+            const vin = intakeSeries[i];
+            const vburn = burnedSeries[i];
+            if (
+              vin == null ||
+              vburn == null ||
+              !pin ||
+              !pburn ||
+              pin.skip ||
+              pburn.skip
+            ) {
+              pts.push(null);
+              continue;
+            }
+            pts.push({
+              x: pin.x,
+              yIn: yScale.getPixelForValue(vin),
+              yBurn: yScale.getPixelForValue(vburn),
+              surplus: vin > vburn,
+              equal: vin === vburn,
+            });
+          }
+
+          const fillSeg = (a, b, surplus) => {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.yIn);
+            ctx.lineTo(b.x, b.yIn);
+            ctx.lineTo(b.x, b.yBurn);
+            ctx.lineTo(a.x, a.yBurn);
+            ctx.closePath();
+            ctx.fillStyle = surplus
+              ? "rgba(92, 225, 168, 0.28)"
+              : "rgba(240, 113, 120, 0.28)";
+            ctx.fill();
+            ctx.restore();
+          };
+
+          for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i];
+            const b = pts[i + 1];
+            if (!a || !b || a.equal && b.equal) continue;
+
+            // Both sides same regime → simple quad
+            if (a.surplus === b.surplus && !a.equal && !b.equal) {
+              fillSeg(a, b, a.surplus);
+              continue;
+            }
+
+            // Crossing: split at interpolated intersection in pixel space
+            const dA = a.yIn - a.yBurn;
+            const dB = b.yIn - b.yBurn;
+            if (dA === 0 && dB === 0) continue;
+            if (dA * dB > 0 && !a.equal && !b.equal) {
+              fillSeg(a, b, a.surplus);
+              continue;
+            }
+            const tc = dA === dB ? 0.5 : dA / (dA - dB);
+            const t = Math.min(1, Math.max(0, tc));
+            const yCross =
+              a.yIn + (b.yIn - a.yIn) * t; // equal at true zero-crossing approx
+            const cross = {
+              x: a.x + (b.x - a.x) * t,
+              yIn: yCross,
+              yBurn: yCross,
+            };
+            if (!a.equal) fillSeg(a, cross, a.surplus);
+            if (!b.equal) fillSeg(cross, b, b.surplus);
+          }
+        },
+      };
+
       caloriesChart = new Chart($("chart-calories"), {
         type: "line",
         data: {
@@ -447,23 +555,59 @@
           datasets: [
             {
               label: "Intake (kcal)",
-              data: calLabels.map((d) => intakeByDate[d] ?? null),
+              data: intakeSeries,
               borderColor: "#5ce1a8",
+              backgroundColor: "rgba(92, 225, 168, 0.15)",
               tension: 0.25,
               spanGaps: true,
               pointRadius: 3,
+              order: 1,
             },
             {
               label: "Burned (kcal)",
-              data: calLabels.map((d) => burnedByDate[d] ?? null),
+              data: burnedSeries,
               borderColor: "#f07178",
+              backgroundColor: "rgba(240, 113, 120, 0.15)",
               tension: 0.25,
               spanGaps: true,
               pointRadius: 3,
+              order: 1,
             },
           ],
         },
-        options: chartDefaults(),
+        options: {
+          ...chartDefaults(),
+          plugins: {
+            ...chartDefaults().plugins,
+            legend: {
+              labels: {
+                color: "#8b9bb4",
+                generateLabels(chart) {
+                  const defaults = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                  return defaults.concat([
+                    {
+                      text: "Surplus (intake > burned)",
+                      fillStyle: "rgba(92, 225, 168, 0.45)",
+                      strokeStyle: "rgba(92, 225, 168, 0.8)",
+                      lineWidth: 0,
+                      hidden: false,
+                      datasetIndex: -1,
+                    },
+                    {
+                      text: "Deficit (intake < burned)",
+                      fillStyle: "rgba(240, 113, 120, 0.45)",
+                      strokeStyle: "rgba(240, 113, 120, 0.8)",
+                      lineWidth: 0,
+                      hidden: false,
+                      datasetIndex: -1,
+                    },
+                  ]);
+                },
+              },
+            },
+          },
+        },
+        plugins: [surplusDeficitFill],
       });
     }
 
@@ -665,21 +809,63 @@
 
     destroyChart(hydrationChart);
     if ($("chart-hydration")) {
+      const hydVals = hydration.map((h) => h.water_ml);
+      const hydRoll7 = rollingAverage(hydVals, 7);
+      const hydTrend = linearTrend(hydVals);
+      const hSlope = trendSlopePerDay(hydVals);
+      const lastHydRoll =
+        [...hydRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
       hydrationChart = new Chart($("chart-hydration"), {
-        type: "bar",
         data: {
           labels: hydration.map((h) => h.date),
           datasets: [
             {
+              type: "bar",
               label: "Water (ml)",
-              data: hydration.map((h) => h.water_ml),
-              backgroundColor: "rgba(92,225,168,0.45)",
+              data: hydVals,
+              backgroundColor: "rgba(61,156,240,0.45)",
               borderRadius: 6,
+              order: 3,
+            },
+            {
+              type: "line",
+              label: "7d rolling avg",
+              data: hydRoll7,
+              borderColor: "#5ce1a8",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0.25,
+              spanGaps: true,
+              order: 1,
+            },
+            {
+              type: "line",
+              label: "Trend",
+              data: hydTrend,
+              borderColor: "#f0b429",
+              borderDash: [6, 4],
+              borderWidth: 2,
+              pointRadius: 0,
+              tension: 0,
+              order: 2,
             },
           ],
         },
         options: chartDefaults(),
       });
+      if ($("hydration-trend-note")) {
+        if (lastHydRoll == null) {
+          $("hydration-trend-note").textContent =
+            "Need hydration logs for rolling average.";
+        } else {
+          const slopeTxt =
+            hSlope == null
+              ? ""
+              : ` · trend ${hSlope >= 0 ? "+" : ""}${Math.round(hSlope * 7)} ml/week`;
+          $("hydration-trend-note").textContent =
+            `Latest 7d avg: ${Math.round(lastHydRoll).toLocaleString()} ml${slopeTxt} · ${hydration.length} days`;
+        }
+      }
     }
   }
 
@@ -1045,16 +1231,39 @@
       `source=${meta.source || "?"} · generated ${meta.generated_at || ""}${loadMs}${cacheNote}${todayBit}${tzBit}`;
 
     const nutrition = (data.health && data.health.nutrition) || [];
-    const latestN = nutrition.length ? nutrition[nutrition.length - 1] : null;
+    const latestN = nutrition.length
+      ? [...nutrition].sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-1)[0]
+      : null;
     if ($("stat-calories")) {
+      // Calorie share: P×4 + C×4 + F×9 (same basis as macro split chart).
+      let pPct = null;
+      let cPct = null;
+      let fPct = null;
+      if (latestN) {
+        const p = Number(latestN.protein_g) || 0;
+        const c = Number(latestN.carbs_g) || 0;
+        const f = Number(latestN.fat_g) || 0;
+        const totK = p * 4 + c * 4 + f * 9;
+        if (totK > 0) {
+          pPct = Math.round((p * 4 * 1000) / totK) / 10;
+          cPct = Math.round((c * 4 * 1000) / totK) / 10;
+          fPct = Math.round((f * 9 * 1000) / totK) / 10;
+        }
+      }
       $("stat-calories").textContent =
         latestN && latestN.calories != null ? fmtNum(latestN.calories) : "—";
       $("stat-protein").textContent =
-        latestN && latestN.protein_g != null ? `${fmtNum(latestN.protein_g)} g` : "—";
+        latestN && latestN.protein_g != null
+          ? `${fmtNum(latestN.protein_g)} g${pPct != null ? ` · ${pPct}%` : ""}`
+          : "—";
       $("stat-carbs").textContent =
-        latestN && latestN.carbs_g != null ? `${fmtNum(latestN.carbs_g)} g` : "—";
+        latestN && latestN.carbs_g != null
+          ? `${fmtNum(latestN.carbs_g)} g${cPct != null ? ` · ${cPct}%` : ""}`
+          : "—";
       $("stat-fat").textContent =
-        latestN && latestN.fat_g != null ? `${fmtNum(latestN.fat_g)} g` : "—";
+        latestN && latestN.fat_g != null
+          ? `${fmtNum(latestN.fat_g)} g${fPct != null ? ` · ${fPct}%` : ""}`
+          : "—";
     }
 
     if (data.health && data.health.error) {
@@ -1074,7 +1283,8 @@
         $("nutrition-note").textContent =
           "No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.";
       } else {
-        $("nutrition-note").textContent = `Nutrition days: ${n} · hydration days: ${h} · burned-calorie days: ${b}`;
+        $("nutrition-note").textContent =
+          `Nutrition days: ${n} · burned-calorie days: ${b} · green band = surplus (intake > burned), red = deficit`;
       }
     }
 

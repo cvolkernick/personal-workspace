@@ -151,6 +151,13 @@ button:disabled {
   font-size: 1.45rem;
   font-weight: 700;
   margin-top: 0.25rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+/* Macro boxes often show "218 g · 40%" — slightly smaller so it fits cleanly */
+#nutrition-stats .stat .value {
+  font-size: 1.2rem;
 }
 
 .badge {
