@@ -66,7 +66,7 @@
       "protein_g": 3,
       "carbs_g": 37,
       "fat_g": 0,
-      "in_stock": true
+      "in_stock": false
     },
     {
       "id": "broccoli",
