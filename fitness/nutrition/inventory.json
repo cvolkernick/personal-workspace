@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-12",
+  "updated_at": "2026-07-14",
   "notes": "Curated pantry/fridge inventory. serving macros are per serving_label amount.",
   "ingredients": [
     {
@@ -89,18 +89,6 @@
       "carbs_g": 27,
       "fat_g": 3,
       "in_stock": true
-    },
-    {
-      "id": "jocko-molk",
-      "name": "Jocko Molk protein",
-      "category": "protein",
-      "serving_label": "1 shake",
-      "calories": 140,
-      "protein_g": 30,
-      "carbs_g": 4,
-      "fat_g": 1,
-      "in_stock": true,
-      "notes": "High protein per dollar"
     }
   ]
 }
