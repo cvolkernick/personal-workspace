@@ -72,6 +72,69 @@ def volume_by_week(sessions: Sequence[Session]) -> List[Dict[str, Any]]:
     ]
 
 
+def volume_by_month(sessions: Sequence[Session]) -> List[Dict[str, Any]]:
+    """Aggregate total volume by calendar month (YYYY-MM)."""
+    buckets: Dict[str, float] = defaultdict(float)
+    for s in sessions:
+        try:
+            key = s.date[:7]  # YYYY-MM
+        except Exception:
+            continue
+        if len(key) != 7 or key[4] != "-":
+            continue
+        buckets[key] += session_volume(s)
+    return [
+        {"month": k, "volume": buckets[k]}
+        for k in sorted(buckets.keys())
+    ]
+
+
+def volume_by_day(
+    sessions: Sequence[Session],
+    *,
+    days: int = 30,
+    as_of: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    """
+    Daily total volume for a contiguous calendar window (default 30 days).
+
+    Days with no sessions still appear with volume 0 so the chart is a full
+    30-bar month span. If ``as_of`` is omitted and the last 30 days from
+    local today have no volume, the window ends on the most recent session
+    date so the chart still shows recent training.
+    """
+    from .timeutil import local_today_iso
+
+    days = max(1, int(days))
+    today = local_today_iso()
+    end_s = as_of or today
+
+    def _window(end_iso: str) -> List[Dict[str, Any]]:
+        end = datetime.strptime(end_iso, "%Y-%m-%d")
+        start = end - timedelta(days=days - 1)
+        buckets: Dict[str, float] = defaultdict(float)
+        for s in sessions:
+            try:
+                d = datetime.strptime(s.date, "%Y-%m-%d")
+            except ValueError:
+                continue
+            if start <= d <= end:
+                buckets[s.date] += session_volume(s)
+        out: List[Dict[str, Any]] = []
+        cur = start
+        while cur <= end:
+            key = cur.strftime("%Y-%m-%d")
+            out.append({"date": key, "volume": float(buckets.get(key, 0.0))})
+            cur += timedelta(days=1)
+        return out
+
+    rows = _window(end_s)
+    if as_of is None and sessions and sum(r["volume"] for r in rows) <= 0:
+        last = max(s.date for s in sessions)
+        rows = _window(last)
+    return rows
+
+
 def strength_trend(
     sessions: Sequence[Session], exercise_name: str
 ) -> List[Dict[str, Any]]:
@@ -166,6 +229,8 @@ def dashboard_payload(sessions: Sequence[Session]) -> Dict[str, Any]:
         "sessions": [s.to_dict() for s in sessions],
         "volume_by_session": volume_by_session(clean),
         "volume_by_week": volume_by_week(clean),
+        "volume_by_month": volume_by_month(clean),
+        "volume_by_day": volume_by_day(clean, days=30),
         "top_exercises": exercises,
         "strength_trends": trends,
         "strength_slopes": slopes,

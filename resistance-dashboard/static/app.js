@@ -233,23 +233,66 @@
   }
 
   function renderCharts(data) {
-    const vol = data.volume_by_week || [];
+    // Monthly volume = last 30 calendar days, one bar per day (0 if no session).
+    const vol = data.volume_by_day || [];
+    const volLabels = vol.map((v) => v.date);
+    const volVals = vol.map((v) => v.volume);
+    const volTrend = linearTrend(volVals);
+    const vSlope = trendSlopePerDay(volVals);
     destroyChart(volumeChart);
     volumeChart = new Chart($("chart-volume"), {
-      type: "bar",
       data: {
-        labels: vol.map((v) => v.week_start),
+        labels: volLabels,
         datasets: [
           {
-            label: "Weekly volume (lb)",
-            data: vol.map((v) => v.volume),
+            type: "bar",
+            label: "Daily volume (lb)",
+            data: volVals,
             backgroundColor: "rgba(61,156,240,0.55)",
-            borderRadius: 6,
+            borderRadius: 4,
+            order: 2,
+          },
+          {
+            type: "line",
+            label: "Trend",
+            data: volTrend,
+            borderColor: "#f0b429",
+            borderDash: [6, 4],
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0,
+            order: 1,
           },
         ],
       },
-      options: chartDefaults(),
+      options: {
+        ...chartDefaults(),
+        scales: {
+          ...chartDefaults().scales,
+          x: {
+            ...chartDefaults().scales.x,
+            ticks: {
+              ...chartDefaults().scales.x.ticks,
+              maxTicksLimit: 10,
+              maxRotation: 0,
+            },
+          },
+        },
+      },
     });
+    if ($("volume-trend-note")) {
+      const trained = volVals.filter((v) => v > 0).length;
+      const total = volVals.reduce((s, v) => s + (Number(v) || 0), 0);
+      if (vSlope == null || trained < 2) {
+        $("volume-trend-note").textContent =
+          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb`;
+      } else {
+        const dir = vSlope > 0 ? "up" : vSlope < 0 ? "down" : "flat";
+        $("volume-trend-note").textContent =
+          `Last ${vol.length} days · ${trained} training days · total ${fmtNum(total)} lb · ` +
+          `trend ${dir} (~${vSlope >= 0 ? "+" : ""}${Math.round(vSlope * 7).toLocaleString()} lb/week)`;
+      }
+    }
 
     const exercises = data.top_exercises || [];
     if (!selectedExercise || !exercises.includes(selectedExercise)) {
@@ -1565,6 +1608,32 @@
   /** @type {{role: string, content: string}[]} */
   let askHistory = [];
 
+  function formatAskContent(text, role) {
+    const raw = text == null ? "" : String(text);
+    // User messages stay plain text (no HTML injection from the input box).
+    if (role === "user" || typeof marked === "undefined" || !marked.parse) {
+      const div = document.createElement("div");
+      div.className = "ask-body ask-body-plain";
+      div.textContent = raw;
+      return div;
+    }
+    const div = document.createElement("div");
+    div.className = "ask-body ask-md";
+    try {
+      if (typeof marked.setOptions === "function") {
+        marked.setOptions({ gfm: true, breaks: true });
+      }
+      // marked@12 exposes marked.parse; older builds used marked() as a function.
+      const html =
+        typeof marked.parse === "function" ? marked.parse(raw) : marked(raw);
+      div.innerHTML = html;
+    } catch (_) {
+      div.className = "ask-body ask-body-plain";
+      div.textContent = raw;
+    }
+    return div;
+  }
+
   function renderAskMessages() {
     const box = $("ask-messages");
     if (!box) return;
@@ -1575,8 +1644,7 @@
       const role = document.createElement("span");
       role.className = "ask-role";
       role.textContent = turn.role === "user" ? "You" : "Grok";
-      const body = document.createElement("div");
-      body.textContent = turn.content;
+      const body = formatAskContent(turn.content, turn.role);
       el.appendChild(role);
       el.appendChild(body);
       box.appendChild(el);

@@ -245,9 +245,14 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             if isinstance(series, list):
                 trends_out[name] = series[-8:]
 
-    weekly = dashboard.get("weekly_volume") or dashboard.get("volume_by_week") or []
+    weekly = (
+        dashboard.get("volume_by_day")
+        or dashboard.get("weekly_volume")
+        or dashboard.get("volume_by_week")
+        or []
+    )
     if isinstance(weekly, list):
-        weekly = weekly[-12:]
+        weekly = weekly[-30:]
 
     wo = dashboard.get("workout_store") or {}
     plan = wo.get("plan") or {}
