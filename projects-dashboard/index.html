@@ -165,6 +165,7 @@
       <div id="checklist"></div>
       <div id="exit-steps"></div>
     </div>
+    <div id="backlog"></div>
     <div id="branches"></div>
     <div id="resume"></div>
     <div class="section-title">Repo</div>
@@ -232,6 +233,59 @@
         <div class="stat"><div class="n" style="color:var(--purple)">${c.live_sessions ?? 0}</div><div class="l">Live agents</div></div>
         <div class="stat"><div class="n">${c.dirty_projects ?? 0}</div><div class="l">Dirty areas</div></div>
       `;
+
+      // Backlog panel
+      const bl = data.backlog || {};
+      const blItems = bl.items || [];
+      $("backlog").innerHTML = `
+        <div class="section-title">Backlog (start later → plan → MVP)</div>
+        <div class="card">
+          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.65rem">
+            Capture projects to start later. <strong>Initiate</strong> writes a goal seed under
+            <code>ops/backlog/seeds/</code> and opens a launch path for Grok
+            <code>/goal</code> (spec first, then build MVP).
+          </div>
+          <div style="display:grid;gap:0.45rem;margin-bottom:0.85rem">
+            <input id="bl-title" placeholder="Title — what do you want to build?" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.9rem;width:100%" />
+            <textarea id="bl-desc" rows="2" placeholder="Description / problem (optional)" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.85rem;width:100%;font-family:inherit"></textarea>
+            <input id="bl-mvp" placeholder="MVP scope (optional) — smallest shippable slice" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.85rem;width:100%" />
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+              <select id="bl-priority" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem">
+                <option value="low">low</option>
+                <option value="medium" selected>medium</option>
+                <option value="high">high</option>
+                <option value="critical">critical</option>
+              </select>
+              <input id="bl-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:10rem" />
+              <button type="button" id="btn-bl-add">Add to backlog</button>
+              <button type="button" id="btn-bl-import" title="Import from initiatives/*.md">Import initiatives</button>
+            </div>
+          </div>
+          ${!blItems.length ? `<div class="empty">No backlog items yet — add one above.</div>` :
+            blItems.map((it) => `
+              <div class="card" style="background:#0e151c;margin-bottom:0.5rem;padding:0.75rem 0.85rem" data-bl-id="${esc(it.id)}">
+                <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
+                  <div class="title" style="font-weight:650">${esc(it.title)}</div>
+                  <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
+                    <span class="pill session">${esc(it.priority)}</span>
+                    <span class="pill ${it.status === 'planning' || it.status === 'active' ? 'active' : 'muted'}">${esc(it.status)}</span>
+                    ${it.area ? `<span class="pill branch">${esc(it.area)}</span>` : ""}
+                  </div>
+                </div>
+                ${it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.35rem">${esc(it.description.slice(0,280))}${it.description.length>280?"…":""}</div>` : ""}
+                ${it.mvp_scope ? `<div class="id" style="margin-top:0.25rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.55rem">
+                  <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}">Initiate goal</button>
+                  <button type="button" class="btn-bl-ready" data-id="${esc(it.id)}">Mark ready</button>
+                  <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
+                  <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
+                  <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
+                </div>
+                ${it.seed_path ? `<code class="cmd" style="margin-top:0.4rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
+                  ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
+                </code>` : ""}
+              </div>`).join("")}
+        </div>`;
 
       // Branches panel
       const branchList = br.branches || [];
@@ -400,13 +454,22 @@
         });
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || JSON.stringify(data));
-        $("action-msg").textContent = data.message
+        let msg = data.message
           || (data.committed ? `Committed ${data.sha || ""} on ${data.branch || ""}` : "OK")
           + (data.pushed ? " · pushed" : "")
-          + (data.count != null ? ` · ${data.count} sessions indexed` : "");
+          + (data.count != null && data.sessions == null ? ` · ${data.count} sessions indexed` : "")
+          + (data.added ? ` · imported ${data.added.length}` : "");
         if (data.steps) {
-          $("action-msg").textContent = data.steps.map((s) => s.step + ":" + (s.ok ? "ok" : s.error || "?")).join(" · ");
+          msg = data.steps.map((s) => s.step + ":" + (s.ok ? "ok" : s.error || "?")).join(" · ");
         }
+        if (data.goal_objective) {
+          msg = `Initiated · seed ${data.seed_path || ""} · objective copied if Terminal launch ran. Paste /goal in Grok.`;
+          copyText(data.goal_objective);
+        }
+        if (data.item && data.item.title && !data.goal_objective) {
+          msg = `Saved: ${data.item.title}`;
+        }
+        $("action-msg").textContent = msg;
         $("action-msg").classList.add("show");
         await load();
       } catch (e) {
@@ -419,8 +482,10 @@
     $("only-touched").addEventListener("change", load);
     $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
     $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
-    document.addEventListener("click", (ev) => {
-      if (ev.target && ev.target.id === "btn-start-work") {
+    document.addEventListener("click", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === "btn-start-work") {
         const area = ($("start-area") && $("start-area").value) || "";
         if (!area.trim()) {
           $("err").textContent = "Enter an area name (e.g. treasury)";
@@ -428,6 +493,53 @@
           return;
         }
         postAction("/api/start-work", { area: area.trim() });
+        return;
+      }
+      if (t.id === "btn-bl-add") {
+        const title = ($("bl-title") && $("bl-title").value) || "";
+        if (!title.trim()) {
+          $("err").textContent = "Backlog title required";
+          $("err").classList.add("show");
+          return;
+        }
+        await postAction("/api/backlog", {
+          title: title.trim(),
+          description: ($("bl-desc") && $("bl-desc").value) || "",
+          mvp_scope: ($("bl-mvp") && $("bl-mvp").value) || "",
+          priority: ($("bl-priority") && $("bl-priority").value) || "medium",
+          area: ($("bl-area") && $("bl-area").value) || "",
+          status: "idea",
+        });
+        if ($("bl-title")) $("bl-title").value = "";
+        if ($("bl-desc")) $("bl-desc").value = "";
+        if ($("bl-mvp")) $("bl-mvp").value = "";
+        return;
+      }
+      if (t.id === "btn-bl-import") {
+        await postAction("/api/backlog/import", {});
+        return;
+      }
+      const id = t.getAttribute && t.getAttribute("data-id");
+      if (!id) return;
+      if (t.classList.contains("btn-bl-initiate")) {
+        await postAction("/api/backlog/initiate", { id, spawn: true });
+        return;
+      }
+      if (t.classList.contains("btn-bl-ready")) {
+        await postAction("/api/backlog/update", { id, status: "ready" });
+        return;
+      }
+      if (t.classList.contains("btn-bl-done")) {
+        await postAction("/api/backlog/update", { id, status: "done" });
+        return;
+      }
+      if (t.classList.contains("btn-bl-park")) {
+        await postAction("/api/backlog/update", { id, status: "parked" });
+        return;
+      }
+      if (t.classList.contains("btn-bl-del")) {
+        if (!confirm("Delete this backlog item?")) return;
+        await postAction("/api/backlog/delete", { id });
       }
     });
     load();

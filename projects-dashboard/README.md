@@ -42,6 +42,23 @@ python3 projects-dashboard/git_workflow.py status
 python3 projects-dashboard/git_workflow.py protect "msg"
 ```
 
+## Backlog (start later → plan → MVP)
+
+Git-tracked ideas under `ops/backlog/items.json`.
+
+| Action | How |
+|--------|-----|
+| Add item | Dashboard form or `POST /api/backlog` |
+| **Initiate** | Writes seed + objective under `ops/backlog/seeds/`, status→`planning`, optional Terminal launch |
+| Grok session | Paste `/goal` text (or run `bash ops/backlog/seeds/….launch.sh`) — plan spec then build MVP |
+
+```bash
+python3 projects-dashboard/backlog.py list
+python3 projects-dashboard/backlog.py add "My future project"
+python3 projects-dashboard/backlog.py initiate <id>
+python3 projects-dashboard/backlog.py import   # from initiatives/*.md
+```
+
 ## Launch dashboard
 
 ```bash

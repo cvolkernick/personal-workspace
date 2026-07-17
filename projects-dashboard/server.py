@@ -27,6 +27,14 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from backlog import (  # noqa: E402
+    add_item,
+    backlog_payload,
+    delete_item,
+    import_initiatives,
+    initiate_item,
+    update_item,
+)
 from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
 from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
@@ -85,10 +93,23 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             )
             try:
                 payload = collect_workspace_dashboard(only_touched=only_touched)
+                payload["backlog"] = backlog_payload(
+                    include_done=(qs.get("backlog_all") or ["0"])[0]
+                    in ("1", "true", "yes")
+                )
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, payload)
+            return
+
+        if path == "/api/backlog":
+            qs = parse_qs(parsed.query)
+            include_done = (qs.get("all") or ["0"])[0] in ("1", "true", "yes")
+            try:
+                self._json(200, backlog_payload(include_done=include_done))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path in ("/", "/index.html", "/projects", "/projects/"):
@@ -139,6 +160,54 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     self._json(400, {"ok": False, "error": "missing area"})
                     return
                 result = start_work(str(area))
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/backlog":
+                result = add_item(
+                    str(body.get("title") or ""),
+                    description=str(body.get("description") or ""),
+                    priority=str(body.get("priority") or "medium"),
+                    status=str(body.get("status") or "idea"),
+                    tags=body.get("tags") if isinstance(body.get("tags"), list) else None,
+                    mvp_scope=str(body.get("mvp_scope") or ""),
+                    notes=str(body.get("notes") or ""),
+                    area=str(body.get("area") or ""),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/backlog/update":
+                iid = body.get("id")
+                if not iid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                result = update_item(str(iid), body)
+                self._json(200 if result.get("ok") else 404, result)
+                return
+
+            if path == "/api/backlog/delete":
+                iid = body.get("id")
+                if not iid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                result = delete_item(str(iid))
+                self._json(200 if result.get("ok") else 404, result)
+                return
+
+            if path == "/api/backlog/initiate":
+                iid = body.get("id")
+                if not iid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                result = initiate_item(
+                    str(iid), try_spawn_grok=bool(body.get("spawn", True))
+                )
+                self._json(200 if result.get("ok") else 404, result)
+                return
+
+            if path == "/api/backlog/import":
+                result = import_initiatives()
                 self._json(200 if result.get("ok") else 500, result)
                 return
         except Exception as e:

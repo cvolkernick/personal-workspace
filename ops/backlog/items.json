@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "updated_at": "2026-07-17T06:14:42.157823+00:00",
+  "items": [
+    {
+      "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
+      "slug": "build-one-small-but-real-automation-that-multipl",
+      "title": "Build one small but real automation that multiplies output on creative or wealth-building work",
+      "description": "## Description\nOne of the highest-leverage things that advances the AI/Autonomy/Robotics bet is actually *using* and *shipping* small agentic automations that multiply the user's own output on the other bets (creative work, wealth research, command center maintenance itself, etc.).\n\nThis is a standing \"template\" style initiative: pick a real, painful, repeatable task and remove friction with a small tool, prompt, or structured workflow. The act of shipping these compounds.\n\n## Current Next Action (example)\nPick one concrete manual step that currently contributes to the \"scattered capture \u2192 overwhelming synthesis\" problem and make a tiny improvement (could be a better prompt template, a small script that parses something into the right MD format, an improved section in the command center, etc.). Document it here or in a related note.\n\n## Progress / Wins\n- (To be filled as small automations are shipped.)\n\n## Notes\n- Keep scope tiny and shippable in hours, not days.\n- Each win can be logged and can feed the \"wins\" part of reviews or the Today plan.\n- Over time these small wins become evidence of progress on the AI/Autonomy/Robotics bet.\n\nSee `strategy/command-center-requirements.md` and `strategy/bets.md` for the broader context. This is the kind of initiative that should appear in the Actionable Plans / Today's Focus when it has a defined next action.",
+      "priority": "medium",
+      "status": "idea",
+      "tags": [
+        "imported",
+        "initiative"
+      ],
+      "area": "",
+      "mvp_scope": "",
+      "notes": "Identify one painful, repeatable manual step in the current workflow (e.g. turning scattered notes from a chat or memory file into a structured initiative or today.md entry) and prototype a tiny script or Grok prompt + workflow that reduces the friction.",
+      "created_at": "2026-07-17T06:14:42.157420+00:00",
+      "updated_at": "2026-07-17T06:14:42.157424+00:00",
+      "seed_path": null,
+      "goal_objective": null,
+      "initiated_at": null,
+      "launch_script": null
+    },
+    {
+      "id": "0cb116db-cfee-485e-b841-629a8593e61d",
+      "slug": "improve-command-center-daily-action-planner-toda",
+      "title": "Improve command center daily action planner (Today's Focus)",
+      "description": "## Description\nEvolve the command center from a good visual reader into the place where macro strategy (the bets + dynamic domains) becomes a trustworthy, low-friction daily action plan. The key is a synthesized \"Today's Focus\" view that surfaces the highest-leverage next actions without the user having to manually re-synthesize scattered notes every time.\n\nThis initiative itself is meta: building the tool that helps execute on the other bets.\n\n## Current Next Action\nAdd / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make \"Add new initiative\" guidance point to creating a real structured MD like this one.\n\n## Progress / Wins\n- [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).\n- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).\n- [ ] User starts using the new flow for at least one real day of planning.\n\n## Notes / Ideas\n- Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.\n- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.\n- Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).\n\nSee the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.",
+      "priority": "medium",
+      "status": "ready",
+      "tags": [
+        "imported",
+        "initiative"
+      ],
+      "area": "",
+      "mvp_scope": "",
+      "notes": "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)",
+      "created_at": "2026-07-17T06:14:42.157807+00:00",
+      "updated_at": "2026-07-17T06:14:42.157809+00:00",
+      "seed_path": null,
+      "goal_objective": null,
+      "initiated_at": null,
+      "launch_script": null
+    }
+  ]
+}
