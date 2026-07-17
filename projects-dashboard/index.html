@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Projects Dashboard — Active Repos</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --blue: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.9rem; }
+    .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    button {
+      background: var(--panel);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+    }
+    .summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 1rem;
+      min-width: 100px;
+    }
+    .stat .n { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .l { color: var(--muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .error-banner {
+      background: #2a1515;
+      border: 1px solid #6b2e2e;
+      color: var(--red);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      display: none;
+    }
+    .error-banner.show { display: block; }
+    .list { display: grid; gap: 0.85rem; }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.15rem;
+      display: grid;
+      gap: 0.55rem;
+    }
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .card-head h2 {
+      margin: 0;
+      font-size: 1.1rem;
+      font-weight: 650;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      background: #0e151c;
+      letter-spacing: 0.03em;
+    }
+    .pill.clean { color: var(--green); border-color: #245c42; }
+    .pill.dirty { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.error { color: var(--red); border-color: #6b2e2e; }
+    .pill.branch { color: var(--blue); border-color: #3a4570; }
+    .meta {
+      display: grid;
+      gap: 0.3rem;
+      font-size: 0.9rem;
+    }
+    .meta .row {
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
+      gap: 0.5rem;
+    }
+    .meta .label { color: var(--muted); }
+    .meta .val {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+    }
+    .meta a { color: var(--accent); text-decoration: none; }
+    .meta a:hover { text-decoration: underline; }
+    .empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 2rem;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+    footer {
+      margin-top: 2rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Projects Dashboard</h1>
+      <div class="sub">Local &amp; remote git repos — branch, sync, working-tree status</div>
+    </div>
+    <div class="actions">
+      <span id="updated" class="sub"></span>
+      <button type="button" id="btn-refresh">Refresh</button>
+    </div>
+  </header>
+  <main>
+    <div id="err" class="error-banner" role="alert"></div>
+    <div class="summary" id="summary"></div>
+    <div class="list" id="list">
+      <div class="empty">Loading projects…</div>
+    </div>
+    <footer id="footer"></footer>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function statusPillClass(p) {
+      if (!p.is_git || p.error) return "error";
+      if (p.dirty) return "dirty";
+      return "clean";
+    }
+
+    function remoteLinks(remotes) {
+      if (!remotes || !remotes.length) return "—";
+      return remotes.map((r) => {
+        const url = r.url || "";
+        let href = url;
+        if (url.startsWith("git@")) {
+          // git@host:org/repo.git → https://host/org/repo
+          const m = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+          if (m) href = `https://${m[1]}/${m[2].replace(/\.git$/, "")}`;
+        } else if (url.endsWith(".git")) {
+          href = url.replace(/\.git$/, "");
+        }
+        const label = `${r.name}: ${url}`;
+        if (href.startsWith("http")) {
+          return `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`;
+        }
+        return esc(label);
+      }).join("<br>");
+    }
+
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function render(data) {
+      const projects = data.projects || [];
+      const dirty = projects.filter((p) => p.dirty).length;
+      const clean = projects.filter((p) => p.is_git && !p.dirty).length;
+      const withRemote = projects.filter((p) => p.remotes && p.remotes.length).length;
+
+      $("summary").innerHTML = `
+        <div class="stat"><div class="n">${projects.length}</div><div class="l">Projects</div></div>
+        <div class="stat"><div class="n" style="color:var(--green)">${clean}</div><div class="l">Clean</div></div>
+        <div class="stat"><div class="n" style="color:var(--yellow)">${dirty}</div><div class="l">Dirty</div></div>
+        <div class="stat"><div class="n" style="color:var(--accent)">${withRemote}</div><div class="l">With remote</div></div>
+      `;
+
+      if (!projects.length) {
+        $("list").innerHTML = `<div class="empty">No git projects found under configured roots.</div>`;
+      } else {
+        $("list").innerHTML = projects.map((p) => {
+          const branch = p.branch || "—";
+          const label = p.status_label || "—";
+          const sync =
+            p.ahead != null && p.behind != null
+              ? (p.ahead === 0 && p.behind === 0
+                  ? "synced with upstream"
+                  : `ahead ${p.ahead}, behind ${p.behind}`)
+              : (p.upstream ? "—" : (p.remotes?.length ? "no upstream tracking" : "no remote"));
+          return `
+            <article class="card" data-path="${esc(p.path)}">
+              <div class="card-head">
+                <h2>${esc(p.name)}</h2>
+                <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+                  <span class="pill branch">${esc(branch)}</span>
+                  <span class="pill ${statusPillClass(p)}">${esc(label)}</span>
+                </div>
+              </div>
+              <div class="meta">
+                <div class="row"><span class="label">Path</span><span class="val">${esc(p.path)}</span></div>
+                <div class="row"><span class="label">Remote</span><span class="val">${remoteLinks(p.remotes)}</span></div>
+                <div class="row"><span class="label">Upstream</span><span class="val">${esc(p.upstream || "—")}</span></div>
+                <div class="row"><span class="label">Sync</span><span class="val">${esc(sync)}</span></div>
+              </div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      const roots = (data.roots || []).join(", ");
+      $("footer").textContent = roots
+        ? `Scan roots: ${roots}`
+        : "";
+      $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    }
+
+    async function load() {
+      const btn = $("btn-refresh");
+      btn.disabled = true;
+      $("err").classList.remove("show");
+      try {
+        const res = await fetch("/api/projects", { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "API error");
+        render(data);
+      } catch (e) {
+        $("err").textContent = `Failed to load projects: ${e.message}`;
+        $("err").classList.add("show");
+        $("list").innerHTML = `<div class="empty">Could not load project list. Is the server running?</div>`;
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>
