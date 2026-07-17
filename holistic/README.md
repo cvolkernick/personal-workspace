@@ -1,10 +1,24 @@
 # Holistic — Time allocator (MVP)
 
-Local CLI to maintain a **core list of tasks/goals**, add/remove them, and **allocate a daily minute budget by priority**.
+Local tool to maintain a **core list of tasks/goals**, add/remove them, and **allocate a daily minute budget by priority**.
 
 This is the foundation for a later agentic coaching / day-loop system. MVP does **not** call LLMs or calendars.
 
-## Quick start
+## Dashboard (recommended)
+
+```bash
+python3 holistic/server.py
+# or: bash holistic/start.command
+```
+
+Opens **http://127.0.0.1:8770/** — list, add/remove, edit priority/minutes, allocate day budget, load starter list.
+
+```bash
+python3 holistic/server.py --port 8770 --no-browser
+python3 holistic/server.py --data /path/to/tasks.json
+```
+
+## CLI
 
 From the personal-workspace repo root:
 

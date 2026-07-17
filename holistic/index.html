@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Allocator</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --bar: #3a7ebd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.9rem; }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      gap: 1rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.65rem 0.9rem;
+      min-width: 7rem;
+    }
+    .stat .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
+    .stat .value { font-size: 1.25rem; font-weight: 650; margin-top: 0.15rem; }
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+    label { color: var(--muted); font-size: 0.85rem; }
+    input, select, button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 0.45rem 0.65rem;
+    }
+    input[type="number"] { width: 5.5rem; }
+    input[type="text"] { min-width: 12rem; flex: 1; }
+    button {
+      cursor: pointer;
+      background: #1a2836;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary {
+      background: #1e3a55;
+      border-color: #2a5a80;
+      color: #cfe6ff;
+    }
+    button.danger:hover { border-color: var(--red); color: var(--red); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.92rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.4rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    th {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .kind {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .kind.goal { color: var(--yellow); border-color: #6b5a1e; }
+    .kind.task { color: var(--accent); border-color: #2a4a66; }
+    .bar-wrap {
+      height: 8px;
+      background: #0a121a;
+      border-radius: 4px;
+      overflow: hidden;
+      min-width: 80px;
+    }
+    .bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--bar), var(--green));
+      border-radius: 4px;
+    }
+    .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .msg {
+      min-height: 1.25rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .msg.error { color: var(--red); }
+    .msg.ok { color: var(--green); }
+    .empty { color: var(--muted); padding: 0.75rem 0; }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Time Allocator</h1>
+      <div class="sub">Priority-weighted day plan · holistic</div>
+    </div>
+    <div class="row">
+      <button type="button" id="btn-refresh">Refresh</button>
+      <button type="button" id="btn-seed">Load starter list</button>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Day budget</h2>
+      <div class="stats" id="stats"></div>
+      <div class="row" style="margin-top: 0.85rem;">
+        <label for="total-minutes">Allocate total minutes</label>
+        <input type="number" id="total-minutes" min="0" step="15" value="480" />
+        <button type="button" class="primary" id="btn-allocate">Allocate by priority</button>
+      </div>
+      <p class="msg" id="status-msg"></p>
+      <p class="path" id="data-path"></p>
+    </section>
+
+    <section class="card">
+      <h2>Add task / goal</h2>
+      <form id="add-form" class="row">
+        <input type="text" id="add-title" placeholder="Title" required />
+        <select id="add-kind">
+          <option value="task">task</option>
+          <option value="goal">goal</option>
+        </select>
+        <label>pri <input type="number" id="add-priority" value="3" min="0" max="20" /></label>
+        <label>min <input type="number" id="add-minutes" value="0" min="0" step="5" /></label>
+        <button type="submit" class="primary">Add</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Tasks &amp; goals</h2>
+      <div id="list-wrap"><p class="empty">Loading…</p></div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const msg = (text, kind) => {
+      const el = $("status-msg");
+      el.textContent = text || "";
+      el.className = "msg" + (kind ? " " + kind : "");
+    };
+
+    async function api(path, opts) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json", ...(opts && opts.headers) },
+        ...opts,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || res.statusText || "request failed");
+      }
+      return data;
+    }
+
+    function hours(min) {
+      const m = Number(min) || 0;
+      const h = Math.floor(m / 60);
+      const r = m % 60;
+      if (h === 0) return `${m}m`;
+      return r ? `${h}h ${r}m` : `${h}h`;
+    }
+
+    function render(state) {
+      $("data-path").textContent = state.path ? `data: ${state.path}` : "";
+      const total = state.total_minutes || 0;
+      const count = state.count || 0;
+      $("stats").innerHTML = `
+        <div class="stat"><div class="label">Items</div><div class="value">${count}</div></div>
+        <div class="stat"><div class="label">Allocated</div><div class="value">${total} <span style="font-size:0.85rem;color:var(--muted)">(${hours(total)})</span></div></div>
+      `;
+
+      const items = state.items || [];
+      const wrap = $("list-wrap");
+      if (!items.length) {
+        wrap.innerHTML = `<p class="empty">No tasks yet — add one above or load the starter list.</p>`;
+        return;
+      }
+      const maxMin = Math.max(total, 1);
+      wrap.innerHTML = `
+        <table>
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Kind</th>
+              <th>Priority</th>
+              <th>Minutes</th>
+              <th>Share</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((it) => {
+              const pct = Math.round(((Number(it.minutes) || 0) / maxMin) * 100);
+              return `
+                <tr data-id="${escapeAttr(it.id)}">
+                  <td>
+                    <strong>${escapeHtml(it.title)}</strong>
+                    <div class="path" style="opacity:0.7">${escapeHtml(it.id)}</div>
+                  </td>
+                  <td><span class="kind ${escapeAttr(it.kind)}">${escapeHtml(it.kind)}</span></td>
+                  <td>
+                    <input type="number" class="edit-priority" min="0" max="20" value="${Number(it.priority) || 0}" style="width:4rem" />
+                  </td>
+                  <td>
+                    <input type="number" class="edit-minutes" min="0" step="5" value="${Number(it.minutes) || 0}" style="width:5rem" />
+                  </td>
+                  <td style="min-width:120px">
+                    <div class="bar-wrap" title="${pct}% of allocated"><div class="bar" style="width:${pct}%"></div></div>
+                    <div style="font-size:0.8rem;color:var(--muted);margin-top:0.2rem">${hours(it.minutes)} · ${pct}%</div>
+                  </td>
+                  <td class="actions">
+                    <button type="button" class="btn-save">Save</button>
+                    <button type="button" class="btn-remove danger">Remove</button>
+                  </td>
+                </tr>`;
+            }).join("")}
+          </tbody>
+        </table>`;
+
+      wrap.querySelectorAll("tr[data-id]").forEach((row) => {
+        const id = row.getAttribute("data-id");
+        row.querySelector(".btn-save").addEventListener("click", async () => {
+          const priority = Number(row.querySelector(".edit-priority").value);
+          const minutes = Number(row.querySelector(".edit-minutes").value);
+          try {
+            const next = await api("/api/set", {
+              method: "POST",
+              body: JSON.stringify({ key: id, priority, minutes }),
+            });
+            msg(`Updated ${id}`, "ok");
+            render(next);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+        row.querySelector(".btn-remove").addEventListener("click", async () => {
+          if (!confirm(`Remove “${id}”?`)) return;
+          try {
+            const next = await api("/api/remove", {
+              method: "POST",
+              body: JSON.stringify({ key: id }),
+            });
+            msg(`Removed ${id}`, "ok");
+            render(next);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+      });
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function escapeAttr(s) {
+      return escapeHtml(s).replace(/'/g, "&#39;");
+    }
+
+    async function refresh() {
+      try {
+        const state = await api("/api/state");
+        render(state);
+        msg("");
+      } catch (e) {
+        msg(String(e.message || e), "error");
+        $("list-wrap").innerHTML = `<p class="empty error">Could not load state. Is the server running?</p>`;
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", refresh);
+    $("btn-seed").addEventListener("click", async () => {
+      if (!confirm("Replace the current list with the starter core list?")) return;
+      try {
+        const state = await api("/api/seed", { method: "POST", body: "{}" });
+        msg("Starter list loaded", "ok");
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
+    $("btn-allocate").addEventListener("click", async () => {
+      const total = Number($("total-minutes").value);
+      try {
+        const state = await api("/api/allocate", {
+          method: "POST",
+          body: JSON.stringify({ total }),
+        });
+        msg(`Allocated ${total} minutes by priority`, "ok");
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
+    $("add-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const title = $("add-title").value.trim();
+      if (!title) return;
+      try {
+        const state = await api("/api/add", {
+          method: "POST",
+          body: JSON.stringify({
+            title,
+            kind: $("add-kind").value,
+            priority: Number($("add-priority").value),
+            minutes: Number($("add-minutes").value),
+          }),
+        });
+        $("add-title").value = "";
+        msg(`Added “${title}”`, "ok");
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
+
+    refresh();
+  </script>
+</body>
+</html>

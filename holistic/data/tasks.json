@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "seed-deep-work",
+      "title": "Deep work / primary project",
+      "kind": "task",
+      "priority": 5,
+      "minutes": 160
+    },
+    {
+      "id": "seed-fitness",
+      "title": "Fitness / movement",
+      "kind": "goal",
+      "priority": 4,
+      "minutes": 128
+    },
+    {
+      "id": "seed-admin",
+      "title": "Admin / email / chores",
+      "kind": "task",
+      "priority": 2,
+      "minutes": 64
+    },
+    {
+      "id": "seed-learning",
+      "title": "Learning / skill growth",
+      "kind": "goal",
+      "priority": 3,
+      "minutes": 96
+    },
+    {
+      "id": "seed-rest",
+      "title": "Rest / buffer",
+      "kind": "task",
+      "priority": 1,
+      "minutes": 32
+    }
+  ]
+}
