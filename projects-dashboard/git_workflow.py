@@ -299,7 +299,15 @@ def protect_work(
         # maybe only need push
         br = collect_branch_status(repo)
         if push and br.get("current"):
-            return _push_current(repo, br, extra={"staged": [], "committed": False})
+            return _push_current(
+                repo,
+                br,
+                extra={
+                    "staged": [],
+                    "committed": False,
+                    "message": "Working tree clean — pushed if needed",
+                },
+            )
         return {
             "ok": True,
             "committed": False,
@@ -315,6 +323,7 @@ def protect_work(
             "error": "All dirty paths were skipped (secrets/snapshots filter)",
             "skipped": skipped,
             "dirty": all_dirty,
+            "message": "Nothing staged — dirty files remain",
         }
 
     # Branch selection
@@ -344,7 +353,24 @@ def protect_work(
     code, staged, _ = _run(repo, "diff", "--cached", "--name-only")
     staged_list = staged.splitlines() if code == 0 and staged else []
     if not staged_list:
+        remaining = dirty_paths(repo)
         br = collect_branch_status(repo)
+        # Still dirty after add → treat as failure so UI does not show false "OK"
+        if remaining:
+            return {
+                "ok": False,
+                "committed": False,
+                "pushed": False,
+                "error": (
+                    "Nothing staged but working tree still dirty: "
+                    + ", ".join(remaining[:12])
+                ),
+                "message": "Protect failed — dirty paths not staged",
+                "dirty": remaining,
+                "skipped": skipped,
+                "branch": br.get("current"),
+                "branch_actions": branch_actions,
+            }
         if push:
             return _push_current(
                 repo,
@@ -352,7 +378,7 @@ def protect_work(
                 extra={
                     "staged": [],
                     "committed": False,
-                    "message": "Nothing staged after filters",
+                    "message": "Nothing to commit — already clean",
                     "skipped": skipped,
                     "branch_actions": branch_actions,
                 },

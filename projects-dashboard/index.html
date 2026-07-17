@@ -527,7 +527,16 @@
           + (data.count != null && data.sessions == null ? ` · ${data.count} sessions indexed` : "")
           + (data.added ? ` · imported ${data.added.length}` : "");
         if (data.steps) {
-          msg = data.steps.map((s) => s.step + ":" + (s.ok ? "ok" : s.error || "?")).join(" · ");
+          msg = data.steps.map((s) => {
+            const body = s.ok
+              ? (s.committed ? `committed ${s.sha || ""}` : (s.message || "ok"))
+              : (s.error || "fail");
+            return `${s.step}:${body}`;
+          }).join(" · ");
+          // If any step left dirty / failed, surface as error not green OK
+          if (data.steps.some((s) => s.ok === false)) {
+            throw new Error(msg);
+          }
         }
         if (data.goal_objective) {
           msg = `Initiated · seed ${data.seed_path || ""} · objective copied if Terminal launch ran. Paste /goal in Grok.`;
@@ -535,6 +544,9 @@
         }
         if (data.item && data.item.title && !data.goal_objective) {
           msg = `Saved: ${data.item.title}`;
+        }
+        if (data.committed) {
+          msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
         }
         $("action-msg").textContent = msg;
         $("action-msg").classList.add("show");
