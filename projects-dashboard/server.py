@@ -2,8 +2,10 @@
 """Local server for Projects Dashboard.
 
 Serves static UI + APIs:
-  GET /api/projects  — discovered repos with branch/remote/status
-  GET /api/health    — simple health check
+  GET /api/projects          — Grok Build session → project map + git status (default)
+  GET /api/projects?mode=all — filesystem root scan (legacy)
+  GET /api/sessions          — raw session list + orphans
+  GET /api/health            — simple health check
 
 Usage:
   python3 projects-dashboard/server.py
@@ -24,7 +26,8 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from collectors import DEFAULT_ROOTS, collect_all_projects, collect_repo_status  # noqa: E402
+from collectors import collect_dashboard_projects, collect_repo_status  # noqa: E402
+from sessions import collect_session_project_map  # noqa: E402
 
 DEFAULT_PORT = 8765
 
@@ -56,11 +59,19 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/projects":
             qs = parse_qs(parsed.query)
-            roots = None
-            if "root" in qs:
-                roots = qs["root"]
+            mode = (qs.get("mode") or ["grok"])[0]
+            roots = qs.get("root")
             try:
-                payload = collect_all_projects(roots)
+                payload = collect_dashboard_projects(mode=mode, roots=roots)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, payload)
+            return
+
+        if path == "/api/sessions":
+            try:
+                payload = collect_session_project_map()
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
@@ -95,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
 
     url = f"http://{args.bind}:{args.port}/"
     print(f"Projects Dashboard → {url}")
-    print(f"API: GET /api/projects  (roots: {len(DEFAULT_ROOTS)} default)")
+    print("API: GET /api/projects (Grok sessions → projects + git status)")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:

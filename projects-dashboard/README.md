@@ -1,6 +1,15 @@
 # Projects Dashboard
 
-Visualize active local git projects: path, remotes, current branch, dirty/clean, ahead/behind.
+Visualize **Grok Build** projects: sessions matched to local git repos via edit hunks, plus path, remotes, branch, dirty/clean, ahead/behind.
+
+## How matching works
+
+1. Scan `~/.grok/sessions/<cwd>/<session-id>/` (parent sessions only by default).
+2. Read `hunk_records.jsonl` file edits → map each path to its **git root**.
+3. Group sessions under that project; attach live flags from `active_sessions.json`.
+4. Collect git status (branch, remotes, dirty, ahead/behind) for each project.
+
+Sessions with no project edits show under “Sessions without a mapped project”.
 
 ## Launch
 
@@ -14,20 +23,22 @@ python3 projects-dashboard/server.py
 
 Opens http://127.0.0.1:8765/
 
-- **UI** — project cards with branch, remote URLs, sync status
-- **API** — `GET /api/projects` JSON payload
+| Endpoint | Description |
+|----------|-------------|
+| `GET /api/projects` | Default: Grok session match + git status |
+| `GET /api/projects?mode=all` | Legacy filesystem root scan |
+| `GET /api/sessions` | Raw session → project map |
 
 ```bash
-# Headless / agent:
 python3 projects-dashboard/server.py --port 8765 --no-browser
-curl -s http://127.0.0.1:8765/api/projects | python3 -m json.tool
+curl -sS 'http://127.0.0.1:8765/api/projects' | python3 -m json.tool
 ```
 
 ## Collectors (no UI)
 
 ```bash
-python3 projects-dashboard/collectors.py
+python3 projects-dashboard/collectors.py          # grok mode
+python3 projects-dashboard/collectors.py all      # filesystem mode
+python3 projects-dashboard/sessions.py
 python3 -m unittest discover -s projects-dashboard/tests -v
 ```
-
-Default scan roots: `personal-workspace`, `~/tab-out`, `~/clawd`, `~/AwesomeProject`, `~/PycharmProjects/HNTpayments`.

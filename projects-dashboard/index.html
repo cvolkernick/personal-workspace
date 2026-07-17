@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Projects Dashboard — Active Repos</title>
+  <title>Projects Dashboard — Grok Build</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -16,6 +16,7 @@
       --red: #ff6b6b;
       --accent: #5b9fd4;
       --blue: #7c9cff;
+      --purple: #c084fc;
     }
     * { box-sizing: border-box; }
     body {
@@ -38,7 +39,7 @@
     header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.9rem; }
     .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    button {
+    button, select {
       background: var(--panel);
       color: var(--text);
       border: 1px solid var(--border);
@@ -48,7 +49,7 @@
       cursor: pointer;
       font-weight: 600;
     }
-    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:hover, select:hover { border-color: var(--accent); color: var(--accent); }
     button:disabled { opacity: 0.5; cursor: wait; }
     main {
       max-width: 1100px;
@@ -87,7 +88,7 @@
       border-radius: 12px;
       padding: 1rem 1.15rem;
       display: grid;
-      gap: 0.55rem;
+      gap: 0.65rem;
     }
     .card-head {
       display: flex;
@@ -117,6 +118,9 @@
     .pill.dirty { color: var(--yellow); border-color: #6b5a1e; }
     .pill.error { color: var(--red); border-color: #6b2e2e; }
     .pill.branch { color: var(--blue); border-color: #3a4570; }
+    .pill.active { color: var(--green); border-color: #245c42; background: #0f2419; }
+    .pill.session { color: var(--purple); border-color: #5b3a7a; }
+    .pill.area { color: var(--muted); font-weight: 500; }
     .meta {
       display: grid;
       gap: 0.3rem;
@@ -135,6 +139,50 @@
     }
     .meta a { color: var(--accent); text-decoration: none; }
     .meta a:hover { text-decoration: underline; }
+    .areas { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .sessions {
+      border-top: 1px solid var(--border);
+      padding-top: 0.65rem;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .sessions h3 {
+      margin: 0 0 0.25rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    .sess {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.5rem 0.75rem;
+      align-items: start;
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      background: #0e151c;
+      font-size: 0.85rem;
+    }
+    .sess .title { font-weight: 600; }
+    .sess .id {
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.75rem;
+    }
+    .sess .when { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+    .orphan {
+      margin-top: 1.5rem;
+      border-top: 1px solid var(--border);
+      padding-top: 1rem;
+    }
+    .orphan h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
     .empty {
       color: var(--muted);
       text-align: center;
@@ -154,9 +202,13 @@
   <header>
     <div>
       <h1>Projects Dashboard</h1>
-      <div class="sub">Local &amp; remote git repos — branch, sync, working-tree status</div>
+      <div class="sub">Grok Build sessions → local/remote repos — branch, sync, session history</div>
     </div>
     <div class="actions">
+      <select id="mode" title="Discovery mode">
+        <option value="grok">Grok sessions</option>
+        <option value="all">All scan roots</option>
+      </select>
       <span id="updated" class="sub"></span>
       <button type="button" id="btn-refresh">Refresh</button>
     </div>
@@ -167,6 +219,7 @@
     <div class="list" id="list">
       <div class="empty">Loading projects…</div>
     </div>
+    <div id="orphans" class="orphan" style="display:none"></div>
     <footer id="footer"></footer>
   </main>
   <script>
@@ -184,7 +237,6 @@
         const url = r.url || "";
         let href = url;
         if (url.startsWith("git@")) {
-          // git@host:org/repo.git → https://host/org/repo
           const m = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
           if (m) href = `https://${m[1]}/${m[2].replace(/\.git$/, "")}`;
         } else if (url.endsWith(".git")) {
@@ -206,21 +258,57 @@
         .replace(/"/g, "&quot;");
     }
 
+    function fmtWhen(iso) {
+      if (!iso) return "—";
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return esc(iso);
+        return d.toLocaleString(undefined, {
+          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+        });
+      } catch {
+        return esc(iso);
+      }
+    }
+
+    function renderSessions(sessions) {
+      if (!sessions || !sessions.length) {
+        return `<div class="sessions"><h3>Grok sessions</h3><div class="empty" style="padding:0.75rem;border:none">No sessions mapped</div></div>`;
+      }
+      const rows = sessions.slice(0, 12).map((s) => {
+        const active = s.active
+          ? `<span class="pill active">live</span>`
+          : `<span class="pill session">session</span>`;
+        return `
+          <div class="sess">
+            <div>${active}</div>
+            <div>
+              <div class="title">${esc(s.title)}</div>
+              <div class="id">${esc(s.id)} · ${esc(s.model || s.agent_name || "")}${s.num_chat_messages != null ? ` · ${s.num_chat_messages} msgs` : ""}</div>
+            </div>
+            <div class="when">${fmtWhen(s.last_active_at)}</div>
+          </div>`;
+      }).join("");
+      return `<div class="sessions"><h3>Grok sessions (${sessions.length})</h3>${rows}</div>`;
+    }
+
     function render(data) {
       const projects = data.projects || [];
       const dirty = projects.filter((p) => p.dirty).length;
       const clean = projects.filter((p) => p.is_git && !p.dirty).length;
-      const withRemote = projects.filter((p) => p.remotes && p.remotes.length).length;
+      const activeSess = data.active_session_ids ? data.active_session_ids.length : projects.reduce((n, p) => n + (p.active_session_count || 0), 0);
+      const edits = projects.reduce((n, p) => n + (p.edit_count || 0), 0);
 
       $("summary").innerHTML = `
         <div class="stat"><div class="n">${projects.length}</div><div class="l">Projects</div></div>
-        <div class="stat"><div class="n" style="color:var(--green)">${clean}</div><div class="l">Clean</div></div>
-        <div class="stat"><div class="n" style="color:var(--yellow)">${dirty}</div><div class="l">Dirty</div></div>
-        <div class="stat"><div class="n" style="color:var(--accent)">${withRemote}</div><div class="l">With remote</div></div>
+        <div class="stat"><div class="n" style="color:var(--purple)">${data.session_count ?? "—"}</div><div class="l">Sessions</div></div>
+        <div class="stat"><div class="n" style="color:var(--green)">${activeSess}</div><div class="l">Live</div></div>
+        <div class="stat"><div class="n" style="color:var(--yellow)">${dirty}</div><div class="l">Dirty repos</div></div>
+        <div class="stat"><div class="n" style="color:var(--accent)">${edits || "—"}</div><div class="l">Edits mapped</div></div>
       `;
 
       if (!projects.length) {
-        $("list").innerHTML = `<div class="empty">No git projects found under configured roots.</div>`;
+        $("list").innerHTML = `<div class="empty">No projects matched from Grok Build sessions (no file edits under a git root yet). Try mode “All scan roots” or work on a repo in Grok.</div>`;
       } else {
         $("list").innerHTML = projects.map((p) => {
           const branch = p.branch || "—";
@@ -231,30 +319,59 @@
                   ? "synced with upstream"
                   : `ahead ${p.ahead}, behind ${p.behind}`)
               : (p.upstream ? "—" : (p.remotes?.length ? "no upstream tracking" : "no remote"));
+          const areas = (p.areas || []).slice(0, 8).map((a) =>
+            `<span class="pill area">${esc(a.name)}${a.edits ? ` · ${a.edits}` : ""}</span>`
+          ).join("");
+          const live = (p.active_session_count || 0) > 0
+            ? `<span class="pill active">${p.active_session_count} live</span>`
+            : "";
           return `
             <article class="card" data-path="${esc(p.path)}">
               <div class="card-head">
                 <h2>${esc(p.name)}</h2>
                 <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+                  ${live}
                   <span class="pill branch">${esc(branch)}</span>
                   <span class="pill ${statusPillClass(p)}">${esc(label)}</span>
+                  ${p.session_count != null ? `<span class="pill session">${p.session_count} sessions</span>` : ""}
                 </div>
               </div>
               <div class="meta">
                 <div class="row"><span class="label">Path</span><span class="val">${esc(p.path)}</span></div>
                 <div class="row"><span class="label">Remote</span><span class="val">${remoteLinks(p.remotes)}</span></div>
-                <div class="row"><span class="label">Upstream</span><span class="val">${esc(p.upstream || "—")}</span></div>
                 <div class="row"><span class="label">Sync</span><span class="val">${esc(sync)}</span></div>
+                ${areas ? `<div class="row"><span class="label">Areas</span><span class="val"><div class="areas">${areas}</div></span></div>` : ""}
               </div>
+              ${p.sessions ? renderSessions(p.sessions) : ""}
             </article>
           `;
         }).join("");
       }
 
-      const roots = (data.roots || []).join(", ");
-      $("footer").textContent = roots
-        ? `Scan roots: ${roots}`
-        : "";
+      const orphans = data.orphan_sessions || [];
+      if (orphans.length) {
+        $("orphans").style.display = "block";
+        $("orphans").innerHTML = `
+          <h2>Sessions without a mapped project</h2>
+          <div class="list">${orphans.slice(0, 15).map((s) => `
+            <div class="sess">
+              <div>${s.active ? `<span class="pill active">live</span>` : `<span class="pill session">session</span>`}</div>
+              <div>
+                <div class="title">${esc(s.title)}</div>
+                <div class="id">${esc(s.id)}</div>
+              </div>
+              <div class="when">${fmtWhen(s.last_active_at)}</div>
+            </div>`).join("")}
+          </div>`;
+      } else {
+        $("orphans").style.display = "none";
+        $("orphans").innerHTML = "";
+      }
+
+      const mode = data.mode || "grok-sessions";
+      $("footer").textContent = mode === "grok-sessions"
+        ? `Matched from Grok sessions in ${data.grok_home || "~/.grok"} · file edits → git roots`
+        : `Filesystem scan roots`;
       $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
     }
 
@@ -262,8 +379,9 @@
       const btn = $("btn-refresh");
       btn.disabled = true;
       $("err").classList.remove("show");
+      const mode = $("mode").value || "grok";
       try {
-        const res = await fetch("/api/projects", { cache: "no-store" });
+        const res = await fetch(`/api/projects?mode=${encodeURIComponent(mode)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "API error");
@@ -278,6 +396,7 @@
     }
 
     $("btn-refresh").addEventListener("click", load);
+    $("mode").addEventListener("change", load);
     load();
   </script>
 </body>

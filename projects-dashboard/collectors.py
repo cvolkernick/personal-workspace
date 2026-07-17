@@ -229,21 +229,41 @@ def _status_label(r: dict[str, Any]) -> str:
 
 
 def collect_all_projects(roots: list[str] | None = None, *, max_depth: int = 2) -> dict[str, Any]:
-    """Discover repos and collect status for each. Returns payload for API/UI."""
+    """Discover repos under roots and collect status for each (filesystem scan)."""
     repos = discover_repos(roots, max_depth=max_depth)
     projects = [collect_repo_status(p) for p in repos]
     return {
         "ok": True,
+        "mode": "filesystem-roots",
         "count": len(projects),
-        "roots": [str(Path(os.path.expanduser(r)).resolve()) if Path(os.path.expanduser(r)).exists() else r for r in (roots or DEFAULT_ROOTS)],
+        "roots": [
+            str(Path(os.path.expanduser(r)).resolve())
+            if Path(os.path.expanduser(r)).exists()
+            else r
+            for r in (roots or DEFAULT_ROOTS)
+        ],
         "projects": projects,
     }
+
+
+def collect_dashboard_projects(
+    mode: str = "grok",
+    roots: list[str] | None = None,
+) -> dict[str, Any]:
+    """Primary entry: default mode uses Grok Build sessions to find active projects."""
+    if mode in ("all", "filesystem", "roots"):
+        return collect_all_projects(roots)
+    # Default: Grok session → project match
+    from sessions import collect_grok_projects  # noqa: WPS433
+
+    return collect_grok_projects(collect_repo_status_fn=collect_repo_status)
 
 
 if __name__ == "__main__":
     import json
     import sys
 
-    payload = collect_all_projects()
+    mode = sys.argv[1] if len(sys.argv) > 1 else "grok"
+    payload = collect_dashboard_projects(mode=mode)
     json.dump(payload, sys.stdout, indent=2)
     print()
