@@ -36,3 +36,7 @@ dashboard/branches.txt
 # Resistance dashboard local secrets (if ever placed under repo)
 resistance-dashboard/.env
 resistance-dashboard/.env.local
+
+# Full Grok session archives must never land in this repo (use ~/Backups/)
+Backups/
+**/grok-sessions-*.tar.gz
