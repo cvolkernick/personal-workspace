@@ -39,6 +39,14 @@ python3 treasury/expenses_sync.py  # refresh expense sheet
 python3 treasury/run_treasury.py   # full evaluation
 ```
 
+## UI (redesign)
+
+- Sticky header: Refresh + overall status + feed freshness
+- **Do now**: top actions (You / Agent / App only), expandable full list
+- **At a glance** KPIs
+- Cash & credit buffers; upcoming bills
+- Collapsed: brokerage, YNAB txs, capital targets, settings
+
 ## Panels
 
 - Data quality & completeness (missing app fields, staleness)
