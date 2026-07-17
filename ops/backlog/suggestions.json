@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "updated_at": "2026-07-17T06:23:24.836280+00:00",
-  "generated_at": "2026-07-17T06:23:24.836260+00:00",
+  "updated_at": "2026-07-17T14:08:59.287873+00:00",
+  "generated_at": "2026-07-17T14:08:59.287850+00:00",
   "suggestions": [
     {
-      "id": "e3237411-d688-4e6a-9804-223fa45890db",
+      "id": "112e2dcc-0b2f-41f6-abda-30323cefc0cd",
       "kind": "action",
       "status": "pending",
       "title": "Next: clarify & ready \u201cTime allocator\u201d",
@@ -21,32 +21,197 @@
         "from-backlog",
         "idea"
       ],
-      "created_at": "2026-07-17T06:23:24.759655+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.214203+00:00",
+      "resolved_at": null,
+      "score": 139,
+      "press_rank": 1,
+      "rank_label": "Do first",
+      "rank_reasons": [
+        "critical priority (+100)",
+        "action on existing work (+18)",
+        "clarify idea \u2192 ready (+6)",
+        "critical urgency bonus (+15)"
+      ],
+      "priority_color": "#ff6b6b"
     },
     {
-      "id": "94a7fa85-5e10-4d38-baf3-2655d9b8b463",
+      "id": "3777483b-0e31-480c-b697-472d5b228416",
       "kind": "action",
       "status": "pending",
-      "title": "Next: clarify & ready \u201cPanamerica Auto Website\u201d",
-      "rationale": "Backlog item is still idea-level (priority=medium).",
-      "priority": "medium",
-      "area": "business",
+      "title": "Protect dirty work in financial-command",
+      "rationale": "1 uncommitted file(s) under financial-command/ \u2014 commit via protect/sync before context switch.",
+      "priority": "high",
+      "area": "financial-command",
       "mvp_scope": "",
-      "description": "Promote to ready: clarify MVP for \u201cPanamerica Auto Website\u201d, then Initiate goal planning.",
-      "backlog_item_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
-      "action": "Promote to ready: clarify MVP for \u201cPanamerica Auto Website\u201d, then Initiate goal planning.",
+      "description": "Dirty tree under financial-command/",
+      "backlog_item_id": null,
+      "action": "Run: python3 projects-dashboard/git_workflow.py start financial-command && python3 projects-dashboard/git_workflow.py sync",
       "source": "heuristic",
       "tags": [
         "recommended",
-        "from-backlog",
-        "idea"
+        "git",
+        "dirty"
       ],
-      "created_at": "2026-07-17T06:23:24.759666+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.287524+00:00",
+      "resolved_at": null,
+      "score": 125,
+      "press_rank": 2,
+      "rank_label": "Do next",
+      "rank_reasons": [
+        "high priority (+75)",
+        "action on existing work (+18)",
+        "protect uncommitted work first (+32)"
+      ],
+      "priority_color": "#f5a623"
     },
     {
-      "id": "ce2c1b01-217d-45a3-8ce7-6f98e583d1a6",
+      "id": "5bdea7cf-7ac9-4ddc-bece-408104731453",
+      "kind": "action",
+      "status": "pending",
+      "title": "Protect dirty work in treasury",
+      "rationale": "2 uncommitted file(s) under treasury/ \u2014 commit via protect/sync before context switch.",
+      "priority": "high",
+      "area": "treasury",
+      "mvp_scope": "",
+      "description": "Dirty tree under treasury/",
+      "backlog_item_id": null,
+      "action": "Run: python3 projects-dashboard/git_workflow.py start treasury && python3 projects-dashboard/git_workflow.py sync",
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "git",
+        "dirty"
+      ],
+      "created_at": "2026-07-17T14:08:59.287535+00:00",
+      "resolved_at": null,
+      "score": 125,
+      "press_rank": 3,
+      "rank_label": "Then",
+      "rank_reasons": [
+        "high priority (+75)",
+        "action on existing work (+18)",
+        "protect uncommitted work first (+32)"
+      ],
+      "priority_color": "#f5a623"
+    },
+    {
+      "id": "ce98da9a-708a-4f12-ae6c-2c527e37535b",
+      "kind": "new_item",
+      "status": "pending",
+      "title": "Creative or other domain next action that has high impact this week (user to fill based on current w",
+      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
+      "priority": "high",
+      "area": "strategy",
+      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
+      "description": "Sourced from strategy/today.md:\n\nCreative or other domain next action that has high impact this week (user to fill based on current weightings and energy).",
+      "backlog_item_id": null,
+      "action": null,
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-today"
+      ],
+      "created_at": "2026-07-17T14:08:59.214798+00:00",
+      "resolved_at": null,
+      "score": 93,
+      "press_rank": 4,
+      "rank_label": "Later today",
+      "rank_reasons": [
+        "high priority (+75)",
+        "new backlog candidate (+4)",
+        "on today's focus list (+14)"
+      ],
+      "priority_color": "#f5a623"
+    },
+    {
+      "id": "5e677637-52ad-4822-b3e2-7158beb3941c",
+      "kind": "new_item",
+      "status": "pending",
+      "title": "Fitness / Health enabler action that supports sustained deep work on the bets (e.g. hit the full PPL",
+      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
+      "priority": "high",
+      "area": "strategy",
+      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
+      "description": "Sourced from strategy/today.md:\n\nFitness / Health enabler action that supports sustained deep work on the bets (e.g. hit the full PPL session + nutrition targets today, or a recovery-focused action).",
+      "backlog_item_id": null,
+      "action": null,
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-today"
+      ],
+      "created_at": "2026-07-17T14:08:59.214764+00:00",
+      "resolved_at": null,
+      "score": 93,
+      "press_rank": 5,
+      "rank_label": "Later today",
+      "rank_reasons": [
+        "high priority (+75)",
+        "new backlog candidate (+4)",
+        "on today's focus list (+14)"
+      ],
+      "priority_color": "#f5a623"
+    },
+    {
+      "id": "b70f4337-d3a4-42f5-a58a-e628d02e8a34",
+      "kind": "new_item",
+      "status": "pending",
+      "title": "Investment / thematic bet maintenance (e.g. review DCA, research one Energy or Autonomy related name",
+      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
+      "priority": "high",
+      "area": "strategy",
+      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
+      "description": "Sourced from strategy/today.md:\n\nInvestment / thematic bet maintenance (e.g. review DCA, research one Energy or Autonomy related name, or update positions with latest thinking).",
+      "backlog_item_id": null,
+      "action": null,
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-today"
+      ],
+      "created_at": "2026-07-17T14:08:59.214781+00:00",
+      "resolved_at": null,
+      "score": 93,
+      "press_rank": 6,
+      "rank_label": "Later today",
+      "rank_reasons": [
+        "high priority (+75)",
+        "new backlog candidate (+4)",
+        "on today's focus list (+14)"
+      ],
+      "priority_color": "#f5a623"
+    },
+    {
+      "id": "382f88f2-a35c-44ea-8e16-573b4684ce18",
+      "kind": "new_item",
+      "status": "pending",
+      "title": "Noise reduction / capture action (e.g. triage one scattered note from memory or chat into the right ",
+      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
+      "priority": "high",
+      "area": "strategy",
+      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
+      "description": "Sourced from strategy/today.md:\n\nNoise reduction / capture action (e.g. triage one scattered note from memory or chat into the right initiative MD, or do a quick 10-min review to update a weighting or status).",
+      "backlog_item_id": null,
+      "action": null,
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-today"
+      ],
+      "created_at": "2026-07-17T14:08:59.214815+00:00",
+      "resolved_at": null,
+      "score": 93,
+      "press_rank": 7,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "high priority (+75)",
+        "new backlog candidate (+4)",
+        "on today's focus list (+14)"
+      ],
+      "priority_color": "#f5a623"
+    },
+    {
+      "id": "5fd6f923-8d0c-4878-9c5c-1a92924df48e",
       "kind": "action",
       "status": "pending",
       "title": "Next: initiate \u201cImprove command center daily action planner (Today's Focus)\u201d",
@@ -63,11 +228,49 @@
         "from-backlog",
         "ready"
       ],
-      "created_at": "2026-07-17T06:23:24.759673+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.214424+00:00",
+      "resolved_at": null,
+      "score": 90,
+      "press_rank": 8,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "medium priority (+50)",
+        "action on existing work (+18)",
+        "ready to initiate goal/MVP (+22)"
+      ],
+      "priority_color": "#5b9fd4"
     },
     {
-      "id": "46fea7d2-9c70-4227-a186-55d5525be84e",
+      "id": "20a281fe-1752-468d-aa8b-c3f789593a27",
+      "kind": "action",
+      "status": "pending",
+      "title": "Today\u2019s focus \u2192 Improve command center daily action planner (Today",
+      "rationale": "From strategy/today.md: Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
+      "priority": "medium",
+      "area": "strategy",
+      "mvp_scope": "",
+      "description": "Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
+      "backlog_item_id": "0cb116db-cfee-485e-b841-629a8593e61d",
+      "action": "Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-today"
+      ],
+      "created_at": "2026-07-17T14:08:59.214742+00:00",
+      "resolved_at": null,
+      "score": 82,
+      "press_rank": 9,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "medium priority (+50)",
+        "action on existing work (+18)",
+        "on today's focus list (+14)"
+      ],
+      "priority_color": "#5b9fd4"
+    },
+    {
+      "id": "0a36f986-58f8-4c92-948d-1dcdc57a12c0",
       "kind": "action",
       "status": "pending",
       "title": "Next: clarify & ready \u201cBuild one small but real automation that multiplies output o\u201d",
@@ -84,11 +287,50 @@
         "from-backlog",
         "idea"
       ],
-      "created_at": "2026-07-17T06:23:24.759680+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.214436+00:00",
+      "resolved_at": null,
+      "score": 74,
+      "press_rank": 10,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "medium priority (+50)",
+        "action on existing work (+18)",
+        "clarify idea \u2192 ready (+6)"
+      ],
+      "priority_color": "#5b9fd4"
     },
     {
-      "id": "49d61567-922a-4e96-803d-89091c088054",
+      "id": "1b6f5076-1202-4df2-aa3a-b4c93d573398",
+      "kind": "action",
+      "status": "pending",
+      "title": "Next: clarify & ready \u201cPanamerica Auto Website\u201d",
+      "rationale": "Backlog item is still idea-level (priority=medium).",
+      "priority": "medium",
+      "area": "business",
+      "mvp_scope": "",
+      "description": "Promote to ready: clarify MVP for \u201cPanamerica Auto Website\u201d, then Initiate goal planning.",
+      "backlog_item_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+      "action": "Promote to ready: clarify MVP for \u201cPanamerica Auto Website\u201d, then Initiate goal planning.",
+      "source": "heuristic",
+      "tags": [
+        "recommended",
+        "from-backlog",
+        "idea"
+      ],
+      "created_at": "2026-07-17T14:08:59.214415+00:00",
+      "resolved_at": null,
+      "score": 74,
+      "press_rank": 11,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "medium priority (+50)",
+        "action on existing work (+18)",
+        "clarify idea \u2192 ready (+6)"
+      ],
+      "priority_color": "#5b9fd4"
+    },
+    {
+      "id": "ff4d759c-173f-47a8-8c04-47802470ed53",
       "kind": "action",
       "status": "pending",
       "title": "Next: clarify & ready \u201cPersonal Portfolio Website\u201d",
@@ -105,111 +347,49 @@
         "from-backlog",
         "idea"
       ],
-      "created_at": "2026-07-17T06:23:24.759687+00:00",
-      "resolved_at": null
-    },
-    {
-      "id": "5f62fe1f-516b-4d62-b5e3-7a1503e4001f",
-      "kind": "action",
-      "status": "pending",
-      "title": "Today\u2019s focus \u2192 Improve command center daily action planner (Today",
-      "rationale": "From strategy/today.md: Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
-      "priority": "medium",
-      "area": "strategy",
-      "mvp_scope": "",
-      "description": "Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
-      "backlog_item_id": "0cb116db-cfee-485e-b841-629a8593e61d",
-      "action": "Next action from a key AI/Autonomy/Robotics leverage initiative (e.g. improve the command center daily planner or build ",
-      "source": "heuristic",
-      "tags": [
-        "recommended",
-        "from-today"
+      "created_at": "2026-07-17T14:08:59.214443+00:00",
+      "resolved_at": null,
+      "score": 49,
+      "press_rank": 12,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "low priority (+25)",
+        "action on existing work (+18)",
+        "clarify idea \u2192 ready (+6)"
       ],
-      "created_at": "2026-07-17T06:23:24.760138+00:00",
-      "resolved_at": null
+      "priority_color": "#8aa0b5"
     },
     {
-      "id": "fa718177-fdba-4c36-a1c5-6cabaed68482",
+      "id": "aec33be2-b887-44d1-8693-6f60c1002c21",
       "kind": "new_item",
       "status": "pending",
-      "title": "Fitness / Health enabler action that supports sustained deep work on the bets (e.g. hit the full PPL",
-      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
-      "priority": "high",
-      "area": "strategy",
-      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
-      "description": "Sourced from strategy/today.md:\n\nFitness / Health enabler action that supports sustained deep work on the bets (e.g. hit the full PPL session + nutrition targets today, or a recovery-focused action).",
+      "title": "Next iteration for fitness",
+      "rationale": "No open backlog item targets area \u201cfitness\u201d. Worth a small improvement goal.",
+      "priority": "low",
+      "area": "fitness",
+      "mvp_scope": "One user-visible improvement in personal-workspace/fitness/ with a test or verification step.",
+      "description": "Propose and ship a small iteration in `fitness`. Start with a goal planning session to pick the highest-leverage slice.",
       "backlog_item_id": null,
       "action": null,
       "source": "heuristic",
       "tags": [
         "recommended",
-        "from-today"
+        "area-gap"
       ],
-      "created_at": "2026-07-17T06:23:24.760162+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.287556+00:00",
+      "resolved_at": null,
+      "score": 21,
+      "press_rank": 13,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "low priority (+25)",
+        "new backlog candidate (+4)",
+        "optional area gap (\u22128)"
+      ],
+      "priority_color": "#8aa0b5"
     },
     {
-      "id": "9c29b09d-c999-4553-b797-6f6cc9b4d60b",
-      "kind": "new_item",
-      "status": "pending",
-      "title": "Investment / thematic bet maintenance (e.g. review DCA, research one Energy or Autonomy related name",
-      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
-      "priority": "high",
-      "area": "strategy",
-      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
-      "description": "Sourced from strategy/today.md:\n\nInvestment / thematic bet maintenance (e.g. review DCA, research one Energy or Autonomy related name, or update positions with latest thinking).",
-      "backlog_item_id": null,
-      "action": null,
-      "source": "heuristic",
-      "tags": [
-        "recommended",
-        "from-today"
-      ],
-      "created_at": "2026-07-17T06:23:24.760180+00:00",
-      "resolved_at": null
-    },
-    {
-      "id": "1f816781-95df-4276-85ba-06d8bef82f7f",
-      "kind": "new_item",
-      "status": "pending",
-      "title": "Creative or other domain next action that has high impact this week (user to fill based on current w",
-      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
-      "priority": "high",
-      "area": "strategy",
-      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
-      "description": "Sourced from strategy/today.md:\n\nCreative or other domain next action that has high impact this week (user to fill based on current weightings and energy).",
-      "backlog_item_id": null,
-      "action": null,
-      "source": "heuristic",
-      "tags": [
-        "recommended",
-        "from-today"
-      ],
-      "created_at": "2026-07-17T06:23:24.760196+00:00",
-      "resolved_at": null
-    },
-    {
-      "id": "066b84de-c773-4baa-9069-1e8a0ea16272",
-      "kind": "new_item",
-      "status": "pending",
-      "title": "Noise reduction / capture action (e.g. triage one scattered note from memory or chat into the right ",
-      "rationale": "Unchecked item from strategy/today.md \u2014 not yet on backlog.",
-      "priority": "high",
-      "area": "strategy",
-      "mvp_scope": "One concrete deliverable you can finish in a single Grok goal session.",
-      "description": "Sourced from strategy/today.md:\n\nNoise reduction / capture action (e.g. triage one scattered note from memory or chat into the right initiative MD, or do a quick 10-min review to update a weighting or status).",
-      "backlog_item_id": null,
-      "action": null,
-      "source": "heuristic",
-      "tags": [
-        "recommended",
-        "from-today"
-      ],
-      "created_at": "2026-07-17T06:23:24.760212+00:00",
-      "resolved_at": null
-    },
-    {
-      "id": "a44d138d-a3fd-4340-b729-cd5e3b0d21db",
+      "id": "5e4ad03d-0fcf-4e85-beee-dc66acdc6e08",
       "kind": "new_item",
       "status": "pending",
       "title": "Next iteration for resistance-dashboard",
@@ -225,8 +405,17 @@
         "recommended",
         "area-gap"
       ],
-      "created_at": "2026-07-17T06:23:24.835961+00:00",
-      "resolved_at": null
+      "created_at": "2026-07-17T14:08:59.287482+00:00",
+      "resolved_at": null,
+      "score": 21,
+      "press_rank": 14,
+      "rank_label": "When free",
+      "rank_reasons": [
+        "low priority (+25)",
+        "new backlog candidate (+4)",
+        "optional area gap (\u22128)"
+      ],
+      "priority_color": "#8aa0b5"
     }
   ]
 }

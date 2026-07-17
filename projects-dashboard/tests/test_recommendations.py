@@ -90,6 +90,22 @@ class TestRecommendations(unittest.TestCase):
             or "ship" in titles.lower()
         )
 
+    def test_press_rank_order(self) -> None:
+        out = rec.generate_recommendations()
+        ranked = out.get("ranked") or out.get("suggestions") or []
+        self.assertTrue(ranked)
+        ranks = [s.get("press_rank") for s in ranked]
+        self.assertEqual(ranks, list(range(1, len(ranked) + 1)))
+        scores = [s.get("score") or 0 for s in ranked]
+        self.assertEqual(scores, sorted(scores, reverse=True))
+        # top item has label
+        self.assertEqual(ranked[0].get("rank_label"), "Do first")
+        self.assertIn(ranked[0].get("priority_color"), rec._PRIORITY_COLORS.values())
+        # by_priority bands exist when mixed priorities
+        payload = rec.recommendations_payload(refresh=False)
+        self.assertTrue(payload.get("by_priority"))
+        self.assertTrue(payload.get("legend"))
+
     def test_approve_new_item(self) -> None:
         rec.generate_recommendations()
         data = rec.load_suggestions()

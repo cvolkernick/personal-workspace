@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-07-17T05:14:02.839639+00:00",
+    "as_of": "2026-07-17T06:34:33.269188+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-17T05:14:02.838918+00:00",
+      "as_of": "2026-07-17T06:34:33.268291+00:00",
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 5.07777294815e-05,
-      "btc_usd_price": 63357.99,
-      "liquid_btc_usd": 3.217174876711582,
+      "btc_usd_price": 62887.77,
+      "liquid_btc_usd": 3.193298172754791,
       "by_currency": {
         "USDC": 1.904e-07,
         "USD": 0.0006859351614,
@@ -80,8 +80,8 @@
     "inputs": {
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 5.07777294815e-05,
-      "liquid_btc_usd": 3.217174876711582,
-      "btc_usd_price": 63357.99,
+      "liquid_btc_usd": 3.193298172754791,
+      "btc_usd_price": 62887.77,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
@@ -148,7 +148,7 @@
       "sources": {
         "coinbase": "live",
         "robinhood": "live",
-        "coinbase_as_of": "2026-07-17T05:14:02.838918+00:00",
+        "coinbase_as_of": "2026-07-17T06:34:33.268291+00:00",
         "robinhood_as_of": null
       },
       "stale": [],
@@ -283,7 +283,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00005078 (~$3.22)\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: red score=0.3\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] Enter One Card balance & available credit from app\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P4 [either|manual] Loan buffer short $1000.00 liquid USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00005078 (~$3.19)\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: red score=0.3\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] Enter One Card balance & available credit from app\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P4 [either|manual] Loan buffer short $1000.00 liquid USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,

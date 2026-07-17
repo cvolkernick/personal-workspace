@@ -162,7 +162,134 @@ def _new_suggestion(
         "tags": tags or ["recommended"],
         "created_at": _now(),
         "resolved_at": None,
+        # filled by apply_press_ranks
+        "score": 0,
+        "press_rank": None,
+        "rank_label": None,
+        "rank_reasons": [],
+        "priority_color": priority_color(priority),
     }
+
+
+_PRIORITY_SCORE = {"critical": 100, "high": 75, "medium": 50, "low": 25}
+_PRIORITY_COLORS = {
+    "critical": "#ff6b6b",
+    "high": "#f5a623",
+    "medium": "#5b9fd4",
+    "low": "#8aa0b5",
+}
+
+
+def priority_color(priority: str) -> str:
+    return _PRIORITY_COLORS.get(priority or "medium", _PRIORITY_COLORS["medium"])
+
+
+def score_suggestion(s: dict[str, Any]) -> tuple[int, list[str]]:
+    """Higher score = do sooner. Returns (score, human reasons)."""
+    score = 0
+    reasons: list[str] = []
+    pri = s.get("priority") or "medium"
+    base = _PRIORITY_SCORE.get(pri, 50)
+    score += base
+    reasons.append(f"{pri} priority (+{base})")
+
+    tags = set(s.get("tags") or [])
+    kind = s.get("kind") or "action"
+
+    # Prefer finishing / unblocking existing work over inventing new backlog
+    if kind == "action":
+        score += 18
+        reasons.append("action on existing work (+18)")
+    else:
+        score += 4
+        reasons.append("new backlog candidate (+4)")
+
+    if "planning" in tags or "planning" in (s.get("title") or "").lower():
+        score += 28
+        reasons.append("already in planning — finish before starting new (+28)")
+    if "ready" in tags or "initiate" in (s.get("title") or "").lower():
+        score += 22
+        reasons.append("ready to initiate goal/MVP (+22)")
+    if "dirty" in tags or "git" in tags:
+        score += 32
+        reasons.append("protect uncommitted work first (+32)")
+    if "from-today" in tags:
+        score += 14
+        reasons.append("on today's focus list (+14)")
+    if "leverage" in tags:
+        score += 12
+        reasons.append("high-leverage bet (+12)")
+    if "active" in tags:
+        score += 16
+        reasons.append("active project — keep momentum (+16)")
+    if "idea" in tags and kind == "action":
+        score += 6
+        reasons.append("clarify idea → ready (+6)")
+    if "from-session" in tags:
+        score += 5
+        reasons.append("recent Grok session follow-up (+5)")
+    if "area-gap" in tags:
+        score -= 8
+        reasons.append("optional area gap (−8)")
+
+    if pri == "critical":
+        score += 15
+        reasons.append("critical urgency bonus (+15)")
+
+    return score, reasons
+
+
+def apply_press_ranks(pending: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Sort by score desc and assign press_rank 1..n (1 = do first)."""
+    scored: list[dict[str, Any]] = []
+    for s in pending:
+        sc, reasons = score_suggestion(s)
+        s = dict(s)
+        s["score"] = sc
+        s["rank_reasons"] = reasons
+        s["priority_color"] = priority_color(s.get("priority") or "medium")
+        scored.append(s)
+    scored.sort(
+        key=lambda x: (
+            -(x.get("score") or 0),
+            _PRIORITY_SCORE.get(x.get("priority") or "medium", 0) * -1,
+            x.get("kind") != "action",  # actions before new_items on ties
+            (x.get("title") or "").lower(),
+        )
+    )
+    labels = {
+        1: "Do first",
+        2: "Do next",
+        3: "Then",
+    }
+    for i, s in enumerate(scored, start=1):
+        s["press_rank"] = i
+        if i <= 3:
+            s["rank_label"] = labels[i]
+        elif i <= 6:
+            s["rank_label"] = "Later today"
+        else:
+            s["rank_label"] = "When free"
+    return scored
+
+
+def group_by_priority(ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Priority bands in critical→low order for UI sections."""
+    order = ("critical", "high", "medium", "low")
+    groups = []
+    for pri in order:
+        items = [s for s in ranked if (s.get("priority") or "medium") == pri]
+        if items:
+            groups.append(
+                {
+                    "priority": pri,
+                    "color": priority_color(pri),
+                    "label": pri.upper(),
+                    "count": len(items),
+                    "items": items,
+                }
+            )
+    return groups
 
 
 def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
@@ -436,10 +563,10 @@ def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
         seen.add(k)
         deduped.append(s)
 
-    # Cap pending volume
-    actions = [s for s in deduped if s["kind"] == "action"][:6]
-    news = [s for s in deduped if s["kind"] == "new_item"][:5]
-    pending = actions + news
+    # Cap volume, then rank everything in one press order
+    actions_raw = [s for s in deduped if s["kind"] == "action"][:8]
+    news_raw = [s for s in deduped if s["kind"] == "new_item"][:6]
+    pending = apply_press_ranks(actions_raw + news_raw)
 
     data["suggestions"] = kept + pending
     data["generated_at"] = _now()
@@ -449,8 +576,11 @@ def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
         "generated_at": data["generated_at"],
         "count_pending": len(pending),
         "suggestions": pending,
-        "actions": actions,
-        "new_items": news,
+        "ranked": pending,
+        "by_priority": group_by_priority(pending),
+        "actions": [s for s in pending if s["kind"] == "action"],
+        "new_items": [s for s in pending if s["kind"] == "new_item"],
+        "top": pending[:3],
     }
 
 
@@ -461,19 +591,35 @@ def recommendations_payload(*, refresh: bool = False) -> dict[str, Any]:
         gen = generate_recommendations(replace_pending=True)
         pending = gen.get("suggestions") or []
         data = load_suggestions()
+    # Re-rank on read so older stored items still get press_rank (in case of schema lag)
+    pending = apply_press_ranks(pending)
+    # persist ranks back
+    others = [s for s in data.get("suggestions") or [] if s.get("status") != "pending"]
+    data["suggestions"] = others + pending
+    save_suggestions(data)
     return {
         "ok": True,
         "generated_at": data.get("generated_at"),
         "updated_at": data.get("updated_at"),
         "pending": pending,
+        "ranked": pending,
+        "by_priority": group_by_priority(pending),
         "actions": [s for s in pending if s.get("kind") == "action"],
         "new_items": [s for s in pending if s.get("kind") == "new_item"],
+        "top": pending[:3],
         "history": [
             s
             for s in data.get("suggestions") or []
             if s.get("status") in ("approved", "rejected")
         ][-20:],
         "path": str(SUGGESTIONS_PATH.relative_to(WORKSPACE_ROOT)),
+        "legend": {
+            "critical": {"color": priority_color("critical"), "meaning": "Drop-everything / protect or unblock"},
+            "high": {"color": priority_color("high"), "meaning": "Do today if possible"},
+            "medium": {"color": priority_color("medium"), "meaning": "Schedule this week"},
+            "low": {"color": priority_color("low"), "meaning": "Backlog polish / when free"},
+            "press_rank": "1 = strongest recommendation to do first (score blends priority + urgency tags)",
+        },
     }
 
 
