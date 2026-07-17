@@ -2,17 +2,21 @@
 """Local dashboard for the time allocator.
 
   GET  /api/health
-  GET  /api/state          — items + totals
-  POST /api/seed           — load starter list
-  POST /api/add            — {title, kind?, priority?, minutes?, id?}
-  POST /api/remove         — {key}
-  POST /api/allocate       — {total}
-  POST /api/set            — {key, priority?, minutes?}
+  GET  /api/state              — items, targets, kpis, plan, totals
+  POST /api/seed               — personal targets (sleep/workout/Duchess/Lyft)
+  POST /api/add                — ad-hoc {title, kind?, priority?, minutes?, id?}
+  POST /api/remove             — ad-hoc {key}
+  POST /api/allocate           — legacy weighted split {total}
+  POST /api/set                — ad-hoc {key, priority?, minutes?}
+  POST /api/targets/add        — ongoing target
+  POST /api/targets/remove     — {key}
+  POST /api/targets/update     — {key, ...fields}
+  POST /api/log                — {target_id|key, value, date?, note?}
+  POST /api/plan               — rebuild rolling 24h plan {apply?: true}
 
 Usage:
   python3 holistic/server.py
   python3 holistic/server.py --port 8770 --no-browser
-  python3 holistic/server.py --data /tmp/tasks.json
 """
 
 from __future__ import annotations
@@ -32,12 +36,20 @@ if str(ROOT) not in sys.path:
 
 from holistic.time_allocator.domain import (  # noqa: E402
     add_item,
+    add_log,
+    add_target,
     allocate_total,
+    apply_plan,
+    build_rolling_plan,
+    kpi_status,
     list_items,
+    list_targets,
     remove_item,
+    remove_target,
     seed_starter,
     set_minutes,
     set_priority,
+    update_target,
 )
 from holistic.time_allocator.store import (  # noqa: E402
     load_state,
@@ -48,7 +60,6 @@ from holistic.time_allocator.store import (  # noqa: E402
 HOLISTIC_DIR = Path(__file__).resolve().parent
 DEFAULT_PORT = 8770
 
-# Set by main() before serving
 _DATA_PATH: Path | None = None
 
 
@@ -60,13 +71,19 @@ def state_payload() -> dict[str, Any]:
     path = resolve_data_path(_data())
     state = load_state(_data())
     items = list_items(state)
+    targets = list_targets(state)
     total = sum(int(it.get("minutes") or 0) for it in items)
+    plan = state.get("plan") or build_rolling_plan(state)
     return {
         "ok": True,
         "path": str(path),
         "items": items,
+        "targets": targets,
+        "logs": list(state.get("logs") or []),
         "count": len(items),
         "total_minutes": total,
+        "kpi_status": kpi_status(state),
+        "plan": plan,
     }
 
 
@@ -121,7 +138,8 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
 
         try:
             if path == "/api/seed":
-                state = seed_starter(load_state(_data()))
+                state = seed_starter(load_state(_data()), personal=True)
+                state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
                 return
@@ -139,6 +157,8 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     minutes=int(body.get("minutes") if body.get("minutes") is not None else 0),
                     item_id=(str(body["id"]) if body.get("id") else None),
                 )
+                if body.get("replan", True):
+                    state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
                 return
@@ -149,6 +169,8 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     self._json(400, {"ok": False, "error": "key is required"})
                     return
                 state = remove_item(load_state(_data()), key)
+                if body.get("replan", True):
+                    state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
                 return
@@ -157,8 +179,7 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 if body.get("total") is None:
                     self._json(400, {"ok": False, "error": "total is required"})
                     return
-                total = int(body["total"])
-                state = allocate_total(load_state(_data()), total)
+                state = allocate_total(load_state(_data()), int(body["total"]))
                 save_state(state, _data())
                 self._json(200, state_payload())
                 return
@@ -176,8 +197,96 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 if body.get("priority") is None and body.get("minutes") is None:
                     self._json(400, {"ok": False, "error": "priority and/or minutes required"})
                     return
+                if body.get("replan", True):
+                    state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
+                return
+
+            if path == "/api/targets/add":
+                title = str(body.get("title") or "").strip()
+                kind = str(body.get("kind") or "").strip()
+                if not title or not kind:
+                    self._json(400, {"ok": False, "error": "title and kind required"})
+                    return
+                fields = {
+                    k: body[k]
+                    for k in (
+                        "minutes",
+                        "session_minutes",
+                        "min_days",
+                        "max_days",
+                        "window_days",
+                        "unit",
+                        "target",
+                        "reserve_minutes",
+                        "sessions_hint",
+                        "notes",
+                    )
+                    if k in body
+                }
+                state = add_target(
+                    load_state(_data()),
+                    title,
+                    kind=kind,
+                    priority=int(body.get("priority") if body.get("priority") is not None else 5),
+                    target_id=(str(body["id"]) if body.get("id") else None),
+                    **fields,
+                )
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/targets/remove":
+                key = str(body.get("key") or "").strip()
+                if not key:
+                    self._json(400, {"ok": False, "error": "key is required"})
+                    return
+                state = remove_target(load_state(_data()), key)
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/targets/update":
+                key = str(body.get("key") or "").strip()
+                if not key:
+                    self._json(400, {"ok": False, "error": "key is required"})
+                    return
+                patch = {k: v for k, v in body.items() if k != "key"}
+                state = update_target(load_state(_data()), key, patch)
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/log":
+                key = str(body.get("target_id") or body.get("key") or "").strip()
+                if not key or body.get("value") is None:
+                    self._json(400, {"ok": False, "error": "target_id and value required"})
+                    return
+                state = add_log(
+                    load_state(_data()),
+                    key,
+                    float(body["value"]),
+                    on=body.get("date"),
+                    note=str(body.get("note") or ""),
+                )
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/plan":
+                state = load_state(_data())
+                plan = build_rolling_plan(state)
+                if body.get("apply", True):
+                    state = apply_plan(state, plan)
+                    save_state(state, _data())
+                payload = state_payload()
+                payload["plan"] = plan if not body.get("apply", True) else payload["plan"]
+                self._json(200, payload)
                 return
 
             self._json(404, {"ok": False, "error": f"unknown route: {path}"})
@@ -185,7 +294,7 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
             self._json(404, {"ok": False, "error": str(e)})
         except ValueError as e:
             self._json(400, {"ok": False, "error": str(e)})
-        except Exception as e:  # noqa: BLE001 — surface to UI
+        except Exception as e:  # noqa: BLE001
             self._json(500, {"ok": False, "error": str(e)})
 
 
@@ -194,17 +303,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Time allocator local dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument(
-        "--data",
-        type=Path,
-        default=None,
-        help="Tasks JSON path (default: holistic/data/tasks.json)",
-    )
-    parser.add_argument(
-        "--no-browser",
-        action="store_true",
-        help="Do not open a browser tab",
-    )
+    parser.add_argument("--data", type=Path, default=None)
+    parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
     _DATA_PATH = args.data.resolve() if args.data else None
 

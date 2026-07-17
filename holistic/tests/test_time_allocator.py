@@ -60,9 +60,12 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(items["a"]["minutes"] + items["b"]["minutes"], 100)
 
     def test_seed_starter(self) -> None:
-        state = seed_starter(empty_state())
-        self.assertEqual(len(list_items(state)), len(STARTER_ITEMS))
-        self.assertIsNotNone(get_item(state, "seed-deep-work"))
+        state = seed_starter(empty_state(), personal=True)
+        self.assertEqual(len(list_items(state)), 0)
+        self.assertEqual(len(state["targets"]), 4)
+        state_g = seed_starter(empty_state(), personal=False)
+        self.assertEqual(len(list_items(state_g)), len(STARTER_ITEMS))
+        self.assertIsNotNone(get_item(state_g, "seed-deep-work"))
 
     def test_set_priority_and_minutes(self) -> None:
         state = add_item(empty_state(), "X", item_id="x", priority=1, minutes=0)
@@ -103,16 +106,17 @@ class CliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             data = Path(td) / "cli_tasks.json"
-            # seed
+            # seed personal targets
             buf = StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
                 rc = cli_main(["--data", str(data), "seed"])
             self.assertEqual(rc, 0)
             self.assertTrue(data.is_file())
             state = load_state(data)
-            self.assertGreaterEqual(len(state["items"]), 2)
+            self.assertGreaterEqual(len(state["targets"]), 4)
+            self.assertEqual(len(state["items"]), 0)
 
-            # add
+            # add ad-hoc
             buf = StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
                 rc = cli_main(
@@ -127,19 +131,27 @@ class CliTests(unittest.TestCase):
                         "6",
                         "--id",
                         "ship-mvp",
+                        "--minutes",
+                        "60",
                     ]
                 )
             self.assertEqual(rc, 0)
             self.assertIsNotNone(get_item(load_state(data), "ship-mvp"))
 
-            # remove one starter
+            # second item then remove it
             buf = StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
-                rc = cli_main(["--data", str(data), "remove", "seed-admin"])
+                rc = cli_main(
+                    ["--data", str(data), "add", "Temp", "--id", "temp-x", "--minutes", "15"]
+                )
             self.assertEqual(rc, 0)
-            self.assertIsNone(get_item(load_state(data), "seed-admin"))
+            buf = StringIO()
+            with redirect_stdout(buf), redirect_stderr(buf):
+                rc = cli_main(["--data", str(data), "remove", "temp-x"])
+            self.assertEqual(rc, 0)
+            self.assertIsNone(get_item(load_state(data), "temp-x"))
 
-            # allocate
+            # allocate across ad-hoc
             buf = StringIO()
             with redirect_stdout(buf), redirect_stderr(buf):
                 rc = cli_main(["--data", str(data), "allocate", "480"])
@@ -156,8 +168,9 @@ class CliTests(unittest.TestCase):
             payload = json.loads(buf.getvalue())
             ids = {it["id"] for it in payload["items"]}
             self.assertIn("ship-mvp", ids)
-            self.assertNotIn("seed-admin", ids)
+            self.assertNotIn("temp-x", ids)
             self.assertEqual(sum(int(it["minutes"]) for it in payload["items"]), 480)
+            self.assertIn("sleep", {t["id"] for t in payload["targets"]})
 
     def test_subprocess_entry_point_persists_across_runs(self) -> None:
         """Drive the real entry script twice; second run sees first-run state."""

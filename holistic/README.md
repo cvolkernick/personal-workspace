@@ -60,12 +60,25 @@ Override: `--data /path/to.json` or env `TIME_ALLOCATOR_DATA`.
 python3 -m unittest discover -s holistic/tests -v
 ```
 
+## Rolling 24h model
+
+The plan is always a **rolling 24-hour window** from “now”:
+
+1. **Reserve** sleep (default 8h / 480m) from ongoing sleep KPI  
+2. **Fixed daily** targets (e.g. Walk Duchess 130m)  
+3. **Weekly frequency** sessions if behind min days (e.g. workout 3–5×/week)  
+4. **Ad-hoc** tasks/goals by priority (your errands, deep work, etc.)  
+5. **Fill remainder** of active time (Lyft driving)
+
+Log KPI progress from the dashboard (sleep hours, workout=1, Duchess minutes).  
+Rebuild plan anytime with **Rebuild 24h plan**.
+
 ## Next iteration
 
-1. Rule-based **recommend next** action from the list.
-2. Mid-day **coach loop** (progress notes + re-allocate).
-3. Day budget defaults and optional blocked windows.
-4. Stable read schema for agent sessions / skills.
-5. Optional sync into `strategy/today.md` or the projects dashboard.
+1. Rule-based **recommend next** action from the live plan.  
+2. Mid-day **coach loop** (progress notes + re-plan).  
+3. Optional blocked windows / calendar.  
+4. Agent hooks / skills reading the same JSON.  
+5. Split Duchess into two walk blocks; Lyft hour logging.
 
 See seed plan: `ops/backlog/seeds/time-allocator-bfdc9db1.md`.

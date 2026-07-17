@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Time Allocator</title>
+  <title>Time Allocator — Rolling 24h</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -16,6 +16,8 @@
       --red: #ff6b6b;
       --accent: #5b9fd4;
       --bar: #3a7ebd;
+      --fill: #7c9cff;
+      --reserve: #6b7c8f;
     }
     * { box-sizing: border-box; }
     body {
@@ -38,7 +40,7 @@
     header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.9rem; }
     main {
-      max-width: 960px;
+      max-width: 1040px;
       margin: 0 auto;
       padding: 1.25rem 1.5rem 3rem;
       display: grid;
@@ -58,11 +60,7 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .stats {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.75rem; }
     .stat {
       background: var(--bg);
       border: 1px solid var(--border);
@@ -71,15 +69,10 @@
       min-width: 7rem;
     }
     .stat .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
-    .stat .value { font-size: 1.25rem; font-weight: 650; margin-top: 0.15rem; }
-    .row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      align-items: center;
-    }
+    .stat .value { font-size: 1.2rem; font-weight: 650; margin-top: 0.15rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     label { color: var(--muted); font-size: 0.85rem; }
-    input, select, button {
+    input, select, button, textarea {
       font: inherit;
       border-radius: 8px;
       border: 1px solid var(--border);
@@ -88,7 +81,7 @@
       padding: 0.45rem 0.65rem;
     }
     input[type="number"] { width: 5.5rem; }
-    input[type="text"] { min-width: 12rem; flex: 1; }
+    input[type="text"], input[type="date"] { min-width: 10rem; }
     button {
       cursor: pointer;
       background: #1a2836;
@@ -101,12 +94,7 @@
       color: #cfe6ff;
     }
     button.danger:hover { border-color: var(--red); color: var(--red); }
-    button:disabled { opacity: 0.5; cursor: not-allowed; }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.92rem;
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
     th, td {
       text-align: left;
       padding: 0.55rem 0.4rem;
@@ -120,7 +108,7 @@
       letter-spacing: 0.04em;
       font-weight: 600;
     }
-    .kind {
+    .kind, .role, .pill {
       display: inline-block;
       padding: 0.1rem 0.45rem;
       border-radius: 999px;
@@ -128,73 +116,94 @@
       border: 1px solid var(--border);
       color: var(--muted);
     }
-    .kind.goal { color: var(--yellow); border-color: #6b5a1e; }
-    .kind.task { color: var(--accent); border-color: #2a4a66; }
+    .role.reserve { color: var(--reserve); }
+    .role.fixed, .role.session { color: var(--yellow); border-color: #6b5a1e; }
+    .role.adhoc { color: var(--accent); border-color: #2a4a66; }
+    .role.fill { color: var(--fill); border-color: #3d4a80; }
+    .pill.ok { color: var(--green); border-color: #245c42; }
+    .pill.bad { color: var(--red); border-color: #6b2e2e; }
+    .pill.na { color: var(--muted); }
     .bar-wrap {
-      height: 8px;
+      height: 10px;
       background: #0a121a;
-      border-radius: 4px;
+      border-radius: 5px;
       overflow: hidden;
-      min-width: 80px;
+      display: flex;
+      width: 100%;
+      margin-top: 0.5rem;
     }
-    .bar {
-      height: 100%;
-      background: linear-gradient(90deg, var(--bar), var(--green));
-      border-radius: 4px;
-    }
-    .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .msg {
-      min-height: 1.25rem;
-      color: var(--muted);
-      font-size: 0.9rem;
-    }
+    .bar-seg { height: 100%; min-width: 1px; }
+    .bar-seg.reserve { background: #4a5568; }
+    .bar-seg.fixed, .bar-seg.session { background: #c9a227; }
+    .bar-seg.adhoc { background: var(--accent); }
+    .bar-seg.fill { background: var(--fill); }
+    .msg { min-height: 1.25rem; color: var(--muted); font-size: 0.9rem; }
     .msg.error { color: var(--red); }
     .msg.ok { color: var(--green); }
     .empty { color: var(--muted); padding: 0.75rem 0; }
-    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; word-break: break-all; }
+    .path { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.78rem; word-break: break-all; color: var(--muted); }
+    .notes { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.88rem; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>Time Allocator</h1>
-      <div class="sub">Priority-weighted day plan · holistic</div>
+      <div class="sub">Rolling 24h balance · ongoing targets + ad-hoc tasks</div>
     </div>
     <div class="row">
       <button type="button" id="btn-refresh">Refresh</button>
-      <button type="button" id="btn-seed">Load starter list</button>
+      <button type="button" class="primary" id="btn-plan">Rebuild 24h plan</button>
+      <button type="button" id="btn-seed">Reset personal targets</button>
     </div>
   </header>
   <main>
     <section class="card">
-      <h2>Day budget</h2>
-      <div class="stats" id="stats"></div>
-      <div class="row" style="margin-top: 0.85rem;">
-        <label for="total-minutes">Allocate total minutes</label>
-        <input type="number" id="total-minutes" min="0" step="15" value="480" />
-        <button type="button" class="primary" id="btn-allocate">Allocate by priority</button>
-      </div>
+      <h2>Rolling 24h plan</h2>
+      <div class="stats" id="plan-stats"></div>
+      <div class="bar-wrap" id="plan-bar" title="Window composition"></div>
+      <div id="plan-table"></div>
+      <ul class="notes" id="plan-notes"></ul>
       <p class="msg" id="status-msg"></p>
       <p class="path" id="data-path"></p>
     </section>
 
     <section class="card">
-      <h2>Add task / goal</h2>
+      <h2>Ongoing targets &amp; KPIs</h2>
+      <div id="kpi-wrap"><p class="empty">Loading…</p></div>
+      <form id="log-form" class="row" style="margin-top: 0.85rem;">
+        <label>Log
+          <select id="log-target"></select>
+        </label>
+        <label>value <input type="number" id="log-value" step="0.1" value="1" /></label>
+        <label>date <input type="date" id="log-date" /></label>
+        <input type="text" id="log-note" placeholder="note (optional)" style="flex:1;min-width:8rem" />
+        <button type="submit" class="primary">Log</button>
+      </form>
+      <p class="path" style="margin-top:0.5rem">
+        Sleep → hours (e.g. 7.5). Workout → 1 if done. Duchess → minutes walked. Lyft can be hours driven later.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>Ad-hoc tasks / goals</h2>
       <form id="add-form" class="row">
-        <input type="text" id="add-title" placeholder="Title" required />
+        <input type="text" id="add-title" placeholder="Something to fit into the next 24h" required style="flex:1" />
         <select id="add-kind">
           <option value="task">task</option>
           <option value="goal">goal</option>
         </select>
-        <label>pri <input type="number" id="add-priority" value="3" min="0" max="20" /></label>
-        <label>min <input type="number" id="add-minutes" value="0" min="0" step="5" /></label>
+        <label>pri <input type="number" id="add-priority" value="5" min="0" max="20" /></label>
+        <label>min <input type="number" id="add-minutes" value="30" min="0" step="5" /></label>
         <button type="submit" class="primary">Add</button>
       </form>
-    </section>
-
-    <section class="card">
-      <h2>Tasks &amp; goals</h2>
-      <div id="list-wrap"><p class="empty">Loading…</p></div>
+      <div id="list-wrap" style="margin-top:0.75rem"></div>
     </section>
   </main>
   <script>
@@ -203,6 +212,16 @@
       const el = $("status-msg");
       el.textContent = text || "";
       el.className = "msg" + (kind ? " " + kind : "");
+    };
+    const escapeHtml = (s) => String(s ?? "")
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    const escapeAttr = (s) => escapeHtml(s).replace(/'/g, "&#39;");
+    const hours = (min) => {
+      const m = Number(min) || 0;
+      const h = Math.floor(m / 60);
+      const r = m % 60;
+      if (h === 0) return `${m}m`;
+      return r ? `${h}h ${r}m` : `${h}h`;
     };
 
     async function api(path, opts) {
@@ -217,80 +236,149 @@
       return data;
     }
 
-    function hours(min) {
-      const m = Number(min) || 0;
-      const h = Math.floor(m / 60);
-      const r = m % 60;
-      if (h === 0) return `${m}m`;
-      return r ? `${h}h ${r}m` : `${h}h`;
+    function trackPill(onTrack) {
+      if (onTrack === true) return `<span class="pill ok">on track</span>`;
+      if (onTrack === false) return `<span class="pill bad">behind</span>`;
+      return `<span class="pill na">n/a</span>`;
     }
 
-    function render(state) {
-      $("data-path").textContent = state.path ? `data: ${state.path}` : "";
-      const total = state.total_minutes || 0;
-      const count = state.count || 0;
-      $("stats").innerHTML = `
-        <div class="stat"><div class="label">Items</div><div class="value">${count}</div></div>
-        <div class="stat"><div class="label">Allocated</div><div class="value">${total} <span style="font-size:0.85rem;color:var(--muted)">(${hours(total)})</span></div></div>
+    function renderPlan(plan) {
+      if (!plan) {
+        $("plan-stats").innerHTML = "";
+        $("plan-table").innerHTML = `<p class="empty">No plan yet.</p>`;
+        $("plan-bar").innerHTML = "";
+        $("plan-notes").innerHTML = "";
+        return;
+      }
+      const blocks = plan.blocks || [];
+      $("plan-stats").innerHTML = `
+        <div class="stat"><div class="label">Window</div><div class="value">${hours(plan.window_minutes)}</div></div>
+        <div class="stat"><div class="label">Sleep reserve</div><div class="value">${hours(plan.sleep_reserve_minutes)}</div></div>
+        <div class="stat"><div class="label">Active</div><div class="value">${hours(plan.active_minutes)}</div></div>
+        <div class="stat"><div class="label">Blocks</div><div class="value">${blocks.length}</div></div>
       `;
+      const w = Math.max(plan.window_minutes || 1, 1);
+      $("plan-bar").innerHTML = blocks.map((b) => {
+        const pct = Math.max(0.4, (Number(b.minutes) / w) * 100);
+        const role = escapeAttr(b.role || "adhoc");
+        return `<div class="bar-seg ${role}" style="width:${pct}%" title="${escapeAttr(b.title)}: ${b.minutes}m"></div>`;
+      }).join("");
 
+      if (!blocks.length) {
+        $("plan-table").innerHTML = `<p class="empty">Empty plan — seed targets or rebuild.</p>`;
+      } else {
+        $("plan-table").innerHTML = `
+          <table>
+            <thead><tr>
+              <th>Block</th><th>Role</th><th>Min</th><th>Share of 24h</th><th></th>
+            </tr></thead>
+            <tbody>
+              ${blocks.map((b) => {
+                const pct = Math.round(((Number(b.minutes) || 0) / w) * 100);
+                return `<tr>
+                  <td><strong>${escapeHtml(b.title)}</strong>
+                    <div class="path">${escapeHtml(b.source)}:${escapeHtml(b.id)}${b.reason ? " · " + escapeHtml(b.reason) : ""}${b.soft_estimate ? " · soft 30m estimate" : ""}</div>
+                  </td>
+                  <td><span class="role ${escapeAttr(b.role)}">${escapeHtml(b.role)}</span></td>
+                  <td>${b.minutes} <span class="path">(${hours(b.minutes)})</span></td>
+                  <td>
+                    <div class="bar-wrap" style="margin:0"><div class="bar-seg ${escapeAttr(b.role)}" style="width:${pct}%"></div></div>
+                    <div class="path">${pct}%</div>
+                  </td>
+                  <td class="path">${escapeHtml(b.kind || "")}</td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`;
+      }
+      const notes = plan.notes || [];
+      $("plan-notes").innerHTML = notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
+    }
+
+    function renderKpis(state) {
+      const kpis = state.kpi_status || [];
+      const targets = state.targets || [];
+      const sel = $("log-target");
+      const prev = sel.value;
+      sel.innerHTML = targets.map((t) =>
+        `<option value="${escapeAttr(t.id)}">${escapeHtml(t.title)} (${escapeHtml(t.kind)})</option>`
+      ).join("");
+      if (prev) sel.value = prev;
+
+      if (!kpis.length) {
+        $("kpi-wrap").innerHTML = `<p class="empty">No ongoing targets — click “Reset personal targets”.</p>`;
+        return;
+      }
+      $("kpi-wrap").innerHTML = `
+        <table>
+          <thead><tr><th>Target</th><th>Status</th><th>Summary</th><th></th></tr></thead>
+          <tbody>
+            ${kpis.map((k) => `
+              <tr>
+                <td><strong>${escapeHtml(k.title)}</strong>
+                  <div class="path">${escapeHtml(k.id)} · ${escapeHtml(k.kind)} · pri ${k.priority}</div>
+                </td>
+                <td>${trackPill(k.on_track)}</td>
+                <td>${escapeHtml(k.summary)}</td>
+                <td class="actions">
+                  <button type="button" class="btn-rm-target danger" data-id="${escapeAttr(k.id)}">Remove</button>
+                </td>
+              </tr>`).join("")}
+          </tbody>
+        </table>`;
+      $("kpi-wrap").querySelectorAll(".btn-rm-target").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm(`Remove target ${btn.dataset.id}?`)) return;
+          try {
+            const next = await api("/api/targets/remove", {
+              method: "POST",
+              body: JSON.stringify({ key: btn.dataset.id }),
+            });
+            msg(`Removed target ${btn.dataset.id}`, "ok");
+            render(next);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+      });
+    }
+
+    function renderItems(state) {
       const items = state.items || [];
       const wrap = $("list-wrap");
       if (!items.length) {
-        wrap.innerHTML = `<p class="empty">No tasks yet — add one above or load the starter list.</p>`;
+        wrap.innerHTML = `<p class="empty">No ad-hoc items — add errands, deep work, etc. They take priority after fixed targets; leftover active time goes to Lyft.</p>`;
         return;
       }
-      const maxMin = Math.max(total, 1);
       wrap.innerHTML = `
         <table>
-          <thead>
-            <tr>
-              <th>Title</th>
-              <th>Kind</th>
-              <th>Priority</th>
-              <th>Minutes</th>
-              <th>Share</th>
-              <th></th>
-            </tr>
-          </thead>
+          <thead><tr><th>Title</th><th>Pri</th><th>Minutes</th><th></th></tr></thead>
           <tbody>
-            ${items.map((it) => {
-              const pct = Math.round(((Number(it.minutes) || 0) / maxMin) * 100);
-              return `
-                <tr data-id="${escapeAttr(it.id)}">
-                  <td>
-                    <strong>${escapeHtml(it.title)}</strong>
-                    <div class="path" style="opacity:0.7">${escapeHtml(it.id)}</div>
-                  </td>
-                  <td><span class="kind ${escapeAttr(it.kind)}">${escapeHtml(it.kind)}</span></td>
-                  <td>
-                    <input type="number" class="edit-priority" min="0" max="20" value="${Number(it.priority) || 0}" style="width:4rem" />
-                  </td>
-                  <td>
-                    <input type="number" class="edit-minutes" min="0" step="5" value="${Number(it.minutes) || 0}" style="width:5rem" />
-                  </td>
-                  <td style="min-width:120px">
-                    <div class="bar-wrap" title="${pct}% of allocated"><div class="bar" style="width:${pct}%"></div></div>
-                    <div style="font-size:0.8rem;color:var(--muted);margin-top:0.2rem">${hours(it.minutes)} · ${pct}%</div>
-                  </td>
-                  <td class="actions">
-                    <button type="button" class="btn-save">Save</button>
-                    <button type="button" class="btn-remove danger">Remove</button>
-                  </td>
-                </tr>`;
-            }).join("")}
+            ${items.map((it) => `
+              <tr data-id="${escapeAttr(it.id)}">
+                <td><strong>${escapeHtml(it.title)}</strong>
+                  <div class="path">${escapeHtml(it.kind)} · ${escapeHtml(it.id)}</div>
+                </td>
+                <td><input type="number" class="edit-priority" min="0" max="20" value="${Number(it.priority)||0}" style="width:4rem" /></td>
+                <td><input type="number" class="edit-minutes" min="0" step="5" value="${Number(it.minutes)||0}" style="width:5rem" /></td>
+                <td class="actions">
+                  <button type="button" class="btn-save">Save</button>
+                  <button type="button" class="btn-remove danger">Remove</button>
+                </td>
+              </tr>`).join("")}
           </tbody>
         </table>`;
-
       wrap.querySelectorAll("tr[data-id]").forEach((row) => {
         const id = row.getAttribute("data-id");
         row.querySelector(".btn-save").addEventListener("click", async () => {
-          const priority = Number(row.querySelector(".edit-priority").value);
-          const minutes = Number(row.querySelector(".edit-minutes").value);
           try {
             const next = await api("/api/set", {
               method: "POST",
-              body: JSON.stringify({ key: id, priority, minutes }),
+              body: JSON.stringify({
+                key: id,
+                priority: Number(row.querySelector(".edit-priority").value),
+                minutes: Number(row.querySelector(".edit-minutes").value),
+              }),
             });
             msg(`Updated ${id}`, "ok");
             render(next);
@@ -314,15 +402,11 @@
       });
     }
 
-    function escapeHtml(s) {
-      return String(s ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-    function escapeAttr(s) {
-      return escapeHtml(s).replace(/'/g, "&#39;");
+    function render(state) {
+      $("data-path").textContent = state.path ? `data: ${state.path}` : "";
+      renderPlan(state.plan);
+      renderKpis(state);
+      renderItems(state);
     }
 
     async function refresh() {
@@ -332,29 +416,24 @@
         msg("");
       } catch (e) {
         msg(String(e.message || e), "error");
-        $("list-wrap").innerHTML = `<p class="empty error">Could not load state. Is the server running?</p>`;
       }
     }
 
     $("btn-refresh").addEventListener("click", refresh);
-    $("btn-seed").addEventListener("click", async () => {
-      if (!confirm("Replace the current list with the starter core list?")) return;
+    $("btn-plan").addEventListener("click", async () => {
       try {
-        const state = await api("/api/seed", { method: "POST", body: "{}" });
-        msg("Starter list loaded", "ok");
+        const state = await api("/api/plan", { method: "POST", body: JSON.stringify({ apply: true }) });
+        msg("Rebuilt rolling 24h plan", "ok");
         render(state);
       } catch (e) {
         msg(String(e.message || e), "error");
       }
     });
-    $("btn-allocate").addEventListener("click", async () => {
-      const total = Number($("total-minutes").value);
+    $("btn-seed").addEventListener("click", async () => {
+      if (!confirm("Replace targets with personal starter (sleep, Duchess, workout, Lyft) and clear ad-hoc items?")) return;
       try {
-        const state = await api("/api/allocate", {
-          method: "POST",
-          body: JSON.stringify({ total }),
-        });
-        msg(`Allocated ${total} minutes by priority`, "ok");
+        const state = await api("/api/seed", { method: "POST", body: "{}" });
+        msg("Personal targets loaded + plan built", "ok");
         render(state);
       } catch (e) {
         msg(String(e.message || e), "error");
@@ -381,7 +460,26 @@
         msg(String(e.message || e), "error");
       }
     });
+    $("log-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      try {
+        const body = {
+          target_id: $("log-target").value,
+          value: Number($("log-value").value),
+          note: $("log-note").value,
+        };
+        if ($("log-date").value) body.date = $("log-date").value;
+        const state = await api("/api/log", { method: "POST", body: JSON.stringify(body) });
+        msg("Logged", "ok");
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
 
+    // default log date = today local
+    const d = new Date();
+    $("log-date").value = d.toISOString().slice(0, 10);
     refresh();
   </script>
 </body>

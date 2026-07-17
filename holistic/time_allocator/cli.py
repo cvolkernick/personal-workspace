@@ -25,7 +25,10 @@ if str(_ROOT) not in sys.path:
 from holistic.time_allocator.domain import (  # noqa: E402
     add_item,
     allocate_total,
+    apply_plan,
+    build_rolling_plan,
     list_items,
+    list_targets,
     remove_item,
     seed_starter,
     set_minutes,
@@ -68,20 +71,65 @@ def format_table(items: list[dict[str, Any]]) -> str:
 def _cmd_list(args: argparse.Namespace) -> int:
     state = load_state(args.data)
     items = list_items(state)
+    targets = list_targets(state)
     if args.json:
-        print(json.dumps({"items": items, "path": str(resolve_data_path(args.data))}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "items": items,
+                    "targets": targets,
+                    "plan": state.get("plan"),
+                    "path": str(resolve_data_path(args.data)),
+                },
+                indent=2,
+            )
+        )
     else:
         path = resolve_data_path(args.data)
         print(f"data: {path}")
+        print("## Targets")
+        if not targets:
+            print("(none)")
+        else:
+            for t in targets:
+                print(
+                    f"  [{t.get('kind')}] pri={t.get('priority')}  {t.get('id')}  {t.get('title')}"
+                )
+        print("## Ad-hoc")
         print(format_table(items))
     return 0
 
 
 def _cmd_seed(args: argparse.Namespace) -> int:
-    state = seed_starter(load_state(args.data))
+    state = seed_starter(load_state(args.data), personal=not args.generic)
+    state = apply_plan(state)
     path = save_state(state, args.data)
-    print(f"seeded starter list → {path}")
-    print(format_table(list_items(state)))
+    print(f"seeded {'generic items' if args.generic else 'personal targets'} → {path}")
+    plan = state.get("plan") or {}
+    print(f"plan blocks: {len(plan.get('blocks') or [])}  active={plan.get('active_minutes')}")
+    for b in plan.get("blocks") or []:
+        print(f"  {b.get('minutes'):4d}m  [{b.get('role')}] {b.get('title')}")
+    return 0
+
+
+def _cmd_plan(args: argparse.Namespace) -> int:
+    state = load_state(args.data)
+    plan = build_rolling_plan(state)
+    if args.apply:
+        state = apply_plan(state, plan)
+        save_state(state, args.data)
+    if args.json:
+        print(json.dumps(plan, indent=2))
+    else:
+        print(f"window: {plan.get('window_start')} → {plan.get('window_end')}")
+        print(
+            f"24h={plan.get('window_minutes')}  sleep={plan.get('sleep_reserve_minutes')}  "
+            f"active={plan.get('active_minutes')}"
+        )
+        for b in plan.get("blocks") or []:
+            print(f"  {int(b.get('minutes') or 0):4d}m  [{b.get('role')}] {b.get('title')}")
+        for n in plan.get("notes") or []:
+            print(f"  note: {n}")
     return 0
 
 
@@ -163,8 +211,21 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--json", action="store_true", help="Machine-readable output")
     sp.set_defaults(func=_cmd_list)
 
-    sp = sub.add_parser("seed", help="Load the starter core list (replaces current items)")
+    sp = sub.add_parser(
+        "seed",
+        help="Load personal targets (sleep/workout/Duchess/Lyft) + build 24h plan",
+    )
+    sp.add_argument(
+        "--generic",
+        action="store_true",
+        help="Also load legacy generic ad-hoc starter items",
+    )
     sp.set_defaults(func=_cmd_seed)
+
+    sp = sub.add_parser("plan", help="Show / apply rolling 24h plan")
+    sp.add_argument("--apply", action="store_true", help="Persist plan on the store")
+    sp.add_argument("--json", action="store_true")
+    sp.set_defaults(func=_cmd_plan)
 
     sp = sub.add_parser("add", help="Add a task or goal")
     sp.add_argument("title", help="Title of the task/goal")

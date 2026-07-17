@@ -1,27 +1,49 @@
-"""Time allocator: durable task/goal list with priority-weighted time allocation."""
+"""Time allocator: targets, ad-hoc tasks, rolling 24h plan."""
 
 from .domain import (
+    PERSONAL_TARGETS,
     STARTER_ITEMS,
     add_item,
+    add_log,
+    add_target,
     allocate_total,
+    apply_plan,
+    build_rolling_plan,
     get_item,
+    get_target,
+    kpi_status,
     list_items,
+    list_targets,
     remove_item,
+    remove_target,
+    seed_starter,
     set_minutes,
     set_priority,
+    update_target,
 )
 from .store import DEFAULT_DATA_PATH, load_state, save_state
 
 __all__ = [
+    "PERSONAL_TARGETS",
     "STARTER_ITEMS",
     "DEFAULT_DATA_PATH",
     "add_item",
+    "add_log",
+    "add_target",
     "allocate_total",
+    "apply_plan",
+    "build_rolling_plan",
     "get_item",
+    "get_target",
+    "kpi_status",
     "list_items",
+    "list_targets",
     "load_state",
     "remove_item",
+    "remove_target",
     "save_state",
+    "seed_starter",
     "set_minutes",
     "set_priority",
+    "update_target",
 ]

@@ -1,40 +1,146 @@
 {
-  "version": 1,
-  "items": [
+  "version": 2,
+  "items": [],
+  "targets": [
     {
-      "id": "seed-deep-work",
-      "title": "Deep work / primary project",
-      "kind": "task",
-      "priority": 5,
-      "minutes": 160
+      "id": "sleep",
+      "title": "Sleep (rolling 7-day avg \u2265 8h)",
+      "kind": "rolling_avg",
+      "window_days": 7,
+      "unit": "hours",
+      "target": 8.0,
+      "priority": 10,
+      "reserve_minutes": 480
     },
     {
-      "id": "seed-fitness",
-      "title": "Fitness / movement",
-      "kind": "goal",
-      "priority": 4,
-      "minutes": 128
+      "id": "duchess-walk",
+      "title": "Walk Duchess",
+      "kind": "daily_duration",
+      "minutes": 130,
+      "sessions_hint": 2,
+      "priority": 9,
+      "notes": "At least one 130-minute walk; two when possible."
     },
     {
-      "id": "seed-admin",
-      "title": "Admin / email / chores",
-      "kind": "task",
-      "priority": 2,
-      "minutes": 64
+      "id": "workout",
+      "title": "Workout",
+      "kind": "weekly_frequency",
+      "min_days": 3,
+      "max_days": 5,
+      "session_minutes": 60,
+      "priority": 8,
+      "notes": "3\u20135 training days per week."
     },
     {
-      "id": "seed-learning",
-      "title": "Learning / skill growth",
-      "kind": "goal",
+      "id": "lyft",
+      "title": "Lyft driving",
+      "kind": "fill_remainder",
       "priority": 3,
-      "minutes": 96
-    },
-    {
-      "id": "seed-rest",
-      "title": "Rest / buffer",
-      "kind": "task",
-      "priority": 1,
-      "minutes": 32
+      "notes": "Fill remaining active time after fixed targets + ad-hoc."
     }
-  ]
+  ],
+  "logs": [],
+  "plan": {
+    "window_start": "2026-07-17T14:58:57-04:00",
+    "window_end": "2026-07-18T14:58:57-04:00",
+    "window_minutes": 1440,
+    "sleep_reserve_minutes": 480,
+    "active_minutes": 960,
+    "blocks": [
+      {
+        "source": "target",
+        "id": "sleep",
+        "title": "Sleep (rolling 7-day avg \u2265 8h)",
+        "minutes": 480,
+        "role": "reserve",
+        "kind": "rolling_avg",
+        "priority": 10
+      },
+      {
+        "source": "target",
+        "id": "duchess-walk",
+        "title": "Walk Duchess",
+        "minutes": 130,
+        "role": "fixed",
+        "kind": "daily_duration",
+        "priority": 9,
+        "sessions_hint": 2
+      },
+      {
+        "source": "target",
+        "id": "workout",
+        "title": "Workout",
+        "minutes": 60,
+        "role": "session",
+        "kind": "weekly_frequency",
+        "priority": 8,
+        "reason": "behind weekly min (0/3)"
+      },
+      {
+        "source": "target",
+        "id": "lyft",
+        "title": "Lyft driving",
+        "minutes": 770,
+        "role": "fill",
+        "kind": "fill_remainder",
+        "priority": 3
+      }
+    ],
+    "total_block_minutes": 1440,
+    "unallocated_active_minutes": 0,
+    "notes": [],
+    "kpi_status": [
+      {
+        "id": "sleep",
+        "title": "Sleep (rolling 7-day avg \u2265 8h)",
+        "kind": "rolling_avg",
+        "priority": 10,
+        "on_track": null,
+        "summary": "No logs in last 7d \u2014 target 8.0 hours",
+        "detail": {
+          "window_days": 7,
+          "target": 8.0,
+          "unit": "hours",
+          "samples": 0,
+          "average": null,
+          "days": []
+        }
+      },
+      {
+        "id": "duchess-walk",
+        "title": "Walk Duchess",
+        "kind": "daily_duration",
+        "priority": 9,
+        "on_track": null,
+        "summary": "Today 0/130 min (not logged yet)",
+        "detail": {
+          "target_minutes": 130,
+          "done_minutes": 0
+        }
+      },
+      {
+        "id": "workout",
+        "title": "Workout",
+        "kind": "weekly_frequency",
+        "priority": 8,
+        "on_track": false,
+        "summary": "0/3\u20135 days this week \u2014 need more sessions",
+        "detail": {
+          "min_days": 3,
+          "max_days": 5,
+          "days_done": 0,
+          "dates": []
+        }
+      },
+      {
+        "id": "lyft",
+        "title": "Lyft driving",
+        "kind": "fill_remainder",
+        "priority": 3,
+        "on_track": null,
+        "summary": "Fills leftover active minutes in the rolling 24h plan",
+        "detail": {}
+      }
+    ]
+  }
 }

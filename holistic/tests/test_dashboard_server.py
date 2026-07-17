@@ -81,32 +81,54 @@ class DashboardServerTests(unittest.TestCase):
 
                 code, state = _http_json("POST", f"{base}/api/seed", {})
                 self.assertEqual(code, 200, state)
-                self.assertGreaterEqual(state["count"], 2)
+                self.assertGreaterEqual(len(state.get("targets") or []), 4)
+                self.assertIn("plan", state)
                 self.assertTrue(data.is_file())
+                plan_ids = {b["id"] for b in (state.get("plan") or {}).get("blocks") or []}
+                self.assertIn("sleep", plan_ids)
+                self.assertIn("lyft", plan_ids)
 
                 code, state = _http_json(
                     "POST",
                     f"{base}/api/add",
-                    {"title": "Dashboard item", "kind": "task", "priority": 7, "id": "dash-1"},
+                    {
+                        "title": "Dashboard item",
+                        "kind": "task",
+                        "priority": 7,
+                        "id": "dash-1",
+                        "minutes": 45,
+                    },
                 )
                 self.assertEqual(code, 200, state)
                 ids = {it["id"] for it in state["items"]}
                 self.assertIn("dash-1", ids)
 
-                code, state = _http_json("POST", f"{base}/api/remove", {"key": "seed-admin"})
+                code, state = _http_json(
+                    "POST",
+                    f"{base}/api/add",
+                    {"title": "Temp", "id": "temp-rm", "minutes": 10},
+                )
+                self.assertEqual(code, 200, state)
+                code, state = _http_json("POST", f"{base}/api/remove", {"key": "temp-rm"})
                 self.assertEqual(code, 200, state)
                 ids = {it["id"] for it in state["items"]}
-                self.assertNotIn("seed-admin", ids)
+                self.assertNotIn("temp-rm", ids)
                 self.assertIn("dash-1", ids)
 
                 code, state = _http_json("POST", f"{base}/api/allocate", {"total": 300})
                 self.assertEqual(code, 200, state)
                 self.assertEqual(state["total_minutes"], 300)
 
+                code, state = _http_json(
+                    "POST", f"{base}/api/log", {"target_id": "sleep", "value": 8.0}
+                )
+                self.assertEqual(code, 200, state)
+
                 code, state = _http_json("GET", f"{base}/api/state")
                 self.assertEqual(code, 200, state)
                 self.assertEqual(state["total_minutes"], 300)
                 self.assertIn("dash-1", {it["id"] for it in state["items"]})
+                self.assertTrue(any(k["id"] == "sleep" for k in state.get("kpi_status") or []))
 
                 # index.html served
                 req = urllib.request.Request(f"{base}/")

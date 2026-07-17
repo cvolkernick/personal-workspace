@@ -77,11 +77,14 @@ MVP implemented under `holistic/time_allocator`. Promote backlog status to `done
 
 ## Next iteration (post-MVP)
 
-1. **Recommend:** given current list + priorities, surface top-1 next action for “now” (rule-based first).
-2. **Coach loop:** session command that records progress notes and suggests re-allocation mid-day.
-3. **Day budget:** default available minutes, blocked calendar windows (optional file), residual free time.
-4. **Agent hooks:** read-only JSON schema stable enough for Grok/skills to propose add/remove/reprioritize.
-5. Optional: light dashboard card in projects-dashboard or strategy/today.md sync.
+Shipped since MVP: dashboard UI, **ongoing targets/KPIs**, **rolling 24h plan** (sleep reserve → fixed daily → weekly sessions → ad-hoc → Lyft fill), personal seed (sleep 8h/7d, Duchess 130m, workout 3–5×, Lyft fill).
+
+Still open:
+1. **Recommend:** top-1 next action for “now” from the live plan (rule-based first).
+2. **Coach loop:** mid-window progress notes + re-plan.
+3. Blocked calendar windows; split Duchess into two walk blocks; Lyft hours logging.
+4. **Agent hooks:** stable JSON for Grok/skills.
+5. Optional: strategy/today.md or projects-dashboard card.
 
 ## Grok `/goal` objective
 
