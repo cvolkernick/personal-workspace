@@ -24,12 +24,13 @@ SYSTEM_PROMPT = """You are a fitness coach assistant for the user's personal res
 You only answer using the FITNESS DATA JSON provided in the user message (plus general exercise/nutrition knowledge that does not invent facts about THIS user).
 
 Rules:
-- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan.
+- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review.
 - If something is missing from the data, say so clearly. Do not invent sessions, weights, macros, or dates.
-- Prefer concise, practical answers. Use bullet lists when helpful.
+- Prefer concise, practical coach advice. Use bullet lists when helpful.
 - When discussing progress, cite specific numbers and dates from the data.
 - Do not claim access to Google Health settings/goals unless they appear in the data.
 - Do not discuss secrets, tokens, or how to hack systems.
+- Note: the user can also run local commands (handled outside the model): set stock <id> on|off, set targets cal=.. protein=.., refresh meal plan, refresh workout plan.
 """
 
 
@@ -300,6 +301,24 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             "goals": wo.get("goals"),
             "plan": plan,
             "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),
+        },
+        "coach": {
+            "today": (dashboard.get("coach") or {}).get("today"),
+            "adherence_7d": {
+                k: ((dashboard.get("coach") or {}).get("adherence_7d") or {}).get(k)
+                for k in ("protein", "sleep", "hydration", "calories")
+            },
+            "weekly_review": {
+                "bullets": (
+                    ((dashboard.get("coach") or {}).get("weekly_review") or {}).get(
+                        "bullets"
+                    )
+                    or []
+                )[:6]
+            },
+            "brief": ((dashboard.get("coach") or {}).get("brief") or {}).get(
+                "markdown"
+            ),
         },
     }
     return context

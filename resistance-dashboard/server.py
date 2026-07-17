@@ -75,6 +75,8 @@ from rt_dashboard.dashboard_cache import (  # noqa: E402
     save_health_cache,
     ttl_sec,
 )
+from rt_dashboard.coach import build_coach_payload  # noqa: E402
+from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
@@ -477,11 +479,32 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         }
     except Exception as e:  # noqa: BLE001
         errors.append(f"workout_plan: {e}")
+        workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
         payload["workout_store"] = {
             "catalog": {"exercises": []},
             "goals": {},
             "sources": {},
-            "plan": {"message": f"Workout plan failed: {e}", "exercises": []},
+            "plan": workout_plan,
+        }
+
+    try:
+        payload["coach"] = build_coach_payload(
+            health=health,
+            sessions=sessions,
+            recovery=recovery,
+            targets=nut.get("targets") or {},
+            consumed=consumed,
+            meal_plan=auto_plan,
+            workout_plan=(payload.get("workout_store") or {}).get("plan") or {},
+            as_of=local_today,
+        )
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"coach: {e}")
+        payload["coach"] = {
+            "today": {"date": local_today, "recommendation": "train"},
+            "adherence_7d": {},
+            "weekly_review": {"bullets": [f"Coach layer error: {e}"]},
+            "brief": {"title": "Coach brief", "markdown": f"Coach unavailable: {e}"},
         }
 
     elapsed_ms = int((datetime.utcnow() - t0).total_seconds() * 1000)
@@ -515,6 +538,91 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             health_age_sec=(health_cache_meta or {}).get("age_sec"),
         )
     return payload
+
+
+def _execute_coach_action(action: dict) -> dict:
+    """Run a structured coach action against local/GitHub stores."""
+    kind = action.get("action")
+    client = build_github_client(for_write=True)
+    try:
+        if kind == "set_stock":
+            store = load_inventory_and_targets(client)
+            ident = str(action.get("id_or_name") or "").strip()
+            inv = store["inventory"] or {"ingredients": []}
+            match_id = ""
+            match_name = ""
+            for ing in inv.get("ingredients") or []:
+                iid = str(ing.get("id") or "")
+                iname = str(ing.get("name") or "")
+                if iid.lower() == ident.lower() or iname.lower() == ident.lower():
+                    match_id = iid
+                    match_name = iname
+                    break
+            if not match_id:
+                return {
+                    "ok": False,
+                    "action": kind,
+                    "error": f"ingredient not found: {ident}",
+                }
+            updated = set_in_stock(
+                inv, ingredient_id=match_id, in_stock=bool(action.get("in_stock"))
+            )
+            write = write_nutrition_file(
+                client,
+                INVENTORY_PATH,
+                updated,
+                message=f"nutrition: stock via coach {match_id}",
+            )
+            return {
+                "ok": True,
+                "action": kind,
+                "id": match_id,
+                "name": match_name,
+                "in_stock": bool(action.get("in_stock")),
+                "write": write,
+            }
+        if kind == "set_targets":
+            raw = action.get("targets") or {}
+            # Merge with existing targets
+            store = load_inventory_and_targets(client)
+            base = dict(store.get("targets") or {})
+            base.update(raw)
+            updated = update_targets(base)
+            write = write_nutrition_file(
+                client,
+                TARGETS_PATH,
+                updated,
+                message="nutrition: targets via coach",
+            )
+            return {"ok": True, "action": kind, "targets": updated, "write": write}
+        if kind == "refresh_meal_plan":
+            data = load_dashboard_data(force_refresh=False)
+            store = data.get("nutrition_store") or {}
+            plan = generate_meal_plan(
+                store.get("inventory") or {"ingredients": []},
+                store.get("targets") or {},
+                store.get("today_consumed") or {},
+            )
+            return {"ok": True, "action": kind, "plan": plan}
+        if kind == "refresh_workout_plan":
+            data = load_dashboard_data(force_refresh=False)
+            wo = data.get("workout_store") or {}
+            rec = data.get("recovery") or {}
+            from rt_dashboard.dashboard_cache import sessions_from_dicts
+
+            sessions = sessions_from_dicts(data.get("sessions") or [])
+            plan = generate_workout_plan(
+                wo.get("catalog") or {"exercises": []},
+                wo.get("goals") or {},
+                sessions,
+                recovery_label=rec.get("label"),
+                recovery_score=rec.get("score"),
+                session_type=action.get("session_type"),
+            )
+            return {"ok": True, "action": kind, "plan": plan}
+        return {"ok": False, "action": kind, "error": f"unknown action {kind}"}
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "action": kind, "error": str(e)}
 
 
 def parse_log_body(data: dict) -> Session:
@@ -787,6 +895,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 question = str(body.get("question") or body.get("q") or "").strip()
                 history = body.get("history") if isinstance(body.get("history"), list) else []
                 model = body.get("model")
+                # Local coach actions (stock / targets / refresh plans) — no model call.
+                action = try_parse_coach_action(question)
+                if action:
+                    act_result = _execute_coach_action(action)
+                    self._send_json(
+                        {
+                            "ok": True,
+                            "answer": format_action_reply(act_result),
+                            "model": "local-coach-actions",
+                            "auth_source": "local",
+                            "action": act_result,
+                            "context_chars": 0,
+                            "session_count": 0,
+                        }
+                    )
+                    return
                 # Never force remote Health on Ask — use disk cache + local lifts.
                 dashboard = load_dashboard_data(force_refresh=False)
                 result = ask_about_dashboard(

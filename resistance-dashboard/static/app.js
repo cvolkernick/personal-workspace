@@ -1348,6 +1348,154 @@
     if (data.workout_store && data.workout_store.plan) {
       renderWorkoutPlan(data.workout_store.plan);
     }
+    renderTodayHub(data);
+  }
+
+  function renderTodayHub(data) {
+    const coach = data.coach || {};
+    const today = coach.today || {};
+    const adh = coach.adherence_7d || {};
+    const brief = coach.brief || {};
+    const weekly = coach.weekly_review || {};
+    if ($("today-hub-date")) {
+      const rec = today.recommendation || "—";
+      $("today-hub-date").textContent =
+        `${today.date || (data.meta && data.meta.local_today) || ""} · recommendation: ${rec}`;
+    }
+    if ($("today-recovery")) {
+      const r = today.recovery || data.recovery || {};
+      const reasons = (r.reasons || []).slice(0, 4);
+      $("today-recovery").innerHTML = `
+        <div class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${r.score != null ? Math.round(r.score) : "—"}</div>
+        <ul class="reasons" style="margin-top:0.5rem">${reasons.map((x) => `<li>${x}</li>`).join("")}</ul>
+      `;
+    }
+    if ($("today-adherence")) {
+      const p = adh.protein || {};
+      const s = adh.sleep || {};
+      const h = adh.hydration || {};
+      const c = adh.calories || {};
+      const fmt = (block, label) =>
+        block.pct != null
+          ? `${label} ${block.pct}% (${block.hits}/${block.days_logged})`
+          : `${label} —`;
+      $("today-adherence").innerHTML = `
+        <strong>7-day adherence</strong><br/>
+        ${fmt(p, "Protein")} · ${fmt(c, "Calories")}<br/>
+        ${fmt(s, "Sleep")} · ${fmt(h, "Hydration")}
+      `;
+    }
+    if ($("today-workout")) {
+      const w = today.workout || (data.workout_store && data.workout_store.plan) || {};
+      if (w.is_rest_day) {
+        $("today-workout").innerHTML = `<p><strong>Rest day</strong> — ${w.message || ""}</p>`;
+      } else {
+        const ex = w.exercises || [];
+        const lines = ex
+          .slice(0, 6)
+          .map((e) => {
+            const rx = e.prescription || e;
+            const wt = rx.weight_lbs != null ? `${rx.weight_lbs} lb` : "load TBD";
+            return `<li><strong>${e.name}</strong> — ${wt} × ${rx.sets || "?"} × ${rx.reps || "?"}</li>`;
+          })
+          .join("");
+        $("today-workout").innerHTML = `
+          <p><strong>${(w.session_type || "session").toUpperCase()}</strong> · ${ex.length} lifts</p>
+          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">${lines || "<li class='muted'>No exercises</li>"}</ul>
+          <p class="muted" style="font-size:0.85rem;margin-top:0.4rem">${w.message || ""}</p>
+        `;
+      }
+    }
+    if ($("today-macros")) {
+      const n = today.nutrition || {};
+      const cons = n.consumed || (data.nutrition_store && data.nutrition_store.today_consumed) || {};
+      const rem = n.remaining || {};
+      $("today-macros").innerHTML = `
+        <strong>Today so far</strong>: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
+        C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}<br/>
+        <strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(rem.protein_g)}
+        C${fmtNum(rem.carbs_g)} F${fmtNum(rem.fat_g)}
+      `;
+    }
+    if ($("coach-brief")) {
+      const md = brief.markdown || "";
+      if (!md) {
+        $("coach-brief").innerHTML = "";
+      } else if (typeof marked !== "undefined" && marked.parse) {
+        $("coach-brief").innerHTML =
+          `<h3 class="today-subh">${brief.title || "Coach brief"}</h3><div class="ask-md">${marked.parse(md)}</div>`;
+      } else {
+        $("coach-brief").textContent = md;
+      }
+    }
+    if ($("weekly-review")) {
+      const bullets = weekly.bullets || [];
+      if (!bullets.length) {
+        $("weekly-review").innerHTML = "";
+      } else {
+        $("weekly-review").innerHTML = `
+          <h3 class="today-subh">Weekly review</h3>
+          <ul class="reasons">${bullets.map((b) => `<li>${b}</li>`).join("")}</ul>
+        `;
+      }
+    }
+  }
+
+  function prefillsFromWorkoutPlan(plan) {
+    if (!plan || plan.is_rest_day) return [];
+    return (plan.exercises || []).map((ex) => {
+      const rx = ex.prescription || {};
+      return {
+        name: ex.name,
+        sets: [
+          {
+            weight_lbs: rx.weight_lbs != null ? rx.weight_lbs : "",
+            sets: rx.sets != null ? rx.sets : 3,
+            reps: rx.reps != null ? rx.reps : 10,
+          },
+        ],
+      };
+    });
+  }
+
+  function logPlanToForm() {
+    const plan =
+      (state && state.coach && state.coach.today && state.coach.today.workout) ||
+      (state && state.workout_store && state.workout_store.plan) ||
+      null;
+    // today.workout has flattened exercises; full plan has prescription
+    let prefills = [];
+    const full = state && state.workout_store && state.workout_store.plan;
+    if (full && !full.is_rest_day) {
+      prefills = prefillsFromWorkoutPlan(full);
+      if (full.session_type && $("session_type")) {
+        $("session_type").value = full.session_type;
+      }
+    } else if (plan && plan.exercises) {
+      prefills = plan.exercises.map((e) => ({
+        name: e.name,
+        sets: [
+          {
+            weight_lbs: e.weight_lbs != null ? e.weight_lbs : "",
+            sets: e.sets != null ? e.sets : 3,
+            reps: e.reps != null ? e.reps : 10,
+          },
+        ],
+      }));
+      if (plan.session_type && $("session_type")) {
+        $("session_type").value = plan.session_type;
+      }
+    }
+    if (!prefills.length) {
+      showAlert("No workout plan to log (rest day or empty plan).", "warn");
+      return;
+    }
+    const wrap = $("exercise-rows");
+    if (wrap) wrap.innerHTML = "";
+    prefills.forEach((p) => addExerciseRow(p));
+    if ($("log-date")) $("log-date").value = todayISO();
+    $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
+    showAlert(`Prefixed ${prefills.length} exercises from today’s plan — edit loads then Save.`, "ok");
   }
 
   async function loadDashboard(forceRefresh = false) {
@@ -1760,6 +1908,15 @@
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();
     });
+    if ($("btn-log-plan")) {
+      $("btn-log-plan").addEventListener("click", logPlanToForm);
+    }
+    if ($("btn-scroll-workout-plan")) {
+      $("btn-scroll-workout-plan").addEventListener("click", () => {
+        const el = $("workout-plan-card") || $("workout-plan-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
     if ($("ingredient-form")) {
       $("ingredient-form").addEventListener("submit", submitIngredient);
     }

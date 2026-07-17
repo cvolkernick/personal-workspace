@@ -75,39 +75,27 @@
         </div>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="log-card">
-        <h2>Log workout</h2>
-        <form class="log-form" id="log-form">
-          <div class="row cols-3">
-            <label>
-              Session type
-              <select name="session_type" id="session_type" required>
-                <option value="push">Push</option>
-                <option value="pull">Pull</option>
-                <option value="legs">Legs</option>
-              </select>
-            </label>
-            <label>
-              Date
-              <input type="date" name="date" id="log-date" required />
-            </label>
-            <label>
-              Notes
-              <input type="text" name="notes" id="log-notes" placeholder="Optional" />
-            </label>
+      <section class="card" style="margin-top: 1rem" id="today-hub">
+        <h2>Today</h2>
+        <p class="muted" style="margin-top: 0; font-size: 0.85rem" id="today-hub-date"></p>
+        <div class="grid two" id="today-hub-grid">
+          <div>
+            <h3 class="today-subh">Readiness</h3>
+            <div id="today-recovery"></div>
+            <div id="today-adherence" class="muted" style="margin-top: 0.75rem; font-size: 0.9rem"></div>
           </div>
-          <p class="muted" style="margin: 0; font-size: 0.85rem">
-            One card per exercise. Use <strong>+ Set</strong> for different weights/reps
-            (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
-            sets: one set row with Sets = 3. PR is auto-tagged from history on save.
-          </p>
-          <div id="exercise-rows"></div>
-          <div class="actions">
-            <button type="button" id="btn-add-ex">+ Exercise</button>
-            <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
+          <div>
+            <h3 class="today-subh">Training &amp; nutrition</h3>
+            <div id="today-workout" style="font-size: 0.92rem"></div>
+            <div id="today-macros" class="muted" style="margin-top: 0.65rem; font-size: 0.9rem"></div>
+            <div class="actions" style="margin-top: 0.75rem">
+              <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
+              <button type="button" id="btn-scroll-workout-plan">Edit plan</button>
+            </div>
           </div>
-          <p class="muted" id="log-status" style="margin: 0"></p>
-        </form>
+        </div>
+        <div id="coach-brief" class="coach-brief" style="margin-top: 1rem"></div>
+        <div id="weekly-review" class="weekly-review" style="margin-top: 1rem"></div>
       </section>
 
       <section class="grid two" style="margin-top: 1rem">
@@ -333,6 +321,42 @@
           </form>
           <div id="workout-plan-result" style="margin-top: 0.75rem"></div>
         </article>
+      </section>
+
+      <section class="card" style="margin-top: 1rem" id="log-card">
+        <h2>Log workout</h2>
+        <form class="log-form" id="log-form">
+          <div class="row cols-3">
+            <label>
+              Session type
+              <select name="session_type" id="session_type" required>
+                <option value="push">Push</option>
+                <option value="pull">Pull</option>
+                <option value="legs">Legs</option>
+              </select>
+            </label>
+            <label>
+              Date
+              <input type="date" name="date" id="log-date" required />
+            </label>
+            <label>
+              Notes
+              <input type="text" name="notes" id="log-notes" placeholder="Optional" />
+            </label>
+          </div>
+          <p class="muted" style="margin: 0; font-size: 0.85rem">
+            One card per exercise. Use <strong>+ Set</strong> for different weights/reps
+            (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
+            sets: one set row with Sets = 3. PR is auto-tagged from history on save.
+            Use <strong>Log this plan</strong> on the Today card to prefill from today’s prescription.
+          </p>
+          <div id="exercise-rows"></div>
+          <div class="actions">
+            <button type="button" id="btn-add-ex">+ Exercise</button>
+            <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
+          </div>
+          <p class="muted" id="log-status" style="margin: 0"></p>
+        </form>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="history-card">
