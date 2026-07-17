@@ -16,6 +16,8 @@ sys.path.insert(0, str(DASH))
 from git_workflow import (  # noqa: E402
     branch_name_for_area,
     collect_branch_status,
+    dirty_paths,
+    parse_porcelain_path,
     protect_work,
     start_work,
 )
@@ -62,6 +64,22 @@ class TestGitWorkflow(unittest.TestCase):
 
     def test_branch_name(self) -> None:
         self.assertEqual(branch_name_for_area("Projects Dashboard"), "work/projects-dashboard")
+
+    def test_parse_porcelain_paths(self) -> None:
+        self.assertEqual(parse_porcelain_path(" M ops/backlog/items.json"), "ops/backlog/items.json")
+        self.assertEqual(parse_porcelain_path("M  ops/backlog/items.json"), "ops/backlog/items.json")
+        self.assertEqual(parse_porcelain_path("M ops/backlog/items.json"), "ops/backlog/items.json")
+        self.assertEqual(parse_porcelain_path("?? new.txt"), "new.txt")
+        self.assertEqual(
+            parse_porcelain_path("R  old.txt -> new.txt"),
+            "new.txt",
+        )
+
+    def test_dirty_paths_single_space_status(self) -> None:
+        (self.repo / "treasury" / "c.txt").write_text("3\n", encoding="utf-8")
+        # ensure porcelain is readable
+        paths = dirty_paths(self.repo)
+        self.assertTrue(any(p.endswith("c.txt") for p in paths), paths)
 
     def test_start_work_creates_branch(self) -> None:
         r = start_work("treasury", repo=self.repo)

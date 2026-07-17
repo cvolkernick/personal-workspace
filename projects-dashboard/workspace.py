@@ -111,11 +111,20 @@ def collect_repo_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
     code, porcelain, _ = _run_git(repo, "status", "--porcelain")
     dirty_paths: list[str] = []
     if code == 0 and porcelain:
+        try:
+            from git_workflow import parse_porcelain_path  # noqa: WPS433
+        except Exception:
+            parse_porcelain_path = None  # type: ignore
         for line in porcelain.splitlines():
-            # format: XY path  or XY orig -> path
-            path = line[3:].strip() if len(line) > 3 else ""
-            if " -> " in path:
-                path = path.split(" -> ", 1)[1]
+            if parse_porcelain_path:
+                path = parse_porcelain_path(line) or ""
+            else:
+                # fallback: XY + space
+                path = line[3:].strip() if len(line) > 3 and line[2:3] == " " else (
+                    line.split(None, 1)[1] if len(line.split(None, 1)) > 1 else ""
+                )
+                if " -> " in path:
+                    path = path.split(" -> ", 1)[1]
             if path:
                 dirty_paths.append(path)
     result["dirty"] = bool(dirty_paths) if code == 0 else None

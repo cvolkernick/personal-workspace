@@ -218,15 +218,42 @@ def start_work(
     }
 
 
+def parse_porcelain_path(line: str) -> Optional[str]:
+    """Parse a path from `git status --porcelain` (v1) output.
+
+    Standard form is ``XY PATH`` (2 status chars + space + path). Some lines
+    appear as ``M path`` with a single space; naive ``line[3:]`` then yields a
+    corrupted path (e.g. ``ps/backlog/...``) that never stages.
+    """
+    if not line:
+        return None
+    # Untracked: "?? path" or "!! path"
+    if line.startswith("?? ") or line.startswith("!! "):
+        path = line[3:].strip()
+    elif len(line) >= 3 and line[2] == " ":
+        # Normal XY + space
+        path = line[3:].strip()
+    elif len(line) >= 2 and line[1] == " ":
+        # Single-letter status + space (defensive)
+        path = line[2:].strip()
+    else:
+        parts = line.split(None, 1)
+        path = parts[1].strip() if len(parts) > 1 else ""
+    if path.startswith('"') and path.endswith('"'):
+        # git quotes unusual paths; strip quotes (good enough for our tree)
+        path = path[1:-1].replace('\\"', '"').replace("\\\\", "\\")
+    if " -> " in path:
+        path = path.split(" -> ", 1)[1].strip()
+    return path or None
+
+
 def dirty_paths(repo: Path = WORKSPACE_ROOT) -> list[str]:
     code, porcelain, _ = _run(repo, "status", "--porcelain")
     if code != 0 or not porcelain:
         return []
     paths = []
     for line in porcelain.splitlines():
-        path = line[3:].strip() if len(line) > 3 else ""
-        if " -> " in path:
-            path = path.split(" -> ", 1)[1]
+        path = parse_porcelain_path(line)
         if path:
             paths.append(path)
     return paths
