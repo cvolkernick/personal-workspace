@@ -1,4 +1,4 @@
-# Graceful Exit — personal-workspace
+# Workflow Management — personal-workspace
 
 Pre-reset readiness **and** git/session protection for this monorepo.
 

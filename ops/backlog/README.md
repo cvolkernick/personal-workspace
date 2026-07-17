@@ -1,6 +1,6 @@
 # Project backlog
 
-Ideas and projects to start later. Managed via the Graceful Exit dashboard or `projects-dashboard/backlog.py`.
+Ideas and projects to start later. Managed via the Workflow Management dashboard or `projects-dashboard/backlog.py`.
 
 - `items.json` — source of truth
 - `seeds/` — goal planning seeds when you **Initiate** an item

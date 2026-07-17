@@ -54,7 +54,7 @@ def _ensure_store() -> None:
         if not readme.is_file():
             readme.write_text(
                 "# Project backlog\n\n"
-                "Ideas and projects to start later. Managed via the Graceful Exit "
+                "Ideas and projects to start later. Managed via the Workflow Management "
                 "dashboard or `projects-dashboard/backlog.py`.\n\n"
                 "- `items.json` — source of truth\n"
                 "- `seeds/` — goal planning seeds when you **Initiate** an item\n\n"

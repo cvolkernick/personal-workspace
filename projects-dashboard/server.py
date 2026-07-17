@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local server for personal-workspace graceful-exit dashboard.
+"""Local server for personal-workspace workflow-management dashboard.
 
   GET  /api/projects       — readiness + branches + resume kit + areas
   POST /api/protect        — commit durable dirty work + push (auto branch)
@@ -265,7 +265,7 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="personal-workspace Graceful Exit dashboard"
+        description="personal-workspace Workflow Management dashboard"
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
@@ -273,7 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     url = f"http://{args.bind}:{args.port}/"
-    print(f"Graceful Exit dashboard → {url}")
+    print(f"Workflow Management dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
     print("API: GET /api/projects | POST /api/sync /api/protect /api/start-work")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)

@@ -143,7 +143,7 @@ class TestWorkspace(unittest.TestCase):
             workspace=self.ws, grok_home=self.grok
         )
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["mode"], "graceful-exit")
+        self.assertEqual(payload["mode"], "workflow-management")
         self.assertEqual(payload["workspace"]["name"], "personal-workspace")
         names = {p["name"]: p for p in payload["projects"]}
         self.assertIn("resistance-dashboard", names)

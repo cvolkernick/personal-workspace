@@ -1,4 +1,4 @@
-"""personal-workspace graceful-exit / pre-reset readiness dashboard.
+"""personal-workspace workflow-management / pre-reset readiness dashboard.
 
 Purpose: before system updates, reboots, or long interruptions, confirm that
 Grok Build work in personal-workspace can stop without losing session context
@@ -331,7 +331,7 @@ def build_readiness(
     stashes: list[dict[str, str]],
     listeners: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Compute pre-reboot / graceful-exit checklist and verdict.
+    """Compute pre-reboot / workflow-management checklist and verdict.
 
     Verdict levels:
       ready  — no data-loss risk from reboot (sessions on disk; git clean+synced)
@@ -790,7 +790,7 @@ def collect_workspace_dashboard(
 
     return {
         "ok": True,
-        "mode": "graceful-exit",
+        "mode": "workflow-management",
         "purpose": (
             "Pre-reset readiness for personal-workspace: protect uncommitted/unpushed "
             "work and preserve Grok session context across reboots/system updates."
