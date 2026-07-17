@@ -42,6 +42,8 @@ KNOWN_PORTS = {
     8765: "projects-dashboard",
     8787: "resistance-dashboard",
     8000: "financial-command",
+    8770: "holistic",
+    8790: "orchestra",
 }
 
 

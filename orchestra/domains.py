@@ -1,0 +1,112 @@
+"""Domain registry: subordinate dashboards, ports, and on-disk sources."""
+
+from __future__ import annotations
+
+from typing import Any
+
+# Subordinate dashboards (ports match monorepo convention)
+DOMAIN_SPECS: list[dict[str, Any]] = [
+    {
+        "id": "strategy",
+        "label": "Strategy",
+        "description": "High-conviction bets and today's micro plan",
+        "port": None,
+        "url": None,
+        "launch": None,
+        "sources": ["strategy/bets.md", "strategy/today.md", "initiatives/"],
+        "kind": "files",
+    },
+    {
+        "id": "workflow",
+        "label": "Workflow / Projects",
+        "description": "Pre-reboot readiness, backlog, Grok sessions",
+        "port": 8765,
+        "url": "http://127.0.0.1:8765/",
+        "launch": "python3 projects-dashboard/server.py",
+        "sources": ["ops/backlog/", "ops/session-index/", "projects-dashboard/"],
+        "kind": "dashboard",
+    },
+    {
+        "id": "finance",
+        "label": "Finance / Treasury",
+        "description": "Dual-venue liquidity (Coinbase + Robinhood)",
+        "port": 8000,
+        "url": "http://127.0.0.1:8000/financial-command/",
+        "launch": "python3 financial-command/server.py",
+        "sources": [
+            "treasury/snapshots/treasury_latest.json",
+            "financial-command/treasury_latest.json",
+            "investment/",
+        ],
+        "kind": "dashboard",
+    },
+    {
+        "id": "fitness",
+        "label": "Fitness / Health",
+        "description": "PPL workouts, nutrition, health metrics",
+        "port": 8787,
+        "url": "http://127.0.0.1:8787/",
+        "launch": "python3 resistance-dashboard/server.py",
+        "sources": ["fitness/data/", "fitness/workouts/", "resistance-dashboard/"],
+        "kind": "dashboard",
+    },
+    {
+        "id": "holistic",
+        "label": "Time Allocation",
+        "description": "Rolling plan, targets, domain time budgets",
+        "port": 8770,
+        "url": "http://127.0.0.1:8770/",
+        "launch": "python3 holistic/server.py",
+        "sources": ["holistic/data/", "holistic/time_allocator/"],
+        "kind": "dashboard",
+    },
+]
+
+# Shared themes used for keyword overlap detection
+THEME_KEYWORDS: dict[str, list[str]] = {
+    "AI/Autonomy/Robotics": [
+        "ai",
+        "autonomy",
+        "robotics",
+        "agent",
+        "automation",
+        "command center",
+        "orchestra",
+        "dashboard",
+        "tooling",
+        "leverage",
+    ],
+    "Bitcoin": ["bitcoin", "btc", "mstr", "crypto"],
+    "Energy": ["energy", "nuclear", "power"],
+    "Fitness/Health": [
+        "fitness",
+        "health",
+        "workout",
+        "ppl",
+        "sleep",
+        "nutrition",
+        "recovery",
+        "weight",
+        "vitality",
+    ],
+    "Investment/Wealth": [
+        "investment",
+        "treasury",
+        "liquidity",
+        "dca",
+        "robinhood",
+        "coinbase",
+        "wealth",
+        "ltv",
+        "buying power",
+    ],
+    "Time/Focus": [
+        "time",
+        "allocator",
+        "focus",
+        "priority",
+        "plan",
+        "today",
+        "schedule",
+    ],
+}

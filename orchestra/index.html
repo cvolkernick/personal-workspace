@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Orchestra — personal-workspace</title>
+  <style>
+    :root {
+      --bg: #080c12;
+      --panel: #111820;
+      --panel2: #0e141c;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --purple: #c084fc;
+      --orange: #f0a060;
+      --cyan: #4fd1c5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 85% -10%, #1a1040 0%, transparent 50%),
+        radial-gradient(1000px 500px at 5% 0%, #0d2035 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+      align-items: center; justify-content: space-between;
+      background: rgba(8,12,18,0.75);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 0; z-index: 10;
+    }
+    header h1 {
+      margin: 0; font-size: 1.3rem; font-weight: 700;
+      letter-spacing: -0.03em;
+      background: linear-gradient(90deg, #e7eef5, #a78bfa 50%, #5b9fd4);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+    header .sub { color: var(--muted); font-size: 0.85rem; max-width: 42rem; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    button {
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.45rem 0.9rem; font-size: 0.9rem; cursor: pointer; font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: #1a3a55; border-color: #2d6a9f; }
+    main { max-width: 1200px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+    .error-banner {
+      background: #2a1515; border: 1px solid #6b2e2e; color: var(--red);
+      padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: none;
+    }
+    .error-banner.show { display: block; }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 0.65rem; margin-bottom: 1.25rem;
+    }
+    .stat {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.85rem;
+    }
+    .stat .n { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; }
+    .stat .l { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    section { margin-bottom: 1.75rem; }
+    section h2 {
+      margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 650;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    section h2 .badge {
+      font-size: 0.7rem; font-weight: 700; color: var(--muted);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.1rem 0.45rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 0.75rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      min-height: 120px;
+    }
+    .card h3 { margin: 0; font-size: 0.98rem; font-weight: 650; }
+    .card .sum { color: var(--muted); font-size: 0.85rem; flex: 1; }
+    .card .meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; margin-top: 0.25rem; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em;
+      text-transform: uppercase; padding: 0.15rem 0.45rem;
+      border-radius: 999px; border: 1px solid currentColor;
+    }
+    .pill.ok { color: var(--green); }
+    .pill.partial, .pill.missing, .pill.unknown { color: var(--yellow); }
+    .pill.live { color: var(--cyan); border-color: var(--cyan); }
+    .pill.down { color: var(--muted); }
+    .pill.high { color: var(--orange); }
+    .pill.medium { color: var(--accent); }
+    .pill.low { color: var(--muted); }
+    .pill.overlap { color: var(--purple); }
+    .pill.connection, .pill.relationship { color: var(--accent); }
+    .pill.synergy { color: var(--green); }
+    a.link {
+      color: var(--accent); text-decoration: none; font-size: 0.85rem; font-weight: 600;
+    }
+    a.link:hover { text-decoration: underline; }
+    .list { display: flex; flex-direction: column; gap: 0.55rem; }
+    .row {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.75rem 0.95rem;
+      display: grid; gap: 0.35rem;
+    }
+    .row.top {
+      border-color: #3a4a6a;
+      background: linear-gradient(135deg, #121a28 0%, var(--panel) 60%);
+    }
+    .row .title { font-weight: 600; }
+    .row .detail { color: var(--muted); font-size: 0.85rem; }
+    .row .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .tag {
+      font-size: 0.72rem; color: var(--muted);
+      background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 6px; padding: 0.1rem 0.4rem;
+    }
+    .rank {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.5rem; height: 1.5rem; border-radius: 6px;
+      background: #1a2740; color: var(--accent); font-size: 0.8rem; font-weight: 700;
+      margin-right: 0.35rem;
+    }
+    footer {
+      color: var(--muted); font-size: 0.8rem; text-align: center;
+      padding: 1rem; border-top: 1px solid var(--border);
+    }
+    code { font-size: 0.8em; background: #0a1018; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Orchestra</h1>
+      <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
+    </div>
+    <div class="actions">
+      <button class="primary" id="btn-refresh" type="button">Refresh</button>
+      <button id="btn-probe" type="button" title="Probe child server ports">Probe ports</button>
+    </div>
+  </header>
+  <main>
+    <div class="error-banner" id="error"></div>
+    <div class="summary" id="summary"></div>
+
+    <section id="sec-domains">
+      <h2>Domains <span class="badge" id="dom-count">0</span></h2>
+      <div class="grid" id="domains"></div>
+    </section>
+
+    <section id="sec-synergies">
+      <h2>Overlaps · Connections · Synergies <span class="badge" id="syn-count">0</span></h2>
+      <div class="list" id="synergies"></div>
+    </section>
+
+    <section id="sec-priorities">
+      <h2>Coordinated action plan <span class="badge" id="pri-count">0</span></h2>
+      <div class="list" id="priorities"></div>
+    </section>
+
+    <section id="sec-links">
+      <h2>Launch subordinates</h2>
+      <div class="list" id="links"></div>
+    </section>
+  </main>
+  <footer id="footer">Orchestra · personal-workspace</footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let lastProbe = false;
+
+    function showError(msg) {
+      const el = $("error");
+      if (!msg) { el.classList.remove("show"); el.textContent = ""; return; }
+      el.textContent = msg;
+      el.classList.add("show");
+    }
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+
+    function render(data) {
+      showError("");
+      $("purpose").textContent = data.purpose || "Orchestra";
+      const c = data.counts || {};
+      $("summary").innerHTML = [
+        ["Domains", c.domains_available ?? "—", "available"],
+        ["Synergies", c.synergies ?? "—", "links"],
+        ["Priorities", c.priorities ?? "—", "actions"],
+        ["Initiatives", c.initiatives ?? "—", "active"],
+        ["Today", c.today_items ?? "—", "open"],
+      ].map(([l, n, sub]) =>
+        `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
+      ).join("");
+
+      const domains = data.domains || [];
+      $("dom-count").textContent = String(domains.length);
+      $("domains").innerHTML = domains.map((d) => {
+        const live = d.live === true ? '<span class="pill live">live</span>'
+          : d.live === false ? '<span class="pill down">offline</span>' : "";
+        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
+        return `<article class="card">
+          <h3>${esc(d.label || d.id)}</h3>
+          <div class="sum">${esc(d.summary || "")}</div>
+          <div class="meta">
+            <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
+            ${live}
+            ${url}
+          </div>
+        </article>`;
+      }).join("") || '<div class="row detail">No domains loaded.</div>';
+
+      const syns = data.synergies || [];
+      $("syn-count").textContent = String(syns.length);
+      $("synergies").innerHTML = syns.map((s) => {
+        const doms = (s.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+        const ev = (s.evidence || []).slice(0, 3).map((e) => `<span class="tag">${esc(e)}</span>`).join("");
+        return `<div class="row">
+          <div class="title">
+            <span class="pill ${esc(s.kind || "connection")}">${esc(s.kind || "link")}</span>
+            <span class="pill ${esc(s.strength || "medium")}">${esc(s.strength || "medium")}</span>
+            ${esc(s.title || "")}
+          </div>
+          <div class="detail">${esc(s.detail || "")}</div>
+          <div class="tags">${doms}${ev}</div>
+        </div>`;
+      }).join("") || '<div class="row detail">No cross-domain synergies detected yet — add initiatives, today items, or treasury actions.</div>';
+
+      const pris = data.priorities || data.action_plan || [];
+      $("pri-count").textContent = String(pris.length);
+      $("priorities").innerHTML = pris.map((p, i) => {
+        const top = i < 3 ? " top" : "";
+        const doms = (p.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+        return `<div class="row${top}">
+          <div class="title"><span class="rank">${esc(p.rank || i+1)}</span>${esc(p.title || "")}</div>
+          <div class="detail">${esc(p.rationale || "")} · <em>${esc(p.source || "")}</em></div>
+          <div class="tags">
+            <span class="pill ${esc(p.priority || "medium")}">${esc(p.priority || "medium")}</span>
+            <span class="tag">${esc(p.kind || "action")}</span>
+            ${doms}
+          </div>
+        </div>`;
+      }).join("") || '<div class="row detail">No coordinated priorities yet.</div>';
+
+      const links = data.links || [];
+      $("links").innerHTML = links.map((l) => {
+        const port = l.port != null ? `port ${l.port}` : "files only";
+        const url = l.url
+          ? `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>`
+          : "—";
+        const launch = l.launch ? `<code>${esc(l.launch)}</code>` : "";
+        return `<div class="row">
+          <div class="title">${esc(l.label || l.id)}</div>
+          <div class="detail">${url} · ${esc(port)}</div>
+          <div class="detail">${launch}</div>
+        </div>`;
+      }).join("");
+
+      const gen = data.generated_at || "";
+      $("footer").textContent = `Orchestra · ${gen} · workspace ${data.workspace || ""}`;
+    }
+
+    async function load(probe) {
+      lastProbe = !!probe;
+      $("btn-refresh").disabled = true;
+      try {
+        const q = probe ? "?probe=1" : "";
+        const res = await fetch("/api/orchestra" + q, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "payload not ok");
+        render(data);
+      } catch (e) {
+        showError("Failed to load orchestra payload: " + e.message);
+      } finally {
+        $("btn-refresh").disabled = false;
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", () => load(lastProbe));
+    $("btn-probe").addEventListener("click", () => load(true));
+    load(false);
+  </script>
+</body>
+</html>

@@ -1,0 +1,168 @@
+#!/usr/bin/env python3
+"""Local server for the Orchestra top-level command center.
+
+  GET  /api/health
+  GET  /api/orchestra   — full orchestration payload (domains, synergies, priorities)
+  GET  /api/domains
+  GET  /api/synergies
+  GET  /api/priorities
+  GET  /                — unified UI
+
+Usage:
+  python3 orchestra/server.py
+  python3 orchestra/server.py --port 8790 --no-browser
+  python3 launch.py
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import webbrowser
+from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+ORCHESTRA_DIR = Path(__file__).resolve().parent
+ROOT = ORCHESTRA_DIR.parent
+if str(ORCHESTRA_DIR) not in sys.path:
+    sys.path.insert(0, str(ORCHESTRA_DIR))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
+
+
+class OrchestraHandler(SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(ORCHESTRA_DIR), **kwargs)
+
+    def log_message(self, fmt: str, *args) -> None:
+        sys.stderr.write("[orchestra] " + (fmt % args) + "\n")
+
+    def _json(self, code: int, payload: dict) -> None:
+        body = json.dumps(payload, default=str).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        qs = parse_qs(parsed.query)
+        probe = (qs.get("probe") or ["0"])[0] in ("1", "true", "yes")
+
+        if path == "/api/health":
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "orchestra",
+                    "workspace": str(WORKSPACE_ROOT),
+                },
+            )
+            return
+
+        if path in (
+            "/api/orchestra",
+            "/api/status",
+            "/api/payload",
+        ):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, payload)
+            return
+
+        if path == "/api/domains":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "domains": payload.get("domains"),
+                    "links": payload.get("links"),
+                },
+            )
+            return
+
+        if path == "/api/synergies":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {"ok": True, "synergies": payload.get("synergies") or []},
+            )
+            return
+
+        if path in ("/api/priorities", "/api/action-plan"):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "priorities": payload.get("priorities") or [],
+                    "action_plan": payload.get("action_plan") or [],
+                },
+            )
+            return
+
+        if path in ("/", "/index.html", "/orchestra", "/orchestra/"):
+            self.path = "/index.html"
+        return super().do_GET()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Orchestra top-level dashboard")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--no-browser", action="store_true")
+    args = parser.parse_args(argv)
+
+    server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
+    url = f"http://{args.host}:{args.port}/"
+    print(f"Orchestra Command Center: {url}")
+    print(f"API: {url}api/orchestra")
+    print("Press Ctrl+C to stop.")
+    if not args.no_browser:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nStopping orchestra…")
+    finally:
+        server.server_close()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

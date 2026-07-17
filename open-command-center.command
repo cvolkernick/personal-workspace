@@ -1,12 +1,20 @@
 #!/bin/bash
-# One-click launcher for the Personal Command Center
+# One-click launcher for the Orchestra top-level command center
 # Double-click this file in Finder (macOS) to start everything.
 
 cd "$(dirname "$0")"
-echo "Starting Financial Command Center..."
+echo "Starting Orchestra Command Center..."
 echo ""
-echo "Server: http://localhost:8000/financial-command/index.html"
-echo "API: /api/treasury /api/config /api/refresh"
+echo "UI:  http://localhost:8790/"
+echo "API: http://localhost:8790/api/orchestra"
+echo "     domains · synergies · priorities / action plan"
+echo ""
+echo "Subordinates (start separately if needed):"
+echo "  financial-command  :8000"
+echo "  projects-dashboard :8765"
+echo "  holistic           :8770"
+echo "  resistance-dashboard :8787"
+echo ""
 echo "Press Ctrl+C to stop."
 echo ""
-python3 financial-command/server.py --port 8000
+python3 orchestra/server.py --port 8790
