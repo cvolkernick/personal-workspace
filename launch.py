@@ -15,7 +15,7 @@ DASHBOARD_URL = "http://localhost:8000/financial-command/index.html"
 
 
 def main():
-    print("Starting Financial Command Center on port 8000...")
+    print("Starting Financial Command Center (financial-command/) on port 8000...")
     print("  Refreshing treasury evaluation (Coinbase live + RH snapshot)...")
     try:
         subprocess.run(

@@ -1,8 +1,8 @@
-# financial-command
+# Financial Command Center
 
 Dual-venue liquidity UI for **Coinbase** (liquid USDC/BTC + manual Morpho/vault/card fields) and **Robinhood** (portfolio / buying power / DCA governor).
 
-Named distinctly from `resistance-dashboard/` and any future generic dashboards.
+Folder path: `financial-command/` (URL-safe). Distinct from `resistance-dashboard/`.
 
 ## Launch
 
