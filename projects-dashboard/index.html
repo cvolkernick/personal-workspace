@@ -28,13 +28,15 @@
       line-height: 1.45;
     }
     header {
-      padding: 1.25rem 1.5rem;
+      padding: 1rem 1.5rem;
       border-bottom: 1px solid var(--border);
-      display: flex; flex-wrap: wrap; gap: 1rem;
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
       align-items: center; justify-content: space-between;
     }
-    header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
-    header .sub { color: var(--muted); font-size: 0.9rem; max-width: 42rem; }
+    header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    header .header-left { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
+    header .header-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
     .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     button, label.toggle {
       background: var(--panel); color: var(--text);
@@ -66,13 +68,38 @@
     .verdict.ready .tag { color: var(--green); }
     .verdict.caution .tag { color: var(--yellow); }
     .verdict.blocked .tag { color: var(--red); }
-    .summary { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 1rem; }
+    .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.65rem; margin-bottom: 1rem; }
     .stat {
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 0.55rem 0.9rem; min-width: 90px;
+      border-radius: 10px; padding: 0.65rem 0.85rem; min-width: 0;
+      cursor: pointer; text-align: left; width: 100%;
+      color: inherit; font: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
     }
+    .stat:hover { border-color: var(--accent); }
+    .stat.open { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,159,212,0.25); }
     .stat .n { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
     .stat .l { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat .stat-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.35rem; }
+    .stat .chev { color: var(--muted); font-size: 0.75rem; transition: transform 0.15s; }
+    .stat.open .chev { transform: rotate(90deg); color: var(--accent); }
+    .stat-detail {
+      display: none; margin-top: 0.55rem; padding-top: 0.55rem;
+      border-top: 1px solid var(--border); text-align: left;
+    }
+    .stat.open .stat-detail { display: block; }
+    .stat-detail .title { font-weight: 650; font-size: 0.88rem; margin-bottom: 0.25rem; }
+    .stat-detail .detail { color: var(--muted); font-size: 0.82rem; }
+    .stat-detail code {
+      display: block; margin-top: 0.35rem; padding: 0.35rem 0.45rem;
+      background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem; color: var(--blue); word-break: break-all;
+    }
+    .stat.lvl-ok { border-color: #245c42; }
+    .stat.lvl-warn { border-color: #6b5a1e; }
+    .stat.lvl-info { border-color: #2a4a66; }
+    .stat.lvl-blocked { border-color: #6b2e2e; }
     .card {
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 12px; padding: 1rem 1.15rem; display: grid; gap: 0.55rem; margin-bottom: 0.85rem;
@@ -80,29 +107,22 @@
     .card h2, .card h3 { margin: 0; }
     .card h2 { font-size: 1.05rem; }
     .card h3 { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-    .check {
-      display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 0.75rem;
-      padding: 0.55rem 0.6rem; border-radius: 8px; background: #0e151c; margin-bottom: 0.4rem;
-    }
-    .check .lvl {
-      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-      padding: 0.2rem 0.45rem; border-radius: 6px; height: fit-content;
+    .lvl {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      padding: 0.15rem 0.4rem; border-radius: 6px;
       border: 1px solid var(--border);
     }
     .lvl.ok { color: var(--green); border-color: #245c42; }
     .lvl.warn { color: var(--yellow); border-color: #6b5a1e; }
     .lvl.info { color: var(--accent); border-color: #2a4a66; }
     .lvl.blocked { color: var(--red); border-color: #6b2e2e; }
-    .check .title { font-weight: 650; }
-    .check .detail { color: var(--muted); font-size: 0.88rem; }
-    .check code, .cmd {
+    .cmd {
       display: block; margin-top: 0.35rem; padding: 0.4rem 0.55rem;
       background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.78rem; color: var(--blue); word-break: break-all;
     }
-    .steps { margin: 0; padding-left: 1.2rem; }
-    .steps li { margin: 0.35rem 0; }
+    .section-title.compact { margin-top: 0.75rem; }
     .pill {
       display: inline-flex; align-items: center; gap: 0.3rem;
       padding: 0.22rem 0.55rem; border-radius: 999px; font-weight: 600; font-size: 0.72rem;
@@ -196,12 +216,15 @@
 </head>
 <body>
   <header>
-    <div>
-      <h1>Graceful Exit</h1>
-      <div class="sub">personal-workspace · confirm projects can stop for system updates/reboots without losing Grok context or uncommitted builds</div>
+    <div class="header-left">
+      <div>
+        <h1>Graceful Exit</h1>
+        <div class="sub">personal-workspace · pre-reset readiness</div>
+      </div>
+      <div class="header-meta" id="header-meta"></div>
     </div>
     <div class="actions">
-      <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched projects only</label>
+      <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched only</label>
       <span id="updated" class="sub"></span>
       <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>
       <button type="button" id="btn-sync" title="Session index + commit + push">Protect &amp; push</button>
@@ -211,18 +234,12 @@
   <main>
     <div id="err" class="error-banner" role="alert"></div>
     <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
-    <div id="verdict"></div>
+    <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
-    <div class="two-col">
-      <div id="checklist"></div>
-      <div id="exit-steps"></div>
-    </div>
     <div id="recommendations"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
     <div id="resume"></div>
-    <div class="section-title">Repo</div>
-    <div id="workspace"></div>
     <div class="section-title">Projects (exit readiness by area)</div>
     <div id="list"><div class="empty">Loading…</div></div>
     <div id="listeners"></div>
@@ -259,33 +276,121 @@
       navigator.clipboard?.writeText(text).catch(() => {});
     }
 
+    // Remember which pre-reset indicators are expanded across refresh
+    window.__openChecks = window.__openChecks || new Set();
+
     function render(data) {
       const r = data.readiness || {};
       const ws = data.workspace || {};
       const projects = data.projects || [];
       const c = r.counts || {};
       const verdict = r.verdict || "caution";
-
-      $("verdict").innerHTML = `
-        <div class="verdict ${esc(verdict)}">
-          <div><span class="tag">${esc(verdict)}</span></div>
-          <h2>${esc(r.verdict_label || "Checking…")}</h2>
-          <div class="sub" style="color:var(--muted);font-size:0.9rem">
-            Session context is stored under <code>~/.grok/sessions</code> and survives reboot.
-            Live PIDs die; resume with <code>grok --resume &lt;id&gt;</code>.
-            Uncommitted / unpushed git work is the main data-loss risk.
-          </div>
-        </div>`;
-
       const br = data.branches || {};
-      $("summary").innerHTML = `
-        <div class="stat"><div class="n" style="color:var(--blue)">${esc(br.current || ws.branch || "—")}</div><div class="l">Branch</div></div>
-        <div class="stat"><div class="n" style="color:var(--yellow)">${c.dirty_files ?? 0}</div><div class="l">Uncommitted</div></div>
-        <div class="stat"><div class="n" style="color:var(--accent)">${c.ahead ?? "—"}</div><div class="l">Unpushed</div></div>
-        <div class="stat"><div class="n" style="color:var(--green)">${c.persisted_sessions ?? 0}</div><div class="l">Sessions on disk</div></div>
-        <div class="stat"><div class="n" style="color:var(--purple)">${c.live_sessions ?? 0}</div><div class="l">Live agents</div></div>
-        <div class="stat"><div class="n">${c.dirty_projects ?? 0}</div><div class="l">Dirty areas</div></div>
+      const checks = r.checks || [];
+      const byId = Object.fromEntries(checks.map((ch) => [ch.id, ch]));
+
+      // Header: branch + git status + verdict
+      const verdictClass = verdict === "ready" ? "clean" : verdict === "blocked" ? "dirty" : "dirty";
+      $("header-meta").innerHTML = `
+        <span class="pill branch" title="Current branch">${esc(br.current || ws.branch || "—")}</span>
+        <span class="pill ${ws.dirty ? "dirty" : "clean"}" title="Working tree">${esc(ws.status_label || "—")}</span>
+        <span class="pill ${verdict === "ready" ? "clean" : "dirty"}" title="${esc(r.verdict_label || "")}">${esc(verdict)}</span>
+        ${ws.upstream ? `<span class="pill muted" title="Upstream">${esc(ws.upstream)}</span>` : ""}
+        ${(ws.remotes && ws.remotes[0]) ? `<span class="pill muted" title="${esc(ws.remotes[0].url)}">remote</span>` : ""}
       `;
+
+      // Map checklist items → expandable status indicator boxes
+      const indicators = [
+        {
+          id: "uncommitted",
+          label: "Uncommitted",
+          value: c.dirty_files ?? 0,
+          color: "var(--yellow)",
+          check: byId.uncommitted,
+        },
+        {
+          id: "unpushed",
+          label: "Unpushed",
+          value: c.ahead ?? "—",
+          color: "var(--accent)",
+          check: byId.unpushed || byId.behind,
+        },
+        {
+          id: "sessions_disk",
+          label: "Sessions on disk",
+          value: c.persisted_sessions ?? 0,
+          color: "var(--green)",
+          check: byId.sessions_disk,
+        },
+        {
+          id: "live_agents",
+          label: "Live agents",
+          value: c.live_sessions ?? 0,
+          color: "var(--purple)",
+          check: byId.live_agents,
+        },
+        {
+          id: "dirty_projects",
+          label: "Dirty areas",
+          value: c.dirty_projects ?? 0,
+          color: "var(--yellow)",
+          check: byId.dirty_projects,
+        },
+        {
+          id: "servers",
+          label: "Servers",
+          value: c.listeners ?? 0,
+          color: "var(--blue)",
+          check: byId.servers,
+        },
+        {
+          id: "stashes",
+          label: "Stashes",
+          value: c.stashes ?? 0,
+          color: "var(--muted)",
+          check: byId.stashes,
+        },
+      ].filter((ind) => ind.check || ind.value);
+
+      // Also surface any checklist items not mapped above
+      const mappedIds = new Set(indicators.map((i) => i.id));
+      for (const ch of checks) {
+        if (!mappedIds.has(ch.id) && ch.id !== "behind") {
+          indicators.push({
+            id: ch.id,
+            label: ch.title || ch.id,
+            value: (ch.level || "").toUpperCase(),
+            color: ch.level === "ok" ? "var(--green)" : ch.level === "warn" ? "var(--yellow)" : "var(--accent)",
+            check: ch,
+          });
+        }
+      }
+
+      $("summary").innerHTML = indicators.map((ind) => {
+        const ch = ind.check || {};
+        const level = ch.level || "info";
+        const open = window.__openChecks.has(ind.id);
+        const paths = (ch.paths || []).slice(0, 12);
+        return `
+          <button type="button" class="stat lvl-${esc(level)}${open ? " open" : ""}" data-check-id="${esc(ind.id)}" aria-expanded="${open}">
+            <div class="stat-top">
+              <div>
+                <div class="n" style="color:${ind.color}">${esc(ind.value)}</div>
+                <div class="l">${esc(ind.label)}</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.25rem">
+                <span class="lvl ${esc(level)}">${esc(level)}</span>
+                <span class="chev">▶</span>
+              </div>
+            </div>
+            <div class="stat-detail">
+              <div class="title">${esc(ch.title || ind.label)}</div>
+              <div class="detail">${esc(ch.detail || "No additional detail.")}</div>
+              ${ch.action ? `<code>${esc(ch.action)}</code>` : ""}
+              ${paths.length ? `<ul class="dirty-list">${paths.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+            </div>
+          </button>`;
+      }).join("");
 
       // Recommendations panel — press rank + priority color coding
       const rec = data.recommendations || {};
@@ -448,17 +553,11 @@
               </div>`).join("")}
         </div>`;
 
-      // Branches panel
+      // Branches panel (list only — current branch/status live in header)
       const branchList = br.branches || [];
-      const conv = br.convention || {};
       $("branches").innerHTML = `
         <div class="section-title">Branches</div>
         <div class="card">
-          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
-            <strong>master</strong>: ${esc(conv.master || "integration")}<br/>
-            <strong>work/&lt;area&gt;</strong>: ${esc(conv["work/<area>"] || "per-project work")}<br/>
-            <strong>feature/&lt;slug&gt;</strong>: ${esc(conv["feature/<slug>"] || "optional features")}
-          </div>
           ${branchList.length ? branchList.map((b) => `
             <div class="sess">
               <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
@@ -472,30 +571,6 @@
             <input id="start-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.85rem" />
             <button type="button" id="btn-start-work">Start work/&lt;area&gt;</button>
           </div>
-          ${data.automation ? `<code class="cmd" style="margin-top:0.5rem">${esc(data.automation.sync || "")}</code>` : ""}
-        </div>`;
-
-      const checks = r.checks || [];
-      $("checklist").innerHTML = `
-        <div class="card">
-          <h3>Pre-reset checklist</h3>
-          ${checks.map((ch) => `
-            <div class="check">
-              <span class="lvl ${esc(ch.level)}">${esc(ch.level)}</span>
-              <div>
-                <div class="title">${esc(ch.title)}</div>
-                <div class="detail">${esc(ch.detail)}</div>
-                ${ch.action ? `<code>${esc(ch.action)}</code>` : ""}
-                ${ch.paths?.length ? `<ul class="dirty-list">${ch.paths.slice(0,12).map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
-              </div>
-            </div>`).join("")}
-        </div>`;
-
-      const steps = r.exit_steps || [];
-      $("exit-steps").innerHTML = `
-        <div class="card">
-          <h3>Graceful exit order</h3>
-          <ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
         </div>`;
 
       const kit = data.resume_kit || {};
@@ -517,22 +592,6 @@
                 </div>
                 <div class="when">${fmtWhen(s.last_active_at)}</div>
               </div>`).join("")}
-        </div>`;
-
-      $("workspace").innerHTML = `
-        <div class="card">
-          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
-            <h2>${esc(ws.name || "personal-workspace")}</h2>
-            <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-              <span class="pill branch">${esc(ws.branch || "—")}</span>
-              <span class="pill ${ws.dirty ? "dirty" : "clean"}">${esc(ws.status_label || "—")}</span>
-            </div>
-          </div>
-          <div class="meta">
-            <div class="row"><span class="label">Path</span><span class="val">${esc(ws.path)}</span></div>
-            <div class="row"><span class="label">Remote</span><span class="val">${remoteLinks(ws.remotes)}</span></div>
-            <div class="row"><span class="label">Upstream</span><span class="val">${esc(ws.upstream || "—")}</span></div>
-          </div>
         </div>`;
 
       if (!projects.length) {
@@ -704,6 +763,16 @@
       if (t.id === "btn-rec-view-priority") {
         window.__recView = "priority";
         load();
+        return;
+      }
+      // Expand/collapse pre-reset status indicators
+      const checkBtn = t.closest && t.closest("[data-check-id]");
+      if (checkBtn && checkBtn.classList.contains("stat")) {
+        const cid = checkBtn.getAttribute("data-check-id");
+        if (window.__openChecks.has(cid)) window.__openChecks.delete(cid);
+        else window.__openChecks.add(cid);
+        checkBtn.classList.toggle("open");
+        checkBtn.setAttribute("aria-expanded", checkBtn.classList.contains("open") ? "true" : "false");
         return;
       }
       const id = t.getAttribute && t.getAttribute("data-id");
