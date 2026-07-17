@@ -66,8 +66,19 @@ class TestBacklog(unittest.TestCase):
         self.assertIn("Tiny bot", out["goal_objective"])
         launch = self.ws / out["launch_script"]
         self.assertTrue(launch.is_file())
+        script = launch.read_text(encoding="utf-8")
+        # Must start grok WITH the prompt file contents, not bare `grok`
+        self.assertIn("cat \"$PROMPT_FILE\"", script)
+        self.assertIn("--cwd", script)
+        self.assertNotRegex(script, r"\bexec grok\s*$")
         obj = self.ws / out["objective_path"]
         self.assertTrue(obj.is_file())
+        prompt = self.ws / out["prompt_path"]
+        self.assertTrue(prompt.is_file())
+        ptxt = prompt.read_text(encoding="utf-8")
+        self.assertTrue(ptxt.lstrip().startswith("/goal"))
+        self.assertIn("Tiny bot", ptxt)
+        self.assertIn("hello world script", ptxt)
 
     def test_delete(self) -> None:
         r = bl.add_item("Temp")

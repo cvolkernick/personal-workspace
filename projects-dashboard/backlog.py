@@ -9,11 +9,16 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 import subprocess
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+
+
+def shutil_which(cmd: str) -> Optional[str]:
+    return shutil.which(cmd)
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 BACKLOG_DIR = WORKSPACE_ROOT / "ops" / "backlog"
@@ -279,15 +284,14 @@ def build_seed_markdown(item: dict[str, Any], objective: str) -> str:
 
 ## How to start
 
-From personal-workspace:
+From personal-workspace (preferred — starts Grok with `/goal` already set):
 
 ```bash
-# Option A — launch helper (opens instruction + copies objective path)
 bash ops/backlog/seeds/{item.get("slug")}-{item.get("id", "")[:8]}.launch.sh
-
-# Option B — in an existing Grok session:
-# /goal <paste objective above>
 ```
+
+That runs: `grok --cwd personal-workspace "$(cat …prompt.txt)"` where the prompt
+begins with `/goal …` plus backlog title/MVP/notes/seed path.
 
 After planning, implement MVP and iterate. Update backlog status via the dashboard.
 """
@@ -325,39 +329,69 @@ def initiate_item(
 
     rel_seed = str(seed_path.relative_to(WORKSPACE_ROOT))
     rel_obj = str(obj_file.relative_to(WORKSPACE_ROOT))
+    # Initial interactive prompt: start /goal with full backlog details (not a bare grok)
+    area = (item.get("area") or "").strip()
+    branch_hint = f"work/{area}" if area else "work/<area>"
+    initial_prompt = (
+        f"/goal {objective.strip()}\n\n"
+        f"## Backlog context (already captured)\n"
+        f"- **Title:** {item.get('title')}\n"
+        f"- **Priority:** {item.get('priority')}\n"
+        f"- **Area:** {item.get('area') or '(decide during planning)'}\n"
+        f"- **MVP:** {item.get('mvp_scope') or '(define if missing)'}\n"
+        f"- **Notes:** {item.get('notes') or '(none)'}\n"
+        f"- **Seed plan file:** {rel_seed}\n"
+        f"- **Backlog id:** {item.get('id')}\n\n"
+        f"## Instructions\n"
+        f"You are starting a **new autonomous goal** for this backlog item in personal-workspace.\n"
+        f"1. Read and refine the seed plan at `{rel_seed}` (spec, success criteria, non-goals).\n"
+        f"2. Implement the MVP; keep scope tight.\n"
+        f"3. Use branch `{branch_hint}` when making durable changes "
+        f"(`python3 projects-dashboard/git_workflow.py start {area or 'misc'}` / `sync`).\n"
+        f"4. Do not wait for further confirmation — begin now.\n"
+    )
+    prompt_file = SEEDS_DIR / f"{slug}-{short}.prompt.txt"
+    prompt_file.write_text(initial_prompt, encoding="utf-8")
+    rel_prompt = str(prompt_file.relative_to(WORKSPACE_ROOT))
+
+    # Launch script: new Terminal → grok with initial /goal prompt (interactive session)
+    title_safe = (item.get("title") or "backlog").replace('"', "'")[:60]
     launch_path.write_text(
         f"""#!/bin/bash
-# Launch a Grok Build planning session for backlog item: {item.get("title")}
+# Start Grok with /goal preloaded from backlog: {title_safe}
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$ROOT"
-OBJ="{rel_obj}"
-SEED="{rel_seed}"
-echo "=== Backlog goal: {item.get("title")} ==="
-echo "Seed: $SEED"
-echo "Objective file: $OBJ"
-echo ""
-echo "Paste into Grok (or run /goal with this text):"
-echo "----------------------------------------------"
-cat "$OBJ"
-echo "----------------------------------------------"
-echo ""
-# Copy to clipboard on macOS when available
-if command -v pbcopy >/dev/null 2>&1; then
-  cat "$OBJ" | pbcopy
-  echo "(Objective copied to clipboard)"
+PROMPT_FILE="$ROOT/{rel_prompt}"
+SEED="$ROOT/{rel_seed}"
+OBJ="$ROOT/{rel_obj}"
+
+if [ ! -f "$PROMPT_FILE" ]; then
+  echo "Missing prompt file: $PROMPT_FILE" >&2
+  exit 1
 fi
-echo ""
-echo "Starting Grok in personal-workspace…"
-echo "After it opens: /goal and paste (or Cmd+V)."
+
+# Resolve grok binary
 if command -v grok >/dev/null 2>&1; then
-  exec grok
+  GROK_BIN="$(command -v grok)"
 elif [ -x "$HOME/.grok/bin/grok" ]; then
-  exec "$HOME/.grok/bin/grok"
+  GROK_BIN="$HOME/.grok/bin/grok"
 else
-  echo "grok CLI not found on PATH. Open Grok manually in: $ROOT"
-  exit 0
+  echo "grok CLI not found. Install Grok Build or add it to PATH." >&2
+  exit 1
 fi
+
+echo "=== Workflow Management: initiate backlog goal ==="
+echo "Title: {title_safe}"
+echo "Seed:  $SEED"
+echo "Prompt: $PROMPT_FILE"
+echo ""
+echo "Starting Grok with /goal + backlog details as the initial session prompt…"
+echo ""
+
+# Interactive session: first argument is the initial user prompt (NOT headless -p).
+# Multi-line objective is read from the prompt file so quoting stays reliable.
+exec "$GROK_BIN" --cwd "$ROOT" --fullscreen "$(cat "$PROMPT_FILE")"
 """,
         encoding="utf-8",
     )
@@ -368,6 +402,7 @@ fi
     item["seed_path"] = rel_seed
     item["launch_script"] = str(launch_path.relative_to(WORKSPACE_ROOT))
     item["objective_path"] = rel_obj
+    item["prompt_path"] = rel_prompt
     item["initiated_at"] = _now()
     item["updated_at"] = _now()
     save_backlog(data)
@@ -375,24 +410,36 @@ fi
     spawn: dict[str, Any] = {"attempted": False}
     if try_spawn_grok:
         spawn["attempted"] = True
+        spawn["prompt_path"] = rel_prompt
         try:
-            # Open Terminal-less: just start grok in background is interactive —
-            # prefer `open` on macOS with a note. We run launch script in Terminal.
+            # New Terminal window running the launch script (which execs grok with /goal prompt)
             if Path("/usr/bin/open").is_file():
                 subprocess.Popen(
-                    [
-                        "open",
-                        "-a",
-                        "Terminal",
-                        str(launch_path),
-                    ],
+                    ["open", "-a", "Terminal", str(launch_path.resolve())],
                     cwd=str(WORKSPACE_ROOT),
                 )
                 spawn["ok"] = True
-                spawn["method"] = "open -a Terminal launch.sh"
+                spawn["method"] = "open -a Terminal → grok --cwd … \"$(cat prompt)\""
+                spawn["note"] = (
+                    "New Terminal starts Grok with the backlog objective as /goal initial prompt"
+                )
             else:
-                spawn["ok"] = False
-                spawn["error"] = "no macOS open; run launch script manually"
+                # Fallback: try launching grok in background (may not attach TTY well)
+                grok_bin = "grok"
+                if not shutil_which("grok"):
+                    home_grok = Path.home() / ".grok" / "bin" / "grok"
+                    grok_bin = str(home_grok) if home_grok.is_file() else ""
+                if grok_bin:
+                    subprocess.Popen(
+                        [grok_bin, "--cwd", str(WORKSPACE_ROOT), initial_prompt],
+                        cwd=str(WORKSPACE_ROOT),
+                        start_new_session=True,
+                    )
+                    spawn["ok"] = True
+                    spawn["method"] = "Popen grok with prompt"
+                else:
+                    spawn["ok"] = False
+                    spawn["error"] = "no Terminal open and grok not found"
         except OSError as e:
             spawn["ok"] = False
             spawn["error"] = str(e)
@@ -404,11 +451,16 @@ fi
         "seed_path": rel_seed,
         "launch_script": item["launch_script"],
         "objective_path": rel_obj,
-        "slash_command": f"/goal {objective[:200]}…" if len(objective) > 200 else f"/goal {objective}",
+        "prompt_path": rel_prompt,
+        "initial_prompt_preview": initial_prompt[:500]
+        + ("…" if len(initial_prompt) > 500 else ""),
+        "slash_command": (
+            f"/goal {objective[:200]}…" if len(objective) > 200 else f"/goal {objective}"
+        ),
         "instructions": (
-            f"1. Run: bash {item['launch_script']}\n"
-            "2. Or open Grok in personal-workspace and paste /goal objective from the seed.\n"
-            "3. Grok should refine the seed spec then build the MVP."
+            "A new Terminal should open Grok with this backlog item as an active /goal "
+            f"(prompt file: {rel_prompt}). If it only opened a bare shell, run: "
+            f"bash {item['launch_script']}"
         ),
         "spawn": spawn,
     }
