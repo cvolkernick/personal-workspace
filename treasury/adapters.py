@@ -256,12 +256,44 @@ def fetch_robinhood(
     }
 
 
+def _merge_manual_with_one_card(
+    manual: Dict[str, Any],
+    one_card: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Overlay YNAB One Card fields onto manual when manual card fields are empty."""
+    out = dict(manual)
+    if one_card.get("source") in (None, "empty") or one_card.get("live_error"):
+        # Still allow partial overlay if balance present
+        if one_card.get("card_balance") is None and one_card.get("balance_owed") is None:
+            return out
+    bal = one_card.get("card_balance")
+    if bal is None:
+        bal = one_card.get("balance_owed")
+    avail = one_card.get("card_available_credit")
+    if avail is None:
+        avail = one_card.get("available_credit")
+
+    def _empty(v: Any) -> bool:
+        return v is None or v == ""
+
+    if _empty(out.get("card_balance")) and bal is not None:
+        out["card_balance"] = bal
+        out["card_balance_source"] = "ynab"
+    if _empty(out.get("card_available_credit")) and avail is not None:
+        out["card_available_credit"] = avail
+        out["card_available_credit_source"] = "ynab"
+    return out
+
+
 def build_snapshot(
     *,
     config: Optional[Dict[str, Any]] = None,
     prefer_live_coinbase: bool = True,
+    prefer_live_ynab: bool = True,
 ) -> Dict[str, Any]:
-    """Merge live/file venue reads with human-editable manual fields."""
+    """Merge live/file venue reads with human-editable manual fields + YNAB One Card."""
+    from treasury.ynab_sync import fetch_one_card
+
     cfg = config if config is not None else load_config()
     cb = fetch_coinbase_liquid(prefer_live=prefer_live_coinbase)
     # Attach BTC price to snapshot file path results if missing
@@ -271,27 +303,35 @@ def build_snapshot(
             cb["btc_usd_price"] = price
             cb["liquid_btc_usd"] = _f_safe(cb.get("liquid_btc")) * price
     rh = fetch_robinhood()
-    manual = dict(cfg.get("coinbase_manual") or {})
+    one_card = fetch_one_card(prefer_live=prefer_live_ynab)
+    manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     rh_cfg = cfg.get("robinhood") or {}
+    ynab_cfg = cfg.get("ynab") or {}
     return {
         "as_of": _now(),
         "coinbase": cb,
         "coinbase_manual": manual,
+        "one_card": one_card,
         "robinhood": rh,
         "policy_overrides": cfg.get("policy") or {},
         "meta": {
             "config_path": str(CONFIG_PATH),
             "coinbase_source": cb.get("source"),
             "robinhood_source": rh.get("source"),
+            "one_card_source": one_card.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
                 "notes": rh_cfg.get("notes"),
             },
+            "ynab": {
+                "budget_name": ynab_cfg.get("budget_name") or one_card.get("budget_name"),
+                "account_name": ynab_cfg.get("account_name") or one_card.get("account_name"),
+            },
             "api_limits": {
                 "morpho_loan": "app-only",
                 "high_yield_vault": "app-only",
-                "one_card": "app-only",
+                "one_card": "ynab/plaid (balance + txs; available credit optional)",
                 "external_usdc_send": "not via Advanced Trade transfer",
             },
         },
@@ -316,6 +356,7 @@ def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
             **(data.get("coinbase_manual") or {}),
         },
         "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
+        "ynab": {**(existing.get("ynab") or {}), **(data.get("ynab") or {})},
     }
     # Preserve notes if not overwritten
     if "notes" not in (data.get("coinbase_manual") or {}) and (existing.get("coinbase_manual") or {}).get(

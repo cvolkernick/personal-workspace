@@ -242,6 +242,12 @@
       </div>
     </section>
 
+    <section class="card" id="one-card-panel">
+      <h2>Coinbase One Card (via YNAB / Plaid)</h2>
+      <div class="grid-2" id="one-card-metrics"></div>
+      <div id="one-card-txs" style="margin-top:0.75rem"></div>
+    </section>
+
     <section class="card">
       <h2>Policy floors</h2>
       <div class="policy-grid" id="policy-grid"></div>
@@ -512,7 +518,38 @@
         metric("High Yield vault", money(inp.vault_usdc)),
         metric("One Card balance", money(inp.card_balance)),
         metric("Card available credit", money(inp.card_available_credit)),
+        metric("Card data source", inp.card_source || "—"),
       ].join("");
+
+      const oc = snap.one_card || {};
+      document.getElementById("one-card-metrics").innerHTML = [
+        metric("Account", oc.account_name || "—"),
+        metric("Balance owed", money(oc.balance_owed ?? oc.card_balance)),
+        metric("Available credit", money(oc.available_credit ?? oc.card_available_credit)),
+        metric("30d spend", money(oc.spend_30d)),
+        metric("30d payments", money(oc.payments_30d)),
+        metric("Source", oc.source || "—"),
+        metric("Plaid linked", oc.direct_import_linked === true ? "yes" : oc.direct_import_linked === false ? "no" : "—"),
+        metric("as_of", oc.as_of || "—"),
+        metric("Error", oc.live_error || "—"),
+      ].join("");
+      const txs = oc.transactions || [];
+      if (txs.length) {
+        document.getElementById("one-card-txs").innerHTML =
+          `<div class="hint" style="margin-bottom:0.4rem">Recent transactions (YNAB)</div>` +
+          txs
+            .slice(0, 12)
+            .map(
+              (t) =>
+                `<div class="metric"><span class="label">${t.date || ""} · ${t.payee || "—"}</span><span class="val">${money(
+                  t.amount_display != null ? t.amount_display : t.amount
+                )}</span></div>`
+            )
+            .join("");
+      } else {
+        document.getElementById("one-card-txs").innerHTML =
+          `<p class="hint">No transactions in snapshot — run ynab_sync or Refresh live.</p>`;
+      }
 
       const rhMeta = (snap.meta && snap.meta.rh_accounts) || {};
       document.getElementById("rh-metrics").innerHTML = [

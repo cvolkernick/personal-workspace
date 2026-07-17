@@ -1,17 +1,17 @@
 {
   "snapshot": {
-    "as_of": "2026-07-17T06:34:33.269188+00:00",
+    "as_of": "2026-07-17T22:17:26.977979+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-17T06:34:33.268291+00:00",
+      "as_of": "2026-07-17T22:17:03.889180+00:00",
       "liquid_usdc": 0.0006861255613999999,
-      "liquid_btc": 5.07777294815e-05,
-      "btc_usd_price": 62887.77,
-      "liquid_btc_usd": 3.193298172754791,
+      "liquid_btc": 0.0025784177294815,
+      "btc_usd_price": 64006.41,
+      "liquid_btc_usd": 165.03526234446198,
       "by_currency": {
         "USDC": 1.904e-07,
         "USD": 0.0006859351614,
-        "BTC": 5.07777294815e-05
+        "BTC": 0.0025784177294815
       },
       "account_count": 22
     },
@@ -20,9 +20,59 @@
       "collateral_btc_usd": null,
       "ltv": null,
       "vault_usdc": null,
-      "card_balance": null,
+      "card_balance": 418.55,
       "card_available_credit": null,
-      "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them."
+      "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them.",
+      "card_balance_source": "ynab"
+    },
+    "one_card": {
+      "source": "ynab",
+      "as_of": "2026-07-17T22:17:05.216616+00:00",
+      "provider": "ynab",
+      "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+      "budget_name": "Chris's Plan",
+      "account_id": "b3f74fe6-bf53-49e5-8ee3-d52f7ec72461",
+      "account_name": "Coinbase One Card \u2013 5361",
+      "account_type": "creditCard",
+      "direct_import_linked": true,
+      "direct_import_in_error": false,
+      "balance_raw": -418.55,
+      "balance_owed": 418.55,
+      "card_balance": 418.55,
+      "available_credit": null,
+      "card_available_credit": null,
+      "cleared_balance": -418.55,
+      "uncleared_balance": 0.0,
+      "spend_30d": 0.0,
+      "payments_30d": 47.32,
+      "transaction_count": 2,
+      "transactions": [
+        {
+          "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
+          "date": "2026-07-17",
+          "payee": "Starting Balance",
+          "amount": -465.87,
+          "amount_display": -465.87,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "94e18248-40b6-44da-91a1-e3aeaf423556",
+          "date": "2026-07-17",
+          "payee": "Payment",
+          "amount": 47.32,
+          "amount_display": 47.32,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        }
+      ],
+      "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
+      "token_source": "/Users/cvolkernick/.config/ynab/token",
+      "since": "2026-04-18"
     },
     "robinhood": {
       "source": "live",
@@ -50,15 +100,20 @@
       "config_path": "/Users/cvolkernick/personal-workspace/treasury/config.json",
       "coinbase_source": "live",
       "robinhood_source": "live",
+      "one_card_source": "ynab",
       "rh_accounts": {
         "primary": "5QW39737",
         "agentic": "674601752",
         "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
       },
+      "ynab": {
+        "budget_name": "Chris's Plan",
+        "account_name": "Coinbase One Card \u2013 5361"
+      },
       "api_limits": {
         "morpho_loan": "app-only",
         "high_yield_vault": "app-only",
-        "one_card": "app-only",
+        "one_card": "ynab/plaid (balance + txs; available credit optional)",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
     }
@@ -79,15 +134,18 @@
     },
     "inputs": {
       "liquid_usdc": 0.0006861255613999999,
-      "liquid_btc": 5.07777294815e-05,
-      "liquid_btc_usd": 3.193298172754791,
-      "btc_usd_price": 62887.77,
+      "liquid_btc": 0.0025784177294815,
+      "liquid_btc_usd": 165.03526234446198,
+      "btc_usd_price": 64006.41,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
       "vault_usdc": null,
-      "card_balance": null,
+      "card_balance": 418.55,
       "card_available_credit": null,
+      "card_source": "ynab",
+      "one_card_spend_30d": 0.0,
+      "one_card_account": "Coinbase One Card \u2013 5361",
       "rh_buying_power": 0.08,
       "rh_cash": 0.08,
       "rh_equity": 143.932838525,
@@ -127,33 +185,34 @@
     "stress": {
       "coinbase_ltv": "yellow",
       "coinbase_liquid": "red",
-      "coinbase_card": "yellow",
+      "coinbase_card": "red",
       "robinhood": "yellow",
-      "data_quality": "red",
+      "data_quality": "yellow",
       "overall": "red"
     },
     "data_quality": {
-      "status": "red",
-      "completeness_score": 0.3,
+      "status": "yellow",
+      "completeness_score": 0.5,
       "missing_manual_fields": [
         "loan_principal_usdc",
         "collateral_btc_usd",
         "ltv",
         "vault_usdc",
-        "card_balance",
         "card_available_credit"
       ],
-      "manual_filled": 0,
+      "manual_filled": 1,
       "manual_total": 6,
       "sources": {
         "coinbase": "live",
         "robinhood": "live",
-        "coinbase_as_of": "2026-07-17T06:34:33.268291+00:00",
-        "robinhood_as_of": null
+        "one_card": "ynab",
+        "coinbase_as_of": "2026-07-17T22:17:03.889180+00:00",
+        "robinhood_as_of": null,
+        "one_card_as_of": "2026-07-17T22:17:05.216616+00:00"
       },
       "stale": [],
       "warnings": [
-        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_balance, card_available_credit"
+        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_available_credit"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -173,7 +232,7 @@
         "kind": "fill_manual",
         "title": "Fill missing Coinbase app fields in config / UI",
         "actor": "human",
-        "detail": "Missing: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_balance, card_available_credit",
+        "detail": "Missing: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_available_credit",
         "api_reachable": false
       },
       {
@@ -194,10 +253,10 @@
       },
       {
         "priority": 2,
-        "kind": "card_unknown",
-        "title": "Enter One Card balance & available credit from app",
+        "kind": "card_paydown",
+        "title": "One Card balance $418.55 \u2014 pay down in app / confirm autopay",
         "actor": "human",
-        "detail": "Card metrics are unknown \u2014 stress cannot be green until filled.",
+        "detail": "Autopay + manual paydown only. Maximize available credit in-app.",
         "api_reachable": false
       },
       {
@@ -255,7 +314,7 @@
       {
         "n": 4,
         "actor": "human",
-        "title": "Enter One Card balance & available credit from app",
+        "title": "One Card balance $418.55 \u2014 pay down in app / confirm autopay",
         "api_reachable": false
       },
       {
@@ -283,7 +342,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00005078 (~$3.19)\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: red score=0.3\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] Enter One Card balance & available credit from app\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P4 [either|manual] Loan buffer short $1000.00 liquid USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00257842 (~$165.04)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.5\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P4 [either|manual] Loan buffer short $1000.00 liquid USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,

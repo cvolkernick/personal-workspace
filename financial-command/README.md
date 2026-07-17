@@ -28,8 +28,14 @@ Opens: http://localhost:8000/financial-command/index.html
 
 1. Live Coinbase balances + BTC-USD price via CLI.
 2. Robinhood from `treasury/snapshots/robinhood_latest.json` (agent MCP).
-3. Manual Morpho/vault/card fields from `treasury/config.json`.
-4. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
+3. **Coinbase One Card** via YNAB API (`~/.config/ynab/token`) → `treasury/snapshots/one_card_latest.json`.
+4. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
+5. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
+
+```bash
+python3 treasury/ynab_sync.py      # refresh One Card from YNAB
+python3 treasury/run_treasury.py   # full evaluation
+```
 
 ## Panels
 

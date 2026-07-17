@@ -1,0 +1,49 @@
+{
+  "source": "ynab",
+  "as_of": "2026-07-17T22:17:05.216616+00:00",
+  "provider": "ynab",
+  "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+  "budget_name": "Chris's Plan",
+  "account_id": "b3f74fe6-bf53-49e5-8ee3-d52f7ec72461",
+  "account_name": "Coinbase One Card \u2013 5361",
+  "account_type": "creditCard",
+  "direct_import_linked": true,
+  "direct_import_in_error": false,
+  "balance_raw": -418.55,
+  "balance_owed": 418.55,
+  "card_balance": 418.55,
+  "available_credit": null,
+  "card_available_credit": null,
+  "cleared_balance": -418.55,
+  "uncleared_balance": 0.0,
+  "spend_30d": 0.0,
+  "payments_30d": 47.32,
+  "transaction_count": 2,
+  "transactions": [
+    {
+      "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
+      "date": "2026-07-17",
+      "payee": "Starting Balance",
+      "amount": -465.87,
+      "amount_display": -465.87,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": true,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "94e18248-40b6-44da-91a1-e3aeaf423556",
+      "date": "2026-07-17",
+      "payee": "Payment",
+      "amount": 47.32,
+      "amount_display": 47.32,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    }
+  ],
+  "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
+  "token_source": "/Users/cvolkernick/.config/ynab/token",
+  "since": "2026-04-18"
+}

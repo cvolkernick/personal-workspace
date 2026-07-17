@@ -31,7 +31,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--offline",
         action="store_true",
-        help="Use Coinbase snapshot file only (no live CLI)",
+        help="Use Coinbase/YNAB snapshot files only (no live CLI/API)",
+    )
+    parser.add_argument(
+        "--skip-ynab",
+        action="store_true",
+        help="Do not call YNAB live (use one_card snapshot if present)",
     )
     parser.add_argument(
         "--out",
@@ -42,9 +47,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     cfg = load_config()
-    snap = build_snapshot(config=cfg, prefer_live_coinbase=not args.offline)
-    policy = {**(cfg.get("policy") or {}), **(snap.get("policy_overrides") or {})}
-    # policy_overrides already in snap; evaluate uses explicit policy arg
+    snap = build_snapshot(
+        config=cfg,
+        prefer_live_coinbase=not args.offline,
+        prefer_live_ynab=not args.offline and not args.skip_ynab,
+    )
     result = evaluate_treasury(snap, policy=cfg.get("policy") or {})
     out = {
         "snapshot": snap,

@@ -224,10 +224,21 @@ def assess_data_quality(
         missing_manual = [k for k in missing_manual if k != "ltv"]
 
     warnings: List[str] = []
+    # Card fields filled via YNAB one_card count as present for DQ
+    oc = snapshot.get("one_card") or {}
+    if oc.get("card_balance") is not None or oc.get("balance_owed") is not None:
+        missing_manual = [k for k in missing_manual if k != "card_balance"]
+    if oc.get("card_available_credit") is not None or oc.get("available_credit") is not None:
+        missing_manual = [k for k in missing_manual if k != "card_available_credit"]
+
     if missing_manual:
         warnings.append(
             "Missing Coinbase app fields: " + ", ".join(missing_manual)
         )
+    if oc.get("source") in (None, "empty"):
+        warnings.append("One Card / YNAB snapshot missing — run treasury/ynab_sync.py")
+    elif oc.get("live_error"):
+        warnings.append(f"YNAB One Card: {oc['live_error']}")
     if cb.get("source") in (None, "empty"):
         warnings.append("Coinbase liquid balances unavailable (no live or snapshot)")
     if rh.get("source") in (None, "empty"):
@@ -239,7 +250,7 @@ def assess_data_quality(
 
     now = datetime.now(timezone.utc)
     stale: List[str] = []
-    for label, src in (("coinbase", cb), ("robinhood", rh)):
+    for label, src in (("coinbase", cb), ("robinhood", rh), ("one_card", oc)):
         as_of = _parse_as_of(src.get("as_of"))
         if as_of is None:
             continue
@@ -252,17 +263,20 @@ def assess_data_quality(
 
     # Completeness score: manual fields filled / total + live sources present
     manual_total = len(MANUAL_FIELDS)
-    manual_filled = manual_total - len([k for k in MANUAL_FIELDS if _is_missing(man.get(k))])
-    if ltv is not None and _is_missing(man.get("ltv")):
-        # derived counts as filled for ltv
-        if "ltv" in [k for k in MANUAL_FIELDS if _is_missing(man.get(k))]:
-            manual_filled = min(manual_total, manual_filled + 1)
+    still_missing = list(missing_manual)
+    manual_filled = manual_total - len(still_missing)
+    if ltv is not None and "ltv" not in still_missing:
+        pass
+    elif ltv is not None:
+        manual_filled = min(manual_total, manual_filled + 1)
     sources_ok = 0
     if cb.get("source") not in (None, "empty"):
         sources_ok += 1
     if rh.get("source") not in (None, "empty"):
         sources_ok += 1
-    score = (manual_filled / manual_total) * 0.7 + (sources_ok / 2.0) * 0.3
+    if oc.get("source") not in (None, "empty") and not oc.get("live_error"):
+        sources_ok += 1
+    score = (manual_filled / manual_total) * 0.6 + (sources_ok / 3.0) * 0.4
 
     status = "green"
     if missing_manual or stale:
@@ -279,8 +293,10 @@ def assess_data_quality(
         "sources": {
             "coinbase": cb.get("source"),
             "robinhood": rh.get("source"),
+            "one_card": oc.get("source"),
             "coinbase_as_of": cb.get("as_of"),
             "robinhood_as_of": rh.get("as_of"),
+            "one_card_as_of": oc.get("as_of"),
         },
         "stale": stale,
         "warnings": warnings,
@@ -322,12 +338,26 @@ def evaluate_treasury(
     if ltv is None and principal > 0 and coll_usd > 0:
         ltv = principal / coll_usd
 
+    one_card = snapshot.get("one_card") or {}
     vault_raw = man.get("vault_usdc")
     vault_usdc = _f(vault_raw) if not _is_missing(vault_raw) else 0.0
     card_balance_raw = man.get("card_balance")
+    if _is_missing(card_balance_raw):
+        card_balance_raw = one_card.get("card_balance")
+        if _is_missing(card_balance_raw):
+            card_balance_raw = one_card.get("balance_owed")
     card_avail_raw = man.get("card_available_credit")
+    if _is_missing(card_avail_raw):
+        card_avail_raw = one_card.get("card_available_credit")
+        if _is_missing(card_avail_raw):
+            card_avail_raw = one_card.get("available_credit")
     card_balance = _f(card_balance_raw) if not _is_missing(card_balance_raw) else 0.0
     card_avail = None if _is_missing(card_avail_raw) else _f(card_avail_raw)
+    card_source = man.get("card_balance_source") or (
+        "ynab" if one_card.get("source") in ("ynab", "snapshot") and not _is_missing(card_balance_raw) else None
+    )
+    if card_source is None and not _is_missing(man.get("card_balance")):
+        card_source = "manual"
 
     bp = _f(rh.get("buying_power"))
     cash = _f(rh.get("cash"))
@@ -591,6 +621,8 @@ def evaluate_treasury(
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
         f"Liquid USDC: ${liquid_usdc:.2f} | Liquid BTC: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
+        f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
+        + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
         f"RH BP: ${bp:.2f} | cash: ${cash:.2f} | equity: ${equity:.2f}",
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
@@ -617,6 +649,9 @@ def evaluate_treasury(
             "vault_usdc": vault_usdc if not _is_missing(vault_raw) else None,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
+            "card_source": card_source,
+            "one_card_spend_30d": one_card.get("spend_30d"),
+            "one_card_account": one_card.get("account_name"),
             "rh_buying_power": bp,
             "rh_cash": cash,
             "rh_equity": equity,

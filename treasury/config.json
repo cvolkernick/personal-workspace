@@ -24,5 +24,10 @@
     "account_number": "5QW39737",
     "agentic_account_number": "674601752",
     "notes": "Margin book on ••••9737; agentic account ••••1752 for agent orders when enabled."
+  },
+  "ynab": {
+    "budget_name": null,
+    "account_name": null,
+    "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card credit account."
   }
 }

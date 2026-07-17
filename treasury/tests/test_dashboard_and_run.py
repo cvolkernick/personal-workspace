@@ -23,6 +23,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Data quality", html)
         self.assertIn("Agent brief", html)
         self.assertIn("/api/refresh", html)
+        self.assertIn("One Card", html)
+        self.assertIn("YNAB", html)
         self.assertGreater(len(html), 5000)
 
     def test_action_items_doc(self):

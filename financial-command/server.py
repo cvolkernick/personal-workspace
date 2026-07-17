@@ -106,8 +106,18 @@ class FCCHandler(SimpleHTTPRequestHandler):
             body = self._read_json()
             if body.get("offline"):
                 offline = True
+            # Prefer live YNAB + Coinbase unless offline
             args = ["--offline"] if offline else []
             try:
+                if not offline:
+                    try:
+                        from treasury.ynab_sync import main as ynab_main
+
+                        ynab_main([])
+                    except SystemExit:
+                        pass
+                    except Exception as ye:
+                        sys.stderr.write(f"[fcc] ynab_sync warning: {ye}\n")
                 code = run_treasury_main(args)
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
@@ -132,8 +142,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--offline", action="store_true", help="Initial refresh offline")
     args = parser.parse_args(argv)
 
-    # Initial treasury refresh
+    # Initial YNAB + treasury refresh
     try:
+        if not args.offline:
+            try:
+                from treasury.ynab_sync import main as ynab_main
+
+                ynab_main([])
+            except SystemExit:
+                pass
+            except Exception as ye:
+                print(f"ynab_sync warning: {ye}", file=sys.stderr)
         run_treasury_main(["--offline"] if args.offline else [])
     except SystemExit:
         pass
