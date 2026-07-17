@@ -1,10 +1,16 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-07-17T23:16:30.489139+00:00",
+  "as_of": "2026-07-17T23:21:55.221974+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
+  "semantics": {
+    "personal": "Estimated upcoming expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
+    "discretionary": "Hypothetical destinations for excess capital (assets / goals). Not a spending plan and not included in expense burn.",
+    "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal."
+  },
   "tabs": {
     "Personal": {
+      "role": "upcoming_expense_estimates",
       "item_count": 27,
       "totals": {
         "daily": 534.51,
@@ -102,6 +108,148 @@
           "from": "Coinbase",
           "date": "8/1/2026",
           "budget_allocation": 0.0077
+        }
+      ],
+      "upcoming_by_date": [
+        {
+          "date": "1/9/2027",
+          "item": "Amazon Prime",
+          "from": "Coinbase",
+          "monthly": 11.67,
+          "weekly": 2.68
+        },
+        {
+          "date": "2/1/2027",
+          "item": "Premium Connectivity",
+          "from": "Coinbase",
+          "monthly": 8.25,
+          "weekly": 1.9
+        },
+        {
+          "date": "2/14/2027",
+          "item": "Google One",
+          "from": "Coinbase",
+          "monthly": 19.99,
+          "weekly": 4.61
+        },
+        {
+          "date": "4/1/2026",
+          "item": "Rent (April / May / June / July / August)",
+          "from": "Coinbase",
+          "monthly": 8400.0,
+          "weekly": 1933.15
+        },
+        {
+          "date": "4/21/2026",
+          "item": "Capital One (April / May / June)",
+          "from": "RH Checking",
+          "monthly": 1121.55,
+          "weekly": 261.7
+        },
+        {
+          "date": "5/21/2026",
+          "item": "Santander (May / June)",
+          "from": "RH Checking",
+          "monthly": 773.18,
+          "weekly": 180.41
+        },
+        {
+          "date": "5/23/2026",
+          "item": "GM Financial (May / June)",
+          "from": "RH Checking",
+          "monthly": 1296.61,
+          "weekly": 302.54
+        },
+        {
+          "date": "7/15/2027",
+          "item": "Lawn Mower",
+          "from": "Coinbase",
+          "monthly": 22.92,
+          "weekly": 5.27
+        },
+        {
+          "date": "7/15/2027",
+          "item": "Final VA Payments",
+          "from": "Coinbase",
+          "monthly": 1250.0,
+          "weekly": 287.67
+        },
+        {
+          "date": "7/15/2027",
+          "item": "AT&T Final Bill",
+          "from": "Coinbase",
+          "monthly": 50.0,
+          "weekly": 11.51
+        },
+        {
+          "date": "7/17/2026",
+          "item": "Gym",
+          "from": "Coinbase",
+          "monthly": 27.0,
+          "weekly": 6.21
+        },
+        {
+          "date": "7/18/2026",
+          "item": "Pawp",
+          "from": "Coinbase",
+          "monthly": 19.0,
+          "weekly": 4.37
+        },
+        {
+          "date": "7/18/2026",
+          "item": "Water",
+          "from": "RH Checking",
+          "monthly": 67.0,
+          "weekly": 15.42
+        },
+        {
+          "date": "7/19/2026",
+          "item": "Banfield",
+          "from": "Coinbase",
+          "monthly": 85.0,
+          "weekly": 19.56
+        },
+        {
+          "date": "7/20/2026",
+          "item": "Sud Stop Car Wash",
+          "from": "Coinbase",
+          "monthly": 160.0,
+          "weekly": 36.82
+        },
+        {
+          "date": "7/21/2026",
+          "item": "Fleet Insurance",
+          "from": "RH Checking",
+          "monthly": 560.0,
+          "weekly": 128.88
+        },
+        {
+          "date": "7/23/2026",
+          "item": "Coinbase One",
+          "from": "Coinbase",
+          "monthly": 29.99,
+          "weekly": 6.9
+        },
+        {
+          "date": "8/1/2026",
+          "item": "Tha\u00eds",
+          "from": "Coinbase",
+          "monthly": 900.0,
+          "weekly": 207.12
+        },
+        {
+          "date": "8/1/2026",
+          "item": "ASIC Fleet OpEx",
+          "from": "RH Checking",
+          "monthly": 437.2,
+          "weekly": 100.89
+        },
+        {
+          "date": "8/1/2026",
+          "item": "Dog Food",
+          "from": "Coinbase",
+          "monthly": 125.0,
+          "weekly": 28.77
         }
       ],
       "items": [
@@ -405,6 +553,7 @@
       ]
     },
     "Discretionary": {
+      "role": "excess_capital_targets",
       "item_count": 8,
       "totals": {
         "daily": 84.93,
@@ -413,6 +562,29 @@
         "monthly": 2548.0,
         "annually": 30576.0
       },
+      "top_targets": [
+        {
+          "item": "ASIC",
+          "monthly": 2500.0,
+          "from": null,
+          "date": "8/1/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Tesla TPMS",
+          "monthly": 115.0,
+          "from": null,
+          "date": "8/1/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Tesla Wiper Blades",
+          "monthly": 48.0,
+          "from": null,
+          "date": "8/1/2026",
+          "budget_allocation": null
+        }
+      ],
       "top_monthly": [
         {
           "item": "ASIC",
@@ -529,16 +701,19 @@
     }
   },
   "summary": {
+    "upcoming_expense_monthly": 16211.68,
     "personal_monthly": 16211.68,
     "personal_daily": 534.51,
     "personal_weekly": 3741.56,
     "personal_annually": 53285.38,
+    "capital_targets_monthly": 2548.0,
     "discretionary_monthly": 2548.0,
     "discretionary_daily": 84.93,
-    "combined_monthly": 18759.68,
-    "combined_daily": 619.44,
+    "combined_monthly": 16211.68,
+    "combined_daily": 534.51,
     "coinbase_funded_monthly": 11862.82,
-    "rh_funded_monthly": 4255.54
+    "rh_funded_monthly": 4255.54,
+    "rh_checking_funded_monthly": 4255.54
   },
-  "notes": "Budget/allocation sheet (not a transaction ledger). Monthly totals drive FCC burn-rate context; Coinbase-funded slice informs liquid USDC pressure."
+  "notes": "Personal = estimated future bills by pay-from account. Discretionary = theoretical excess-capital targets (not expenses). Actual card/spend history comes from YNAB, not this sheet."
 }

@@ -10,7 +10,8 @@
 | --- | --- |
 | Manual Morpho/vault/card fields empty | **Card balance via YNAB** wired; Morpho LTV + vault still manual |
 | One Card via Plaid | **YNAB** → `treasury/ynab_sync.py` → FCC One Card panel |
-| Personal Expense Sheet | **Google Sheet** → `treasury/expenses_sync.py` → FCC expenses panel |
+| Personal Expense Sheet | **Google Sheet** → `expenses_sync.py`: Personal = upcoming est. bills; Discretionary = capital targets (not burn). Actual spend = YNAB |
+| RH Banking / ACH | **Not in RH trading MCP** — only brokerage cash/BP. ACH draft history unavailable; sheet “RH Checking” estimates used for float pressure |
 | Card stress green when unknown | **Fixed** — unknown → yellow |
 | No data completeness / freshness | **Added** — data quality panel + stale warnings |
 | Liquid BTC without USD | **Added** — BTC-USD via Coinbase products |

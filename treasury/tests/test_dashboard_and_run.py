@@ -25,8 +25,9 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("/api/refresh", html)
         self.assertIn("One Card", html)
         self.assertIn("YNAB", html)
-        self.assertIn("Personal Expense Sheet", html)
+        self.assertIn("Upcoming expenses", html)
         self.assertIn("expenses-metrics", html)
+        self.assertIn("capital targets", html)
         self.assertGreater(len(html), 5000)
 
     def test_action_items_doc(self):

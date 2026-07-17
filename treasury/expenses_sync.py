@@ -2,7 +2,11 @@
 """Sync Personal Expense Google Sheet into treasury snapshots for FCC.
 
 Sheet: Personal Expense Sheet
-  tabs: Personal (recurring obligations), Discretionary (flex / investments)
+  Personal     — estimated *upcoming* expenses (may be ballpark), with due dates
+                 and funding account (From). Forward-looking, not actual spend.
+  Discretionary — hypothetical destinations for *excess capital* (not expenses).
+
+YNAB is the source of *actual* spending (esp. Coinbase One Card). Do not double-count.
 
 Default fetch uses Google Sheets gviz CSV export (works when link-shared).
 
@@ -208,6 +212,25 @@ def top_items(items: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
     ]
 
 
+def _upcoming_sorted(items: List[Dict[str, Any]], n: int = 15) -> List[Dict[str, Any]]:
+    """Sort personal expenses by due date (missing dates last)."""
+    def key(i: Dict[str, Any]):
+        d = i.get("date") or ""
+        return (0, d) if d else (1, i.get("item") or "")
+
+    ranked = sorted(items, key=key)
+    return [
+        {
+            "date": i.get("date"),
+            "item": i.get("item"),
+            "from": i.get("from"),
+            "monthly": i.get("monthly"),
+            "weekly": i.get("weekly"),
+        }
+        for i in ranked[:n]
+    ]
+
+
 def build_expenses_snapshot(
     personal_csv: str,
     discretionary_csv: str,
@@ -218,11 +241,11 @@ def build_expenses_snapshot(
     personal_items, personal_totals = parse_personal_rows(rows_from_csv(personal_csv))
     disc_items, disc_totals = parse_discretionary_rows(rows_from_csv(discretionary_csv))
 
+    # Personal only = estimated upcoming obligations (NOT actual spend; YNAB owns actuals)
     personal_monthly = personal_totals.get("monthly") or 0.0
-    disc_monthly = disc_totals.get("monthly") or 0.0
-    combined_monthly = personal_monthly + disc_monthly
+    # Discretionary = capital allocation targets for excess — NOT expenses / burn
+    capital_target_monthly = disc_totals.get("monthly") or 0.0
 
-    # Coinbase-sourced personal burn (important for liquid USDC / card float)
     cb_monthly = sum(
         float(i.get("monthly") or 0)
         for i in personal_items
@@ -239,38 +262,59 @@ def build_expenses_snapshot(
         "as_of": _now(),
         "sheet_id": sheet_id,
         "sheet_name": "Personal Expense Sheet",
+        "semantics": {
+            "personal": (
+                "Estimated upcoming expenses (ballpark OK) with due dates and funding account. "
+                "Forward-looking plan — not a record of what already spent."
+            ),
+            "discretionary": (
+                "Hypothetical destinations for excess capital (assets / goals). "
+                "Not a spending plan and not included in expense burn."
+            ),
+            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal.",
+        },
         "tabs": {
             "Personal": {
+                "role": "upcoming_expense_estimates",
                 "item_count": len(personal_items),
                 "totals": {k: round(v, 2) for k, v in personal_totals.items()},
                 "by_source_monthly": by_source(personal_items),
                 "top_monthly": top_items(personal_items, 12),
+                "upcoming_by_date": _upcoming_sorted(personal_items, 20),
                 "items": personal_items,
             },
             "Discretionary": {
+                "role": "excess_capital_targets",
                 "item_count": len(disc_items),
                 "totals": {k: round(v, 2) for k, v in disc_totals.items()},
+                "top_targets": top_items(disc_items, 12),
+                # keep top_monthly alias for older UI
                 "top_monthly": top_items(disc_items, 12),
                 "items": disc_items,
             },
         },
         "summary": {
-            "personal_monthly": round(personal_monthly, 2),
+            # Expense estimates (Personal only)
+            "upcoming_expense_monthly": round(personal_monthly, 2),
+            "personal_monthly": round(personal_monthly, 2),  # alias
             "personal_daily": round(personal_totals.get("daily") or 0.0, 2),
             "personal_weekly": round(personal_totals.get("weekly") or 0.0, 2),
             "personal_annually": round(personal_totals.get("annually") or 0.0, 2),
-            "discretionary_monthly": round(disc_monthly, 2),
+            # Capital targets (Discretionary) — not burn
+            "capital_targets_monthly": round(capital_target_monthly, 2),
+            "discretionary_monthly": round(capital_target_monthly, 2),  # alias
             "discretionary_daily": round(disc_totals.get("daily") or 0.0, 2),
-            "combined_monthly": round(combined_monthly, 2),
-            "combined_daily": round(
-                (personal_totals.get("daily") or 0.0) + (disc_totals.get("daily") or 0.0), 2
-            ),
+            # Burn / funding pressure = Personal only (never + discretionary)
+            "combined_monthly": round(personal_monthly, 2),
+            "combined_daily": round(personal_totals.get("daily") or 0.0, 2),
             "coinbase_funded_monthly": round(cb_monthly, 2),
             "rh_funded_monthly": round(rh_monthly, 2),
+            "rh_checking_funded_monthly": round(rh_monthly, 2),
         },
         "notes": (
-            "Budget/allocation sheet (not a transaction ledger). "
-            "Monthly totals drive FCC burn-rate context; Coinbase-funded slice informs liquid USDC pressure."
+            "Personal = estimated future bills by pay-from account. "
+            "Discretionary = theoretical excess-capital targets (not expenses). "
+            "Actual card/spend history comes from YNAB, not this sheet."
         ),
     }
 
@@ -356,12 +400,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             {
                 "ok": True,
                 "path": str(path),
-                "personal_monthly": s.get("personal_monthly"),
-                "discretionary_monthly": s.get("discretionary_monthly"),
-                "combined_monthly": s.get("combined_monthly"),
+                "upcoming_expense_monthly": s.get("upcoming_expense_monthly")
+                or s.get("personal_monthly"),
+                "capital_targets_monthly": s.get("capital_targets_monthly")
+                or s.get("discretionary_monthly"),
                 "coinbase_funded_monthly": s.get("coinbase_funded_monthly"),
-                "items_personal": (data.get("tabs") or {}).get("Personal", {}).get("item_count"),
-                "items_discretionary": (data.get("tabs") or {})
+                "rh_checking_funded_monthly": s.get("rh_funded_monthly"),
+                "items_upcoming": (data.get("tabs") or {}).get("Personal", {}).get("item_count"),
+                "items_capital_targets": (data.get("tabs") or {})
                 .get("Discretionary", {})
                 .get("item_count"),
             },

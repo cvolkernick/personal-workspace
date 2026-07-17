@@ -56,10 +56,16 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(snap["source"], "test")
         s = snap["summary"]
         self.assertAlmostEqual(s["personal_monthly"], 16211.68)
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 16211.68)
+        # Discretionary is capital targets, not expense burn
+        self.assertAlmostEqual(s["capital_targets_monthly"], 2548.0)
         self.assertAlmostEqual(s["discretionary_monthly"], 2548.0)
-        self.assertAlmostEqual(s["combined_monthly"], 16211.68 + 2548.0)
+        # combined burn = personal only
+        self.assertAlmostEqual(s["combined_monthly"], 16211.68)
         self.assertGreater(s["coinbase_funded_monthly"], 8000)
         self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
+        self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
+        self.assertEqual(snap["tabs"]["Discretionary"]["role"], "excess_capital_targets")
 
 
 class TestPolicyExpenses(unittest.TestCase):
@@ -79,7 +85,9 @@ class TestPolicyExpenses(unittest.TestCase):
             },
         }
         ev = evaluate_treasury(snap)
-        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], 16211.68 + 2548.0)
+        # burn uses Personal only
+        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], 16211.68)
+        self.assertAlmostEqual(ev["inputs"]["expenses_capital_targets_monthly"], 2548.0)
         self.assertIn("expense_burn", [a["kind"] for a in ev["actions"]])
         self.assertIn("expenses", ev["data_quality"]["sources"])
 

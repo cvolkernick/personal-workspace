@@ -605,15 +605,33 @@ def evaluate_treasury(
         )
 
     exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
+    # Upcoming estimates only (Personal tab) — not Discretionary capital targets
     cb_burn = exp_sum.get("coinbase_funded_monthly")
+    rh_checking_burn = exp_sum.get("rh_funded_monthly") or exp_sum.get("rh_checking_funded_monthly")
     if cb_burn and liquid_usdc < float(cb_burn) * 0.25:
         add(
             3,
             "expense_burn",
-            f"Coinbase-funded expense burn ~${float(cb_burn):.0f}/mo vs liquid USDC ${liquid_usdc:.2f}",
+            f"Est. Coinbase-funded upcoming bills ~${float(cb_burn):.0f}/mo vs liquid USDC ${liquid_usdc:.2f}",
             actor="either",
-            detail="Personal Expense Sheet: keep liquid USDC buffer vs Coinbase-sourced obligations (rent, subs, etc.).",
+            detail=(
+                "Sheet Personal tab = forward estimates (ballpark OK), not actual spend. "
+                "YNAB = realized spend. Keep liquid USDC for Coinbase-paid obligations."
+            ),
             api_reachable=False,
+        )
+    if rh_checking_burn and cash is not None and float(cash) < float(rh_checking_burn) * 0.15:
+        add(
+            3,
+            "rh_checking_float",
+            f"Est. RH Checking–funded bills ~${float(rh_checking_burn):.0f}/mo vs RH cash ${float(cash):.2f}",
+            actor="either",
+            detail=(
+                "ACH/bank-draft expenses may pay from Robinhood Banking. "
+                "MCP exposes brokerage cash only (not full bank ACH history). "
+                "Top up RH cash before due dates on the Personal tab."
+            ),
+            api_reachable=True,
         )
 
     if _is_missing(vault_raw):
@@ -644,10 +662,13 @@ def evaluate_treasury(
         f"Liquid USDC: ${liquid_usdc:.2f} | Liquid BTC: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
-        f"Expense sheet monthly: ${((snapshot.get('expenses') or {}).get('summary') or {}).get('combined_monthly') or 0:.2f}"
-        + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
-        + f" + disc ${((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f})"
-        + f" | CB-funded ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}",
+        f"Upcoming expense estimates (sheet Personal): "
+        f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
+        + f" | CB-funded est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}"
+        + f" | RH-checking est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('rh_funded_monthly') or 0:.2f}"
+        + f" | Capital targets (Discretionary, not burn) "
+        f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('capital_targets_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f}/mo"
+        + " | Actual spend: YNAB",
         f"RH BP: ${bp:.2f} | cash: ${cash:.2f} | equity: ${equity:.2f}",
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
@@ -677,18 +698,30 @@ def evaluate_treasury(
             "card_source": card_source,
             "one_card_spend_30d": one_card.get("spend_30d"),
             "one_card_account": one_card.get("account_name"),
+            "expenses_upcoming_monthly": (snapshot.get("expenses") or {}).get("summary", {}).get(
+                "upcoming_expense_monthly"
+            )
+            or (snapshot.get("expenses") or {}).get("summary", {}).get("personal_monthly"),
             "expenses_personal_monthly": (snapshot.get("expenses") or {}).get("summary", {}).get(
                 "personal_monthly"
             ),
+            "expenses_capital_targets_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("capital_targets_monthly")
+            or (snapshot.get("expenses") or {}).get("summary", {}).get("discretionary_monthly"),
             "expenses_discretionary_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("discretionary_monthly"),
+            # combined = upcoming only (Personal); discretionary excluded from burn
             "expenses_combined_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("combined_monthly"),
             "expenses_coinbase_funded_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("coinbase_funded_monthly"),
+            "expenses_rh_funded_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("rh_funded_monthly"),
             "rh_buying_power": bp,
             "rh_cash": cash,
             "rh_equity": equity,

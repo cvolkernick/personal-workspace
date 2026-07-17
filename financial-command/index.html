@@ -249,20 +249,28 @@
     </section>
 
     <section class="card" id="expenses-panel">
-      <h2>Personal Expense Sheet (Google)</h2>
+      <h2>Upcoming expenses &amp; capital targets (Google Sheet)</h2>
+      <p class="hint" id="expenses-semantics">
+        Personal = estimated future bills (ballpark OK) + due date + pay-from account.
+        YNAB = actual spend. Discretionary = where excess capital <em>could</em> go (not expenses).
+      </p>
       <div class="grid-2" id="expenses-metrics"></div>
       <div class="grid-2" style="margin-top:0.75rem">
         <div>
-          <div class="hint">Top personal (monthly)</div>
+          <div class="hint">Upcoming estimates by size (monthly)</div>
           <div id="expenses-top-personal"></div>
         </div>
         <div>
-          <div class="hint">By funding source (monthly)</div>
+          <div class="hint">Pay-from account (monthly estimates)</div>
           <div id="expenses-by-source"></div>
         </div>
       </div>
       <div style="margin-top:0.75rem">
-        <div class="hint">Discretionary top (monthly)</div>
+        <div class="hint">Upcoming by due date</div>
+        <div id="expenses-upcoming"></div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <div class="hint">Excess capital targets (Discretionary — not burn)</div>
         <div id="expenses-top-disc"></div>
       </div>
     </section>
@@ -572,14 +580,21 @@
 
       const ex = snap.expenses || {};
       const es = ex.summary || {};
+      const sem = ex.semantics || {};
+      if (sem.personal || sem.discretionary) {
+        document.getElementById("expenses-semantics").innerHTML =
+          `<strong>Personal:</strong> ${sem.personal || ""} ` +
+          `<strong>Discretionary:</strong> ${sem.discretionary || ""} ` +
+          `<strong>Actual spend:</strong> ${sem.actual_spend || "YNAB"}`;
+      }
       document.getElementById("expenses-metrics").innerHTML = [
-        metric("Personal monthly", money(es.personal_monthly)),
-        metric("Discretionary monthly", money(es.discretionary_monthly)),
-        metric("Combined monthly", money(es.combined_monthly)),
-        metric("Combined daily", money(es.combined_daily)),
-        metric("Coinbase-funded / mo", money(es.coinbase_funded_monthly)),
-        metric("RH-funded / mo", money(es.rh_funded_monthly)),
-        metric("Source", ex.source || "—"),
+        metric("Upcoming bills / mo (est.)", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
+        metric("Upcoming daily (est.)", money(es.personal_daily ?? es.combined_daily)),
+        metric("Coinbase pay-from / mo", money(es.coinbase_funded_monthly)),
+        metric("RH Checking pay-from / mo", money(es.rh_funded_monthly)),
+        metric("Capital targets / mo (not burn)", money(es.capital_targets_monthly ?? es.discretionary_monthly)),
+        metric("Actual spend source", "YNAB (realized)"),
+        metric("Sheet source", ex.source || "—"),
         metric("as_of", ex.as_of || "—"),
         metric("Error", ex.live_error || "—"),
       ].join("");
@@ -589,9 +604,9 @@
         .slice(0, 8)
         .map(
           (r) =>
-            `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(r.monthly)}</span></div>`
+            `<div class="metric"><span class="label">${r.item || "—"} <span class="hint">(${r.from || "?"})</span></span><span class="val">${money(r.monthly)}</span></div>`
         )
-        .join("") || `<p class="hint">No personal rows</p>`;
+        .join("") || `<p class="hint">No upcoming expense rows</p>`;
       const bySrc = persTab.by_source_monthly || {};
       document.getElementById("expenses-by-source").innerHTML = Object.keys(bySrc).length
         ? Object.entries(bySrc)
@@ -600,14 +615,21 @@
                 `<div class="metric"><span class="label">${k}</span><span class="val">${money(v)}</span></div>`
             )
             .join("")
-        : `<p class="hint">No source breakdown</p>`;
-      document.getElementById("expenses-top-disc").innerHTML = (discTab.top_monthly || [])
+        : `<p class="hint">No pay-from breakdown</p>`;
+      document.getElementById("expenses-upcoming").innerHTML = (persTab.upcoming_by_date || [])
+        .slice(0, 12)
+        .map(
+          (r) =>
+            `<div class="metric"><span class="label">${r.date || "—"} · ${r.item || "—"} · ${r.from || "?"}</span><span class="val">${money(r.monthly)}</span></div>`
+        )
+        .join("") || `<p class="hint">No dated upcoming items</p>`;
+      document.getElementById("expenses-top-disc").innerHTML = (discTab.top_targets || discTab.top_monthly || [])
         .slice(0, 8)
         .map(
           (r) =>
             `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(r.monthly)}</span></div>`
         )
-        .join("") || `<p class="hint">No discretionary rows</p>`;
+        .join("") || `<p class="hint">No capital targets</p>`;
 
       const rhMeta = (snap.meta && snap.meta.rh_accounts) || {};
       document.getElementById("rh-metrics").innerHTML = [
