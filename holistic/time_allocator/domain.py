@@ -142,11 +142,11 @@ def _migrate_targets(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
             continue
         # Historical mistake: 130 min; correct range is 30–60.
         mins = int(t.get("minutes") or 0)
-        if mins >= 100 or t.get("minutes_min") is None:
-            t["minutes"] = 45
+        if mins >= 100 or t.get("minutes_min") is None or int(t.get("sessions_hint") or 0) > 1:
+            t["minutes"] = 45 if mins >= 100 or t.get("minutes_min") is None else mins
             t["minutes_min"] = 30
             t["minutes_max"] = 60
-            t["sessions_hint"] = int(t.get("sessions_hint") or 1)
+            t["sessions_hint"] = 1
             t["notes"] = "30–60 minutes per day."
             t["title"] = t.get("title") or "Walk Duchess"
     return out

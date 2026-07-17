@@ -17,7 +17,7 @@
       "title": "Walk Duchess",
       "kind": "daily_duration",
       "minutes": 45,
-      "sessions_hint": 2,
+      "sessions_hint": 1,
       "priority": 9,
       "notes": "30\u201360 minutes per day.",
       "minutes_min": 30,
@@ -41,10 +41,101 @@
       "notes": "Fill remaining active time after fixed targets + ad-hoc."
     }
   ],
-  "logs": [],
+  "logs": [
+    {
+      "date": "2026-07-03",
+      "target_id": "sleep",
+      "value": 9.1,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-04",
+      "target_id": "sleep",
+      "value": 6.82,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-05",
+      "target_id": "sleep",
+      "value": 3.03,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-06",
+      "target_id": "sleep",
+      "value": 11.15,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-07",
+      "target_id": "sleep",
+      "value": 7.4,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-08",
+      "target_id": "sleep",
+      "value": 8.02,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-09",
+      "target_id": "sleep",
+      "value": 7.65,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-10",
+      "target_id": "sleep",
+      "value": 7.72,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-11",
+      "target_id": "sleep",
+      "value": 8.83,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-12",
+      "target_id": "sleep",
+      "value": 6.3,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-13",
+      "target_id": "sleep",
+      "value": 6.13,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-14",
+      "target_id": "sleep",
+      "value": 9.15,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-15",
+      "target_id": "sleep",
+      "value": 5.32,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-16",
+      "target_id": "sleep",
+      "value": 5.83,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-17",
+      "target_id": "sleep",
+      "value": 6.03,
+      "note": "synced from google_health"
+    }
+  ],
   "plan": {
-    "window_start": "2026-07-17T15:12:14-04:00",
-    "window_end": "2026-07-18T15:12:14-04:00",
+    "window_start": "2026-07-17T15:12:34-04:00",
+    "window_end": "2026-07-18T15:12:34-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -66,7 +157,7 @@
         "role": "fixed",
         "kind": "daily_duration",
         "priority": 9,
-        "sessions_hint": 2,
+        "sessions_hint": 1,
         "minutes_min": 30,
         "minutes_max": 60,
         "done_today": 0
@@ -100,15 +191,44 @@
         "title": "Sleep (rolling 7-day avg \u2265 8h)",
         "kind": "rolling_avg",
         "priority": 10,
-        "on_track": null,
-        "summary": "No logs in last 7d \u2014 target 8.0 hours",
+        "on_track": false,
+        "summary": "6.80 hours avg over 7 day(s) (target \u2265 8)",
         "detail": {
           "window_days": 7,
           "target": 8.0,
           "unit": "hours",
-          "samples": 0,
-          "average": null,
-          "days": []
+          "samples": 7,
+          "average": 6.8,
+          "days": [
+            {
+              "date": "2026-07-11",
+              "value": 8.83
+            },
+            {
+              "date": "2026-07-12",
+              "value": 6.3
+            },
+            {
+              "date": "2026-07-13",
+              "value": 6.13
+            },
+            {
+              "date": "2026-07-14",
+              "value": 9.15
+            },
+            {
+              "date": "2026-07-15",
+              "value": 5.32
+            },
+            {
+              "date": "2026-07-16",
+              "value": 5.83
+            },
+            {
+              "date": "2026-07-17",
+              "value": 6.03
+            }
+          ]
         }
       },
       {
