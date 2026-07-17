@@ -1,0 +1,36 @@
+{
+  "source": "ynab",
+  "as_of": "2026-07-17T23:32:07.075576+00:00",
+  "provider": "ynab",
+  "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+  "budget_name": "Chris's Plan",
+  "account_id": "1df4de02-042d-48eb-b5cc-caf618bfaf3e",
+  "account_name": "RH Checking \u2013 3646",
+  "account_type": "checking",
+  "direct_import_linked": true,
+  "direct_import_in_error": false,
+  "balance_raw": 2.43,
+  "cash": 2.43,
+  "available": 2.43,
+  "cleared_balance": 2.43,
+  "uncleared_balance": 0.0,
+  "spend_30d": 0.0,
+  "inflow_30d": 0.0,
+  "transaction_count": 1,
+  "transactions": [
+    {
+      "id": "927835b0-5058-4f08-b873-9f1a158529b8",
+      "date": "2026-07-17",
+      "payee": "Starting Balance",
+      "amount": 2.43,
+      "amount_display": 2.43,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": true,
+      "category_name": "Inflow: Ready to Assign"
+    }
+  ],
+  "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
+  "token_source": "/Users/cvolkernick/.config/ynab/token",
+  "since": "2026-04-18"
+}

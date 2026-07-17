@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Sync Coinbase One Card (and optional YNAB accounts) into treasury snapshots.
+"""Sync YNAB accounts into treasury snapshots for FCC.
+
+Accounts:
+  - Coinbase One Card (credit) → one_card_latest.json  (actual card spend/liability)
+  - RH Checking (checking)     → rh_checking_latest.json (ACH / bank draft float)
 
 Auth: ~/.config/ynab/token or env YNAB_TOKEN (never commit tokens).
 
@@ -25,7 +29,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from treasury.adapters import SNAPSHOTS_DIR, load_config, save_json  # noqa: E402
+from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json  # noqa: E402
 
 YNAB_API = "https://api.ynab.com/v1"
 TOKEN_PATHS = (
@@ -58,6 +62,15 @@ def milli_to_units(milli: Any) -> float:
         return 0.0
 
 
+def account_balance_units(account: Dict[str, Any]) -> float:
+    if account.get("balance_currency") is not None:
+        try:
+            return float(account["balance_currency"])
+        except (TypeError, ValueError):
+            pass
+    return milli_to_units(account.get("balance"))
+
+
 def ynab_get(path: str, token: str, params: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     url = YNAB_API + path
     if params:
@@ -73,8 +86,7 @@ def ynab_get(path: str, token: str, params: Optional[Dict[str, str]] = None) -> 
     )
     try:
         with urllib.request.urlopen(req, timeout=45) as resp:
-            body = resp.read().decode("utf-8")
-            return json.loads(body)
+            return json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="replace")[:500]
         raise RuntimeError(f"YNAB HTTP {e.code}: {err_body}") from e
@@ -90,16 +102,19 @@ def pick_budget(budgets: List[Dict[str, Any]], prefer_name: Optional[str] = None
     return budgets[0]
 
 
+def _open_accounts(accounts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [a for a in accounts if not a.get("deleted") and not a.get("closed")]
+
+
 def pick_one_card_account(
     accounts: List[Dict[str, Any]],
     prefer_name: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
-    open_accts = [a for a in accounts if not a.get("deleted") and not a.get("closed")]
+    open_accts = _open_accounts(accounts)
     if prefer_name:
         for a in open_accts:
             if (a.get("name") or "").lower() == prefer_name.lower():
                 return a
-    # Prefer credit cards whose name mentions coinbase / one card
     scored: List[Tuple[int, Dict[str, Any]]] = []
     for a in open_accts:
         name = (a.get("name") or "").lower()
@@ -117,47 +132,55 @@ def pick_one_card_account(
     if scored:
         scored.sort(key=lambda x: -x[0])
         return scored[0][1]
-    # Fallback: first credit card
     for a in open_accts:
         if a.get("type") == "creditCard":
             return a
     return None
 
 
-def normalize_one_card(
-    account: Dict[str, Any],
+def pick_rh_checking_account(
+    accounts: List[Dict[str, Any]],
+    prefer_name: Optional[str] = None,
+) -> Optional[Dict[str, Any]]:
+    open_accts = _open_accounts(accounts)
+    if prefer_name:
+        for a in open_accts:
+            if (a.get("name") or "").lower() == prefer_name.lower():
+                return a
+    scored: List[Tuple[int, Dict[str, Any]]] = []
+    for a in open_accts:
+        name = (a.get("name") or "").lower()
+        score = 0
+        if a.get("type") in ("checking", "cash"):
+            score += 2
+        if "rh" in name or "robinhood" in name:
+            score += 6
+        if "checking" in name:
+            score += 3
+        if "bank" in name:
+            score += 1
+        if score:
+            scored.append((score, a))
+    if scored:
+        scored.sort(key=lambda x: -x[0])
+        return scored[0][1]
+    return None
+
+
+def _summarize_txs(
     transactions: List[Dict[str, Any]],
     *,
-    budget_id: str,
-    budget_name: str,
-    source: str = "ynab",
-) -> Dict[str, Any]:
-    """Build FCC one_card snapshot from YNAB account + txs.
-
-    YNAB credit cards: balance is typically negative when you owe money.
-    We expose balance_owed as a positive liability for FCC policy.
-    """
-    raw = milli_to_units(account.get("balance"))
-    # Prefer balance_currency if present
-    if account.get("balance_currency") is not None:
-        try:
-            raw = float(account["balance_currency"])
-        except (TypeError, ValueError):
-            pass
-    balance_owed = abs(raw) if account.get("type") == "creditCard" else max(0.0, -raw if raw < 0 else raw)
-    if account.get("type") == "creditCard":
-        balance_owed = abs(raw)
-
-    txs_out = []
+    account_type: str,
+) -> Tuple[List[Dict[str, Any]], float, float]:
+    """Return (txs_out, spend_30d, inflow_30d)."""
+    txs_out: List[Dict[str, Any]] = []
     spend_30d = 0.0
-    payments_30d = 0.0
+    inflow_30d = 0.0
     cutoff = date.today() - timedelta(days=30)
     for t in transactions:
         if t.get("deleted"):
             continue
         amt = milli_to_units(t.get("amount"))
-        # YNAB: outflow negative for spending on credit? Actually for credit cards
-        # purchases are typically negative amounts (increase debt), payments positive.
         payee = t.get("payee_name") or ""
         entry = {
             "id": t.get("id"),
@@ -180,14 +203,36 @@ def normalize_one_card(
         pl = payee.lower()
         if pl in ("starting balance", "starting balances"):
             continue
-        if "payment" in pl or amt > 0:
-            payments_30d += abs(amt) if amt > 0 else 0.0
+        if account_type == "creditCard":
             if "payment" in pl:
+                inflow_30d += abs(amt) if amt > 0 else 0.0
                 continue
-        if amt < 0:
-            spend_30d += abs(amt)
+            if amt < 0:
+                spend_30d += abs(amt)
+            elif amt > 0:
+                inflow_30d += amt
+        else:
+            # checking: outflows negative in YNAB, inflows positive
+            if amt < 0:
+                spend_30d += abs(amt)
+            elif amt > 0:
+                inflow_30d += amt
+    return txs_out, round(spend_30d, 2), round(inflow_30d, 2)
 
-    # Available credit not provided by YNAB account object by default
+
+def normalize_one_card(
+    account: Dict[str, Any],
+    transactions: List[Dict[str, Any]],
+    *,
+    budget_id: str,
+    budget_name: str,
+    source: str = "ynab",
+) -> Dict[str, Any]:
+    raw = account_balance_units(account)
+    balance_owed = abs(raw) if account.get("type") == "creditCard" else max(0.0, -raw if raw < 0 else raw)
+    if account.get("type") == "creditCard":
+        balance_owed = abs(raw)
+    txs_out, spend_30d, payments_30d = _summarize_txs(transactions, account_type="creditCard")
     return {
         "source": source,
         "as_of": _now(),
@@ -201,13 +246,13 @@ def normalize_one_card(
         "direct_import_in_error": account.get("direct_import_in_error"),
         "balance_raw": raw,
         "balance_owed": round(balance_owed, 2),
-        "card_balance": round(balance_owed, 2),  # FCC policy field
+        "card_balance": round(balance_owed, 2),
         "available_credit": None,
         "card_available_credit": None,
         "cleared_balance": milli_to_units(account.get("cleared_balance")),
         "uncleared_balance": milli_to_units(account.get("uncleared_balance")),
-        "spend_30d": round(spend_30d, 2),
-        "payments_30d": round(payments_30d, 2),
+        "spend_30d": spend_30d,
+        "payments_30d": payments_30d,
         "transaction_count": len(txs_out),
         "transactions": txs_out[:50],
         "notes": (
@@ -217,67 +262,165 @@ def normalize_one_card(
     }
 
 
-def sync_one_card(
+def normalize_rh_checking(
+    account: Dict[str, Any],
+    transactions: List[Dict[str, Any]],
     *,
-    since: Optional[str] = None,
-    budget_name: Optional[str] = None,
-    account_name: Optional[str] = None,
-    token: Optional[str] = None,
+    budget_id: str,
+    budget_name: str,
+    source: str = "ynab",
 ) -> Dict[str, Any]:
-    tok, tok_src = (token, "arg") if token else load_ynab_token()
-    if not tok:
-        return {
-            "source": "empty",
-            "as_of": _now(),
-            "live_error": "no YNAB token (~/.config/ynab/token or YNAB_TOKEN)",
-        }
+    """Checking account: balance is available cash (positive)."""
+    raw = account_balance_units(account)
+    cash = max(0.0, raw) if account.get("type") in ("checking", "cash", "savings") else raw
+    # if overdraft negative, surface available as 0 and note
+    available = raw if raw >= 0 else 0.0
+    txs_out, spend_30d, inflow_30d = _summarize_txs(
+        transactions, account_type=account.get("type") or "checking"
+    )
+    return {
+        "source": source,
+        "as_of": _now(),
+        "provider": "ynab",
+        "budget_id": budget_id,
+        "budget_name": budget_name,
+        "account_id": account.get("id"),
+        "account_name": account.get("name"),
+        "account_type": account.get("type"),
+        "direct_import_linked": account.get("direct_import_linked"),
+        "direct_import_in_error": account.get("direct_import_in_error"),
+        "balance_raw": raw,
+        "cash": round(available, 2),
+        "available": round(available, 2),
+        "cleared_balance": milli_to_units(account.get("cleared_balance")),
+        "uncleared_balance": milli_to_units(account.get("uncleared_balance")),
+        "spend_30d": spend_30d,
+        "inflow_30d": inflow_30d,
+        "transaction_count": len(txs_out),
+        "transactions": txs_out[:50],
+        "notes": (
+            "Robinhood Checking via YNAB/Plaid — actual ACH/checking balance and txs. "
+            "Prefer this over brokerage MCP cash for bill-pay float."
+        ),
+    }
 
-    cfg = load_config()
-    ynab_cfg = cfg.get("ynab") or {}
-    budget_name = budget_name or ynab_cfg.get("budget_name")
-    account_name = account_name or ynab_cfg.get("account_name")
 
-    budgets = ynab_get("/budgets", tok).get("data", {}).get("budgets") or []
+def _load_budget_context(
+    token: str,
+    *,
+    budget_name: Optional[str],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]], str]:
+    budgets = ynab_get("/budgets", token).get("data", {}).get("budgets") or []
     budget = pick_budget(budgets, prefer_name=budget_name)
     bid = budget["id"]
-    accounts = ynab_get(f"/budgets/{bid}/accounts", tok).get("data", {}).get("accounts") or []
-    acct = pick_one_card_account(accounts, prefer_name=account_name)
-    if not acct:
-        return {
-            "source": "ynab",
-            "as_of": _now(),
-            "live_error": "no credit card / Coinbase One Card account found in YNAB",
-            "budget_name": budget.get("name"),
-            "accounts": [a.get("name") for a in accounts if not a.get("deleted")],
-            "token_source": tok_src,
-        }
+    accounts = ynab_get(f"/budgets/{bid}/accounts", token).get("data", {}).get("accounts") or []
+    return budget, accounts, bid
 
-    since = since or ynab_cfg.get("since") or (date.today() - timedelta(days=90)).isoformat()
-    aid = acct["id"]
-    txs = (
+
+def _fetch_account_txs(
+    token: str,
+    budget_id: str,
+    account_id: str,
+    since: str,
+) -> List[Dict[str, Any]]:
+    return (
         ynab_get(
-            f"/budgets/{bid}/accounts/{aid}/transactions",
-            tok,
+            f"/budgets/{budget_id}/accounts/{account_id}/transactions",
+            token,
             params={"since_date": since},
         )
         .get("data", {})
         .get("transactions")
         or []
     )
-    snap = normalize_one_card(
-        acct,
-        txs,
-        budget_id=bid,
-        budget_name=budget.get("name") or "",
-        source="ynab",
-    )
-    snap["token_source"] = tok_src
-    snap["since"] = since
-    return snap
+
+
+def sync_ynab(
+    *,
+    since: Optional[str] = None,
+    budget_name: Optional[str] = None,
+    one_card_account_name: Optional[str] = None,
+    checking_account_name: Optional[str] = None,
+    token: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Sync One Card + RH Checking; return {one_card, rh_checking, accounts_list}."""
+    tok, tok_src = (token, "arg") if token else load_ynab_token()
+    if not tok:
+        err = {
+            "source": "empty",
+            "as_of": _now(),
+            "live_error": "no YNAB token (~/.config/ynab/token or YNAB_TOKEN)",
+        }
+        return {"one_card": err, "rh_checking": dict(err)}
+
+    cfg = load_config()
+    ynab_cfg = cfg.get("ynab") or {}
+    budget_name = budget_name or ynab_cfg.get("budget_name")
+    one_card_account_name = one_card_account_name or ynab_cfg.get("account_name")
+    checking_account_name = checking_account_name or ynab_cfg.get("checking_account_name")
+    since = since or ynab_cfg.get("since") or (date.today() - timedelta(days=90)).isoformat()
+
+    budget, accounts, bid = _load_budget_context(tok, budget_name=budget_name)
+    bname = budget.get("name") or ""
+    open_names = [a.get("name") for a in accounts if not a.get("deleted")]
+
+    card_acct = pick_one_card_account(accounts, prefer_name=one_card_account_name)
+    if card_acct:
+        txs = _fetch_account_txs(tok, bid, card_acct["id"], since)
+        one_card = normalize_one_card(
+            card_acct, txs, budget_id=bid, budget_name=bname, source="ynab"
+        )
+        one_card["token_source"] = tok_src
+        one_card["since"] = since
+    else:
+        one_card = {
+            "source": "ynab",
+            "as_of": _now(),
+            "live_error": "no Coinbase One Card account found in YNAB",
+            "budget_name": bname,
+            "accounts": open_names,
+            "token_source": tok_src,
+        }
+
+    chk_acct = pick_rh_checking_account(accounts, prefer_name=checking_account_name)
+    if chk_acct:
+        txs = _fetch_account_txs(tok, bid, chk_acct["id"], since)
+        rh_checking = normalize_rh_checking(
+            chk_acct, txs, budget_id=bid, budget_name=bname, source="ynab"
+        )
+        rh_checking["token_source"] = tok_src
+        rh_checking["since"] = since
+    else:
+        rh_checking = {
+            "source": "ynab",
+            "as_of": _now(),
+            "live_error": "no RH Checking / Robinhood checking account found in YNAB",
+            "budget_name": bname,
+            "accounts": open_names,
+            "token_source": tok_src,
+        }
+
+    return {
+        "one_card": one_card,
+        "rh_checking": rh_checking,
+        "accounts": open_names,
+        "budget_name": bname,
+    }
+
+
+def sync_one_card(**kwargs: Any) -> Dict[str, Any]:
+    """Backward-compatible: return only the one_card payload."""
+    return sync_ynab(**kwargs)["one_card"]
 
 
 def write_one_card_snapshot(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
     out = path or (SNAPSHOTS_DIR / "one_card_latest.json")
+    save_json(out, data)
+    return out
+
+
+def write_rh_checking_snapshot(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    out = path or (SNAPSHOTS_DIR / "rh_checking_latest.json")
     save_json(out, data)
     return out
 
@@ -287,22 +430,23 @@ def fetch_one_card(
     prefer_live: bool = True,
     snapshot_path: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    """Live YNAB sync with file fallback (same pattern as Robinhood)."""
     snap_path = snapshot_path or (SNAPSHOTS_DIR / "one_card_latest.json")
     err = None
     if prefer_live:
         try:
-            live = sync_one_card()
-            if live.get("source") != "empty" and not live.get("live_error"):
-                write_one_card_snapshot(live, snap_path)
-                return live
-            err = live.get("live_error")
-            if live.get("source") == "ynab" and live.get("live_error"):
-                write_one_card_snapshot(live, snap_path)
+            # Full sync writes both snapshots
+            bundle = sync_ynab()
+            one = bundle["one_card"]
+            rh = bundle["rh_checking"]
+            if one.get("source") != "empty":
+                write_one_card_snapshot(one, snap_path)
+            if rh.get("source") != "empty":
+                write_rh_checking_snapshot(rh)
+            if not one.get("live_error"):
+                return one
+            err = one.get("live_error")
         except Exception as e:
             err = str(e)
-    from treasury.adapters import load_json
-
     file_data = load_json(snap_path)
     if file_data:
         out = dict(file_data)
@@ -320,37 +464,109 @@ def fetch_one_card(
     }
 
 
+def fetch_rh_checking(
+    *,
+    prefer_live: bool = True,
+    snapshot_path: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Load RH Checking snapshot (prefer file if one_card already refreshed live)."""
+    snap_path = snapshot_path or (SNAPSHOTS_DIR / "rh_checking_latest.json")
+    if prefer_live:
+        # If file is missing or empty, run full sync
+        existing = load_json(snap_path)
+        if not existing or existing.get("source") in (None, "empty") or existing.get("live_error"):
+            try:
+                bundle = sync_ynab()
+                one = bundle["one_card"]
+                rh = bundle["rh_checking"]
+                if one.get("source") != "empty" and not one.get("live_error"):
+                    write_one_card_snapshot(one)
+                if rh.get("source") != "empty":
+                    write_rh_checking_snapshot(rh, snap_path)
+                if not rh.get("live_error"):
+                    return rh
+            except Exception as e:
+                err = str(e)
+                file_data = load_json(snap_path)
+                if file_data:
+                    out = dict(file_data)
+                    out["live_error"] = err
+                    return out
+                return {
+                    "source": "empty",
+                    "as_of": _now(),
+                    "cash": None,
+                    "live_error": err,
+                }
+        # Prefer existing fresh file after one_card live sync already wrote it
+        if existing and not existing.get("live_error"):
+            out = dict(existing)
+            out.setdefault("source", out.get("source") or "snapshot")
+            return out
+    file_data = load_json(snap_path)
+    if file_data:
+        out = dict(file_data)
+        out.setdefault("source", out.get("source") or "snapshot")
+        return out
+    return {
+        "source": "empty",
+        "as_of": _now(),
+        "cash": None,
+        "live_error": "no rh_checking snapshot — run treasury/ynab_sync.py",
+    }
+
+
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description="Sync YNAB One Card into treasury snapshot")
+    parser = argparse.ArgumentParser(description="Sync YNAB One Card + RH Checking into FCC snapshots")
     parser.add_argument("--since", help="YYYY-MM-DD transaction lookback start")
     parser.add_argument("--budget-name", help="Prefer this YNAB budget name")
-    parser.add_argument("--account-name", help="Prefer this account name")
+    parser.add_argument("--account-name", help="Prefer this One Card account name")
+    parser.add_argument("--checking-account-name", help="Prefer this RH checking account name")
     args = parser.parse_args(argv)
     try:
-        data = sync_one_card(
+        bundle = sync_ynab(
             since=args.since,
             budget_name=args.budget_name,
-            account_name=args.account_name,
+            one_card_account_name=args.account_name,
+            checking_account_name=args.checking_account_name,
         )
     except Exception as e:
         print(json.dumps({"ok": False, "error": str(e)}), file=sys.stderr)
         return 1
-    path = write_one_card_snapshot(data)
+
+    one = bundle["one_card"]
+    rh = bundle["rh_checking"]
+    p1 = write_one_card_snapshot(one)
+    p2 = write_rh_checking_snapshot(rh)
+    ok = not one.get("live_error") or not rh.get("live_error")
+    # success if at least one account synced cleanly
+    ok = (not one.get("live_error")) or (not rh.get("live_error"))
     print(
         json.dumps(
             {
-                "ok": not bool(data.get("live_error")),
-                "path": str(path),
-                "account": data.get("account_name"),
-                "balance_owed": data.get("balance_owed"),
-                "spend_30d": data.get("spend_30d"),
-                "tx_count": data.get("transaction_count"),
-                "error": data.get("live_error"),
+                "ok": bool(ok),
+                "one_card": {
+                    "path": str(p1),
+                    "account": one.get("account_name"),
+                    "balance_owed": one.get("balance_owed"),
+                    "spend_30d": one.get("spend_30d"),
+                    "tx_count": one.get("transaction_count"),
+                    "error": one.get("live_error"),
+                },
+                "rh_checking": {
+                    "path": str(p2),
+                    "account": rh.get("account_name"),
+                    "cash": rh.get("cash"),
+                    "spend_30d": rh.get("spend_30d"),
+                    "tx_count": rh.get("transaction_count"),
+                    "error": rh.get("live_error"),
+                },
+                "accounts_seen": bundle.get("accounts"),
             },
             indent=2,
         )
     )
-    return 0 if not data.get("live_error") else 1
+    return 0 if (not one.get("live_error") and not rh.get("live_error")) else 1
 
 
 if __name__ == "__main__":

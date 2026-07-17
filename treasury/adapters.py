@@ -292,8 +292,8 @@ def build_snapshot(
     prefer_live_ynab: bool = True,
     prefer_live_expenses: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Merge live/file venue reads with manual fields, YNAB One Card, expense sheet."""
-    from treasury.ynab_sync import fetch_one_card
+    """Merge live/file venue reads with manual fields, YNAB, expense sheet."""
+    from treasury.ynab_sync import fetch_one_card, fetch_rh_checking
 
     if prefer_live_expenses is None:
         prefer_live_expenses = prefer_live_ynab
@@ -307,7 +307,9 @@ def build_snapshot(
             cb["btc_usd_price"] = price
             cb["liquid_btc_usd"] = _f_safe(cb.get("liquid_btc")) * price
     rh = fetch_robinhood()
+    # Live One Card sync also writes RH checking snapshot
     one_card = fetch_one_card(prefer_live=prefer_live_ynab)
+    rh_checking = fetch_rh_checking(prefer_live=prefer_live_ynab)
     from treasury.expenses_sync import fetch_expenses
 
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
@@ -320,6 +322,7 @@ def build_snapshot(
         "coinbase": cb,
         "coinbase_manual": manual,
         "one_card": one_card,
+        "rh_checking": rh_checking,
         "expenses": expenses,
         "robinhood": rh,
         "policy_overrides": cfg.get("policy") or {},
@@ -328,6 +331,7 @@ def build_snapshot(
             "coinbase_source": cb.get("source"),
             "robinhood_source": rh.get("source"),
             "one_card_source": one_card.get("source"),
+            "rh_checking_source": rh_checking.get("source"),
             "expenses_source": expenses.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
@@ -337,6 +341,8 @@ def build_snapshot(
             "ynab": {
                 "budget_name": ynab_cfg.get("budget_name") or one_card.get("budget_name"),
                 "account_name": ynab_cfg.get("account_name") or one_card.get("account_name"),
+                "checking_account_name": ynab_cfg.get("checking_account_name")
+                or rh_checking.get("account_name"),
             },
             "expenses_sheet": {
                 "sheet_id": exp_cfg.get("sheet_id") or expenses.get("sheet_id"),
@@ -345,9 +351,10 @@ def build_snapshot(
             "api_limits": {
                 "morpho_loan": "app-only",
                 "high_yield_vault": "app-only",
-                "one_card": "ynab/plaid (balance + txs; available credit optional)",
+                "one_card": "ynab/plaid (balance + txs)",
+                "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
-                "rh_banking": "brokerage cash via MCP only; no ACH/checking txn ledger",
+                "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",
             },
         },

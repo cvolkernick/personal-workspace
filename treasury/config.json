@@ -28,7 +28,8 @@
   "ynab": {
     "budget_name": null,
     "account_name": null,
-    "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card credit account."
+    "checking_account_name": null,
+    "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card + RH Checking."
   },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",

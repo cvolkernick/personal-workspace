@@ -248,6 +248,13 @@
       <div id="one-card-txs" style="margin-top:0.75rem"></div>
     </section>
 
+    <section class="card" id="rh-checking-panel">
+      <h2>Robinhood Checking (via YNAB / Plaid)</h2>
+      <p class="hint">Actual checking balance &amp; ACH-related txs for bank drafts. Distinct from RH brokerage cash/BP.</p>
+      <div class="grid-2" id="rh-checking-metrics"></div>
+      <div id="rh-checking-txs" style="margin-top:0.75rem"></div>
+    </section>
+
     <section class="card" id="expenses-panel">
       <h2>Upcoming expenses &amp; capital targets (Google Sheet)</h2>
       <p class="hint" id="expenses-semantics">
@@ -576,6 +583,37 @@
       } else {
         document.getElementById("one-card-txs").innerHTML =
           `<p class="hint">No transactions in snapshot — run ynab_sync or Refresh live.</p>`;
+      }
+
+      const rhc = snap.rh_checking || {};
+      document.getElementById("rh-checking-metrics").innerHTML = [
+        metric("Account", rhc.account_name || "—"),
+        metric("Available cash", money(rhc.cash ?? rhc.available)),
+        metric("30d outflows", money(rhc.spend_30d)),
+        metric("30d inflows", money(rhc.inflow_30d)),
+        metric("Bill-pay cash (policy)", money(inp.bill_pay_cash)),
+        metric("Brokerage cash (MCP)", money(inp.rh_cash)),
+        metric("Source", rhc.source || "—"),
+        metric("Plaid linked", rhc.direct_import_linked === true ? "yes" : rhc.direct_import_linked === false ? "no" : "—"),
+        metric("as_of", rhc.as_of || "—"),
+        metric("Error", rhc.live_error || "—"),
+      ].join("");
+      const rhtx = rhc.transactions || [];
+      if (rhtx.length) {
+        document.getElementById("rh-checking-txs").innerHTML =
+          `<div class="hint" style="margin-bottom:0.4rem">Recent checking transactions (YNAB)</div>` +
+          rhtx
+            .slice(0, 12)
+            .map(
+              (t) =>
+                `<div class="metric"><span class="label">${t.date || ""} · ${t.payee || "—"}</span><span class="val">${money(
+                  t.amount_display != null ? t.amount_display : t.amount
+                )}</span></div>`
+            )
+            .join("");
+      } else {
+        document.getElementById("rh-checking-txs").innerHTML =
+          `<p class="hint">No checking transactions — run ynab_sync or Refresh live.</p>`;
       }
 
       const ex = snap.expenses || {};

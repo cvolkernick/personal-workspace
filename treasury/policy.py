@@ -239,6 +239,11 @@ def assess_data_quality(
         warnings.append("One Card / YNAB snapshot missing — run treasury/ynab_sync.py")
     elif oc.get("live_error"):
         warnings.append(f"YNAB One Card: {oc['live_error']}")
+    rhc = snapshot.get("rh_checking") or {}
+    if rhc.get("source") in (None, "empty"):
+        warnings.append("RH Checking / YNAB snapshot missing — link in YNAB and run ynab_sync")
+    elif rhc.get("live_error"):
+        warnings.append(f"YNAB RH Checking: {rhc['live_error']}")
     ex = snapshot.get("expenses") or {}
     if ex.get("source") in (None, "empty"):
         warnings.append("Expense sheet missing — run treasury/expenses_sync.py")
@@ -255,7 +260,13 @@ def assess_data_quality(
 
     now = datetime.now(timezone.utc)
     stale: List[str] = []
-    for label, src in (("coinbase", cb), ("robinhood", rh), ("one_card", oc), ("expenses", ex)):
+    for label, src in (
+        ("coinbase", cb),
+        ("robinhood", rh),
+        ("one_card", oc),
+        ("rh_checking", rhc),
+        ("expenses", ex),
+    ):
         as_of = _parse_as_of(src.get("as_of"))
         if as_of is None:
             continue
@@ -281,9 +292,11 @@ def assess_data_quality(
         sources_ok += 1
     if oc.get("source") not in (None, "empty") and not oc.get("live_error"):
         sources_ok += 1
+    if rhc.get("source") not in (None, "empty") and not rhc.get("live_error"):
+        sources_ok += 1
     if ex.get("source") not in (None, "empty") and not ex.get("live_error"):
         sources_ok += 1
-    score = (manual_filled / manual_total) * 0.55 + (sources_ok / 4.0) * 0.45
+    score = (manual_filled / manual_total) * 0.5 + (sources_ok / 5.0) * 0.5
 
     status = "green"
     if missing_manual or stale:
@@ -301,10 +314,12 @@ def assess_data_quality(
             "coinbase": cb.get("source"),
             "robinhood": rh.get("source"),
             "one_card": oc.get("source"),
+            "rh_checking": rhc.get("source"),
             "expenses": ex.get("source"),
             "coinbase_as_of": cb.get("as_of"),
             "robinhood_as_of": rh.get("as_of"),
             "one_card_as_of": oc.get("as_of"),
+            "rh_checking_as_of": rhc.get("as_of"),
             "expenses_as_of": ex.get("as_of"),
         },
         "stale": stale,
@@ -348,6 +363,7 @@ def evaluate_treasury(
         ltv = principal / coll_usd
 
     one_card = snapshot.get("one_card") or {}
+    rh_checking = snapshot.get("rh_checking") or {}
     vault_raw = man.get("vault_usdc")
     vault_usdc = _f(vault_raw) if not _is_missing(vault_raw) else 0.0
     card_balance_raw = man.get("card_balance")
@@ -369,7 +385,16 @@ def evaluate_treasury(
         card_source = "manual"
 
     bp = _f(rh.get("buying_power"))
+    # Brokerage cash from RH trading MCP (may be sparse)
     cash = _f(rh.get("cash"))
+    # Prefer YNAB RH Checking for ACH / bill-pay float when present
+    rh_checking_cash = None
+    if not _is_missing(rh_checking.get("cash")):
+        rh_checking_cash = _f(rh_checking.get("cash"))
+    elif not _is_missing(rh_checking.get("available")):
+        rh_checking_cash = _f(rh_checking.get("available"))
+    # Effective cash for bill-pay: checking first, else brokerage cash
+    bill_pay_cash = rh_checking_cash if rh_checking_cash is not None else cash
     equity = _f(rh.get("equity_value", rh.get("total_value")))
     total_value = _f(rh.get("total_value", equity))
     margin_use = rh.get("margin_use")
@@ -620,19 +645,29 @@ def evaluate_treasury(
             ),
             api_reachable=False,
         )
-    if rh_checking_burn and cash is not None and float(cash) < float(rh_checking_burn) * 0.15:
+    if rh_checking_burn and bill_pay_cash is not None and float(bill_pay_cash) < float(rh_checking_burn) * 0.15:
+        src = "YNAB RH Checking" if rh_checking_cash is not None else "RH brokerage cash (MCP)"
         add(
             3,
             "rh_checking_float",
-            f"Est. RH Checking–funded bills ~${float(rh_checking_burn):.0f}/mo vs RH cash ${float(cash):.2f}",
+            f"Est. RH Checking–funded bills ~${float(rh_checking_burn):.0f}/mo vs checking float ${float(bill_pay_cash):.2f} ({src})",
             actor="either",
             detail=(
-                "ACH/bank-draft expenses may pay from Robinhood Banking. "
-                "MCP exposes brokerage cash only (not full bank ACH history). "
-                "Top up RH cash before due dates on the Personal tab."
+                "Upcoming sheet bills marked RH Checking. "
+                "Actual checking balance/txs from YNAB when linked; top up before ACH due dates."
             ),
             api_reachable=True,
         )
+    if rh_checking.get("source") not in (None, "empty") and not rh_checking.get("live_error"):
+        if rh_checking_cash is not None and rh_checking_cash < 50 and (rh_checking_burn or 0) > 0:
+            add(
+                3,
+                "rh_checking_low",
+                f"RH Checking balance low (${float(rh_checking_cash):.2f}) via YNAB",
+                actor="human",
+                detail=f"Account {rh_checking.get('account_name') or 'RH Checking'}: fund for ACH drafts.",
+                api_reachable=False,
+            )
 
     if _is_missing(vault_raw):
         add(
@@ -669,7 +704,9 @@ def evaluate_treasury(
         + f" | Capital targets (Discretionary, not burn) "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('capital_targets_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f}/mo"
         + " | Actual spend: YNAB",
-        f"RH BP: ${bp:.2f} | cash: ${cash:.2f} | equity: ${equity:.2f}",
+        f"RH Checking (YNAB): ${rh_checking_cash if rh_checking_cash is not None else 'n/a'}"
+        + (f" | 30d spend ${rh_checking.get('spend_30d')}" if rh_checking.get("spend_30d") is not None else "")
+        + f" | RH brokerage BP: ${bp:.2f} cash: ${cash:.2f} equity: ${equity:.2f}",
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
         "Top actions:",
@@ -724,6 +761,10 @@ def evaluate_treasury(
             .get("rh_funded_monthly"),
             "rh_buying_power": bp,
             "rh_cash": cash,
+            "rh_checking_cash": rh_checking_cash,
+            "rh_checking_account": rh_checking.get("account_name"),
+            "rh_checking_spend_30d": rh_checking.get("spend_30d"),
+            "bill_pay_cash": bill_pay_cash,
             "rh_equity": equity,
             "rh_total_value": total_value,
             "rh_margin_use": margin_use,

@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-07-17T23:21:55.225246+00:00",
+    "as_of": "2026-07-17T23:32:07.765901+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-17T23:21:53.994313+00:00",
+      "as_of": "2026-07-17T23:32:06.281095+00:00",
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 0.0025784177294815,
-      "btc_usd_price": 63891.99,
-      "liquid_btc_usd": 164.7402397878547,
+      "btc_usd_price": 63943.68,
+      "liquid_btc_usd": 164.87351820029158,
       "by_currency": {
         "USDC": 1.904e-07,
         "USD": 0.0006859351614,
@@ -27,7 +27,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-07-17T23:21:54.484130+00:00",
+      "as_of": "2026-07-17T23:32:06.934072+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -74,9 +74,45 @@
       "token_source": "/Users/cvolkernick/.config/ynab/token",
       "since": "2026-04-18"
     },
+    "rh_checking": {
+      "source": "ynab",
+      "as_of": "2026-07-17T23:32:07.075576+00:00",
+      "provider": "ynab",
+      "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+      "budget_name": "Chris's Plan",
+      "account_id": "1df4de02-042d-48eb-b5cc-caf618bfaf3e",
+      "account_name": "RH Checking \u2013 3646",
+      "account_type": "checking",
+      "direct_import_linked": true,
+      "direct_import_in_error": false,
+      "balance_raw": 2.43,
+      "cash": 2.43,
+      "available": 2.43,
+      "cleared_balance": 2.43,
+      "uncleared_balance": 0.0,
+      "spend_30d": 0.0,
+      "inflow_30d": 0.0,
+      "transaction_count": 1,
+      "transactions": [
+        {
+          "id": "927835b0-5058-4f08-b873-9f1a158529b8",
+          "date": "2026-07-17",
+          "payee": "Starting Balance",
+          "amount": 2.43,
+          "amount_display": 2.43,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "Inflow: Ready to Assign"
+        }
+      ],
+      "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
+      "token_source": "/Users/cvolkernick/.config/ynab/token",
+      "since": "2026-04-18"
+    },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-17T23:21:55.221974+00:00",
+      "as_of": "2026-07-17T23:32:07.763789+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -820,6 +856,7 @@
       "coinbase_source": "live",
       "robinhood_source": "live",
       "one_card_source": "ynab",
+      "rh_checking_source": "ynab",
       "expenses_source": "google_sheets",
       "rh_accounts": {
         "primary": "5QW39737",
@@ -828,7 +865,8 @@
       },
       "ynab": {
         "budget_name": "Chris's Plan",
-        "account_name": "Coinbase One Card \u2013 5361"
+        "account_name": "Coinbase One Card \u2013 5361",
+        "checking_account_name": "RH Checking \u2013 3646"
       },
       "expenses_sheet": {
         "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
@@ -837,9 +875,10 @@
       "api_limits": {
         "morpho_loan": "app-only",
         "high_yield_vault": "app-only",
-        "one_card": "ynab/plaid (balance + txs; available credit optional)",
+        "one_card": "ynab/plaid (balance + txs)",
+        "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
         "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
-        "rh_banking": "brokerage cash via MCP only; no ACH/checking txn ledger",
+        "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
     }
@@ -861,8 +900,8 @@
     "inputs": {
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 0.0025784177294815,
-      "liquid_btc_usd": 164.7402397878547,
-      "btc_usd_price": 63891.99,
+      "liquid_btc_usd": 164.87351820029158,
+      "btc_usd_price": 63943.68,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
@@ -881,6 +920,10 @@
       "expenses_rh_funded_monthly": 4255.54,
       "rh_buying_power": 0.08,
       "rh_cash": 0.08,
+      "rh_checking_cash": 2.43,
+      "rh_checking_account": "RH Checking \u2013 3646",
+      "rh_checking_spend_30d": 0.0,
+      "bill_pay_cash": 2.43,
       "rh_equity": 143.932838525,
       "rh_total_value": 144.016884525,
       "rh_margin_use": null
@@ -925,7 +968,7 @@
     },
     "data_quality": {
       "status": "yellow",
-      "completeness_score": 0.542,
+      "completeness_score": 0.583,
       "missing_manual_fields": [
         "loan_principal_usdc",
         "collateral_btc_usd",
@@ -939,11 +982,13 @@
         "coinbase": "live",
         "robinhood": "live",
         "one_card": "ynab",
+        "rh_checking": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-07-17T23:21:53.994313+00:00",
+        "coinbase_as_of": "2026-07-17T23:32:06.281095+00:00",
         "robinhood_as_of": null,
-        "one_card_as_of": "2026-07-17T23:21:54.484130+00:00",
-        "expenses_as_of": "2026-07-17T23:21:55.221974+00:00"
+        "one_card_as_of": "2026-07-17T23:32:06.934072+00:00",
+        "rh_checking_as_of": "2026-07-17T23:32:07.075576+00:00",
+        "expenses_as_of": "2026-07-17T23:32:07.763789+00:00"
       },
       "stale": [],
       "warnings": [
@@ -1013,10 +1058,18 @@
       {
         "priority": 3,
         "kind": "rh_checking_float",
-        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs RH cash $0.08",
+        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs checking float $2.43 (YNAB RH Checking)",
         "actor": "either",
-        "detail": "ACH/bank-draft expenses may pay from Robinhood Banking. MCP exposes brokerage cash only (not full bank ACH history). Top up RH cash before due dates on the Personal tab.",
+        "detail": "Upcoming sheet bills marked RH Checking. Actual checking balance/txs from YNAB when linked; top up before ACH due dates.",
         "api_reachable": true
+      },
+      {
+        "priority": 3,
+        "kind": "rh_checking_low",
+        "title": "RH Checking balance low ($2.43) via YNAB",
+        "actor": "human",
+        "detail": "Account RH Checking \u2013 3646: fund for ACH drafts.",
+        "api_reachable": false
       },
       {
         "priority": 4,
@@ -1083,17 +1136,17 @@
       {
         "n": 7,
         "actor": "either",
-        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs RH cash $0.08",
+        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs checking float $2.43 (YNAB RH Checking)",
         "api_reachable": true
       },
       {
         "n": 8,
-        "actor": "either",
-        "title": "Loan buffer short $1000.00 liquid USDC",
+        "actor": "human",
+        "title": "RH Checking balance low ($2.43) via YNAB",
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00257842 (~$164.74)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nUpcoming expense estimates (sheet Personal): $16211.68/mo | CB-funded est $11862.82 | RH-checking est $4255.54 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.542\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded upcoming bills ~$11863/mo vs liquid USDC $0.00\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00257842 (~$164.87)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nUpcoming expense estimates (sheet Personal): $16211.68/mo | CB-funded est $11862.82 | RH-checking est $4255.54 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | RH brokerage BP: $0.08 cash: $0.08 equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.583\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded upcoming bills ~$11863/mo vs liquid USDC $0.00\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,

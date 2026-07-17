@@ -28,6 +28,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Upcoming expenses", html)
         self.assertIn("expenses-metrics", html)
         self.assertIn("capital targets", html)
+        self.assertIn("Robinhood Checking", html)
+        self.assertIn("rh-checking-metrics", html)
         self.assertGreater(len(html), 5000)
 
     def test_action_items_doc(self):
