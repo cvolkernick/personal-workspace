@@ -517,10 +517,17 @@
         if (n === 3) return "r3";
         return "";
       }
+      window.__blEditOpen = window.__blEditOpen || new Set();
+      const fieldStyle = "background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:100%;font-family:inherit;box-sizing:border-box";
+
       function renderBlCard(it) {
         const pri = blPri(it.priority);
         const rank = it.press_rank || "—";
         const reasons = (it.rank_reasons || []).slice(0, 3).map((r) => esc(r)).join(" · ");
+        const editing = window.__blEditOpen.has(it.id);
+        const priOpts = ["low", "medium", "high", "critical"].map((p) =>
+          `<option value="${p}"${(it.priority || "medium") === p ? " selected" : ""}>${p}</option>`
+        ).join("");
         return `
           <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-bl-id="${esc(it.id)}">
             <div class="rank-head">
@@ -531,10 +538,10 @@
                   ${it.rank_label ? `<span class="pill pri-${pri}">${esc(it.rank_label)}</span>` : ""}
                   ${it.schedule_label ? `<span class="pill branch">${esc(it.schedule_label)}</span>` : ""}
                 </div>
-                ${it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">${esc(it.description.slice(0,220))}${it.description.length>220?"…":""}</div>` : ""}
-                ${it.mvp_scope ? `<div class="id" style="margin-top:0.2rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
-                ${it.notes ? `<div class="id" style="margin-top:0.15rem">Next: ${esc(it.notes.slice(0,160))}</div>` : ""}
-                ${reasons ? `<div class="id" style="margin-top:0.15rem;color:var(--accent)">Why: ${reasons}</div>` : ""}
+                ${!editing && it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">${esc(it.description.slice(0,220))}${it.description.length>220?"…":""}</div>` : ""}
+                ${!editing && it.mvp_scope ? `<div class="id" style="margin-top:0.2rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
+                ${!editing && it.notes ? `<div class="id" style="margin-top:0.15rem">Next: ${esc(it.notes.slice(0,160))}</div>` : ""}
+                ${!editing && reasons ? `<div class="id" style="margin-top:0.15rem;color:var(--accent)">Why: ${reasons}</div>` : ""}
               </div>
               <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
                 <span class="pill pri-${pri}">${esc(it.priority || "medium")}</span>
@@ -543,9 +550,29 @@
                 ${it.score != null ? `<span class="pill muted">score ${esc(it.score)}</span>` : ""}
               </div>
             </div>
+            ${editing ? `
+              <div class="bl-edit" data-edit-id="${esc(it.id)}" style="display:grid;gap:0.4rem;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border)">
+                <label class="id">Title<input class="bl-edit-title" style="${fieldStyle};margin-top:0.2rem" value="${esc(it.title)}" /></label>
+                <label class="id">Description / problem<textarea class="bl-edit-desc" rows="3" style="${fieldStyle};margin-top:0.2rem">${esc(it.description || "")}</textarea></label>
+                <label class="id">MVP scope<input class="bl-edit-mvp" style="${fieldStyle};margin-top:0.2rem" value="${esc(it.mvp_scope || "")}" placeholder="Smallest shippable slice" /></label>
+                <label class="id">Next step / notes<textarea class="bl-edit-notes" rows="2" style="${fieldStyle};margin-top:0.2rem" placeholder="What needs clarifying before you start?">${esc(it.notes || "")}</textarea></label>
+                <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+                  <label class="id">Priority
+                    <select class="bl-edit-priority" style="${fieldStyle};width:auto;min-width:7rem;margin-top:0.2rem">${priOpts}</select>
+                  </label>
+                  <label class="id">Area
+                    <input class="bl-edit-area" style="${fieldStyle};width:10rem;margin-top:0.2rem" value="${esc(it.area || "")}" placeholder="e.g. treasury" />
+                  </label>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+                  <button type="button" class="btn-bl-save" data-id="${esc(it.id)}">Save changes</button>
+                  <button type="button" class="btn-bl-cancel-edit" data-id="${esc(it.id)}">Cancel</button>
+                </div>
+              </div>
+            ` : ""}
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
-              <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}">Initiate goal</button>
-              <button type="button" class="btn-bl-ready" data-id="${esc(it.id)}">Mark ready</button>
+              <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
+              <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}" title="Start Grok planning + MVP from current fields (works from idea)">Initiate goal</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
               <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
@@ -587,8 +614,9 @@
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
             <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:40rem">
-              Press-ranked like recommendations. <strong>Groom backlog</strong> re-scores, schedules
-              (now / this week / next week / later), and applies safe priority/status hygiene.
+              Flow: <strong>idea</strong> → <strong>Edit / expand</strong> (clarify MVP &amp; notes) →
+              <strong>Initiate goal</strong> (starts Grok planning + MVP). No separate “mark ready” step.
+              <strong>Groom</strong> only re-ranks/schedules; it does not start work.
               ${bl.last_groomed_at ? `<br/><span class="id">Last groom ${esc(fmtWhen(bl.last_groomed_at))}</span>` : ""}
               <div class="legend-row">
                 <span class="pill pri-critical">critical</span>
@@ -882,12 +910,41 @@
         await postAction("/api/recommendations/reject", { id });
         return;
       }
-      if (t.classList.contains("btn-bl-initiate")) {
-        await postAction("/api/backlog/initiate", { id, spawn: true });
+      if (t.classList.contains("btn-bl-edit")) {
+        if (window.__blEditOpen.has(id)) window.__blEditOpen.delete(id);
+        else window.__blEditOpen.add(id);
+        load();
         return;
       }
-      if (t.classList.contains("btn-bl-ready")) {
-        await postAction("/api/backlog/update", { id, status: "ready" });
+      if (t.classList.contains("btn-bl-cancel-edit")) {
+        window.__blEditOpen.delete(id);
+        load();
+        return;
+      }
+      if (t.classList.contains("btn-bl-save")) {
+        const root = t.closest("[data-bl-id]") || t.closest(".rec-card");
+        if (!root) return;
+        const title = (root.querySelector(".bl-edit-title") || {}).value || "";
+        if (!String(title).trim()) {
+          $("err").textContent = "Title is required";
+          $("err").classList.add("show");
+          return;
+        }
+        await postAction("/api/backlog/update", {
+          id,
+          title: String(title).trim(),
+          description: (root.querySelector(".bl-edit-desc") || {}).value || "",
+          mvp_scope: (root.querySelector(".bl-edit-mvp") || {}).value || "",
+          notes: (root.querySelector(".bl-edit-notes") || {}).value || "",
+          priority: (root.querySelector(".bl-edit-priority") || {}).value || "medium",
+          area: (root.querySelector(".bl-edit-area") || {}).value || "",
+        });
+        window.__blEditOpen.delete(id);
+        return;
+      }
+      if (t.classList.contains("btn-bl-initiate")) {
+        // Idea → Initiate is intentional; no ready gate
+        await postAction("/api/backlog/initiate", { id, spawn: true });
         return;
       }
       if (t.classList.contains("btn-bl-done")) {

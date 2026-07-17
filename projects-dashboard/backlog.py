@@ -477,14 +477,19 @@ def backlog_payload(*, include_done: bool = False) -> dict[str, Any]:
         "groom_meta": meta,
         "statuses": list(STATUSES),
         "priorities": list(PRIORITIES),
+        "how_to_edit": (
+            "POST /api/backlog/update {id, title?, description?, mvp_scope?, notes?, priority?, area?} "
+            "to expand an idea before starting. No separate ready step required."
+        ),
         "how_to_initiate": (
-            "POST /api/backlog/initiate {id} writes a goal seed and launch script; "
-            "run the script or paste the objective into Grok with /goal."
+            "POST /api/backlog/initiate {id} works from idea or ready: writes goal seed + launch script "
+            "and sets status=planning. Run the script or paste /goal into Grok."
         ),
         "how_to_groom": (
             "POST /api/backlog/groom re-scores, press-ranks, schedules (now/this week/…), "
-            "and applies safe priority/status hygiene."
+            "and applies safe priority/status hygiene. Does not start work."
         ),
+        "lifecycle": "idea → Edit/expand (optional) → Initiate goal → planning → done/park",
     }
 
 

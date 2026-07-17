@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-17T14:19:00.522757+00:00",
+  "updated_at": "2026-07-17T17:14:08.041910+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -35,7 +35,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:00.522708+00:00"
+      "last_groomed_at": "2026-07-17T14:19:10.731188+00:00"
     },
     {
       "id": "0cb116db-cfee-485e-b841-629a8593e61d",
@@ -58,8 +58,8 @@
       "initiated_at": null,
       "launch_script": null,
       "score": 82,
-      "press_rank": 2,
-      "rank_label": "Do next",
+      "press_rank": 3,
+      "rank_label": "Then",
       "rank_reasons": [
         "medium priority (+50)",
         "status ready (+22)",
@@ -68,9 +68,9 @@
         "leverage/initiative tag (+10)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "now",
-      "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:00.522717+00:00"
+      "schedule_slot": "this_week",
+      "schedule_label": "This week",
+      "last_groomed_at": "2026-07-17T14:19:10.731200+00:00"
     },
     {
       "id": "bfdc9db1-82f9-4100-8829-87e0883f39ae",
@@ -84,7 +84,7 @@
       "mvp_scope": "core list of tasks to allocate time to as a starting point, optionality to add or remove tasks / goals",
       "notes": "Promote to ready: clarify MVP for \u201cTime allocator\u201d, then Initiate goal planning.",
       "created_at": "2026-07-17T06:17:34.246779+00:00",
-      "updated_at": "2026-07-17T14:16:07.733225+00:00",
+      "updated_at": "2026-07-17T17:14:08.041512+00:00",
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
@@ -103,7 +103,7 @@
       "priority_color": "#ff6b6b",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:00.522721+00:00"
+      "last_groomed_at": "2026-07-17T14:19:10.731209+00:00"
     },
     {
       "id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
@@ -122,19 +122,19 @@
       "goal_objective": null,
       "initiated_at": null,
       "launch_script": null,
-      "score": 74,
-      "press_rank": 3,
-      "rank_label": "Then",
+      "score": 88,
+      "press_rank": 2,
+      "rank_label": "Do next",
       "rank_reasons": [
         "medium priority (+50)",
-        "status idea (+8)",
+        "status ready (+22)",
         "has MVP scope (+12)",
         "area=business (+4)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "this_week",
-      "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:00.522725+00:00"
+      "schedule_slot": "now",
+      "schedule_label": "Do now",
+      "last_groomed_at": "2026-07-17T14:19:10.731214+00:00"
     },
     {
       "id": "0158a2cc-f5cf-4b68-998c-f80133b85cfc",
@@ -153,25 +153,25 @@
       "goal_objective": null,
       "initiated_at": null,
       "launch_script": null,
-      "score": 49,
+      "score": 63,
       "press_rank": 5,
       "rank_label": "Queued",
       "rank_reasons": [
         "low priority (+25)",
-        "status idea (+8)",
+        "status ready (+22)",
         "has MVP scope (+12)",
         "area=personal (+4)"
       ],
       "priority_color": "#8aa0b5",
       "schedule_slot": "next_week",
       "schedule_label": "Next week",
-      "last_groomed_at": "2026-07-17T14:19:00.522730+00:00"
+      "last_groomed_at": "2026-07-17T14:19:10.731221+00:00"
     }
   ],
-  "last_groomed_at": "2026-07-17T14:19:00.522734+00:00",
+  "last_groomed_at": "2026-07-17T14:19:10.731224+00:00",
   "groom_meta": {
     "wip_count": 0,
-    "changes_count": 5,
-    "groomed_at": "2026-07-17T14:19:00.522734+00:00"
+    "changes_count": 2,
+    "groomed_at": "2026-07-17T14:19:10.731224+00:00"
   }
 }
