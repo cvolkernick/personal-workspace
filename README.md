@@ -19,12 +19,21 @@ Then open: http://localhost:8000/dashboard/index.html
 All real content lives in clean, git-tracked Markdown + data + images. The dashboard is just the friendly visual layer on top.
 
 ## Contents
-- **strategy/** — High-conviction bets (Energy, Bitcoin, AI/Autonomy/Robotics), dynamic domain weightings, today's/this week's actionable micro plan (the bridge from macro to daily focus).
-- **initiatives/** — Structured projects with next_action, linked_bets, status, etc. (the fuel for the daily plan).
-- **fitness/** — PPL workout logs (push/pull/legs), charts, nutrition targets, Fitbit data (execution engine that supports energy for the bets).
-- **investment/** — Portfolio positions, allocation, strategy & thesis (direct support for the Bitcoin + thematic bets).
-- **iot/** — Wiz smart bulb control (entryway lights) + home systems.
-- **dashboard/** — The visual command center (the synthesis layer that turns the above into focus and action).
+- **treasury/** — Dual-venue liquidity policy (Coinbase liquid + Robinhood BP/DCA), adapters, `run_treasury.py`.
+- **dashboard/** — Financial command center UI (stress, buckets, agent vs human actions).
+- **investment/** — Positions + `treasury-action-items.md` (loan protection, autopay, bridge handoff).
+- **research/** — Coinbase automation feasibility matrix.
+- **strategy/** — High-conviction bets and daily micro plan.
+- **initiatives/** — Structured projects with next_action.
+- **fitness/** — PPL workouts, nutrition, Fitbit.
+- **iot/** — Wiz smart bulbs.
+
+### Treasury refresh
+```bash
+python3 treasury/run_treasury.py
+# optional: update RH snapshot via agent MCP get_portfolio → treasury/snapshots/robinhood_latest.json
+```
+
 
 ## Editing Workflow
 1. Edit the `.md` files (or CSVs/JSON) in your editor of choice.

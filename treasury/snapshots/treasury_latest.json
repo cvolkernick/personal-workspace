@@ -1,0 +1,179 @@
+{
+  "snapshot": {
+    "as_of": "2026-07-17T04:54:59.557356+00:00",
+    "coinbase": {
+      "source": "live",
+      "as_of": "2026-07-17T04:54:59.556412+00:00",
+      "liquid_usdc": 0.0006861255613999999,
+      "liquid_btc": 5.07777294815e-05,
+      "by_currency": {
+        "USDC": 1.904e-07,
+        "USD": 0.0006859351614,
+        "BTC": 5.07777294815e-05
+      },
+      "account_count": 22
+    },
+    "coinbase_manual": {
+      "loan_principal_usdc": null,
+      "collateral_btc_usd": null,
+      "ltv": null,
+      "vault_usdc": null,
+      "card_balance": null,
+      "card_available_credit": null,
+      "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them."
+    },
+    "robinhood": {
+      "source": "live",
+      "as_of": "2026-07-17T04:53:58.298083+00:00",
+      "total_value": 144.232405495,
+      "equity_value": 144.148359495,
+      "cash": 0.08,
+      "buying_power": 0.08,
+      "unleveraged_buying_power": 0.08,
+      "account_number_last4": "9737",
+      "notes": "Primary margin account 5QW39737 via Robinhood MCP get_portfolio"
+    },
+    "policy_overrides": {
+      "cb_target_ltv_max": 0.5,
+      "cb_ltv_alert": 0.45,
+      "cb_card_float_usdc": 500,
+      "cb_loan_buffer_usdc": 1000,
+      "cb_bridge_dry_powder_usdc": 200,
+      "rh_bp_floor": 500,
+      "rh_margin_use_max": 0.4,
+      "excess_split_cb": 0.6,
+      "excess_split_rh": 0.4,
+      "bridge_max_recommend_usdc": 5000
+    },
+    "meta": {
+      "config_path": "/Users/cvolkernick/personal-workspace/treasury/config.json",
+      "coinbase_source": "live",
+      "robinhood_source": "live"
+    }
+  },
+  "evaluation": {
+    "policy": {
+      "cb_target_ltv_max": 0.5,
+      "cb_ltv_alert": 0.45,
+      "cb_card_float_usdc": 500,
+      "cb_loan_buffer_usdc": 1000,
+      "cb_bridge_dry_powder_usdc": 200,
+      "rh_bp_floor": 500,
+      "rh_margin_use_max": 0.4,
+      "excess_split_cb": 0.6,
+      "excess_split_rh": 0.4,
+      "bridge_max_recommend_usdc": 5000
+    },
+    "inputs": {
+      "liquid_usdc": 0.0006861255613999999,
+      "liquid_btc": 5.07777294815e-05,
+      "ltv": null,
+      "loan_principal_usdc": 0.0,
+      "collateral_btc_usd": 0.0,
+      "vault_usdc": 0.0,
+      "card_balance": 0.0,
+      "card_available_credit": null,
+      "rh_buying_power": 0.08,
+      "rh_cash": 0.08,
+      "rh_equity": 144.148359495,
+      "rh_margin_use": null
+    },
+    "buckets": {
+      "liquid_usdc": 0.0006861255613999999,
+      "required_total": 1700.0,
+      "shortfall": 1699.9993138744387,
+      "excess": 0.0,
+      "floors": {
+        "card_float": 500.0,
+        "loan_buffer": 1000.0,
+        "bridge_dry_powder": 200.0
+      },
+      "filled": {
+        "card_float": 0.0006861255613999999,
+        "loan_buffer": 0.0,
+        "bridge_dry_powder": 0.0
+      },
+      "gaps": {
+        "card_float": 499.9993138744386,
+        "loan_buffer": 1000.0,
+        "bridge_dry_powder": 200.0
+      },
+      "status": "red"
+    },
+    "dca": {
+      "allow_dca": false,
+      "throttle": "pause",
+      "reason": "buying power 0.08 below floor 500.00",
+      "buying_power": 0.08,
+      "bp_floor": 500.0,
+      "margin_use": null
+    },
+    "stress": {
+      "coinbase_ltv": "yellow",
+      "coinbase_liquid": "red",
+      "coinbase_card": "green",
+      "robinhood": "yellow",
+      "overall": "red"
+    },
+    "actions": [
+      {
+        "priority": 1,
+        "kind": "ltv_check",
+        "title": "Confirm Morpho loan LTV in Coinbase app",
+        "actor": "human",
+        "detail": "LTV not readable via Advanced Trade API. Update treasury config after checking app; enable loan protection.",
+        "api_reachable": false
+      },
+      {
+        "priority": 2,
+        "kind": "card_float",
+        "title": "Fund card float: need $500.00 more liquid USDC",
+        "actor": "either",
+        "detail": "Keep liquid USDC for One Card autopay. Pay card and manage available credit in Coinbase app (no card API).",
+        "api_reachable": false
+      },
+      {
+        "priority": 3,
+        "kind": "dca_pause",
+        "title": "Pause DCA: buying power 0.08 below floor 500.00",
+        "actor": "agent",
+        "detail": "API-reachable: do not place equity DCA buys while paused. Review RH portfolio/BP.",
+        "api_reachable": true
+      },
+      {
+        "priority": 4,
+        "kind": "loan_buffer",
+        "title": "Loan buffer short $1000.00 liquid USDC",
+        "actor": "either",
+        "detail": "Hold free USDC/BTC for Morpho top-up; apply in app or via loan protection.",
+        "api_reachable": false
+      }
+    ],
+    "sleeves": {
+      "card_float": {
+        "target": 500.0,
+        "filled": 0.0006861255613999999,
+        "gap": 499.9993138744386
+      },
+      "loan_buffer": {
+        "target": 1000.0,
+        "filled": 0.0,
+        "gap": 1000.0
+      },
+      "yield_sleeve": {
+        "vault_usdc": 0.0,
+        "note": "manual / app only"
+      },
+      "rh_cash_bp": {
+        "buying_power": 0.08,
+        "cash": 0.08,
+        "equity": 144.148359495
+      },
+      "bridge_dry_powder": {
+        "target": 200.0,
+        "filled": 0.0,
+        "gap": 200.0
+      }
+    }
+  }
+}

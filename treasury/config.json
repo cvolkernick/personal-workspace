@@ -1,0 +1,28 @@
+{
+  "policy": {
+    "cb_target_ltv_max": 0.5,
+    "cb_ltv_alert": 0.45,
+    "cb_card_float_usdc": 500,
+    "cb_loan_buffer_usdc": 1000,
+    "cb_bridge_dry_powder_usdc": 200,
+    "rh_bp_floor": 500,
+    "rh_margin_use_max": 0.4,
+    "excess_split_cb": 0.6,
+    "excess_split_rh": 0.4,
+    "bridge_max_recommend_usdc": 5000
+  },
+  "coinbase_manual": {
+    "loan_principal_usdc": null,
+    "collateral_btc_usd": null,
+    "ltv": null,
+    "vault_usdc": null,
+    "card_balance": null,
+    "card_available_credit": null,
+    "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them."
+  },
+  "robinhood": {
+    "account_number": "5QW39737",
+    "agentic_account_number": "674601752",
+    "notes": "Margin book on ••••9737; agentic account ••••1752 for agent orders when enabled."
+  }
+}

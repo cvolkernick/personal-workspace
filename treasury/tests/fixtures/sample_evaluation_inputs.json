@@ -1,0 +1,23 @@
+{
+  "high_ltv": {
+    "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0.1},
+    "coinbase_manual": {
+      "loan_principal_usdc": 60000,
+      "collateral_btc_usd": 100000,
+      "ltv": 0.6,
+      "vault_usdc": 10000,
+      "card_balance": 0
+    },
+    "robinhood": {"buying_power": 3000, "cash": 1000, "equity_value": 50000}
+  },
+  "under_float_low_bp": {
+    "coinbase": {"liquid_usdc": 50, "liquid_btc": 0},
+    "coinbase_manual": {
+      "ltv": 0.3,
+      "card_balance": 200,
+      "card_available_credit": 50,
+      "vault_usdc": 5000
+    },
+    "robinhood": {"buying_power": 10, "cash": 10, "equity_value": 1000}
+  }
+}

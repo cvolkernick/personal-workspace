@@ -1,1 +1,558 @@
-[FULL HTML CONTENT FROM PREVIOUS READ - the long one with the new Bets and Actionable Plans sections]
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Financial Command Center — Liquidity & LTV</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --agent: #7c9cff;
+      --human: #f0a06a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.9rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill.green { color: var(--green); border-color: #245c42; }
+    .pill.yellow { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.red { color: var(--red); border-color: #6b2e2e; }
+    main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      gap: 1rem;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .metric {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      padding: 0.35rem 0;
+      border-bottom: 1px solid #1a2430;
+      font-size: 0.95rem;
+    }
+    .metric:last-child { border-bottom: 0; }
+    .metric .label { color: var(--muted); }
+    .metric .val { font-variant-numeric: tabular-nums; font-weight: 600; }
+    .sleeves {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.75rem;
+    }
+    .sleeve {
+      background: #0e151c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+    }
+    .sleeve .name { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .sleeve .amt { font-size: 1.1rem; font-weight: 700; }
+    .sleeve .gap { font-size: 0.8rem; color: var(--red); margin-top: 0.25rem; }
+    .actions { display: flex; flex-direction: column; gap: 0.6rem; }
+    .action {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      background: #0e151c;
+    }
+    .action .top {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .tag {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.45rem;
+      border-radius: 6px;
+      letter-spacing: 0.03em;
+    }
+    .tag.p { background: #1c2a3a; color: var(--accent); }
+    .tag.agent { background: #1c2450; color: var(--agent); }
+    .tag.human { background: #3a2418; color: var(--human); }
+    .tag.either { background: #243018; color: #b5d47a; }
+    .tag.api { background: #183028; color: var(--green); }
+    .tag.manual { background: #302018; color: var(--human); }
+    .action .title { font-weight: 650; }
+    .action .detail { color: var(--muted); font-size: 0.88rem; }
+    .manual-form label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    .manual-form input {
+      width: 100%;
+      margin-top: 0.2rem;
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1218;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .btn-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.85rem; }
+    button, .btn {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1a2836;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.5rem 0.85rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover { filter: brightness(1.08); }
+    .hint { color: var(--muted); font-size: 0.85rem; margin-top: 0.5rem; }
+    .error {
+      background: #2a1515;
+      border: 1px solid #5a2a2a;
+      color: #ffb4b4;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+    }
+    footer {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 1.5rem 2rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    a { color: var(--accent); }
+    #empty-shell { display: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Financial Command Center</h1>
+      <div class="sub">Dual-venue liquidity · Coinbase Morpho/loan/card handoff · Robinhood BP/DCA</div>
+    </div>
+    <div id="overall-pill" class="pill yellow">loading</div>
+  </header>
+
+  <main>
+    <div id="load-error" class="error" style="display:none"></div>
+
+    <section class="card" id="stress-card">
+      <h2>Stress board</h2>
+      <div class="grid-2" id="stress-grid"></div>
+      <p class="hint" id="as-of">Awaiting treasury_latest.json — run <code>python3 treasury/run_treasury.py</code></p>
+    </section>
+
+    <section class="grid-2">
+      <div class="card" id="cb-card">
+        <h2>Coinbase (liquid + manual)</h2>
+        <div id="cb-metrics"></div>
+      </div>
+      <div class="card" id="rh-card">
+        <h2>Robinhood (portfolio / BP)</h2>
+        <div id="rh-metrics"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Policy buckets / sleeves</h2>
+      <div class="sleeves" id="sleeves"></div>
+    </section>
+
+    <section class="card">
+      <h2>Priority actions (agent vs human)</h2>
+      <div class="actions" id="actions"></div>
+    </section>
+
+    <section class="card">
+      <h2>Manual Coinbase fields (saved in browser → apply to live eval client-side)</h2>
+      <p class="hint">
+        Morpho LTV, High Yield vault, and One Card are <strong>not</strong> on Advanced Trade API.
+        Edit here for a local what-if, or persist in <code>treasury/config.json</code> and re-run the treasury script.
+      </p>
+      <div class="manual-form grid-2" id="manual-form">
+        <div>
+          <label>Loan principal (USDC)</label>
+          <input id="m-principal" type="number" step="any" placeholder="e.g. 25000" />
+          <label>Collateral value (USD)</label>
+          <input id="m-collateral" type="number" step="any" placeholder="e.g. 60000" />
+          <label>LTV override (0–1, optional)</label>
+          <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="auto from principal/collateral" />
+        </div>
+        <div>
+          <label>High Yield vault USDC</label>
+          <input id="m-vault" type="number" step="any" placeholder="e.g. 10000" />
+          <label>One Card balance</label>
+          <input id="m-card-bal" type="number" step="any" placeholder="e.g. 1200" />
+          <label>One Card available credit</label>
+          <input id="m-card-avail" type="number" step="any" placeholder="e.g. 3800" />
+        </div>
+      </div>
+      <div class="btn-row">
+        <button class="primary" type="button" id="btn-recompute">Recompute with manual fields</button>
+        <button type="button" id="btn-reload">Reload treasury_latest.json</button>
+      </div>
+      <p class="hint" id="recompute-note"></p>
+    </section>
+
+    <section class="card">
+      <h2>Next steps &amp; handoff</h2>
+      <ul id="handoff">
+        <li>In-app: enable <strong>loan protection</strong> and <strong>card autopay</strong> (see investment/treasury-action-items.md).</li>
+        <li>Agent: pause DCA when BP &lt; floor; never auto-bridge USDC via portfolio transfer.</li>
+        <li>Bridge CB ↔ RH is <strong>recommend-only</strong> until allowlisted Send Money is wired.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    personal-workspace · serve from repo root ·
+    <a href="../investment/treasury-action-items.md">action items</a> ·
+    <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
+  </footer>
+
+  <script>
+    /** Client-side mirror of priority policy for interactive manual recompute.
+     *  Server source of truth: treasury/policy.py — keep logic aligned for dashboard UX.
+     */
+    const DEFAULT_POLICY = {
+      cb_target_ltv_max: 0.5,
+      cb_ltv_alert: 0.45,
+      cb_card_float_usdc: 500,
+      cb_loan_buffer_usdc: 1000,
+      cb_bridge_dry_powder_usdc: 200,
+      rh_bp_floor: 500,
+      rh_margin_use_max: 0.4,
+      excess_split_cb: 0.6,
+      excess_split_rh: 0.4,
+      bridge_max_recommend_usdc: 5000,
+    };
+
+    function f(x, d = 0) {
+      const n = Number(x);
+      return Number.isFinite(n) ? n : d;
+    }
+
+    function classifyLiquid(liquid, p) {
+      const floors = {
+        card_float: p.cb_card_float_usdc,
+        loan_buffer: p.cb_loan_buffer_usdc,
+        bridge_dry_powder: p.cb_bridge_dry_powder_usdc,
+      };
+      const required = floors.card_float + floors.loan_buffer + floors.bridge_dry_powder;
+      const shortfall = Math.max(0, required - liquid);
+      const excess = Math.max(0, liquid - required);
+      let remaining = liquid;
+      const filled = {}, gaps = {};
+      for (const name of Object.keys(floors)) {
+        const need = floors[name];
+        const take = Math.min(remaining, need);
+        filled[name] = take;
+        gaps[name] = Math.max(0, need - take);
+        remaining -= take;
+      }
+      return {
+        liquid_usdc: liquid,
+        required_total: required,
+        shortfall,
+        excess,
+        floors,
+        filled,
+        gaps,
+        status: shortfall > 0 ? "red" : excess === 0 ? "yellow" : "green",
+      };
+    }
+
+    function dcaGovernor(bp, p, marginUse) {
+      if (marginUse != null && marginUse > p.rh_margin_use_max) {
+        return { allow_dca: false, throttle: "pause", reason: `margin use exceeds max` };
+      }
+      if (bp < p.rh_bp_floor) {
+        return { allow_dca: false, throttle: "pause", reason: `buying power below floor` };
+      }
+      if (p.rh_bp_floor > 0 && bp < p.rh_bp_floor * 1.25) {
+        return { allow_dca: true, throttle: "slow", reason: `BP only slightly above floor` };
+      }
+      return { allow_dca: true, throttle: "normal", reason: `BP healthy` };
+    }
+
+    /** Lightweight client recompute for manual field what-if (mirrors server priorities). */
+    function evaluateClient(snapshot, policy) {
+      const p = { ...DEFAULT_POLICY, ...policy };
+      const cb = snapshot.coinbase || {};
+      const man = snapshot.coinbase_manual || {};
+      const rh = snapshot.robinhood || {};
+      const liquid = f(cb.liquid_usdc);
+      let ltv = man.ltv == null || man.ltv === "" ? null : f(man.ltv);
+      const principal = f(man.loan_principal_usdc);
+      const coll = f(man.collateral_btc_usd);
+      if (ltv == null && principal > 0 && coll > 0) ltv = principal / coll;
+      const buckets = classifyLiquid(liquid, p);
+      const bp = f(rh.buying_power);
+      const dca = dcaGovernor(bp, p, man.margin_use ?? rh.margin_use);
+      const stress = {
+        coinbase_ltv: ltv == null ? "yellow" : ltv >= p.cb_target_ltv_max ? "red" : ltv >= p.cb_ltv_alert ? "yellow" : "green",
+        coinbase_liquid: buckets.status,
+        robinhood: !dca.allow_dca ? (String(dca.reason).includes("margin") ? "red" : "yellow") : dca.throttle === "slow" ? "yellow" : "green",
+      };
+      const rank = { green: 0, yellow: 1, red: 2 };
+      stress.overall = Object.values(stress).reduce((a, b) => (rank[b] > rank[a] ? b : a), "green");
+      const actions = [];
+      const add = (priority, kind, title, actor, detail, api) =>
+        actions.push({ priority, kind, title, actor, detail, api_reachable: api });
+      if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
+      else if (ltv >= p.cb_target_ltv_max) add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
+      if (buckets.gaps.card_float > 0) add(2, "card_float", `Fund card float: need $${buckets.gaps.card_float.toFixed(2)}`, "either", "Liquid USDC buffer.", false);
+      if (f(man.card_balance) > 0) add(2, "card_paydown", `One Card balance $${f(man.card_balance).toFixed(2)} — pay in app`, "human", "Autopay / app.", false);
+      if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "API-reachable throttle.", true);
+      if (buckets.excess > 0 && stress.coinbase_ltv === "green" && stress.robinhood !== "red") {
+        add(6, "excess_allocate", `Excess liquid $${buckets.excess.toFixed(2)}`, "either", "Split per policy.", true);
+        if (dca.allow_dca) add(6, "dca_ok", "DCA allowed", "agent", dca.reason, true);
+      }
+      if (bp < p.rh_bp_floor && buckets.excess > 0) {
+        const amt = Math.min(p.rh_bp_floor - bp, buckets.excess, p.bridge_max_recommend_usdc);
+        if (amt > 0) add(5, "bridge_cb_to_rh", `Recommend bridge $${amt.toFixed(2)} USDC CB → RH`, "human", "Recommend-only.", false);
+      }
+      actions.sort((a, b) => a.priority - b.priority);
+      return {
+        policy: p,
+        inputs: {
+          liquid_usdc: liquid,
+          liquid_btc: f(cb.liquid_btc),
+          ltv,
+          vault_usdc: f(man.vault_usdc),
+          card_balance: f(man.card_balance),
+          card_available_credit: man.card_available_credit == null || man.card_available_credit === "" ? null : f(man.card_available_credit),
+          rh_buying_power: bp,
+          rh_cash: f(rh.cash),
+          rh_equity: f(rh.equity_value ?? rh.total_value),
+        },
+        buckets,
+        dca,
+        stress,
+        actions,
+        sleeves: {
+          card_float: { target: p.cb_card_float_usdc, filled: buckets.filled.card_float, gap: buckets.gaps.card_float },
+          loan_buffer: { target: p.cb_loan_buffer_usdc, filled: buckets.filled.loan_buffer, gap: buckets.gaps.loan_buffer },
+          yield_sleeve: { vault_usdc: f(man.vault_usdc) },
+          rh_cash_bp: { buying_power: bp, cash: f(rh.cash), equity: f(rh.equity_value ?? rh.total_value) },
+          bridge_dry_powder: { target: p.cb_bridge_dry_powder_usdc, filled: buckets.filled.bridge_dry_powder, gap: buckets.gaps.bridge_dry_powder },
+        },
+      };
+    }
+
+    function money(n) {
+      if (n == null || !Number.isFinite(Number(n))) return "—";
+      return Number(n).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+    }
+    function pct(n) {
+      if (n == null || !Number.isFinite(Number(n))) return "—";
+      return (Number(n) * 100).toFixed(1) + "%";
+    }
+
+    function metric(label, val) {
+      return `<div class="metric"><span class="label">${label}</span><span class="val">${val}</span></div>`;
+    }
+
+    function render(data) {
+      const ev = data.evaluation;
+      const snap = data.snapshot || {};
+      const overall = (ev.stress && ev.stress.overall) || "yellow";
+      const pill = document.getElementById("overall-pill");
+      pill.textContent = overall + " · " + (ev.actions || []).length + " actions";
+      pill.className = "pill " + overall;
+
+      const stressGrid = document.getElementById("stress-grid");
+      const labels = {
+        overall: "Overall",
+        coinbase_ltv: "CB LTV",
+        coinbase_liquid: "CB liquid floors",
+        coinbase_card: "CB card",
+        robinhood: "Robinhood",
+      };
+      stressGrid.innerHTML = Object.entries(ev.stress || {})
+        .map(([k, v]) => `<div class="metric"><span class="label">${labels[k] || k}</span><span class="val" style="color:var(--${v})">${v}</span></div>`)
+        .join("");
+
+      document.getElementById("as-of").textContent =
+        `as_of ${snap.as_of || data.as_of || "?"} · CB source: ${(snap.coinbase || {}).source || "?"} · RH source: ${(snap.robinhood || {}).source || "?"}`;
+
+      const inp = ev.inputs || {};
+      document.getElementById("cb-metrics").innerHTML = [
+        metric("Liquid USDC (+USD)", money(inp.liquid_usdc)),
+        metric("Liquid BTC", inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(8) : "—"),
+        metric("LTV (manual/proxy)", pct(inp.ltv)),
+        metric("Loan principal", money(inp.loan_principal_usdc)),
+        metric("Collateral USD", money(inp.collateral_btc_usd)),
+        metric("High Yield vault", money(inp.vault_usdc)),
+        metric("One Card balance", money(inp.card_balance)),
+        metric("Card available credit", money(inp.card_available_credit)),
+      ].join("");
+
+      document.getElementById("rh-metrics").innerHTML = [
+        metric("Buying power", money(inp.rh_buying_power)),
+        metric("Cash", money(inp.rh_cash)),
+        metric("Equity", money(inp.rh_equity)),
+        metric("Margin use", pct(inp.rh_margin_use)),
+        metric("DCA", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
+        metric("DCA reason", (ev.dca && ev.dca.reason) || "—"),
+      ].join("");
+
+      const sleeves = ev.sleeves || {};
+      document.getElementById("sleeves").innerHTML = [
+        ["Card float", sleeves.card_float],
+        ["Loan buffer", sleeves.loan_buffer],
+        ["Bridge dry powder", sleeves.bridge_dry_powder],
+        ["Yield sleeve (vault)", sleeves.yield_sleeve],
+        ["RH cash / BP", sleeves.rh_cash_bp],
+      ]
+        .map(([name, s]) => {
+          if (!s) return "";
+          if (name.startsWith("Yield")) {
+            return `<div class="sleeve"><div class="name">${name}</div><div class="amt">${money(s.vault_usdc)}</div></div>`;
+          }
+          if (name.startsWith("RH")) {
+            return `<div class="sleeve"><div class="name">${name}</div><div class="amt">${money(s.buying_power)}</div><div class="hint">cash ${money(s.cash)}</div></div>`;
+          }
+          return `<div class="sleeve"><div class="name">${name}</div><div class="amt">${money(s.filled)} / ${money(s.target)}</div>${
+            s.gap > 0 ? `<div class="gap">gap ${money(s.gap)}</div>` : ""
+          }</div>`;
+        })
+        .join("");
+
+      const actionsEl = document.getElementById("actions");
+      const actions = ev.actions || [];
+      if (!actions.length) {
+        actionsEl.innerHTML = `<div class="action"><div class="title">No actions — check data sources</div></div>`;
+      } else {
+        actionsEl.innerHTML = actions
+          .map(
+            (a) => `<div class="action">
+            <div class="top">
+              <span class="tag p">P${a.priority}</span>
+              <span class="tag ${a.actor}">${a.actor}</span>
+              <span class="tag ${a.api_reachable ? "api" : "manual"}">${a.api_reachable ? "API" : "in-app/manual"}</span>
+              <span class="title">${a.title}</span>
+            </div>
+            <div class="detail">${a.detail || ""}</div>
+          </div>`
+          )
+          .join("");
+      }
+
+      // Prefill manual form from snapshot
+      const man = snap.coinbase_manual || {};
+      const set = (id, v) => {
+        const el = document.getElementById(id);
+        if (el && (v !== null && v !== undefined && v !== "")) el.value = v;
+      };
+      set("m-principal", man.loan_principal_usdc);
+      set("m-collateral", man.collateral_btc_usd);
+      set("m-ltv", man.ltv);
+      set("m-vault", man.vault_usdc);
+      set("m-card-bal", man.card_balance);
+      set("m-card-avail", man.card_available_credit);
+
+      window.__treasury = data;
+    }
+
+    async function loadTreasury() {
+      const errEl = document.getElementById("load-error");
+      errEl.style.display = "none";
+      try {
+        const res = await fetch("treasury_latest.json?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status + " loading treasury_latest.json");
+        const data = await res.json();
+        if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury_latest.json");
+        render(data);
+      } catch (e) {
+        errEl.style.display = "block";
+        errEl.textContent =
+          "Could not load dashboard/treasury_latest.json (" +
+          e.message +
+          "). Serve from repo root and run: python3 treasury/run_treasury.py";
+      }
+    }
+
+    document.getElementById("btn-reload").addEventListener("click", loadTreasury);
+    document.getElementById("btn-recompute").addEventListener("click", () => {
+      const base = window.__treasury;
+      if (!base) return;
+      const snap = JSON.parse(JSON.stringify(base.snapshot));
+      snap.coinbase_manual = {
+        ...snap.coinbase_manual,
+        loan_principal_usdc: document.getElementById("m-principal").value || null,
+        collateral_btc_usd: document.getElementById("m-collateral").value || null,
+        ltv: document.getElementById("m-ltv").value || null,
+        vault_usdc: document.getElementById("m-vault").value || null,
+        card_balance: document.getElementById("m-card-bal").value || null,
+        card_available_credit: document.getElementById("m-card-avail").value || null,
+      };
+      const policy = (base.evaluation && base.evaluation.policy) || DEFAULT_POLICY;
+      const evaluation = evaluateClient(snap, policy);
+      render({ snapshot: snap, evaluation });
+      document.getElementById("recompute-note").textContent =
+        "Client-side what-if only. Persist numbers in treasury/config.json and re-run run_treasury.py for durable agent handoff.";
+    });
+
+    loadTreasury();
+  </script>
+</body>
+</html>

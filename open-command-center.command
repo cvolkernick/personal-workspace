@@ -3,7 +3,10 @@
 # Double-click this file in Finder (macOS) to start everything.
 
 cd "$(dirname "$0")"
-echo "🚀 Starting Personal Command Center..."
+echo "Starting Financial Command Center..."
+echo ""
+echo "Refreshing treasury..."
+python3 treasury/run_treasury.py || true
 echo ""
 echo "Server will run on http://localhost:8000"
 echo "The dashboard will open in your browser automatically."

@@ -1,0 +1,11 @@
+{
+  "source": "live",
+  "as_of": "2026-07-17T04:53:58.298083+00:00",
+  "total_value": 144.232405495,
+  "equity_value": 144.148359495,
+  "cash": 0.08,
+  "buying_power": 0.08,
+  "unleveraged_buying_power": 0.08,
+  "account_number_last4": "9737",
+  "notes": "Primary margin account 5QW39737 via Robinhood MCP get_portfolio"
+}
