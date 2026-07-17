@@ -25,6 +25,11 @@ venv.bak/
 tmp/
 temp/
 *.tmp
+test-results/
+
+# Local Playwright install (scratch / accidental)
+**/node_modules/
+playwright-report/
 
 # The command center server is local only
 # (no need to ignore the launchers, they are useful)
