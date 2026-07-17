@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Local server for personal-workspace Projects Dashboard.
+"""Local server for personal-workspace graceful-exit dashboard.
 
-Strict scope: status viewer for the personal-workspace monorepo and its
-Grok Build sub-projects (top-level areas).
+Pre-reset readiness: protect uncommitted/unpushed work and surface Grok
+session resume commands so reboots/system updates don't lose context.
 
-  GET /api/projects  — workspace git status + sub-project cards
+  GET /api/projects  — readiness + resume kit + project areas
   GET /api/health
 
 Usage:
@@ -93,9 +93,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     url = f"http://{args.bind}:{args.port}/"
-    print(f"Projects Dashboard → {url}")
+    print(f"Graceful Exit dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
-    print("API: GET /api/projects  (monorepo areas + Grok sessions)")
+    print("API: GET /api/projects  (readiness + resume kit + areas)")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:

@@ -143,7 +143,7 @@ class TestWorkspace(unittest.TestCase):
             workspace=self.ws, grok_home=self.grok
         )
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["mode"], "personal-workspace")
+        self.assertEqual(payload["mode"], "graceful-exit")
         self.assertEqual(payload["workspace"]["name"], "personal-workspace")
         names = {p["name"]: p for p in payload["projects"]}
         self.assertIn("resistance-dashboard", names)
@@ -153,6 +153,9 @@ class TestWorkspace(unittest.TestCase):
         self.assertEqual(rd["session_count"], 1)
         self.assertTrue(rd["sessions"][0]["active"])
         self.assertEqual(rd["sessions"][0]["title"], "Build Resistance Dashboard")
+        self.assertTrue(rd["sessions"][0].get("persisted"))
+        self.assertIn("grok --resume", rd["sessions"][0].get("resume_cmd", ""))
+        self.assertTrue(rd.get("exit_ready"))  # clean tree
         # financial-command exists but no grok edits
         self.assertEqual(names["financial-command"]["edit_count"], 0)
         # only_touched filters
@@ -166,6 +169,25 @@ class TestWorkspace(unittest.TestCase):
         self.assertTrue(
             any(s["title"] == "Unrelated Chat" for s in payload["orphan_sessions"])
         )
+        # readiness + resume kit
+        self.assertIn(payload["readiness"]["verdict"], ("ready", "caution", "blocked"))
+        self.assertTrue(payload["readiness"]["checks"])
+        self.assertTrue(payload["readiness"]["exit_steps"])
+        self.assertTrue(payload["resume_kit"]["sessions"])
+        self.assertIn("sessions_disk", {c["id"] for c in payload["readiness"]["checks"]})
+
+    def test_readiness_warns_on_dirty(self) -> None:
+        (self.ws / "financial-command" / "x.txt").write_text("x\n", encoding="utf-8")
+        payload = collect_workspace_dashboard(
+            workspace=self.ws, grok_home=self.grok
+        )
+        self.assertEqual(payload["readiness"]["verdict"], "caution")
+        uncommitted = next(
+            c for c in payload["readiness"]["checks"] if c["id"] == "uncommitted"
+        )
+        self.assertEqual(uncommitted["level"], "warn")
+        fc = next(p for p in payload["projects"] if p["name"] == "financial-command")
+        self.assertFalse(fc["exit_ready"])
 
 
 if __name__ == "__main__":

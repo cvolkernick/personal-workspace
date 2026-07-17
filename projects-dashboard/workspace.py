@@ -1,8 +1,15 @@
-"""personal-workspace monorepo status + Grok Build project areas.
+"""personal-workspace graceful-exit / pre-reset readiness dashboard.
 
-Strict scope: this dashboard is a status viewer for the personal-workspace repo
-only. "Projects" are top-level areas inside that repo (e.g. resistance-dashboard,
-financial-command, treasury) matched from Grok session edit hunks.
+Purpose: before system updates, reboots, or long interruptions, confirm that
+Grok Build work in personal-workspace can stop without losing session context
+or breaking uncommitted/unpushed builds.
+
+Strict scope: the personal-workspace monorepo. "Projects" are top-level areas
+(e.g. resistance-dashboard, financial-command, treasury) matched from Grok
+session edit hunks.
+
+Session context lives on disk under ~/.grok/sessions — reboot kills live PIDs
+but does not erase history; resume with `grok --resume <session-id>`.
 """
 
 from __future__ import annotations
@@ -11,9 +18,9 @@ import json
 import os
 import subprocess
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
-from urllib.parse import unquote
 
 # Repo root = parent of projects-dashboard/
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
@@ -29,6 +36,14 @@ _SKIP_TOP = {
     "__pycache__",
     ".DS_Store",
 }
+
+# Local servers often left running across project work
+KNOWN_PORTS = {
+    8765: "projects-dashboard",
+    8787: "resistance-dashboard",
+    8000: "financial-command",
+}
+
 
 
 def _run_git(repo: Path, *args: str, timeout: float = 10.0) -> tuple[int, str, str]:
@@ -168,6 +183,16 @@ def known_project_dirs(workspace: Path = WORKSPACE_ROOT) -> list[Path]:
     return out
 
 
+def pid_alive(pid: Optional[int]) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(int(pid), 0)
+        return True
+    except (OSError, ProcessLookupError, ValueError, TypeError):
+        return False
+
+
 def load_active_sessions(grok_home: Path) -> dict[str, dict[str, Any]]:
     path = grok_home / "active_sessions.json"
     if not path.is_file():
@@ -184,9 +209,87 @@ def load_active_sessions(grok_home: Path) -> dict[str, dict[str, Any]]:
     return out
 
 
-def _session_meta(summary: dict[str, Any], session_dir: Path, active: dict) -> dict[str, Any]:
+def list_listening_ports(ports: dict[int, str] = KNOWN_PORTS) -> list[dict[str, Any]]:
+    """Which known project servers still hold a port (ok to kill before reboot)."""
+    found: list[dict[str, Any]] = []
+    for port, label in ports.items():
+        try:
+            proc = subprocess.run(
+                ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN"],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            continue
+        if proc.returncode != 0 or not (proc.stdout or "").strip():
+            continue
+        pids: list[int] = []
+        for line in proc.stdout.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 2 and parts[1].isdigit():
+                pids.append(int(parts[1]))
+        found.append(
+            {
+                "port": port,
+                "label": label,
+                "pids": sorted(set(pids)),
+                "url": f"http://127.0.0.1:{port}/",
+            }
+        )
+    return found
+
+
+def collect_stashes(repo: Path) -> list[dict[str, str]]:
+    code, out, _ = _run_git(repo, "stash", "list")
+    if code != 0 or not out:
+        return []
+    items = []
+    for line in out.splitlines():
+        # stash@{0}: WIP on master: abc message
+        if ":" in line:
+            ref, _, msg = line.partition(":")
+            items.append({"ref": ref.strip(), "message": msg.strip()})
+        else:
+            items.append({"ref": line, "message": ""})
+    return items
+
+
+def session_disk_path(grok_home: Path, session_id: str, cwd: Optional[str]) -> Optional[str]:
+    """Best-effort path to on-disk session dir (context survives reboot)."""
+    sessions_root = grok_home / "sessions"
+    if not sessions_root.is_dir():
+        return None
+    # Prefer cwd-encoded group if present
+    candidates: list[Path] = []
+    if cwd:
+        from urllib.parse import quote
+
+        enc = quote(cwd, safe="")
+        candidates.append(sessions_root / enc / session_id)
+    for group in sessions_root.iterdir():
+        if group.is_dir():
+            candidates.append(group / session_id)
+    for p in candidates:
+        if p.is_dir() and (p / "summary.json").is_file():
+            return str(p)
+    return None
+
+
+def _session_meta(
+    summary: dict[str, Any],
+    session_dir: Path,
+    active: dict,
+    grok_home: Path,
+) -> dict[str, Any]:
     info = summary.get("info") or {}
     sid = info.get("id") or session_dir.name
+    cwd = info.get("cwd")
+    pid = active[sid].get("pid") if sid in active else None
+    alive = pid_alive(pid) if pid else False
+    disk = str(session_dir) if session_dir.is_dir() else session_disk_path(
+        grok_home, sid, cwd
+    )
     meta = {
         "id": sid,
         "title": summary.get("generated_title")
@@ -194,17 +297,295 @@ def _session_meta(summary: dict[str, Any], session_dir: Path, active: dict) -> d
         or sid,
         "last_active_at": summary.get("last_active_at") or summary.get("updated_at"),
         "created_at": summary.get("created_at"),
-        "cwd": info.get("cwd"),
+        "cwd": cwd,
         "agent_name": summary.get("agent_name"),
         "model": summary.get("current_model_id"),
         "num_chat_messages": summary.get("num_chat_messages"),
         "session_kind": summary.get("session_kind") or "primary",
         "active": sid in active,
+        "pid_alive": alive,
+        "disk_path": disk,
+        "persisted": bool(disk and Path(disk).is_dir()),
+        "resume_cmd": f"grok --resume {sid}",
+        "resume_cwd": cwd or str(WORKSPACE_ROOT),
     }
     if sid in active:
         meta["active_pid"] = active[sid].get("pid")
         meta["opened_at"] = active[sid].get("opened_at")
     return meta
+
+
+def build_readiness(
+    repo: dict[str, Any],
+    projects: list[dict[str, Any]],
+    workspace_sessions: list[dict[str, Any]],
+    stashes: list[dict[str, str]],
+    listeners: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Compute pre-reboot / graceful-exit checklist and verdict.
+
+    Verdict levels:
+      ready  — no data-loss risk from reboot (sessions on disk; git clean+synced)
+      caution — reboot ok for session context, but uncommitted/unpushed work or live agents
+      blocked — something critical missing (e.g. not a git repo)
+    """
+    checks: list[dict[str, Any]] = []
+    dirty_n = len(repo.get("dirty_paths") or [])
+    ahead = repo.get("ahead")
+    behind = repo.get("behind")
+    live_sessions = [s for s in workspace_sessions if s.get("active") and s.get("pid_alive")]
+    persisted = [s for s in workspace_sessions if s.get("persisted")]
+    unpersisted = [s for s in workspace_sessions if s.get("active") and not s.get("persisted")]
+
+    # 1. Uncommitted work
+    if dirty_n == 0:
+        checks.append(
+            {
+                "id": "uncommitted",
+                "level": "ok",
+                "title": "Working tree clean",
+                "detail": "No uncommitted files in personal-workspace.",
+                "action": None,
+            }
+        )
+    else:
+        checks.append(
+            {
+                "id": "uncommitted",
+                "level": "warn",
+                "title": f"{dirty_n} uncommitted file(s)",
+                "detail": "Local edits are not in git yet — reboot keeps the disk files, but a bad crash or "
+                "cleanup can still lose them. Commit (and push) or stash before a reset.",
+                "action": "git add -A && git commit && git push   # or: git stash push -u -m 'pre-reboot'",
+                "paths": (repo.get("dirty_paths") or [])[:30],
+            }
+        )
+
+    # 2. Unpushed commits
+    if ahead is None:
+        checks.append(
+            {
+                "id": "unpushed",
+                "level": "warn",
+                "title": "No upstream tracking",
+                "detail": "Cannot tell if commits are pushed. Set upstream or push explicitly.",
+                "action": "git push -u origin HEAD",
+            }
+        )
+    elif ahead > 0:
+        checks.append(
+            {
+                "id": "unpushed",
+                "level": "warn",
+                "title": f"{ahead} unpushed commit(s)",
+                "detail": "Commits exist only on this machine until pushed. A disk wipe loses them.",
+                "action": "git push",
+            }
+        )
+    else:
+        checks.append(
+            {
+                "id": "unpushed",
+                "level": "ok",
+                "title": "No unpushed commits",
+                "detail": "HEAD matches upstream (or is not ahead).",
+                "action": None,
+            }
+        )
+
+    if behind is not None and behind > 0:
+        checks.append(
+            {
+                "id": "behind",
+                "level": "info",
+                "title": f"{behind} commit(s) behind upstream",
+                "detail": "Optional: pull after reboot so builds match remote.",
+                "action": "git pull --rebase",
+            }
+        )
+
+    # 3. Session persistence (the key "don't lose context" guarantee)
+    if not workspace_sessions:
+        checks.append(
+            {
+                "id": "sessions_disk",
+                "level": "info",
+                "title": "No workspace-linked Grok sessions",
+                "detail": "Nothing to resume for personal-workspace after reboot.",
+                "action": None,
+            }
+        )
+    elif unpersisted:
+        checks.append(
+            {
+                "id": "sessions_disk",
+                "level": "warn",
+                "title": f"{len(unpersisted)} live session(s) without on-disk folder",
+                "detail": "Unexpected — Grok usually writes ~/.grok/sessions continuously. "
+                "Note session IDs before reboot.",
+                "action": "Copy resume commands from the Resume kit below.",
+            }
+        )
+    else:
+        checks.append(
+            {
+                "id": "sessions_disk",
+                "level": "ok",
+                "title": f"{len(persisted)} session(s) persisted on disk",
+                "detail": "Grok session history survives reboot. Resume with the commands below "
+                "(live PIDs will die; that is expected).",
+                "action": None,
+            }
+        )
+
+    # 4. Live agent processes
+    if live_sessions:
+        checks.append(
+            {
+                "id": "live_agents",
+                "level": "info",
+                "title": f"{len(live_sessions)} live Grok process(es)",
+                "detail": "Reboot kills these PIDs. Context remains on disk — resume after reboot. "
+                "Prefer finishing or pausing in-flight tool work first if an agent is mid-edit.",
+                "action": "Finish active prompts, then reboot. After: grok --resume <id>",
+            }
+        )
+    else:
+        checks.append(
+            {
+                "id": "live_agents",
+                "level": "ok",
+                "title": "No live Grok PIDs for workspace sessions",
+                "detail": "No running agent processes to interrupt.",
+                "action": None,
+            }
+        )
+
+    # 5. Stashes
+    if stashes:
+        checks.append(
+            {
+                "id": "stashes",
+                "level": "info",
+                "title": f"{len(stashes)} git stash(es)",
+                "detail": "Stashes stay on disk with the repo; remember to pop/apply after reboot if needed.",
+                "action": "git stash list",
+            }
+        )
+
+    # 6. Local servers
+    if listeners:
+        labels = ", ".join(f"{x['label']}:{x['port']}" for x in listeners)
+        checks.append(
+            {
+                "id": "servers",
+                "level": "info",
+                "title": f"{len(listeners)} local server(s) still listening",
+                "detail": f"{labels}. Optional to stop; reboot kills them. Not a data-loss risk.",
+                "action": "lsof -ti :<port> | xargs kill   # optional",
+            }
+        )
+    else:
+        checks.append(
+            {
+                "id": "servers",
+                "level": "ok",
+                "title": "No known project servers listening",
+                "detail": "Ports 8765/8787/8000 free.",
+                "action": None,
+            }
+        )
+
+    # Dirty projects summary
+    dirty_projects = [p["name"] for p in projects if p.get("dirty")]
+    if dirty_projects:
+        checks.append(
+            {
+                "id": "dirty_projects",
+                "level": "warn",
+                "title": f"Dirty project areas: {', '.join(dirty_projects)}",
+                "detail": "Uncommitted work is concentrated in these top-level areas.",
+                "action": "Review project cards → commit/push or stash per area.",
+            }
+        )
+
+    levels = {c["level"] for c in checks}
+    if "blocked" in levels or not repo.get("is_git"):
+        verdict = "blocked"
+        verdict_label = "Not ready — fix blockers first"
+    elif "warn" in levels:
+        verdict = "caution"
+        verdict_label = "Caution — reboot keeps session history, but protect uncommitted/unpushed work first"
+    else:
+        verdict = "ready"
+        verdict_label = "Ready — safe to reboot/update; resume sessions afterward"
+
+    exit_steps: list[str] = []
+    if dirty_n:
+        exit_steps.append(
+            "Commit or stash uncommitted files in personal-workspace (see dirty list)."
+        )
+    if ahead and ahead > 0:
+        exit_steps.append("git push  # save commits to remote")
+    if live_sessions:
+        exit_steps.append(
+            "Let any mid-flight agent finish the current tool turn (avoid killing mid-write)."
+        )
+    exit_steps.append(
+        "Copy/save Resume kit session IDs (or rely on `grok --resume` / TUI /resume)."
+    )
+    if listeners:
+        exit_steps.append("Optional: stop local servers (reboot will kill them anyway).")
+    exit_steps.append("Install updates / reboot.")
+    exit_steps.append(
+        f"After reboot: cd {repo.get('path') or WORKSPACE_ROOT} && grok --resume <session-id>"
+    )
+
+    return {
+        "verdict": verdict,
+        "verdict_label": verdict_label,
+        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checks": checks,
+        "exit_steps": exit_steps,
+        "counts": {
+            "dirty_files": dirty_n,
+            "ahead": ahead,
+            "behind": behind,
+            "live_sessions": len(live_sessions),
+            "persisted_sessions": len(persisted),
+            "stashes": len(stashes),
+            "listeners": len(listeners),
+            "dirty_projects": len(dirty_projects),
+        },
+    }
+
+
+def build_resume_kit(workspace_sessions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Commands and IDs to restore context after reboot."""
+    items = []
+    for s in workspace_sessions:
+        items.append(
+            {
+                "id": s["id"],
+                "title": s.get("title"),
+                "resume_cmd": s.get("resume_cmd") or f"grok --resume {s['id']}",
+                "cwd": s.get("resume_cwd") or s.get("cwd"),
+                "disk_path": s.get("disk_path"),
+                "persisted": s.get("persisted"),
+                "active": s.get("active"),
+                "pid_alive": s.get("pid_alive"),
+                "areas": s.get("areas") or [],
+                "last_active_at": s.get("last_active_at"),
+            }
+        )
+    return {
+        "note": (
+            "Grok saves every session under ~/.grok/sessions automatically. "
+            "Reboot ends live processes; history and tool logs remain. "
+            "Resume from the same cwd with the command below, or use the TUI /resume picker."
+        ),
+        "sessions": items,
+    }
 
 
 def area_for_workspace_file(file_path: str, workspace: Path) -> Optional[str]:
@@ -272,7 +653,7 @@ def collect_workspace_dashboard(
                 kind = summary.get("session_kind") or "primary"
                 if not include_subagents and kind in ("subagent", "subagent_fork"):
                     continue
-                meta = _session_meta(summary, sdir, active)
+                meta = _session_meta(summary, sdir, active, grok_home)
                 sid = meta["id"]
                 areas_touched: set[str] = set()
                 hunks = sdir / "hunk_records.jsonl"
@@ -321,6 +702,7 @@ def collect_workspace_dashboard(
         dirty_in_area = [
             p for p in dirty_paths if p == rel or p.startswith(rel + "/")
         ]
+        exit_ok = not dirty  # area-level: no uncommitted files in this tree
         projects.append(
             {
                 "name": name,
@@ -333,7 +715,9 @@ def collect_workspace_dashboard(
                 "dirty_file_count": len(dirty_in_area),
                 "sessions": sessions,
                 "session_count": len(sessions),
-                "active_session_count": sum(1 for s in sessions if s.get("active")),
+                "active_session_count": sum(
+                    1 for s in sessions if s.get("active") and s.get("pid_alive")
+                ),
                 "last_session_at": sessions[0].get("last_active_at") if sessions else None,
                 "top_files": [
                     {"path": fp, "edits": n}
@@ -343,6 +727,15 @@ def collect_workspace_dashboard(
                     f"dirty ({len(dirty_in_area)})" if dirty else "clean"
                 )
                 + (f", {edits} grok edits" if edits else ", no grok edits"),
+                "exit_ready": exit_ok,
+                "exit_note": (
+                    "Clean — no uncommitted work in this area."
+                    if exit_ok
+                    else f"Commit/stash {len(dirty_in_area)} file(s) before reboot to protect this area."
+                ),
+                "resume_cmds": [
+                    s.get("resume_cmd") for s in sessions if s.get("resume_cmd")
+                ][:5],
             }
         )
 
@@ -365,18 +758,30 @@ def collect_workspace_dashboard(
     root_sessions = list(area_sessions.get("_root", {}).values())
     root_sessions.sort(key=lambda s: s.get("last_active_at") or "", reverse=True)
 
+    stashes = collect_stashes(workspace)
+    listeners = list_listening_ports()
+    readiness = build_readiness(repo, projects, ws_sessions, stashes, listeners)
+    resume_kit = build_resume_kit(ws_sessions)
+
     return {
         "ok": True,
-        "mode": "personal-workspace",
+        "mode": "graceful-exit",
+        "purpose": (
+            "Pre-reset readiness for personal-workspace: protect uncommitted/unpushed "
+            "work and preserve Grok session context across reboots/system updates."
+        ),
         "workspace": repo,
         "projects": projects,
         "count": len(projects),
+        "readiness": readiness,
+        "resume_kit": resume_kit,
+        "stashes": stashes,
+        "listeners": listeners,
         "root_edits": {
             "edit_count": root_edits,
             "sessions": root_sessions,
-            "dirty": path_is_dirty("", dirty_paths) and any(
-                "/" not in p for p in dirty_paths
-            ),
+            "dirty": path_is_dirty("", dirty_paths)
+            and any("/" not in p for p in dirty_paths),
         },
         "workspace_sessions": ws_sessions,
         "orphan_sessions": orphan,
@@ -384,6 +789,7 @@ def collect_workspace_dashboard(
         "session_count": len(ws_sessions),
         "grok_home": str(grok_home),
     }
+
 
 
 # Back-compat aliases used by older imports / CLI

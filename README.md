@@ -21,7 +21,7 @@ All real content lives in clean, git-tracked Markdown + data + images.
 ## Contents
 - **treasury/** — Dual-venue liquidity policy (Coinbase liquid + Robinhood BP/DCA), adapters, `run_treasury.py`.
 - **financial-command/** — **Financial Command Center** UI (stress, buckets, agent vs human actions). Distinct from `resistance-dashboard/`.
-- **projects-dashboard/** — Status viewer for this monorepo + Grok Build sub-projects. `python3 projects-dashboard/server.py`
+- **projects-dashboard/** — Graceful-exit / pre-reboot readiness for monorepo + Grok sessions. `python3 projects-dashboard/server.py`
 - **investment/** — Positions + `treasury-action-items.md` (loan protection, autopay, bridge handoff).
 - **research/** — Coinbase automation feasibility matrix.
 - **strategy/** — High-conviction bets and daily micro plan.

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>personal-workspace — Projects</title>
+  <title>Graceful Exit — personal-workspace</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -30,73 +30,83 @@
     header {
       padding: 1.25rem 1.5rem;
       border-bottom: 1px solid var(--border);
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: center;
-      justify-content: space-between;
+      display: flex; flex-wrap: wrap; gap: 1rem;
+      align-items: center; justify-content: space-between;
     }
     header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
-    header .sub { color: var(--muted); font-size: 0.9rem; }
+    header .sub { color: var(--muted); font-size: 0.9rem; max-width: 42rem; }
     .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
     button, label.toggle {
-      background: var(--panel);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 0.45rem 0.9rem;
-      font-size: 0.9rem;
-      cursor: pointer;
-      font-weight: 600;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.45rem 0.9rem; font-size: 0.9rem; cursor: pointer; font-weight: 600;
     }
     button:hover { border-color: var(--accent); color: var(--accent); }
     button:disabled { opacity: 0.5; cursor: wait; }
     label.toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; color: var(--muted); }
     main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
-    .summary { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem; }
-    .stat {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.65rem 1rem;
-      min-width: 100px;
-    }
-    .stat .n { font-size: 1.35rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .stat .l { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .workspace-card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem 1.15rem;
-      margin-bottom: 1.25rem;
-      display: grid;
-      gap: 0.5rem;
-    }
-    .workspace-card h2 { margin: 0; font-size: 1.05rem; }
     .error-banner {
       background: #2a1515; border: 1px solid #6b2e2e; color: var(--red);
       padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: none;
     }
     .error-banner.show { display: block; }
-    .list { display: grid; gap: 0.85rem; }
+    .verdict {
+      border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1rem;
+      border: 1px solid var(--border); display: grid; gap: 0.5rem;
+    }
+    .verdict.ready { background: #0f2419; border-color: #245c42; }
+    .verdict.caution { background: #2a2410; border-color: #6b5a1e; }
+    .verdict.blocked { background: #2a1515; border-color: #6b2e2e; }
+    .verdict h2 { margin: 0; font-size: 1.2rem; }
+    .verdict .tag {
+      display: inline-block; font-size: 0.75rem; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase; padding: 0.2rem 0.55rem;
+      border-radius: 999px; border: 1px solid currentColor;
+    }
+    .verdict.ready .tag { color: var(--green); }
+    .verdict.caution .tag { color: var(--yellow); }
+    .verdict.blocked .tag { color: var(--red); }
+    .summary { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-bottom: 1rem; }
+    .stat {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.55rem 0.9rem; min-width: 90px;
+    }
+    .stat .n { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .l { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
     .card {
-      background: var(--panel);
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.15rem; display: grid; gap: 0.55rem; margin-bottom: 0.85rem;
+    }
+    .card h2, .card h3 { margin: 0; }
+    .card h2 { font-size: 1.05rem; }
+    .card h3 { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+    .check {
+      display: grid; grid-template-columns: auto 1fr; gap: 0.5rem 0.75rem;
+      padding: 0.55rem 0.6rem; border-radius: 8px; background: #0e151c; margin-bottom: 0.4rem;
+    }
+    .check .lvl {
+      font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+      padding: 0.2rem 0.45rem; border-radius: 6px; height: fit-content;
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 1rem 1.15rem;
-      display: grid;
-      gap: 0.6rem;
     }
-    .card-head {
-      display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
-      align-items: center; justify-content: space-between;
+    .lvl.ok { color: var(--green); border-color: #245c42; }
+    .lvl.warn { color: var(--yellow); border-color: #6b5a1e; }
+    .lvl.info { color: var(--accent); border-color: #2a4a66; }
+    .lvl.blocked { color: var(--red); border-color: #6b2e2e; }
+    .check .title { font-weight: 650; }
+    .check .detail { color: var(--muted); font-size: 0.88rem; }
+    .check code, .cmd {
+      display: block; margin-top: 0.35rem; padding: 0.4rem 0.55rem;
+      background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.78rem; color: var(--blue); word-break: break-all;
     }
-    .card-head h2 { margin: 0; font-size: 1.05rem; font-weight: 650; }
+    .steps { margin: 0; padding-left: 1.2rem; }
+    .steps li { margin: 0.35rem 0; }
     .pill {
-      display: inline-flex; align-items: center; gap: 0.35rem;
-      padding: 0.25rem 0.65rem; border-radius: 999px;
-      font-weight: 600; font-size: 0.75rem;
-      border: 1px solid var(--border); background: #0e151c; letter-spacing: 0.03em;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.22rem 0.55rem; border-radius: 999px; font-weight: 600; font-size: 0.72rem;
+      border: 1px solid var(--border); background: #0e151c;
     }
     .pill.clean { color: var(--green); border-color: #245c42; }
     .pill.dirty { color: var(--yellow); border-color: #6b5a1e; }
@@ -104,161 +114,169 @@
     .pill.active { color: var(--green); border-color: #245c42; background: #0f2419; }
     .pill.session { color: var(--purple); border-color: #5b3a7a; }
     .pill.muted { color: var(--muted); font-weight: 500; }
-    .meta { display: grid; gap: 0.28rem; font-size: 0.9rem; }
+    .meta { display: grid; gap: 0.25rem; font-size: 0.9rem; }
     .meta .row { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.5rem; }
     .meta .label { color: var(--muted); }
-    .meta .val {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.84rem; word-break: break-all;
-    }
+    .meta .val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; word-break: break-all; }
     .meta a { color: var(--accent); text-decoration: none; }
-    .meta a:hover { text-decoration: underline; }
-    .sessions {
-      border-top: 1px solid var(--border);
-      padding-top: 0.6rem;
-      display: grid;
-      gap: 0.35rem;
-    }
-    .sessions h3 {
-      margin: 0 0 0.2rem; font-size: 0.78rem; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;
-    }
     .sess {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 0.5rem 0.75rem;
-      align-items: start;
-      padding: 0.4rem 0.5rem;
-      border-radius: 8px;
-      background: #0e151c;
-      font-size: 0.85rem;
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 0.75rem;
+      align-items: start; padding: 0.45rem 0.5rem; border-radius: 8px;
+      background: #0e151c; font-size: 0.85rem; margin-top: 0.35rem;
     }
     .sess .title { font-weight: 600; }
-    .sess .id {
-      color: var(--muted);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.72rem;
-    }
+    .sess .id { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; }
     .sess .when { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
     .section-title {
-      margin: 1.5rem 0 0.75rem;
-      font-size: 0.85rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      font-weight: 600;
+      margin: 1.4rem 0 0.65rem; font-size: 0.85rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
     }
-    .empty {
-      color: var(--muted); text-align: center; padding: 1.5rem;
-      border: 1px dashed var(--border); border-radius: 12px;
+    .dirty-list { margin: 0.2rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.8rem;
+      font-family: ui-monospace, Menlo, monospace; }
+    .copy-btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.35rem; }
+    .two-col { display: grid; gap: 0.85rem; }
+    @media (min-width: 900px) {
+      .two-col { grid-template-columns: 1fr 1fr; align-items: start; }
     }
     footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
-    .dirty-list {
-      margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.8rem;
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    }
+    .empty { color: var(--muted); text-align: center; padding: 1.25rem; border: 1px dashed var(--border); border-radius: 12px; }
   </style>
 </head>
 <body>
   <header>
     <div>
-      <h1>personal-workspace</h1>
-      <div class="sub">Grok Build projects inside this monorepo — git status + sessions</div>
+      <h1>Graceful Exit</h1>
+      <div class="sub">personal-workspace · confirm projects can stop for system updates/reboots without losing Grok context or uncommitted builds</div>
     </div>
     <div class="actions">
-      <label class="toggle"><input type="checkbox" id="only-touched" /> Touched only</label>
+      <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched projects only</label>
       <span id="updated" class="sub"></span>
       <button type="button" id="btn-refresh">Refresh</button>
     </div>
   </header>
   <main>
     <div id="err" class="error-banner" role="alert"></div>
+    <div id="verdict"></div>
     <div class="summary" id="summary"></div>
+    <div class="two-col">
+      <div id="checklist"></div>
+      <div id="exit-steps"></div>
+    </div>
+    <div id="resume"></div>
+    <div class="section-title">Repo</div>
     <div id="workspace"></div>
-    <div class="section-title">Projects (top-level areas)</div>
-    <div class="list" id="list"><div class="empty">Loading…</div></div>
-    <div id="orphans" style="display:none"></div>
+    <div class="section-title">Projects (exit readiness by area)</div>
+    <div id="list"><div class="empty">Loading…</div></div>
+    <div id="listeners"></div>
     <footer id="footer"></footer>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
-
     function esc(s) {
-      return String(s ?? "")
-        .replace(/&/g, "&amp;").replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
-
     function fmtWhen(iso) {
       if (!iso) return "—";
       try {
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) return esc(iso);
-        return d.toLocaleString(undefined, {
-          month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
-        });
+        return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       } catch { return esc(iso); }
     }
-
     function remoteLinks(remotes) {
-      if (!remotes || !remotes.length) return "—";
+      if (!remotes?.length) return "—";
       return remotes.map((r) => {
         let href = r.url || "";
         if (href.startsWith("git@")) {
           const m = href.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
           if (m) href = `https://${m[1]}/${m[2].replace(/\.git$/, "")}`;
-        } else if (href.endsWith(".git")) {
-          href = href.replace(/\.git$/, "");
-        }
+        } else if (href.endsWith(".git")) href = href.replace(/\.git$/, "");
         const label = `${r.name}: ${r.url}`;
-        if (href.startsWith("http")) {
-          return `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`;
-        }
-        return esc(label);
+        return href.startsWith("http")
+          ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`
+          : esc(label);
       }).join("<br>");
     }
-
-    function renderSessions(sessions, title) {
-      if (!sessions || !sessions.length) return "";
-      const rows = sessions.slice(0, 10).map((s) => `
-        <div class="sess">
-          <div>${s.active ? `<span class="pill active">live</span>` : `<span class="pill session">session</span>`}</div>
-          <div>
-            <div class="title">${esc(s.title)}</div>
-            <div class="id">${esc(s.id)}${s.num_chat_messages != null ? ` · ${s.num_chat_messages} msgs` : ""}${s.model ? ` · ${esc(s.model)}` : ""}</div>
-          </div>
-          <div class="when">${fmtWhen(s.last_active_at)}</div>
-        </div>`).join("");
-      return `<div class="sessions"><h3>${esc(title || "Grok sessions")} (${sessions.length})</h3>${rows}</div>`;
+    function copyText(text) {
+      navigator.clipboard?.writeText(text).catch(() => {});
     }
 
     function render(data) {
+      const r = data.readiness || {};
       const ws = data.workspace || {};
       const projects = data.projects || [];
-      const dirtyN = projects.filter((p) => p.dirty).length;
-      const touched = projects.filter((p) => (p.edit_count || 0) > 0).length;
-      const live = data.active_session_ids ? data.active_session_ids.length : 0;
+      const c = r.counts || {};
+      const verdict = r.verdict || "caution";
+
+      $("verdict").innerHTML = `
+        <div class="verdict ${esc(verdict)}">
+          <div><span class="tag">${esc(verdict)}</span></div>
+          <h2>${esc(r.verdict_label || "Checking…")}</h2>
+          <div class="sub" style="color:var(--muted);font-size:0.9rem">
+            Session context is stored under <code>~/.grok/sessions</code> and survives reboot.
+            Live PIDs die; resume with <code>grok --resume &lt;id&gt;</code>.
+            Uncommitted / unpushed git work is the main data-loss risk.
+          </div>
+        </div>`;
 
       $("summary").innerHTML = `
-        <div class="stat"><div class="n">${projects.length}</div><div class="l">Projects</div></div>
-        <div class="stat"><div class="n" style="color:var(--purple)">${touched}</div><div class="l">Grok-touched</div></div>
-        <div class="stat"><div class="n" style="color:var(--green)">${live}</div><div class="l">Live sessions</div></div>
-        <div class="stat"><div class="n" style="color:var(--yellow)">${dirtyN}</div><div class="l">Dirty areas</div></div>
-        <div class="stat"><div class="n" style="color:var(--accent)">${ws.dirty_paths ? ws.dirty_paths.length : 0}</div><div class="l">Dirty files</div></div>
+        <div class="stat"><div class="n" style="color:var(--yellow)">${c.dirty_files ?? 0}</div><div class="l">Uncommitted</div></div>
+        <div class="stat"><div class="n" style="color:var(--accent)">${c.ahead ?? "—"}</div><div class="l">Unpushed</div></div>
+        <div class="stat"><div class="n" style="color:var(--green)">${c.persisted_sessions ?? 0}</div><div class="l">Sessions on disk</div></div>
+        <div class="stat"><div class="n" style="color:var(--purple)">${c.live_sessions ?? 0}</div><div class="l">Live agents</div></div>
+        <div class="stat"><div class="n">${c.dirty_projects ?? 0}</div><div class="l">Dirty areas</div></div>
+        <div class="stat"><div class="n">${c.listeners ?? 0}</div><div class="l">Servers</div></div>
       `;
 
-      const sync =
-        ws.ahead != null && ws.behind != null
-          ? (ws.ahead === 0 && ws.behind === 0
-              ? "synced with upstream"
-              : `ahead ${ws.ahead}, behind ${ws.behind}`)
-          : (ws.upstream || "—");
+      const checks = r.checks || [];
+      $("checklist").innerHTML = `
+        <div class="card">
+          <h3>Pre-reset checklist</h3>
+          ${checks.map((ch) => `
+            <div class="check">
+              <span class="lvl ${esc(ch.level)}">${esc(ch.level)}</span>
+              <div>
+                <div class="title">${esc(ch.title)}</div>
+                <div class="detail">${esc(ch.detail)}</div>
+                ${ch.action ? `<code>${esc(ch.action)}</code>` : ""}
+                ${ch.paths?.length ? `<ul class="dirty-list">${ch.paths.slice(0,12).map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+              </div>
+            </div>`).join("")}
+        </div>`;
+
+      const steps = r.exit_steps || [];
+      $("exit-steps").innerHTML = `
+        <div class="card">
+          <h3>Graceful exit order</h3>
+          <ol class="steps">${steps.map((s) => `<li>${esc(s)}</li>`).join("")}</ol>
+        </div>`;
+
+      const kit = data.resume_kit || {};
+      const sess = kit.sessions || [];
+      $("resume").innerHTML = `
+        <div class="section-title">Resume kit (after reboot)</div>
+        <div class="card">
+          <div class="detail" style="color:var(--muted);font-size:0.9rem;margin-bottom:0.5rem">${esc(kit.note || "")}</div>
+          ${!sess.length ? `<div class="empty">No workspace-linked sessions to resume.</div>` :
+            sess.map((s) => `
+              <div class="sess">
+                <div>${s.pid_alive ? `<span class="pill active">live</span>` : s.persisted ? `<span class="pill session">on disk</span>` : `<span class="pill muted">?</span>`}</div>
+                <div>
+                  <div class="title">${esc(s.title)}</div>
+                  <div class="id">${esc(s.id)}${s.areas?.length ? ` · ${esc(s.areas.join(", "))}` : ""}</div>
+                  <code class="cmd">${esc(s.resume_cmd)}
+                    <button type="button" class="copy-btn" data-copy="${esc(s.resume_cmd)}">Copy</button>
+                  </code>
+                </div>
+                <div class="when">${fmtWhen(s.last_active_at)}</div>
+              </div>`).join("")}
+        </div>`;
 
       $("workspace").innerHTML = `
-        <div class="workspace-card">
-          <div class="card-head">
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
             <h2>${esc(ws.name || "personal-workspace")}</h2>
-            <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+            <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
               <span class="pill branch">${esc(ws.branch || "—")}</span>
               <span class="pill ${ws.dirty ? "dirty" : "clean"}">${esc(ws.status_label || "—")}</span>
             </div>
@@ -267,59 +285,57 @@
             <div class="row"><span class="label">Path</span><span class="val">${esc(ws.path)}</span></div>
             <div class="row"><span class="label">Remote</span><span class="val">${remoteLinks(ws.remotes)}</span></div>
             <div class="row"><span class="label">Upstream</span><span class="val">${esc(ws.upstream || "—")}</span></div>
-            <div class="row"><span class="label">Sync</span><span class="val">${esc(sync)}</span></div>
           </div>
-          ${renderSessions(data.workspace_sessions, "Sessions that touched this repo")}
-        </div>
-      `;
+        </div>`;
 
       if (!projects.length) {
-        $("list").innerHTML = `<div class="empty">No project areas found under personal-workspace.</div>`;
+        $("list").innerHTML = `<div class="empty">No project areas (try unchecking “Touched only”).</div>`;
       } else {
         $("list").innerHTML = projects.map((p) => {
-          const liveP = (p.active_session_count || 0) > 0
-            ? `<span class="pill active">${p.active_session_count} live</span>` : "";
-          const dirtyFiles = (p.dirty_files || []).slice(0, 6)
-            .map((f) => `<li>${esc(f)}</li>`).join("");
+          const dirtyFiles = (p.dirty_files || []).slice(0, 8).map((f) => `<li>${esc(f)}</li>`).join("");
+          const cmds = (p.resume_cmds || []).map((c) =>
+            `<code class="cmd">${esc(c)} <button type="button" class="copy-btn" data-copy="${esc(c)}">Copy</button></code>`
+          ).join("");
           return `
-            <article class="card">
-              <div class="card-head">
+            <div class="card">
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
                 <h2>${esc(p.name)}</h2>
-                <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
-                  ${liveP}
-                  <span class="pill ${p.dirty ? "dirty" : "clean"}">${esc(p.status_label || (p.dirty ? "dirty" : "clean"))}</span>
-                  ${p.edit_count ? `<span class="pill session">${p.edit_count} edits</span>` : `<span class="pill muted">no grok edits</span>`}
-                  ${p.session_count ? `<span class="pill session">${p.session_count} sessions</span>` : ""}
+                <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
+                  <span class="pill ${p.exit_ready ? "clean" : "dirty"}">${p.exit_ready ? "exit-ready" : "protect first"}</span>
+                  <span class="pill ${p.dirty ? "dirty" : "clean"}">${esc(p.status_label)}</span>
+                  ${(p.active_session_count || 0) > 0 ? `<span class="pill active">${p.active_session_count} live</span>` : ""}
                 </div>
               </div>
-              <div class="meta">
-                <div class="row"><span class="label">Path</span><span class="val">${esc(p.relative || p.path)}</span></div>
-                ${dirtyFiles ? `<div class="row"><span class="label">Dirty</span><span class="val"><ul class="dirty-list">${dirtyFiles}</ul></span></div>` : ""}
-              </div>
-              ${renderSessions(p.sessions, "Grok sessions")}
-            </article>`;
+              <div class="detail" style="color:var(--muted);font-size:0.9rem">${esc(p.exit_note || "")}</div>
+              ${dirtyFiles ? `<ul class="dirty-list">${dirtyFiles}</ul>` : ""}
+              ${cmds ? `<div style="margin-top:0.35rem">${cmds}</div>` : ""}
+              ${(p.sessions || []).slice(0, 4).map((s) => `
+                <div class="sess">
+                  <div>${s.pid_alive ? `<span class="pill active">live</span>` : `<span class="pill session">session</span>`}</div>
+                  <div><div class="title">${esc(s.title)}</div><div class="id">${esc(s.id)}</div></div>
+                  <div class="when">${fmtWhen(s.last_active_at)}</div>
+                </div>`).join("")}
+            </div>`;
         }).join("");
       }
 
-      const orphans = data.orphan_sessions || [];
-      if (orphans.length) {
-        $("orphans").style.display = "block";
-        $("orphans").innerHTML = `
-          <div class="section-title">Grok sessions outside this workspace</div>
-          <div class="list">${orphans.slice(0, 12).map((s) => `
-            <div class="sess">
-              <div>${s.active ? `<span class="pill active">live</span>` : `<span class="pill session">session</span>`}</div>
-              <div><div class="title">${esc(s.title)}</div><div class="id">${esc(s.id)}</div></div>
-              <div class="when">${fmtWhen(s.last_active_at)}</div>
+      const listeners = data.listeners || [];
+      $("listeners").innerHTML = listeners.length ? `
+        <div class="section-title">Local servers (optional stop)</div>
+        <div class="card">
+          ${listeners.map((L) => `
+            <div class="meta" style="margin-bottom:0.4rem">
+              <div class="row"><span class="label">${esc(L.label)}</span>
+              <span class="val">:${L.port} · pids ${esc((L.pids||[]).join(", "))} · <a href="${esc(L.url)}" target="_blank">${esc(L.url)}</a></span></div>
             </div>`).join("")}
-          </div>`;
-      } else {
-        $("orphans").style.display = "none";
-        $("orphans").innerHTML = "";
-      }
+        </div>` : "";
 
-      $("footer").textContent = `Scoped to ${ws.path || "personal-workspace"} · Grok sessions from ${data.grok_home || "~/.grok"}`;
+      $("footer").textContent = data.purpose || "";
       $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
+
+      document.querySelectorAll("[data-copy]").forEach((btn) => {
+        btn.addEventListener("click", () => copyText(btn.getAttribute("data-copy") || ""));
+      });
     }
 
     async function load() {
@@ -336,7 +352,6 @@
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
-        $("list").innerHTML = `<div class="empty">Could not load. Is the server running?</div>`;
       } finally {
         btn.disabled = false;
       }
