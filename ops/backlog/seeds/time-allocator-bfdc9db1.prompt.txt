@@ -1,0 +1,26 @@
+/goal Backlog project: Time allocator
+
+Context:
+Agentic assistant to allocate time across tasks and intelligently advise/recommend next action items during an average day. I would like to be able to make an ongoing / looping process that allows goals to be set and then uses agentic coaching to identify and recommend steps to progress toward various goals and allocate time according to priority/precedence etc.
+
+Do this in two phases without asking me to re-specify basics:
+1) Planning — write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.
+2) Build — implement the MVP: core list of tasks to allocate time to as a starting point, optionality to add or remove tasks / goals
+ Prefer living under personal-workspace/holistic/.
+Use git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.
+
+## Backlog context (already captured)
+- **Title:** Time allocator
+- **Priority:** critical
+- **Area:** holistic
+- **MVP:** core list of tasks to allocate time to as a starting point, optionality to add or remove tasks / goals
+- **Notes:** Promote to ready: clarify MVP for “Time allocator”, then Initiate goal planning.
+- **Seed plan file:** ops/backlog/seeds/time-allocator-bfdc9db1.md
+- **Backlog id:** bfdc9db1-82f9-4100-8829-87e0883f39ae
+
+## Instructions
+You are starting a **new autonomous goal** for this backlog item in personal-workspace.
+1. Read and refine the seed plan at `ops/backlog/seeds/time-allocator-bfdc9db1.md` (spec, success criteria, non-goals).
+2. Implement the MVP; keep scope tight.
+3. Use branch `work/holistic` when making durable changes (`python3 projects-dashboard/git_workflow.py start holistic` / `sync`).
+4. Do not wait for further confirmation — begin now.
