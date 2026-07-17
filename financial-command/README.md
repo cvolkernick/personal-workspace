@@ -9,26 +9,33 @@ Folder path: `financial-command/` (URL-safe). Distinct from `resistance-dashboar
 From repo root:
 
 ```bash
-python3 treasury/run_treasury.py    # refresh live CB + RH snapshot evaluation
-python3 launch.py                   # http://localhost:8000/financial-command/index.html
+python3 launch.py
+# or
+python3 financial-command/server.py --port 8000
 ```
 
-Or double-click `../open-command-center.command`.
+Opens: http://localhost:8000/financial-command/index.html
+
+### APIs (FCC server)
+
+| Endpoint | Method | Purpose |
+| --- | --- | --- |
+| `/api/treasury` | GET | Latest evaluation |
+| `/api/config` | GET/POST | Read/merge-save `treasury/config.json` |
+| `/api/refresh` | POST | Re-run evaluation (`{"offline": true}` optional) |
 
 ## Data flow
 
-1. `treasury/run_treasury.py` reads Coinbase via CLI (`coinbase balance --paginate`), Robinhood from `treasury/snapshots/robinhood_latest.json` (written by agent MCP or tests), and manual fields from `treasury/config.json`.
-2. Pure policy in `treasury/policy.py` scores stress and priority actions.
-3. Writes `financial-command/treasury_latest.json` for the UI.
+1. Live Coinbase balances + BTC-USD price via CLI.
+2. Robinhood from `treasury/snapshots/robinhood_latest.json` (agent MCP).
+3. Manual Morpho/vault/card fields from `treasury/config.json`.
+4. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
 
-## What is automatable
+## Panels
 
-| Action | Who |
-| --- | --- |
-| Read liquid CB balances | Agent / CLI |
-| Read RH BP / portfolio | Agent MCP → snapshot file |
-| DCA pause/allow decision | Agent (policy) |
-| Bridge recommend | Recommend-only (human) |
-| Morpho LTV / vault / One Card | Human in Coinbase app |
-
-See `../investment/treasury-action-items.md`.
+- Data quality & completeness (missing app fields, staleness)
+- Stress board (LTV, liquid, card, RH, DQ)
+- Policy floors + sleeves
+- Priority actions (agent vs human)
+- Copyable agent brief
+- Manual field editor with **Save to config**

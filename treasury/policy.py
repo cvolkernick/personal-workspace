@@ -6,6 +6,7 @@ No I/O. Callers pass a normalized snapshot dict.
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 
@@ -20,16 +21,30 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "excess_split_cb": 0.60,
     "excess_split_rh": 0.40,
     "bridge_max_recommend_usdc": 5000.0,
+    "stale_after_hours": 6.0,
 }
+
+MANUAL_FIELDS = (
+    "loan_principal_usdc",
+    "collateral_btc_usd",
+    "ltv",
+    "vault_usdc",
+    "card_balance",
+    "card_available_credit",
+)
 
 
 def _f(x: Any, default: float = 0.0) -> float:
     try:
-        if x is None:
+        if x is None or x == "":
             return default
         return float(x)
     except (TypeError, ValueError):
         return default
+
+
+def _is_missing(x: Any) -> bool:
+    return x is None or x == ""
 
 
 def classify_liquid_usdc(
@@ -49,7 +64,6 @@ def classify_liquid_usdc(
     shortfall = max(0.0, required - liquid_usdc)
     excess = max(0.0, liquid_usdc - required)
 
-    # Allocate liquid to floors in priority order until exhausted
     remaining = liquid_usdc
     filled = {}
     gaps = {}
@@ -80,10 +94,7 @@ def dca_governor(
     margin_use_max: float = 0.40,
     cash: Optional[float] = None,
 ) -> Dict[str, Any]:
-    """Decide whether DCA buys are allowed given RH buying power / margin heat.
-
-    Returns allow_dca bool, reason, and throttle level.
-    """
+    """Decide whether DCA buys are allowed given RH buying power / margin heat."""
     bp = _f(buying_power)
     floor = max(0.0, _f(bp_floor))
     mu = None if margin_use is None else _f(margin_use)
@@ -107,7 +118,6 @@ def dca_governor(
             "bp_floor": floor,
             "margin_use": mu,
         }
-    # Soft throttle when within 25% of floor
     if floor > 0 and bp < floor * 1.25:
         return {
             "allow_dca": True,
@@ -131,7 +141,7 @@ def dca_governor(
 
 def _ltv_stress(ltv: Optional[float], alert: float, max_ltv: float) -> str:
     if ltv is None:
-        return "yellow"  # unknown — needs human check
+        return "yellow"
     if ltv >= max_ltv:
         return "red"
     if ltv >= alert:
@@ -139,7 +149,32 @@ def _ltv_stress(ltv: Optional[float], alert: float, max_ltv: float) -> str:
     return "green"
 
 
-def _rh_stress(buying_power: float, bp_floor: float, margin_use: Optional[float], margin_max: float) -> str:
+def _card_stress(
+    *,
+    card_balance_raw: Any,
+    card_avail_raw: Any,
+    card_balance: float,
+    card_avail: Optional[float],
+    card_float_gap: float,
+) -> str:
+    """Unknown card fields → yellow (not green). Balance with float gap → red."""
+    if _is_missing(card_balance_raw) and _is_missing(card_avail_raw):
+        return "yellow"
+    if card_balance > 0 and card_float_gap > 0:
+        return "red"
+    if card_balance > 0 and card_avail is not None and card_avail < 100:
+        return "yellow"
+    if _is_missing(card_balance_raw) or _is_missing(card_avail_raw):
+        return "yellow"
+    return "green"
+
+
+def _rh_stress(
+    buying_power: float,
+    bp_floor: float,
+    margin_use: Optional[float],
+    margin_max: float,
+) -> str:
     gov = dca_governor(
         buying_power,
         bp_floor=bp_floor,
@@ -155,18 +190,115 @@ def _rh_stress(buying_power: float, bp_floor: float, margin_use: Optional[float]
     return "green"
 
 
+def _parse_as_of(value: Any) -> Optional[datetime]:
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def assess_data_quality(
+    snapshot: Dict[str, Any],
+    *,
+    ltv: Optional[float],
+    stale_after_hours: float = 6.0,
+) -> Dict[str, Any]:
+    """Report missing manual fields, empty sources, and stale snapshots."""
+    man = snapshot.get("coinbase_manual") or {}
+    cb = snapshot.get("coinbase") or {}
+    rh = snapshot.get("robinhood") or {}
+    meta = snapshot.get("meta") or {}
+
+    missing_manual = [k for k in MANUAL_FIELDS if _is_missing(man.get(k))]
+    # If ltv derived, don't mark ltv missing
+    if ltv is not None and "ltv" in missing_manual:
+        missing_manual = [k for k in missing_manual if k != "ltv"]
+    # principal+collateral can substitute for ltv
+    if (
+        not _is_missing(man.get("loan_principal_usdc"))
+        and not _is_missing(man.get("collateral_btc_usd"))
+        and "ltv" in missing_manual
+    ):
+        missing_manual = [k for k in missing_manual if k != "ltv"]
+
+    warnings: List[str] = []
+    if missing_manual:
+        warnings.append(
+            "Missing Coinbase app fields: " + ", ".join(missing_manual)
+        )
+    if cb.get("source") in (None, "empty"):
+        warnings.append("Coinbase liquid balances unavailable (no live or snapshot)")
+    if rh.get("source") in (None, "empty"):
+        warnings.append("Robinhood portfolio unavailable — write snapshots/robinhood_latest.json")
+    if cb.get("live_error"):
+        warnings.append(f"Coinbase live error: {cb['live_error']}")
+    if rh.get("live_error"):
+        warnings.append(f"Robinhood note: {rh['live_error']}")
+
+    now = datetime.now(timezone.utc)
+    stale: List[str] = []
+    for label, src in (("coinbase", cb), ("robinhood", rh)):
+        as_of = _parse_as_of(src.get("as_of"))
+        if as_of is None:
+            continue
+        if as_of.tzinfo is None:
+            as_of = as_of.replace(tzinfo=timezone.utc)
+        age_h = (now - as_of).total_seconds() / 3600.0
+        if age_h > stale_after_hours:
+            stale.append(f"{label} data {age_h:.1f}h old (>{stale_after_hours}h)")
+            warnings.append(stale[-1])
+
+    # Completeness score: manual fields filled / total + live sources present
+    manual_total = len(MANUAL_FIELDS)
+    manual_filled = manual_total - len([k for k in MANUAL_FIELDS if _is_missing(man.get(k))])
+    if ltv is not None and _is_missing(man.get("ltv")):
+        # derived counts as filled for ltv
+        if "ltv" in [k for k in MANUAL_FIELDS if _is_missing(man.get(k))]:
+            manual_filled = min(manual_total, manual_filled + 1)
+    sources_ok = 0
+    if cb.get("source") not in (None, "empty"):
+        sources_ok += 1
+    if rh.get("source") not in (None, "empty"):
+        sources_ok += 1
+    score = (manual_filled / manual_total) * 0.7 + (sources_ok / 2.0) * 0.3
+
+    status = "green"
+    if missing_manual or stale:
+        status = "yellow"
+    if sources_ok == 0 or score < 0.35:
+        status = "red"
+
+    return {
+        "status": status,
+        "completeness_score": round(score, 3),
+        "missing_manual_fields": missing_manual,
+        "manual_filled": manual_filled,
+        "manual_total": manual_total,
+        "sources": {
+            "coinbase": cb.get("source"),
+            "robinhood": rh.get("source"),
+            "coinbase_as_of": cb.get("as_of"),
+            "robinhood_as_of": rh.get("as_of"),
+        },
+        "stale": stale,
+        "warnings": warnings,
+        "notes": [
+            "Morpho LTV, High Yield vault, and One Card are app-only — not Advanced Trade API.",
+            "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
+            "Liquid CB balances exclude vault/collateral locked on Morpho.",
+        ],
+        "config_path": meta.get("config_path"),
+        "rh_accounts": meta.get("rh_accounts") or {},
+    }
+
+
 def evaluate_treasury(
     snapshot: Dict[str, Any],
     policy: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """Evaluate dual-venue treasury and return stress + priority-ordered actions.
-
-    Expected snapshot shape (all optional numbers default safely):
-      coinbase.liquid_usdc, coinbase.liquid_btc
-      coinbase_manual.loan_principal_usdc, collateral_btc_usd, ltv,
-                     vault_usdc, card_balance, card_available_credit
-      robinhood.buying_power, cash, equity_value, total_value, margin_use
-    """
+    """Evaluate dual-venue treasury and return stress + priority-ordered actions."""
     p = {**DEFAULT_POLICY, **(policy or {})}
     cb = snapshot.get("coinbase") or {}
     man = snapshot.get("coinbase_manual") or {}
@@ -174,31 +306,39 @@ def evaluate_treasury(
 
     liquid_usdc = _f(cb.get("liquid_usdc"))
     liquid_btc = _f(cb.get("liquid_btc"))
+    btc_usd_price = cb.get("btc_usd_price")
+    btc_usd_price = None if btc_usd_price is None else _f(btc_usd_price)
+    liquid_btc_usd = (
+        liquid_btc * btc_usd_price if btc_usd_price is not None else _f(cb.get("liquid_btc_usd"))
+    )
+
     ltv = man.get("ltv")
-    if ltv is not None:
+    if not _is_missing(ltv):
         ltv = _f(ltv)
-    # Derive LTV proxy if principal + collateral USD provided and ltv missing
-    principal = _f(man.get("loan_principal_usdc"))
-    coll_usd = _f(man.get("collateral_btc_usd"))
+    else:
+        ltv = None
+    principal = _f(man.get("loan_principal_usdc")) if not _is_missing(man.get("loan_principal_usdc")) else 0.0
+    coll_usd = _f(man.get("collateral_btc_usd")) if not _is_missing(man.get("collateral_btc_usd")) else 0.0
     if ltv is None and principal > 0 and coll_usd > 0:
         ltv = principal / coll_usd
 
-    vault_usdc = _f(man.get("vault_usdc"))
-    card_balance = _f(man.get("card_balance"))
-    card_avail = man.get("card_available_credit")
-    card_avail = None if card_avail is None else _f(card_avail)
+    vault_raw = man.get("vault_usdc")
+    vault_usdc = _f(vault_raw) if not _is_missing(vault_raw) else 0.0
+    card_balance_raw = man.get("card_balance")
+    card_avail_raw = man.get("card_available_credit")
+    card_balance = _f(card_balance_raw) if not _is_missing(card_balance_raw) else 0.0
+    card_avail = None if _is_missing(card_avail_raw) else _f(card_avail_raw)
 
     bp = _f(rh.get("buying_power"))
     cash = _f(rh.get("cash"))
     equity = _f(rh.get("equity_value", rh.get("total_value")))
+    total_value = _f(rh.get("total_value", equity))
     margin_use = rh.get("margin_use")
     if margin_use is not None:
         margin_use = _f(margin_use)
     elif equity > 0 and bp >= 0:
-        # Rough proxy: if unleveraged BP available, prefer that; else leave None
         unlev = rh.get("unleveraged_buying_power")
         if unlev is not None and _f(unlev) > 0 and bp > _f(unlev):
-            # margin component of BP / equity as crude heat
             margin_use = min(1.0, max(0.0, (bp - _f(unlev)) / equity))
 
     buckets = classify_liquid_usdc(
@@ -215,17 +355,25 @@ def evaluate_treasury(
         cash=cash,
     )
 
+    data_quality = assess_data_quality(
+        snapshot,
+        ltv=ltv,
+        stale_after_hours=_f(p.get("stale_after_hours"), 6.0),
+    )
+
     stress = {
         "coinbase_ltv": _ltv_stress(ltv, _f(p["cb_ltv_alert"]), _f(p["cb_target_ltv_max"])),
         "coinbase_liquid": buckets["status"],
-        "coinbase_card": (
-            "red"
-            if card_balance > 0 and buckets["gaps"]["card_float"] > 0
-            else ("yellow" if card_balance > 0 and card_avail is not None and card_avail < 100 else "green")
+        "coinbase_card": _card_stress(
+            card_balance_raw=card_balance_raw,
+            card_avail_raw=card_avail_raw,
+            card_balance=card_balance,
+            card_avail=card_avail,
+            card_float_gap=buckets["gaps"]["card_float"],
         ),
         "robinhood": _rh_stress(bp, _f(p["rh_bp_floor"]), margin_use, _f(p["rh_margin_use_max"])),
+        "data_quality": data_quality["status"],
     }
-    # Overall = worst of children
     order = {"green": 0, "yellow": 1, "red": 2}
     overall = max(stress.values(), key=lambda c: order.get(c, 0))
     stress["overall"] = overall
@@ -246,20 +394,29 @@ def evaluate_treasury(
                 "priority": priority,
                 "kind": kind,
                 "title": title,
-                "actor": actor,  # agent | human | either
+                "actor": actor,
                 "detail": detail,
                 "api_reachable": api_reachable,
             }
         )
 
-    # 1) Protect LTV
+    if data_quality["missing_manual_fields"]:
+        add(
+            0,
+            "fill_manual",
+            "Fill missing Coinbase app fields in config / UI",
+            actor="human",
+            detail="Missing: " + ", ".join(data_quality["missing_manual_fields"]),
+            api_reachable=False,
+        )
+
     if ltv is None:
         add(
             1,
             "ltv_check",
             "Confirm Morpho loan LTV in Coinbase app",
             actor="human",
-            detail="LTV not readable via Advanced Trade API. Update treasury config after checking app; enable loan protection.",
+            detail="LTV not readable via Advanced Trade API. Update treasury config; enable loan protection.",
             api_reachable=False,
         )
     elif ltv >= _f(p["cb_target_ltv_max"]):
@@ -281,14 +438,13 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # 2) Card float
     if buckets["gaps"]["card_float"] > 0:
         add(
             2,
             "card_float",
             f"Fund card float: need ${buckets['gaps']['card_float']:.2f} more liquid USDC",
             actor="either",
-            detail="Keep liquid USDC for One Card autopay. Pay card and manage available credit in Coinbase app (no card API).",
+            detail="Keep liquid USDC for One Card autopay. Manage card in Coinbase app (no card API).",
             api_reachable=False,
         )
     if card_balance > 0:
@@ -300,8 +456,16 @@ def evaluate_treasury(
             detail="Autopay + manual paydown only. Maximize available credit in-app.",
             api_reachable=False,
         )
+    elif _is_missing(card_balance_raw):
+        add(
+            2,
+            "card_unknown",
+            "Enter One Card balance & available credit from app",
+            actor="human",
+            detail="Card metrics are unknown — stress cannot be green until filled.",
+            api_reachable=False,
+        )
 
-    # 3) RH margin heat / DCA
     if not dca["allow_dca"]:
         add(
             3,
@@ -321,7 +485,6 @@ def evaluate_treasury(
             api_reachable=True,
         )
 
-    # 4) Loan buffer gap
     if buckets["gaps"]["loan_buffer"] > 0:
         add(
             4,
@@ -332,7 +495,16 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # 5) Bridge recommend (never execute via portfolio transfer alone)
+    if buckets["gaps"]["bridge_dry_powder"] > 0 and buckets["shortfall"] > 0:
+        add(
+            4,
+            "bridge_powder",
+            f"Bridge dry powder short ${buckets['gaps']['bridge_dry_powder']:.2f}",
+            actor="either",
+            detail="Keep a small liquid USDC sleeve for CB↔RH moves.",
+            api_reachable=False,
+        )
+
     bridge_gap_rh = max(0.0, _f(p["rh_bp_floor"]) - bp)
     if bridge_gap_rh > 0 and buckets["excess"] > 0:
         amt = min(
@@ -346,7 +518,7 @@ def evaluate_treasury(
                 "bridge_cb_to_rh",
                 f"Recommend bridge ${amt:.2f} USDC Coinbase → Robinhood",
                 actor="human",
-                detail="Recommend-only. Advanced Trade transfer is portfolio-internal only; use app Send or allowlisted Send Money API.",
+                detail="Recommend-only. Advanced Trade transfer is portfolio-internal only.",
                 api_reachable=False,
             )
     elif bp > _f(p["rh_bp_floor"]) * 1.5 and cash > _f(p["rh_bp_floor"]) and (
@@ -362,7 +534,6 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # 6) Excess allocation
     if buckets["excess"] > 0 and stress["coinbase_ltv"] == "green" and stress["robinhood"] != "red":
         to_cb = buckets["excess"] * _f(p["excess_split_cb"])
         to_rh = buckets["excess"] * _f(p["excess_split_rh"])
@@ -394,28 +565,71 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
+    if _is_missing(vault_raw):
+        add(
+            7,
+            "vault_unknown",
+            "Enter High Yield vault USDC balance from Coinbase Lend",
+            actor="human",
+            detail="Vault is not on Advanced Trade API; needed for yield sleeve visibility.",
+            api_reachable=False,
+        )
+
     actions.sort(key=lambda a: a["priority"])
+
+    next_steps = [
+        {
+            "n": i + 1,
+            "actor": a["actor"],
+            "title": a["title"],
+            "api_reachable": a["api_reachable"],
+        }
+        for i, a in enumerate(actions[:8])
+    ]
+
+    agent_brief_lines = [
+        f"Overall stress: {overall}",
+        f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
+        f"Liquid USDC: ${liquid_usdc:.2f} | Liquid BTC: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
+        f"RH BP: ${bp:.2f} | cash: ${cash:.2f} | equity: ${equity:.2f}",
+        f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
+        f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
+        "Top actions:",
+    ]
+    for a in actions[:6]:
+        agent_brief_lines.append(
+            f"  P{a['priority']} [{a['actor']}|{'API' if a['api_reachable'] else 'manual'}] {a['title']}"
+        )
+    agent_brief_lines.append(
+        "Do not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer."
+    )
 
     return {
         "policy": deepcopy(p),
         "inputs": {
             "liquid_usdc": liquid_usdc,
             "liquid_btc": liquid_btc,
+            "liquid_btc_usd": liquid_btc_usd,
+            "btc_usd_price": btc_usd_price,
             "ltv": ltv,
-            "loan_principal_usdc": principal,
-            "collateral_btc_usd": coll_usd,
-            "vault_usdc": vault_usdc,
-            "card_balance": card_balance,
+            "loan_principal_usdc": principal if principal else None,
+            "collateral_btc_usd": coll_usd if coll_usd else None,
+            "vault_usdc": vault_usdc if not _is_missing(vault_raw) else None,
+            "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
             "rh_buying_power": bp,
             "rh_cash": cash,
             "rh_equity": equity,
+            "rh_total_value": total_value,
             "rh_margin_use": margin_use,
         },
         "buckets": buckets,
         "dca": dca,
         "stress": stress,
+        "data_quality": data_quality,
         "actions": actions,
+        "next_steps": next_steps,
+        "agent_brief": "\n".join(agent_brief_lines),
         "sleeves": {
             "card_float": {
                 "target": _f(p["cb_card_float_usdc"]),
@@ -427,12 +641,42 @@ def evaluate_treasury(
                 "filled": buckets["filled"]["loan_buffer"],
                 "gap": buckets["gaps"]["loan_buffer"],
             },
-            "yield_sleeve": {"vault_usdc": vault_usdc, "note": "manual / app only"},
-            "rh_cash_bp": {"buying_power": bp, "cash": cash, "equity": equity},
+            "yield_sleeve": {
+                "vault_usdc": vault_usdc if not _is_missing(vault_raw) else None,
+                "note": "manual / app only",
+            },
+            "rh_cash_bp": {
+                "buying_power": bp,
+                "cash": cash,
+                "equity": equity,
+                "total_value": total_value,
+            },
             "bridge_dry_powder": {
                 "target": _f(p["cb_bridge_dry_powder_usdc"]),
                 "filled": buckets["filled"]["bridge_dry_powder"],
                 "gap": buckets["gaps"]["bridge_dry_powder"],
             },
+        },
+        "strategy_context": {
+            "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
+            "priority_order": [
+                "Protect Morpho LTV (<50% target)",
+                "Card float / One Card available credit",
+                "RH margin heat / DCA throttle",
+                "Loan buffer + vault pull if needed",
+                "Bridge recommend CB↔RH",
+                "Excess → yield sleeve / DCA",
+            ],
+            "double_leverage_warning": (
+                "Do not fund RH margin-driven DCA with freshly borrowed Coinbase USDC "
+                "without an explicit risk budget. BTC and growth equities often dump together."
+            ),
+            "in_app_only": [
+                "loan protection",
+                "Morpho repay/add collateral",
+                "High Yield vault deposit/withdraw",
+                "One Card pay / autopay",
+                "external USDC send (bridge)",
+            ],
         },
     }

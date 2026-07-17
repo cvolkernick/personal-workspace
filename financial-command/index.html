@@ -179,7 +179,28 @@
       font-size: 0.8rem;
     }
     a { color: var(--accent); }
-    #empty-shell { display: none; }
+    .banner {
+      background: #1a1208;
+      border: 1px solid #5a4020;
+      color: #f0c080;
+      padding: 0.75rem 1rem;
+      border-radius: 10px;
+      font-size: 0.9rem;
+    }
+    .warn-list { margin: 0.4rem 0 0; padding-left: 1.1rem; color: var(--yellow); font-size: 0.88rem; }
+    .brief {
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8rem;
+      background: #0b1218;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      max-height: 220px;
+      overflow: auto;
+    }
+    .policy-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.5rem; }
+    .policy-grid .metric { border: 0; background: #0e151c; border-radius: 8px; padding: 0.5rem 0.65rem; }
   </style>
 </head>
 <body>
@@ -188,16 +209,26 @@
       <h1>Financial Command Center</h1>
       <div class="sub">Dual-venue liquidity · Coinbase Morpho/loan/card handoff · Robinhood BP/DCA</div>
     </div>
-    <div id="overall-pill" class="pill yellow">loading</div>
+    <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+      <button type="button" id="btn-refresh-live" class="primary">Refresh live</button>
+      <div id="overall-pill" class="pill yellow">loading</div>
+    </div>
   </header>
 
   <main>
     <div id="load-error" class="error" style="display:none"></div>
+    <div id="strategy-banner" class="banner"></div>
+
+    <section class="card" id="dq-card">
+      <h2>Data quality &amp; completeness</h2>
+      <div class="grid-2" id="dq-metrics"></div>
+      <ul class="warn-list" id="dq-warnings"></ul>
+      <p class="hint" id="as-of">Awaiting data…</p>
+    </section>
 
     <section class="card" id="stress-card">
       <h2>Stress board</h2>
       <div class="grid-2" id="stress-grid"></div>
-      <p class="hint" id="as-of">Awaiting treasury_latest.json — run <code>python3 treasury/run_treasury.py</code></p>
     </section>
 
     <section class="grid-2">
@@ -212,6 +243,11 @@
     </section>
 
     <section class="card">
+      <h2>Policy floors</h2>
+      <div class="policy-grid" id="policy-grid"></div>
+    </section>
+
+    <section class="card">
       <h2>Policy buckets / sleeves</h2>
       <div class="sleeves" id="sleeves"></div>
     </section>
@@ -222,10 +258,18 @@
     </section>
 
     <section class="card">
-      <h2>Manual Coinbase fields (saved in browser → apply to live eval client-side)</h2>
+      <h2>Agent brief</h2>
+      <div class="brief" id="agent-brief">—</div>
+      <div class="btn-row">
+        <button type="button" id="btn-copy-brief">Copy agent brief</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Manual Coinbase fields (app-only data)</h2>
       <p class="hint">
         Morpho LTV, High Yield vault, and One Card are <strong>not</strong> on Advanced Trade API.
-        Edit here for a local what-if, or persist in <code>treasury/config.json</code> and re-run the treasury script.
+        <strong>Save to config</strong> persists <code>treasury/config.json</code> via the FCC server API.
       </p>
       <div class="manual-form grid-2" id="manual-form">
         <div>
@@ -246,24 +290,26 @@
         </div>
       </div>
       <div class="btn-row">
-        <button class="primary" type="button" id="btn-recompute">Recompute with manual fields</button>
-        <button type="button" id="btn-reload">Reload treasury_latest.json</button>
+        <button class="primary" type="button" id="btn-save-config">Save to config + re-eval</button>
+        <button type="button" id="btn-recompute">What-if only (client)</button>
+        <button type="button" id="btn-reload">Reload</button>
+        <button type="button" id="btn-refresh-live2">Refresh live CB</button>
       </div>
       <p class="hint" id="recompute-note"></p>
     </section>
 
     <section class="card">
       <h2>Next steps &amp; handoff</h2>
-      <ul id="handoff">
-        <li>In-app: enable <strong>loan protection</strong> and <strong>card autopay</strong> (see investment/treasury-action-items.md).</li>
-        <li>Agent: pause DCA when BP &lt; floor; never auto-bridge USDC via portfolio transfer.</li>
-        <li>Bridge CB ↔ RH is <strong>recommend-only</strong> until allowlisted Send Money is wired.</li>
-      </ul>
+      <ol id="handoff"></ol>
+      <p class="hint">
+        Full checklist: <a href="../investment/treasury-action-items.md">investment/treasury-action-items.md</a>
+        · In-app only: loan protection, vault, One Card, external USDC bridge.
+      </p>
     </section>
   </main>
 
   <footer>
-    personal-workspace · serve from repo root ·
+    Financial Command Center · <code>financial-command/</code> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
   </footer>
@@ -419,6 +465,24 @@
       pill.textContent = overall + " · " + (ev.actions || []).length + " actions";
       pill.className = "pill " + overall;
 
+      const ctx = ev.strategy_context || {};
+      document.getElementById("strategy-banner").textContent =
+        (ctx.double_leverage_warning ||
+          "Do not fund RH margin DCA with freshly borrowed Coinbase USDC without a risk budget.") +
+        " Priority: LTV → card float → RH heat → buffers → bridge recommend → excess.";
+
+      const dq = ev.data_quality || {};
+      document.getElementById("dq-metrics").innerHTML = [
+        metric("Completeness", dq.completeness_score != null ? (dq.completeness_score * 100).toFixed(0) + "%" : "—"),
+        metric("DQ status", dq.status || "—"),
+        metric("Manual fields", `${dq.manual_filled ?? "?"} / ${dq.manual_total ?? "?"}`),
+        metric("CB source", (dq.sources && dq.sources.coinbase) || (snap.coinbase || {}).source || "—"),
+        metric("RH source", (dq.sources && dq.sources.robinhood) || (snap.robinhood || {}).source || "—"),
+        metric("Missing", (dq.missing_manual_fields || []).join(", ") || "none"),
+      ].join("");
+      const warns = dq.warnings || [];
+      document.getElementById("dq-warnings").innerHTML = warns.map((w) => `<li>${w}</li>`).join("");
+
       const stressGrid = document.getElementById("stress-grid");
       const labels = {
         overall: "Overall",
@@ -426,18 +490,22 @@
         coinbase_liquid: "CB liquid floors",
         coinbase_card: "CB card",
         robinhood: "Robinhood",
+        data_quality: "Data quality",
       };
       stressGrid.innerHTML = Object.entries(ev.stress || {})
         .map(([k, v]) => `<div class="metric"><span class="label">${labels[k] || k}</span><span class="val" style="color:var(--${v})">${v}</span></div>`)
         .join("");
 
       document.getElementById("as-of").textContent =
-        `as_of ${snap.as_of || data.as_of || "?"} · CB source: ${(snap.coinbase || {}).source || "?"} · RH source: ${(snap.robinhood || {}).source || "?"}`;
+        `as_of ${snap.as_of || "?"} · CB ${(snap.coinbase || {}).as_of || "?"} (${(snap.coinbase || {}).source}) · RH ${(snap.robinhood || {}).as_of || "?"} (${(snap.robinhood || {}).source})` +
+        ` · note: liquid CB excludes Morpho vault/collateral`;
 
       const inp = ev.inputs || {};
       document.getElementById("cb-metrics").innerHTML = [
         metric("Liquid USDC (+USD)", money(inp.liquid_usdc)),
         metric("Liquid BTC", inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(8) : "—"),
+        metric("Liquid BTC (USD)", money(inp.liquid_btc_usd)),
+        metric("BTC-USD price", money(inp.btc_usd_price)),
         metric("LTV (manual/proxy)", pct(inp.ltv)),
         metric("Loan principal", money(inp.loan_principal_usdc)),
         metric("Collateral USD", money(inp.collateral_btc_usd)),
@@ -446,13 +514,29 @@
         metric("Card available credit", money(inp.card_available_credit)),
       ].join("");
 
+      const rhMeta = (snap.meta && snap.meta.rh_accounts) || {};
       document.getElementById("rh-metrics").innerHTML = [
         metric("Buying power", money(inp.rh_buying_power)),
         metric("Cash", money(inp.rh_cash)),
         metric("Equity", money(inp.rh_equity)),
+        metric("Total value", money(inp.rh_total_value)),
         metric("Margin use", pct(inp.rh_margin_use)),
         metric("DCA", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
         metric("DCA reason", (ev.dca && ev.dca.reason) || "—"),
+        metric("Primary acct", rhMeta.primary ? "••••" + String(rhMeta.primary).slice(-4) : "—"),
+        metric("Agentic acct", rhMeta.agentic ? "••••" + String(rhMeta.agentic).slice(-4) : "—"),
+      ].join("");
+
+      const pol = ev.policy || {};
+      document.getElementById("policy-grid").innerHTML = [
+        metric("LTV max", pct(pol.cb_target_ltv_max)),
+        metric("LTV alert", pct(pol.cb_ltv_alert)),
+        metric("Card float", money(pol.cb_card_float_usdc)),
+        metric("Loan buffer", money(pol.cb_loan_buffer_usdc)),
+        metric("Bridge powder", money(pol.cb_bridge_dry_powder_usdc)),
+        metric("RH BP floor", money(pol.rh_bp_floor)),
+        metric("Margin max", pct(pol.rh_margin_use_max)),
+        metric("Excess CB/RH", `${((pol.excess_split_cb || 0) * 100).toFixed(0)}/${((pol.excess_split_rh || 0) * 100).toFixed(0)}`),
       ].join("");
 
       const sleeves = ev.sleeves || {};
@@ -497,11 +581,18 @@
           .join("");
       }
 
-      // Prefill manual form from snapshot
+      document.getElementById("agent-brief").textContent = ev.agent_brief || "—";
+
+      const handoff = document.getElementById("handoff");
+      const steps = ev.next_steps || actions.slice(0, 8).map((a, i) => ({ n: i + 1, ...a }));
+      handoff.innerHTML = steps
+        .map((s) => `<li><strong>[${s.actor}]</strong> ${s.title}</li>`)
+        .join("") || "<li>No steps</li>";
+
       const man = snap.coinbase_manual || {};
       const set = (id, v) => {
         const el = document.getElementById(id);
-        if (el && (v !== null && v !== undefined && v !== "")) el.value = v;
+        if (el && v !== null && v !== undefined && v !== "") el.value = v;
       };
       set("m-principal", man.loan_principal_usdc);
       set("m-collateral", man.collateral_btc_usd);
@@ -513,43 +604,115 @@
       window.__treasury = data;
     }
 
+    function readManualForm() {
+      const num = (id) => {
+        const v = document.getElementById(id).value;
+        return v === "" ? null : v;
+      };
+      return {
+        loan_principal_usdc: num("m-principal"),
+        collateral_btc_usd: num("m-collateral"),
+        ltv: num("m-ltv"),
+        vault_usdc: num("m-vault"),
+        card_balance: num("m-card-bal"),
+        card_available_credit: num("m-card-avail"),
+      };
+    }
+
     async function loadTreasury() {
       const errEl = document.getElementById("load-error");
       errEl.style.display = "none";
       try {
-        const res = await fetch("treasury_latest.json?ts=" + Date.now());
-        if (!res.ok) throw new Error("HTTP " + res.status + " loading treasury_latest.json");
-        const data = await res.json();
-        if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury_latest.json");
+        let data;
+        try {
+          const res = await fetch("/api/treasury?ts=" + Date.now());
+          if (res.ok) data = await res.json();
+        } catch (_) {}
+        if (!data || !data.evaluation) {
+          const res = await fetch("treasury_latest.json?ts=" + Date.now());
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          data = await res.json();
+        }
+        if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury payload");
         render(data);
       } catch (e) {
         errEl.style.display = "block";
         errEl.textContent =
-          "Could not load financial-command/treasury_latest.json (" +
-          e.message +
-          "). Serve from repo root and run: python3 treasury/run_treasury.py";
+          "Could not load treasury data (" + e.message + "). Run: python3 launch.py (or financial-command/server.py)";
+      }
+    }
+
+    async function refreshLive(offline) {
+      const note = document.getElementById("recompute-note");
+      note.textContent = "Refreshing…";
+      try {
+        const res = await fetch("/api/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offline: !!offline }),
+        });
+        const body = await res.json();
+        if (!res.ok || !body.ok) throw new Error(body.error || res.status);
+        if (body.treasury) render(body.treasury);
+        else await loadTreasury();
+        note.textContent = offline ? "Offline re-eval complete." : "Live Coinbase refresh complete.";
+      } catch (e) {
+        note.textContent = "Refresh failed (is FCC server running?): " + e.message;
+        await loadTreasury();
+      }
+    }
+
+    async function saveConfig() {
+      const note = document.getElementById("recompute-note");
+      note.textContent = "Saving config…";
+      try {
+        const res = await fetch("/api/config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ coinbase_manual: readManualForm() }),
+        });
+        const body = await res.json();
+        if (!res.ok || !body.ok) throw new Error(body.error || res.status);
+        await loadTreasury();
+        note.textContent = "Saved to treasury/config.json and re-evaluated.";
+      } catch (e) {
+        note.textContent = "Save failed (need python3 launch.py server): " + e.message;
       }
     }
 
     document.getElementById("btn-reload").addEventListener("click", loadTreasury);
+    document.getElementById("btn-refresh-live").addEventListener("click", () => refreshLive(false));
+    document.getElementById("btn-refresh-live2").addEventListener("click", () => refreshLive(false));
+    document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+    document.getElementById("btn-copy-brief").addEventListener("click", async () => {
+      const t = document.getElementById("agent-brief").textContent;
+      try {
+        await navigator.clipboard.writeText(t);
+        document.getElementById("recompute-note").textContent = "Agent brief copied.";
+      } catch (_) {
+        document.getElementById("recompute-note").textContent = "Copy failed — select brief manually.";
+      }
+    });
     document.getElementById("btn-recompute").addEventListener("click", () => {
       const base = window.__treasury;
       if (!base) return;
       const snap = JSON.parse(JSON.stringify(base.snapshot));
-      snap.coinbase_manual = {
-        ...snap.coinbase_manual,
-        loan_principal_usdc: document.getElementById("m-principal").value || null,
-        collateral_btc_usd: document.getElementById("m-collateral").value || null,
-        ltv: document.getElementById("m-ltv").value || null,
-        vault_usdc: document.getElementById("m-vault").value || null,
-        card_balance: document.getElementById("m-card-bal").value || null,
-        card_available_credit: document.getElementById("m-card-avail").value || null,
-      };
+      snap.coinbase_manual = { ...snap.coinbase_manual, ...readManualForm() };
       const policy = (base.evaluation && base.evaluation.policy) || DEFAULT_POLICY;
       const evaluation = evaluateClient(snap, policy);
+      // Keep server-only fields if present
+      evaluation.data_quality = base.evaluation.data_quality;
+      evaluation.agent_brief = base.evaluation.agent_brief;
+      evaluation.strategy_context = base.evaluation.strategy_context;
+      evaluation.next_steps = (evaluation.actions || []).slice(0, 8).map((a, i) => ({
+        n: i + 1,
+        actor: a.actor,
+        title: a.title,
+        api_reachable: a.api_reachable,
+      }));
       render({ snapshot: snap, evaluation });
       document.getElementById("recompute-note").textContent =
-        "Client-side what-if only. Persist numbers in treasury/config.json and re-run run_treasury.py for durable agent handoff.";
+        "Client what-if only. Use Save to config for durable handoff.";
     });
 
     loadTreasury();

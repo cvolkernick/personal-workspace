@@ -64,21 +64,31 @@ class TestDcaGovernor(unittest.TestCase):
 class TestEvaluateTreasury(unittest.TestCase):
     def test_high_ltv_first_priority(self):
         snap = {
-            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0.1},
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0.1, "source": "live"},
             "coinbase_manual": {
                 "loan_principal_usdc": 60000,
                 "collateral_btc_usd": 100000,
                 "ltv": 0.60,
                 "vault_usdc": 10000,
                 "card_balance": 0,
+                "card_available_credit": 5000,
             },
-            "robinhood": {"buying_power": 3000, "cash": 1000, "equity_value": 50000},
+            "robinhood": {
+                "buying_power": 3000,
+                "cash": 1000,
+                "equity_value": 50000,
+                "source": "live",
+            },
         }
         ev = evaluate_treasury(snap, policy=DEFAULT_POLICY)
         self.assertEqual(ev["stress"]["coinbase_ltv"], "red")
         self.assertTrue(ev["actions"])
-        self.assertEqual(ev["actions"][0]["kind"], "ltv_protect")
-        self.assertEqual(ev["actions"][0]["priority"], 1)
+        protect = [a for a in ev["actions"] if a["kind"] == "ltv_protect"]
+        self.assertTrue(protect)
+        self.assertEqual(protect[0]["priority"], 1)
+        # LTV protect is first risk action after any fill_manual (none when complete)
+        kinds = [a["kind"] for a in ev["actions"]]
+        self.assertEqual(kinds[0], "ltv_protect")
 
     def test_under_card_float_and_low_bp(self):
         snap = {
@@ -100,20 +110,50 @@ class TestEvaluateTreasury(unittest.TestCase):
         dca = [a for a in ev["actions"] if a["kind"] == "dca_pause"][0]
         self.assertTrue(dca["api_reachable"])
         self.assertEqual(dca["actor"], "agent")
+        self.assertIn("data_quality", ev)
+        self.assertIn("agent_brief", ev)
+        self.assertTrue(ev["agent_brief"])
+
+    def test_unknown_card_not_green(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {"ltv": 0.3},
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 1500,
+                "equity_value": 20000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertEqual(ev["stress"]["coinbase_card"], "yellow")
+        self.assertIn("card_balance", ev["data_quality"]["missing_manual_fields"])
+        kinds = [a["kind"] for a in ev["actions"]]
+        self.assertIn("fill_manual", kinds)
+
 
     def test_excess_allocation_when_green(self):
         snap = {
-            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0},
-            "coinbase_manual": {"ltv": 0.30, "card_balance": 0, "vault_usdc": 0},
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.30,
+                "loan_principal_usdc": 30000,
+                "collateral_btc_usd": 100000,
+                "card_balance": 0,
+                "card_available_credit": 4000,
+                "vault_usdc": 0,
+            },
             "robinhood": {
                 "buying_power": 2000,
                 "cash": 1500,
                 "equity_value": 20000,
                 "margin_use": 0.1,
+                "source": "live",
             },
         }
         ev = evaluate_treasury(snap)
-        self.assertEqual(ev["stress"]["overall"], "green")
+        self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
+        self.assertEqual(ev["stress"]["robinhood"], "green")
         kinds = [a["kind"] for a in ev["actions"]]
         self.assertIn("excess_allocate", kinds)
         self.assertIn("dca_ok", kinds)

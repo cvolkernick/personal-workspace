@@ -5,18 +5,8 @@
 cd "$(dirname "$0")"
 echo "Starting Financial Command Center..."
 echo ""
-echo "Refreshing treasury..."
-python3 treasury/run_treasury.py || true
+echo "Server: http://localhost:8000/financial-command/index.html"
+echo "API: /api/treasury /api/config /api/refresh"
+echo "Press Ctrl+C to stop."
 echo ""
-echo "Server will run on http://localhost:8000"
-echo "The dashboard will open in your browser automatically."
-echo ""
-echo "Press Ctrl+C in this Terminal window when you're done."
-echo ""
-
-# Give the server a moment to start, then open the browser (macOS)
-(sleep 1.2 && open "http://localhost:8000/financial-command/index.html") &
-
-# Start the simple local web server from the repo root
-# This makes the live MD loading and all features work perfectly.
-python3 -m http.server 8000
+python3 financial-command/server.py --port 8000

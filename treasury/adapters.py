@@ -7,7 +7,7 @@ import os
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple  # noqa: F401
 
 TREASURY_DIR = Path(__file__).resolve().parent
 SNAPSHOTS_DIR = TREASURY_DIR / "snapshots"
@@ -59,6 +59,32 @@ def _parse_coinbase_balance_payload(payload: Dict[str, Any]) -> Dict[str, float]
     return totals
 
 
+def fetch_btc_usd_price(*, timeout: float = 20.0) -> Tuple[Optional[float], Optional[str]]:
+    """Fetch mid/last BTC-USD via coinbase products get."""
+    try:
+        proc = subprocess.run(
+            ["coinbase", "products", "get", "BTC-USD"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except FileNotFoundError:
+        return None, "coinbase CLI not found"
+    except subprocess.TimeoutExpired:
+        return None, "coinbase products get timed out"
+    if proc.returncode != 0:
+        return None, (proc.stderr or proc.stdout or "products get failed").strip()[:300]
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError as e:
+        return None, f"invalid products JSON: {e}"
+    price = data.get("price")
+    try:
+        return float(price), None
+    except (TypeError, ValueError):
+        return None, "no price in products get response"
+
+
 def fetch_coinbase_liquid_live(
     *,
     timeout: float = 30.0,
@@ -82,7 +108,6 @@ def fetch_coinbase_liquid_live(
         err = (proc.stderr or proc.stdout or "coinbase balance failed").strip()
         return None, err[:500]
 
-    # --paginate may emit multiple JSON objects; merge accounts
     text = proc.stdout.strip()
     if not text:
         return None, "empty coinbase balance output"
@@ -105,14 +130,20 @@ def fetch_coinbase_liquid_live(
 
     merged = {"accounts": accounts}
     totals = _parse_coinbase_balance_payload(merged)
+    btc_price, price_err = fetch_btc_usd_price(timeout=min(20.0, timeout))
+    liquid_btc = totals["BTC"]
     result = {
         "source": "live",
         "as_of": _now(),
         "liquid_usdc": totals["USDC"] + totals["USD"],
-        "liquid_btc": totals["BTC"],
+        "liquid_btc": liquid_btc,
+        "btc_usd_price": btc_price,
+        "liquid_btc_usd": (liquid_btc * btc_price) if btc_price is not None else None,
         "by_currency": totals,
         "account_count": len(accounts),
     }
+    if price_err:
+        result["btc_price_error"] = price_err
     return result, None
 
 
@@ -233,8 +264,15 @@ def build_snapshot(
     """Merge live/file venue reads with human-editable manual fields."""
     cfg = config if config is not None else load_config()
     cb = fetch_coinbase_liquid(prefer_live=prefer_live_coinbase)
+    # Attach BTC price to snapshot file path results if missing
+    if cb.get("btc_usd_price") is None and prefer_live_coinbase:
+        price, _err = fetch_btc_usd_price()
+        if price is not None:
+            cb["btc_usd_price"] = price
+            cb["liquid_btc_usd"] = _f_safe(cb.get("liquid_btc")) * price
     rh = fetch_robinhood()
     manual = dict(cfg.get("coinbase_manual") or {})
+    rh_cfg = cfg.get("robinhood") or {}
     return {
         "as_of": _now(),
         "coinbase": cb,
@@ -245,5 +283,44 @@ def build_snapshot(
             "config_path": str(CONFIG_PATH),
             "coinbase_source": cb.get("source"),
             "robinhood_source": rh.get("source"),
+            "rh_accounts": {
+                "primary": rh_cfg.get("account_number"),
+                "agentic": rh_cfg.get("agentic_account_number"),
+                "notes": rh_cfg.get("notes"),
+            },
+            "api_limits": {
+                "morpho_loan": "app-only",
+                "high_yield_vault": "app-only",
+                "one_card": "app-only",
+                "external_usdc_send": "not via Advanced Trade transfer",
+            },
         },
     }
+
+
+def _f_safe(x: Any) -> float:
+    try:
+        return float(x or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    """Persist treasury config.json (manual fields + policy)."""
+    p = path or CONFIG_PATH
+    existing = load_config(p)
+    merged = {
+        "policy": {**(existing.get("policy") or {}), **(data.get("policy") or {})},
+        "coinbase_manual": {
+            **(existing.get("coinbase_manual") or {}),
+            **(data.get("coinbase_manual") or {}),
+        },
+        "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
+    }
+    # Preserve notes if not overwritten
+    if "notes" not in (data.get("coinbase_manual") or {}) and (existing.get("coinbase_manual") or {}).get(
+        "notes"
+    ):
+        merged["coinbase_manual"]["notes"] = existing["coinbase_manual"]["notes"]
+    save_json(p, merged)
+    return p

@@ -20,7 +20,9 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Robinhood", html)
         self.assertIn("Priority actions", html)
         self.assertIn("Policy buckets", html)
-        self.assertIn("treasury_latest.json", html)
+        self.assertIn("Data quality", html)
+        self.assertIn("Agent brief", html)
+        self.assertIn("/api/refresh", html)
         self.assertGreater(len(html), 5000)
 
     def test_action_items_doc(self):
