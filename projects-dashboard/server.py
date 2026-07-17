@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Local server for Projects Dashboard.
+"""Local server for personal-workspace Projects Dashboard.
 
-Serves static UI + APIs:
-  GET /api/projects          — Grok Build session → project map + git status (default)
-  GET /api/projects?mode=all — filesystem root scan (legacy)
-  GET /api/sessions          — raw session list + orphans
-  GET /api/health            — simple health check
+Strict scope: status viewer for the personal-workspace monorepo and its
+Grok Build sub-projects (top-level areas).
+
+  GET /api/projects  — workspace git status + sub-project cards
+  GET /api/health
 
 Usage:
   python3 projects-dashboard/server.py
@@ -26,8 +26,7 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from collectors import collect_dashboard_projects, collect_repo_status  # noqa: E402
-from sessions import collect_session_project_map  # noqa: E402
+from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
 DEFAULT_PORT = 8765
 
@@ -54,42 +53,29 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/health":
-            self._json(200, {"ok": True, "service": "projects-dashboard"})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "projects-dashboard",
+                    "workspace": str(WORKSPACE_ROOT),
+                },
+            )
             return
 
         if path == "/api/projects":
             qs = parse_qs(parsed.query)
-            mode = (qs.get("mode") or ["grok"])[0]
-            roots = qs.get("root")
+            only_touched = (qs.get("only_touched") or ["0"])[0] in (
+                "1",
+                "true",
+                "yes",
+            )
             try:
-                payload = collect_dashboard_projects(mode=mode, roots=roots)
+                payload = collect_workspace_dashboard(only_touched=only_touched)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, payload)
-            return
-
-        if path == "/api/sessions":
-            try:
-                payload = collect_session_project_map()
-            except Exception as e:
-                self._json(500, {"ok": False, "error": str(e)})
-                return
-            self._json(200, payload)
-            return
-
-        if path == "/api/repo":
-            qs = parse_qs(parsed.query)
-            repo_path = (qs.get("path") or [None])[0]
-            if not repo_path:
-                self._json(400, {"ok": False, "error": "missing path"})
-                return
-            try:
-                status = collect_repo_status(repo_path)
-            except Exception as e:
-                self._json(500, {"ok": False, "error": str(e)})
-                return
-            self._json(200, {"ok": True, "project": status})
             return
 
         if path in ("/", "/index.html", "/projects", "/projects/"):
@@ -98,7 +84,9 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Projects Dashboard server")
+    parser = argparse.ArgumentParser(
+        description="personal-workspace Projects Dashboard"
+    )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--bind", default="127.0.0.1")
@@ -106,7 +94,8 @@ def main(argv: list[str] | None = None) -> int:
 
     url = f"http://{args.bind}:{args.port}/"
     print(f"Projects Dashboard → {url}")
-    print("API: GET /api/projects (Grok sessions → projects + git status)")
+    print(f"Workspace: {WORKSPACE_ROOT}")
+    print("API: GET /api/projects  (monorepo areas + Grok sessions)")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:
