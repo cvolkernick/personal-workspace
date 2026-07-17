@@ -1,32 +1,50 @@
 # Graceful Exit — personal-workspace
 
-Pre-reset / reboot readiness for Grok Build work in this monorepo.
+Pre-reset readiness **and** git/session protection for this monorepo.
 
-**Goal:** before system updates or reboots, confirm you can stop without:
+## Session backup: what goes in git?
 
-- losing **session context** (Grok history under `~/.grok/sessions`)
-- losing **uncommitted or unpushed** code that would break builds after reset
-
-## What it shows
-
-1. **Verdict** — ready / caution / blocked  
-2. **Checklist** — uncommitted files, unpushed commits, sessions on disk, live agents, stashes, local servers  
-3. **Graceful exit order** — ordered steps to shut down safely  
-4. **Resume kit** — `grok --resume <session-id>` per workspace-linked session (copy buttons)  
-5. **Per-project areas** — dirty files + exit-ready flag + related sessions  
-
-Session PIDs die on reboot; **history does not** — resume after reboot.
-
-## Launch
+| Content | In git? | Why |
+|---------|---------|-----|
+| Full `~/.grok/sessions` (~100MB+, transcripts) | **No** | Huge, secret-prone, high churn |
+| `ops/session-index/` (IDs, titles, resume cmds) | **Yes** | Enough to recover resume after machine loss |
+| Offline tarball of summaries | **Outside repo** (`~/Backups/grok-sessions/`) | Optional DR |
 
 ```bash
-python3 projects-dashboard/server.py
-# or double-click start.command
+python3 projects-dashboard/session_backup.py index      # write ops/session-index
+python3 projects-dashboard/session_backup.py archive    # ~/Backups/... summaries tar
+python3 projects-dashboard/session_backup.py archive --full  # full dirs — private disk only
 ```
 
-http://127.0.0.1:8765/
+## Auto commit + push after work
 
 ```bash
-curl -sS 'http://127.0.0.1:8765/api/projects?only_touched=1' | python3 -m json.tool
+# Preferred one-shot for agents / you after a completed unit of work:
+python3 projects-dashboard/git_workflow.py sync
+
+# Or from the dashboard: Protect & push
+# Or API: POST /api/sync
+```
+
+`sync` = refresh session index → commit on `work/<area>` if needed → push.
+
+## Branches
+
+| Branch | Role |
+|--------|------|
+| `master` | Integration |
+| `work/<area>` | Active work for a top-level area |
+| `feature/<slug>` | Optional longer features |
+
+```bash
+python3 projects-dashboard/git_workflow.py start treasury
+python3 projects-dashboard/git_workflow.py status
+python3 projects-dashboard/git_workflow.py protect "msg"
+```
+
+## Launch dashboard
+
+```bash
+python3 projects-dashboard/server.py   # http://127.0.0.1:8765/
 python3 -m unittest discover -s projects-dashboard/tests -v
 ```

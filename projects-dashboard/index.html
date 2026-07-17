@@ -151,17 +151,21 @@
     <div class="actions">
       <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched projects only</label>
       <span id="updated" class="sub"></span>
+      <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>
+      <button type="button" id="btn-sync" title="Session index + commit + push">Protect &amp; push</button>
       <button type="button" id="btn-refresh">Refresh</button>
     </div>
   </header>
   <main>
     <div id="err" class="error-banner" role="alert"></div>
+    <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
     <div id="verdict"></div>
     <div class="summary" id="summary"></div>
     <div class="two-col">
       <div id="checklist"></div>
       <div id="exit-steps"></div>
     </div>
+    <div id="branches"></div>
     <div id="resume"></div>
     <div class="section-title">Repo</div>
     <div id="workspace"></div>
@@ -219,14 +223,42 @@
           </div>
         </div>`;
 
+      const br = data.branches || {};
       $("summary").innerHTML = `
+        <div class="stat"><div class="n" style="color:var(--blue)">${esc(br.current || ws.branch || "—")}</div><div class="l">Branch</div></div>
         <div class="stat"><div class="n" style="color:var(--yellow)">${c.dirty_files ?? 0}</div><div class="l">Uncommitted</div></div>
         <div class="stat"><div class="n" style="color:var(--accent)">${c.ahead ?? "—"}</div><div class="l">Unpushed</div></div>
         <div class="stat"><div class="n" style="color:var(--green)">${c.persisted_sessions ?? 0}</div><div class="l">Sessions on disk</div></div>
         <div class="stat"><div class="n" style="color:var(--purple)">${c.live_sessions ?? 0}</div><div class="l">Live agents</div></div>
         <div class="stat"><div class="n">${c.dirty_projects ?? 0}</div><div class="l">Dirty areas</div></div>
-        <div class="stat"><div class="n">${c.listeners ?? 0}</div><div class="l">Servers</div></div>
       `;
+
+      // Branches panel
+      const branchList = br.branches || [];
+      const conv = br.convention || {};
+      $("branches").innerHTML = `
+        <div class="section-title">Branches</div>
+        <div class="card">
+          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
+            <strong>master</strong>: ${esc(conv.master || "integration")}<br/>
+            <strong>work/&lt;area&gt;</strong>: ${esc(conv["work/<area>"] || "per-project work")}<br/>
+            <strong>feature/&lt;slug&gt;</strong>: ${esc(conv["feature/<slug>"] || "optional features")}
+          </div>
+          ${branchList.length ? branchList.map((b) => `
+            <div class="sess">
+              <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
+              <div>
+                <div class="title">${esc(b.name)}</div>
+                <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
+              </div>
+              <div class="when">${b.is_master ? "integration" : ""}</div>
+            </div>`).join("") : `<div class="empty">No branches</div>`}
+          <div style="margin-top:0.65rem;display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+            <input id="start-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.85rem" />
+            <button type="button" id="btn-start-work">Start work/&lt;area&gt;</button>
+          </div>
+          ${data.automation ? `<code class="cmd" style="margin-top:0.5rem">${esc(data.automation.sync || "")}</code>` : ""}
+        </div>`;
 
       const checks = r.checks || [];
       $("checklist").innerHTML = `
@@ -357,8 +389,47 @@
       }
     }
 
+    async function postAction(url, body) {
+      $("action-msg").classList.remove("show");
+      $("err").classList.remove("show");
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body || {}),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || JSON.stringify(data));
+        $("action-msg").textContent = data.message
+          || (data.committed ? `Committed ${data.sha || ""} on ${data.branch || ""}` : "OK")
+          + (data.pushed ? " · pushed" : "")
+          + (data.count != null ? ` · ${data.count} sessions indexed` : "");
+        if (data.steps) {
+          $("action-msg").textContent = data.steps.map((s) => s.step + ":" + (s.ok ? "ok" : s.error || "?")).join(" · ");
+        }
+        $("action-msg").classList.add("show");
+        await load();
+      } catch (e) {
+        $("err").textContent = e.message;
+        $("err").classList.add("show");
+      }
+    }
+
     $("btn-refresh").addEventListener("click", load);
     $("only-touched").addEventListener("change", load);
+    $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
+    $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
+    document.addEventListener("click", (ev) => {
+      if (ev.target && ev.target.id === "btn-start-work") {
+        const area = ($("start-area") && $("start-area").value) || "";
+        if (!area.trim()) {
+          $("err").textContent = "Enter an area name (e.g. treasury)";
+          $("err").classList.add("show");
+          return;
+        }
+        postAction("/api/start-work", { area: area.trim() });
+      }
+    });
     load();
   </script>
 </body>

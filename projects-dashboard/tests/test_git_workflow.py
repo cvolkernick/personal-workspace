@@ -1,0 +1,134 @@
+"""Tests for branch workflow + session index (temp git repo)."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+DASH = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(DASH))
+
+from git_workflow import (  # noqa: E402
+    branch_name_for_area,
+    collect_branch_status,
+    protect_work,
+    start_work,
+)
+from session_backup import build_session_index, write_session_index  # noqa: E402
+
+
+def _git(cwd: Path, *args: str) -> str:
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=str(cwd),
+        check=True,
+        capture_output=True,
+        text=True,
+        env={
+            **os.environ,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_AUTHOR_NAME": "Test",
+            "GIT_AUTHOR_EMAIL": "t@example.com",
+            "GIT_COMMITTER_NAME": "Test",
+            "GIT_COMMITTER_EMAIL": "t@example.com",
+        },
+    )
+    return (proc.stdout or "").strip()
+
+
+class TestGitWorkflow(unittest.TestCase):
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(prefix="gw-")
+        self.repo = Path(self._td.name) / "ws"
+        self.repo.mkdir()
+        _git(self.repo, "init", "-b", "master")
+        (self.repo / "treasury").mkdir()
+        (self.repo / "treasury" / "a.txt").write_text("1\n", encoding="utf-8")
+        _git(self.repo, "add", ".")
+        _git(self.repo, "commit", "-m", "init")
+        # bare remote for push
+        self.bare = Path(self._td.name) / "remote.git"
+        _git(Path(self._td.name), "clone", "--bare", str(self.repo), str(self.bare))
+        _git(self.repo, "remote", "add", "origin", str(self.bare))
+        _git(self.repo, "push", "-u", "origin", "master")
+
+    def tearDown(self) -> None:
+        self._td.cleanup()
+
+    def test_branch_name(self) -> None:
+        self.assertEqual(branch_name_for_area("Projects Dashboard"), "work/projects-dashboard")
+
+    def test_start_work_creates_branch(self) -> None:
+        r = start_work("treasury", repo=self.repo)
+        self.assertTrue(r["ok"])
+        self.assertEqual(r["branch"], "work/treasury")
+        self.assertTrue(r["created"])
+        st = collect_branch_status(self.repo)
+        self.assertEqual(st["current"], "work/treasury")
+
+    def test_protect_switches_off_master_and_pushes(self) -> None:
+        (self.repo / "treasury" / "b.txt").write_text("2\n", encoding="utf-8")
+        # stay on master
+        _git(self.repo, "checkout", "master")
+        r = protect_work(
+            self.repo,
+            message="test protect",
+            push=True,
+            ensure_work_branch=True,
+        )
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["committed"])
+        self.assertEqual(r["branch"], "work/treasury")
+        self.assertTrue(r["pushed"])
+        # remote has branch
+        refs = _git(self.bare, "branch")
+        self.assertIn("work/treasury", refs)
+
+
+class TestSessionIndex(unittest.TestCase):
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(prefix="si-")
+        self.root = Path(self._td.name)
+        self.ws = self.root / "ws"
+        self.ws.mkdir()
+        self.grok = self.root / "grok"
+        sid = "019f0000-aaaa-bbbb-cccc-ddddeeeeffff"
+        sdir = self.grok / "sessions" / "%2Fws" / sid
+        sdir.mkdir(parents=True)
+        (sdir / "summary.json").write_text(
+            json.dumps(
+                {
+                    "generated_title": "Hello",
+                    "last_active_at": "2026-07-17T00:00:00Z",
+                    "info": {"id": sid, "cwd": str(self.ws)},
+                    "num_chat_messages": 3,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def tearDown(self) -> None:
+        self._td.cleanup()
+
+    def test_build_index(self) -> None:
+        idx = build_session_index(self.grok)
+        self.assertEqual(idx["count"], 1)
+        self.assertEqual(idx["sessions"][0]["title"], "Hello")
+        self.assertIn("grok --resume", idx["sessions"][0]["resume_cmd"])
+
+    def test_write_index(self) -> None:
+        r = write_session_index(repo=self.ws, grok_home=self.grok, commit=False)
+        self.assertTrue(r["ok"])
+        latest = self.ws / "ops" / "session-index" / "latest.json"
+        self.assertTrue(latest.is_file())
+        data = json.loads(latest.read_text(encoding="utf-8"))
+        self.assertEqual(data["count"], 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -763,6 +763,22 @@ def collect_workspace_dashboard(
     readiness = build_readiness(repo, projects, ws_sessions, stashes, listeners)
     resume_kit = build_resume_kit(ws_sessions)
 
+    try:
+        from git_workflow import collect_branch_status  # noqa: WPS433
+
+        branches = collect_branch_status(workspace)
+    except Exception as e:
+        branches = {"error": str(e), "current": repo.get("branch"), "branches": []}
+
+    # Point exit steps at automation
+    if readiness.get("counts", {}).get("dirty_files"):
+        readiness.setdefault("exit_steps", [])
+        if not any("protect" in s.lower() or "sync" in s.lower() for s in readiness["exit_steps"]):
+            readiness["exit_steps"].insert(
+                0,
+                "Auto-protect: python3 projects-dashboard/git_workflow.py sync",
+            )
+
     return {
         "ok": True,
         "mode": "graceful-exit",
@@ -775,8 +791,21 @@ def collect_workspace_dashboard(
         "count": len(projects),
         "readiness": readiness,
         "resume_kit": resume_kit,
+        "branches": branches,
         "stashes": stashes,
         "listeners": listeners,
+        "automation": {
+            "sync": "python3 projects-dashboard/git_workflow.py sync",
+            "protect": "python3 projects-dashboard/git_workflow.py protect",
+            "start_work": "python3 projects-dashboard/git_workflow.py start <area>",
+            "session_index": "python3 projects-dashboard/session_backup.py index",
+            "session_archive": "python3 projects-dashboard/session_backup.py archive",
+            "note": (
+                "After completing a unit of work, run sync (or dashboard Protect & push). "
+                "It refreshes ops/session-index, commits on work/<area> if needed, and pushes. "
+                "Full Grok transcripts stay in ~/.grok/sessions (not git); index is resume metadata only."
+            ),
+        },
         "root_edits": {
             "edit_count": root_edits,
             "sessions": root_sessions,
@@ -789,6 +818,7 @@ def collect_workspace_dashboard(
         "session_count": len(ws_sessions),
         "grok_home": str(grok_home),
     }
+
 
 
 

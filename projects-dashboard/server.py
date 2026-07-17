@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Local server for personal-workspace graceful-exit dashboard.
 
-Pre-reset readiness: protect uncommitted/unpushed work and surface Grok
-session resume commands so reboots/system updates don't lose context.
-
-  GET /api/projects  — readiness + resume kit + project areas
-  GET /api/health
+  GET  /api/projects       — readiness + branches + resume kit + areas
+  POST /api/protect        — commit durable dirty work + push (auto branch)
+  POST /api/sync           — session index + protect + push
+  POST /api/session-index  — write ops/session-index only
+  POST /api/start-work     — body {"area":"treasury"} → work/treasury
+  GET  /api/health
 
 Usage:
   python3 projects-dashboard/server.py
@@ -26,6 +27,8 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
+from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
 DEFAULT_PORT = 8765
@@ -47,6 +50,16 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.end_headers()
         self.wfile.write(body)
+
+    def _read_json(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length)
+        try:
+            return json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -82,10 +95,62 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             self.path = "/index.html"
         return super().do_GET()
 
+    def do_POST(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        body = self._read_json()
+
+        try:
+            if path == "/api/protect":
+                result = protect_work(
+                    message=body.get("message"),
+                    push=body.get("push", True),
+                    include_snapshots=body.get("include_snapshots", True),
+                    ensure_work_branch=body.get("ensure_work_branch", True),
+                )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/sync":
+                result = sync_after_work(
+                    message=body.get("message"),
+                    snapshot_sessions=body.get("snapshot_sessions", True),
+                )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/session-index":
+                result = write_session_index(
+                    commit=bool(body.get("commit")),
+                    keep_history=body.get("keep_history", True),
+                )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/session-archive":
+                result = write_full_archive(
+                    mode="full" if body.get("full") else "summaries"
+                )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/start-work":
+                area = body.get("area")
+                if not area:
+                    self._json(400, {"ok": False, "error": "missing area"})
+                    return
+                result = start_work(str(area))
+                self._json(200 if result.get("ok") else 500, result)
+                return
+        except Exception as e:
+            self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        self._json(404, {"ok": False, "error": "unknown endpoint"})
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="personal-workspace Projects Dashboard"
+        description="personal-workspace Graceful Exit dashboard"
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
@@ -95,7 +160,7 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://{args.bind}:{args.port}/"
     print(f"Graceful Exit dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
-    print("API: GET /api/projects  (readiness + resume kit + areas)")
+    print("API: GET /api/projects | POST /api/sync /api/protect /api/start-work")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:
