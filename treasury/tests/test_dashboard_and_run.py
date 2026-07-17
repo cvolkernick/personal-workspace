@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 
 class TestDashboardArtifact(unittest.TestCase):
     def test_index_has_dual_venue_and_actions(self):
-        html = (ROOT / "dashboard" / "index.html").read_text(encoding="utf-8")
+        html = (ROOT / "financial-command" / "index.html").read_text(encoding="utf-8")
         self.assertIn("Coinbase", html)
         self.assertIn("Robinhood", html)
         self.assertIn("Priority actions", html)
@@ -55,7 +55,7 @@ class TestRunTreasuryEntry(unittest.TestCase):
         self.assertIn("actions", data["evaluation"])
         self.assertIn("overall", data["evaluation"]["stress"])
         # Dashboard copy
-        dash = ROOT / "dashboard" / "treasury_latest.json"
+        dash = ROOT / "financial-command" / "treasury_latest.json"
         self.assertTrue(dash.is_file())
         dash_data = json.loads(dash.read_text(encoding="utf-8"))
         self.assertTrue(dash_data["evaluation"]["actions"] is not None)

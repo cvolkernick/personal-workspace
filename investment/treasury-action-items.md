@@ -55,4 +55,4 @@ Do not fund Robinhood margin-driven stock DCA with freshly borrowed Coinbase USD
 
 - Feasibility research: `research/coinbase-automation-feasibility.md`
 - Policy code: `treasury/policy.py`
-- Dashboard: `dashboard/index.html`
+- UI: `financial-command/index.html`

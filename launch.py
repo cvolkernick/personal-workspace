@@ -11,7 +11,7 @@ import time
 import webbrowser
 
 REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
-DASHBOARD_URL = "http://localhost:8000/dashboard/index.html"
+DASHBOARD_URL = "http://localhost:8000/financial-command/index.html"
 
 
 def main():

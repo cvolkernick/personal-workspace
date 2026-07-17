@@ -15,7 +15,7 @@ echo "Press Ctrl+C in this Terminal window when you're done."
 echo ""
 
 # Give the server a moment to start, then open the browser (macOS)
-(sleep 1.2 && open "http://localhost:8000/dashboard/index.html") &
+(sleep 1.2 && open "http://localhost:8000/financial-command/index.html") &
 
 # Start the simple local web server from the repo root
 # This makes the live MD loading and all features work perfectly.

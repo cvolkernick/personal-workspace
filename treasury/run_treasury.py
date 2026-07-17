@@ -51,8 +51,8 @@ def main(argv: list[str] | None = None) -> int:
         "evaluation": result,
     }
     save_json(args.out, out)
-    # Also publish to dashboard-readable path
-    dash_out = ROOT / "dashboard" / "treasury_latest.json"
+    # Also publish to financial-command UI path
+    dash_out = ROOT / "financial-command" / "treasury_latest.json"
     save_json(dash_out, out)
 
     stress = result["stress"]["overall"]

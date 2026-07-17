@@ -1,6 +1,6 @@
 # Investment Portfolio
 
-> **Visual dashboard available:** Open [../dashboard/index.html](../dashboard/index.html) (serve from repo root). Allocation viz, positions table, and thesis in the Investment section.
+> **Liquidity UI:** Open [../financial-command/index.html](../financial-command/index.html) (serve from repo root). Dual-venue treasury, stress, and agent/human actions.
 
 Tracking for crypto, stocks, prediction markets, and other investments.
 

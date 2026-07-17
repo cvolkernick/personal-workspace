@@ -1,6 +1,8 @@
-# Financial Command Center
+# financial-command
 
-Dual-venue liquidity dashboard for **Coinbase** (liquid USDC/BTC + manual Morpho/vault/card fields) and **Robinhood** (portfolio / buying power / DCA governor).
+Dual-venue liquidity UI for **Coinbase** (liquid USDC/BTC + manual Morpho/vault/card fields) and **Robinhood** (portfolio / buying power / DCA governor).
+
+Named distinctly from `resistance-dashboard/` and any future generic dashboards.
 
 ## Launch
 
@@ -8,7 +10,7 @@ From repo root:
 
 ```bash
 python3 treasury/run_treasury.py    # refresh live CB + RH snapshot evaluation
-python3 launch.py                   # http://localhost:8000/dashboard/index.html
+python3 launch.py                   # http://localhost:8000/financial-command/index.html
 ```
 
 Or double-click `../open-command-center.command`.
@@ -17,7 +19,7 @@ Or double-click `../open-command-center.command`.
 
 1. `treasury/run_treasury.py` reads Coinbase via CLI (`coinbase balance --paginate`), Robinhood from `treasury/snapshots/robinhood_latest.json` (written by agent MCP or tests), and manual fields from `treasury/config.json`.
 2. Pure policy in `treasury/policy.py` scores stress and priority actions.
-3. Writes `dashboard/treasury_latest.json` for the UI.
+3. Writes `financial-command/treasury_latest.json` for the UI.
 
 ## What is automatable
 

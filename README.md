@@ -12,15 +12,15 @@ It will start a local server and automatically open the beautiful visual dashboa
 ```bash
 python3 -m http.server 8000
 ```
-Then open: http://localhost:8000/dashboard/index.html
+Then open: http://localhost:8000/financial-command/index.html
 
-> The dashboard gives you a much nicer visual overview than reading the raw Markdown files or GitHub.
+> The financial command center is the visual layer for dual-venue liquidity (Coinbase + Robinhood).
 
-All real content lives in clean, git-tracked Markdown + data + images. The dashboard is just the friendly visual layer on top.
+All real content lives in clean, git-tracked Markdown + data + images.
 
 ## Contents
 - **treasury/** — Dual-venue liquidity policy (Coinbase liquid + Robinhood BP/DCA), adapters, `run_treasury.py`.
-- **dashboard/** — Financial command center UI (stress, buckets, agent vs human actions).
+- **financial-command/** — Liquidity command center UI (stress, buckets, agent vs human actions). Distinct from `resistance-dashboard/`.
 - **investment/** — Positions + `treasury-action-items.md` (loan protection, autopay, bridge handoff).
 - **research/** — Coinbase automation feasibility matrix.
 - **strategy/** — High-conviction bets and daily micro plan.
@@ -37,11 +37,11 @@ python3 treasury/run_treasury.py
 
 ## Editing Workflow
 1. Edit the `.md` files (or CSVs/JSON) in your editor of choice.
-2. Refresh the dashboard in the browser.
-3. Use Grok in this TUI to help log sessions, update snapshots, add initiatives, or improve the dashboard HTML itself.
+2. Refresh the financial command center in the browser.
+3. Use Grok in this TUI to help log sessions, update snapshots, or improve `financial-command/` HTML itself.
 
 Everything stays versioned and simple.
 
-See `dashboard/README.md` for launch details and philosophy.
+See `financial-command/README.md` for launch details.
 
 *Last updated as part of building the visual command center.*

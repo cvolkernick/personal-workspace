@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Financial Command Center — Liquidity & LTV</title>
+  <title>financial-command — Liquidity & LTV</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -185,7 +185,7 @@
 <body>
   <header>
     <div>
-      <h1>Financial Command Center</h1>
+      <h1>financial-command</h1>
       <div class="sub">Dual-venue liquidity · Coinbase Morpho/loan/card handoff · Robinhood BP/DCA</div>
     </div>
     <div id="overall-pill" class="pill yellow">loading</div>
@@ -525,7 +525,7 @@
       } catch (e) {
         errEl.style.display = "block";
         errEl.textContent =
-          "Could not load dashboard/treasury_latest.json (" +
+          "Could not load financial-command/treasury_latest.json (" +
           e.message +
           "). Serve from repo root and run: python3 treasury/run_treasury.py";
       }
