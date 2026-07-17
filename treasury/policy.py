@@ -22,6 +22,10 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "excess_split_rh": 0.40,
     "bridge_max_recommend_usdc": 5000.0,
     "stale_after_hours": 6.0,
+    # Strategy: prefer High Yield Morpho vault USDC (~variable yield) over idle spot USDC.
+    # Spot liquid USDC may intentionally be ~0; vault holds working USDC float.
+    "count_vault_toward_buffers": True,
+    "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers buffers
 }
 
 MANUAL_FIELDS = (
@@ -365,7 +369,11 @@ def evaluate_treasury(
     one_card = snapshot.get("one_card") or {}
     rh_checking = snapshot.get("rh_checking") or {}
     vault_raw = man.get("vault_usdc")
-    vault_usdc = _f(vault_raw) if not _is_missing(vault_raw) else 0.0
+    vault_known = not _is_missing(vault_raw)
+    vault_usdc = _f(vault_raw) if vault_known else 0.0
+    count_vault = bool(p.get("count_vault_toward_buffers", True))
+    # Working USDC = idle Advanced Trade USDC + High Yield vault (when known & enabled)
+    working_usdc = liquid_usdc + (vault_usdc if count_vault and vault_known else 0.0)
     card_balance_raw = man.get("card_balance")
     if _is_missing(card_balance_raw):
         card_balance_raw = one_card.get("card_balance")
@@ -405,12 +413,27 @@ def evaluate_treasury(
         if unlev is not None and _f(unlev) > 0 and bp > _f(unlev):
             margin_use = min(1.0, max(0.0, (bp - _f(unlev)) / equity))
 
+    # Buffers scored against *working* USDC (vault + spot), not idle spot alone
     buckets = classify_liquid_usdc(
+        working_usdc,
+        card_float=_f(p["cb_card_float_usdc"]),
+        loan_buffer=_f(p["cb_loan_buffer_usdc"]),
+        bridge_dry_powder=_f(p["cb_bridge_dry_powder_usdc"]),
+    )
+    buckets["liquid_spot_usdc"] = liquid_usdc
+    buckets["vault_usdc"] = vault_usdc if vault_known else None
+    buckets["working_usdc"] = working_usdc
+    buckets["count_vault_toward_buffers"] = count_vault and vault_known
+    # Spot-only view (for transparency / intentional zero idle USDC)
+    spot_buckets = classify_liquid_usdc(
         liquid_usdc,
         card_float=_f(p["cb_card_float_usdc"]),
         loan_buffer=_f(p["cb_loan_buffer_usdc"]),
         bridge_dry_powder=_f(p["cb_bridge_dry_powder_usdc"]),
     )
+    buckets["spot_only_status"] = spot_buckets["status"]
+    buckets["spot_only_shortfall"] = spot_buckets["shortfall"]
+
     dca = dca_governor(
         bp,
         bp_floor=_f(p["rh_bp_floor"]),
@@ -425,9 +448,23 @@ def evaluate_treasury(
         stale_after_hours=_f(p.get("stale_after_hours"), 6.0),
     )
 
+    # USDC liquidity stress: red only if working USDC short (or vault unknown + spot empty)
+    if not vault_known and liquid_usdc < 1.0 and count_vault:
+        usdc_liq_stress = "yellow"  # need vault number to know true float
+    else:
+        usdc_liq_stress = buckets["status"]
+    # Idle spot ~0 is fine when vault covers — never mark red solely for low spot
+    if (
+        usdc_liq_stress == "red"
+        and count_vault
+        and vault_known
+        and vault_usdc >= buckets["required_total"]
+    ):
+        usdc_liq_stress = "green"
+
     stress = {
         "coinbase_ltv": _ltv_stress(ltv, _f(p["cb_ltv_alert"]), _f(p["cb_target_ltv_max"])),
-        "coinbase_liquid": buckets["status"],
+        "coinbase_liquid": usdc_liq_stress,
         "coinbase_card": _card_stress(
             card_balance_raw=card_balance_raw,
             card_avail_raw=card_avail_raw,
@@ -502,13 +539,28 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
+    if count_vault and not vault_known:
+        add(
+            0,
+            "vault_unknown",
+            "Enter High Yield vault USDC (working float lives here, not idle spot)",
+            actor="human",
+            detail=(
+                "Spot USDC often ~$0 intentionally (borrowed USDC → card paydown + High Yield vault). "
+                "Enter vault balance in Settings so buffers score correctly."
+            ),
+            api_reachable=False,
+        )
     if buckets["gaps"]["card_float"] > 0:
         add(
             2,
             "card_float",
-            f"Fund card float: need ${buckets['gaps']['card_float']:.2f} more liquid USDC",
+            f"USDC float short ${buckets['gaps']['card_float']:.2f} (spot + High Yield vault)",
             actor="either",
-            detail="Keep liquid USDC for One Card autopay. Manage card in Coinbase app (no card API).",
+            detail=(
+                "Buffers use working USDC: Advanced Trade spot + Morpho High Yield vault. "
+                "Idle spot may be ~$0 by design if vault holds the float."
+            ),
             api_reachable=False,
         )
     if card_balance > 0:
@@ -553,9 +605,9 @@ def evaluate_treasury(
         add(
             4,
             "loan_buffer",
-            f"Loan buffer short ${buckets['gaps']['loan_buffer']:.2f} liquid USDC",
+            f"Loan buffer short ${buckets['gaps']['loan_buffer']:.2f} working USDC",
             actor="either",
-            detail="Hold free USDC/BTC for Morpho top-up; apply in app or via loan protection.",
+            detail="Vault or free BTC/USDC for Morpho top-up; loan protection in app.",
             api_reachable=False,
         )
 
@@ -563,9 +615,9 @@ def evaluate_treasury(
         add(
             4,
             "bridge_powder",
-            f"Bridge dry powder short ${buckets['gaps']['bridge_dry_powder']:.2f}",
+            f"Bridge dry powder short ${buckets['gaps']['bridge_dry_powder']:.2f} working USDC",
             actor="either",
-            detail="Keep a small liquid USDC sleeve for CB↔RH moves.",
+            detail="Small USDC sleeve (often pulled from vault when needed) for CB↔RH moves.",
             api_reachable=False,
         )
 
@@ -619,29 +671,28 @@ def evaluate_treasury(
                 api_reachable=True,
             )
 
-    if vault_usdc > 0 and buckets["shortfall"] > 0:
+    if vault_known and vault_usdc > 0 and buckets["shortfall"] > 0:
         add(
             4,
             "vault_pull",
-            f"Consider withdrawing up to ${min(vault_usdc, buckets['shortfall']):.2f} from High Yield vault (app)",
+            f"Pull up to ${min(vault_usdc, buckets['shortfall']):.2f} from High Yield vault for card/buffers (app)",
             actor="human",
-            detail="Coinbase Lend withdraw is app-only; use to refill liquid floors.",
+            detail="Primary USDC home is High Yield (~variable, often higher than idle rewards). Withdraw when paying card or topping Morpho.",
             api_reachable=False,
         )
-
     exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
     # Upcoming estimates only (Personal tab) — not Discretionary capital targets
     cb_burn = exp_sum.get("coinbase_funded_monthly")
     rh_checking_burn = exp_sum.get("rh_funded_monthly") or exp_sum.get("rh_checking_funded_monthly")
-    if cb_burn and liquid_usdc < float(cb_burn) * 0.25:
+    if cb_burn and working_usdc < float(cb_burn) * 0.25:
         add(
             3,
             "expense_burn",
-            f"Est. Coinbase-funded upcoming bills ~${float(cb_burn):.0f}/mo vs liquid USDC ${liquid_usdc:.2f}",
+            f"Est. Coinbase-funded bills ~${float(cb_burn):.0f}/mo vs working USDC ${working_usdc:.2f} (spot+vault)",
             actor="either",
             detail=(
-                "Sheet Personal tab = forward estimates (ballpark OK), not actual spend. "
-                "YNAB = realized spend. Keep liquid USDC for Coinbase-paid obligations."
+                "Working USDC = idle spot + High Yield vault. Spot often ~$0 by design. "
+                "Ensure vault (or borrow capacity) covers Coinbase-paid obligations."
             ),
             api_reachable=False,
         )
@@ -669,16 +720,6 @@ def evaluate_treasury(
                 api_reachable=False,
             )
 
-    if _is_missing(vault_raw):
-        add(
-            7,
-            "vault_unknown",
-            "Enter High Yield vault USDC balance from Coinbase Lend",
-            actor="human",
-            detail="Vault is not on Advanced Trade API; needed for yield sleeve visibility.",
-            api_reachable=False,
-        )
-
     actions.sort(key=lambda a: a["priority"])
 
     next_steps = [
@@ -694,7 +735,9 @@ def evaluate_treasury(
     agent_brief_lines = [
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
-        f"Liquid USDC: ${liquid_usdc:.2f} | Liquid BTC: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
+        f"USDC working: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + vault "
+        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'})"
+        f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
         f"Upcoming expense estimates (sheet Personal): "
@@ -723,13 +766,16 @@ def evaluate_treasury(
         "policy": deepcopy(p),
         "inputs": {
             "liquid_usdc": liquid_usdc,
+            "working_usdc": working_usdc,
+            "vault_known": vault_known,
+            "count_vault_toward_buffers": count_vault and vault_known,
             "liquid_btc": liquid_btc,
             "liquid_btc_usd": liquid_btc_usd,
             "btc_usd_price": btc_usd_price,
             "ltv": ltv,
             "loan_principal_usdc": principal if principal else None,
             "collateral_btc_usd": coll_usd if coll_usd else None,
-            "vault_usdc": vault_usdc if not _is_missing(vault_raw) else None,
+            "vault_usdc": vault_usdc if vault_known else None,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
             "card_source": card_source,
@@ -788,8 +834,13 @@ def evaluate_treasury(
                 "gap": buckets["gaps"]["loan_buffer"],
             },
             "yield_sleeve": {
-                "vault_usdc": vault_usdc if not _is_missing(vault_raw) else None,
-                "note": "manual / app only",
+                "vault_usdc": vault_usdc if vault_known else None,
+                "note": "High Yield Morpho vault = primary USDC home (not idle spot)",
+            },
+            "working_usdc": {
+                "spot": liquid_usdc,
+                "vault": vault_usdc if vault_known else None,
+                "total": working_usdc,
             },
             "rh_cash_bp": {
                 "buying_power": bp,
@@ -805,13 +856,18 @@ def evaluate_treasury(
         },
         "strategy_context": {
             "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
+            "usdc_model": (
+                "BTC → Morpho collateral → borrow USDC → pay One Card + High Yield vault. "
+                "Idle Advanced Trade USDC often ~$0 by design (lower yield than vault)."
+            ),
             "priority_order": [
                 "Protect Morpho LTV (<50% target)",
-                "Card float / One Card available credit",
+                "Card / buffers from working USDC (vault + spot)",
+                "RH Checking float for ACH bills",
                 "RH margin heat / DCA throttle",
-                "Loan buffer + vault pull if needed",
+                "Pull vault when paying card or topping collateral",
                 "Bridge recommend CB↔RH",
-                "Excess → yield sleeve / DCA",
+                "Excess → vault / capital targets / DCA",
             ],
             "double_leverage_warning": (
                 "Do not fund RH margin-driven DCA with freshly borrowed Coinbase USDC "

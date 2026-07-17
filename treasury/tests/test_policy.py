@@ -61,6 +61,53 @@ class TestDcaGovernor(unittest.TestCase):
         self.assertEqual(r["throttle"], "normal")
 
 
+class TestVaultWorkingUsdc(unittest.TestCase):
+    def test_zero_spot_vault_covers_buffers(self):
+        """Idle spot ~0 is OK when High Yield vault holds working float."""
+        snap = {
+            "coinbase": {"liquid_usdc": 0.0, "liquid_btc": 0.1, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.35,
+                "vault_usdc": 5000,
+                "card_balance": 400,
+                "card_available_credit": 1000,
+                "loan_principal_usdc": 10000,
+                "collateral_btc_usd": 30000,
+            },
+            "one_card": {"source": "ynab", "card_balance": 400},
+            "rh_checking": {"source": "ynab", "cash": 500},
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 100,
+                "equity_value": 20000,
+                "margin_use": 0.1,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["working_usdc"], 5000.0)
+        self.assertEqual(ev["stress"]["coinbase_liquid"], "green")
+        self.assertEqual(ev["buckets"]["spot_only_status"], "red")
+        kinds = [a["kind"] for a in ev["actions"]]
+        self.assertNotIn("card_float", kinds)
+
+    def test_zero_spot_unknown_vault_is_yellow_not_false_red(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 0.0, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {"ltv": 0.3},
+            "one_card": {"source": "ynab", "card_balance": 100},
+            "robinhood": {
+                "buying_power": 2000,
+                "cash": 500,
+                "equity_value": 10000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertEqual(ev["stress"]["coinbase_liquid"], "yellow")
+        self.assertIn("vault_unknown", [a["kind"] for a in ev["actions"]])
+
+
 class TestEvaluateTreasury(unittest.TestCase):
     def test_high_ltv_first_priority(self):
         snap = {
@@ -91,15 +138,21 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertEqual(kinds[0], "ltv_protect")
 
     def test_under_card_float_and_low_bp(self):
+        # Spot low AND vault too small to cover buffer floors
         snap = {
-            "coinbase": {"liquid_usdc": 50, "liquid_btc": 0},
+            "coinbase": {"liquid_usdc": 50, "liquid_btc": 0, "source": "live"},
             "coinbase_manual": {
                 "ltv": 0.30,
                 "card_balance": 200,
                 "card_available_credit": 50,
-                "vault_usdc": 5000,
+                "vault_usdc": 100,
             },
-            "robinhood": {"buying_power": 10, "cash": 10, "equity_value": 1000},
+            "robinhood": {
+                "buying_power": 10,
+                "cash": 10,
+                "equity_value": 1000,
+                "source": "live",
+            },
         }
         ev = evaluate_treasury(snap)
         kinds = [a["kind"] for a in ev["actions"]]
@@ -107,6 +160,7 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertIn("dca_pause", kinds)
         self.assertIn("vault_pull", kinds)
         self.assertEqual(ev["buckets"]["status"], "red")
+        self.assertAlmostEqual(ev["inputs"]["working_usdc"], 150.0)
         dca = [a for a in ev["actions"] if a["kind"] == "dca_pause"][0]
         self.assertTrue(dca["api_reachable"])
         self.assertEqual(dca["actor"], "agent")

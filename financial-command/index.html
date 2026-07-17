@@ -624,7 +624,11 @@
       const bits = [];
       const inp = ev.inputs || {};
       if (s.coinbase_liquid === "red")
-        bits.push(`liquid USDC ${money(inp.liquid_usdc)} below buffer floors`);
+        bits.push(
+          `working USDC ${money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)} below buffers`
+        );
+      else if (s.coinbase_liquid === "yellow" && (inp.vault_known === false || inp.vault_usdc == null))
+        bits.push("High Yield vault balance unknown (spot often $0 by design)");
       if (s.coinbase_ltv === "red") bits.push(`LTV ${pct(inp.ltv)} over max`);
       else if (s.coinbase_ltv === "yellow" && inp.ltv == null) bits.push("Morpho LTV unknown");
       if (s.coinbase_card === "red" && inp.card_balance)
@@ -773,9 +777,13 @@
       const es = ex.summary || {};
       const kpis = [
         {
-          k: "CB liquid",
-          v: money(inp.liquid_usdc),
-          s: stress.coinbase_liquid || "",
+          k: "USDC working",
+          v: money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc),
+          s:
+            "spot " +
+            money(inp.liquid_usdc) +
+            " + vault " +
+            (inp.vault_known === false || inp.vault_usdc == null ? "?" : money(inp.vault_usdc)),
           target: "cash-credit",
         },
         {
@@ -850,11 +858,11 @@
 
       // Coinbase liquid only (no card dupe)
       document.getElementById("cb-metrics").innerHTML = [
-        metric("Liquid USDC", money(inp.liquid_usdc)),
+        metric("Working USDC (spot+vault)", money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)),
+        metric("Idle spot USDC", money(inp.liquid_usdc) + (f(inp.liquid_usdc) < 1 ? " · often $0 by design" : "")),
+        metric("High Yield vault", inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"),
         metric("Liquid BTC", inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(6) : "—"),
         metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
-        metric("BTC price", money(inp.btc_usd_price)),
-        metric("Vault (manual)", money(inp.vault_usdc)),
         metric("LTV", pct(inp.ltv)),
       ].join("");
 

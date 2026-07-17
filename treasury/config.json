@@ -9,7 +9,8 @@
     "rh_margin_use_max": 0.4,
     "excess_split_cb": 0.6,
     "excess_split_rh": 0.4,
-    "bridge_max_recommend_usdc": 5000
+    "bridge_max_recommend_usdc": 5000,
+    "count_vault_toward_buffers": true
   },
   "coinbase_manual": {
     "loan_principal_usdc": null,
@@ -18,7 +19,7 @@
     "vault_usdc": null,
     "card_balance": null,
     "card_available_credit": null,
-    "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them."
+    "notes": "vault_usdc = High Yield Morpho pool (primary USDC float; spot often ~0). LTV/principal from Coinbase Borrow app."
   },
   "robinhood": {
     "account_number": "5QW39737",
