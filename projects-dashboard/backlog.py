@@ -86,13 +86,26 @@ def list_items(
     *,
     include_done: bool = False,
     status: Optional[str] = None,
+    ranked: bool = True,
 ) -> list[dict[str, Any]]:
-    items = list(load_backlog().get("items") or [])
+    all_items = list(load_backlog().get("items") or [])
+    if ranked:
+        try:
+            from backlog_groom import rank_items  # noqa: WPS433
+
+            ranked_all = rank_items(all_items)
+            if status:
+                return [i for i in ranked_all if i.get("status") == status]
+            if not include_done:
+                return [i for i in ranked_all if i.get("status") not in ("done",)]
+            return ranked_all
+        except Exception:
+            pass
+    items = all_items
     if status:
         items = [i for i in items if i.get("status") == status]
     elif not include_done:
         items = [i for i in items if i.get("status") not in ("done",)]
-    # critical/high first, then newest
     pri = {p: i for i, p in enumerate(PRIORITIES)}
     items.sort(
         key=lambda x: (
@@ -443,17 +456,34 @@ def import_initiatives() -> dict[str, Any]:
 
 
 def backlog_payload(*, include_done: bool = False) -> dict[str, Any]:
-    items = list_items(include_done=include_done)
+    items = list_items(include_done=include_done, ranked=True)
+    try:
+        from backlog_groom import enrich_backlog_payload  # noqa: WPS433
+
+        extra = enrich_backlog_payload(list(load_backlog().get("items") or []))
+    except Exception:
+        extra = {}
+    meta = load_backlog().get("groom_meta") or {}
     return {
         "ok": True,
         "path": str(ITEMS_PATH.relative_to(WORKSPACE_ROOT)),
         "count": len(items),
         "items": items,
+        "ranked": extra.get("ranked") or items,
+        "by_schedule": extra.get("by_schedule") or [],
+        "by_priority": extra.get("by_priority") or [],
+        "top": extra.get("top") or items[:3],
+        "last_groomed_at": load_backlog().get("last_groomed_at"),
+        "groom_meta": meta,
         "statuses": list(STATUSES),
         "priorities": list(PRIORITIES),
         "how_to_initiate": (
             "POST /api/backlog/initiate {id} writes a goal seed and launch script; "
             "run the script or paste the objective into Grok with /goal."
+        ),
+        "how_to_groom": (
+            "POST /api/backlog/groom re-scores, press-ranks, schedules (now/this week/…), "
+            "and applies safe priority/status hygiene."
         ),
     }
 
@@ -470,9 +500,14 @@ if __name__ == "__main__":
         print(json.dumps(initiate_item(sys.argv[2], try_spawn_grok="--spawn" in sys.argv), indent=2))
     elif cmd == "import":
         print(json.dumps(import_initiatives(), indent=2))
+    elif cmd == "groom":
+        from backlog_groom import groom_backlog  # noqa: WPS433
+
+        apply = "--dry-run" not in sys.argv
+        print(json.dumps(groom_backlog(apply=apply), indent=2))
     else:
         print(
-            "Usage: backlog.py [list [--all]|add <title>|initiate <id> [--spawn]|import]",
+            "Usage: backlog.py [list [--all]|add <title>|initiate <id> [--spawn]|import|groom [--dry-run]]",
             file=sys.stderr,
         )
         raise SystemExit(2)

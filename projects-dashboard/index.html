@@ -500,16 +500,111 @@
           ` : ""}
         </div>`;
 
-      // Backlog panel
+      // Backlog panel — press rank, priority colors, schedule bands + auto-groom
       const bl = data.backlog || {};
-      const blItems = bl.items || [];
+      const blView = window.__blView || "press"; // press | schedule | priority
+      const blRanked = bl.ranked || bl.items || [];
+      const blBySched = bl.by_schedule || [];
+      const blByPri = bl.by_priority || [];
+
+      function blPri(p) {
+        const x = (p || "medium").toLowerCase();
+        return ["critical", "high", "medium", "low"].includes(x) ? x : "medium";
+      }
+      function blRankCls(n) {
+        if (n === 1) return "r1";
+        if (n === 2) return "r2";
+        if (n === 3) return "r3";
+        return "";
+      }
+      function renderBlCard(it) {
+        const pri = blPri(it.priority);
+        const rank = it.press_rank || "—";
+        const reasons = (it.rank_reasons || []).slice(0, 3).map((r) => esc(r)).join(" · ");
+        return `
+          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-bl-id="${esc(it.id)}">
+            <div class="rank-head">
+              <div class="rank-badge ${blRankCls(rank)}" title="Press rank ${rank} · score ${it.score ?? "—"}">#${rank}</div>
+              <div>
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center">
+                  <span class="title" style="font-weight:650">${esc(it.title)}</span>
+                  ${it.rank_label ? `<span class="pill pri-${pri}">${esc(it.rank_label)}</span>` : ""}
+                  ${it.schedule_label ? `<span class="pill branch">${esc(it.schedule_label)}</span>` : ""}
+                </div>
+                ${it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">${esc(it.description.slice(0,220))}${it.description.length>220?"…":""}</div>` : ""}
+                ${it.mvp_scope ? `<div class="id" style="margin-top:0.2rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
+                ${it.notes ? `<div class="id" style="margin-top:0.15rem">Next: ${esc(it.notes.slice(0,160))}</div>` : ""}
+                ${reasons ? `<div class="id" style="margin-top:0.15rem;color:var(--accent)">Why: ${reasons}</div>` : ""}
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
+                <span class="pill pri-${pri}">${esc(it.priority || "medium")}</span>
+                <span class="pill ${it.status === "planning" || it.status === "active" ? "active" : "muted"}">${esc(it.status)}</span>
+                ${it.area ? `<span class="pill branch">${esc(it.area)}</span>` : ""}
+                ${it.score != null ? `<span class="pill muted">score ${esc(it.score)}</span>` : ""}
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
+              <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}">Initiate goal</button>
+              <button type="button" class="btn-bl-ready" data-id="${esc(it.id)}">Mark ready</button>
+              <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
+              <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
+              <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
+            </div>
+            ${it.seed_path ? `<code class="cmd" style="margin-top:0.35rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
+              ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
+            </code>` : ""}
+          </article>`;
+      }
+
+      let blBody = "";
+      if (!blRanked.length) {
+        blBody = `<div class="empty">No backlog items yet — add one above or run Groom after import.</div>`;
+      } else if (blView === "schedule") {
+        blBody = (blBySched.length ? blBySched : [{ label: "All", items: blRanked }]).map((g) => `
+          <div class="pri-band ${g.slot === "now" ? "critical" : g.slot === "this_week" ? "high" : g.slot === "next_week" ? "medium" : "low"}">${esc(g.label)} · ${g.count || (g.items||[]).length}</div>
+          ${(g.items || []).map(renderBlCard).join("")}
+        `).join("");
+      } else if (blView === "priority") {
+        blBody = (blByPri.length ? blByPri : []).map((g) => `
+          <div class="pri-band ${esc(g.priority)}">${esc(g.label)} · ${g.count}</div>
+          ${(g.items || []).map(renderBlCard).join("")}
+        `).join("") || blRanked.map(renderBlCard).join("");
+      } else {
+        const top = blRanked.filter((i) => (i.press_rank || 99) <= 3 && i.status !== "parked");
+        const rest = blRanked.filter((i) => !top.includes(i));
+        blBody = `
+          <h3 style="margin:0.25rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Press order — work these first</h3>
+          ${top.map(renderBlCard).join("")}
+          ${rest.length ? `
+            <h3 style="margin:0.75rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued / scheduled</h3>
+            ${rest.map(renderBlCard).join("")}
+          ` : ""}
+        `;
+      }
+
       $("backlog").innerHTML = `
-        <div class="section-title">Backlog (start later → plan → MVP)</div>
+        <div class="section-title">Backlog (groom · prioritize · schedule)</div>
         <div class="card">
-          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.65rem">
-            Capture projects to start later. <strong>Initiate</strong> writes a goal seed under
-            <code>ops/backlog/seeds/</code> and opens a launch path for Grok
-            <code>/goal</code> (spec first, then build MVP).
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
+            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:40rem">
+              Press-ranked like recommendations. <strong>Groom backlog</strong> re-scores, schedules
+              (now / this week / next week / later), and applies safe priority/status hygiene.
+              ${bl.last_groomed_at ? `<br/><span class="id">Last groom ${esc(fmtWhen(bl.last_groomed_at))}</span>` : ""}
+              <div class="legend-row">
+                <span class="pill pri-critical">critical</span>
+                <span class="pill pri-high">high</span>
+                <span class="pill pri-medium">medium</span>
+                <span class="pill pri-low">low</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-end">
+              <div class="view-toggle">
+                <button type="button" id="btn-bl-view-press" class="${blView === "press" ? "active" : ""}">Press order</button>
+                <button type="button" id="btn-bl-view-schedule" class="${blView === "schedule" ? "active" : ""}">Schedule</button>
+                <button type="button" id="btn-bl-view-priority" class="${blView === "priority" ? "active" : ""}">Priority</button>
+              </div>
+              <button type="button" id="btn-bl-groom" title="Auto score, rank, schedule, hygiene">Groom backlog</button>
+            </div>
           </div>
           <div style="display:grid;gap:0.45rem;margin-bottom:0.85rem">
             <input id="bl-title" placeholder="Title — what do you want to build?" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.9rem;width:100%" />
@@ -527,30 +622,7 @@
               <button type="button" id="btn-bl-import" title="Import from initiatives/*.md">Import initiatives</button>
             </div>
           </div>
-          ${!blItems.length ? `<div class="empty">No backlog items yet — add one above.</div>` :
-            blItems.map((it) => `
-              <div class="card" style="background:#0e151c;margin-bottom:0.5rem;padding:0.75rem 0.85rem" data-bl-id="${esc(it.id)}">
-                <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
-                  <div class="title" style="font-weight:650">${esc(it.title)}</div>
-                  <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
-                    <span class="pill session">${esc(it.priority)}</span>
-                    <span class="pill ${it.status === 'planning' || it.status === 'active' ? 'active' : 'muted'}">${esc(it.status)}</span>
-                    ${it.area ? `<span class="pill branch">${esc(it.area)}</span>` : ""}
-                  </div>
-                </div>
-                ${it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.35rem">${esc(it.description.slice(0,280))}${it.description.length>280?"…":""}</div>` : ""}
-                ${it.mvp_scope ? `<div class="id" style="margin-top:0.25rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
-                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.55rem">
-                  <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}">Initiate goal</button>
-                  <button type="button" class="btn-bl-ready" data-id="${esc(it.id)}">Mark ready</button>
-                  <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
-                  <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
-                  <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
-                </div>
-                ${it.seed_path ? `<code class="cmd" style="margin-top:0.4rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
-                  ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
-                </code>` : ""}
-              </div>`).join("")}
+          ${blBody}
         </div>`;
 
       // Branches panel (list only — current branch/status live in header)
@@ -698,6 +770,12 @@
         if (data.item && data.item.title && !data.goal_objective) {
           msg = `Saved: ${data.item.title}`;
         }
+        if (data.groomed_at || data.applied) {
+          msg = data.message || `Groomed ${data.count ?? ""} items`;
+          if (data.changes && data.changes.length) {
+            msg += ` · ${data.changes.length} hygiene change(s)`;
+          }
+        }
         if (data.committed) {
           msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
         }
@@ -749,6 +827,25 @@
       }
       if (t.id === "btn-bl-import") {
         await postAction("/api/backlog/import", {});
+        return;
+      }
+      if (t.id === "btn-bl-groom") {
+        await postAction("/api/backlog/groom", { apply: true });
+        return;
+      }
+      if (t.id === "btn-bl-view-press") {
+        window.__blView = "press";
+        load();
+        return;
+      }
+      if (t.id === "btn-bl-view-schedule") {
+        window.__blView = "schedule";
+        load();
+        return;
+      }
+      if (t.id === "btn-bl-view-priority") {
+        window.__blView = "priority";
+        load();
         return;
       }
       if (t.id === "btn-rec-refresh") {

@@ -35,6 +35,7 @@ from backlog import (  # noqa: E402
     initiate_item,
     update_item,
 )
+from backlog_groom import groom_backlog  # noqa: E402
 from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
 from recommendations import (  # noqa: E402
     approve_suggestion,
@@ -231,6 +232,14 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
             if path == "/api/backlog/import":
                 result = import_initiatives()
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/backlog/groom":
+                apply = body.get("apply", True)
+                if isinstance(apply, str):
+                    apply = apply.lower() not in ("0", "false", "no")
+                result = groom_backlog(apply=bool(apply))
                 self._json(200 if result.get("ok") else 500, result)
                 return
 
