@@ -47,10 +47,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     cfg = load_config()
+    live = not args.offline
     snap = build_snapshot(
         config=cfg,
-        prefer_live_coinbase=not args.offline,
-        prefer_live_ynab=not args.offline and not args.skip_ynab,
+        prefer_live_coinbase=live,
+        prefer_live_ynab=live and not args.skip_ynab,
+        prefer_live_expenses=live,
     )
     result = evaluate_treasury(snap, policy=cfg.get("policy") or {})
     out = {

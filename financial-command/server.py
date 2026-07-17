@@ -118,6 +118,14 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         pass
                     except Exception as ye:
                         sys.stderr.write(f"[fcc] ynab_sync warning: {ye}\n")
+                    try:
+                        from treasury.expenses_sync import main as exp_main
+
+                        exp_main([])
+                    except SystemExit:
+                        pass
+                    except Exception as ee:
+                        sys.stderr.write(f"[fcc] expenses_sync warning: {ee}\n")
                 code = run_treasury_main(args)
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
@@ -153,6 +161,14 @@ def main(argv: list[str] | None = None) -> int:
                 pass
             except Exception as ye:
                 print(f"ynab_sync warning: {ye}", file=sys.stderr)
+            try:
+                from treasury.expenses_sync import main as exp_main
+
+                exp_main([])
+            except SystemExit:
+                pass
+            except Exception as ee:
+                print(f"expenses_sync warning: {ee}", file=sys.stderr)
         run_treasury_main(["--offline"] if args.offline else [])
     except SystemExit:
         pass

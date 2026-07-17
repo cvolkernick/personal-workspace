@@ -248,6 +248,25 @@
       <div id="one-card-txs" style="margin-top:0.75rem"></div>
     </section>
 
+    <section class="card" id="expenses-panel">
+      <h2>Personal Expense Sheet (Google)</h2>
+      <div class="grid-2" id="expenses-metrics"></div>
+      <div class="grid-2" style="margin-top:0.75rem">
+        <div>
+          <div class="hint">Top personal (monthly)</div>
+          <div id="expenses-top-personal"></div>
+        </div>
+        <div>
+          <div class="hint">By funding source (monthly)</div>
+          <div id="expenses-by-source"></div>
+        </div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <div class="hint">Discretionary top (monthly)</div>
+        <div id="expenses-top-disc"></div>
+      </div>
+    </section>
+
     <section class="card">
       <h2>Policy floors</h2>
       <div class="policy-grid" id="policy-grid"></div>
@@ -550,6 +569,45 @@
         document.getElementById("one-card-txs").innerHTML =
           `<p class="hint">No transactions in snapshot — run ynab_sync or Refresh live.</p>`;
       }
+
+      const ex = snap.expenses || {};
+      const es = ex.summary || {};
+      document.getElementById("expenses-metrics").innerHTML = [
+        metric("Personal monthly", money(es.personal_monthly)),
+        metric("Discretionary monthly", money(es.discretionary_monthly)),
+        metric("Combined monthly", money(es.combined_monthly)),
+        metric("Combined daily", money(es.combined_daily)),
+        metric("Coinbase-funded / mo", money(es.coinbase_funded_monthly)),
+        metric("RH-funded / mo", money(es.rh_funded_monthly)),
+        metric("Source", ex.source || "—"),
+        metric("as_of", ex.as_of || "—"),
+        metric("Error", ex.live_error || "—"),
+      ].join("");
+      const persTab = (ex.tabs && ex.tabs.Personal) || {};
+      const discTab = (ex.tabs && ex.tabs.Discretionary) || {};
+      document.getElementById("expenses-top-personal").innerHTML = (persTab.top_monthly || [])
+        .slice(0, 8)
+        .map(
+          (r) =>
+            `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(r.monthly)}</span></div>`
+        )
+        .join("") || `<p class="hint">No personal rows</p>`;
+      const bySrc = persTab.by_source_monthly || {};
+      document.getElementById("expenses-by-source").innerHTML = Object.keys(bySrc).length
+        ? Object.entries(bySrc)
+            .map(
+              ([k, v]) =>
+                `<div class="metric"><span class="label">${k}</span><span class="val">${money(v)}</span></div>`
+            )
+            .join("")
+        : `<p class="hint">No source breakdown</p>`;
+      document.getElementById("expenses-top-disc").innerHTML = (discTab.top_monthly || [])
+        .slice(0, 8)
+        .map(
+          (r) =>
+            `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(r.monthly)}</span></div>`
+        )
+        .join("") || `<p class="hint">No discretionary rows</p>`;
 
       const rhMeta = (snap.meta && snap.meta.rh_accounts) || {};
       document.getElementById("rh-metrics").innerHTML = [

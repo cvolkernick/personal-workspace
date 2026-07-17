@@ -29,5 +29,11 @@
     "budget_name": null,
     "account_name": null,
     "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card credit account."
+  },
+  "expenses_sheet": {
+    "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
+    "sheet_name": "Personal Expense Sheet",
+    "tabs": ["Personal", "Discretionary"],
+    "notes": "Shared Google Sheet; fetched via gviz CSV export."
   }
 }

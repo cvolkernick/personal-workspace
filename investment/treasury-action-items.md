@@ -10,6 +10,7 @@
 | --- | --- |
 | Manual Morpho/vault/card fields empty | **Card balance via YNAB** wired; Morpho LTV + vault still manual |
 | One Card via Plaid | **YNAB** → `treasury/ynab_sync.py` → FCC One Card panel |
+| Personal Expense Sheet | **Google Sheet** → `treasury/expenses_sync.py` → FCC expenses panel |
 | Card stress green when unknown | **Fixed** — unknown → yellow |
 | No data completeness / freshness | **Added** — data quality panel + stale warnings |
 | Liquid BTC without USD | **Added** — BTC-USD via Coinbase products |

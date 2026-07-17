@@ -239,6 +239,11 @@ def assess_data_quality(
         warnings.append("One Card / YNAB snapshot missing — run treasury/ynab_sync.py")
     elif oc.get("live_error"):
         warnings.append(f"YNAB One Card: {oc['live_error']}")
+    ex = snapshot.get("expenses") or {}
+    if ex.get("source") in (None, "empty"):
+        warnings.append("Expense sheet missing — run treasury/expenses_sync.py")
+    elif ex.get("live_error"):
+        warnings.append(f"Expense sheet: {ex['live_error']}")
     if cb.get("source") in (None, "empty"):
         warnings.append("Coinbase liquid balances unavailable (no live or snapshot)")
     if rh.get("source") in (None, "empty"):
@@ -250,7 +255,7 @@ def assess_data_quality(
 
     now = datetime.now(timezone.utc)
     stale: List[str] = []
-    for label, src in (("coinbase", cb), ("robinhood", rh), ("one_card", oc)):
+    for label, src in (("coinbase", cb), ("robinhood", rh), ("one_card", oc), ("expenses", ex)):
         as_of = _parse_as_of(src.get("as_of"))
         if as_of is None:
             continue
@@ -276,7 +281,9 @@ def assess_data_quality(
         sources_ok += 1
     if oc.get("source") not in (None, "empty") and not oc.get("live_error"):
         sources_ok += 1
-    score = (manual_filled / manual_total) * 0.6 + (sources_ok / 3.0) * 0.4
+    if ex.get("source") not in (None, "empty") and not ex.get("live_error"):
+        sources_ok += 1
+    score = (manual_filled / manual_total) * 0.55 + (sources_ok / 4.0) * 0.45
 
     status = "green"
     if missing_manual or stale:
@@ -294,9 +301,11 @@ def assess_data_quality(
             "coinbase": cb.get("source"),
             "robinhood": rh.get("source"),
             "one_card": oc.get("source"),
+            "expenses": ex.get("source"),
             "coinbase_as_of": cb.get("as_of"),
             "robinhood_as_of": rh.get("as_of"),
             "one_card_as_of": oc.get("as_of"),
+            "expenses_as_of": ex.get("as_of"),
         },
         "stale": stale,
         "warnings": warnings,
@@ -595,6 +604,18 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
+    exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
+    cb_burn = exp_sum.get("coinbase_funded_monthly")
+    if cb_burn and liquid_usdc < float(cb_burn) * 0.25:
+        add(
+            3,
+            "expense_burn",
+            f"Coinbase-funded expense burn ~${float(cb_burn):.0f}/mo vs liquid USDC ${liquid_usdc:.2f}",
+            actor="either",
+            detail="Personal Expense Sheet: keep liquid USDC buffer vs Coinbase-sourced obligations (rent, subs, etc.).",
+            api_reachable=False,
+        )
+
     if _is_missing(vault_raw):
         add(
             7,
@@ -623,6 +644,10 @@ def evaluate_treasury(
         f"Liquid USDC: ${liquid_usdc:.2f} | Liquid BTC: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
+        f"Expense sheet monthly: ${((snapshot.get('expenses') or {}).get('summary') or {}).get('combined_monthly') or 0:.2f}"
+        + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
+        + f" + disc ${((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f})"
+        + f" | CB-funded ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}",
         f"RH BP: ${bp:.2f} | cash: ${cash:.2f} | equity: ${equity:.2f}",
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
@@ -652,6 +677,18 @@ def evaluate_treasury(
             "card_source": card_source,
             "one_card_spend_30d": one_card.get("spend_30d"),
             "one_card_account": one_card.get("account_name"),
+            "expenses_personal_monthly": (snapshot.get("expenses") or {}).get("summary", {}).get(
+                "personal_monthly"
+            ),
+            "expenses_discretionary_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("discretionary_monthly"),
+            "expenses_combined_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("combined_monthly"),
+            "expenses_coinbase_funded_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("coinbase_funded_monthly"),
             "rh_buying_power": bp,
             "rh_cash": cash,
             "rh_equity": equity,

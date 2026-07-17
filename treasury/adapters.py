@@ -290,9 +290,13 @@ def build_snapshot(
     config: Optional[Dict[str, Any]] = None,
     prefer_live_coinbase: bool = True,
     prefer_live_ynab: bool = True,
+    prefer_live_expenses: Optional[bool] = None,
 ) -> Dict[str, Any]:
-    """Merge live/file venue reads with human-editable manual fields + YNAB One Card."""
+    """Merge live/file venue reads with manual fields, YNAB One Card, expense sheet."""
     from treasury.ynab_sync import fetch_one_card
+
+    if prefer_live_expenses is None:
+        prefer_live_expenses = prefer_live_ynab
 
     cfg = config if config is not None else load_config()
     cb = fetch_coinbase_liquid(prefer_live=prefer_live_coinbase)
@@ -304,14 +308,19 @@ def build_snapshot(
             cb["liquid_btc_usd"] = _f_safe(cb.get("liquid_btc")) * price
     rh = fetch_robinhood()
     one_card = fetch_one_card(prefer_live=prefer_live_ynab)
+    from treasury.expenses_sync import fetch_expenses
+
+    expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     rh_cfg = cfg.get("robinhood") or {}
     ynab_cfg = cfg.get("ynab") or {}
+    exp_cfg = cfg.get("expenses_sheet") or {}
     return {
         "as_of": _now(),
         "coinbase": cb,
         "coinbase_manual": manual,
         "one_card": one_card,
+        "expenses": expenses,
         "robinhood": rh,
         "policy_overrides": cfg.get("policy") or {},
         "meta": {
@@ -319,6 +328,7 @@ def build_snapshot(
             "coinbase_source": cb.get("source"),
             "robinhood_source": rh.get("source"),
             "one_card_source": one_card.get("source"),
+            "expenses_source": expenses.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
@@ -328,10 +338,15 @@ def build_snapshot(
                 "budget_name": ynab_cfg.get("budget_name") or one_card.get("budget_name"),
                 "account_name": ynab_cfg.get("account_name") or one_card.get("account_name"),
             },
+            "expenses_sheet": {
+                "sheet_id": exp_cfg.get("sheet_id") or expenses.get("sheet_id"),
+                "sheet_name": expenses.get("sheet_name") or "Personal Expense Sheet",
+            },
             "api_limits": {
                 "morpho_loan": "app-only",
                 "high_yield_vault": "app-only",
                 "one_card": "ynab/plaid (balance + txs; available credit optional)",
+                "expenses": "google sheet (budget allocations)",
                 "external_usdc_send": "not via Advanced Trade transfer",
             },
         },
