@@ -59,6 +59,24 @@ python3 projects-dashboard/backlog.py initiate <id>
 python3 projects-dashboard/backlog.py import   # from initiatives/*.md
 ```
 
+### Recommendations (approve / reject)
+
+Dynamic next-step actions + new backlog proposals from backlog status, `strategy/today.md`, dirty monorepo areas, and Grok session index.
+
+```bash
+python3 projects-dashboard/recommendations.py refresh
+python3 projects-dashboard/recommendations.py list
+python3 projects-dashboard/recommendations.py approve <id>
+python3 projects-dashboard/recommendations.py reject <id>
+```
+
+| Kind | Approve does |
+|------|----------------|
+| `action` | Updates linked backlog notes (idea→ready when appropriate) or creates a ready item |
+| `new_item` | Adds a full backlog entry (title, priority, area, MVP, description) |
+
+Persisted in `ops/backlog/suggestions.json`.
+
 ## Launch dashboard
 
 ```bash

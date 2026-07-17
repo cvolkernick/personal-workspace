@@ -165,6 +165,7 @@
       <div id="checklist"></div>
       <div id="exit-steps"></div>
     </div>
+    <div id="recommendations"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
     <div id="resume"></div>
@@ -233,6 +234,72 @@
         <div class="stat"><div class="n" style="color:var(--purple)">${c.live_sessions ?? 0}</div><div class="l">Live agents</div></div>
         <div class="stat"><div class="n">${c.dirty_projects ?? 0}</div><div class="l">Dirty areas</div></div>
       `;
+
+      // Recommendations panel
+      const rec = data.recommendations || {};
+      const recActions = rec.actions || [];
+      const recNew = rec.new_items || [];
+      const recHist = (rec.history || []).slice().reverse().slice(0, 8);
+      $("recommendations").innerHTML = `
+        <div class="section-title">Recommended next steps</div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="detail" style="color:var(--muted);font-size:0.88rem">
+              Dynamic suggestions from backlog, strategy/today.md, dirty areas, and recent Grok sessions.
+              <strong>Approve</strong> applies or adds to backlog; <strong>Reject</strong> dismisses (won’t re-suggest the same new title soon).
+              ${rec.generated_at ? `<br/><span class="id">Generated ${esc(fmtWhen(rec.generated_at))}</span>` : ""}
+            </div>
+            <button type="button" id="btn-rec-refresh">Refresh suggestions</button>
+          </div>
+          <h3 style="margin:0.5rem 0 0.35rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Actions from backlog</h3>
+          ${!recActions.length ? `<div class="empty" style="padding:0.75rem">No action suggestions — add backlog items or refresh.</div>` :
+            recActions.map((s) => `
+              <div class="card" style="background:#0e151c;margin-bottom:0.45rem;padding:0.7rem 0.8rem">
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;justify-content:space-between">
+                  <div class="title" style="font-weight:650">${esc(s.title)}</div>
+                  <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
+                    <span class="pill session">${esc(s.priority)}</span>
+                    <span class="pill muted">action</span>
+                    ${s.area ? `<span class="pill branch">${esc(s.area)}</span>` : ""}
+                  </div>
+                </div>
+                <div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">${esc(s.action || s.description || "")}</div>
+                <div class="id" style="margin-top:0.25rem">${esc(s.rationale || "")}</div>
+                <div style="display:flex;gap:0.35rem;margin-top:0.5rem;flex-wrap:wrap">
+                  <button type="button" class="btn-rec-approve" data-id="${esc(s.id)}">Approve</button>
+                  <button type="button" class="btn-rec-reject" data-id="${esc(s.id)}">Reject</button>
+                </div>
+              </div>`).join("")}
+          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Suggested backlog additions</h3>
+          ${!recNew.length ? `<div class="empty" style="padding:0.75rem">No new-item suggestions right now.</div>` :
+            recNew.map((s) => `
+              <div class="card" style="background:#0e151c;margin-bottom:0.45rem;padding:0.7rem 0.8rem">
+                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center;justify-content:space-between">
+                  <div class="title" style="font-weight:650">${esc(s.title)}</div>
+                  <div style="display:flex;gap:0.3rem;flex-wrap:wrap">
+                    <span class="pill session">${esc(s.priority)}</span>
+                    <span class="pill active">new</span>
+                    ${s.area ? `<span class="pill branch">${esc(s.area)}</span>` : ""}
+                  </div>
+                </div>
+                <div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.3rem">${esc((s.description || s.rationale || "").slice(0,320))}</div>
+                ${s.mvp_scope ? `<div class="id" style="margin-top:0.25rem">MVP: ${esc(s.mvp_scope)}</div>` : ""}
+                <div class="id" style="margin-top:0.2rem">${esc(s.rationale || "")}</div>
+                <div style="display:flex;gap:0.35rem;margin-top:0.5rem;flex-wrap:wrap">
+                  <button type="button" class="btn-rec-approve" data-id="${esc(s.id)}">Approve → backlog</button>
+                  <button type="button" class="btn-rec-reject" data-id="${esc(s.id)}">Reject</button>
+                </div>
+              </div>`).join("")}
+          ${recHist.length ? `
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Recent decisions</h3>
+            ${recHist.map((s) => `
+              <div class="sess">
+                <div><span class="pill ${s.status === "approved" ? "clean" : "muted"}">${esc(s.status)}</span></div>
+                <div><div class="title">${esc(s.title)}</div><div class="id">${esc(s.kind)}</div></div>
+                <div class="when">${fmtWhen(s.resolved_at)}</div>
+              </div>`).join("")}
+          ` : ""}
+        </div>`;
 
       // Backlog panel
       const bl = data.backlog || {};
@@ -519,8 +586,20 @@
         await postAction("/api/backlog/import", {});
         return;
       }
+      if (t.id === "btn-rec-refresh") {
+        await postAction("/api/recommendations/refresh", {});
+        return;
+      }
       const id = t.getAttribute && t.getAttribute("data-id");
       if (!id) return;
+      if (t.classList.contains("btn-rec-approve")) {
+        await postAction("/api/recommendations/approve", { id });
+        return;
+      }
+      if (t.classList.contains("btn-rec-reject")) {
+        await postAction("/api/recommendations/reject", { id });
+        return;
+      }
       if (t.classList.contains("btn-bl-initiate")) {
         await postAction("/api/backlog/initiate", { id, spawn: true });
         return;

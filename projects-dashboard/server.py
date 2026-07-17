@@ -36,6 +36,12 @@ from backlog import (  # noqa: E402
     update_item,
 )
 from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
+from recommendations import (  # noqa: E402
+    approve_suggestion,
+    recommendations_payload,
+    reject_suggestion,
+    generate_recommendations,
+)
 from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
@@ -97,6 +103,14 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     include_done=(qs.get("backlog_all") or ["0"])[0]
                     in ("1", "true", "yes")
                 )
+                refresh_rec = (qs.get("refresh_recommendations") or ["0"])[0] in (
+                    "1",
+                    "true",
+                    "yes",
+                )
+                payload["recommendations"] = recommendations_payload(
+                    refresh=refresh_rec
+                )
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
@@ -108,6 +122,15 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             include_done = (qs.get("all") or ["0"])[0] in ("1", "true", "yes")
             try:
                 self._json(200, backlog_payload(include_done=include_done))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/recommendations":
+            qs = parse_qs(parsed.query)
+            refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+            try:
+                self._json(200, recommendations_payload(refresh=refresh))
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -209,6 +232,29 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             if path == "/api/backlog/import":
                 result = import_initiatives()
                 self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/recommendations/refresh":
+                result = generate_recommendations(replace_pending=True)
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/recommendations/approve":
+                sid = body.get("id")
+                if not sid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                result = approve_suggestion(str(sid))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/recommendations/reject":
+                sid = body.get("id")
+                if not sid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                result = reject_suggestion(str(sid))
+                self._json(200 if result.get("ok") else 400, result)
                 return
         except Exception as e:
             self._json(500, {"ok": False, "error": str(e)})
