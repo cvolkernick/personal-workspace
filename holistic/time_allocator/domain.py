@@ -38,10 +38,12 @@ PERSONAL_TARGETS: list[dict[str, Any]] = [
         "id": "duchess-walk",
         "title": "Walk Duchess",
         "kind": "daily_duration",
-        "minutes": 130,
-        "sessions_hint": 2,
+        "minutes": 45,  # default plan block (mid of 30–60)
+        "minutes_min": 30,
+        "minutes_max": 60,
+        "sessions_hint": 1,
         "priority": 9,
-        "notes": "At least one 130-minute walk; two when possible.",
+        "notes": "30–60 minutes per day.",
     },
     {
         "id": "workout",
@@ -132,6 +134,24 @@ def empty_state() -> dict[str, Any]:
     }
 
 
+def _migrate_targets(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """In-place-safe migration of known personal targets."""
+    out = deepcopy(targets)
+    for t in out:
+        if str(t.get("id")) != "duchess-walk":
+            continue
+        # Historical mistake: 130 min; correct range is 30–60.
+        mins = int(t.get("minutes") or 0)
+        if mins >= 100 or t.get("minutes_min") is None:
+            t["minutes"] = 45
+            t["minutes_min"] = 30
+            t["minutes_max"] = 60
+            t["sessions_hint"] = int(t.get("sessions_hint") or 1)
+            t["notes"] = "30–60 minutes per day."
+            t["title"] = t.get("title") or "Walk Duchess"
+    return out
+
+
 def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Upgrade v1 stores and fill missing keys."""
     if not raw:
@@ -147,6 +167,7 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
         out["targets"] = []
     if not isinstance(out["logs"], list):
         out["logs"] = []
+    out["targets"] = _migrate_targets(list(out["targets"]))
     out["version"] = max(2, int(out.get("version") or 1))
     return out
 
@@ -400,6 +421,8 @@ def update_target(state: dict[str, Any], key: str, patch: dict[str, Any]) -> dic
         "reserve_minutes",
         "sessions_hint",
         "notes",
+        "minutes_min",
+        "minutes_max",
     }
     for t in out.get("targets") or []:
         if t.get("id") == found["id"]:
@@ -430,7 +453,7 @@ def add_log(
     Examples:
       sleep hours → value=7.5
       workout done → value=1
-      Duchess minutes → value=130
+      Duchess minutes → value=45
     """
     tgt = get_target(state, target_id)
     if tgt is None:
@@ -520,14 +543,23 @@ def kpi_status(state: dict[str, Any], *, as_of: date | None = None) -> list[dict
                     f"(target ≥ {target_val:g})"
                 )
         elif kind == "daily_duration":
-            need = int(t.get("minutes") or 0)
+            plan_m = int(t.get("minutes") or 0)
+            min_m = int(t.get("minutes_min") if t.get("minutes_min") is not None else plan_m)
+            max_m = int(t.get("minutes_max") if t.get("minutes_max") is not None else plan_m)
             logs = logs_for_target(state, tid, since=today, until=today)
             done = int(sum(float(lg.get("value") or 0) for lg in logs))
-            row["detail"] = {"target_minutes": need, "done_minutes": done}
-            row["on_track"] = done >= need if logs else None
-            row["summary"] = f"Today {done}/{need} min" + (
-                "" if logs else " (not logged yet)"
-            )
+            row["detail"] = {
+                "target_minutes": plan_m,
+                "minutes_min": min_m,
+                "minutes_max": max_m,
+                "done_minutes": done,
+            }
+            if not logs:
+                row["on_track"] = None
+                row["summary"] = f"Today 0 min (target {min_m}–{max_m}, plan {plan_m}) — not logged"
+            else:
+                row["on_track"] = done >= min_m
+                row["summary"] = f"Today {done} min (target {min_m}–{max_m})"
         elif kind == "weekly_frequency":
             min_d = int(t.get("min_days") or 3)
             max_d = int(t.get("max_days") or 5)
@@ -639,17 +671,32 @@ def build_rolling_plan(
                     }
                 )
 
-    # 2) Daily duration (fixed claims on active time)
+    # 2) Daily duration (fixed claims on active time), reduced by today's logs
     daily = [t for t in targets if str(t.get("kind")) == "daily_duration"]
     daily.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     for t in daily:
-        need = max(0, int(t.get("minutes") or 0))
+        plan_m = max(0, int(t.get("minutes") or 0))
+        min_m = int(t.get("minutes_min") if t.get("minutes_min") is not None else plan_m)
+        max_m = int(t.get("minutes_max") if t.get("minutes_max") is not None else plan_m)
+        logs = logs_for_target(state, str(t["id"]), since=today, until=today)
+        done = int(sum(float(lg.get("value") or 0) for lg in logs))
+        # Plan remaining toward the default plan amount; min is the "done enough" bar
+        need = max(0, plan_m - done)
+        if done >= min_m and need <= 0:
+            notes.append(f"{t.get('title')}: already logged {done} min today (target {min_m}–{max_m})")
+            continue
+        if done >= min_m and need > 0:
+            # Optional stretch toward plan/max — still schedule remaining plan minutes lightly
+            pass
+        if need <= 0:
+            notes.append(f"{t.get('title')}: complete for today ({done} min)")
+            continue
         take = min(need, remaining_active)
         if take <= 0:
             notes.append(f"Skipped {t.get('title')}: no active time left")
             continue
         if take < need:
-            notes.append(f"Shorted {t.get('title')}: {take}/{need} min")
+            notes.append(f"Shorted {t.get('title')}: {take}/{need} min remaining")
         blocks.append(
             {
                 "source": "target",
@@ -660,6 +707,9 @@ def build_rolling_plan(
                 "kind": "daily_duration",
                 "priority": int(t.get("priority") or 0),
                 "sessions_hint": t.get("sessions_hint"),
+                "minutes_min": min_m,
+                "minutes_max": max_m,
+                "done_today": done,
             }
         )
         remaining_active -= take

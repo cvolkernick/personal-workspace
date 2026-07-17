@@ -21,6 +21,8 @@ from .domain import (
     set_priority,
     update_target,
 )
+from .health_sync import health_credentials_status, sync_sleep_logs
+from .recommend import recommend_next
 from .store import DEFAULT_DATA_PATH, load_state, save_state
 
 __all__ = [
@@ -35,15 +37,18 @@ __all__ = [
     "build_rolling_plan",
     "get_item",
     "get_target",
+    "health_credentials_status",
     "kpi_status",
     "list_items",
     "list_targets",
     "load_state",
+    "recommend_next",
     "remove_item",
     "remove_target",
     "save_state",
     "seed_starter",
     "set_minutes",
     "set_priority",
+    "sync_sleep_logs",
     "update_target",
 ]

@@ -43,11 +43,13 @@ class RollingPlanTests(unittest.TestCase):
         self.assertEqual(plan["sleep_reserve_minutes"], 480)
         self.assertEqual(plan["active_minutes"], 960)
         self.assertEqual(by_id["sleep"]["minutes"], 480)
-        self.assertEqual(by_id["duchess-walk"]["minutes"], 130)
+        self.assertEqual(by_id["duchess-walk"]["minutes"], 45)
+        self.assertEqual(by_id["duchess-walk"].get("minutes_min"), 30)
+        self.assertEqual(by_id["duchess-walk"].get("minutes_max"), 60)
         self.assertIn("workout", by_id)
         self.assertEqual(by_id["workout"]["minutes"], 60)
-        # Remaining active: 960 - 130 - 60 = 770 → Lyft
-        self.assertEqual(by_id["lyft"]["minutes"], 770)
+        # Remaining active: 960 - 45 - 60 = 855 → Lyft
+        self.assertEqual(by_id["lyft"]["minutes"], 855)
         self.assertEqual(by_id["lyft"]["role"], "fill")
         total = sum(b["minutes"] for b in plan["blocks"])
         self.assertEqual(total, 1440)
@@ -62,8 +64,8 @@ class RollingPlanTests(unittest.TestCase):
         by_id = {b["id"]: b for b in plan["blocks"]}
         self.assertNotIn("workout", by_id)  # on track, no forced session
         self.assertEqual(by_id["errand"]["minutes"], 90)
-        # 960 - 130 duchess - 90 errand = 740 lyft
-        self.assertEqual(by_id["lyft"]["minutes"], 740)
+        # 960 - 45 duchess - 90 errand = 825 lyft
+        self.assertEqual(by_id["lyft"]["minutes"], 825)
 
     def test_sleep_kpi_rolling_avg(self) -> None:
         state = seed_starter(empty_state(), personal=True)

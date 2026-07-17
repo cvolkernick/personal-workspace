@@ -65,13 +65,17 @@ python3 -m unittest discover -s holistic/tests -v
 The plan is always a **rolling 24-hour window** from “now”:
 
 1. **Reserve** sleep (default 8h / 480m) from ongoing sleep KPI  
-2. **Fixed daily** targets (e.g. Walk Duchess 130m)  
+2. **Fixed daily** targets (e.g. Walk Duchess **30–60 min**, plan default 45m)  
 3. **Weekly frequency** sessions if behind min days (e.g. workout 3–5×/week)  
 4. **Ad-hoc** tasks/goals by priority (your errands, deep work, etc.)  
 5. **Fill remainder** of active time (Lyft driving)
 
-Log KPI progress from the dashboard (sleep hours, workout=1, Duchess minutes).  
-Rebuild plan anytime with **Rebuild 24h plan**.
+Dashboard features:
+- **Next actions** ranked by urgency / priority  
+- **Pie chart** of the rolling 24h blocks  
+- **Sync sleep** via Google Health OAuth (same credentials as resistance-dashboard) or fallback `fitness/data/health-metrics.json`
+
+Log KPI progress from the dashboard (or Sync). Rebuild plan with **Rebuild 24h plan**.
 
 ## Next iteration
 

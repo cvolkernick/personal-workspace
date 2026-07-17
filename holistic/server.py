@@ -2,17 +2,15 @@
 """Local dashboard for the time allocator.
 
   GET  /api/health
-  GET  /api/state              — items, targets, kpis, plan, totals
-  POST /api/seed               — personal targets (sleep/workout/Duchess/Lyft)
-  POST /api/add                — ad-hoc {title, kind?, priority?, minutes?, id?}
-  POST /api/remove             — ad-hoc {key}
-  POST /api/allocate           — legacy weighted split {total}
-  POST /api/set                — ad-hoc {key, priority?, minutes?}
-  POST /api/targets/add        — ongoing target
-  POST /api/targets/remove     — {key}
-  POST /api/targets/update     — {key, ...fields}
-  POST /api/log                — {target_id|key, value, date?, note?}
-  POST /api/plan               — rebuild rolling 24h plan {apply?: true}
+  GET  /api/state
+  GET  /api/health-status     — Google / local metrics availability
+  POST /api/seed
+  POST /api/add | remove | allocate | set
+  POST /api/targets/add | remove | update
+  POST /api/log
+  POST /api/plan
+  POST /api/health/sync       — import sleep into logs
+  POST /api/recommend         — optional body {limit}
 
 Usage:
   python3 holistic/server.py
@@ -51,6 +49,11 @@ from holistic.time_allocator.domain import (  # noqa: E402
     set_priority,
     update_target,
 )
+from holistic.time_allocator.health_sync import (  # noqa: E402
+    health_credentials_status,
+    sync_sleep_logs,
+)
+from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.store import (  # noqa: E402
     load_state,
     resolve_data_path,
@@ -74,6 +77,7 @@ def state_payload() -> dict[str, Any]:
     targets = list_targets(state)
     total = sum(int(it.get("minutes") or 0) for it in items)
     plan = state.get("plan") or build_rolling_plan(state)
+    suggestions = recommend_next(state, plan=plan)
     return {
         "ok": True,
         "path": str(path),
@@ -84,6 +88,8 @@ def state_payload() -> dict[str, Any]:
         "total_minutes": total,
         "kpi_status": kpi_status(state),
         "plan": plan,
+        "suggestions": suggestions,
+        "health": health_credentials_status(),
     }
 
 
@@ -124,6 +130,9 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     "data": str(resolve_data_path(_data())),
                 },
             )
+            return
+        if path == "/api/health-status":
+            self._json(200, {"ok": True, **health_credentials_status()})
             return
         if path == "/api/state":
             self._json(200, state_payload())
@@ -213,6 +222,8 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     k: body[k]
                     for k in (
                         "minutes",
+                        "minutes_min",
+                        "minutes_max",
                         "session_minutes",
                         "min_days",
                         "max_days",
@@ -285,7 +296,39 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     state = apply_plan(state, plan)
                     save_state(state, _data())
                 payload = state_payload()
-                payload["plan"] = plan if not body.get("apply", True) else payload["plan"]
+                if not body.get("apply", True):
+                    payload["plan"] = plan
+                    payload["suggestions"] = recommend_next(load_state(_data()), plan=plan)
+                self._json(200, payload)
+                return
+
+            if path == "/api/recommend":
+                state = load_state(_data())
+                plan = state.get("plan") or build_rolling_plan(state)
+                limit = int(body.get("limit") if body.get("limit") is not None else 5)
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "suggestions": recommend_next(state, plan=plan, limit=limit),
+                    },
+                )
+                return
+
+            if path == "/api/health/sync":
+                days = int(body.get("days") if body.get("days") is not None else 14)
+                overwrite = bool(body.get("overwrite", True))
+                state, meta = sync_sleep_logs(
+                    load_state(_data()), days=days, overwrite=overwrite
+                )
+                if meta.get("imported"):
+                    state = apply_plan(state)
+                    save_state(state, _data())
+                payload = state_payload()
+                payload["sync"] = meta
+                if not meta.get("ok") and not meta.get("imported"):
+                    self._json(200, payload)  # still return state; UI shows sync.error
+                    return
                 self._json(200, payload)
                 return
 

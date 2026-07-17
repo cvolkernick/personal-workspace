@@ -15,9 +15,10 @@
       --yellow: #f5c542;
       --red: #ff6b6b;
       --accent: #5b9fd4;
-      --bar: #3a7ebd;
       --fill: #7c9cff;
       --reserve: #6b7c8f;
+      --adhoc: #5b9fd4;
+      --fixed: #c9a227;
     }
     * { box-sizing: border-box; }
     body {
@@ -40,7 +41,7 @@
     header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.9rem; }
     main {
-      max-width: 1040px;
+      max-width: 1100px;
       margin: 0 auto;
       padding: 1.25rem 1.5rem 3rem;
       display: grid;
@@ -69,10 +70,10 @@
       min-width: 7rem;
     }
     .stat .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; }
-    .stat .value { font-size: 1.2rem; font-weight: 650; margin-top: 0.15rem; }
+    .stat .value { font-size: 1.15rem; font-weight: 650; margin-top: 0.15rem; }
     .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     label { color: var(--muted); font-size: 0.85rem; }
-    input, select, button, textarea {
+    input, select, button {
       font: inherit;
       border-radius: 8px;
       border: 1px solid var(--border);
@@ -94,6 +95,7 @@
       color: #cfe6ff;
     }
     button.danger:hover { border-color: var(--red); color: var(--red); }
+    button.ghost { background: transparent; }
     table { width: 100%; border-collapse: collapse; font-size: 0.92rem; }
     th, td {
       text-align: left;
@@ -108,7 +110,7 @@
       letter-spacing: 0.04em;
       font-weight: 600;
     }
-    .kind, .role, .pill {
+    .role, .pill, .urgency {
       display: inline-block;
       padding: 0.1rem 0.45rem;
       border-radius: 999px;
@@ -120,23 +122,13 @@
     .role.fixed, .role.session { color: var(--yellow); border-color: #6b5a1e; }
     .role.adhoc { color: var(--accent); border-color: #2a4a66; }
     .role.fill { color: var(--fill); border-color: #3d4a80; }
+    .role.meta { color: var(--green); border-color: #245c42; }
+    .urgency.high { color: var(--red); border-color: #6b2e2e; }
+    .urgency.medium { color: var(--yellow); border-color: #6b5a1e; }
+    .urgency.low { color: var(--muted); }
     .pill.ok { color: var(--green); border-color: #245c42; }
     .pill.bad { color: var(--red); border-color: #6b2e2e; }
     .pill.na { color: var(--muted); }
-    .bar-wrap {
-      height: 10px;
-      background: #0a121a;
-      border-radius: 5px;
-      overflow: hidden;
-      display: flex;
-      width: 100%;
-      margin-top: 0.5rem;
-    }
-    .bar-seg { height: 100%; min-width: 1px; }
-    .bar-seg.reserve { background: #4a5568; }
-    .bar-seg.fixed, .bar-seg.session { background: #c9a227; }
-    .bar-seg.adhoc { background: var(--accent); }
-    .bar-seg.fill { background: var(--fill); }
     .msg { min-height: 1.25rem; color: var(--muted); font-size: 0.9rem; }
     .msg.error { color: var(--red); }
     .msg.ok { color: var(--green); }
@@ -145,69 +137,122 @@
     .notes { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.88rem; }
     .grid-2 {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
       gap: 1rem;
     }
     .actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .suggest {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      background: var(--bg);
+      margin-bottom: 0.55rem;
+    }
+    .suggest.high { border-color: #6b2e2e; box-shadow: inset 3px 0 0 var(--red); }
+    .suggest.medium { box-shadow: inset 3px 0 0 var(--yellow); }
+    .suggest.low { box-shadow: inset 3px 0 0 var(--fill); }
+    .suggest h3 { margin: 0 0 0.25rem; font-size: 1.02rem; }
+    .suggest .meta { color: var(--muted); font-size: 0.88rem; }
+    .chart-wrap {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.25rem;
+      align-items: center;
+      justify-content: center;
+    }
+    .legend { list-style: none; padding: 0; margin: 0; font-size: 0.88rem; }
+    .legend li { display: flex; align-items: center; gap: 0.45rem; margin: 0.3rem 0; }
+    .swatch {
+      width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0;
+    }
+    .quick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+    .window-range { color: var(--muted); font-size: 0.88rem; margin: 0.25rem 0 0.5rem; }
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>Time Allocator</h1>
-      <div class="sub">Rolling 24h balance · ongoing targets + ad-hoc tasks</div>
+      <div class="sub">Rolling 24h · targets, ad-hoc, next actions</div>
     </div>
     <div class="row">
       <button type="button" id="btn-refresh">Refresh</button>
       <button type="button" class="primary" id="btn-plan">Rebuild 24h plan</button>
-      <button type="button" id="btn-seed">Reset personal targets</button>
+      <button type="button" id="btn-sync">Sync sleep (Google Health)</button>
+      <button type="button" class="ghost" id="btn-seed">Reset personal targets</button>
     </div>
   </header>
   <main>
+    <section class="card" id="next-card">
+      <h2>Next actions &amp; priorities</h2>
+      <div id="suggest-wrap"><p class="empty">Loading…</p></div>
+    </section>
+
     <section class="card">
-      <h2>Rolling 24h plan</h2>
+      <h2>Rolling 24h allocation</h2>
+      <div class="window-range" id="window-range"></div>
       <div class="stats" id="plan-stats"></div>
-      <div class="bar-wrap" id="plan-bar" title="Window composition"></div>
-      <div id="plan-table"></div>
+      <div class="chart-wrap">
+        <canvas id="pie" width="260" height="260" aria-label="24h allocation pie chart"></canvas>
+        <ul class="legend" id="pie-legend"></ul>
+      </div>
+      <div id="plan-table" style="margin-top:0.75rem"></div>
       <ul class="notes" id="plan-notes"></ul>
       <p class="msg" id="status-msg"></p>
       <p class="path" id="data-path"></p>
+      <p class="path" id="health-status"></p>
     </section>
 
-    <section class="card">
-      <h2>Ongoing targets &amp; KPIs</h2>
-      <div id="kpi-wrap"><p class="empty">Loading…</p></div>
-      <form id="log-form" class="row" style="margin-top: 0.85rem;">
-        <label>Log
-          <select id="log-target"></select>
-        </label>
-        <label>value <input type="number" id="log-value" step="0.1" value="1" /></label>
-        <label>date <input type="date" id="log-date" /></label>
-        <input type="text" id="log-note" placeholder="note (optional)" style="flex:1;min-width:8rem" />
-        <button type="submit" class="primary">Log</button>
-      </form>
-      <p class="path" style="margin-top:0.5rem">
-        Sleep → hours (e.g. 7.5). Workout → 1 if done. Duchess → minutes walked. Lyft can be hours driven later.
-      </p>
-    </section>
+    <div class="grid-2">
+      <section class="card">
+        <h2>Ongoing targets &amp; KPIs</h2>
+        <div id="kpi-wrap"><p class="empty">Loading…</p></div>
+        <div class="quick">
+          <button type="button" class="primary" data-quick-log="duchess-walk" data-value="45">Log Duchess 45m</button>
+          <button type="button" data-quick-log="duchess-walk" data-value="30">Duchess 30m</button>
+          <button type="button" data-quick-log="duchess-walk" data-value="60">Duchess 60m</button>
+          <button type="button" data-quick-log="workout" data-value="1">Log workout</button>
+        </div>
+        <form id="log-form" class="row" style="margin-top: 0.85rem;">
+          <label>Log
+            <select id="log-target"></select>
+          </label>
+          <label>value <input type="number" id="log-value" step="0.1" value="1" /></label>
+          <label>date <input type="date" id="log-date" /></label>
+          <input type="text" id="log-note" placeholder="note (optional)" style="flex:1;min-width:8rem" />
+          <button type="submit" class="primary">Log</button>
+        </form>
+        <p class="path" style="margin-top:0.5rem">
+          Sleep hours from Google Health (Sync) or manual. Workout = 1 if done. Duchess = minutes walked (30–60 target).
+        </p>
+      </section>
 
-    <section class="card">
-      <h2>Ad-hoc tasks / goals</h2>
-      <form id="add-form" class="row">
-        <input type="text" id="add-title" placeholder="Something to fit into the next 24h" required style="flex:1" />
-        <select id="add-kind">
-          <option value="task">task</option>
-          <option value="goal">goal</option>
-        </select>
-        <label>pri <input type="number" id="add-priority" value="5" min="0" max="20" /></label>
-        <label>min <input type="number" id="add-minutes" value="30" min="0" step="5" /></label>
-        <button type="submit" class="primary">Add</button>
-      </form>
-      <div id="list-wrap" style="margin-top:0.75rem"></div>
-    </section>
+      <section class="card">
+        <h2>Ad-hoc tasks / goals</h2>
+        <form id="add-form" class="row">
+          <input type="text" id="add-title" placeholder="Fit into next 24h…" required style="flex:1;min-width:8rem" />
+          <select id="add-kind">
+            <option value="task">task</option>
+            <option value="goal">goal</option>
+          </select>
+          <label>pri <input type="number" id="add-priority" value="5" min="0" max="20" /></label>
+          <label>min <input type="number" id="add-minutes" value="30" min="0" step="5" /></label>
+          <button type="submit" class="primary">Add</button>
+        </form>
+        <div id="list-wrap" style="margin-top:0.75rem"></div>
+      </section>
+    </div>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
+    const ROLE_COLORS = {
+      reserve: "#6b7c8f",
+      fixed: "#c9a227",
+      session: "#e0b84a",
+      adhoc: "#5b9fd4",
+      fill: "#7c9cff",
+      meta: "#3dd68c",
+    };
     const msg = (text, kind) => {
       const el = $("status-msg");
       el.textContent = text || "";
@@ -222,6 +267,13 @@
       const r = m % 60;
       if (h === 0) return `${m}m`;
       return r ? `${h}h ${r}m` : `${h}h`;
+    };
+    const fmtWhen = (iso) => {
+      if (!iso) return "—";
+      try {
+        const d = new Date(iso);
+        return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      } catch { return iso; }
     };
 
     async function api(path, opts) {
@@ -242,57 +294,127 @@
       return `<span class="pill na">n/a</span>`;
     }
 
+    function drawPie(blocks) {
+      const canvas = $("pie");
+      const ctx = canvas.getContext("2d");
+      const w = canvas.width, h = canvas.height;
+      ctx.clearRect(0, 0, w, h);
+      const cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.42;
+      const total = (blocks || []).reduce((s, b) => s + (Number(b.minutes) || 0), 0) || 1;
+      let angle = -Math.PI / 2;
+      const legend = $("pie-legend");
+      legend.innerHTML = "";
+      if (!(blocks || []).length) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#1e2a36";
+        ctx.fill();
+        legend.innerHTML = `<li class="empty">No blocks</li>`;
+        return;
+      }
+      (blocks || []).forEach((b, i) => {
+        const mins = Number(b.minutes) || 0;
+        const slice = (mins / total) * Math.PI * 2;
+        const color = ROLE_COLORS[b.role] || `hsl(${(i * 47) % 360} 50% 50%)`;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, r, angle, angle + slice);
+        ctx.closePath();
+        ctx.fillStyle = color;
+        ctx.fill();
+        // subtle stroke
+        ctx.strokeStyle = "#0b0f14";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        angle += slice;
+        const pct = Math.round((mins / total) * 100);
+        legend.innerHTML += `<li>
+          <span class="swatch" style="background:${color}"></span>
+          <span><strong>${escapeHtml(b.title)}</strong>
+            <span class="path"> · ${mins}m (${pct}%) · ${escapeHtml(b.role)}</span>
+          </span>
+        </li>`;
+      });
+      // donut hole
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2);
+      ctx.fillStyle = "#121a22";
+      ctx.fill();
+      ctx.fillStyle = "#e7eef5";
+      ctx.font = "600 14px system-ui,sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("24h", cx, cy - 8);
+      ctx.fillStyle = "#8aa0b5";
+      ctx.font = "12px system-ui,sans-serif";
+      ctx.fillText(hours(total), cx, cy + 10);
+    }
+
+    function renderSuggestions(list) {
+      const wrap = $("suggest-wrap");
+      if (!list || !list.length) {
+        wrap.innerHTML = `<p class="empty">No suggestions — rebuild the plan or add targets.</p>`;
+        return;
+      }
+      wrap.innerHTML = list.map((s, idx) => `
+        <div class="suggest ${escapeAttr(s.urgency || "low")}">
+          <div class="row" style="justify-content:space-between">
+            <h3>${idx + 1}. ${escapeHtml(s.title)}</h3>
+            <span class="urgency ${escapeAttr(s.urgency)}">${escapeHtml(s.urgency || "")}</span>
+          </div>
+          <div class="meta">${escapeHtml(s.reason || "")}</div>
+          <div class="meta" style="margin-top:0.25rem">
+            <span class="role ${escapeAttr(s.role)}">${escapeHtml(s.role)}</span>
+            · pri ${s.priority}
+            ${s.minutes ? " · " + hours(s.minutes) : ""}
+          </div>
+        </div>`).join("");
+    }
+
     function renderPlan(plan) {
       if (!plan) {
         $("plan-stats").innerHTML = "";
         $("plan-table").innerHTML = `<p class="empty">No plan yet.</p>`;
-        $("plan-bar").innerHTML = "";
         $("plan-notes").innerHTML = "";
+        $("window-range").textContent = "";
+        drawPie([]);
         return;
       }
       const blocks = plan.blocks || [];
+      $("window-range").textContent =
+        `${fmtWhen(plan.window_start)} → ${fmtWhen(plan.window_end)}`;
       $("plan-stats").innerHTML = `
         <div class="stat"><div class="label">Window</div><div class="value">${hours(plan.window_minutes)}</div></div>
         <div class="stat"><div class="label">Sleep reserve</div><div class="value">${hours(plan.sleep_reserve_minutes)}</div></div>
         <div class="stat"><div class="label">Active</div><div class="value">${hours(plan.active_minutes)}</div></div>
         <div class="stat"><div class="label">Blocks</div><div class="value">${blocks.length}</div></div>
       `;
+      drawPie(blocks);
       const w = Math.max(plan.window_minutes || 1, 1);
-      $("plan-bar").innerHTML = blocks.map((b) => {
-        const pct = Math.max(0.4, (Number(b.minutes) / w) * 100);
-        const role = escapeAttr(b.role || "adhoc");
-        return `<div class="bar-seg ${role}" style="width:${pct}%" title="${escapeAttr(b.title)}: ${b.minutes}m"></div>`;
-      }).join("");
-
       if (!blocks.length) {
         $("plan-table").innerHTML = `<p class="empty">Empty plan — seed targets or rebuild.</p>`;
       } else {
         $("plan-table").innerHTML = `
           <table>
             <thead><tr>
-              <th>Block</th><th>Role</th><th>Min</th><th>Share of 24h</th><th></th>
+              <th>Block</th><th>Role</th><th>Min</th><th>% of 24h</th>
             </tr></thead>
             <tbody>
               ${blocks.map((b) => {
                 const pct = Math.round(((Number(b.minutes) || 0) / w) * 100);
                 return `<tr>
                   <td><strong>${escapeHtml(b.title)}</strong>
-                    <div class="path">${escapeHtml(b.source)}:${escapeHtml(b.id)}${b.reason ? " · " + escapeHtml(b.reason) : ""}${b.soft_estimate ? " · soft 30m estimate" : ""}</div>
+                    <div class="path">${escapeHtml(b.source)}:${escapeHtml(b.id)}${b.reason ? " · " + escapeHtml(b.reason) : ""}${b.soft_estimate ? " · soft estimate" : ""}${b.minutes_min != null ? ` · target ${b.minutes_min}–${b.minutes_max}m` : ""}</div>
                   </td>
                   <td><span class="role ${escapeAttr(b.role)}">${escapeHtml(b.role)}</span></td>
                   <td>${b.minutes} <span class="path">(${hours(b.minutes)})</span></td>
-                  <td>
-                    <div class="bar-wrap" style="margin:0"><div class="bar-seg ${escapeAttr(b.role)}" style="width:${pct}%"></div></div>
-                    <div class="path">${pct}%</div>
-                  </td>
-                  <td class="path">${escapeHtml(b.kind || "")}</td>
+                  <td>${pct}%</td>
                 </tr>`;
               }).join("")}
             </tbody>
           </table>`;
       }
-      const notes = plan.notes || [];
-      $("plan-notes").innerHTML = notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
+      $("plan-notes").innerHTML = (plan.notes || []).map((n) => `<li>${escapeHtml(n)}</li>`).join("");
     }
 
     function renderKpis(state) {
@@ -306,7 +428,7 @@
       if (prev) sel.value = prev;
 
       if (!kpis.length) {
-        $("kpi-wrap").innerHTML = `<p class="empty">No ongoing targets — click “Reset personal targets”.</p>`;
+        $("kpi-wrap").innerHTML = `<p class="empty">No ongoing targets — reset personal targets.</p>`;
         return;
       }
       $("kpi-wrap").innerHTML = `
@@ -347,12 +469,12 @@
       const items = state.items || [];
       const wrap = $("list-wrap");
       if (!items.length) {
-        wrap.innerHTML = `<p class="empty">No ad-hoc items — add errands, deep work, etc. They take priority after fixed targets; leftover active time goes to Lyft.</p>`;
+        wrap.innerHTML = `<p class="empty">No ad-hoc items. Leftover active time goes to Lyft after fixed targets.</p>`;
         return;
       }
       wrap.innerHTML = `
         <table>
-          <thead><tr><th>Title</th><th>Pri</th><th>Minutes</th><th></th></tr></thead>
+          <thead><tr><th>Title</th><th>Pri</th><th>Min</th><th></th></tr></thead>
           <tbody>
             ${items.map((it) => `
               <tr data-id="${escapeAttr(it.id)}">
@@ -404,6 +526,11 @@
 
     function render(state) {
       $("data-path").textContent = state.path ? `data: ${state.path}` : "";
+      const h = state.health || {};
+      $("health-status").textContent =
+        `health: oauth=${h.google_oauth ? "yes" : "no"} · local_metrics=${h.local_metrics_file ? "yes" : "no"}` +
+        (h.detail ? ` · ${h.detail}` : "");
+      renderSuggestions(state.suggestions || []);
       renderPlan(state.plan);
       renderKpis(state);
       renderItems(state);
@@ -429,8 +556,25 @@
         msg(String(e.message || e), "error");
       }
     });
+    $("btn-sync").addEventListener("click", async () => {
+      try {
+        const state = await api("/api/health/sync", {
+          method: "POST",
+          body: JSON.stringify({ days: 14, overwrite: true }),
+        });
+        const sync = state.sync || {};
+        if (sync.imported) {
+          msg(`Synced ${sync.imported} sleep night(s) from ${sync.source}`, "ok");
+        } else {
+          msg(sync.error || "No sleep samples imported", "error");
+        }
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
     $("btn-seed").addEventListener("click", async () => {
-      if (!confirm("Replace targets with personal starter (sleep, Duchess, workout, Lyft) and clear ad-hoc items?")) return;
+      if (!confirm("Replace targets with personal starter and clear ad-hoc items? Logs are cleared only if you re-seed from empty — this resets items/targets.")) return;
       try {
         const state = await api("/api/seed", { method: "POST", body: "{}" });
         msg("Personal targets loaded + plan built", "ok");
@@ -476,11 +620,29 @@
         msg(String(e.message || e), "error");
       }
     });
+    document.querySelectorAll("[data-quick-log]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        try {
+          const state = await api("/api/log", {
+            method: "POST",
+            body: JSON.stringify({
+              target_id: btn.getAttribute("data-quick-log"),
+              value: Number(btn.getAttribute("data-value")),
+            }),
+          });
+          msg(`Logged ${btn.getAttribute("data-quick-log")}`, "ok");
+          render(state);
+        } catch (e) {
+          msg(String(e.message || e), "error");
+        }
+      });
+    });
 
-    // default log date = today local
     const d = new Date();
     $("log-date").value = d.toISOString().slice(0, 10);
     refresh();
+    // light auto-refresh so plan window stays honest
+    setInterval(refresh, 5 * 60 * 1000);
   </script>
 </body>
 </html>
