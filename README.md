@@ -29,6 +29,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | projects-dashboard | 8765 | `python3 projects-dashboard/server.py` |
 | holistic (time allocator) | 8770 | `python3 holistic/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
+| iot (Wiz lights) | 8780 | `python3 iot/server.py` |
 
 ## Contents
 - **orchestra/** — **Top-level Orchestra** UI + collectors (synergies, priorities, multi-domain status).
@@ -42,7 +43,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 - **initiatives/** — Structured projects with next_action.
 - **fitness/** — PPL workouts, nutrition, Fitbit.
 - **resistance-dashboard/** — Fitness/health coaching UI over fitness data.
-- **iot/** — Wiz smart bulbs.
+- **iot/** — Wiz smart bulbs CLI + local control dashboard (port 8780).
 
 ### Treasury refresh
 ```bash

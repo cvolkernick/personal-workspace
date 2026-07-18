@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IoT Control</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --fill: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1.25rem 1.5rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.9rem; }
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem 1.5rem 3rem;
+      display: grid;
+      gap: 1rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.75rem;
+      font-size: 0.95rem;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+    button, select, input {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 0.45rem 0.65rem;
+    }
+    button {
+      cursor: pointer;
+      background: #1a2836;
+      font-weight: 600;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary {
+      background: #1e3a55;
+      border-color: #2a5a80;
+      color: #cfe6ff;
+    }
+    button.danger:hover { border-color: var(--red); color: var(--red); }
+    button.off { background: #2a1a1a; border-color: #5a3030; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .devices {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    }
+    .device {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.85rem 1rem;
+    }
+    .device h3 {
+      margin: 0 0 0.35rem;
+      font-size: 1.05rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--muted);
+      display: inline-block;
+    }
+    .dot.on { background: var(--green); box-shadow: 0 0 8px var(--green); }
+    .dot.off { background: #445; }
+    .dot.err { background: var(--red); }
+    .meta { color: var(--muted); font-size: 0.82rem; margin-bottom: 0.65rem; }
+    .meta code { color: var(--fill); font-size: 0.8rem; }
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      margin-left: 0.35rem;
+    }
+    .badge.discovery { border-color: #3a5a40; color: var(--green); }
+    .badge.mismatch { border-color: #6a5020; color: var(--yellow); }
+    .presets { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
+    .presets button { padding: 0.3rem 0.55rem; font-size: 0.85rem; }
+    .swatch {
+      width: 12px; height: 12px; border-radius: 3px;
+      display: inline-block; vertical-align: middle; margin-right: 4px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    #log {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-height: 180px;
+      overflow: auto;
+      white-space: pre-wrap;
+      background: var(--bg);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border);
+    }
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.55rem 0.85rem;
+      min-width: 6rem;
+    }
+    .stat .label { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; }
+    .stat .value { font-size: 1.1rem; font-weight: 650; margin-top: 0.1rem; }
+    .stats { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+    .global-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>IoT Control</h1>
+      <div class="sub">Wiz lights · local dashboard · LAN only</div>
+    </div>
+    <div class="row">
+      <button type="button" class="primary" id="btn-refresh">Refresh status</button>
+      <button type="button" id="btn-discover">Discover network</button>
+      <button type="button" class="danger off" id="btn-all-off">All off</button>
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>Overview</h2>
+      <div class="stats" id="stats">
+        <div class="stat"><div class="label">Devices</div><div class="value" id="stat-count">—</div></div>
+        <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
+        <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.9rem">—</div></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>All lights</h2>
+      <div class="global-presets" id="global-presets"></div>
+    </section>
+
+    <section class="card">
+      <h2>Devices</h2>
+      <div class="devices" id="devices">
+        <div class="meta">Loading…</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Discovery notes</h2>
+      <div id="discovery-notes" class="meta">Run Discover to scan for Wiz bulbs and mDNS services.</div>
+    </section>
+
+    <section class="card">
+      <h2>Activity log</h2>
+      <div id="log"></div>
+    </section>
+  </main>
+  <script>
+    const PRESET_COLORS = {
+      white: "#ffffff", red: "#ff3333", green: "#33cc66", blue: "#3388ff",
+      cyan: "#33e0e0", magenta: "#e033e0", yellow: "#e0e033", orange: "#ff8800",
+      purple: "#9933ff", warm: "#ffb464", off: "#444"
+    };
+    const PRESETS = Object.keys(PRESET_COLORS);
+    let devices = [];
+    let busy = false;
+
+    function log(msg) {
+      const el = document.getElementById("log");
+      const t = new Date().toLocaleTimeString();
+      el.textContent = `[${t}] ${msg}\n` + el.textContent;
+    }
+
+    async function api(method, path, body) {
+      const opts = { method, headers: {} };
+      if (body !== undefined) {
+        opts.headers["Content-Type"] = "application/json";
+        opts.body = JSON.stringify(body);
+      }
+      const resp = await fetch(path, opts);
+      const text = await resp.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { ok: false, error: text }; }
+      return { status: resp.status, data };
+    }
+
+    function setBusy(v) {
+      busy = v;
+      document.querySelectorAll("button").forEach(b => { b.disabled = v; });
+    }
+
+    function statusDot(dev) {
+      const st = dev.status;
+      if (!st) return '<span class="dot" title="unknown"></span>';
+      if (!st.ok) return '<span class="dot err" title="' + esc(st.error || "error") + '"></span>';
+      return st.on
+        ? '<span class="dot on" title="on"></span>'
+        : '<span class="dot off" title="off"></span>';
+    }
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+
+    function presetButtons(targetId) {
+      return PRESETS.map(p => {
+        const sw = `<span class="swatch" style="background:${PRESET_COLORS[p]}"></span>`;
+        const cls = p === "off" ? "off" : "";
+        return `<button type="button" class="${cls}" data-target="${esc(targetId)}" data-color="${p}">${sw}${p}</button>`;
+      }).join("");
+    }
+
+    function renderDevices() {
+      const root = document.getElementById("devices");
+      document.getElementById("stat-count").textContent = String(devices.length);
+      if (!devices.length) {
+        root.innerHTML = '<div class="meta">No devices in registry. Check wiz-lights/bulbs.json.</div>';
+        return;
+      }
+      root.innerHTML = devices.map(d => {
+        const badges = [];
+        if (d.source === "discovery") badges.push('<span class="badge discovery">discovered</span>');
+        if (d.ip_mismatch) badges.push('<span class="badge mismatch">ip mismatch</span>');
+        if (d.seen_on_network) badges.push('<span class="badge discovery">seen</span>');
+        if (d.controllable === false) badges.push('<span class="badge">read-only</span>');
+        const st = d.status;
+        let stLine = "";
+        if (st && st.ok) {
+          stLine = ` · ${st.on ? "ON" : "OFF"}` +
+            (st.brightness != null ? ` · bri ${st.brightness}` : "") +
+            (st.rgb ? ` · rgb(${st.rgb.join(",")})` : "");
+        } else if (st && !st.ok) {
+          stLine = ` · ${st.error || "unreachable"}`;
+        }
+        const controls = d.controllable !== false
+          ? `<div class="presets" data-device="${esc(d.id)}">${presetButtons(d.id)}</div>`
+          : '<div class="meta">Not controllable via this dashboard</div>';
+        return `<div class="device" data-id="${esc(d.id)}">
+          <h3>${statusDot(d)}${esc(d.name || d.id)}${badges.join("")}</h3>
+          <div class="meta">
+            <code>${esc(d.ip || "—")}</code>
+            ${d.mac ? " · mac " + esc(d.mac) : ""}
+            ${d.type ? " · " + esc(d.type) : ""}
+            ${stLine}
+          </div>
+          ${controls}
+        </div>`;
+      }).join("");
+
+      root.querySelectorAll("button[data-color]").forEach(btn => {
+        btn.addEventListener("click", () => control(btn.dataset.target, btn.dataset.color));
+      });
+    }
+
+    function renderGlobalPresets() {
+      const el = document.getElementById("global-presets");
+      el.innerHTML = PRESETS.map(p => {
+        const sw = `<span class="swatch" style="background:${PRESET_COLORS[p]}"></span>`;
+        const cls = p === "off" ? "off" : "primary";
+        return `<button type="button" class="${cls}" data-all-color="${p}">${sw}all ${p}</button>`;
+      }).join("");
+      el.querySelectorAll("button").forEach(btn => {
+        btn.addEventListener("click", () => control("all", btn.dataset.allColor));
+      });
+    }
+
+    async function control(target, color) {
+      if (busy) return;
+      setBusy(true);
+      document.getElementById("stat-last").textContent = `${target} → ${color}`;
+      try {
+        const { status, data } = await api("POST", "/api/control", { target, color, brightness: 180 });
+        if (data.ok) {
+          log(`OK ${target} → ${color} (${(data.results || []).length} targets)`);
+        } else {
+          log(`FAIL ${target} → ${color}: ${data.error || JSON.stringify(data)} [HTTP ${status}]`);
+        }
+        await refresh(true);
+      } catch (e) {
+        log(`ERROR control: ${e}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function refresh(withStatus) {
+      try {
+        const path = withStatus ? "/api/devices?status=1" : "/api/devices";
+        const { data } = await api("GET", path);
+        if (data.ok) {
+          devices = data.devices || [];
+          renderDevices();
+        } else {
+          log("devices error: " + (data.error || "unknown"));
+        }
+      } catch (e) {
+        log("refresh error: " + e);
+      }
+    }
+
+    async function discover() {
+      if (busy) return;
+      setBusy(true);
+      document.getElementById("discovery-notes").textContent = "Scanning…";
+      try {
+        const { data } = await api("GET", "/api/discover?wait=4");
+        const mdns = (data.lan && data.lan.mdns) || [];
+        const lines = [
+          `Wiz discovered: ${data.discovered_count ?? "?"} · merged devices: ${(data.devices || []).length}`,
+          data.error ? `Wiz error: ${data.error}` : null,
+          `broadcast: ${data.broadcast || "—"}`,
+          mdns.length ? "mDNS:" : "mDNS: (none)",
+          ...mdns.map(m => `  · ${m.service || "?"} — ${m.name}`),
+        ].filter(Boolean);
+        document.getElementById("discovery-notes").innerHTML =
+          "<pre style='margin:0;white-space:pre-wrap;color:inherit'>" + esc(lines.join("\n")) + "</pre>";
+        if (data.devices) {
+          // keep status from previous if same id
+          const prev = Object.fromEntries(devices.map(d => [d.id, d.status]));
+          devices = data.devices.map(d => ({ ...d, status: prev[d.id] || d.status }));
+          renderDevices();
+        }
+        log(`discover: wiz=${data.discovered_count} mdns=${mdns.length}`);
+      } catch (e) {
+        log("discover error: " + e);
+        document.getElementById("discovery-notes").textContent = String(e);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    async function init() {
+      renderGlobalPresets();
+      try {
+        const { data } = await api("GET", "/api/health");
+        document.getElementById("stat-svc").textContent = data.ok ? "ok" : "err";
+        log("health: " + JSON.stringify(data.registry || data));
+      } catch (e) {
+        document.getElementById("stat-svc").textContent = "down";
+        log("health fail: " + e);
+      }
+      await refresh(true);
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", () => refresh(true));
+    document.getElementById("btn-discover").addEventListener("click", discover);
+    document.getElementById("btn-all-off").addEventListener("click", () => control("all", "off"));
+    init();
+  </script>
+</body>
+</html>
