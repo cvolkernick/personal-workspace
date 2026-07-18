@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
 
     server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
     url = f"http://{args.host}:{args.port}/"
-    print(f"Orchestra Command Center: {url}")
+    print(f"Orchestrator: {url}")
     print(f"API: {url}api/orchestra")
     print("Press Ctrl+C to stop.")
     if not args.no_browser:

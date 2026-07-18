@@ -3,7 +3,7 @@
 # Double-click this file in Finder (macOS) to start everything.
 
 cd "$(dirname "$0")"
-echo "Starting Orchestra Command Center..."
+echo "Starting Orchestrator..."
 echo ""
 echo "UI:  http://localhost:8790/"
 echo "API: http://localhost:8790/api/orchestra"

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orchestra — personal-workspace</title>
+  <title>Orchestrator — personal-workspace</title>
   <style>
     :root {
       --bg: #080c12;
@@ -157,7 +157,7 @@
 <body>
   <header>
     <div>
-      <h1>Orchestra</h1>
+      <h1>Orchestrator</h1>
       <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
     </div>
     <div class="actions">
@@ -195,7 +195,7 @@
       <div class="list" id="links"></div>
     </section>
   </main>
-  <footer id="footer">Orchestra · personal-workspace</footer>
+  <footer id="footer">Orchestrator · personal-workspace</footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
@@ -216,7 +216,7 @@
 
     function render(data) {
       showError("");
-      $("purpose").textContent = data.purpose || "Orchestra";
+      $("purpose").textContent = data.purpose || "Orchestrator";
       const c = data.counts || {};
       const domains = data.domains || [];
       // Strategy is files-only (bets/today/initiatives) — surface in the top stats
@@ -330,7 +330,7 @@
       }).join("");
 
       const gen = data.generated_at || "";
-      $("footer").textContent = `Orchestra · ${gen} · workspace ${data.workspace || ""}`;
+      $("footer").textContent = `Orchestrator · ${gen} · workspace ${data.workspace || ""}`;
     }
 
     async function load(probe) {

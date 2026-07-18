@@ -130,7 +130,7 @@ def build_orchestra_payload(
     return {
         "ok": True,
         "service": "orchestra",
-        "name": "Orchestra Command Center",
+        "name": "Orchestrator",
         "purpose": (
             "Top-level orchestration across strategy, workflow, finance, fitness, "
             "time-allocation, and IoT/home — surfaces overlaps, synergies, and coordinated priorities."
