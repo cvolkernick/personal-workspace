@@ -2,10 +2,12 @@
 """Local server for the Orchestra top-level command center.
 
   GET  /api/health
-  GET  /api/orchestra   — full orchestration payload (domains, synergies, priorities)
+  GET  /api/orchestra   — full orchestration payload (domains, synergies, priorities,
+                          attention, freshness)
   GET  /api/domains
   GET  /api/synergies
   GET  /api/priorities
+  GET  /api/attention   — operator attention digest + freshness summary
   GET  /                — unified UI
 
 Usage:
@@ -129,6 +131,30 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "priorities": payload.get("priorities") or [],
                     "action_plan": payload.get("action_plan") or [],
+                },
+            )
+            return
+
+        if path == "/api/attention":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "attention": payload.get("attention") or [],
+                    "freshness": payload.get("freshness") or {},
+                    "counts": {
+                        "attention": (payload.get("counts") or {}).get("attention"),
+                        "stale_sources": (payload.get("counts") or {}).get(
+                            "stale_sources"
+                        ),
+                    },
                 },
             )
             return

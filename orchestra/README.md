@@ -7,6 +7,8 @@ Surfaces:
 - Multi-domain status (file-based; optional live port probe)
 - Cross-domain **overlaps, connections, relationships, synergies**
 - Coordinated **action plan / priorities** synthesized from `strategy/today.md`, initiatives, backlog, and treasury actions
+- **Needs attention** digest (missing domains, stale sources, finance stress, bridge backlog)
+- **Source freshness** ages for treasury snapshot and ops backlog
 - Deep-links / launch commands for every subordinate dashboard
 
 ## Launch (recommended)
@@ -23,9 +25,12 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 
 - UI: http://127.0.0.1:8790/
 - Full payload: http://127.0.0.1:8790/api/orchestra
+- Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health
 
 Add `?probe=1` to probe child server ports for live badges.
+
+See `REVIEW.md` for architecture review and prioritized roadmap.
 
 ## Subordinate dashboards
 

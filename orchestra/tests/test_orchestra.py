@@ -19,6 +19,12 @@ if str(ORCH) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from attention import (  # noqa: E402
+    compute_freshness,
+    hours_since,
+    parse_timestamp,
+    synthesize_attention,
+)
 from collectors import (  # noqa: E402
     collect_all_domains,
     collect_finance,
@@ -31,6 +37,7 @@ from collectors import (  # noqa: E402
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
 from synergies import detect_synergies  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
 
 
 def _write(path: Path, text: str) -> None:
@@ -426,6 +433,177 @@ class PrioritySynthesisTests(unittest.TestCase):
             self.assertEqual(payload["meta"]["subordinate_ports"]["iot"], 8780)
             # unused var silence
             _ = sources
+
+
+class FreshnessAndAttentionTests(unittest.TestCase):
+    """Drive shipped attention/freshness functions and full payload paths."""
+
+    def test_parse_timestamp_and_hours_since(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        dt = parse_timestamp("2026-07-17T12:00:00+00:00")
+        self.assertIsNotNone(dt)
+        age = hours_since("2026-07-17T12:00:00+00:00", now=now)
+        self.assertIsNotNone(age)
+        self.assertAlmostEqual(age, 24.0, places=2)
+        self.assertIsNone(parse_timestamp("not-a-date"))
+        self.assertIsNone(hours_since(None, now=now))
+        # Z suffix
+        age_z = hours_since("2026-07-18T06:00:00Z", now=now)
+        self.assertAlmostEqual(age_z, 6.0, places=2)
+
+    def test_compute_freshness_flags_stale_finance_snapshot(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        domains = [
+            {
+                "id": "finance",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "as_of": (now - timedelta(hours=72)).isoformat(),
+                    "source": "treasury/snapshots/treasury_latest.json",
+                },
+            },
+            {
+                "id": "workflow",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "backlog": {
+                        "ok": True,
+                        "updated_at": (now - timedelta(hours=2)).isoformat(),
+                        "source": "ops/backlog/items.json",
+                    }
+                },
+            },
+        ]
+        fresh = compute_freshness(domains, now=now, stale_hours=48.0)
+        self.assertTrue(fresh["has_stale"])
+        self.assertGreaterEqual(fresh["stale_count"], 1)
+        self.assertIn("finance_snapshot", fresh["stale_ids"])
+        by = {s["id"]: s for s in fresh["sources"]}
+        self.assertTrue(by["finance_snapshot"]["stale"])
+        self.assertFalse(by["backlog"]["stale"])
+        self.assertAlmostEqual(by["finance_snapshot"]["age_hours"], 72.0, places=1)
+
+    def test_synthesize_attention_missing_domain_and_stale(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        domains = [
+            {
+                "id": "finance",
+                "label": "Finance / Treasury",
+                "available": False,
+                "status": "missing",
+                "summary": "No treasury snapshot found",
+                "signals": {},
+            },
+            {
+                "id": "strategy",
+                "label": "Strategy",
+                "available": True,
+                "status": "ok",
+                "signals": {"today_count": 0, "today_open": []},
+            },
+            {
+                "id": "workflow",
+                "label": "Workflow",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "backlog": {
+                        "ok": True,
+                        "updated_at": (now - timedelta(hours=100)).isoformat(),
+                        "source": "ops/backlog/items.json",
+                    }
+                },
+            },
+        ]
+        freshness = compute_freshness(domains, now=now, stale_hours=48.0)
+        bridge = {
+            "candidates": [
+                {"backlog_id": "b1", "title": "Ship feature A"},
+                {"backlog_id": "b2", "title": "Ship feature B"},
+                {"backlog_id": "b3", "title": "Ship feature C"},
+            ]
+        }
+        priorities = [
+            {
+                "title": "Do the important thing",
+                "domains": ["strategy"],
+                "priority": "high",
+                "rationale": "from today",
+                "source": "strategy/today.md",
+            }
+        ]
+        atts = synthesize_attention(
+            domains,
+            priorities=priorities,
+            bridge=bridge,
+            freshness=freshness,
+            synergies=[
+                {
+                    "title": "Fitness enables deep work",
+                    "strength": "high",
+                    "domains": ["fitness", "strategy"],
+                    "detail": "Energy enabler",
+                }
+            ],
+        )
+        self.assertGreaterEqual(len(atts), 3)
+        kinds = {a["kind"] for a in atts}
+        self.assertIn("domain_missing", kinds)
+        self.assertIn("stale_source", kinds)
+        self.assertIn("bridge_backlog", kinds)
+        self.assertIn("empty_today", kinds)
+        for a in atts:
+            self.assertTrue(a.get("title"))
+            self.assertIn("rank", a)
+            self.assertIn(a.get("severity"), ("critical", "high", "medium", "low", "info"))
+            self.assertTrue(a.get("domains"))
+
+    def test_payload_includes_attention_and_freshness_on_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            # Make finance snapshot old so stale flag fires under 48h threshold
+            snap_path = ws / "treasury" / "snapshots" / "treasury_latest.json"
+            data = json.loads(snap_path.read_text(encoding="utf-8"))
+            old = (datetime.now(timezone.utc) - timedelta(hours=96)).isoformat()
+            data["snapshot"]["as_of"] = old
+            snap_path.write_text(json.dumps(data), encoding="utf-8")
+
+            # Also stamp backlog updated_at as fresh
+            bl_path = ws / "ops" / "backlog" / "items.json"
+            bl = json.loads(bl_path.read_text(encoding="utf-8"))
+            bl["updated_at"] = datetime.now(timezone.utc).isoformat()
+            bl_path.write_text(json.dumps(bl), encoding="utf-8")
+
+            payload = build_orchestra_payload(ws, probe_ports=False, stale_hours=48.0)
+            self.assertTrue(payload["ok"])
+            self.assertIn("attention", payload)
+            self.assertIn("freshness", payload)
+            self.assertIsInstance(payload["attention"], list)
+            self.assertGreaterEqual(len(payload["attention"]), 1)
+            self.assertIn("sources", payload["freshness"])
+            self.assertTrue(payload["freshness"].get("has_stale"))
+            self.assertIn("attention", payload["counts"])
+            self.assertIn("stale_sources", payload["counts"])
+            self.assertGreaterEqual(payload["counts"]["stale_sources"], 1)
+            self.assertIn("synergies_high", payload["counts"])
+
+            finance = next(d for d in payload["domains"] if d["id"] == "finance")
+            self.assertTrue(finance.get("stale"))
+            self.assertIsNotNone(finance.get("age_hours"))
+            self.assertGreater(finance["age_hours"], 48.0)
+
+            kinds = {a["kind"] for a in payload["attention"]}
+            self.assertIn("stale_source", kinds)
+
+            # IoT keyword tagging on today items (priorities enhancement)
+            pris = synthesize_priorities(
+                today_items=["Check home IoT lights and wiz bulbs schedule"],
+                limit=5,
+            )
+            self.assertTrue(pris)
+            self.assertIn("iot", pris[0].get("domains") or [])
 
 
 if __name__ == "__main__":
