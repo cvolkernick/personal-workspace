@@ -276,9 +276,11 @@
         <div class="stat"><div class="label">Devices</div><div class="value" id="stat-count">—</div></div>
         <div class="stat"><div class="label">Online</div><div class="value" id="stat-online">—</div></div>
         <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
+        <div class="stat"><div class="label">Backend</div><div class="value" id="stat-backend" style="font-size:0.85rem">—</div></div>
         <div class="stat"><div class="label">Next routine</div><div class="value" id="stat-next" style="font-size:0.92rem">—</div></div>
         <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.88rem">—</div></div>
       </div>
+      <div id="backend-banner" class="next-banner" style="display:none;margin-top:0.75rem"></div>
     </section>
 
     <section class="card">
@@ -787,9 +789,33 @@
       try {
         const { data } = await api("GET", "/api/health");
         document.getElementById("stat-svc").textContent = data.ok ? "ok" : "err";
-        log("health " + JSON.stringify({ n: data.registry?.count, groups: data.groups, schedule: data.schedule_enabled }));
+        const beEl = document.getElementById("stat-backend");
+        const banner = document.getElementById("backend-banner");
+        if (data.proxy && (data.backend || data.backend_label)) {
+          const label = data.backend_label || data.backend;
+          beEl.textContent = label;
+          beEl.title = data.backend || label;
+          banner.style.display = "flex";
+          banner.innerHTML =
+            `<div>API backend: <strong>${esc(label)}</strong>` +
+            (data.backend ? ` · <code>${esc(data.backend)}</code>` : "") +
+            ` · control &amp; schedules run on the Pi</div>` +
+            `<span class="badge ok">proxy</span>`;
+        } else {
+          beEl.textContent = "local";
+          beEl.title = "Direct control from this machine";
+          banner.style.display = "none";
+        }
+        log("health " + JSON.stringify({
+          n: data.registry?.count,
+          groups: data.groups,
+          schedule: data.schedule_enabled,
+          proxy: !!data.proxy,
+          backend: data.backend_label || data.backend || "local",
+        }));
       } catch (e) {
         document.getElementById("stat-svc").textContent = "down";
+        document.getElementById("stat-backend").textContent = "unreachable";
         toast("Dashboard offline", false);
       }
       const { data: g } = await api("GET", "/api/groups");
