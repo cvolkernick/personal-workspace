@@ -47,8 +47,17 @@ Control with `target: "entryway"` / `"livingroom"` (or `"all"`).
 - **Sunset** → all lights **on** (**magenta**)  
 - **Sunrise** → all lights **off**  
 
-The dashboard process must stay running (background worker polls every 30s).  
-Use **Use browser location** on the UI for accuracy.
+**The process must stay running** (Mac sleep = missed routines). Prefer an always-on host:
+
+```bash
+# Headless worker only (Pi / server)
+PYTHONPATH=. python3 iot/worker.py --interval 30
+
+# Or dashboard without opening a browser
+python3 iot/server.py --host 0.0.0.0 --port 8780 --no-browser
+```
+
+**Deploy to a Raspberry Pi over SSH:** see [deploy/README.md](./deploy/README.md).
 
 ## API
 

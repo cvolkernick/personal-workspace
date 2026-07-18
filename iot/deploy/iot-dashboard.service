@@ -1,0 +1,19 @@
+[Unit]
+Description=IoT dashboard + schedule worker (HTTP on LAN)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/iot-workspace
+Environment=PYTHONPATH=/home/pi/iot-workspace
+Environment=PYTHONUNBUFFERED=1
+# Bind all interfaces so phones/Mac can open http://<pi-ip>:8780/
+ExecStart=/usr/bin/python3 /home/pi/iot-workspace/iot/server.py --host 0.0.0.0 --port 8780 --no-browser
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
