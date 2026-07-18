@@ -770,7 +770,9 @@ def collect_workspace_dashboard(
                                 workspace_session_ids.add(sid)
                     except OSError:
                         pass
-                meta["areas"] = sorted(a for a in areas_touched if a != "_root")
+                meta["areas"] = sorted(
+                    a for a in areas_touched if a not in ("_root", "_meta")
+                )
                 meta["touches_workspace"] = bool(areas_touched)
                 all_sessions.append(meta)
 
