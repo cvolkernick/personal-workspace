@@ -15,7 +15,9 @@ if str(ROOT) not in sys.path:
 from iot.control import (  # noqa: E402
     COLORS,
     build_control_intent,
+    control_target_for_device,
     device_key,
+    extract_ip_from_target,
     list_color_presets,
     list_configured_devices,
     load_bulbs,
@@ -92,6 +94,43 @@ class IntentTests(unittest.TestCase):
         intent = build_control_intent("10.0.0.5", "white", registry=SAMPLE)
         self.assertTrue(intent["ok"])
         self.assertEqual(intent["targets"][0]["ip"], "10.0.0.5")
+
+    def test_control_intent_discovery_wiz_id(self) -> None:
+        """UI used to send id=wiz-{ip}; must resolve without registry entry."""
+        intent = build_control_intent(
+            "wiz-192.168.100.200", "cyan", 100, registry=SAMPLE
+        )
+        self.assertTrue(intent["ok"], intent)
+        self.assertEqual(len(intent["targets"]), 1)
+        self.assertEqual(intent["targets"][0]["ip"], "192.168.100.200")
+        self.assertEqual(intent["action"], "on")
+        self.assertEqual(intent["rgb"], [0, 255, 255])
+
+    def test_control_intent_wiz_id_matches_registry_ip(self) -> None:
+        intent = build_control_intent(
+            "wiz-192.168.100.106", "off", registry=SAMPLE
+        )
+        self.assertTrue(intent["ok"])
+        self.assertEqual(intent["targets"][0]["name"], "entryway1")
+        self.assertEqual(intent["targets"][0]["ip"], "192.168.100.106")
+
+    def test_extract_ip_and_control_target_helpers(self) -> None:
+        self.assertEqual(extract_ip_from_target("wiz-10.0.0.9"), "10.0.0.9")
+        self.assertEqual(extract_ip_from_target("10.0.0.9"), "10.0.0.9")
+        self.assertIsNone(extract_ip_from_target("entryway1"))
+        disc = {
+            "id": "wiz-192.168.100.200",
+            "ip": "192.168.100.200",
+            "source": "discovery",
+            "type": "wiz",
+        }
+        self.assertEqual(control_target_for_device(disc), "192.168.100.200")
+        cfg = {
+            "id": "entryway1",
+            "ip": "192.168.100.106",
+            "source": "config",
+        }
+        self.assertEqual(control_target_for_device(cfg), "entryway1")
 
 
 class MergeTests(unittest.TestCase):
@@ -218,6 +257,24 @@ class FakeTransportTests(unittest.TestCase):
         ids = {d["id"] for d in out["devices"]}
         self.assertIn("entryway1", ids)
         self.assertTrue(any("200" in str(d.get("ip")) or "wiz" in str(d.get("id")) for d in out["devices"]))
+
+    def test_execute_control_discovery_wiz_id_via_fake(self) -> None:
+        """Shipped execute_control path for discovery-only id (not in bulbs.json)."""
+        t = FakeTransport()
+        result = run_async(
+            execute_control(
+                "wiz-192.168.100.200",
+                "red",
+                90,
+                registry=SAMPLE,
+                transport=t,
+            )
+        )
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["results"][0]["ip"], "192.168.100.200")
+        self.assertEqual(t.calls[0]["op"], "on")
+        self.assertEqual(t.calls[0]["ip"], "192.168.100.200")
+        self.assertEqual(t.calls[0]["rgb"], [255, 0, 0])
 
     def test_summarize_registry(self) -> None:
         s = summarize_registry(SAMPLE)

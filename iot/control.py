@@ -60,6 +60,59 @@ def resolve_rgb(color: str) -> Optional[tuple[int, int, int]]:
     return COLORS[key]
 
 
+def _looks_like_ip(s: str) -> bool:
+    parts = s.split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        return all(0 <= int(p) <= 255 for p in parts)
+    except ValueError:
+        return False
+
+
+def extract_ip_from_target(target: str) -> Optional[str]:
+    """Pull an IPv4 from a bare IP or discovery-style id like ``wiz-192.168.1.5``."""
+    name = (target or "").strip()
+    if not name:
+        return None
+    if _looks_like_ip(name):
+        return name
+    # discovery ids: wiz-{ip}, wiz-192-168-1-5, etc.
+    if name.lower().startswith("wiz-"):
+        rest = name[4:]
+        if _looks_like_ip(rest):
+            return rest
+        dotted = rest.replace("-", ".")
+        if _looks_like_ip(dotted):
+            return dotted
+    # last-ditch: first IPv4-looking token in the string
+    for token in name.replace("_", " ").replace("/", " ").split():
+        if _looks_like_ip(token):
+            return token
+    return None
+
+
+def control_target_for_device(device: Mapping[str, Any]) -> str:
+    """Best target string for UI/API control of a device dict.
+
+    Prefer registry id/name when present in config; for discovery-only Wiz
+    devices prefer bare IP so ``build_control_intent`` can resolve them.
+    """
+    source = (device.get("source") or "config").lower()
+    dev_id = str(device.get("id") or device.get("name") or "").strip()
+    ip = device.get("ip")
+    if source == "config" and dev_id:
+        return dev_id
+    if ip and _looks_like_ip(str(ip)):
+        return str(ip)
+    if dev_id:
+        extracted = extract_ip_from_target(dev_id)
+        if extracted:
+            return extracted
+        return dev_id
+    return str(ip or "")
+
+
 def build_control_intent(
     target: str,
     color: str,
@@ -71,6 +124,8 @@ def build_control_intent(
 
     Pure: does not touch the network. ``targets`` is the resolved list of
     device dicts to act on (empty if unknown name and not "all").
+
+    Accepts: registry names, ``all``, bare IPv4, and discovery ids ``wiz-{ip}``.
     """
     reg = dict(registry) if registry is not None else load_bulbs()
     name = (target or "").strip()
@@ -84,9 +139,21 @@ def build_control_intent(
     elif name in reg:
         targets = [dict(reg[name], name=name)]
     else:
-        # allow IP as target for ad-hoc control
-        if _looks_like_ip(name):
-            targets = [{"name": name, "ip": name, "mac": None}]
+        # Bare IP, wiz-{ip}, or other discovery-style target
+        ip = extract_ip_from_target(name)
+        if ip:
+            # Prefer matching a registry entry by IP when present
+            match_name = None
+            match_info: Optional[Mapping[str, Any]] = None
+            for k, v in reg.items():
+                if str(v.get("ip") or "") == ip:
+                    match_name = k
+                    match_info = v
+                    break
+            if match_info is not None:
+                targets = [dict(match_info, name=match_name)]
+            else:
+                targets = [{"name": name, "ip": ip, "mac": None}]
         else:
             targets = []
 
@@ -100,16 +167,6 @@ def build_control_intent(
         "ok": bool(targets),
         "error": None if targets else f"unknown device: {name}",
     }
-
-
-def _looks_like_ip(s: str) -> bool:
-    parts = s.split(".")
-    if len(parts) != 4:
-        return False
-    try:
-        return all(0 <= int(p) <= 255 for p in parts)
-    except ValueError:
-        return False
 
 
 def list_configured_devices(

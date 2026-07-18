@@ -50,6 +50,9 @@ DEFAULT_PORT = 8780
 # Injectable for tests
 _BULBS_PATH: Optional[Path] = None
 _TRANSPORT = None  # type: ignore
+# Actual bound listen port (set in main / tests); health reports this, not only DEFAULT_PORT
+_BOUND_PORT: int = DEFAULT_PORT
+_BOUND_HOST: str = "127.0.0.1"
 
 
 def _registry() -> dict:
@@ -97,6 +100,15 @@ class IoTHandler(SimpleHTTPRequestHandler):
 
         if path == "/api/health":
             reg = _registry()
+            # Prefer the socket we are actually serving on (correct under --port)
+            try:
+                bound_port = int(self.server.server_address[1])  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                bound_port = _BOUND_PORT
+            try:
+                bound_host = str(self.server.server_address[0])  # type: ignore[attr-defined]
+            except Exception:  # noqa: BLE001
+                bound_host = _BOUND_HOST
             self._json(
                 200,
                 {
@@ -104,7 +116,8 @@ class IoTHandler(SimpleHTTPRequestHandler):
                     "service": "iot",
                     "bulbs_path": str(_BULBS_PATH or DEFAULT_BULBS_PATH),
                     "registry": summarize_registry(reg),
-                    "port": DEFAULT_PORT,
+                    "port": bound_port,
+                    "host": bound_host,
                 },
             )
             return
@@ -239,7 +252,7 @@ class IoTHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    global _BULBS_PATH
+    global _BULBS_PATH, _BOUND_PORT, _BOUND_HOST
     parser = argparse.ArgumentParser(description="IoT local dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
@@ -247,9 +260,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args(argv)
     _BULBS_PATH = args.bulbs.resolve() if args.bulbs else None
+    _BOUND_PORT = int(args.port)
+    _BOUND_HOST = str(args.host)
 
     server = ThreadingHTTPServer((args.host, args.port), IoTHandler)
-    url = f"http://{args.host}:{args.port}/"
+    # Reflect OS-assigned port if 0 was requested
+    _BOUND_HOST, _BOUND_PORT = server.server_address[0], int(server.server_address[1])
+    url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"IoT dashboard → {url}")
     print(f"bulbs → {_BULBS_PATH or DEFAULT_BULBS_PATH}")
     print("API: /api/health /api/devices /api/discover /api/control")

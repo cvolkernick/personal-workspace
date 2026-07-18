@@ -100,6 +100,8 @@ class IoTDashboardServerTests(unittest.TestCase):
                 self.assertIn("registry", health)
                 self.assertEqual(health["registry"]["count"], 4)
                 self.assertIn("entryway1", health["registry"]["names"])
+                # Bound port must match --port, not hard-coded DEFAULT_PORT
+                self.assertEqual(health.get("port"), port)
 
                 code, devices = _http_json("GET", f"{base}/api/devices")
                 self.assertEqual(code, 200, devices)
@@ -135,13 +137,35 @@ class IoTDashboardServerTests(unittest.TestCase):
                 self.assertFalse(unk.get("ok"))
                 self.assertIn("unknown", (unk.get("error") or "").lower())
 
-                # index.html served
+                # Discovery-style wiz-{ip} must resolve on the real control path
+                # (uses live transport → network may fail; intent must not be "unknown")
+                code, wiz = _http_json(
+                    "POST",
+                    f"{base}/api/control",
+                    {"target": "wiz-127.0.0.1", "color": "off"},
+                )
+                self.assertNotIn(
+                    "unknown device",
+                    (wiz.get("error") or "").lower(),
+                    msg=f"discovery id rejected: {wiz}",
+                )
+                # Should have attempted at least one target result (ok or network fail)
+                self.assertTrue(
+                    wiz.get("results") or wiz.get("ok") is False and "unknown" not in (wiz.get("error") or "").lower(),
+                    wiz,
+                )
+                if wiz.get("results"):
+                    self.assertEqual(wiz["results"][0].get("ip") or "127.0.0.1", "127.0.0.1")
+
+                # index.html served — control targets prefer IP for discovery devices
                 req = urllib.request.Request(f"{base}/")
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     html = resp.read().decode("utf-8")
                 self.assertIn("IoT Control", html)
                 self.assertIn("data-color", html)
                 self.assertIn("/api/control", html)
+                self.assertIn("controlTargetForDevice", html)
+                self.assertIn("data-control-target", html)
             finally:
                 proc.terminate()
                 try:

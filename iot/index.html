@@ -247,11 +247,25 @@
       })[c]);
     }
 
-    function presetButtons(targetId) {
+    /** Match server-side control_target_for_device: discovery Wiz → bare IP. */
+    function controlTargetForDevice(d) {
+      const source = String(d.source || "config").toLowerCase();
+      const id = String(d.id || d.name || "").trim();
+      const ip = d.ip ? String(d.ip).trim() : "";
+      if (source === "config" && id) return id;
+      if (ip && /^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) return ip;
+      if (id.toLowerCase().startsWith("wiz-")) {
+        const rest = id.slice(4);
+        if (/^\d{1,3}(\.\d{1,3}){3}$/.test(rest)) return rest;
+      }
+      return id || ip;
+    }
+
+    function presetButtons(controlTarget) {
       return PRESETS.map(p => {
         const sw = `<span class="swatch" style="background:${PRESET_COLORS[p]}"></span>`;
         const cls = p === "off" ? "off" : "";
-        return `<button type="button" class="${cls}" data-target="${esc(targetId)}" data-color="${p}">${sw}${p}</button>`;
+        return `<button type="button" class="${cls}" data-target="${esc(controlTarget)}" data-color="${p}">${sw}${p}</button>`;
       }).join("");
     }
 
@@ -277,8 +291,9 @@
         } else if (st && !st.ok) {
           stLine = ` · ${st.error || "unreachable"}`;
         }
+        const ctrlTarget = controlTargetForDevice(d);
         const controls = d.controllable !== false
-          ? `<div class="presets" data-device="${esc(d.id)}">${presetButtons(d.id)}</div>`
+          ? `<div class="presets" data-device="${esc(d.id)}" data-control-target="${esc(ctrlTarget)}">${presetButtons(ctrlTarget)}</div>`
           : '<div class="meta">Not controllable via this dashboard</div>';
         return `<div class="device" data-id="${esc(d.id)}">
           <h3>${statusDot(d)}${esc(d.name || d.id)}${badges.join("")}</h3>
