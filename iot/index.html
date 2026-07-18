@@ -80,7 +80,23 @@
     }
     button.danger:hover { border-color: var(--red); color: var(--red); }
     button.off { background: #2a1a1a; border-color: #5a3030; }
+    button.on-btn { background: #1a2e22; border-color: #2a5a40; }
     button:disabled { opacity: 0.5; cursor: wait; }
+    .groups {
+      display: grid;
+      gap: 0.75rem;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+    .group {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1rem 1.1rem;
+    }
+    .group h3 { margin: 0 0 0.35rem; font-size: 1.15rem; }
+    .group .meta { margin-bottom: 0.75rem; }
+    .group .toggles { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .group .toggles button { flex: 1; min-width: 5.5rem; padding: 0.65rem 0.75rem; font-size: 1rem; }
     .devices {
       display: grid;
       gap: 0.75rem;
@@ -121,7 +137,8 @@
       margin-left: 0.35rem;
     }
     .badge.discovery { border-color: #3a5a40; color: var(--green); }
-    .badge.mismatch { border-color: #6a5020; color: var(--yellow); }
+    .badge.ok { border-color: #3a5a40; color: var(--green); }
+    .badge.warn { border-color: #6a5020; color: var(--yellow); }
     .presets { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
     .presets button { padding: 0.3rem 0.55rem; font-size: 0.85rem; }
     .swatch {
@@ -152,13 +169,21 @@
     .stat .value { font-size: 1.1rem; font-weight: 650; margin-top: 0.1rem; }
     .stats { display: flex; flex-wrap: wrap; gap: 0.65rem; }
     .global-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+    table.routines { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    table.routines th, table.routines td {
+      text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid var(--border);
+    }
+    table.routines th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .loc-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: end; margin-top: 0.75rem; }
+    .loc-form label { display: flex; flex-direction: column; gap: 0.2rem; color: var(--muted); font-size: 0.75rem; }
+    .loc-form input { width: 8rem; }
   </style>
 </head>
 <body>
   <header>
     <div>
       <h1>IoT Control</h1>
-      <div class="sub">Wiz lights · local dashboard · LAN only</div>
+      <div class="sub">Wiz lights · groups · sunrise/sunset routines</div>
     </div>
     <div class="row">
       <button type="button" class="primary" id="btn-refresh">Refresh status</button>
@@ -174,6 +199,29 @@
         <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
         <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.9rem">—</div></div>
       </div>
+    </section>
+
+    <section class="card">
+      <h2>Rooms</h2>
+      <div class="groups" id="groups">
+        <div class="meta">Loading groups…</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Routines (sunrise / sunset)</h2>
+      <div id="schedule-summary" class="meta">Loading schedule…</div>
+      <div id="schedule-table"></div>
+      <div class="loc-form" id="loc-form">
+        <label>Latitude <input type="number" step="any" id="loc-lat" placeholder="39.74" /></label>
+        <label>Longitude <input type="number" step="any" id="loc-lon" placeholder="-104.99" /></label>
+        <label>Timezone <input type="text" id="loc-tz" placeholder="America/Denver" style="width:10rem" /></label>
+        <button type="button" class="primary" id="btn-save-loc">Save location</button>
+        <button type="button" id="btn-geo">Use browser location</button>
+      </div>
+      <p class="meta" style="margin-top:0.75rem;margin-bottom:0">
+        Requires the dashboard process to keep running. Default: all lights <strong>on (warm)</strong> at sunset, <strong>off</strong> at sunrise.
+      </p>
     </section>
 
     <section class="card">
@@ -206,6 +254,7 @@
     };
     const PRESETS = Object.keys(PRESET_COLORS);
     let devices = [];
+    let groups = [];
     let busy = false;
 
     function log(msg) {
@@ -247,7 +296,6 @@
       })[c]);
     }
 
-    /** Match server-side control_target_for_device: discovery Wiz → bare IP. */
     function controlTargetForDevice(d) {
       const source = String(d.source || "config").toLowerCase();
       const id = String(d.id || d.name || "").trim();
@@ -259,6 +307,60 @@
         if (/^\d{1,3}(\.\d{1,3}){3}$/.test(rest)) return rest;
       }
       return id || ip;
+    }
+
+    function groupState(g) {
+      const members = devices.filter(d => (g.members || []).includes(d.id));
+      if (!members.length) return "unknown";
+      let on = 0, off = 0, err = 0, unk = 0;
+      for (const d of members) {
+        const st = d.status;
+        if (!st) { unk++; continue; }
+        if (!st.ok) { err++; continue; }
+        if (st.on) on++; else off++;
+      }
+      if (on && !off && !err) return "on";
+      if (off && !on && !err) return "off";
+      if (on || off) return "mixed";
+      return "unknown";
+    }
+
+    function renderGroups() {
+      const root = document.getElementById("groups");
+      if (!groups.length) {
+        root.innerHTML = '<div class="meta">No groups in groups.json</div>';
+        return;
+      }
+      root.innerHTML = groups.map(g => {
+        const st = groupState(g);
+        const badge =
+          st === "on" ? '<span class="badge ok">on</span>' :
+          st === "off" ? '<span class="badge">off</span>' :
+          st === "mixed" ? '<span class="badge warn">mixed</span>' :
+          '<span class="badge">—</span>';
+        return `<div class="group" data-group="${esc(g.id)}">
+          <h3>${esc(g.label || g.id)} ${badge}</h3>
+          <div class="meta">${(g.members || []).length} lights · <code>${esc((g.members || []).join(", "))}</code></div>
+          <div class="toggles">
+            <button type="button" class="on-btn primary" data-group-on="${esc(g.id)}">On</button>
+            <button type="button" class="off" data-group-off="${esc(g.id)}">Off</button>
+          </div>
+          <div class="presets" data-group-presets="${esc(g.id)}">
+            ${["warm","white","cyan","magenta"].map(p =>
+              `<button type="button" data-target="${esc(g.id)}" data-color="${p}"><span class="swatch" style="background:${PRESET_COLORS[p]}"></span>${p}</button>`
+            ).join("")}
+          </div>
+        </div>`;
+      }).join("");
+      root.querySelectorAll("[data-group-on]").forEach(btn => {
+        btn.addEventListener("click", () => control(btn.dataset.groupOn, "warm"));
+      });
+      root.querySelectorAll("[data-group-off]").forEach(btn => {
+        btn.addEventListener("click", () => control(btn.dataset.groupOff, "off"));
+      });
+      root.querySelectorAll("button[data-color]").forEach(btn => {
+        btn.addEventListener("click", () => control(btn.dataset.target, btn.dataset.color));
+      });
     }
 
     function presetButtons(controlTarget) {
@@ -277,11 +379,6 @@
         return;
       }
       root.innerHTML = devices.map(d => {
-        const badges = [];
-        if (d.source === "discovery") badges.push('<span class="badge discovery">discovered</span>');
-        if (d.ip_mismatch) badges.push('<span class="badge mismatch">ip mismatch</span>');
-        if (d.seen_on_network) badges.push('<span class="badge discovery">seen</span>');
-        if (d.controllable === false) badges.push('<span class="badge">read-only</span>');
         const st = d.status;
         let stLine = "";
         if (st && st.ok) {
@@ -292,21 +389,16 @@
           stLine = ` · ${st.error || "unreachable"}`;
         }
         const ctrlTarget = controlTargetForDevice(d);
-        const controls = d.controllable !== false
-          ? `<div class="presets" data-device="${esc(d.id)}" data-control-target="${esc(ctrlTarget)}">${presetButtons(ctrlTarget)}</div>`
-          : '<div class="meta">Not controllable via this dashboard</div>';
         return `<div class="device" data-id="${esc(d.id)}">
-          <h3>${statusDot(d)}${esc(d.name || d.id)}${badges.join("")}</h3>
+          <h3>${statusDot(d)}${esc(d.name || d.id)}</h3>
           <div class="meta">
             <code>${esc(d.ip || "—")}</code>
             ${d.mac ? " · mac " + esc(d.mac) : ""}
-            ${d.type ? " · " + esc(d.type) : ""}
             ${stLine}
           </div>
-          ${controls}
+          <div class="presets">${presetButtons(ctrlTarget)}</div>
         </div>`;
       }).join("");
-
       root.querySelectorAll("button[data-color]").forEach(btn => {
         btn.addEventListener("click", () => control(btn.dataset.target, btn.dataset.color));
       });
@@ -321,6 +413,65 @@
       }).join("");
       el.querySelectorAll("button").forEach(btn => {
         btn.addEventListener("click", () => control("all", btn.dataset.allColor));
+      });
+    }
+
+    function renderSchedule(data) {
+      const sum = document.getElementById("schedule-summary");
+      const table = document.getElementById("schedule-table");
+      if (!data || !data.ok) {
+        sum.textContent = "Could not load schedule";
+        return;
+      }
+      const loc = data.location;
+      const sun = data.sun_today || {};
+      if (loc) {
+        sum.innerHTML =
+          `Location: <code>${esc(loc.latitude)}, ${esc(loc.longitude)}</code>` +
+          ` · ${esc(loc.timezone)}` +
+          (sun.sunrise_hhmm ? ` · sunrise <strong>${esc(sun.sunrise_hhmm)}</strong>` : "") +
+          (sun.sunset_hhmm ? ` · sunset <strong>${esc(sun.sunset_hhmm)}</strong>` : "") +
+          ` <span class="badge ok">active</span>`;
+        document.getElementById("loc-lat").value = loc.latitude;
+        document.getElementById("loc-lon").value = loc.longitude;
+        document.getElementById("loc-tz").value = loc.timezone || "";
+      } else {
+        sum.innerHTML =
+          `<span class="badge warn">location needed</span> ` +
+          esc(data.note || "Set latitude/longitude so sunrise/sunset can be computed.");
+      }
+      const rows = data.upcoming_today || [];
+      if (!rows.length) {
+        table.innerHTML = '<p class="meta">No routines scheduled for today (enable routines + set location).</p>';
+        return;
+      }
+      table.innerHTML = `<table class="routines">
+        <thead><tr><th>Routine</th><th>When</th><th>Action</th><th>Today</th><th></th></tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const fired = r.fired_today
+              ? '<span class="badge ok">fired</span>'
+              : '<span class="badge">pending</span>';
+            const en = (data.routines || []).find(x => x.id === r.id);
+            const enabled = en ? en.enabled !== false : true;
+            return `<tr>
+              <td>${esc(r.name || r.id)}</td>
+              <td>${esc(r.trigger)}${r.offset_minutes ? " " + r.offset_minutes + "m" : ""} · <strong>${esc(r.fire_hhmm || "—")}</strong></td>
+              <td><code>${esc(r.target)}</code> → ${esc(r.color)}</td>
+              <td>${fired}</td>
+              <td><button type="button" data-toggle-routine="${esc(r.id)}" data-enabled="${enabled ? "0" : "1"}">${enabled ? "Disable" : "Enable"}</button></td>
+            </tr>`;
+          }).join("")}
+        </tbody>
+      </table>`;
+      table.querySelectorAll("[data-toggle-routine]").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const id = btn.dataset.toggleRoutine;
+          const enabled = btn.dataset.enabled === "1";
+          const { data: d } = await api("POST", "/api/schedule/routine", { id, enabled });
+          if (d.ok) { log(`routine ${id} enabled=${enabled}`); renderSchedule(d); }
+          else log("routine patch fail: " + (d.error || ""));
+        });
       });
     }
 
@@ -349,10 +500,14 @@
         const { data } = await api("GET", path);
         if (data.ok) {
           devices = data.devices || [];
+          groups = data.groups || groups;
           renderDevices();
+          renderGroups();
         } else {
           log("devices error: " + (data.error || "unknown"));
         }
+        const { data: sched } = await api("GET", "/api/schedule");
+        if (sched.ok) renderSchedule(sched);
       } catch (e) {
         log("refresh error: " + e);
       }
@@ -374,13 +529,8 @@
         ].filter(Boolean);
         document.getElementById("discovery-notes").innerHTML =
           "<pre style='margin:0;white-space:pre-wrap;color:inherit'>" + esc(lines.join("\n")) + "</pre>";
-        if (data.devices) {
-          // keep status from previous if same id
-          const prev = Object.fromEntries(devices.map(d => [d.id, d.status]));
-          devices = data.devices.map(d => ({ ...d, status: prev[d.id] || d.status }));
-          renderDevices();
-        }
         log(`discover: wiz=${data.discovered_count} mdns=${mdns.length}`);
+        await refresh(true);
       } catch (e) {
         log("discover error: " + e);
         document.getElementById("discovery-notes").textContent = String(e);
@@ -389,22 +539,59 @@
       }
     }
 
+    async function saveLocation() {
+      const latitude = parseFloat(document.getElementById("loc-lat").value);
+      const longitude = parseFloat(document.getElementById("loc-lon").value);
+      const timezone = document.getElementById("loc-tz").value.trim() || undefined;
+      if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+        log("location: enter valid lat/lon");
+        return;
+      }
+      const { data } = await api("POST", "/api/schedule/location", { latitude, longitude, timezone });
+      if (data.ok) {
+        log(`location saved ${latitude},${longitude}`);
+        renderSchedule(data);
+      } else {
+        log("location save fail: " + (data.error || ""));
+      }
+    }
+
+    function useGeo() {
+      if (!navigator.geolocation) {
+        log("geolocation not available");
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        document.getElementById("loc-lat").value = pos.coords.latitude.toFixed(5);
+        document.getElementById("loc-lon").value = pos.coords.longitude.toFixed(5);
+        try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (tz) document.getElementById("loc-tz").value = tz;
+        } catch (_) {}
+        await saveLocation();
+      }, (err) => log("geo error: " + err.message), { enableHighAccuracy: false, timeout: 10000 });
+    }
+
     async function init() {
       renderGlobalPresets();
       try {
         const { data } = await api("GET", "/api/health");
         document.getElementById("stat-svc").textContent = data.ok ? "ok" : "err";
-        log("health: " + JSON.stringify(data.registry || data));
+        log("health: " + JSON.stringify({ registry: data.registry, groups: data.groups, schedule: data.schedule_enabled }));
       } catch (e) {
         document.getElementById("stat-svc").textContent = "down";
         log("health fail: " + e);
       }
+      const { data: g } = await api("GET", "/api/groups");
+      if (g.ok) groups = g.groups || [];
       await refresh(true);
     }
 
     document.getElementById("btn-refresh").addEventListener("click", () => refresh(true));
     document.getElementById("btn-discover").addEventListener("click", discover);
     document.getElementById("btn-all-off").addEventListener("click", () => control("all", "off"));
+    document.getElementById("btn-save-loc").addEventListener("click", saveLocation);
+    document.getElementById("btn-geo").addEventListener("click", useGeo);
     init();
   </script>
 </body>

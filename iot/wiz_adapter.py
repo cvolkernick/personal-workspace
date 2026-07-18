@@ -15,6 +15,7 @@ from iot.control import (
     apply_control_results,
     list_configured_devices,
     load_bulbs,
+    load_groups,
     merge_devices,
 )
 
@@ -197,11 +198,15 @@ async def execute_control(
     brightness: int = DEFAULT_BRIGHTNESS,
     *,
     registry: Optional[dict] = None,
+    groups: Optional[dict] = None,
     transport: Optional[LightTransport] = None,
 ) -> dict[str, Any]:
     """Build intent and run network control via transport."""
     reg = registry if registry is not None else load_bulbs()
-    intent = build_control_intent(target, color, brightness, registry=reg)
+    gmap = groups if groups is not None else load_groups()
+    intent = build_control_intent(
+        target, color, brightness, registry=reg, groups=gmap
+    )
     if not intent["ok"]:
         return apply_control_results(intent, [])
 

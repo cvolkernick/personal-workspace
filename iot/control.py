@@ -30,6 +30,7 @@ DEFAULT_PORT = 38899
 
 IOT_DIR = Path(__file__).resolve().parent
 DEFAULT_BULBS_PATH = IOT_DIR / "wiz-lights" / "bulbs.json"
+DEFAULT_GROUPS_PATH = IOT_DIR / "groups.json"
 
 
 def load_bulbs(path: Optional[Path | str] = None) -> dict[str, dict[str, Any]]:
@@ -45,6 +46,82 @@ def load_bulbs(path: Optional[Path | str] = None) -> dict[str, dict[str, Any]]:
             continue
         out[str(name)] = dict(info)
     return out
+
+
+def load_groups(path: Optional[Path | str] = None) -> dict[str, dict[str, Any]]:
+    """Load named groups → {label, members: [device ids]}."""
+    p = Path(path) if path else DEFAULT_GROUPS_PATH
+    if not p.is_file():
+        return {}
+    with open(p, encoding="utf-8") as f:
+        data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError("groups.json must be an object")
+    out: dict[str, dict[str, Any]] = {}
+    for gid, info in data.items():
+        if not isinstance(info, dict):
+            continue
+        members = info.get("members") or []
+        out[str(gid)] = {
+            "id": str(gid),
+            "label": str(info.get("label") or gid),
+            "members": [str(m) for m in members],
+        }
+    return out
+
+
+def list_groups(
+    groups: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    registry: Optional[Mapping[str, Mapping[str, Any]]] = None,
+) -> list[dict[str, Any]]:
+    """Groups with member lists filtered to devices present in the registry."""
+    gmap = dict(groups) if groups is not None else load_groups()
+    reg = dict(registry) if registry is not None else load_bulbs()
+    out: list[dict[str, Any]] = []
+    for gid, info in gmap.items():
+        members = [m for m in (info.get("members") or []) if m in reg]
+        missing = [m for m in (info.get("members") or []) if m not in reg]
+        out.append(
+            {
+                "id": gid,
+                "label": info.get("label") or gid,
+                "members": members,
+                "missing": missing,
+                "count": len(members),
+            }
+        )
+    return out
+
+
+def expand_target_members(
+    target: str,
+    *,
+    registry: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    groups: Optional[Mapping[str, Mapping[str, Any]]] = None,
+) -> list[str]:
+    """Resolve a control target to device names (empty if unknown)."""
+    reg = dict(registry) if registry is not None else load_bulbs()
+    gmap = dict(groups) if groups is not None else load_groups()
+    name = (target or "").strip()
+    if not name:
+        return []
+    low = name.lower()
+    if low == "all":
+        return list(reg.keys())
+    # group:entryway or bare group id
+    if low.startswith("group:"):
+        gid = name.split(":", 1)[1].strip()
+        info = gmap.get(gid) or gmap.get(gid.lower())
+        if not info:
+            return []
+        return [m for m in (info.get("members") or []) if m in reg]
+    if name in gmap or low in gmap:
+        info = gmap.get(name) or gmap.get(low)
+        assert info is not None
+        return [m for m in (info.get("members") or []) if m in reg]
+    if name in reg:
+        return [name]
+    return []
 
 
 def list_color_presets() -> list[str]:
@@ -119,30 +196,31 @@ def build_control_intent(
     brightness: int = DEFAULT_BRIGHTNESS,
     *,
     registry: Optional[Mapping[str, Mapping[str, Any]]] = None,
+    groups: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> dict[str, Any]:
     """Build a control intent from target name + color preset.
 
     Pure: does not touch the network. ``targets`` is the resolved list of
     device dicts to act on (empty if unknown name and not "all").
 
-    Accepts: registry names, ``all``, bare IPv4, and discovery ids ``wiz-{ip}``.
+    Accepts: registry names, group ids (``entryway``, ``livingroom``),
+    ``group:<id>``, ``all``, bare IPv4, and discovery ids ``wiz-{ip}``.
     """
     reg = dict(registry) if registry is not None else load_bulbs()
+    gmap = dict(groups) if groups is not None else load_groups()
     name = (target or "").strip()
     color_key = (color or "").strip().lower() or "white"
     action = "off" if color_key == "off" else "on"
     rgb = resolve_rgb(color_key)
     bright = max(1, min(255, int(brightness)))
 
-    if name.lower() == "all":
-        targets = [dict(v, name=k) for k, v in reg.items()]
-    elif name in reg:
-        targets = [dict(reg[name], name=name)]
+    member_names = expand_target_members(name, registry=reg, groups=gmap)
+    if member_names:
+        targets = [dict(reg[m], name=m) for m in member_names if m in reg]
     else:
         # Bare IP, wiz-{ip}, or other discovery-style target
         ip = extract_ip_from_target(name)
         if ip:
-            # Prefer matching a registry entry by IP when present
             match_name = None
             match_info: Optional[Mapping[str, Any]] = None
             for k, v in reg.items():

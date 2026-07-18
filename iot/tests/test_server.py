@@ -118,6 +118,18 @@ class IoTDashboardServerTests(unittest.TestCase):
                     self.assertIn("mac", d)
                     self.assertEqual(d.get("source"), "config")
 
+                code, groups = _http_json("GET", f"{base}/api/groups")
+                self.assertEqual(code, 200, groups)
+                self.assertTrue(groups.get("ok"))
+                gids = {g["id"] for g in groups.get("groups") or []}
+                self.assertIn("entryway", gids)
+                self.assertIn("livingroom", gids)
+
+                code, sched = _http_json("GET", f"{base}/api/schedule")
+                self.assertEqual(code, 200, sched)
+                self.assertTrue(sched.get("ok"))
+                self.assertIn("routines", sched)
+
                 code, presets = _http_json("GET", f"{base}/api/presets")
                 self.assertEqual(code, 200)
                 self.assertIn("off", presets.get("presets") or [])
@@ -165,7 +177,8 @@ class IoTDashboardServerTests(unittest.TestCase):
                 self.assertIn("data-color", html)
                 self.assertIn("/api/control", html)
                 self.assertIn("controlTargetForDevice", html)
-                self.assertIn("data-control-target", html)
+                self.assertIn("data-group-on", html)
+                self.assertIn("/api/schedule", html)
             finally:
                 proc.terminate()
                 try:
