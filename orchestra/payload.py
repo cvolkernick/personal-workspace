@@ -50,6 +50,13 @@ def build_orchestra_payload(
     fitness = by_id.get("fitness") or {}
     holistic = by_id.get("holistic") or {}
     holistic_targets = list((holistic.get("signals") or {}).get("targets") or [])
+    iot = by_id.get("iot") or {}
+    iot_sig = iot.get("signals") or {}
+    iot_routines = [
+        str(r.get("name") or r.get("id") or "")
+        for r in (iot_sig.get("routines") or [])
+        if isinstance(r, dict) and (r.get("name") or r.get("id"))
+    ]
 
     synergies = detect_synergies(
         domains,
@@ -63,6 +70,8 @@ def build_orchestra_payload(
         finance_actions=finance_actions,
         fitness_summary=fitness.get("summary") if fitness.get("available") else None,
         holistic_targets=holistic_targets,
+        iot_summary=iot.get("summary") if iot.get("available") else None,
+        iot_routines=iot_routines,
         synergies=synergies,
     )
 
@@ -88,7 +97,7 @@ def build_orchestra_payload(
         "name": "Orchestra Command Center",
         "purpose": (
             "Top-level orchestration across strategy, workflow, finance, fitness, "
-            "and time-allocation — surfaces overlaps, synergies, and coordinated priorities."
+            "time-allocation, and IoT/home — surfaces overlaps, synergies, and coordinated priorities."
         ),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "workspace": str(ws),
@@ -114,6 +123,7 @@ def build_orchestra_payload(
                 "financial-command": 8000,
                 "projects-dashboard": 8765,
                 "holistic": 8770,
+                "iot": 8780,
                 "resistance-dashboard": 8787,
                 "orchestra": DEFAULT_PORT,
             },

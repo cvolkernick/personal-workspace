@@ -1,15 +1,15 @@
 {
   "location": {
-    "latitude": 26.5677,
-    "longitude": -81.5954,
+    "latitude": 26.6093,
+    "longitude": -81.60184,
     "timezone": "America/New_York",
-    "label": "Approx. Lehigh Acres, FL (IP geolocation — refine with Use browser location)"
+    "label": "Approx. Lehigh Acres, FL (IP geolocation \u2014 refine with Use browser location)"
   },
   "routines": [
     {
       "id": "sunset_all_on",
       "enabled": true,
-      "name": "Sunset — all lights on",
+      "name": "Sunset \u2014 all lights on",
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "all",
@@ -19,7 +19,7 @@
     {
       "id": "sunrise_all_off",
       "enabled": true,
-      "name": "Sunrise — all lights off",
+      "name": "Sunrise \u2014 all lights off",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "all",

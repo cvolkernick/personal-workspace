@@ -60,6 +60,21 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "sources": ["holistic/data/", "holistic/time_allocator/"],
         "kind": "dashboard",
     },
+    {
+        "id": "iot",
+        "label": "IoT / Home",
+        "description": "Wiz lights, room groups, sunrise/sunset routines",
+        "port": 8780,
+        "url": "http://127.0.0.1:8780/",
+        "launch": "python3 iot/server.py",
+        "sources": [
+            "iot/wiz-lights/bulbs.json",
+            "iot/groups.json",
+            "iot/schedule.json",
+            "iot/",
+        ],
+        "kind": "dashboard",
+    },
 ]
 
 # Shared themes used for keyword overlap detection
@@ -107,6 +122,19 @@ THEME_KEYWORDS: dict[str, list[str]] = {
         "priority",
         "plan",
         "today",
+        "schedule",
+    ],
+    "Home/IoT": [
+        "iot",
+        "wiz",
+        "bulb",
+        "light",
+        "entryway",
+        "livingroom",
+        "sunrise",
+        "sunset",
+        "home",
+        "environment",
         "schedule",
     ],
 }

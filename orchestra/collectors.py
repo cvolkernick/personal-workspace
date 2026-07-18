@@ -459,12 +459,108 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
     }
 
 
+def collect_iot(workspace: Path) -> dict[str, Any]:
+    """Wiz lights registry, room groups, and sun schedule from on-disk IoT config."""
+    ws = Path(workspace)
+    bulbs_path = ws / "iot" / "wiz-lights" / "bulbs.json"
+    groups_path = ws / "iot" / "groups.json"
+    schedule_path = ws / "iot" / "schedule.json"
+
+    bulbs = _read_json(bulbs_path) or {}
+    groups_raw = _read_json(groups_path) or {}
+    schedule = _read_json(schedule_path) or {}
+
+    # bulbs.json is name -> {ip, mac}; skip non-dict entries
+    device_names = [
+        name
+        for name, meta in bulbs.items()
+        if isinstance(meta, dict) and (meta.get("ip") or meta.get("mac"))
+    ]
+    group_labels: list[str] = []
+    for gid, gmeta in groups_raw.items():
+        if isinstance(gmeta, dict):
+            group_labels.append(str(gmeta.get("label") or gid))
+        else:
+            group_labels.append(str(gid))
+
+    routines = schedule.get("routines") if isinstance(schedule, dict) else []
+    if not isinstance(routines, list):
+        routines = []
+    enabled_routines = []
+    for r in routines:
+        if not isinstance(r, dict):
+            continue
+        if r.get("enabled") is False:
+            continue
+        enabled_routines.append(
+            {
+                "id": r.get("id"),
+                "name": r.get("name") or r.get("id"),
+                "trigger": r.get("trigger"),
+                "target": r.get("target"),
+                "color": r.get("color"),
+            }
+        )
+    location = schedule.get("location") if isinstance(schedule, dict) else None
+    loc_ok = bool(
+        isinstance(location, dict)
+        and location.get("latitude") is not None
+        and location.get("longitude") is not None
+    )
+
+    bits: list[str] = []
+    if device_names:
+        bits.append(f"{len(device_names)} bulb(s)")
+    if group_labels:
+        bits.append(f"groups: {', '.join(group_labels[:4])}")
+    if enabled_routines:
+        bits.append(f"{len(enabled_routines)} sun routine(s)")
+    if loc_ok:
+        bits.append("location set")
+    elif schedule:
+        bits.append("location missing")
+
+    available = bool(device_names or group_labels or schedule)
+    return {
+        "id": "iot",
+        "label": "IoT / Home",
+        "status": "ok" if available else "missing",
+        "summary": "; ".join(bits) or "No IoT config found",
+        "signals": {
+            "device_count": len(device_names),
+            "devices": device_names[:20],
+            "groups": group_labels,
+            "group_count": len(group_labels),
+            "routines": enabled_routines,
+            "routine_count": len(enabled_routines),
+            "location_configured": loc_ok,
+            "location_label": (location or {}).get("label")
+            if isinstance(location, dict)
+            else None,
+            "bulbs_path": "iot/wiz-lights/bulbs.json" if bulbs_path.is_file() else None,
+            "schedule_path": "iot/schedule.json" if schedule_path.is_file() else None,
+        },
+        "available": available,
+        "live": None,
+        "url": "http://127.0.0.1:8780/",
+        "launch": "python3 iot/server.py",
+        "port": 8780,
+        "sources": [
+            "iot/wiz-lights/bulbs.json",
+            "iot/groups.json",
+            "iot/schedule.json",
+            "iot/",
+        ],
+    }
+
+
 _COLLECTORS = {
     "strategy": collect_strategy,
     "workflow": collect_workflow,
     "finance": collect_finance,
     "fitness": collect_fitness,
     "holistic": collect_holistic,
+    "iot": collect_iot,
 }
 
 
