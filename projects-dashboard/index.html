@@ -260,12 +260,14 @@
       // [label](url) → label
       t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
       t = esc(t);
-      // **bold** then *italic* (non-greedy)
-      t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-      t = t.replace(/(^|[^*])\*(?!\s)(.+?)(?!\s)\*(?!\*)/g, "$1<em>$2</em>");
-      t = t.replace(/(^|[^_])_(?!\s)(.+?)(?!\s)_(?!_)/g, "$1<em>$2</em>");
-      // strip any leftover stray ** or unpaired *
-      t = t.replace(/\*\*/g, "").replace(/(?<![a-zA-Z])\*(?![a-zA-Z])/g, "");
+      // **bold** first
+      t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      // *italic* (single asterisks, not part of bold leftovers)
+      t = t.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+      // _italic_
+      t = t.replace(/_([^_\n]+)_/g, "<em>$1</em>");
+      // strip any leftover ** markers
+      t = t.replace(/\*\*/g, "");
       return t;
     }
     function fmtWhen(iso) {
