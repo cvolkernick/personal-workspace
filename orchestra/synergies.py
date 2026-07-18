@@ -264,6 +264,64 @@ def detect_synergies(
             ],
         )
 
+    # 8) IoT home systems ↔ daily schedule / environment
+    iot = by_id.get("iot") or {}
+    iot_sig = iot.get("signals") or {}
+    if iot.get("available"):
+        routines = iot_sig.get("routines") or []
+        rnames = [
+            str(r.get("name") or r.get("id") or "")
+            for r in routines
+            if isinstance(r, dict)
+        ]
+        if routines and by_id.get("holistic", {}).get("available"):
+            add(
+                kind="synergy",
+                title="Sun routines align home environment with the day plan",
+                domains_involved=["iot", "holistic"],
+                detail=(
+                    "IoT sunrise/sunset routines and the time allocator both structure the day. "
+                    "Keep the IoT dashboard running so scheduled light changes fire on time."
+                ),
+                strength="high",
+                evidence=rnames[:4],
+            )
+        # Strategy balanced-life principle includes Home & Daily Systems
+        if strategy.get("available"):
+            add(
+                kind="connection",
+                title="IoT advances Home & Daily Systems domain",
+                domains_involved=["iot", "strategy"],
+                detail=(
+                    f"{iot_sig.get('device_count', 0)} configured bulbs, "
+                    f"{iot_sig.get('group_count', 0)} room group(s). "
+                    "Home automation multiplies daily leverage without manual friction."
+                ),
+                strength="medium",
+                evidence=(iot_sig.get("devices") or [])[:6],
+            )
+        if any(k in today_blob for k in ("home", "iot", "light", "environment", "bulb")):
+            add(
+                kind="relationship",
+                title="Today plan references home / IoT environment",
+                domains_involved=["iot", "strategy"],
+                detail="Today's focus mentions home/environment work — open the IoT dashboard to execute.",
+                strength="high",
+                evidence=[t for t in today_items if any(k in t.lower() for k in ("home", "iot", "light", "environment"))][:3],
+            )
+        # Backlog mentions of iot
+        for item in backlog.get("active") or []:
+            blob = f"{item.get('title','')} {item.get('notes','')} {item.get('area','')}".lower()
+            if any(k in blob for k in ("iot", "wiz", "bulb", "light", "entryway")):
+                add(
+                    kind="relationship",
+                    title=f"Backlog bridges IoT: {(item.get('title') or '')[:70]}",
+                    domains_involved=["workflow", "iot"],
+                    detail="Backlog item references home/IoT automation.",
+                    strength="medium",
+                    evidence=[item.get("title") or ""],
+                )
+
     # Prefer higher strength first, then stable id order
     strength_rank = {"high": 0, "medium": 1, "low": 2}
     synergies.sort(

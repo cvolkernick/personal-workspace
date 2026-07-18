@@ -24,6 +24,7 @@ from collectors import (  # noqa: E402
     collect_finance,
     collect_fitness,
     collect_holistic,
+    collect_iot,
     collect_strategy,
     collect_workflow,
 )
@@ -186,6 +187,62 @@ next_action: "Fill Morpho LTV fields and confirm buying power floor"
             }
         ),
     )
+    _write(
+        base / "iot" / "wiz-lights" / "bulbs.json",
+        json.dumps(
+            {
+                "entryway1": {"ip": "192.168.1.10", "mac": "aabbccddee01"},
+                "entryway2": {"ip": "192.168.1.11", "mac": "aabbccddee02"},
+                "livingroom1": {"ip": "192.168.1.20", "mac": "aabbccddee03"},
+            }
+        ),
+    )
+    _write(
+        base / "iot" / "groups.json",
+        json.dumps(
+            {
+                "entryway": {
+                    "label": "Entryway",
+                    "members": ["entryway1", "entryway2"],
+                },
+                "livingroom": {
+                    "label": "Living room",
+                    "members": ["livingroom1"],
+                },
+            }
+        ),
+    )
+    _write(
+        base / "iot" / "schedule.json",
+        json.dumps(
+            {
+                "location": {
+                    "latitude": 26.6,
+                    "longitude": -81.6,
+                    "timezone": "America/New_York",
+                    "label": "Test home",
+                },
+                "routines": [
+                    {
+                        "id": "sunset_all_on",
+                        "enabled": True,
+                        "name": "Sunset — all lights on",
+                        "trigger": "sunset",
+                        "target": "all",
+                        "color": "magenta",
+                    },
+                    {
+                        "id": "sunrise_all_off",
+                        "enabled": True,
+                        "name": "Sunrise — all lights off",
+                        "trigger": "sunrise",
+                        "target": "all",
+                        "color": "off",
+                    },
+                ],
+            }
+        ),
+    )
     return base
 
 
@@ -197,7 +254,7 @@ class CollectorsAggregationTests(unittest.TestCase):
             ids = {d["id"] for d in domains}
             self.assertEqual(
                 ids,
-                {"strategy", "workflow", "finance", "fitness", "holistic"},
+                {"strategy", "workflow", "finance", "fitness", "holistic", "iot"},
             )
             by = {d["id"]: d for d in domains}
 
@@ -224,12 +281,19 @@ class CollectorsAggregationTests(unittest.TestCase):
             self.assertGreaterEqual(by["holistic"]["signals"]["target_count"], 3)
             self.assertEqual(by["holistic"]["port"], 8770)
 
+            self.assertTrue(by["iot"]["available"])
+            self.assertEqual(by["iot"]["signals"]["device_count"], 3)
+            self.assertGreaterEqual(by["iot"]["signals"]["routine_count"], 2)
+            self.assertEqual(by["iot"]["port"], 8780)
+            self.assertIn("8780", by["iot"]["url"])
+
             # Individual collectors agree with aggregate
             self.assertEqual(collect_strategy(ws)["id"], "strategy")
             self.assertEqual(collect_workflow(ws)["id"], "workflow")
             self.assertEqual(collect_finance(ws)["id"], "finance")
             self.assertEqual(collect_fitness(ws)["id"], "fitness")
             self.assertEqual(collect_holistic(ws)["id"], "holistic")
+            self.assertEqual(collect_iot(ws)["id"], "iot")
 
 
 class SynergyTests(unittest.TestCase):
@@ -260,10 +324,15 @@ class SynergyTests(unittest.TestCase):
                     or {"strategy", "finance"}.issubset(p)
                     or {"fitness", "strategy"}.issubset(p)
                     or {"finance", "strategy"}.issubset(p)
+                    or {"iot", "holistic"}.issubset(p)
+                    or {"iot", "strategy"}.issubset(p)
                     for p in pairs
                 ),
                 msg=f"expected cross-domain pair, got {pairs}",
             )
+            # IoT fixture should produce at least one iot-linked synergy
+            iot_linked = [s for s in multi if "iot" in (s.get("domains") or [])]
+            self.assertGreaterEqual(len(iot_linked), 1, msg=synergies)
 
 
 class PrioritySynthesisTests(unittest.TestCase):
@@ -328,10 +397,10 @@ class PrioritySynthesisTests(unittest.TestCase):
             payload = build_orchestra_payload(ws, probe_ports=False)
             self.assertTrue(payload["ok"])
             self.assertEqual(payload["service"], "orchestra")
-            self.assertGreaterEqual(len(payload["domains"]), 5)
+            self.assertGreaterEqual(len(payload["domains"]), 6)
             domain_ids = set(payload["domain_ids"])
             self.assertTrue(
-                {"strategy", "workflow", "finance", "fitness", "holistic"}
+                {"strategy", "workflow", "finance", "fitness", "holistic", "iot"}
                 <= domain_ids
             )
             self.assertGreaterEqual(len(payload["synergies"]), 1)
@@ -347,12 +416,14 @@ class PrioritySynthesisTests(unittest.TestCase):
             self.assertIn(8000, ports)
             self.assertIn(8765, ports)
             self.assertIn(8770, ports)
+            self.assertIn(8780, ports)
             self.assertIn(8787, ports)
             # meta documents orchestra port
             self.assertEqual(payload["meta"]["subordinate_ports"]["orchestra"], 8790)
             self.assertEqual(
                 payload["meta"]["subordinate_ports"]["financial-command"], 8000
             )
+            self.assertEqual(payload["meta"]["subordinate_ports"]["iot"], 8780)
             # unused var silence
             _ = sources
 

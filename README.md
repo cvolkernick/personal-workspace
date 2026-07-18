@@ -6,7 +6,7 @@ Personal tracking, data, and planning workspace for cvolkernick.
 
 **Easiest:** Double-click **`open-command-center.command`** right here in this folder.
 
-It starts the **Orchestra** top-level dashboard — the single interface that ties together strategy, workflow, finance, fitness, and time-allocation, and surfaces overlaps, synergies, and a coordinated action plan.
+It starts the **Orchestra** top-level dashboard — the single interface that ties together strategy, workflow, finance, fitness, time-allocation, and IoT/home, and surfaces overlaps, synergies, and a coordinated action plan.
 
 ### Manual alternative
 ```bash
@@ -28,6 +28,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | financial-command | 8000 | `python3 financial-command/server.py` |
 | projects-dashboard | 8765 | `python3 projects-dashboard/server.py` |
 | holistic (time allocator) | 8770 | `python3 holistic/server.py` |
+| iot (Wiz lights / home) | 8780 | `python3 iot/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
 
 ## Contents
@@ -42,7 +43,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 - **initiatives/** — Structured projects with next_action.
 - **fitness/** — PPL workouts, nutrition, Fitbit.
 - **resistance-dashboard/** — Fitness/health coaching UI over fitness data.
-- **iot/** — Wiz smart bulbs.
+- **iot/** — Wiz smart bulbs CLI + local control dashboard (port 8780).
 
 ### Treasury refresh
 ```bash

@@ -1,0 +1,10 @@
+{
+  "entryway": {
+    "label": "Entryway",
+    "members": ["entryway1", "entryway2", "entryway3", "entryway4"]
+  },
+  "livingroom": {
+    "label": "Living room",
+    "members": ["livingroom1", "livingroom2"]
+  }
+}

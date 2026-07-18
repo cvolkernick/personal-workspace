@@ -1,6 +1,6 @@
 # Orchestra — top-level command center
 
-Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/health**, and **time-allocation** into one orchestration interface.
+Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/health**, **time-allocation**, and **IoT/home** into one orchestration interface.
 
 Surfaces:
 
@@ -34,6 +34,7 @@ Add `?probe=1` to probe child server ports for live badges.
 | Finance / financial-command | 8000 | `python3 financial-command/server.py` |
 | Workflow / projects-dashboard | 8765 | `python3 projects-dashboard/server.py` |
 | Time / holistic | 8770 | `python3 holistic/server.py` |
+| IoT / home lights | 8780 | `python3 iot/server.py` |
 | Fitness / resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
 | **Orchestra (this)** | **8790** | `python3 orchestra/server.py` |
 

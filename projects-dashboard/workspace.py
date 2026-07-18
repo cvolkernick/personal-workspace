@@ -54,6 +54,7 @@ KNOWN_PORTS = {
     8787: "resistance-dashboard",
     8000: "financial-command",
     8770: "holistic",
+    8780: "iot",
     8790: "orchestra",
 }
 

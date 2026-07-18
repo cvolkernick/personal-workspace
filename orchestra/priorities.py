@@ -25,6 +25,8 @@ def synthesize_priorities(
     finance_actions: list[str] | None = None,
     fitness_summary: str | None = None,
     holistic_targets: list[str] | None = None,
+    iot_summary: str | None = None,
+    iot_routines: list[str] | None = None,
     synergies: list[dict[str, Any]] | None = None,
     limit: int = 12,
 ) -> list[dict[str, Any]]:
@@ -37,6 +39,7 @@ def synthesize_priorities(
     backlog_active = backlog_active or []
     finance_actions = finance_actions or []
     holistic_targets = holistic_targets or []
+    iot_routines = iot_routines or []
     synergies = synergies or []
 
     items: list[dict[str, Any]] = []
@@ -176,6 +179,28 @@ def synthesize_priorities(
             rationale="Time-allocator target / KPI.",
             kind="time",
             score_boost=5,
+        )
+
+    # 6b) IoT home routines / status
+    if iot_summary:
+        add(
+            title=f"Home IoT ready — {iot_summary[:100]}",
+            source="iot",
+            domains=["iot"],
+            priority="medium",
+            rationale="Configured bulbs/groups/schedules for Home & Daily Systems.",
+            kind="iot",
+            score_boost=6,
+        )
+    for rname in iot_routines[:3]:
+        add(
+            title=f"Keep sun routine armed: {rname}",
+            source="iot/schedule",
+            domains=["iot", "holistic"],
+            priority="medium",
+            rationale="Sunrise/sunset light automation needs IoT dashboard/scheduler running.",
+            kind="iot",
+            score_boost=7,
         )
 
     # 7) High-strength synergies become coordination priorities
