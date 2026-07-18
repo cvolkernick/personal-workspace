@@ -153,6 +153,9 @@
     }
     .dirty-list { margin: 0.2rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.8rem;
       font-family: ui-monospace, Menlo, monospace; }
+    #strategy-focus .dirty-list { font-family: inherit; color: var(--text); }
+    #strategy-focus .dirty-list strong { color: var(--text); font-weight: 650; }
+    #strategy-focus .dirty-list em { color: var(--muted); font-style: italic; }
     .copy-btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.35rem; }
     .two-col { display: grid; gap: 0.85rem; }
     @media (min-width: 900px) {
@@ -250,6 +253,20 @@
     const $ = (id) => document.getElementById(id);
     function esc(s) {
       return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+    /** Light markdown for focus lines: bold, italic, links — safe after escape. */
+    function mdInline(s) {
+      let t = String(s ?? "");
+      // [label](url) → label
+      t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+      t = esc(t);
+      // **bold** then *italic* (non-greedy)
+      t = t.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/(^|[^*])\*(?!\s)(.+?)(?!\s)\*(?!\*)/g, "$1<em>$2</em>");
+      t = t.replace(/(^|[^_])_(?!\s)(.+?)(?!\s)_(?!_)/g, "$1<em>$2</em>");
+      // strip any leftover stray ** or unpaired *
+      t = t.replace(/\*\*/g, "").replace(/(?<![a-zA-Z])\*(?![a-zA-Z])/g, "");
+      return t;
     }
     function fmtWhen(iso) {
       if (!iso) return "—";
@@ -410,13 +427,13 @@
               ${openFocus.length ? `
                 <h3 style="margin:0 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Open (${openFocus.length})</h3>
                 <ul class="dirty-list" style="margin-bottom:0.65rem">
-                  ${openFocus.map((t) => `<li style="margin:0.25rem 0;color:var(--text);font-family:inherit;font-size:0.9rem">${esc(t.replace(/\\*\\*/g, ""))}</li>`).join("")}
+                  ${openFocus.map((t) => `<li style="margin:0.25rem 0;color:var(--text);font-family:inherit;font-size:0.9rem;list-style:disc">${mdInline(t)}</li>`).join("")}
                 </ul>
               ` : ""}
               ${doneFocus.length ? `
                 <h3 style="margin:0.5rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Done (${doneFocus.length})</h3>
                 <ul class="dirty-list">
-                  ${doneFocus.slice(0, 5).map((t) => `<li style="margin:0.2rem 0;opacity:0.7;font-family:inherit;font-size:0.85rem">${esc(t.replace(/\\*\\*/g, ""))}</li>`).join("")}
+                  ${doneFocus.slice(0, 5).map((t) => `<li style="margin:0.2rem 0;opacity:0.7;font-family:inherit;font-size:0.85rem;list-style:disc;text-decoration:line-through">${mdInline(t)}</li>`).join("")}
                 </ul>
               ` : ""}
             `}
