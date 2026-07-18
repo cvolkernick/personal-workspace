@@ -64,6 +64,11 @@ class TestGitWorkflow(unittest.TestCase):
 
     def test_branch_name(self) -> None:
         self.assertEqual(branch_name_for_area("Projects Dashboard"), "work/projects-dashboard")
+        # Finance TLDs share work/treasury
+        self.assertEqual(branch_name_for_area("financial-command"), "work/treasury")
+        self.assertEqual(branch_name_for_area("investment"), "work/treasury")
+        self.assertEqual(branch_name_for_area("treasury"), "work/treasury")
+        self.assertEqual(branch_name_for_area("iot"), "work/iot")
 
     def test_parse_porcelain_paths(self) -> None:
         self.assertEqual(parse_porcelain_path(" M ops/backlog/items.json"), "ops/backlog/items.json")

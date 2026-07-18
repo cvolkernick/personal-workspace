@@ -64,14 +64,40 @@ def _run(
 
 def branch_name_for_area(area: str) -> str:
     area = re.sub(r"[^a-zA-Z0-9._-]+", "-", area.strip()).strip("-").lower()
+    # Resolve TLD aliases (financial-command → treasury, fitness → resistance-dashboard)
+    try:
+        from workspace import work_area_for_tld  # noqa: WPS433
+    except Exception:
+        work_area_for_tld = None  # type: ignore
+    if work_area_for_tld is not None:
+        resolved = work_area_for_tld(area)
+        if resolved and resolved not in ("_meta", "_root"):
+            area = resolved
     return f"work/{area}"
 
 
 def area_from_path(rel: str) -> str:
+    """Top-level monorepo path segment (raw TLD), or ``_root`` for root files."""
     rel = rel.replace("\\", "/").lstrip("./")
     if "/" in rel:
         return rel.split("/", 1)[0]
     return "_root"
+
+
+def work_area_from_path(rel: str) -> str:
+    """Work-branch area for a path (aliases applied: FCC → treasury, etc.)."""
+    top = area_from_path(rel)
+    if top == "_root":
+        return "_root"
+    try:
+        from workspace import work_area_for_tld  # noqa: WPS433
+    except Exception:
+        return top
+    resolved = work_area_for_tld(top)
+    if resolved in ("_meta",):
+        # Meta edits: prefer projects-dashboard so protect doesn't invent work/ops
+        return "projects-dashboard" if top == "ops" else "projects-dashboard"
+    return resolved
 
 
 def should_skip_path(rel: str) -> bool:
@@ -179,13 +205,18 @@ def start_work(
     area: str,
     repo: Path = WORKSPACE_ROOT,
     *,
-    from_branch: str = "master",
+    from_branch: str = "HEAD",
     create: bool = True,
 ) -> dict[str, Any]:
-    """Checkout or create work/<area> from from_branch."""
+    """Checkout or create work/<area>.
+
+    By default new branches are created from the current tip (``HEAD``) so a
+    monorepo work branch inherits the latest integrated tree. Pass
+    ``from_branch='master'`` only when intentionally branching from integration.
+    """
     repo = Path(repo).resolve()
     branch = branch_name_for_area(area)
-    code, existing, _ = _run(repo, "rev-parse", "--verify", branch)
+    code, _existing, _ = _run(repo, "rev-parse", "--verify", branch)
     if code == 0:
         code2, _, err = _run(repo, "checkout", branch)
         if code2 != 0:
@@ -200,21 +231,30 @@ def start_work(
     if not create:
         return {"ok": False, "error": f"branch {branch} does not exist", "branch": branch}
 
-    # Ensure from_branch is available
-    _run(repo, "fetch", "origin", from_branch)
-    code, _, err = _run(repo, "checkout", from_branch)
-    if code != 0:
-        # try local only
-        pass
-    _run(repo, "pull", "--ff-only", "origin", from_branch)
-    code, _, err = _run(repo, "checkout", "-b", branch)
+    base = (from_branch or "HEAD").strip()
+    if base not in ("HEAD", "head", "@"):
+        # Try to use local/remote integration base when requested
+        _run(repo, "fetch", "origin", base)
+        code_b, _, _ = _run(repo, "rev-parse", "--verify", base)
+        if code_b != 0:
+            code_b, _, _ = _run(repo, "rev-parse", "--verify", f"origin/{base}")
+            if code_b == 0:
+                base = f"origin/{base}"
+            else:
+                base = "HEAD"
+        else:
+            # Prefer staying on current tip if already ahead of master
+            pass
+        code, _, err = _run(repo, "checkout", "-b", branch, base)
+    else:
+        code, _, err = _run(repo, "checkout", "-b", branch)
     if code != 0:
         return {"ok": False, "error": err or "create branch failed", "branch": branch}
     return {
         "ok": True,
         "branch": branch,
         "created": True,
-        "message": f"Created and checked out {branch} from {from_branch}",
+        "message": f"Created and checked out {branch} from {base}",
     }
 
 
@@ -326,8 +366,12 @@ def protect_work(
             "message": "Nothing staged — dirty files remain",
         }
 
-    # Branch selection
-    areas = [area_from_path(p) for p in to_stage if area_from_path(p) != "_root"]
+    # Branch selection (use work-area aliases so FCC/investment → work/treasury)
+    areas = [
+        work_area_from_path(p)
+        for p in to_stage
+        if work_area_from_path(p) not in ("_root",)
+    ]
     area_counts: dict[str, int] = {}
     for a in areas:
         area_counts[a] = area_counts.get(a, 0) + 1
@@ -339,8 +383,14 @@ def protect_work(
     current = current if code == 0 else None
     branch_actions: list[str] = []
 
-    if ensure_work_branch and current in ("master", "main", None):
-        sw = start_work(primary_area, repo=repo, from_branch=current or "master")
+    # Prefer the work/<area> that matches dirty paths (FCC → work/treasury, not work/iot).
+    expected_branch = branch_name_for_area(primary_area)
+    need_switch = ensure_work_branch and primary_area not in ("misc", "_root") and (
+        current in ("master", "main", None)
+        or (current and current.startswith("work/") and current != expected_branch)
+    )
+    if need_switch:
+        sw = start_work(primary_area, repo=repo, from_branch="HEAD")
         branch_actions.append(sw.get("message") or str(sw))
         if not sw.get("ok"):
             return {"ok": False, "error": sw.get("error"), "branch_actions": branch_actions}

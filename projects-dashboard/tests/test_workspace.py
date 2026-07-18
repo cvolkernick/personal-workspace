@@ -18,6 +18,8 @@ from workspace import (  # noqa: E402
     collect_repo_status,
     collect_workspace_dashboard,
     path_is_dirty,
+    work_area_for_tld,
+    work_branch_for_tld,
 )
 
 
@@ -37,6 +39,21 @@ def _git(cwd: Path, *args: str) -> None:
             "GIT_COMMITTER_EMAIL": "t@example.com",
         },
     )
+
+
+class TestWorkAreaMap(unittest.TestCase):
+    def test_finance_tlds_share_treasury_branch(self):
+        for tld in ("treasury", "financial-command", "investment", "research"):
+            self.assertEqual(work_area_for_tld(tld), "treasury")
+            self.assertEqual(work_branch_for_tld(tld), "work/treasury")
+
+    def test_fitness_aliases_resistance(self):
+        self.assertEqual(work_area_for_tld("fitness"), "resistance-dashboard")
+        self.assertEqual(work_branch_for_tld("fitness"), "work/resistance-dashboard")
+
+    def test_meta_has_no_work_branch(self):
+        self.assertEqual(work_area_for_tld("strategy"), "_meta")
+        self.assertIsNone(work_branch_for_tld("strategy"))
 
 
 class TestWorkspace(unittest.TestCase):

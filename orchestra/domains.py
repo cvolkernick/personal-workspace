@@ -25,6 +25,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "launch": "python3 projects-dashboard/server.py",
         "sources": ["ops/backlog/", "ops/session-index/", "projects-dashboard/"],
         "kind": "dashboard",
+        "work_branch": "work/projects-dashboard",
     },
     {
         "id": "finance",
@@ -34,11 +35,15 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "url": "http://127.0.0.1:8000/financial-command/",
         "launch": "python3 financial-command/server.py",
         "sources": [
+            "treasury/",
             "treasury/snapshots/treasury_latest.json",
+            "financial-command/",
             "financial-command/treasury_latest.json",
             "investment/",
+            "research/",
         ],
         "kind": "dashboard",
+        "work_branch": "work/treasury",
     },
     {
         "id": "fitness",
@@ -49,6 +54,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "launch": "python3 resistance-dashboard/server.py",
         "sources": ["fitness/data/", "fitness/workouts/", "resistance-dashboard/"],
         "kind": "dashboard",
+        "work_branch": "work/resistance-dashboard",
     },
     {
         "id": "holistic",
@@ -59,6 +65,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "launch": "python3 holistic/server.py",
         "sources": ["holistic/data/", "holistic/time_allocator/"],
         "kind": "dashboard",
+        "work_branch": "work/holistic",
     },
     {
         "id": "iot",
@@ -74,6 +81,7 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
             "iot/",
         ],
         "kind": "dashboard",
+        "work_branch": "work/iot",
     },
 ]
 

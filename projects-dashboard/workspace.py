@@ -48,6 +48,39 @@ META_CONTENT_DIRS = frozenset(
     }
 )
 
+# Top-level directory (TLD) → git work/<area> branch slug.
+# Related folders share one work branch so finance/FCC work is not on work/orchestra.
+WORK_AREA_FOR_TLD: dict[str, str] = {
+    # Finance / treasury stack
+    "treasury": "treasury",
+    "financial-command": "treasury",
+    "investment": "treasury",
+    "research": "treasury",
+    # Top-level coordinator
+    "orchestra": "orchestra",
+    # Domain dashboards
+    "iot": "iot",
+    "holistic": "holistic",
+    "projects-dashboard": "projects-dashboard",
+    "resistance-dashboard": "resistance-dashboard",
+    "fitness": "resistance-dashboard",
+    # Meta / workflow support lives with projects-dashboard when branched
+    "ops": "projects-dashboard",
+    "strategy": "_meta",
+    "initiatives": "_meta",
+}
+
+# Human-readable domain groups for docs / dashboards
+TLD_DOMAIN_GROUPS: dict[str, list[str]] = {
+    "orchestra": ["orchestra"],
+    "finance": ["treasury", "financial-command", "investment", "research"],
+    "workflow": ["projects-dashboard", "ops"],
+    "fitness": ["resistance-dashboard", "fitness"],
+    "time": ["holistic"],
+    "iot": ["iot"],
+    "planning": ["strategy", "initiatives"],
+}
+
 # Local servers often left running across project work
 KNOWN_PORTS = {
     8765: "projects-dashboard",
@@ -57,6 +90,25 @@ KNOWN_PORTS = {
     8780: "iot",
     8790: "orchestra",
 }
+
+
+def work_area_for_tld(tld: str) -> str:
+    """Map a monorepo top-level directory name to a work/<area> branch slug.
+
+    Unknown TLDs keep their own name (work/<tld>). Meta content returns ``_meta``.
+    """
+    tld = (tld or "").strip().strip("/").lower()
+    if not tld or tld in _SKIP_TOP or tld.startswith("."):
+        return "_root"
+    return WORK_AREA_FOR_TLD.get(tld, tld)
+
+
+def work_branch_for_tld(tld: str) -> Optional[str]:
+    """Return ``work/<area>`` for a TLD, or None for meta/root."""
+    area = work_area_for_tld(tld)
+    if area in ("_meta", "_root", "misc"):
+        return None
+    return f"work/{area}"
 
 
 
