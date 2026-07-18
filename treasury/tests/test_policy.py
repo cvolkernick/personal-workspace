@@ -61,6 +61,33 @@ class TestDcaGovernor(unittest.TestCase):
         self.assertEqual(r["throttle"], "normal")
 
 
+class TestOneCardAvailableCredit(unittest.TestCase):
+    def test_available_credit_from_deposit_minus_balance(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 0, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 200,
+                "one_card_security_deposit_usdc": 500,
+            },
+            "one_card": {
+                "source": "ynab",
+                "card_balance": 418.55,
+                "balance_owed": 418.55,
+            },
+            "rh_checking": {"source": "ynab", "cash": 10},
+            "robinhood": {
+                "buying_power": 1000,
+                "cash": 10,
+                "equity_value": 5000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["card_available_credit"], 81.45, places=2)
+        self.assertEqual(ev["inputs"]["card_available_credit_source"], "deposit_minus_balance")
+        self.assertAlmostEqual(ev["inputs"]["card_security_deposit_usdc"], 500.0)
+
+
 class TestVaultWorkingUsdc(unittest.TestCase):
     def test_zero_spot_vault_covers_buffers(self):
         """Idle spot ~0 is OK when High Yield vault holds working float."""

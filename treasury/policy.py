@@ -26,6 +26,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
     # Spot liquid USDC may intentionally be ~0; vault holds working USDC float.
     "count_vault_toward_buffers": True,
     "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers buffers
+    # Secured One Card: available credit ≈ security deposit USDC − balance owed
+    "one_card_security_deposit_usdc": 500.0,
 }
 
 MANUAL_FIELDS = (
@@ -232,7 +234,19 @@ def assess_data_quality(
     oc = snapshot.get("one_card") or {}
     if oc.get("card_balance") is not None or oc.get("balance_owed") is not None:
         missing_manual = [k for k in missing_manual if k != "card_balance"]
+    if not _is_missing(man.get("card_balance")):
+        missing_manual = [k for k in missing_manual if k != "card_balance"]
     if oc.get("card_available_credit") is not None or oc.get("available_credit") is not None:
+        missing_manual = [k for k in missing_manual if k != "card_available_credit"]
+    # Computed available credit from security deposit also counts
+    dep = man.get("one_card_security_deposit_usdc")
+    if _is_missing(dep):
+        dep = (snapshot.get("policy_overrides") or {}).get("one_card_security_deposit_usdc")
+    if not _is_missing(dep) and (
+        oc.get("card_balance") is not None
+        or oc.get("balance_owed") is not None
+        or not _is_missing(man.get("card_balance"))
+    ):
         missing_manual = [k for k in missing_manual if k != "card_available_credit"]
 
     if missing_manual:
@@ -391,6 +405,19 @@ def evaluate_treasury(
     )
     if card_source is None and not _is_missing(man.get("card_balance")):
         card_source = "manual"
+
+    # Secured One Card available credit ≈ USDC security deposit − balance owed
+    deposit_raw = man.get("one_card_security_deposit_usdc")
+    if _is_missing(deposit_raw):
+        deposit_raw = p.get("one_card_security_deposit_usdc")
+    card_deposit = None if _is_missing(deposit_raw) else _f(deposit_raw)
+    card_avail_source = None
+    if card_avail is not None:
+        card_avail_source = "manual_or_ynab"
+    elif card_deposit is not None and not _is_missing(card_balance_raw):
+        card_avail = max(0.0, card_deposit - card_balance)
+        card_avail_source = "deposit_minus_balance"
+        card_avail_raw = card_avail  # treat as known for stress/DQ
 
     bp = _f(rh.get("buying_power"))
     # Brokerage cash from RH trading MCP (may be sparse)
@@ -778,6 +805,8 @@ def evaluate_treasury(
             "vault_usdc": vault_usdc if vault_known else None,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
+            "card_security_deposit_usdc": card_deposit,
+            "card_available_credit_source": card_avail_source,
             "card_source": card_source,
             "one_card_spend_30d": one_card.get("spend_30d"),
             "one_card_account": one_card.get("account_name"),

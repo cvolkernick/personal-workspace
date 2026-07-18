@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-07-17T23:16:30.664926+00:00",
+    "as_of": "2026-07-18T00:16:03.894885+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-17T23:16:28.960300+00:00",
+      "as_of": "2026-07-17T23:49:24.228030+00:00",
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 0.0025784177294815,
-      "btc_usd_price": 63851.68,
-      "liquid_btc_usd": 164.6363037691793,
+      "btc_usd_price": 63906.88,
+      "liquid_btc_usd": 164.77863242784667,
       "by_currency": {
         "USDC": 1.904e-07,
         "USD": 0.0006859351614,
@@ -19,15 +19,16 @@
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
       "ltv": null,
-      "vault_usdc": null,
+      "vault_usdc": "147.43",
       "card_balance": 418.55,
       "card_available_credit": null,
-      "notes": "Edit these from the Coinbase app (Morpho loan LTV, High Yield vault, One Card). API cannot read them.",
+      "one_card_security_deposit_usdc": 500,
+      "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance.",
       "card_balance_source": "ynab"
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-07-17T23:16:29.591792+00:00",
+      "as_of": "2026-07-17T23:49:24.629239+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -74,13 +75,55 @@
       "token_source": "/Users/cvolkernick/.config/ynab/token",
       "since": "2026-04-18"
     },
+    "rh_checking": {
+      "source": "ynab",
+      "as_of": "2026-07-17T23:49:24.786535+00:00",
+      "provider": "ynab",
+      "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+      "budget_name": "Chris's Plan",
+      "account_id": "1df4de02-042d-48eb-b5cc-caf618bfaf3e",
+      "account_name": "RH Checking \u2013 3646",
+      "account_type": "checking",
+      "direct_import_linked": true,
+      "direct_import_in_error": false,
+      "balance_raw": 2.43,
+      "cash": 2.43,
+      "available": 2.43,
+      "cleared_balance": 2.43,
+      "uncleared_balance": 0.0,
+      "spend_30d": 0.0,
+      "inflow_30d": 0.0,
+      "transaction_count": 1,
+      "transactions": [
+        {
+          "id": "927835b0-5058-4f08-b873-9f1a158529b8",
+          "date": "2026-07-17",
+          "payee": "Starting Balance",
+          "amount": 2.43,
+          "amount_display": 2.43,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "Inflow: Ready to Assign"
+        }
+      ],
+      "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
+      "token_source": "/Users/cvolkernick/.config/ynab/token",
+      "since": "2026-04-18"
+    },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-17T23:16:30.489139+00:00",
+      "as_of": "2026-07-17T23:49:25.480458+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
+      "semantics": {
+        "personal": "Estimated upcoming expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
+        "discretionary": "Hypothetical destinations for excess capital (assets / goals). Not a spending plan and not included in expense burn.",
+        "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal."
+      },
       "tabs": {
         "Personal": {
+          "role": "upcoming_expense_estimates",
           "item_count": 27,
           "totals": {
             "daily": 534.51,
@@ -178,6 +221,148 @@
               "from": "Coinbase",
               "date": "8/1/2026",
               "budget_allocation": 0.0077
+            }
+          ],
+          "upcoming_by_date": [
+            {
+              "date": "1/9/2027",
+              "item": "Amazon Prime",
+              "from": "Coinbase",
+              "monthly": 11.67,
+              "weekly": 2.68
+            },
+            {
+              "date": "2/1/2027",
+              "item": "Premium Connectivity",
+              "from": "Coinbase",
+              "monthly": 8.25,
+              "weekly": 1.9
+            },
+            {
+              "date": "2/14/2027",
+              "item": "Google One",
+              "from": "Coinbase",
+              "monthly": 19.99,
+              "weekly": 4.61
+            },
+            {
+              "date": "4/1/2026",
+              "item": "Rent (April / May / June / July / August)",
+              "from": "Coinbase",
+              "monthly": 8400.0,
+              "weekly": 1933.15
+            },
+            {
+              "date": "4/21/2026",
+              "item": "Capital One (April / May / June)",
+              "from": "RH Checking",
+              "monthly": 1121.55,
+              "weekly": 261.7
+            },
+            {
+              "date": "5/21/2026",
+              "item": "Santander (May / June)",
+              "from": "RH Checking",
+              "monthly": 773.18,
+              "weekly": 180.41
+            },
+            {
+              "date": "5/23/2026",
+              "item": "GM Financial (May / June)",
+              "from": "RH Checking",
+              "monthly": 1296.61,
+              "weekly": 302.54
+            },
+            {
+              "date": "7/15/2027",
+              "item": "Lawn Mower",
+              "from": "Coinbase",
+              "monthly": 22.92,
+              "weekly": 5.27
+            },
+            {
+              "date": "7/15/2027",
+              "item": "Final VA Payments",
+              "from": "Coinbase",
+              "monthly": 1250.0,
+              "weekly": 287.67
+            },
+            {
+              "date": "7/15/2027",
+              "item": "AT&T Final Bill",
+              "from": "Coinbase",
+              "monthly": 50.0,
+              "weekly": 11.51
+            },
+            {
+              "date": "7/17/2026",
+              "item": "Gym",
+              "from": "Coinbase",
+              "monthly": 27.0,
+              "weekly": 6.21
+            },
+            {
+              "date": "7/18/2026",
+              "item": "Pawp",
+              "from": "Coinbase",
+              "monthly": 19.0,
+              "weekly": 4.37
+            },
+            {
+              "date": "7/18/2026",
+              "item": "Water",
+              "from": "RH Checking",
+              "monthly": 67.0,
+              "weekly": 15.42
+            },
+            {
+              "date": "7/19/2026",
+              "item": "Banfield",
+              "from": "Coinbase",
+              "monthly": 85.0,
+              "weekly": 19.56
+            },
+            {
+              "date": "7/20/2026",
+              "item": "Sud Stop Car Wash",
+              "from": "Coinbase",
+              "monthly": 160.0,
+              "weekly": 36.82
+            },
+            {
+              "date": "7/21/2026",
+              "item": "Fleet Insurance",
+              "from": "RH Checking",
+              "monthly": 560.0,
+              "weekly": 128.88
+            },
+            {
+              "date": "7/23/2026",
+              "item": "Coinbase One",
+              "from": "Coinbase",
+              "monthly": 29.99,
+              "weekly": 6.9
+            },
+            {
+              "date": "8/1/2026",
+              "item": "Tha\u00eds",
+              "from": "Coinbase",
+              "monthly": 900.0,
+              "weekly": 207.12
+            },
+            {
+              "date": "8/1/2026",
+              "item": "ASIC Fleet OpEx",
+              "from": "RH Checking",
+              "monthly": 437.2,
+              "weekly": 100.89
+            },
+            {
+              "date": "8/1/2026",
+              "item": "Dog Food",
+              "from": "Coinbase",
+              "monthly": 125.0,
+              "weekly": 28.77
             }
           ],
           "items": [
@@ -481,6 +666,7 @@
           ]
         },
         "Discretionary": {
+          "role": "excess_capital_targets",
           "item_count": 8,
           "totals": {
             "daily": 84.93,
@@ -489,6 +675,29 @@
             "monthly": 2548.0,
             "annually": 30576.0
           },
+          "top_targets": [
+            {
+              "item": "ASIC",
+              "monthly": 2500.0,
+              "from": null,
+              "date": "8/1/2026",
+              "budget_allocation": null
+            },
+            {
+              "item": "Tesla TPMS",
+              "monthly": 115.0,
+              "from": null,
+              "date": "8/1/2026",
+              "budget_allocation": null
+            },
+            {
+              "item": "Tesla Wiper Blades",
+              "monthly": 48.0,
+              "from": null,
+              "date": "8/1/2026",
+              "budget_allocation": null
+            }
+          ],
           "top_monthly": [
             {
               "item": "ASIC",
@@ -605,18 +814,21 @@
         }
       },
       "summary": {
+        "upcoming_expense_monthly": 16211.68,
         "personal_monthly": 16211.68,
         "personal_daily": 534.51,
         "personal_weekly": 3741.56,
         "personal_annually": 53285.38,
+        "capital_targets_monthly": 2548.0,
         "discretionary_monthly": 2548.0,
         "discretionary_daily": 84.93,
-        "combined_monthly": 18759.68,
-        "combined_daily": 619.44,
+        "combined_monthly": 16211.68,
+        "combined_daily": 534.51,
         "coinbase_funded_monthly": 11862.82,
-        "rh_funded_monthly": 4255.54
+        "rh_funded_monthly": 4255.54,
+        "rh_checking_funded_monthly": 4255.54
       },
-      "notes": "Budget/allocation sheet (not a transaction ledger). Monthly totals drive FCC burn-rate context; Coinbase-funded slice informs liquid USDC pressure."
+      "notes": "Personal = estimated future bills by pay-from account. Discretionary = theoretical excess-capital targets (not expenses). Actual card/spend history comes from YNAB, not this sheet."
     },
     "robinhood": {
       "source": "live",
@@ -638,13 +850,16 @@
       "rh_margin_use_max": 0.4,
       "excess_split_cb": 0.6,
       "excess_split_rh": 0.4,
-      "bridge_max_recommend_usdc": 5000
+      "bridge_max_recommend_usdc": 5000,
+      "count_vault_toward_buffers": true,
+      "one_card_security_deposit_usdc": 500
     },
     "meta": {
       "config_path": "/Users/cvolkernick/personal-workspace/treasury/config.json",
       "coinbase_source": "live",
       "robinhood_source": "live",
       "one_card_source": "ynab",
+      "rh_checking_source": "ynab",
       "expenses_source": "google_sheets",
       "rh_accounts": {
         "primary": "5QW39737",
@@ -653,7 +868,8 @@
       },
       "ynab": {
         "budget_name": "Chris's Plan",
-        "account_name": "Coinbase One Card \u2013 5361"
+        "account_name": "Coinbase One Card \u2013 5361",
+        "checking_account_name": "RH Checking \u2013 3646"
       },
       "expenses_sheet": {
         "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
@@ -662,8 +878,10 @@
       "api_limits": {
         "morpho_loan": "app-only",
         "high_yield_vault": "app-only",
-        "one_card": "ynab/plaid (balance + txs; available credit optional)",
-        "expenses": "google sheet (budget allocations)",
+        "one_card": "ynab/plaid (balance + txs)",
+        "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
+        "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
+        "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
     }
@@ -680,36 +898,51 @@
       "excess_split_cb": 0.6,
       "excess_split_rh": 0.4,
       "bridge_max_recommend_usdc": 5000,
-      "stale_after_hours": 6.0
+      "stale_after_hours": 6.0,
+      "count_vault_toward_buffers": true,
+      "min_spot_usdc_warn": 0.0,
+      "one_card_security_deposit_usdc": 500
     },
     "inputs": {
       "liquid_usdc": 0.0006861255613999999,
+      "working_usdc": 147.4306861255614,
+      "vault_known": true,
+      "count_vault_toward_buffers": true,
       "liquid_btc": 0.0025784177294815,
-      "liquid_btc_usd": 164.6363037691793,
-      "btc_usd_price": 63851.68,
+      "liquid_btc_usd": 164.77863242784667,
+      "btc_usd_price": 63906.88,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
-      "vault_usdc": null,
+      "vault_usdc": 147.43,
       "card_balance": 418.55,
-      "card_available_credit": null,
+      "card_available_credit": 81.44999999999999,
+      "card_security_deposit_usdc": 500.0,
+      "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
       "one_card_spend_30d": 0.0,
       "one_card_account": "Coinbase One Card \u2013 5361",
+      "expenses_upcoming_monthly": 16211.68,
       "expenses_personal_monthly": 16211.68,
+      "expenses_capital_targets_monthly": 2548.0,
       "expenses_discretionary_monthly": 2548.0,
-      "expenses_combined_monthly": 18759.68,
+      "expenses_combined_monthly": 16211.68,
       "expenses_coinbase_funded_monthly": 11862.82,
+      "expenses_rh_funded_monthly": 4255.54,
       "rh_buying_power": 0.08,
       "rh_cash": 0.08,
+      "rh_checking_cash": 2.43,
+      "rh_checking_account": "RH Checking \u2013 3646",
+      "rh_checking_spend_30d": 0.0,
+      "bill_pay_cash": 2.43,
       "rh_equity": 143.932838525,
       "rh_total_value": 144.016884525,
       "rh_margin_use": null
     },
     "buckets": {
-      "liquid_usdc": 0.0006861255613999999,
+      "liquid_usdc": 147.4306861255614,
       "required_total": 1700.0,
-      "shortfall": 1699.9993138744387,
+      "shortfall": 1552.5693138744386,
       "excess": 0.0,
       "floors": {
         "card_float": 500.0,
@@ -717,16 +950,22 @@
         "bridge_dry_powder": 200.0
       },
       "filled": {
-        "card_float": 0.0006861255613999999,
+        "card_float": 147.4306861255614,
         "loan_buffer": 0.0,
         "bridge_dry_powder": 0.0
       },
       "gaps": {
-        "card_float": 499.9993138744386,
+        "card_float": 352.5693138744386,
         "loan_buffer": 1000.0,
         "bridge_dry_powder": 200.0
       },
-      "status": "red"
+      "status": "red",
+      "liquid_spot_usdc": 0.0006861255613999999,
+      "vault_usdc": 147.43,
+      "working_usdc": 147.4306861255614,
+      "count_vault_toward_buffers": true,
+      "spot_only_status": "red",
+      "spot_only_shortfall": 1699.9993138744387
     },
     "dca": {
       "allow_dca": false,
@@ -746,29 +985,29 @@
     },
     "data_quality": {
       "status": "yellow",
-      "completeness_score": 0.542,
+      "completeness_score": 0.75,
       "missing_manual_fields": [
         "loan_principal_usdc",
         "collateral_btc_usd",
-        "ltv",
-        "vault_usdc",
-        "card_available_credit"
+        "ltv"
       ],
-      "manual_filled": 1,
+      "manual_filled": 3,
       "manual_total": 6,
       "sources": {
         "coinbase": "live",
         "robinhood": "live",
         "one_card": "ynab",
+        "rh_checking": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-07-17T23:16:28.960300+00:00",
+        "coinbase_as_of": "2026-07-17T23:49:24.228030+00:00",
         "robinhood_as_of": null,
-        "one_card_as_of": "2026-07-17T23:16:29.591792+00:00",
-        "expenses_as_of": "2026-07-17T23:16:30.489139+00:00"
+        "one_card_as_of": "2026-07-17T23:49:24.629239+00:00",
+        "rh_checking_as_of": "2026-07-17T23:49:24.786535+00:00",
+        "expenses_as_of": "2026-07-17T23:49:25.480458+00:00"
       },
       "stale": [],
       "warnings": [
-        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_available_credit"
+        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -788,7 +1027,7 @@
         "kind": "fill_manual",
         "title": "Fill missing Coinbase app fields in config / UI",
         "actor": "human",
-        "detail": "Missing: loan_principal_usdc, collateral_btc_usd, ltv, vault_usdc, card_available_credit",
+        "detail": "Missing: loan_principal_usdc, collateral_btc_usd, ltv",
         "api_reachable": false
       },
       {
@@ -802,9 +1041,9 @@
       {
         "priority": 2,
         "kind": "card_float",
-        "title": "Fund card float: need $500.00 more liquid USDC",
+        "title": "USDC float short $352.57 (spot + High Yield vault)",
         "actor": "either",
-        "detail": "Keep liquid USDC for One Card autopay. Manage card in Coinbase app (no card API).",
+        "detail": "Buffers use working USDC: Advanced Trade spot + Morpho High Yield vault. Idle spot may be ~$0 by design if vault holds the float.",
         "api_reachable": false
       },
       {
@@ -826,33 +1065,49 @@
       {
         "priority": 3,
         "kind": "expense_burn",
-        "title": "Coinbase-funded expense burn ~$11863/mo vs liquid USDC $0.00",
+        "title": "Est. Coinbase-funded bills ~$11863/mo vs working USDC $147.43 (spot+vault)",
         "actor": "either",
-        "detail": "Personal Expense Sheet: keep liquid USDC buffer vs Coinbase-sourced obligations (rent, subs, etc.).",
+        "detail": "Working USDC = idle spot + High Yield vault. Spot often ~$0 by design. Ensure vault (or borrow capacity) covers Coinbase-paid obligations.",
+        "api_reachable": false
+      },
+      {
+        "priority": 3,
+        "kind": "rh_checking_float",
+        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs checking float $2.43 (YNAB RH Checking)",
+        "actor": "either",
+        "detail": "Upcoming sheet bills marked RH Checking. Actual checking balance/txs from YNAB when linked; top up before ACH due dates.",
+        "api_reachable": true
+      },
+      {
+        "priority": 3,
+        "kind": "rh_checking_low",
+        "title": "RH Checking balance low ($2.43) via YNAB",
+        "actor": "human",
+        "detail": "Account RH Checking \u2013 3646: fund for ACH drafts.",
         "api_reachable": false
       },
       {
         "priority": 4,
         "kind": "loan_buffer",
-        "title": "Loan buffer short $1000.00 liquid USDC",
+        "title": "Loan buffer short $1000.00 working USDC",
         "actor": "either",
-        "detail": "Hold free USDC/BTC for Morpho top-up; apply in app or via loan protection.",
+        "detail": "Vault or free BTC/USDC for Morpho top-up; loan protection in app.",
         "api_reachable": false
       },
       {
         "priority": 4,
         "kind": "bridge_powder",
-        "title": "Bridge dry powder short $200.00",
+        "title": "Bridge dry powder short $200.00 working USDC",
         "actor": "either",
-        "detail": "Keep a small liquid USDC sleeve for CB\u2194RH moves.",
+        "detail": "Small USDC sleeve (often pulled from vault when needed) for CB\u2194RH moves.",
         "api_reachable": false
       },
       {
-        "priority": 7,
-        "kind": "vault_unknown",
-        "title": "Enter High Yield vault USDC balance from Coinbase Lend",
+        "priority": 4,
+        "kind": "vault_pull",
+        "title": "Pull up to $147.43 from High Yield vault for card/buffers (app)",
         "actor": "human",
-        "detail": "Vault is not on Advanced Trade API; needed for yield sleeve visibility.",
+        "detail": "Primary USDC home is High Yield (~variable, often higher than idle rewards). Withdraw when paying card or topping Morpho.",
         "api_reachable": false
       }
     ],
@@ -872,7 +1127,7 @@
       {
         "n": 3,
         "actor": "either",
-        "title": "Fund card float: need $500.00 more liquid USDC",
+        "title": "USDC float short $352.57 (spot + High Yield vault)",
         "api_reachable": false
       },
       {
@@ -890,28 +1145,28 @@
       {
         "n": 6,
         "actor": "either",
-        "title": "Coinbase-funded expense burn ~$11863/mo vs liquid USDC $0.00",
+        "title": "Est. Coinbase-funded bills ~$11863/mo vs working USDC $147.43 (spot+vault)",
         "api_reachable": false
       },
       {
         "n": 7,
         "actor": "either",
-        "title": "Loan buffer short $1000.00 liquid USDC",
-        "api_reachable": false
+        "title": "Est. RH Checking\u2013funded bills ~$4256/mo vs checking float $2.43 (YNAB RH Checking)",
+        "api_reachable": true
       },
       {
         "n": 8,
-        "actor": "either",
-        "title": "Bridge dry powder short $200.00",
+        "actor": "human",
+        "title": "RH Checking balance low ($2.43) via YNAB",
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nLiquid USDC: $0.00 | Liquid BTC: 0.00257842 (~$164.64)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nExpense sheet monthly: $18759.68 (personal $16211.68 + disc $2548.00) | CB-funded $11862.82\nRH BP: $0.08 | cash: $0.08 | equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.542\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] Fund card float: need $500.00 more liquid USDC\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P3 [either|manual] Coinbase-funded expense burn ~$11863/mo vs liquid USDC $0.00\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00257842 (~$164.78)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nUpcoming expense estimates (sheet Personal): $16211.68/mo | CB-funded est $11862.82 | RH-checking est $4255.54 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | RH brokerage BP: $0.08 cash: $0.08 equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.75\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$11863/mo vs working USDC $147.43 (spot+vault)\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
-        "filled": 0.0006861255613999999,
-        "gap": 499.9993138744386
+        "filled": 147.4306861255614,
+        "gap": 352.5693138744386
       },
       "loan_buffer": {
         "target": 1000.0,
@@ -919,8 +1174,13 @@
         "gap": 1000.0
       },
       "yield_sleeve": {
-        "vault_usdc": null,
-        "note": "manual / app only"
+        "vault_usdc": 147.43,
+        "note": "High Yield Morpho vault = primary USDC home (not idle spot)"
+      },
+      "working_usdc": {
+        "spot": 0.0006861255613999999,
+        "vault": 147.43,
+        "total": 147.4306861255614
       },
       "rh_cash_bp": {
         "buying_power": 0.08,
@@ -936,13 +1196,15 @@
     },
     "strategy_context": {
       "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
+      "usdc_model": "BTC \u2192 Morpho collateral \u2192 borrow USDC \u2192 pay One Card + High Yield vault. Idle Advanced Trade USDC often ~$0 by design (lower yield than vault).",
       "priority_order": [
         "Protect Morpho LTV (<50% target)",
-        "Card float / One Card available credit",
+        "Card / buffers from working USDC (vault + spot)",
+        "RH Checking float for ACH bills",
         "RH margin heat / DCA throttle",
-        "Loan buffer + vault pull if needed",
+        "Pull vault when paying card or topping collateral",
         "Bridge recommend CB\u2194RH",
-        "Excess \u2192 yield sleeve / DCA"
+        "Excess \u2192 vault / capital targets / DCA"
       ],
       "double_leverage_warning": "Do not fund RH margin-driven DCA with freshly borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities often dump together.",
       "in_app_only": [

@@ -10,21 +10,23 @@
     "excess_split_cb": 0.6,
     "excess_split_rh": 0.4,
     "bridge_max_recommend_usdc": 5000,
-    "count_vault_toward_buffers": true
+    "count_vault_toward_buffers": true,
+    "one_card_security_deposit_usdc": 500
   },
   "coinbase_manual": {
     "loan_principal_usdc": null,
     "collateral_btc_usd": null,
     "ltv": null,
-    "vault_usdc": null,
+    "vault_usdc": "147.43",
     "card_balance": null,
     "card_available_credit": null,
-    "notes": "vault_usdc = High Yield Morpho pool (primary USDC float; spot often ~0). LTV/principal from Coinbase Borrow app."
+    "one_card_security_deposit_usdc": 500,
+    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
   },
   "robinhood": {
     "account_number": "5QW39737",
     "agentic_account_number": "674601752",
-    "notes": "Margin book on ••••9737; agentic account ••••1752 for agent orders when enabled."
+    "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
   },
   "ynab": {
     "budget_name": null,
@@ -35,7 +37,9 @@
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
     "sheet_name": "Personal Expense Sheet",
-    "tabs": ["Personal", "Discretionary"],
-    "notes": "Shared Google Sheet; fetched via gviz CSV export."
+    "tabs": [
+      "Personal",
+      "Discretionary"
+    ]
   }
 }

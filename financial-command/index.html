@@ -429,8 +429,10 @@
             <input id="m-vault" type="number" step="any" />
             <label>One Card balance override</label>
             <input id="m-card-bal" type="number" step="any" placeholder="usually from YNAB" />
-            <label>Card available credit</label>
-            <input id="m-card-avail" type="number" step="any" />
+            <label>One Card USDC security deposit</label>
+            <input id="m-card-deposit" type="number" step="any" placeholder="e.g. 500" />
+            <label>Card available credit override</label>
+            <input id="m-card-avail" type="number" step="any" placeholder="auto: deposit − balance" />
           </div>
         </div>
         <div class="btn-row">
@@ -868,11 +870,18 @@
 
       document.getElementById("cash-credit-side").innerHTML = [
         metric("One Card owed", money(inp.card_balance ?? oc.balance_owed)),
+        metric(
+          "Available credit",
+          money(inp.card_available_credit) +
+            (inp.card_available_credit_source === "deposit_minus_balance"
+              ? " · deposit − bal"
+              : "")
+        ),
+        metric("USDC security deposit", money(inp.card_security_deposit_usdc)),
         metric("Card source", inp.card_source || oc.source || "—"),
         metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
         metric("Checking 30d out", money(rhc.spend_30d)),
-        metric("Brokerage cash", money(inp.rh_cash)),
       ].join("");
 
       // Upcoming
@@ -1021,6 +1030,12 @@
       set("m-vault", man.vault_usdc);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
+      set(
+        "m-card-deposit",
+        man.one_card_security_deposit_usdc ??
+          (ev.policy && ev.policy.one_card_security_deposit_usdc) ??
+          inp.card_security_deposit_usdc
+      );
       set("m-card-avail", man.card_available_credit);
 
       window.__treasury = data;
@@ -1037,6 +1052,7 @@
         ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
         card_balance: num("m-card-bal"),
+        one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
       };
     }

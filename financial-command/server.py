@@ -84,6 +84,13 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/config":
             body = self._read_json()
             try:
+                # Mirror security deposit into policy when saved from UI
+                man = body.get("coinbase_manual") or {}
+                if man.get("one_card_security_deposit_usdc") is not None:
+                    body.setdefault("policy", {})
+                    body["policy"]["one_card_security_deposit_usdc"] = man[
+                        "one_card_security_deposit_usdc"
+                    ]
                 save_config(body)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})

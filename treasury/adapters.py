@@ -380,7 +380,14 @@ def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
         },
         "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
         "ynab": {**(existing.get("ynab") or {}), **(data.get("ynab") or {})},
+        "expenses_sheet": {
+            **(existing.get("expenses_sheet") or {}),
+            **(data.get("expenses_sheet") or {}),
+        },
     }
+    # Preserve expenses_sheet if empty merge
+    if not merged["expenses_sheet"] and existing.get("expenses_sheet"):
+        merged["expenses_sheet"] = existing["expenses_sheet"]
     # Preserve notes if not overwritten
     if "notes" not in (data.get("coinbase_manual") or {}) and (existing.get("coinbase_manual") or {}).get(
         "notes"
