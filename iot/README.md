@@ -44,7 +44,7 @@ Control with `target: "entryway"` / `"livingroom"` (or `"all"`).
 
 `schedule.json` (requires lat/lon — set in the UI or via API):
 
-- **Sunset** → all lights **on** (warm)  
+- **Sunset** → all lights **on** (**magenta**)  
 - **Sunrise** → all lights **off**  
 
 The dashboard process must stay running (background worker polls every 30s).  
@@ -62,7 +62,8 @@ Use **Use browser location** on the UI for accuracy.
 | GET | `/api/discover` | Wiz discovery + mDNS merge |
 | POST | `/api/control` | `{"target":"entryway\|livingroom\|all\|device","color":"…"}` |
 | POST | `/api/schedule/location` | `{"latitude", "longitude", "timezone?"}` |
-| POST | `/api/schedule/routine` | Patch routine `{id, enabled?, …}` |
+| POST | `/api/schedule/routine` | Patch routine `{id, enabled?, color?, …}` |
+| POST | `/api/schedule/run` | Run a routine now `{id, mark?}` |
 | POST | `/api/status` | Live status for all or one target |
 
 ## Tests

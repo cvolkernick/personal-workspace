@@ -179,6 +179,8 @@ class IoTDashboardServerTests(unittest.TestCase):
                 self.assertIn("controlTargetForDevice", html)
                 self.assertIn("data-group-on", html)
                 self.assertIn("/api/schedule", html)
+                self.assertIn("/api/schedule/run", html)
+                self.assertIn("global-bri", html)
             finally:
                 proc.terminate()
                 try:

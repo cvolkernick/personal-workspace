@@ -105,3 +105,19 @@ No HomeKit HAP (`_hap._tcp`) instances observed in short browse. No auto-added n
 - UDP discovery needs same LAN / not blocked by client isolation.
 - mDNS devices are informational only until a driver is added.
 - Dashboard binds **127.0.0.1** only (no auth, not for internet exposure).
+- Sunrise/sunset routines only fire while `iot/server.py` is running.
+
+## Dashboard audit (2026-07-17) — implemented
+
+| Finding | Change |
+|---------|--------|
+| Sunset default was warm | Now **magenta** (`schedule.json`) |
+| Flat device list hard to scan | Devices **grouped by room** |
+| `setBusy` disabled all UI on refresh | Only control actions block; refresh is non-blocking |
+| No way to test a routine | **Run now** + `POST /api/schedule/run` |
+| No routine color edit in UI | Per-routine **color dropdown** |
+| No brightness control | Global **brightness slider** |
+| Hard to see next event | **Next routine** banner + countdown |
+| Stale status | Soft **auto-refresh** every 45s |
+| Weak feedback | **Toast** notifications |
+| Clutter | Discovery + log **collapsed** by default |

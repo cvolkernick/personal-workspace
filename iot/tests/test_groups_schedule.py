@@ -23,8 +23,10 @@ from iot.control import (  # noqa: E402
 from iot.schedule import (  # noqa: E402
     due_routines,
     fire_key,
+    load_schedule,
     mark_fired,
     run_due,
+    run_routine_now,
     schedule_status,
     upcoming_for_day,
 )
@@ -146,7 +148,7 @@ class ScheduleTests(unittest.TestCase):
                     "trigger": "sunset",
                     "offset_minutes": 0,
                     "target": "all",
-                    "color": "warm",
+                    "color": "magenta",
                     "brightness": 180,
                 },
                 {
@@ -159,6 +161,11 @@ class ScheduleTests(unittest.TestCase):
                 },
             ],
         }
+
+    def test_shipped_sunset_routine_is_magenta(self) -> None:
+        sched = load_schedule(ROOT / "iot" / "schedule.json")
+        sunset = next(r for r in sched["routines"] if r["id"] == "sunset_all_on")
+        self.assertEqual(sunset["color"], "magenta")
 
     def test_upcoming_has_both_triggers(self) -> None:
         items = upcoming_for_day(self._sched(), date(2026, 6, 21))
@@ -210,12 +217,38 @@ class ScheduleTests(unittest.TestCase):
             )
             self.assertEqual(len(results), 1)
             self.assertEqual(calls[0][0], "all")
-            self.assertEqual(calls[0][1], "warm")
+            self.assertEqual(calls[0][1], "magenta")
             # second run same day should no-op
             results2 = run_due(
                 control=control, schedule_path=sp, state_path=st, now=now
             )
             self.assertEqual(len(results2), 0)
+
+    def test_run_routine_now(self) -> None:
+        sched = self._sched()
+        with tempfile.TemporaryDirectory() as td:
+            sp = Path(td) / "schedule.json"
+            st = Path(td) / "state.json"
+            sp.write_text(json.dumps(sched), encoding="utf-8")
+            st.write_text(json.dumps({"fired": {}}), encoding="utf-8")
+            calls = []
+
+            def control(target, color, brightness):
+                calls.append((target, color, brightness))
+                return {"ok": True}
+
+            out = run_routine_now(
+                "sunset_all_on",
+                control=control,
+                schedule_path=sp,
+                state_path=st,
+                mark=False,
+            )
+            self.assertTrue(out["ok"])
+            self.assertEqual(calls[0][1], "magenta")
+            # status includes next_event when location set
+            status = schedule_status(sched, {"fired": {}})
+            self.assertIn("next_event", status)
 
     def test_schedule_status_requires_location(self) -> None:
         status = schedule_status(

@@ -13,7 +13,7 @@
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "all",
-      "color": "warm",
+      "color": "magenta",
       "brightness": 180
     },
     {

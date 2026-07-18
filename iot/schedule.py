@@ -231,10 +231,48 @@ def schedule_status(
     if loc:
         sun = sun_times_local(today, loc["latitude"], loc["longitude"], tz_name)
     upcoming = upcoming_for_day(s, today, now=n)
+    # also tomorrow so "next" can cross midnight
+    tomorrow = upcoming_for_day(s, today + timedelta(days=1), now=n)
     # annotate fired
     fired = st.get("fired") or {}
     for u in upcoming:
         u["fired_today"] = bool(fired.get(fire_key(u["id"], today)))
+        try:
+            when = datetime.fromisoformat(u["fire_at"]) if u.get("fire_at") else None
+            if when is not None:
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=tz)
+                u["seconds_until"] = int((when - n).total_seconds())
+        except Exception:  # noqa: BLE001
+            u["seconds_until"] = None
+
+    next_event = None
+    candidates = []
+    for u in upcoming + tomorrow:
+        if not u.get("fire_at"):
+            continue
+        try:
+            when = datetime.fromisoformat(u["fire_at"])
+            if when.tzinfo is None:
+                when = when.replace(tzinfo=tz)
+            if when >= n:
+                candidates.append((when, u))
+        except Exception:  # noqa: BLE001
+            continue
+    if candidates:
+        candidates.sort(key=lambda x: x[0])
+        when, u = candidates[0]
+        next_event = {
+            "id": u["id"],
+            "name": u.get("name") or u["id"],
+            "trigger": u.get("trigger"),
+            "fire_at": when.isoformat(),
+            "fire_hhmm": when.strftime("%H:%M"),
+            "seconds_until": int((when - n).total_seconds()),
+            "target": u.get("target"),
+            "color": u.get("color"),
+        }
+
     return {
         "ok": True,
         "now_local": n.isoformat(),
@@ -243,6 +281,7 @@ def schedule_status(
         "sun_today": sun,
         "routines": list_routines(s),
         "upcoming_today": upcoming,
+        "next_event": next_event,
         "window_minutes": FIRE_WINDOW_MINUTES,
         "note": (
             None
@@ -254,6 +293,17 @@ def schedule_status(
 
 
 ControlFn = Callable[[str, str, Optional[int]], dict[str, Any]]
+
+
+def _invoke_control(control: ControlFn, item: Mapping[str, Any]) -> dict[str, Any]:
+    bri = item.get("brightness")
+    bri_i = int(bri) if bri is not None else None
+    try:
+        if bri_i is not None:
+            return control(str(item["target"]), str(item["color"]), bri_i)
+        return control(str(item["target"]), str(item["color"]), None)
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
 def run_due(
@@ -269,16 +319,53 @@ def run_due(
     due = due_routines(sched, state, now=now)
     results = []
     for item in due:
-        bri = item.get("brightness")
-        bri_i = int(bri) if bri is not None else None
-        try:
-            if bri_i is not None:
-                cr = control(str(item["target"]), str(item["color"]), bri_i)
-            else:
-                cr = control(str(item["target"]), str(item["color"]), None)
-        except Exception as e:  # noqa: BLE001
-            cr = {"ok": False, "error": f"{type(e).__name__}: {e}"}
+        cr = _invoke_control(control, item)
         state = mark_fired(state, item["fire_key"], now=now)
         save_state(state, state_path)
         results.append({"routine": item, "control": cr})
     return results
+
+
+def run_routine_now(
+    routine_id: str,
+    *,
+    control: ControlFn,
+    schedule_path: Optional[Path] = None,
+    state_path: Optional[Path] = None,
+    mark: bool = False,
+    now: Optional[datetime] = None,
+) -> dict[str, Any]:
+    """Manually run a routine's action immediately (does not require sun window).
+
+    If mark=True, records as fired for today so the auto scheduler skips it.
+    """
+    sched = load_schedule(schedule_path)
+    routines = {r["id"]: r for r in list_routines(sched)}
+    r = routines.get(routine_id)
+    if not r:
+        return {"ok": False, "error": f"unknown routine: {routine_id}"}
+    item = {
+        "id": r["id"],
+        "name": r.get("name") or r["id"],
+        "target": r.get("target") or "all",
+        "color": r.get("color") or "warm",
+        "brightness": r.get("brightness"),
+        "trigger": r.get("trigger"),
+    }
+    cr = _invoke_control(control, item)
+    if mark:
+        loc = location_from_schedule(sched)
+        tz_name = loc["timezone"] if loc else resolve_timezone()
+        try:
+            tz = ZoneInfo(tz_name)
+        except Exception:  # noqa: BLE001
+            tz = timezone.utc
+        n = now or datetime.now(tz)
+        if n.tzinfo is None:
+            n = n.replace(tzinfo=tz)
+        else:
+            n = n.astimezone(tz)
+        state = load_state(state_path)
+        state = mark_fired(state, fire_key(routine_id, n.date()), now=n)
+        save_state(state, state_path)
+    return {"ok": bool(cr.get("ok")), "routine": item, "control": cr}

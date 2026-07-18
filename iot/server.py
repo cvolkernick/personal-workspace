@@ -54,6 +54,7 @@ from iot.schedule import (  # noqa: E402
     location_from_schedule,
     resolve_timezone,
     run_due,
+    run_routine_now,
     save_schedule,
     schedule_status,
 )
@@ -414,6 +415,25 @@ class IoTHandler(SimpleHTTPRequestHandler):
                     200,
                     {"ok": True, "fired": len(results), "results": results},
                 )
+                return
+
+            if path == "/api/schedule/run":
+                rid = str(body.get("id") or "").strip()
+                if not rid:
+                    self._json(400, {"ok": False, "error": "id required"})
+                    return
+                mark = bool(body.get("mark", False))
+                result = run_routine_now(
+                    rid,
+                    control=_control_sync,
+                    schedule_path=_sched_path(),
+                    state_path=_state_path(),
+                    mark=mark,
+                )
+                code = 200 if result.get("ok") or result.get("control") else 400
+                if result.get("error") and "unknown" in str(result.get("error")):
+                    code = 404
+                self._json(code, result)
                 return
 
             self._json(404, {"ok": False, "error": f"unknown route: {path}"})
