@@ -212,11 +212,30 @@ def top_items(items: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
     ]
 
 
-def _upcoming_sorted(items: List[Dict[str, Any]], n: int = 15) -> List[Dict[str, Any]]:
-    """Sort personal expenses by due date (missing dates last)."""
+def parse_sheet_date(val: Any) -> Optional[datetime]:
+    """Parse sheet dates like 7/17/2026, 07/17/26, or 2026-07-17 (UTC midnight)."""
+    if val is None:
+        return None
+    s = str(val).strip()
+    if not s:
+        return None
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y-%m-%d", "%m-%d-%Y"):
+        try:
+            return datetime.strptime(s, fmt).replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def _upcoming_sorted(items: List[Dict[str, Any]], n: int = 20) -> List[Dict[str, Any]]:
+    """Sort personal expenses by due date (chronological; missing dates last)."""
+    far = datetime(9999, 12, 31, tzinfo=timezone.utc)
+
     def key(i: Dict[str, Any]):
-        d = i.get("date") or ""
-        return (0, d) if d else (1, i.get("item") or "")
+        dt = parse_sheet_date(i.get("date"))
+        if dt is None:
+            return (1, far, i.get("item") or "")
+        return (0, dt, i.get("item") or "")
 
     ranked = sorted(items, key=key)
     return [
