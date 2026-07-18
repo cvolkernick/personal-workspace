@@ -70,9 +70,15 @@
     .stat {
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 10px; padding: 0.7rem 0.85rem;
+      min-width: 0;
     }
     .stat .n { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; }
-    .stat .l { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat .l {
+      color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.04em; line-height: 1.25;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
     section { margin-bottom: 1.75rem; }
     section h2 {
       margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 650;
@@ -212,8 +218,21 @@
       showError("");
       $("purpose").textContent = data.purpose || "Orchestra";
       const c = data.counts || {};
+      const domains = data.domains || [];
+      // Strategy is files-only (bets/today/initiatives) — surface in the top stats
+      // row so launchable dashboards keep an even card grid.
+      const strategy = domains.find((d) => d.id === "strategy") || {};
+      const sSig = strategy.signals || {};
+      const bets = sSig.thematic_bets || [];
+      const dashDomains = domains.filter((d) => d.id !== "strategy");
+      const dashAvailable = dashDomains.filter((d) => d.available).length;
+
+      const strategySub = bets.length
+        ? bets.slice(0, 5).join(" · ")
+        : (strategy.available ? "files ok" : "missing");
       $("summary").innerHTML = [
-        ["Domains", c.domains_available ?? "—", "available"],
+        ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
+        ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
         ["Synergies", c.synergies ?? "—", "links"],
         ["Priorities", c.priorities ?? "—", "actions"],
         ["Initiatives", c.initiatives ?? "—", "active"],
@@ -223,9 +242,8 @@
         `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
       ).join("");
 
-      const domains = data.domains || [];
-      $("dom-count").textContent = String(domains.length);
-      $("domains").innerHTML = domains.map((d) => {
+      $("dom-count").textContent = String(dashDomains.length);
+      $("domains").innerHTML = dashDomains.map((d) => {
         const live = d.live === true ? '<span class="pill live">live</span>'
           : d.live === false ? '<span class="pill down">offline</span>' : "";
         const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
@@ -296,7 +314,8 @@
         : "";
       $("bridge").innerHTML = candHtml + linkedHtml;
 
-      const links = data.links || [];
+      // Launch list: skip strategy (files-only; already on the summary strip)
+      const links = (data.links || []).filter((l) => l.id !== "strategy");
       $("links").innerHTML = links.map((l) => {
         const port = l.port != null ? `port ${l.port}` : "files only";
         const url = l.url
