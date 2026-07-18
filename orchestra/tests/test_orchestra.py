@@ -295,6 +295,12 @@ class CollectorsAggregationTests(unittest.TestCase):
             self.assertEqual(collect_holistic(ws)["id"], "holistic")
             self.assertEqual(collect_iot(ws)["id"], "iot")
 
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            self.assertIn("bridge", payload)
+            self.assertIn("candidates", payload["bridge"])
+            self.assertIn("linked", payload["bridge"])
+            self.assertIn("bridge_candidates", payload.get("counts") or {})
+
 
 class SynergyTests(unittest.TestCase):
     def test_connection_overlap_between_two_domains(self) -> None:

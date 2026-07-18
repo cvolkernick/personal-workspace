@@ -76,6 +76,29 @@ class DomainTests(unittest.TestCase):
         self.assertEqual(it["priority"], 9)
         self.assertEqual(it["minutes"], 45)
 
+    def test_add_item_with_backlog_link(self) -> None:
+        from holistic.time_allocator.domain import get_item_by_backlog_id
+
+        state = add_item(
+            empty_state(),
+            "From backlog",
+            priority=7,
+            minutes=45,
+            notes="MVP slice",
+            source="workflow-backlog",
+            backlog_id="abc-123",
+        )
+        it = get_item_by_backlog_id(state, "abc-123")
+        assert it is not None
+        self.assertEqual(it["title"], "From backlog")
+        self.assertEqual(it["source"], "workflow-backlog")
+        with self.assertRaises(ValueError):
+            add_item(
+                state,
+                "Dup link",
+                backlog_id="abc-123",
+            )
+
 
 class StoreTests(unittest.TestCase):
     def test_roundtrip_persistence(self) -> None:

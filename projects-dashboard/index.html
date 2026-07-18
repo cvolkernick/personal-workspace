@@ -240,6 +240,7 @@
     <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
     <div id="strategy-focus"></div>
+    <div id="bridge"></div>
     <div id="recommendations"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
@@ -442,6 +443,45 @@
           <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
         </div>`;
 
+      // Workflow ↔ Time allocator bridge
+      const bridge = data.bridge || {};
+      const bCand = bridge.candidates || [];
+      const bLinked = bridge.linked || [];
+      $("bridge").innerHTML = `
+        <div class="section-title">Day bridge <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· backlog → time allocator (not a merge)</span></div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
+              ${esc(bridge.note || "Push ranked backlog work into today's minute plan.")}
+              ${bridge.allocator_url ? ` · <a href="${esc(bridge.allocator_url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open time allocator</a>` : ""}
+            </div>
+            <button type="button" id="btn-bridge-top" title="Send top unlinked candidate">Send top to today</button>
+          </div>
+          ${!bCand.length ? `<div class="empty" style="padding:0.65rem">No strong candidates (groom backlog so items get schedule/rank).</div>` :
+            bCand.slice(0, 6).map((c) => `
+              <div class="sess">
+                <div>${c.already_linked ? `<span class="pill clean">linked</span>` : `<span class="pill session">#${esc(c.press_rank || "—")}</span>`}</div>
+                <div>
+                  <div class="title">${esc(c.title)}</div>
+                  <div class="id">${esc(c.schedule_label || c.schedule_slot || "")} · ${esc(c.priority)} · ${esc(c.status)}${c.area ? ` · ${esc(c.area)}` : ""}</div>
+                </div>
+                <div>
+                  ${c.already_linked
+                    ? `<span class="pill muted">${esc(c.allocator_id || "on day list")}</span>`
+                    : `<button type="button" class="btn-bl-to-day" data-id="${esc(c.backlog_id)}">Send to today</button>`}
+                </div>
+              </div>`).join("")}
+          ${bLinked.length ? `
+            <h3 style="margin:0.75rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Already on day list (${bLinked.length})</h3>
+            ${bLinked.slice(0, 5).map((l) => `
+              <div class="sess">
+                <div><span class="pill clean">${esc(l.minutes ?? 0)}m</span></div>
+                <div><div class="title">${esc(l.title)}</div><div class="id">pri ${esc(l.priority)} · backlog ${esc((l.backlog_id || "").slice(0, 8))}</div></div>
+                <div class="when"></div>
+              </div>`).join("")}
+          ` : ""}
+        </div>`;
+
       // Recommendations panel — press rank + priority color coding
       const rec = data.recommendations || {};
       const ranked = rec.ranked || rec.pending || [];
@@ -622,6 +662,7 @@
             ` : ""}
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
               <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
+              <button type="button" class="btn-bl-to-day" data-id="${esc(it.id)}" title="Create a time-allocator day task linked to this backlog item">Send to today</button>
               <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}" title="Start Grok planning + MVP from current fields (works from idea)">Initiate goal</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
@@ -854,6 +895,9 @@
             msg += ` · ${data.changes.length} hygiene change(s)`;
           }
         }
+        if (data.allocator_url || data.already_linked != null || data.sent) {
+          msg = data.message || (data.sent ? `Sent ${data.count} to day plan` : "Bridge OK");
+        }
         if (data.committed) {
           msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
         }
@@ -909,6 +953,10 @@
       }
       if (t.id === "btn-bl-groom") {
         await postAction("/api/backlog/groom", { apply: true });
+        return;
+      }
+      if (t.id === "btn-bridge-top") {
+        await postAction("/api/bridge/send-top", { limit: 1 });
         return;
       }
       if (t.id === "btn-bl-view-press") {
@@ -990,6 +1038,10 @@
           area: (root.querySelector(".bl-edit-area") || {}).value || "",
         });
         window.__blEditOpen.delete(id);
+        return;
+      }
+      if (t.classList.contains("btn-bl-to-day")) {
+        await postAction("/api/bridge/to-allocator", { backlog_id: id });
         return;
       }
       if (t.classList.contains("btn-bl-initiate")) {

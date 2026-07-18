@@ -42,6 +42,19 @@ python3 projects-dashboard/git_workflow.py status
 python3 projects-dashboard/git_workflow.py protect "msg"
 ```
 
+## Day bridge (Workflow ↔ Time allocator)
+
+Macro backlog stays in Workflow; day minutes stay in Holistic. Bridge links them:
+
+```bash
+python3 projects-dashboard/bridge.py status
+python3 projects-dashboard/bridge.py send <backlog-id>
+python3 projects-dashboard/bridge.py send-top 1
+```
+
+Dashboard: **Send to today** on a backlog card, or **Send top to today** in the Day bridge strip.  
+Orchestra shows the same candidates + already-linked day tasks (read-only deep links).
+
 ## Strategy vs projects
 
 | Path | Role on dashboard |

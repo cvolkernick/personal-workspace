@@ -50,6 +50,42 @@ def build_orchestra_payload(
     fitness = by_id.get("fitness") or {}
     holistic = by_id.get("holistic") or {}
     holistic_targets = list((holistic.get("signals") or {}).get("targets") or [])
+    holistic_sig = holistic.get("signals") or {}
+    backlog_linked = list(holistic_sig.get("backlog_linked") or [])
+    linked_ids = {
+        str(x.get("backlog_id"))
+        for x in backlog_linked
+        if isinstance(x, dict) and x.get("backlog_id")
+    }
+    # Bridge candidates: top backlog not yet on day plan
+    bridge_candidates = []
+    for bi in backlog_active[:10]:
+        bid = str(bi.get("id") or "")
+        if not bid:
+            continue
+        slot = (bi.get("schedule_slot") or "").lower()
+        try:
+            rank = int(bi.get("press_rank") or 99)
+        except (TypeError, ValueError):
+            rank = 99
+        if bid in linked_ids:
+            continue
+        if slot in ("now", "this_week") or rank <= 3 or (bi.get("status") or "").lower() in (
+            "ready",
+            "planning",
+            "active",
+        ):
+            bridge_candidates.append(
+                {
+                    "backlog_id": bid,
+                    "title": bi.get("title"),
+                    "priority": bi.get("priority"),
+                    "status": bi.get("status"),
+                    "press_rank": bi.get("press_rank"),
+                    "schedule_label": bi.get("schedule_label") or bi.get("schedule_slot"),
+                    "area": bi.get("area"),
+                }
+            )
     iot = by_id.get("iot") or {}
     iot_sig = iot.get("signals") or {}
     iot_routines = [
@@ -107,6 +143,17 @@ def build_orchestra_payload(
         "synergies": synergies,
         "priorities": priorities,
         "action_plan": priorities,  # alias for UI / verification
+        "bridge": {
+            "note": (
+                "Macro backlog → day plan without merging UIs. "
+                "Send from Workflow Management, or deep-link into each tool."
+            ),
+            "candidates": bridge_candidates[:8],
+            "linked": backlog_linked[:12],
+            "workflow_url": "http://127.0.0.1:8765/",
+            "allocator_url": "http://127.0.0.1:8770/",
+            "send_hint": "In Workflow: Send to today / Send top to today",
+        },
         "counts": {
             "domains": len(domains),
             "domains_available": sum(1 for d in domains if d.get("available")),
@@ -114,6 +161,8 @@ def build_orchestra_payload(
             "priorities": len(priorities),
             "initiatives": len(initiatives),
             "today_items": len(today_items),
+            "bridge_candidates": len(bridge_candidates),
+            "bridge_linked": len(backlog_linked),
         },
         "meta": {
             "port": DEFAULT_PORT,

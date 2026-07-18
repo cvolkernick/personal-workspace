@@ -36,6 +36,11 @@ from backlog import (  # noqa: E402
     update_item,
 )
 from backlog_groom import groom_backlog  # noqa: E402
+from bridge import (  # noqa: E402
+    list_bridge_status,
+    send_backlog_to_allocator,
+    send_top_to_allocator,
+)
 from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
 from recommendations import (  # noqa: E402
     approve_suggestion,
@@ -112,10 +117,21 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 payload["recommendations"] = recommendations_payload(
                     refresh=refresh_rec
                 )
+                try:
+                    payload["bridge"] = list_bridge_status()
+                except Exception as be:
+                    payload["bridge"] = {"ok": False, "error": str(be)}
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, payload)
+            return
+
+        if path == "/api/bridge":
+            try:
+                self._json(200, list_bridge_status())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path == "/api/backlog":
@@ -240,6 +256,28 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 if isinstance(apply, str):
                     apply = apply.lower() not in ("0", "false", "no")
                 result = groom_backlog(apply=bool(apply))
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/bridge/to-allocator":
+                bid = body.get("backlog_id") or body.get("id")
+                if not bid:
+                    self._json(400, {"ok": False, "error": "missing backlog_id"})
+                    return
+                mins = body.get("minutes")
+                pri = body.get("priority")
+                result = send_backlog_to_allocator(
+                    str(bid),
+                    minutes=int(mins) if mins is not None else None,
+                    priority=int(pri) if pri is not None else None,
+                    rebuild_plan=body.get("rebuild_plan", True),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/bridge/send-top":
+                limit = int(body.get("limit") or 1)
+                result = send_top_to_allocator(limit=limit)
                 self._json(200 if result.get("ok") else 500, result)
                 return
 

@@ -178,6 +178,12 @@
       <div class="list" id="priorities"></div>
     </section>
 
+    <section id="sec-bridge">
+      <h2>Day bridge <span class="badge" id="bridge-count">0</span></h2>
+      <p class="sub" id="bridge-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
+      <div class="list" id="bridge"></div>
+    </section>
+
     <section id="sec-links">
       <h2>Launch subordinates</h2>
       <div class="list" id="links"></div>
@@ -212,6 +218,7 @@
         ["Priorities", c.priorities ?? "—", "actions"],
         ["Initiatives", c.initiatives ?? "—", "active"],
         ["Today", c.today_items ?? "—", "open"],
+        ["Day bridge", c.bridge_candidates ?? "—", "to allocate"],
       ].map(([l, n, sub]) =>
         `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
       ).join("");
@@ -264,6 +271,30 @@
           </div>
         </div>`;
       }).join("") || '<div class="row detail">No coordinated priorities yet.</div>';
+
+      const br = data.bridge || {};
+      const cand = br.candidates || [];
+      const linked = br.linked || [];
+      $("bridge-count").textContent = String(cand.length);
+      $("bridge-note").innerHTML = `${esc(br.note || "")}
+        ${br.workflow_url ? ` · <a class="link" href="${esc(br.workflow_url)}" target="_blank" rel="noopener">Workflow</a>` : ""}
+        ${br.allocator_url ? ` · <a class="link" href="${esc(br.allocator_url)}" target="_blank" rel="noopener">Time allocator</a>` : ""}
+        ${br.send_hint ? ` · <span class="detail">${esc(br.send_hint)}</span>` : ""}`;
+      const candHtml = cand.length
+        ? cand.map((c) => `
+          <div class="row">
+            <div class="title">
+              <span class="rank">${esc(c.press_rank || "·")}</span>
+              ${esc(c.title || "")}
+            </div>
+            <div class="detail">${esc(c.schedule_label || "")} · ${esc(c.priority || "")} · ${esc(c.status || "")}${c.area ? ` · ${esc(c.area)}` : ""}</div>
+            <div class="tags"><span class="pill medium">send from Workflow</span></div>
+          </div>`).join("")
+        : '<div class="row detail">No unlinked backlog candidates — groom workflow or all top items are already on the day plan.</div>';
+      const linkedHtml = linked.length
+        ? `<div class="row detail" style="margin-top:0.5rem"><strong>On day plan (${linked.length}):</strong> ${linked.map((l) => esc(l.title || l.id)).join(" · ")}</div>`
+        : "";
+      $("bridge").innerHTML = candHtml + linkedHtml;
 
       const links = data.links || [];
       $("links").innerHTML = links.map((l) => {
