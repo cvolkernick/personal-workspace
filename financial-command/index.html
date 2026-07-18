@@ -304,6 +304,213 @@
     a { color: var(--accent); }
     .hidden { display: none !important; }
     #show-all-actions { margin-top: 0.4rem; }
+
+    /* Upcoming bills — sheet urgency: ≤7d red, ≤14d yellow, >14d green */
+    .bill-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.85rem;
+      margin: 0.35rem 0 0.55rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .bill-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+    .bill-legend i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .bill-legend i.red { background: var(--red); }
+    .bill-legend i.yellow { background: var(--yellow); }
+    .bill-legend i.green { background: var(--green); }
+    .bill-urgency-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      margin-bottom: 0.65rem;
+    }
+    .bill-chip {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      padding: 0.4rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0e151c;
+      min-width: 5.5rem;
+    }
+    .bill-chip .n {
+      font-size: 0.95rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    .bill-chip .l {
+      font-size: 0.65rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .bill-chip.due-red {
+      border-color: #6b2e2e;
+      background: #1a1010;
+    }
+    .bill-chip.due-red .n { color: var(--red); }
+    .bill-chip.due-yellow {
+      border-color: #6b5a1e;
+      background: #1a1608;
+    }
+    .bill-chip.due-yellow .n { color: var(--yellow); }
+    .bill-chip.due-green {
+      border-color: #245c42;
+      background: #0e1814;
+    }
+    .bill-chip.due-green .n { color: var(--green); }
+    .bill-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+    .bill-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0.55rem 0.7rem;
+      align-items: start;
+      padding: 0.5rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      border-left-width: 3px;
+      background: #0e151c;
+    }
+    .bill-row.due-red {
+      border-left-color: var(--red);
+      border-color: #3a2222;
+      background: linear-gradient(90deg, rgba(255, 107, 107, 0.08), #0e151c 40%);
+    }
+    .bill-row.due-yellow {
+      border-left-color: var(--yellow);
+      border-color: #3a3420;
+      background: linear-gradient(90deg, rgba(245, 197, 66, 0.07), #0e151c 40%);
+    }
+    .bill-row.due-green {
+      border-left-color: var(--green);
+      border-color: #1e3a2e;
+      background: linear-gradient(90deg, rgba(61, 214, 140, 0.06), #0e151c 40%);
+    }
+    .bill-row.due-unknown {
+      border-left-color: #3a4a5a;
+    }
+    .bill-when {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 4.2rem;
+    }
+    .bill-when .date {
+      font-size: 0.8rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+    }
+    .bill-when .rel {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .due-red .bill-when .rel,
+    .due-red .bill-when .date { color: var(--red); }
+    .due-yellow .bill-when .rel,
+    .due-yellow .bill-when .date { color: var(--yellow); }
+    .due-green .bill-when .rel,
+    .due-green .bill-when .date { color: var(--green); }
+    .due-unknown .bill-when .rel { color: var(--muted); }
+    .bill-main {
+      min-width: 0;
+    }
+    .bill-main .name {
+      font-weight: 600;
+      font-size: 0.88rem;
+      line-height: 1.25;
+      word-break: break-word;
+    }
+    .bill-main .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.25rem;
+    }
+    .src-tag {
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.1rem 0.38rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .src-tag.cb {
+      background: #1a2840;
+      color: #7eb8e8;
+      border: 1px solid #2a4060;
+    }
+    .src-tag.rh {
+      background: #1a3020;
+      color: #8fd4a8;
+      border: 1px solid #2a5038;
+    }
+    .src-tag.other {
+      background: #252830;
+      color: var(--muted);
+      border: 1px solid #3a4050;
+    }
+    .bill-amt {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.9rem;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .bill-section-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.35rem;
+      margin-bottom: 0.15rem;
+    }
+    .bill-section-head .hint { margin: 0; }
+    .pay-from-bar {
+      display: flex;
+      height: 8px;
+      border-radius: 4px;
+      overflow: hidden;
+      background: #1a2430;
+      margin: 0.4rem 0 0.55rem;
+    }
+    .pay-from-bar > i {
+      display: block;
+      height: 100%;
+    }
+    .pay-from-bar > i.cb { background: #5b9fd4; }
+    .pay-from-bar > i.rh { background: #3dd68c; }
+    .pay-from-bar > i.other { background: #6a7a8a; }
+    .src-metric .label {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .src-metric .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .src-metric .dot.cb { background: #5b9fd4; }
+    .src-metric .dot.rh { background: #3dd68c; }
+    .src-metric .dot.other { background: #6a7a8a; }
   </style>
 </head>
 <body>
@@ -356,19 +563,28 @@
     </section>
 
     <section class="card" id="upcoming-card">
-      <h2>Upcoming bills (estimates)</h2>
+      <div class="bill-section-head">
+        <h2 style="margin:0">Upcoming bills (estimates)</h2>
+      </div>
       <p class="hint">Sheet Personal tab · ballpark OK · YNAB = actual spend</p>
+      <div class="bill-legend" aria-label="Due-date color legend">
+        <span><i class="red"></i> ≤7 days (or overdue)</span>
+        <span><i class="yellow"></i> 8–14 days</span>
+        <span><i class="green"></i> &gt;14 days</span>
+      </div>
+      <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
       <div class="grid-2">
         <div>
           <div class="hint">Next due</div>
-          <div id="expenses-upcoming"></div>
+          <div id="expenses-upcoming" class="bill-list"></div>
         </div>
         <div>
           <div class="hint">Pay-from (monthly est.)</div>
+          <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
           <div id="expenses-by-source"></div>
+          <div class="grid-2" style="margin-top:0.55rem" id="expense-kpis"></div>
         </div>
       </div>
-      <div class="grid-2" style="margin-top:0.5rem" id="expense-kpis"></div>
     </section>
 
     <details class="panel" id="panel-brokerage">
@@ -531,6 +747,85 @@
       el.textContent = msg;
       el.classList.add("show");
       setTimeout(() => el.classList.remove("show"), 3200);
+    }
+
+    /** Parse sheet dates like 7/17/2026 (local calendar day). */
+    function parseBillDate(s) {
+      if (s == null || s === "") return null;
+      const str = String(s).trim();
+      let m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) return new Date(+m[3], +m[1] - 1, +m[2]);
+      m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
+      if (m) return new Date(2000 + +m[3], +m[1] - 1, +m[2]);
+      m = str.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+      const t = Date.parse(str);
+      return Number.isFinite(t) ? new Date(t) : null;
+    }
+    function startOfLocalDay(d = new Date()) {
+      return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    }
+    /** Sheet colors: ≤7d red, 8–14d yellow, >14d green; past due = red. */
+    function dueUrgency(dateStr, today = startOfLocalDay()) {
+      const dt = parseBillDate(dateStr);
+      if (!dt) return { level: "unknown", days: null, rel: "no date", cls: "due-unknown" };
+      const due = startOfLocalDay(dt);
+      const days = Math.round((due - today) / 86400000);
+      if (days < 0) {
+        const n = Math.abs(days);
+        return {
+          level: "red",
+          days,
+          rel: n === 1 ? "1d overdue" : n + "d overdue",
+          cls: "due-red",
+        };
+      }
+      if (days === 0) return { level: "red", days: 0, rel: "today", cls: "due-red" };
+      if (days === 1) return { level: "red", days: 1, rel: "tomorrow", cls: "due-red" };
+      if (days <= 7) return { level: "red", days, rel: "in " + days + "d", cls: "due-red" };
+      if (days <= 14) return { level: "yellow", days, rel: "in " + days + "d", cls: "due-yellow" };
+      return { level: "green", days, rel: "in " + days + "d", cls: "due-green" };
+    }
+    function formatBillDate(dateStr) {
+      const dt = parseBillDate(dateStr);
+      if (!dt) return dateStr || "—";
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    }
+    function srcTagClass(from) {
+      const s = (from || "").toLowerCase();
+      if (s.includes("coinbase")) return "cb";
+      if (s.includes("rh") || s.includes("robinhood") || s.includes("checking")) return "rh";
+      return "other";
+    }
+    function escapeHtml(s) {
+      return String(s == null ? "" : s)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+    function billRowHtml(r) {
+      const u = dueUrgency(r.date);
+      const src = r.from || "?";
+      const sc = srcTagClass(src);
+      return (
+        `<div class="bill-row ${u.cls}">` +
+        `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(r.date))}</span>` +
+        `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
+        `<div class="bill-main"><div class="name">${escapeHtml(r.item || "—")}</div>` +
+        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
+        `<div class="bill-amt">${money(r.monthly)}</div></div>`
+      );
+    }
+    function sortBillsByDate(rows) {
+      return [...rows].sort((a, b) => {
+        const da = parseBillDate(a.date);
+        const db = parseBillDate(b.date);
+        if (!da && !db) return (a.item || "").localeCompare(b.item || "");
+        if (!da) return 1;
+        if (!db) return -1;
+        return da - db || (a.item || "").localeCompare(b.item || "");
+      });
     }
 
     function classifyLiquid(liquid, p) {
@@ -884,18 +1179,46 @@
         metric("Checking 30d out", money(rhc.spend_30d)),
       ].join("");
 
-      // Upcoming
+      // Upcoming bills (sheet Personal) — urgency matches spreadsheet colors
       const persTab = (ex.tabs && ex.tabs.Personal) || {};
       const discTab = (ex.tabs && ex.tabs.Discretionary) || {};
-      document.getElementById("expense-kpis").innerHTML = [
-        metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
-        metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
-        metric("RH Checking pay-from / mo", money(es.rh_funded_monthly)),
-        metric("Capital targets / mo", money(es.capital_targets_monthly ?? es.discretionary_monthly)),
-      ]
-        .map((m) => m)
-        .join("");
-      // wrap in a single column container - expense-kpis is grid-2, metrics work
+      const allItems = persTab.items || persTab.upcoming_by_date || [];
+      const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
+      let sumRed = 0,
+        sumYellow = 0,
+        sumGreen = 0,
+        nRed = 0,
+        nYellow = 0,
+        nGreen = 0;
+      for (const r of billsSorted) {
+        const u = dueUrgency(r.date);
+        const amt = Number(r.monthly) || 0;
+        if (u.level === "red") {
+          sumRed += amt;
+          nRed++;
+        } else if (u.level === "yellow") {
+          sumYellow += amt;
+          nYellow++;
+        } else if (u.level === "green") {
+          sumGreen += amt;
+          nGreen++;
+        }
+      }
+      document.getElementById("bill-urgency-bar").innerHTML = [
+        `<div class="bill-chip due-red"><span class="n">${money(sumRed)}</span>` +
+          `<span class="l">≤7d · ${nRed} bill${nRed === 1 ? "" : "s"}</span></div>`,
+        `<div class="bill-chip due-yellow"><span class="n">${money(sumYellow)}</span>` +
+          `<span class="l">8–14d · ${nYellow}</span></div>`,
+        `<div class="bill-chip due-green"><span class="n">${money(sumGreen)}</span>` +
+          `<span class="l">&gt;14d · ${nGreen}</span></div>`,
+      ].join("");
+
+      document.getElementById("expenses-upcoming").innerHTML =
+        billsSorted
+          .slice(0, 14)
+          .map(billRowHtml)
+          .join("") || `<p class="hint">No dated items</p>`;
+
       document.getElementById("expense-kpis").innerHTML = [
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
         metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
@@ -903,24 +1226,35 @@
         metric("Capital targets", money(es.capital_targets_monthly ?? es.discretionary_monthly)),
       ].join("");
 
-      document.getElementById("expenses-upcoming").innerHTML = (persTab.upcoming_by_date || [])
-        .slice(0, 5)
-        .map(
-          (r) =>
-            `<div class="metric"><span class="label">${r.date || "—"} · ${r.item || "—"} · ${
-              r.from || "?"
-            }</span><span class="val">${money(r.monthly)}</span></div>`
-        )
-        .join("") || `<p class="hint">No dated items</p>`;
-
       const bySrc = persTab.by_source_monthly || {};
-      document.getElementById("expenses-by-source").innerHTML = Object.keys(bySrc).length
-        ? Object.entries(bySrc)
-            .slice(0, 6)
-            .map(
-              ([k, v]) =>
-                `<div class="metric"><span class="label">${k}</span><span class="val">${money(v)}</span></div>`
-            )
+      const srcEntries = Object.entries(bySrc).slice(0, 6);
+      const srcTotal = srcEntries.reduce((a, [, v]) => a + (Number(v) || 0), 0) || 1;
+      const barEl = document.getElementById("expenses-pay-from-bar");
+      if (srcEntries.length) {
+        barEl.hidden = false;
+        barEl.innerHTML = srcEntries
+          .map(([k, v]) => {
+            const sc = srcTagClass(k);
+            const pctW = Math.max(2, Math.round((100 * (Number(v) || 0)) / srcTotal));
+            return `<i class="${sc}" style="width:${pctW}%" title="${escapeHtml(k)}: ${money(
+              v
+            )}"></i>`;
+          })
+          .join("");
+      } else {
+        barEl.hidden = true;
+        barEl.innerHTML = "";
+      }
+      document.getElementById("expenses-by-source").innerHTML = srcEntries.length
+        ? srcEntries
+            .map(([k, v]) => {
+              const sc = srcTagClass(k);
+              return (
+                `<div class="metric src-metric"><span class="label">` +
+                `<i class="dot ${sc}"></i>${escapeHtml(k)}</span>` +
+                `<span class="val">${money(v)}</span></div>`
+              );
+            })
             .join("")
         : `<p class="hint">No pay-from data</p>`;
 
