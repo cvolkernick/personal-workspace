@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import re
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,6 +37,16 @@ _SKIP_TOP = {
     "__pycache__",
     ".DS_Store",
 }
+
+# Planning / content only — not runnable project areas (no status cards)
+# strategy + initiatives feed Today/recs/backlog; ops is git metadata
+META_CONTENT_DIRS = frozenset(
+    {
+        "strategy",
+        "initiatives",
+        "ops",
+    }
+)
 
 # Local servers often left running across project work
 KNOWN_PORTS = {
@@ -181,7 +192,7 @@ def path_is_dirty(rel_prefix: str, dirty_paths: list[str]) -> bool:
 
 
 def known_project_dirs(workspace: Path = WORKSPACE_ROOT) -> list[Path]:
-    """Top-level directories that look like projects (always listed if they exist)."""
+    """Top-level directories that are execution projects (not strategy/initiatives/ops)."""
     out: list[Path] = []
     if not workspace.is_dir():
         return out
@@ -190,8 +201,67 @@ def known_project_dirs(workspace: Path = WORKSPACE_ROOT) -> list[Path]:
             continue
         if child.name in _SKIP_TOP or child.name.startswith("."):
             continue
+        if child.name in META_CONTENT_DIRS:
+            continue
         out.append(child)
     return out
+
+
+def load_strategy_focus(workspace: Path = WORKSPACE_ROOT) -> dict[str, Any]:
+    """Read strategy/today.md + light bets summary for the Today panel (not a project)."""
+    workspace = Path(workspace)
+    today_path = workspace / "strategy" / "today.md"
+    bets_path = workspace / "strategy" / "bets.md"
+    open_items: list[str] = []
+    done_items: list[str] = []
+    today_text = ""
+    if today_path.is_file():
+        try:
+            today_text = today_path.read_text(encoding="utf-8")
+        except OSError:
+            today_text = ""
+        for line in today_text.splitlines():
+            m_open = re.match(r"^\s*[-*]\s*\[\s*\]\s*(.+)$", line)
+            m_done = re.match(r"^\s*[-*]\s*\[[xX]\]\s*(.+)$", line)
+            if m_open:
+                open_items.append(m_open.group(1).strip())
+            elif m_done:
+                done_items.append(m_done.group(1).strip())
+
+    bets_blurb = ""
+    if bets_path.is_file():
+        try:
+            bets = bets_path.read_text(encoding="utf-8")
+            # First non-empty paragraph after title
+            lines = [ln.strip() for ln in bets.splitlines() if ln.strip()]
+            for ln in lines[1:8]:
+                if ln.startswith("#"):
+                    break
+                if ln.startswith("**") or ln.startswith("-"):
+                    bets_blurb = ln.strip("*").strip()
+                    break
+                if not ln.startswith("["):
+                    bets_blurb = ln
+                    break
+        except OSError:
+            pass
+
+    return {
+        "ok": True,
+        "kind": "meta-content",
+        "path": "strategy/",
+        "today_path": "strategy/today.md",
+        "bets_path": "strategy/bets.md",
+        "open_items": open_items,
+        "done_items": done_items,
+        "open_count": len(open_items),
+        "done_count": len(done_items),
+        "bets_blurb": bets_blurb,
+        "note": (
+            "Strategy is planning content (bets + daily focus), not a runnable project. "
+            "Promote open items into backlog or execute in domain folders."
+        ),
+    }
 
 
 def pid_alive(pid: Optional[int]) -> bool:
@@ -600,7 +670,11 @@ def build_resume_kit(workspace_sessions: list[dict[str, Any]]) -> dict[str, Any]
 
 
 def area_for_workspace_file(file_path: str, workspace: Path) -> Optional[str]:
-    """Map a file path to a top-level project area name under workspace, or None."""
+    """Map a file path to a top-level project area name under workspace, or None.
+
+    Meta content dirs (strategy, initiatives, ops) map to ``_meta`` so edits still
+    count as workspace activity without creating project-area cards.
+    """
     try:
         rel = Path(file_path).resolve().relative_to(workspace.resolve())
     except (ValueError, OSError):
@@ -614,9 +688,15 @@ def area_for_workspace_file(file_path: str, workspace: Path) -> Optional[str]:
     top = rel.parts[0]
     if top in _SKIP_TOP or top.startswith("."):
         return None
-    # Only treat as a project area if it's a directory (or was)
+    if top in META_CONTENT_DIRS:
+        return "_meta"
+    # Only treat as a project area if it's a known execution project dir
+    known_names = {p.name for p in known_project_dirs(workspace)}
+    if top in known_names:
+        return top
     candidate = workspace / top
-    if candidate.is_dir() or top in {p.name for p in known_project_dirs(workspace)}:
+    if candidate.is_dir() and top not in META_CONTENT_DIRS:
+        # Unknown top-level dir: still allow if it looks like a project
         return top
     # Root-level files (README.md, launch.py) → special bucket
     return "_root"
@@ -694,9 +774,13 @@ def collect_workspace_dashboard(
                 meta["touches_workspace"] = bool(areas_touched)
                 all_sessions.append(meta)
 
-    # Build project list from known dirs + any extra areas seen in hunks
+    # Build project list from known execution dirs + hunk areas (never meta)
     known = {p.name: p for p in known_project_dirs(workspace)}
-    area_names = set(known) | {a for a in area_edits if a != "_root"}
+    area_names = set(known) | {
+        a
+        for a in area_edits
+        if a not in ("_root", "_meta") and a not in META_CONTENT_DIRS
+    }
 
     projects: list[dict[str, Any]] = []
     for name in sorted(area_names, key=lambda n: (-area_edits.get(n, 0), n.lower())):
@@ -790,6 +874,8 @@ def collect_workspace_dashboard(
                 "Auto-protect: python3 projects-dashboard/git_workflow.py sync",
             )
 
+    strategy_focus = load_strategy_focus(workspace)
+
     return {
         "ok": True,
         "mode": "workflow-management",
@@ -800,6 +886,8 @@ def collect_workspace_dashboard(
         "workspace": repo,
         "projects": projects,
         "count": len(projects),
+        "meta_content_dirs": sorted(META_CONTENT_DIRS),
+        "strategy_focus": strategy_focus,
         "readiness": readiness,
         "resume_kit": resume_kit,
         "branches": branches,

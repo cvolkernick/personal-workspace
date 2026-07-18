@@ -42,6 +42,13 @@ python3 projects-dashboard/git_workflow.py status
 python3 projects-dashboard/git_workflow.py protect "msg"
 ```
 
+## Strategy vs projects
+
+| Path | Role on dashboard |
+|------|-------------------|
+| `strategy/`, `initiatives/`, `ops/` | **Meta content** — not project cards. `strategy/today.md` feeds **Today's focus** + recommendations |
+| `resistance-dashboard/`, `treasury/`, etc. | **Execution projects** — dirty status, sessions, exit readiness |
+
 ## Backlog (start later → plan → MVP)
 
 Git-tracked ideas under `ops/backlog/items.json`.

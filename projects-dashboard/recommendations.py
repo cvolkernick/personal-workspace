@@ -30,7 +30,7 @@ from backlog import (
 
 SUGGESTIONS_PATH = BACKLOG_DIR / "suggestions.json"
 
-# Known monorepo areas worth suggesting work for if idle
+# Execution project areas only (not strategy/initiatives planning content)
 _FOCUS_AREAS = (
     "resistance-dashboard",
     "financial-command",
@@ -38,10 +38,9 @@ _FOCUS_AREAS = (
     "projects-dashboard",
     "fitness",
     "investment",
-    "strategy",
-    "initiatives",
     "research",
     "iot",
+    "holistic",
 )
 
 
@@ -438,7 +437,7 @@ def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
                     title=f"Today’s focus → {matched['title'][:50]}",
                     rationale=f"From strategy/today.md: {short}",
                     priority=matched.get("priority") or "high",
-                    area=matched.get("area") or "strategy",
+                    area=matched.get("area") or "",
                     backlog_item_id=matched.get("id"),
                     action=short,
                     description=short,
@@ -452,7 +451,7 @@ def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
                     title=short[:100],
                     rationale="Unchecked item from strategy/today.md — not yet on backlog.",
                     priority="high",
-                    area="strategy",
+                    area="",  # leave open; strategy is planning input not a project area
                     mvp_scope="One concrete deliverable you can finish in a single Grok goal session.",
                     description=f"Sourced from strategy/today.md:\n\n{clean}",
                     tags=["recommended", "from-today"],

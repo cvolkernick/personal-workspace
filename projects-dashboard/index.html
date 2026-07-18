@@ -236,6 +236,7 @@
     <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
     <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
+    <div id="strategy-focus"></div>
     <div id="recommendations"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
@@ -391,6 +392,36 @@
             </div>
           </button>`;
       }).join("");
+
+      // Strategy focus panel (planning content — not a project card)
+      const sf = data.strategy_focus || {};
+      const openFocus = sf.open_items || [];
+      const doneFocus = sf.done_items || [];
+      $("strategy-focus").innerHTML = `
+        <div class="section-title">Today's focus <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· strategy/today.md (planning, not a project)</span></div>
+        <div class="card">
+          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
+            ${esc(sf.note || "North-star planning content.")}
+            ${sf.bets_blurb ? `<br/><span class="id">Bets: ${esc(sf.bets_blurb)}</span>` : ""}
+          </div>
+          ${!openFocus.length && !doneFocus.length
+            ? `<div class="empty" style="padding:0.75rem">No checklist items in strategy/today.md yet.</div>`
+            : `
+              ${openFocus.length ? `
+                <h3 style="margin:0 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Open (${openFocus.length})</h3>
+                <ul class="dirty-list" style="margin-bottom:0.65rem">
+                  ${openFocus.map((t) => `<li style="margin:0.25rem 0;color:var(--text);font-family:inherit;font-size:0.9rem">${esc(t.replace(/\\*\\*/g, ""))}</li>`).join("")}
+                </ul>
+              ` : ""}
+              ${doneFocus.length ? `
+                <h3 style="margin:0.5rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Done (${doneFocus.length})</h3>
+                <ul class="dirty-list">
+                  ${doneFocus.slice(0, 5).map((t) => `<li style="margin:0.2rem 0;opacity:0.7;font-family:inherit;font-size:0.85rem">${esc(t.replace(/\\*\\*/g, ""))}</li>`).join("")}
+                </ul>
+              ` : ""}
+            `}
+          <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
+        </div>`;
 
       // Recommendations panel — press rank + priority color coding
       const rec = data.recommendations || {};

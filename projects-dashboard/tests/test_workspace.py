@@ -120,6 +120,29 @@ class TestWorkspace(unittest.TestCase):
             area_for_workspace_file(str(self.grok / "noise.md"), self.ws)
         )
 
+    def test_strategy_is_meta_not_project(self) -> None:
+        from workspace import META_CONTENT_DIRS, known_project_dirs, load_strategy_focus
+
+        (self.ws / "strategy").mkdir(exist_ok=True)
+        (self.ws / "strategy" / "today.md").write_text(
+            "# Today\n- [ ] Ship something useful\n- [x] Already done\n",
+            encoding="utf-8",
+        )
+        (self.ws / "initiatives").mkdir(exist_ok=True)
+        names = {p.name for p in known_project_dirs(self.ws)}
+        self.assertNotIn("strategy", names)
+        self.assertNotIn("initiatives", names)
+        self.assertIn("resistance-dashboard", names)
+        self.assertEqual(
+            area_for_workspace_file(str(self.ws / "strategy" / "today.md"), self.ws),
+            "_meta",
+        )
+        focus = load_strategy_focus(self.ws)
+        self.assertEqual(focus["open_count"], 1)
+        self.assertEqual(focus["done_count"], 1)
+        self.assertIn("Ship something", focus["open_items"][0])
+        self.assertIn("strategy", META_CONTENT_DIRS)
+
     def test_path_is_dirty(self) -> None:
         paths = ["resistance-dashboard/server.py", "README.md"]
         self.assertTrue(path_is_dirty("resistance-dashboard", paths))
