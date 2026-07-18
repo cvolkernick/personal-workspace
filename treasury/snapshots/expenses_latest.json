@@ -112,6 +112,27 @@
       ],
       "upcoming_by_date": [
         {
+          "date": "1/9/2027",
+          "item": "Amazon Prime",
+          "from": "Coinbase",
+          "monthly": 11.67,
+          "weekly": 2.68
+        },
+        {
+          "date": "2/1/2027",
+          "item": "Premium Connectivity",
+          "from": "Coinbase",
+          "monthly": 8.25,
+          "weekly": 1.9
+        },
+        {
+          "date": "2/14/2027",
+          "item": "Google One",
+          "from": "Coinbase",
+          "monthly": 19.99,
+          "weekly": 4.61
+        },
+        {
           "date": "4/1/2026",
           "item": "Rent (April / May / June / July / August)",
           "from": "Coinbase",
@@ -138,6 +159,27 @@
           "from": "RH Checking",
           "monthly": 1296.61,
           "weekly": 302.54
+        },
+        {
+          "date": "7/15/2027",
+          "item": "Lawn Mower",
+          "from": "Coinbase",
+          "monthly": 22.92,
+          "weekly": 5.27
+        },
+        {
+          "date": "7/15/2027",
+          "item": "Final VA Payments",
+          "from": "Coinbase",
+          "monthly": 1250.0,
+          "weekly": 287.67
+        },
+        {
+          "date": "7/15/2027",
+          "item": "AT&T Final Bill",
+          "from": "Coinbase",
+          "monthly": 50.0,
+          "weekly": 11.51
         },
         {
           "date": "7/17/2026",
@@ -190,6 +232,13 @@
         },
         {
           "date": "8/1/2026",
+          "item": "Tha\u00eds",
+          "from": "Coinbase",
+          "monthly": 900.0,
+          "weekly": 207.12
+        },
+        {
+          "date": "8/1/2026",
           "item": "ASIC Fleet OpEx",
           "from": "RH Checking",
           "monthly": 437.2,
@@ -201,55 +250,6 @@
           "from": "Coinbase",
           "monthly": 125.0,
           "weekly": 28.77
-        },
-        {
-          "date": "8/1/2026",
-          "item": "Groceries",
-          "from": "Coinbase",
-          "monthly": 150.0,
-          "weekly": 34.52
-        },
-        {
-          "date": "8/1/2026",
-          "item": "Student Loan",
-          "from": null,
-          "monthly": 83.33,
-          "weekly": 19.18
-        },
-        {
-          "date": "8/1/2026",
-          "item": "Tha\u00eds",
-          "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12
-        },
-        {
-          "date": "8/3/2026",
-          "item": "YouTube Premium",
-          "from": "Coinbase",
-          "monthly": 27.0,
-          "weekly": 6.3
-        },
-        {
-          "date": "8/4/2026",
-          "item": "Electric",
-          "from": "Coinbase",
-          "monthly": 420.0,
-          "weekly": 96.66
-        },
-        {
-          "date": "8/8/2026",
-          "item": "X Premium+",
-          "from": "Coinbase",
-          "monthly": 50.0,
-          "weekly": 11.51
-        },
-        {
-          "date": "8/9/2026",
-          "item": "FSD",
-          "from": "Coinbase",
-          "monthly": 107.0,
-          "weekly": 24.69
         }
       ],
       "items": [

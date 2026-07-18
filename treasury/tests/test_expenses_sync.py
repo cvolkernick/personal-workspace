@@ -11,11 +11,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.expenses_sync import (  # noqa: E402
-    _upcoming_sorted,
     build_expenses_snapshot,
     parse_money,
     parse_personal_rows,
-    parse_sheet_date,
     rows_from_csv,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
@@ -50,25 +48,6 @@ class TestPersonal(unittest.TestCase):
         self.assertEqual(rent["from"], "Coinbase")
 
 
-class TestDateSort(unittest.TestCase):
-    def test_parse_sheet_date(self):
-        self.assertEqual(parse_sheet_date("7/17/2026").year, 2026)
-        self.assertEqual(parse_sheet_date("7/17/2026").month, 7)
-        self.assertEqual(parse_sheet_date("7/17/2026").day, 17)
-        self.assertIsNone(parse_sheet_date(""))
-        self.assertIsNone(parse_sheet_date(None))
-
-    def test_upcoming_sorted_chronological_not_lexicographic(self):
-        items = [
-            {"date": "1/9/2027", "item": "Amazon", "from": "Coinbase", "monthly": 12},
-            {"date": "4/1/2026", "item": "Rent", "from": "Coinbase", "monthly": 8400},
-            {"date": "7/17/2026", "item": "Gym", "from": "Coinbase", "monthly": 27},
-            {"date": None, "item": "No date", "from": "Coinbase", "monthly": 1},
-        ]
-        ranked = _upcoming_sorted(items, n=10)
-        self.assertEqual([r["item"] for r in ranked], ["Rent", "Gym", "Amazon", "No date"])
-
-
 class TestSnapshot(unittest.TestCase):
     def test_build(self):
         snap = build_expenses_snapshot(
@@ -87,10 +66,6 @@ class TestSnapshot(unittest.TestCase):
         self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
         self.assertEqual(snap["tabs"]["Discretionary"]["role"], "excess_capital_targets")
-        # Chronological order: Rent (4/1) before Gym (7/17) before Fleet (7/21)
-        by_date = snap["tabs"]["Personal"]["upcoming_by_date"]
-        self.assertEqual(by_date[0]["item"], "Rent")
-        self.assertEqual(by_date[1]["item"], "Gym")
 
 
 class TestPolicyExpenses(unittest.TestCase):

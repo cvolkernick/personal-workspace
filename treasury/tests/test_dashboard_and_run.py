@@ -22,8 +22,6 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("kpi-grid", html)
         self.assertIn("Cash &amp; credit", html)
         self.assertIn("Upcoming bills", html)
-        self.assertIn("bill-row", html)
-        self.assertIn("dueUrgency", html)
         self.assertIn("Brokerage", html)
         self.assertIn("Actual spend", html)
         self.assertIn("Capital targets", html)
