@@ -12,7 +12,8 @@ Environment=PYTHONPATH=/home/pi/iot-workspace
 Environment=PYTHONUNBUFFERED=1
 # Bind all interfaces so phones/Mac can open http://<pi-ip>:8780/
 # Prefer venv created by install_remote.sh; install script rewrites path
-ExecStart=/home/pi/iot-workspace/.venv/bin/python /home/pi/iot-workspace/iot/server.py --host 0.0.0.0 --port 8780 --no-browser
+# --local: this host IS the backend (do not proxy via backend.json)
+ExecStart=/home/pi/iot-workspace/.venv/bin/python /home/pi/iot-workspace/iot/server.py --host 0.0.0.0 --port 8780 --no-browser --local
 Restart=always
 RestartSec=10
 

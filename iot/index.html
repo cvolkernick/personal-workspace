@@ -276,6 +276,7 @@
         <div class="stat"><div class="label">Devices</div><div class="value" id="stat-count">—</div></div>
         <div class="stat"><div class="label">Online</div><div class="value" id="stat-online">—</div></div>
         <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
+        <div class="stat"><div class="label">Backend</div><div class="value" id="stat-backend" style="font-size:0.85rem">—</div></div>
         <div class="stat"><div class="label">Next routine</div><div class="value" id="stat-next" style="font-size:0.92rem">—</div></div>
         <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.88rem">—</div></div>
       </div>
@@ -787,9 +788,23 @@
       try {
         const { data } = await api("GET", "/api/health");
         document.getElementById("stat-svc").textContent = data.ok ? "ok" : "err";
-        log("health " + JSON.stringify({ n: data.registry?.count, groups: data.groups, schedule: data.schedule_enabled }));
+        const be = document.getElementById("stat-backend");
+        if (data.proxy && data.backend) {
+          be.textContent = data.backend_label || data.backend;
+          be.title = data.backend;
+        } else {
+          be.textContent = "local";
+        }
+        log("health " + JSON.stringify({
+          n: data.registry?.count,
+          groups: data.groups,
+          schedule: data.schedule_enabled,
+          proxy: data.proxy,
+          backend: data.backend_label || data.backend,
+        }));
       } catch (e) {
         document.getElementById("stat-svc").textContent = "down";
+        document.getElementById("stat-backend").textContent = "unreachable";
         toast("Dashboard offline", false);
       }
       const { data: g } = await api("GET", "/api/groups");

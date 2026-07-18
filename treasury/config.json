@@ -17,10 +17,10 @@
     "loan_principal_usdc": null,
     "collateral_btc_usd": null,
     "ltv": null,
-    "vault_usdc": "147.43",
-    "card_balance": null,
+    "vault_usdc": "47.44",
+    "card_balance": "462.2",
     "card_available_credit": null,
-    "one_card_security_deposit_usdc": 500,
+    "one_card_security_deposit_usdc": "500",
     "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
   },
   "robinhood": {
@@ -33,13 +33,5 @@
     "account_name": null,
     "checking_account_name": null,
     "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card + RH Checking."
-  },
-  "expenses_sheet": {
-    "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
-    "sheet_name": "Personal Expense Sheet",
-    "tabs": [
-      "Personal",
-      "Discretionary"
-    ]
   }
 }

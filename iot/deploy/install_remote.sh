@@ -81,8 +81,10 @@ if [[ "$DRY" -eq 1 ]]; then
 fi
 
 rsync "${RSYNC_ARGS[@]}" \
+  --exclude 'backend.json' \
   "$ROOT/iot/" \
   "$REMOTE:$REMOTE_DIR/iot/"
+# Pi must not ship Mac's backend.json (would proxy to itself)
 
 echo "→ Create venv + install pywizlight (PEP 668-safe)…"
 ssh "$REMOTE" "python3 -m venv '$REMOTE_DIR/.venv' && \
