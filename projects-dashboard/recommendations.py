@@ -584,18 +584,25 @@ def generate_recommendations(*, replace_pending: bool = True) -> dict[str, Any]:
 
 
 def recommendations_payload(*, refresh: bool = False) -> dict[str, Any]:
+    """Build recommendations for the API/UI.
+
+    Ranking is computed in memory on every read. Disk is only written when
+    ``refresh=True`` regenerates suggestions, or on approve/reject — never on
+    a plain page load (that was re-dirtying git after Protect & push).
+    """
     data = load_suggestions()
     pending = [s for s in data.get("suggestions") or [] if s.get("status") == "pending"]
     if refresh or not pending:
         gen = generate_recommendations(replace_pending=True)
         pending = gen.get("suggestions") or []
         data = load_suggestions()
-    # Re-rank on read so older stored items still get press_rank (in case of schema lag)
+    # Re-rank in memory only (do not save — avoids false uncommitted warnings)
     pending = apply_press_ranks(pending)
-    # persist ranks back
-    others = [s for s in data.get("suggestions") or [] if s.get("status") != "pending"]
-    data["suggestions"] = others + pending
-    save_suggestions(data)
+    history = [
+        s
+        for s in data.get("suggestions") or []
+        if s.get("status") in ("approved", "rejected")
+    ][-20:]
     return {
         "ok": True,
         "generated_at": data.get("generated_at"),
@@ -606,11 +613,7 @@ def recommendations_payload(*, refresh: bool = False) -> dict[str, Any]:
         "actions": [s for s in pending if s.get("kind") == "action"],
         "new_items": [s for s in pending if s.get("kind") == "new_item"],
         "top": pending[:3],
-        "history": [
-            s
-            for s in data.get("suggestions") or []
-            if s.get("status") in ("approved", "rejected")
-        ][-20:],
+        "history": history,
         "path": str(SUGGESTIONS_PATH.relative_to(WORKSPACE_ROOT)),
         "legend": {
             "critical": {"color": priority_color("critical"), "meaning": "Drop-everything / protect or unblock"},
