@@ -295,6 +295,84 @@
     .delta-neg { color: var(--green); }
     .delta-zero { color: var(--muted); }
     .role.unaccounted { color: #8aa0b5; border-color: #2a3540; }
+
+    /* Progress bars (delta / remaining / next-actions) */
+    .pbar {
+      position: relative;
+      height: 12px;
+      border-radius: 6px;
+      background: #0a121a;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      min-width: 100px;
+      margin-top: 0.35rem;
+    }
+    .pbar-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      border-radius: 5px;
+      background: linear-gradient(90deg, #2a6a4a, var(--green));
+      transition: width 0.35s ease;
+      max-width: 100%;
+    }
+    .pbar-fill.over {
+      background: linear-gradient(90deg, #3a7ebd, var(--fill));
+      max-width: 100%;
+    }
+    .pbar-fill.low {
+      background: linear-gradient(90deg, #6b5a1e, var(--yellow));
+    }
+    .pbar-fill.mid {
+      background: linear-gradient(90deg, #2a6a4a, #5bc98a);
+    }
+    .pbar-meta {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    .pbar-row td { vertical-align: top; }
+    .suggest {
+      position: relative;
+      overflow: hidden;
+    }
+    .suggest::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: var(--progress, 0%);
+      max-width: 100%;
+      background: linear-gradient(
+        90deg,
+        rgba(61, 214, 140, 0.22),
+        rgba(61, 214, 140, 0.06)
+      );
+      pointer-events: none;
+      z-index: 0;
+      transition: width 0.35s ease;
+    }
+    .suggest.over-plan::before {
+      background: linear-gradient(
+        90deg,
+        rgba(124, 156, 255, 0.22),
+        rgba(124, 156, 255, 0.06)
+      );
+    }
+    .suggest.low-progress::before {
+      background: linear-gradient(
+        90deg,
+        rgba(245, 197, 66, 0.18),
+        rgba(245, 197, 66, 0.05)
+      );
+    }
+    .suggest > * { position: relative; z-index: 1; }
+    .suggest .progress-caption {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.35rem;
+    }
   </style>
 </head>
 <body>
@@ -583,6 +661,61 @@
         : "−24h";
     }
 
+    /** Progress toward planned total: actual / planned (0–100+, over if actual > planned). */
+    function progressStats(actual, planned) {
+      const p = Math.max(0, Number(planned) || 0);
+      const a = Math.max(0, Number(actual) || 0);
+      const pctRaw = p > 0 ? (a / p) * 100 : (a > 0 ? 100 : 0);
+      const pct = Math.min(100, Math.round(pctRaw));
+      const over = p > 0 && a > p;
+      let tone = "mid";
+      if (over) tone = "over";
+      else if (pct < 40) tone = "low";
+      else if (pct >= 100) tone = "over";
+      return { planned: p, actual: a, remaining: Math.max(0, p - a), pct, pctRaw, over, tone };
+    }
+
+    function progressBarHtml(actual, planned, { showMeta = true } = {}) {
+      const s = progressStats(actual, planned);
+      const width = s.over ? 100 : s.pct;
+      const fillClass = s.tone === "over" ? "over" : (s.tone === "low" ? "low" : "mid");
+      const meta = showMeta
+        ? `<div class="pbar-meta">
+            <span>${s.actual}m logged · ${s.remaining}m left of ${s.planned}m</span>
+            <span>${s.over ? Math.round(s.pctRaw) + "% (over)" : s.pct + "%"}</span>
+          </div>`
+        : "";
+      return `
+        <div class="pbar" title="${s.actual}m / ${s.planned}m (${Math.round(s.pctRaw)}%)">
+          <div class="pbar-fill ${fillClass}" style="width:${width}%"></div>
+        </div>
+        ${meta}`;
+    }
+
+    function buildProgressMap(state) {
+      const map = {};
+      (state.allocation_delta || []).forEach((r) => {
+        map[r.id] = {
+          planned: Number(r.planned_minutes) || 0,
+          actual: Number(r.actual_minutes) || 0,
+          title: r.title,
+        };
+      });
+      // Enrich remaining blocks with done_today when present
+      const rem = ((state.plan || {}).blocks) || [];
+      rem.forEach((b) => {
+        const id = b.id;
+        if (!map[id]) {
+          map[id] = {
+            planned: (Number(b.minutes) || 0) + (Number(b.done_today) || Number(b.done_minutes) || 0),
+            actual: Number(b.done_today) || Number(b.done_minutes) || 0,
+            title: b.title,
+          };
+        }
+      });
+      return map;
+    }
+
     function walkCandidatesHtml(candidates) {
       if (!candidates || !candidates.length) return "";
       const items = candidates.map((w) => {
@@ -637,9 +770,10 @@
       });
     }
 
-    function renderSuggestions(list, walkCandidates) {
+    function renderSuggestions(list, walkCandidates, progressMap) {
       const wrap = $("suggest-wrap");
       const walks = walkCandidates || [];
+      const pmap = progressMap || {};
       if ((!list || !list.length) && !walks.length) {
         wrap.innerHTML = `<p class="empty">No open actions — nice. Add ad-hoc work or rebuild the plan.</p>`;
         return;
@@ -651,6 +785,16 @@
         const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30);
         const isDuchess = s.id === "duchess-walk";
         const walkBlock = isDuchess ? walkCandidatesHtml(walks) : "";
+        const prog = pmap[s.id];
+        const doneToday = Number(s.done_today) || (prog ? prog.actual : 0) || 0;
+        const planned = prog ? prog.planned : (doneToday + rem);
+        const stats = progressStats(doneToday || (prog && prog.actual) || 0, planned || rem || 0);
+        // Prefer delta map actual when available
+        const actualForBar = prog ? prog.actual : doneToday;
+        const plannedForBar = prog && prog.planned > 0 ? prog.planned : (actualForBar + rem);
+        const st = progressStats(actualForBar, plannedForBar);
+        const suggestExtra =
+          st.over ? "over-plan" : (st.pct < 40 ? "low-progress" : "");
         const progressRow = loggable ? `
           <div class="row progress-row" style="margin-top:0.55rem" data-id="${escapeAttr(s.id)}">
             <label>min
@@ -666,8 +810,13 @@
               ? "Use Sync sleep / protect rest — not a timed work block"
               : ""}</span>
           </div>` : "");
+        const barBlock = (plannedForBar > 0 || actualForBar > 0) && loggable
+          ? `<div class="progress-caption">${progressBarHtml(actualForBar, plannedForBar)}</div>`
+          : "";
         return `
-        <div class="suggest ${escapeAttr(s.urgency || "low")}" data-action-id="${escapeAttr(s.id)}">
+        <div class="suggest ${escapeAttr(s.urgency || "low")} ${suggestExtra}"
+             data-action-id="${escapeAttr(s.id)}"
+             style="--progress: ${st.over ? 100 : st.pct}%">
           <div class="row" style="justify-content:space-between">
             <h3>${idx + 1}. ${escapeHtml(s.title)}</h3>
             <span class="urgency ${escapeAttr(s.urgency)}">${escapeHtml(s.urgency || "")}</span>
@@ -677,7 +826,9 @@
             <span class="role ${escapeAttr(s.role)}">${escapeHtml(s.role)}</span>
             · pri ${s.priority}
             ${rem ? " · " + hours(rem) + " remaining" : ""}
+            ${actualForBar ? ` · ${actualForBar}m logged` : ""}
           </div>
+          ${barBlock}
           ${walkBlock}
           ${progressRow}
         </div>`;
@@ -772,26 +923,28 @@
       drawPie(pBlocks, "pie-planned", "legend-planned", "Plan");
       drawPie(aBlocks, "pie-actual", "legend-actual", "Actual");
 
-      // Delta table
+      // Delta table with progress bars (actual vs recommended)
       if (!delta.length) {
         $("delta-table").innerHTML = `<p class="empty">No delta yet.</p>`;
       } else {
         $("delta-table").innerHTML = `
           <table>
             <thead><tr>
-              <th>Bucket</th><th>Recommended</th><th>Actual</th><th>Gap (plan−actual)</th>
+              <th style="width:28%">Bucket</th>
+              <th style="width:42%">Progress toward recommended</th>
+              <th>Gap</th>
             </tr></thead>
             <tbody>
               ${delta.map((r) => {
                 const d = Number(r.delta_minutes) || 0;
                 const cls = d > 0 ? "delta-pos" : (d < 0 ? "delta-neg" : "delta-zero");
                 const hint = d > 0 ? "under — can allocate more" : (d < 0 ? "over plan" : "on plan");
-                return `<tr>
+                return `<tr class="pbar-row">
                   <td><strong>${escapeHtml(r.title)}</strong>
                     <div class="path">${escapeHtml(r.id)} · ${escapeHtml(r.role || "")}</div>
+                    <div class="path">${r.actual_minutes}m / ${r.planned_minutes}m recommended</div>
                   </td>
-                  <td>${r.planned_minutes}m <span class="path">(${hours(r.planned_minutes)})</span></td>
-                  <td>${r.actual_minutes}m <span class="path">(${hours(r.actual_minutes)})</span></td>
+                  <td>${progressBarHtml(r.actual_minutes, r.planned_minutes)}</td>
                   <td class="${cls}"><strong>${d > 0 ? "+" : ""}${d}m</strong>
                     <div class="path">${hint}</div>
                   </td>
@@ -801,9 +954,10 @@
           </table>`;
       }
 
-      // Remaining open work (next-actions feed)
+      // Remaining open work — bar = how much of recommended is done vs left
       const remBlocks = (remaining && remaining.blocks) || [];
-      const w = Math.max((planned.window_minutes) || 1, 1);
+      const pmap = {};
+      delta.forEach((r) => { pmap[r.id] = r; });
       if (!remBlocks.length) {
         $("plan-table").innerHTML = `<p class="empty" style="margin-top:0.5rem">No remaining open blocks — day targets met or empty plan.</p>`;
       } else {
@@ -811,18 +965,31 @@
           <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em">Still open (remaining)</h3>
           <table>
             <thead><tr>
-              <th>Block</th><th>Role</th><th>Min left</th><th>% of 24h</th>
+              <th style="width:28%">Block</th>
+              <th style="width:42%">Logged vs recommended</th>
+              <th>Still open</th>
             </tr></thead>
             <tbody>
               ${remBlocks.map((b) => {
-                const pct = Math.round(((Number(b.minutes) || 0) / w) * 100);
-                return `<tr>
+                const id = b.id;
+                const drow = pmap[id];
+                const planned = drow
+                  ? Number(drow.planned_minutes) || 0
+                  : (Number(b.minutes) || 0) + (Number(b.done_today) || Number(b.done_minutes) || 0);
+                const actual = drow
+                  ? Number(drow.actual_minutes) || 0
+                  : (Number(b.done_today) || Number(b.done_minutes) || 0);
+                const left = Number(b.minutes) || 0;
+                return `<tr class="pbar-row">
                   <td><strong>${escapeHtml(b.title)}</strong>
-                    <div class="path">${escapeHtml(b.source || "")}:${escapeHtml(b.id)}${b.done_today != null ? ` · ${b.done_today}m done` : ""}</div>
+                    <div class="path">${escapeHtml(b.source || "")}:${escapeHtml(id)}
+                      · <span class="role ${escapeAttr(b.role)}">${escapeHtml(b.role)}</span>
+                    </div>
                   </td>
-                  <td><span class="role ${escapeAttr(b.role)}">${escapeHtml(b.role)}</span></td>
-                  <td>${b.minutes} <span class="path">(${hours(b.minutes)})</span></td>
-                  <td>${pct}%</td>
+                  <td>${progressBarHtml(actual, planned || (actual + left))}</td>
+                  <td><strong>${left}m</strong>
+                    <div class="path">${hours(left)} left</div>
+                  </td>
                 </tr>`;
               }).join("")}
             </tbody>
@@ -1008,7 +1175,11 @@
         `health: oauth=${h.google_oauth ? "yes" : "no"} · local_metrics=${h.local_metrics_file ? "yes" : "no"}` +
         (h.detail ? ` · ${h.detail}` : "");
       renderSleepBattery(state.sleep_battery);
-      renderSuggestions(state.suggestions || [], state.walk_candidates || []);
+      renderSuggestions(
+        state.suggestions || [],
+        state.walk_candidates || [],
+        buildProgressMap(state)
+      );
       renderPlan(state);
       renderKpis(state);
       renderItems(state);
