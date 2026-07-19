@@ -245,6 +245,7 @@
     <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
     <div id="strategy-focus"></div>
+    <div id="scheduler"></div>
     <div id="recommendations"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
@@ -446,6 +447,78 @@
           <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
         </div>`;
 
+      // Auto-start scheduler + action status reports
+      const sched = data.scheduler || {};
+      const scfg = sched.config || {};
+      const scron = sched.cron || {};
+      const sjobs = sched.jobs || [];
+      const sreports = sched.reports || [];
+      const seligible = sched.eligible || [];
+      const sauto = sched.auto_start_items || [];
+      $("scheduler").innerHTML = `
+        <div class="section-title">Auto-start scheduler <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· local cron → initiate goal</span></div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
+            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
+              ${esc(sched.note || "")}
+              Queue items with <strong>Auto-start</strong> on a backlog card (status ready + schedule now/this week).
+              Cron ticks call <code>initiate goal</code> and write status reports.
+              <br/><span class="id">Backend: ${esc(scfg.backend || "local")} · cron ${scron.installed ? "installed" : "not installed"} · scheduler ${scfg.enabled ? "enabled" : "disabled"}
+              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}</span>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
+              <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable" : "Enable"}</button>
+              <button type="button" id="btn-sched-cron">${scron.installed ? "Remove cron" : "Install cron"}</button>
+              <button type="button" id="btn-sched-tick">Run tick now</button>
+            </div>
+          </div>
+          <div class="detail" style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem">
+            Schedule: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
+            · max ${esc(scfg.max_per_tick ?? 1)}/tick · concurrent ${esc(scfg.max_concurrent ?? 1)}
+            · slots: ${(scfg.eligible_slots || []).map((s) => esc(s)).join(", ") || "now, this_week"}
+            · ${sauto.length} auto-start · ${seligible.length} eligible now
+          </div>
+          ${sauto.length ? `
+            <h3 style="margin:0.35rem 0;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for auto-start</h3>
+            ${sauto.map((a) => `
+              <div class="sess">
+                <div><span class="pill active">auto</span></div>
+                <div>
+                  <div class="title">${esc(a.title)}</div>
+                  <div class="id">#${esc(a.press_rank || "—")} · ${esc(a.schedule_slot || "")} · ${esc(a.status)}</div>
+                </div>
+                <div><button type="button" class="btn-bl-auto-off" data-id="${esc(a.id)}">Unqueue</button></div>
+              </div>`).join("")}
+          ` : `<div class="empty" style="padding:0.65rem">No auto-start items — enable Auto-start on a backlog card.</div>`}
+          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
+          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet.</div>` :
+            sjobs.slice(0, 8).map((j) => `
+              <div class="sess">
+                <div><span class="pill ${j.status === "completed" ? "clean" : j.status === "failed" ? "dirty" : "session"}">${esc(j.status)}</span></div>
+                <div>
+                  <div class="title">${esc(j.title)}</div>
+                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.launched_at || j.created_at))}${j.error ? ` · ${esc(j.error)}` : ""}</div>
+                </div>
+                <div>
+                  ${j.status === "launched" || j.status === "running"
+                    ? `<button type="button" class="btn-job-complete" data-id="${esc(j.id)}">Mark complete</button>`
+                    : ""}
+                </div>
+              </div>`).join("")}
+          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Status reports</h3>
+          ${!sreports.length ? `<div class="empty" style="padding:0.55rem">No reports yet — run a tick after queueing work.</div>` :
+            sreports.slice(0, 8).map((r) => `
+              <div class="sess">
+                <div><span class="pill ${r.status === "completed" ? "clean" : r.status === "failed" ? "dirty" : "branch"}">${esc(r.status)}</span></div>
+                <div>
+                  <div class="title">${esc(r.title || r.id)}</div>
+                  <div class="id">${esc(r.summary || "")}</div>
+                  ${(r.actions || []).slice(0, 3).map((a) => `<div class="id">· ${esc(a)}</div>`).join("")}
+                </div>
+                <div class="when">${fmtWhen(r.updated_at || r.created_at)}</div>
+              </div>`).join("")}
+        </div>`;
+
       // Recommendations panel — press rank + priority color coding
       const rec = data.recommendations || {};
       const ranked = rec.ranked || rec.pending || [];
@@ -626,6 +699,7 @@
             ` : ""}
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
               <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
+              <button type="button" class="btn-bl-auto" data-id="${esc(it.id)}" title="Queue for cron auto-start (initiate goal)">${it.auto_start ? "Auto-start: ON" : "Auto-start"}</button>
               <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}" title="Start Grok planning + MVP from current fields (works from idea)">Initiate goal</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
@@ -798,6 +872,7 @@
       });
     }
 
+    let dataCache = null;
     async function load() {
       const btn = $("btn-refresh");
       btn.disabled = true;
@@ -808,6 +883,7 @@
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "API error");
+        dataCache = data;
         render(data);
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
@@ -858,6 +934,20 @@
           if (data.changes && data.changes.length) {
             msg += ` · ${data.changes.length} hygiene change(s)`;
           }
+        }
+        if (data.launched_count != null || data.ticked_at) {
+          msg = `Tick: launched ${data.launched_count ?? 0}` +
+            (data.reconciled ? `, reconciled ${data.reconciled}` : "") +
+            (data.skipped ? " (scheduler disabled — used force)" : "");
+        }
+        if (data.installed != null && data.line) {
+          msg = data.installed ? `Cron installed: ${data.line}` : "Cron removed";
+        }
+        if (data.auto_start != null) {
+          msg = data.auto_start ? "Auto-start enabled for item" : "Auto-start cleared";
+        }
+        if (data.job && data.report) {
+          msg = `Job ${data.job.status}: ${data.report.summary || ""}`;
         }
         if (data.committed) {
           msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
@@ -914,6 +1004,24 @@
       }
       if (t.id === "btn-bl-groom") {
         await postAction("/api/backlog/groom", { apply: true });
+        return;
+      }
+      if (t.id === "btn-sched-enable") {
+        const en = !((dataCache && dataCache.scheduler && dataCache.scheduler.config && dataCache.scheduler.config.enabled));
+        // toggle based on button label
+        const label = (t.textContent || "").toLowerCase();
+        const enable = label.includes("enable");
+        await postAction("/api/scheduler/config", { enabled: enable });
+        return;
+      }
+      if (t.id === "btn-sched-cron") {
+        const label = (t.textContent || "").toLowerCase();
+        if (label.includes("remove")) await postAction("/api/scheduler/uninstall-cron", {});
+        else await postAction("/api/scheduler/install-cron", {});
+        return;
+      }
+      if (t.id === "btn-sched-tick") {
+        await postAction("/api/scheduler/tick", { force: true });
         return;
       }
       if (t.id === "btn-bl-view-press") {
@@ -995,6 +1103,21 @@
           area: (root.querySelector(".bl-edit-area") || {}).value || "",
         });
         window.__blEditOpen.delete(id);
+        return;
+      }
+      if (t.classList.contains("btn-bl-auto") || t.classList.contains("btn-bl-auto-off")) {
+        // Auto-start: ON → turn off; Auto-start → turn on; Unqueue → off
+        const turnOn = t.classList.contains("btn-bl-auto")
+          && !(t.textContent || "").includes("ON");
+        await postAction("/api/scheduler/auto-start", { id, enabled: turnOn });
+        return;
+      }
+      if (t.classList.contains("btn-job-complete")) {
+        await postAction("/api/scheduler/complete", {
+          job_id: id,
+          summary: "Marked complete from dashboard",
+          status: "completed",
+        });
         return;
       }
       if (t.classList.contains("btn-bl-initiate")) {

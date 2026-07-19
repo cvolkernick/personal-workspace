@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "enabled": false,
+  "backend": "local",
+  "cron_expression": "*/15 * * * *",
+  "max_per_tick": 1,
+  "max_concurrent": 1,
+  "eligible_statuses": [
+    "ready"
+  ],
+  "eligible_slots": [
+    "now",
+    "this_week"
+  ],
+  "require_auto_start": true,
+  "spawn_grok": true,
+  "install_marker": "projects-dashboard-scheduler",
+  "last_tick_at": null,
+  "last_tick_result": null,
+  "updated_at": "2026-07-19T20:55:07.168692+00:00"
+}

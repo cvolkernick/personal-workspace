@@ -43,6 +43,16 @@ from recommendations import (  # noqa: E402
     reject_suggestion,
     generate_recommendations,
 )
+from scheduler import (  # noqa: E402
+    complete_job,
+    install_cron,
+    load_config,
+    save_config,
+    scheduler_payload,
+    set_auto_start,
+    tick,
+    uninstall_cron,
+)
 from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
@@ -112,10 +122,21 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 payload["recommendations"] = recommendations_payload(
                     refresh=refresh_rec
                 )
+                try:
+                    payload["scheduler"] = scheduler_payload()
+                except Exception as se:
+                    payload["scheduler"] = {"ok": False, "error": str(se)}
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, payload)
+            return
+
+        if path == "/api/scheduler":
+            try:
+                self._json(200, scheduler_payload())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path == "/api/backlog":
@@ -264,6 +285,64 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     return
                 result = reject_suggestion(str(sid))
                 self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/scheduler/config":
+                cfg = load_config()
+                for k, v in body.items():
+                    if k in (
+                        "enabled",
+                        "cron_expression",
+                        "max_per_tick",
+                        "max_concurrent",
+                        "eligible_statuses",
+                        "eligible_slots",
+                        "require_auto_start",
+                        "spawn_grok",
+                        "backend",
+                    ):
+                        cfg[k] = v
+                self._json(200, {"ok": True, "config": save_config(cfg)})
+                return
+
+            if path == "/api/scheduler/tick":
+                result = tick(force=bool(body.get("force", True)))
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/scheduler/install-cron":
+                result = install_cron()
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/scheduler/uninstall-cron":
+                result = uninstall_cron()
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/scheduler/auto-start":
+                iid = body.get("id") or body.get("backlog_id")
+                if not iid:
+                    self._json(400, {"ok": False, "error": "missing id"})
+                    return
+                enabled = body.get("enabled", True)
+                if isinstance(enabled, str):
+                    enabled = enabled.lower() not in ("0", "false", "no")
+                result = set_auto_start(str(iid), bool(enabled))
+                self._json(200 if result.get("ok") else 404, result)
+                return
+
+            if path == "/api/scheduler/complete":
+                jid = body.get("job_id") or body.get("id")
+                if not jid:
+                    self._json(400, {"ok": False, "error": "missing job_id"})
+                    return
+                result = complete_job(
+                    str(jid),
+                    summary=str(body.get("summary") or ""),
+                    status=str(body.get("status") or "completed"),
+                )
+                self._json(200 if result.get("ok") else 404, result)
                 return
         except Exception as e:
             self._json(500, {"ok": False, "error": str(e)})

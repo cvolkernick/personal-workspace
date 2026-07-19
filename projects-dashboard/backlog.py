@@ -189,6 +189,7 @@ def update_item(item_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         "area",
         "mvp_scope",
         "notes",
+        "auto_start",
     }
     for k, v in patch.items():
         if k in allowed:
@@ -197,6 +198,11 @@ def update_item(item_id: str, patch: dict[str, Any]) -> dict[str, Any]:
             if k == "status" and v not in STATUSES:
                 continue
             if k == "title" and not str(v).strip():
+                continue
+            if k == "auto_start":
+                if isinstance(v, str):
+                    v = v.lower() not in ("0", "false", "no", "")
+                found[k] = bool(v)
                 continue
             found[k] = v
     if "title" in patch and patch.get("title"):
