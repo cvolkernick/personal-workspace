@@ -6,5 +6,9 @@
   "livingroom": {
     "label": "Living room",
     "members": ["livingroom1", "livingroom2"]
+  },
+  "unassigned": {
+    "label": "Unassigned (new bulbs)",
+    "members": ["unassigned1", "unassigned2"]
   }
 }
