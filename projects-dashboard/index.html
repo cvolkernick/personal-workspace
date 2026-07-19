@@ -836,9 +836,10 @@
         if (data.steps) {
           msg = data.steps.map((s) => {
             const body = s.ok
-              ? (s.committed ? `committed ${s.sha || ""}` : (s.message || "ok"))
+              ? (s.committed ? `committed ${s.sha || ""} on ${s.branch || ""}` : (s.message || "ok"))
               : (s.error || "fail");
-            return `${s.step}:${body}`;
+            const ba = (s.branch_actions || []).filter(Boolean).join("; ");
+            return `${s.step}:${body}${ba ? ` (${ba})` : ""}`;
           }).join(" · ");
           // If any step left dirty / failed, surface as error not green OK
           if (data.steps.some((s) => s.ok === false)) {
