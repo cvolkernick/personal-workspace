@@ -787,9 +787,7 @@
         const walkBlock = isDuchess ? walkCandidatesHtml(walks) : "";
         const prog = pmap[s.id];
         const doneToday = Number(s.done_today) || (prog ? prog.actual : 0) || 0;
-        const planned = prog ? prog.planned : (doneToday + rem);
-        const stats = progressStats(doneToday || (prog && prog.actual) || 0, planned || rem || 0);
-        // Prefer delta map actual when available
+        // Prefer allocation_delta map for actual/planned when available
         const actualForBar = prog ? prog.actual : doneToday;
         const plannedForBar = prog && prog.planned > 0 ? prog.planned : (actualForBar + rem);
         const st = progressStats(actualForBar, plannedForBar);
