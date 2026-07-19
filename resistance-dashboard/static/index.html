@@ -119,13 +119,14 @@
         </article>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem">
-        <article class="card">
-          <h2>Body weight (90 days)</h2>
-          <div class="chart-box"><canvas id="chart-weight" aria-label="Weight chart"></canvas></div>
-          <p class="muted" id="weight-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row">
+        <article class="card card-fill" id="recovery-card">
+          <h2>Recovery status</h2>
+          <div id="recovery-badge"></div>
+          <ul class="reasons" id="recovery-reasons"></ul>
+          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
         </article>
-        <article class="card">
+        <article class="card card-fill">
           <h2>Sleep (hours) · 7d rolling avg</h2>
           <div class="chart-box"><canvas id="chart-sleep" aria-label="Sleep chart"></canvas></div>
           <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
@@ -164,12 +165,11 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-hydration-row">
-        <article class="card card-fill" id="recovery-card">
-          <h2>Recovery status</h2>
-          <div id="recovery-badge"></div>
-          <ul class="reasons" id="recovery-reasons"></ul>
-          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row">
+        <article class="card card-fill">
+          <h2>Body weight (90 days)</h2>
+          <div class="chart-box"><canvas id="chart-weight" aria-label="Weight chart"></canvas></div>
+          <p class="muted" id="weight-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
         <article class="card card-fill" id="hydration-card">
           <h2>Hydration (ml) · 7d rolling avg</h2>
