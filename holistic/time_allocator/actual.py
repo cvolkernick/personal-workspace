@@ -102,6 +102,26 @@ def build_actual_allocation(
             }
         )
 
+    # --- Lyft duty cycle (user-set driven minutes in current 12h block) ---
+    lyft_tgt = get_target(state, "lyft")
+    if lyft_tgt is not None:
+        from .lyft_duty import get_lyft_duty
+
+        driven = int(get_lyft_duty(state).get("driven_minutes") or 0)
+        if driven > 0:
+            # Count duty-cycle driven time as actual Lyft (capped to window)
+            blocks.append(
+                {
+                    "id": "lyft",
+                    "title": "Lyft driving (duty cycle)",
+                    "minutes": min(driven, window),
+                    "role": "fill",
+                    "kind": "fill_remainder",
+                    "source": "lyft_duty",
+                }
+            )
+            timed_by_target["lyft"] = timed_by_target.get("lyft", 0) + min(driven, window)
+
     # --- Daily logs for targets (dates overlapping window), net of timed ---
     for t in list_targets(state):
         tid = str(t.get("id"))

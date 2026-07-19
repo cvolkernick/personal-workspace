@@ -5,7 +5,8 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Any
 
-from .domain import build_rolling_plan, kpi_status, list_items, normalize_state
+from .domain import build_rolling_plan, get_target, kpi_status, list_items, normalize_state
+from .lyft_duty import lyft_duty_status
 from .sleep_battery import sleep_battery_for_state
 
 
@@ -62,9 +63,17 @@ def recommend_next(
         elif role == "fill":
             urgency = "low"
             reason = (
-                f"{b.get('minutes')} min of active capacity left after fixed obligations"
-                + (f" ({b.get('done_today')}m already logged today)" if b.get("done_today") else "")
+                f"{b.get('minutes')} min of Lyft drive capacity in this window"
+                + (f" — {b.get('lyft_duty_summary')}" if b.get("lyft_duty_summary") else "")
             )
+            if b.get("remaining_drive_minutes") is not None:
+                reason += (
+                    f" ({int(b['remaining_drive_minutes'])}m left in current 12h driver-mode block)"
+                )
+        elif role == "break":
+            urgency = "medium"
+            reason = b.get("reason") or "Mandatory offline break (Lyft 6h after 12h driver mode)"
+            loggable = False
         else:
             urgency = "medium" if int(b.get("priority") or 0) >= 5 else "low"
             reason = "Ad-hoc item on the plan"
@@ -85,8 +94,38 @@ def recommend_next(
                 "loggable": loggable,
                 "log_mode": log_mode,
                 "done_today": int(b.get("done_today") or b.get("done_minutes") or 0),
+                "remaining_drive_minutes": b.get("remaining_drive_minutes"),
+                "drive_cap_minutes": b.get("drive_cap_minutes"),
+                "break_minutes": b.get("break_minutes"),
+                "lyft_duty_summary": b.get("lyft_duty_summary"),
             }
         )
+
+    # Always surface Lyft duty status for UI even if no fill block (at limit / on break)
+    lyft_tgt = get_target(state, "lyft")
+    if lyft_tgt is not None:
+        duty = lyft_duty_status(state, target=lyft_tgt)
+        if duty.get("at_limit") and not any(s.get("id") == "lyft" for s in suggestions):
+            suggestions.append(
+                {
+                    "id": "lyft",
+                    "title": "Lyft driving",
+                    "reason": duty.get("summary")
+                    or "12h driver-mode used — 6h offline break required",
+                    "priority": int(lyft_tgt.get("priority") or 3),
+                    "minutes": 0,
+                    "role": "fill",
+                    "source": "target",
+                    "urgency": "medium",
+                    "loggable": False,
+                    "log_mode": "duty",
+                    "done_today": duty.get("driven_minutes") or 0,
+                    "remaining_drive_minutes": duty.get("remaining_drive_minutes"),
+                    "drive_cap_minutes": duty.get("drive_cap_minutes"),
+                    "break_minutes": duty.get("break_minutes"),
+                    "lyft_duty_summary": duty.get("summary"),
+                }
+            )
 
     # 2) Sleep battery (rolling 24h hours asleep) + 7d KPI
     battery = sleep_battery_for_state(state, now=now)

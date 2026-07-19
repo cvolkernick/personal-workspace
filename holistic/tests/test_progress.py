@@ -37,10 +37,10 @@ class ProgressTests(unittest.TestCase):
         plan = build_rolling_plan(state, now=now, as_of=as_of)
         self.assertNotIn("duchess-walk", {b["id"] for b in plan["blocks"]})
 
-    def test_lyft_fill_reduces_with_progress(self) -> None:
+    def test_lyft_duty_reduces_remaining_drive(self) -> None:
         state = seed_starter(empty_state(), personal=True)
-        # enough workouts so no session
         from holistic.time_allocator.domain import add_log
+        from holistic.time_allocator.lyft_duty import set_lyft_driven
 
         for i in range(3):
             state = add_log(state, "workout", 1, on=date(2026, 7, 15 + i))
@@ -49,14 +49,14 @@ class ProgressTests(unittest.TestCase):
             state, now=datetime(2026, 7, 18, 12, 0, 0), as_of=date(2026, 7, 18)
         )
         lyft0 = next(b for b in plan["blocks"] if b["id"] == "lyft")
-        before = lyft0["minutes"]
-        state = log_action_progress(state, "lyft", minutes=120, on=date(2026, 7, 18))
+        self.assertEqual(lyft0["minutes"], 12 * 60)  # full cycle when driven=0
+        state = set_lyft_driven(state, 2 * 60)  # 2h driven → 10h left
         plan = build_rolling_plan(
             state, now=datetime(2026, 7, 18, 12, 0, 0), as_of=date(2026, 7, 18)
         )
         lyft1 = next(b for b in plan["blocks"] if b["id"] == "lyft")
-        self.assertEqual(lyft1["minutes"], before - 120)
-        self.assertEqual(lyft1.get("done_today"), 120)
+        self.assertEqual(lyft1["minutes"], 10 * 60)
+        self.assertEqual(lyft1.get("remaining_drive_minutes"), 10 * 60)
 
     def test_adhoc_partial(self) -> None:
         state = seed_starter(empty_state(), personal=True)

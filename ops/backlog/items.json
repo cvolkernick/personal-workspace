@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-19T20:46:19.985633+00:00",
+  "updated_at": "2026-07-19T21:23:33.202133+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -22,20 +22,20 @@
       "goal_objective": "Backlog project: Build one small but real automation that multiplies output on creative or wealth-building work\n\nContext:\n## Description\nOne of the highest-leverage things that advances the AI/Autonomy/Robotics bet is actually *using* and *shipping* small agentic automations that multiply the user's own output on the other bets (creative work, wealth research, command center maintenance itself, etc.).\n\nThis is a standing \"template\" style initiative: pick a real, painful, repeatable task and remove friction with a small tool, prompt, or structured workflow. The act of shipping these compounds.\n\n## Current Next Action (example)\nPick one concrete manual step that currently contributes to the \"scattered capture \u2192 overwhelming synthesis\" problem and make a tiny improvement (could be a better prompt template, a small script that parses something into the right MD format, an improved section in the command center, etc.). Document it here or in a related note.\n\n## Progress / Wins\n- (To be filled as small automations are shipped.)\n\n## Notes\n- Keep scope tiny and shippable in hours, not days.\n- Each win can be logged and can feed the \"wins\" part of reviews or the Today plan.\n- Over time these small wins become evidence of progress on the AI/Autonomy/Robotics bet.\n\nSee `strategy/command-center-requirements.md` and `strategy/bets.md` for the broader context. This is the kind of initiative that should appear in the Actionable Plans / Today's Focus when it has a defined next action.\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: A minimal working slice we can use and iterate on, with tests or verification for the happy path, committed in personal-workspace.\n Place durable work under personal-workspace on an appropriate work/<area> branch.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-17T17:30:32.588931+00:00",
       "launch_script": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.launch.sh",
-      "score": 68,
-      "press_rank": 4,
-      "rank_label": "Queued",
+      "score": 114,
+      "press_rank": 1,
+      "rank_label": "Do first",
       "rank_reasons": [
         "medium priority (+50)",
-        "status idea (+8)",
-        "missing MVP scope (\u22126)",
+        "status planning (+30)",
         "has next-step notes (+6)",
-        "leverage/initiative tag (+10)"
+        "leverage/initiative tag (+10)",
+        "planning stall 2d (+18)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "this_week",
-      "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:10.731188+00:00",
+      "schedule_slot": "now",
+      "schedule_label": "Do now",
+      "last_groomed_at": "2026-07-19T21:23:33.202093+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt"
     },
@@ -45,7 +45,7 @@
       "title": "Improve command center daily action planner (Today's Focus)",
       "description": "## Description\nEvolve the command center from a good visual reader into the place where macro strategy (the bets + dynamic domains) becomes a trustworthy, low-friction daily action plan. The key is a synthesized \"Today's Focus\" view that surfaces the highest-leverage next actions without the user having to manually re-synthesize scattered notes every time.\n\nThis initiative itself is meta: building the tool that helps execute on the other bets.\n\n## Current Next Action\nAdd / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make \"Add new initiative\" guidance point to creating a real structured MD like this one.\n\n## Progress / Wins\n- [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).\n- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).\n- [ ] User starts using the new flow for at least one real day of planning.\n\n## Notes / Ideas\n- Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.\n- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.\n- Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).\n\nSee the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.",
       "priority": "medium",
-      "status": "ready",
+      "status": "planning",
       "tags": [
         "imported",
         "initiative"
@@ -54,25 +54,26 @@
       "mvp_scope": "",
       "notes": "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)",
       "created_at": "2026-07-17T06:14:42.157807+00:00",
-      "updated_at": "2026-07-17T06:14:42.157809+00:00",
-      "seed_path": null,
-      "goal_objective": null,
-      "initiated_at": null,
-      "launch_script": null,
-      "score": 82,
-      "press_rank": 3,
-      "rank_label": "Then",
+      "updated_at": "2026-07-19T21:10:43.830704+00:00",
+      "seed_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md",
+      "goal_objective": "Backlog project: Improve command center daily action planner (Today's Focus)\n\nContext:\n## Description\nEvolve the command center from a good visual reader into the place where macro strategy (the bets + dynamic domains) becomes a trustworthy, low-friction daily action plan. The key is a synthesized \"Today's Focus\" view that surfaces the highest-leverage next actions without the user having to manually re-synthesize scattered notes every time.\n\nThis initiative itself is meta: building the tool that helps execute on the other bets.\n\n## Current Next Action\nAdd / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make \"Add new initiative\" guidance point to creating a real structured MD like this one.\n\n## Progress / Wins\n- [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).\n- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).\n- [ ] User starts using the new flow for at least one real day of planning.\n\n## Notes / Ideas\n- Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.\n- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.\n- Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).\n\nSee the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: A minimal working slice we can use and iterate on, with tests or verification for the happy path, committed in personal-workspace.\n Place durable work under personal-workspace on an appropriate work/<area> branch.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
+      "initiated_at": "2026-07-19T21:10:43.830693+00:00",
+      "launch_script": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh",
+      "score": 96,
+      "press_rank": 2,
+      "rank_label": "Do next",
       "rank_reasons": [
         "medium priority (+50)",
-        "status ready (+22)",
-        "missing MVP scope (\u22126)",
+        "status planning (+30)",
         "has next-step notes (+6)",
         "leverage/initiative tag (+10)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "this_week",
-      "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:10.731200+00:00"
+      "schedule_slot": "now",
+      "schedule_label": "Do now",
+      "last_groomed_at": "2026-07-19T21:23:33.202102+00:00",
+      "objective_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
+      "prompt_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt"
     },
     {
       "id": "bfdc9db1-82f9-4100-8829-87e0883f39ae",
@@ -91,21 +92,14 @@
       "goal_objective": "Backlog project: Time allocator\n\nContext:\nAgentic assistant to allocate time across tasks and intelligently advise/recommend next action items during an average day. I would like to be able to make an ongoing / looping process that allows goals to be set and then uses agentic coaching to identify and recommend steps to progress toward various goals and allocate time according to priority/precedence etc.\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: core list of tasks to allocate time to as a starting point, optionality to add or remove tasks / goals\n Prefer living under personal-workspace/holistic/.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-17T17:37:15.655254+00:00",
       "launch_script": "ops/backlog/seeds/time-allocator-bfdc9db1.launch.sh",
-      "score": 156,
-      "press_rank": 1,
-      "rank_label": "Do first",
-      "rank_reasons": [
-        "critical priority (+100)",
-        "status ready (+22)",
-        "has MVP scope (+12)",
-        "has next-step notes (+6)",
-        "area=holistic (+4)",
-        "critical urgency (+12)"
-      ],
+      "score": 0,
+      "press_rank": null,
+      "rank_label": "Done",
+      "rank_reasons": [],
       "priority_color": "#ff6b6b",
-      "schedule_slot": "now",
-      "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:10.731209+00:00",
+      "schedule_slot": "done",
+      "schedule_label": "Done",
+      "last_groomed_at": "2026-07-19T21:23:33.202105+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -127,8 +121,8 @@
       "initiated_at": null,
       "launch_script": null,
       "score": 88,
-      "press_rank": 2,
-      "rank_label": "Do next",
+      "press_rank": 3,
+      "rank_label": "Then",
       "rank_reasons": [
         "medium priority (+50)",
         "status ready (+22)",
@@ -136,9 +130,9 @@
         "area=business (+4)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "now",
-      "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:10.731214+00:00"
+      "schedule_slot": "this_week",
+      "schedule_label": "This week",
+      "last_groomed_at": "2026-07-19T21:23:33.202107+00:00"
     },
     {
       "id": "0158a2cc-f5cf-4b68-998c-f80133b85cfc",
@@ -158,7 +152,7 @@
       "initiated_at": null,
       "launch_script": null,
       "score": 63,
-      "press_rank": 5,
+      "press_rank": 4,
       "rank_label": "Queued",
       "rank_reasons": [
         "low priority (+25)",
@@ -167,9 +161,9 @@
         "area=personal (+4)"
       ],
       "priority_color": "#8aa0b5",
-      "schedule_slot": "next_week",
-      "schedule_label": "Next week",
-      "last_groomed_at": "2026-07-17T14:19:10.731221+00:00"
+      "schedule_slot": "this_week",
+      "schedule_label": "This week",
+      "last_groomed_at": "2026-07-19T21:23:33.202110+00:00"
     },
     {
       "id": "84426e3f-1537-4f30-a700-9ad7e7ff5dfe",
@@ -187,13 +181,26 @@
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
-      "launch_script": null
+      "launch_script": null,
+      "score": 40,
+      "press_rank": 5,
+      "rank_label": "Queued",
+      "rank_reasons": [
+        "medium priority (+50)",
+        "status idea (+8)",
+        "missing MVP scope (\u22126)",
+        "WIP limit (2 in flight) (\u221212)"
+      ],
+      "priority_color": "#5b9fd4",
+      "schedule_slot": "next_week",
+      "schedule_label": "Next week",
+      "last_groomed_at": "2026-07-19T21:23:33.202113+00:00"
     }
   ],
-  "last_groomed_at": "2026-07-17T14:19:10.731224+00:00",
+  "last_groomed_at": "2026-07-19T21:23:33.202116+00:00",
   "groom_meta": {
-    "wip_count": 0,
-    "changes_count": 2,
-    "groomed_at": "2026-07-17T14:19:10.731224+00:00"
+    "wip_count": 2,
+    "changes_count": 0,
+    "groomed_at": "2026-07-19T21:23:33.202116+00:00"
   }
 }

@@ -64,6 +64,10 @@ from holistic.time_allocator.actual import (  # noqa: E402
     allocation_delta,
     build_actual_allocation,
 )
+from holistic.time_allocator.lyft_duty import (  # noqa: E402
+    lyft_duty_status,
+    set_lyft_driven,
+)
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
 from holistic.time_allocator.store import (  # noqa: E402
@@ -104,6 +108,8 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     suggestions = recommend_next(state, plan=plan)
     sleep_battery = sleep_battery_for_state(state)
     walk_candidates = pending_walk_candidates(state, days=2)
+    lyft_tgt = next((t for t in targets if str(t.get("id")) == "lyft"), None)
+    lyft_duty = lyft_duty_status(state, target=lyft_tgt)
     payload = {
         "ok": True,
         "path": str(path),
@@ -113,6 +119,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "sleep_intervals": list(state.get("sleep_intervals") or []),
         "activity_reviews": list(state.get("activity_reviews") or []),
         "walk_candidates": walk_candidates,
+        "lyft_duty": lyft_duty,
         "count": len(items),
         "total_minutes": total,
         "kpi_status": kpi_status(state),
@@ -416,6 +423,39 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     rid,
                     decision=decision,
                     note=str(body.get("note") or ""),
+                )
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/lyft/duty":
+                # Set driven minutes (or hours) in the current 12h driver-mode block
+                from holistic.time_allocator.domain import get_target as _get_target
+
+                state = load_state(_data())
+                lyft_tgt = _get_target(state, "lyft")
+                cap = int((lyft_tgt or {}).get("drive_cap_minutes") or 12 * 60)
+                if body.get("driven_minutes") is not None:
+                    driven = float(body["driven_minutes"])
+                elif body.get("driven_hours") is not None:
+                    driven = float(body["driven_hours"]) * 60.0
+                elif body.get("hours") is not None:
+                    driven = float(body["hours"]) * 60.0
+                else:
+                    self._json(
+                        400,
+                        {
+                            "ok": False,
+                            "error": "driven_minutes or driven_hours required",
+                        },
+                    )
+                    return
+                state = set_lyft_driven(
+                    state,
+                    driven,
+                    note=str(body.get("note") or ""),
+                    drive_cap_minutes=cap,
                 )
                 state = apply_plan(state)
                 save_state(state, _data())

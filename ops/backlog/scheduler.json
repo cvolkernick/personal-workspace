@@ -15,8 +15,12 @@
   "require_auto_start": true,
   "spawn_grok": true,
   "install_marker": "projects-dashboard-scheduler",
-  "last_tick_at": null,
-  "last_tick_result": null,
-  "updated_at": "2026-07-19T21:07:04.507727+00:00",
+  "last_tick_at": "2026-07-19T21:15:00.413785+00:00",
+  "last_tick_result": {
+    "launched_count": 0,
+    "errors": 0,
+    "reconciled": 0
+  },
+  "updated_at": "2026-07-19T21:15:00.414792+00:00",
   "cron_installed_at": "2026-07-19T21:07:04.507269+00:00"
 }

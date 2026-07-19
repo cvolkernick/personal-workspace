@@ -60,7 +60,14 @@ PERSONAL_TARGETS: list[dict[str, Any]] = [
         "title": "Lyft driving",
         "kind": "fill_remainder",
         "priority": 3,
-        "notes": "Fill remaining active time after fixed targets + ad-hoc.",
+        # Lyft platform: 12h driver mode → mandatory uninterrupted 6h offline break
+        "drive_cap_minutes": 12 * 60,
+        "break_minutes": 6 * 60,
+        "notes": (
+            "Fill free active time, capped by Lyft duty: 12h driver mode then "
+            "mandatory 6h offline break (12h need not be consecutive). "
+            "Set ‘driven so far’ in the current 12h block — plan uses the remainder."
+        ),
     },
 ]
 
@@ -133,6 +140,7 @@ def empty_state() -> dict[str, Any]:
         "plan": None,
         "sleep_intervals": [],
         "activity_reviews": [],
+        "lyft_duty": {"driven_minutes": 0, "updated_at": None, "note": ""},
     }
 
 
@@ -140,17 +148,25 @@ def _migrate_targets(targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """In-place-safe migration of known personal targets."""
     out = deepcopy(targets)
     for t in out:
-        if str(t.get("id")) != "duchess-walk":
-            continue
-        # Historical mistake: 130 min; correct range is 30–60.
-        mins = int(t.get("minutes") or 0)
-        if mins >= 100 or t.get("minutes_min") is None or int(t.get("sessions_hint") or 0) > 1:
-            t["minutes"] = 45 if mins >= 100 or t.get("minutes_min") is None else mins
-            t["minutes_min"] = 30
-            t["minutes_max"] = 60
-            t["sessions_hint"] = 1
-            t["notes"] = "30–60 minutes per day."
-            t["title"] = t.get("title") or "Walk Duchess"
+        tid = str(t.get("id") or "")
+        if tid == "duchess-walk":
+            # Historical mistake: 130 min; correct range is 30–60.
+            mins = int(t.get("minutes") or 0)
+            if mins >= 100 or t.get("minutes_min") is None or int(t.get("sessions_hint") or 0) > 1:
+                t["minutes"] = 45 if mins >= 100 or t.get("minutes_min") is None else mins
+                t["minutes_min"] = 30
+                t["minutes_max"] = 60
+                t["sessions_hint"] = 1
+                t["notes"] = "30–60 minutes per day."
+                t["title"] = t.get("title") or "Walk Duchess"
+        elif tid == "lyft":
+            t.setdefault("drive_cap_minutes", 12 * 60)
+            t.setdefault("break_minutes", 6 * 60)
+            if "12h" not in str(t.get("notes") or ""):
+                t["notes"] = (
+                    "Fill free active time, capped by Lyft duty: 12h driver mode then "
+                    "mandatory 6h offline break. Set driven-so-far in the current 12h block."
+                )
     return out
 
 
@@ -165,6 +181,7 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     out.setdefault("plan", None)
     out.setdefault("sleep_intervals", [])
     out.setdefault("activity_reviews", [])
+    out.setdefault("lyft_duty", {"driven_minutes": 0, "updated_at": None, "note": ""})
     if not isinstance(out["items"], list):
         out["items"] = []
     if not isinstance(out["targets"], list):
@@ -175,6 +192,8 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
         out["sleep_intervals"] = []
     if not isinstance(out["activity_reviews"], list):
         out["activity_reviews"] = []
+    if not isinstance(out.get("lyft_duty"), dict):
+        out["lyft_duty"] = {"driven_minutes": 0, "updated_at": None, "note": ""}
     out["targets"] = _migrate_targets(list(out["targets"]))
     out["version"] = max(2, int(out.get("version") or 1))
     return out
@@ -431,6 +450,8 @@ def update_target(state: dict[str, Any], key: str, patch: dict[str, Any]) -> dic
         "notes",
         "minutes_min",
         "minutes_max",
+        "drive_cap_minutes",
+        "break_minutes",
     }
     for t in out.get("targets") or []:
         if t.get("id") == found["id"]:
@@ -927,36 +948,110 @@ def build_rolling_plan(
         )
         remaining_active -= take
 
-    # 5) Fill remainder (Lyft etc.), reduced by minutes already logged today
+    # 5) Fill remainder (Lyft): free active time, capped by 12h/6h duty cycle
+    from .lyft_duty import (  # local import avoids cycles at module load
+        get_lyft_duty,
+        lyft_duty_status,
+        schedule_drive_in_window,
+    )
+
     fillers = [t for t in targets if str(t.get("kind")) == "fill_remainder"]
     fillers.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     if fillers and remaining_active > 0:
         primary = fillers[0]
+        is_lyft = str(primary.get("id")) == "lyft" or primary.get("drive_cap_minutes")
         fill_logs = logs_for_target(state, str(primary["id"]), since=today, until=today)
         done_fill = (
             0
             if ignore_progress
             else int(sum(float(lg.get("value") or 0) for lg in fill_logs))
         )
-        fill_left = max(0, remaining_active - done_fill)
-        if done_fill > 0:
+        free = max(0, remaining_active - done_fill)
+        if done_fill > 0 and not is_lyft:
             notes.append(
-                f"{primary.get('title')}: {done_fill}m logged today, {fill_left}m fill remaining"
+                f"{primary.get('title')}: {done_fill}m logged today, {free}m fill remaining"
             )
-        if fill_left > 0:
-            blocks.append(
-                {
-                    "source": "target",
-                    "id": primary["id"],
-                    "title": primary.get("title") or primary["id"],
-                    "minutes": fill_left,
-                    "role": "fill",
-                    "kind": "fill_remainder",
-                    "priority": int(primary.get("priority") or 0),
-                    "done_today": done_fill,
-                }
+
+        if is_lyft:
+            cap = int(primary.get("drive_cap_minutes") or 12 * 60)
+            brk = int(primary.get("break_minutes") or 6 * 60)
+            # Recommended plan: assume start of cycle (full 12h) unless ignore_progress False
+            driven = 0 if ignore_progress else int(get_lyft_duty(state).get("driven_minutes") or 0)
+            # When remaining plan also counts today's fill logs as "done", prefer duty for cap
+            sched = schedule_drive_in_window(
+                free,
+                driven,
+                drive_cap_minutes=cap,
+                break_minutes=brk,
+                # Recommended pie can span break + next cycle; "remaining" only current cycle
+                allow_next_cycle=bool(ignore_progress),
             )
-        remaining_active = 0
+            notes.extend(sched.get("notes") or [])
+            status = lyft_duty_status(state, target=primary)
+            drive_total = int(sched.get("drive_minutes") or 0)
+            break_total = 0
+            reasons: list[str] = []
+            for seg in sched.get("segments") or []:
+                role = str(seg.get("role") or "drive")
+                mins = int(seg.get("minutes") or 0)
+                if mins <= 0:
+                    continue
+                if role == "break":
+                    break_total += mins
+                    if seg.get("reason"):
+                        reasons.append(str(seg["reason"]))
+                elif seg.get("reason"):
+                    reasons.append(str(seg["reason"]))
+            if break_total > 0:
+                blocks.append(
+                    {
+                        "source": "target",
+                        "id": "lyft-break",
+                        "title": "Lyft mandatory offline break",
+                        "minutes": break_total,
+                        "role": "break",
+                        "kind": "lyft_break",
+                        "priority": int(primary.get("priority") or 0),
+                        "reason": "6h uninterrupted offline after 12h driver mode",
+                    }
+                )
+            if drive_total > 0:
+                blocks.append(
+                    {
+                        "source": "target",
+                        "id": primary["id"],
+                        "title": primary.get("title") or "Lyft driving",
+                        "minutes": drive_total,
+                        "role": "fill",
+                        "kind": "fill_remainder",
+                        "priority": int(primary.get("priority") or 0),
+                        "done_today": driven,
+                        "drive_cap_minutes": cap,
+                        "break_minutes": brk,
+                        "remaining_drive_minutes": max(0, cap - driven),
+                        "reason": "; ".join(reasons) if reasons else status.get("summary"),
+                        "lyft_duty_summary": status.get("summary"),
+                    }
+                )
+            if drive_total == 0 and free > 0:
+                notes.append(status.get("summary") or "Lyft: no drive capacity in this window")
+            remaining_active = 0
+        else:
+            fill_left = free
+            if fill_left > 0:
+                blocks.append(
+                    {
+                        "source": "target",
+                        "id": primary["id"],
+                        "title": primary.get("title") or primary["id"],
+                        "minutes": fill_left,
+                        "role": "fill",
+                        "kind": "fill_remainder",
+                        "priority": int(primary.get("priority") or 0),
+                        "done_today": done_fill,
+                    }
+                )
+            remaining_active = 0
         for extra in fillers[1:]:
             notes.append(
                 f"Fill target “{extra.get('title')}” unused (primary filler is {primary.get('title')})"

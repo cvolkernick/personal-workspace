@@ -503,6 +503,7 @@
       session: "#e0b84a",
       adhoc: "#5b9fd4",
       fill: "#7c9cff",
+      break: "#c07a5a",
       meta: "#3dd68c",
       unaccounted: "#3a4552",
     };
@@ -784,11 +785,40 @@
       }
       let html = (list || []).map((s, idx) => {
         const rem = Number(s.minutes) || 0;
-        const loggable = s.loggable !== false && s.role !== "meta" && s.role !== "reserve";
+        const loggable = s.loggable !== false && s.role !== "meta" && s.role !== "reserve" && s.role !== "break";
         const session = s.log_mode === "session";
         const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30);
         const isDuchess = s.id === "duchess-walk";
+        const isLyft = s.id === "lyft";
         const walkBlock = isDuchess ? walkCandidatesHtml(walks) : "";
+        const lyftDuty = (window.__lastLyftDuty) || {};
+        const drivenMin = isLyft
+          ? (Number(lyftDuty.driven_minutes) || Number(s.done_today) || 0)
+          : 0;
+        const capMin = isLyft
+          ? (Number(lyftDuty.drive_cap_minutes) || Number(s.drive_cap_minutes) || 720)
+          : 0;
+        const drivenHours = (drivenMin / 60);
+        const lyftBlock = isLyft ? `
+          <div class="walk-ask" style="border-color:#5a4030;background:#1a1410">
+            <h4 style="color:var(--human,#f0a06a)">Lyft duty cycle (12h drive · 6h break)</h4>
+            <div class="path" style="margin-bottom:0.4rem">
+              ${escapeHtml(s.lyft_duty_summary || lyftDuty.summary || "Set hours already in driver mode for this 12h block.")}
+            </div>
+            ${progressBarHtml(drivenMin, capMin)}
+            <div class="row" style="margin-top:0.5rem" data-lyft-duty="1">
+              <label>Hours driven (of 12)
+                <input type="number" class="lyft-driven-hours" min="0" max="12" step="0.25"
+                  value="${drivenHours.toFixed(2)}" style="width:5.5rem" />
+              </label>
+              <button type="button" class="btn-lyft-set primary">Update duty</button>
+              <button type="button" class="btn-lyft-reset ghost">Reset to 0</button>
+            </div>
+            <div class="path" style="margin-top:0.35rem">
+              Platform rule: uninterrupted 6h offline after 12h in driver mode (hours need not be consecutive).
+              Plan only allocates the remaining drive capacity.
+            </div>
+          </div>` : "";
         const prog = pmap[s.id];
         const doneToday = Number(s.done_today) || (prog ? prog.actual : 0) || 0;
         // Prefer allocation_delta map for actual/planned when available
@@ -832,7 +862,8 @@
           </div>
           ${barBlock}
           ${walkBlock}
-          ${progressRow}
+          ${lyftBlock}
+          ${isLyft ? "" : progressRow}
         </div>`;
       }).join("");
 
@@ -893,6 +924,41 @@
         });
       });
       bindWalkReviewButtons(wrap);
+      wrap.querySelectorAll("[data-lyft-duty]").forEach((row) => {
+        const input = row.querySelector(".lyft-driven-hours");
+        row.querySelector(".btn-lyft-set").addEventListener("click", async () => {
+          const hours = Number(input.value);
+          if (Number.isNaN(hours) || hours < 0) {
+            msg("Enter hours driven ≥ 0 (max 12)", "error");
+            return;
+          }
+          try {
+            const state = await api("/api/lyft/duty", {
+              method: "POST",
+              body: JSON.stringify({ driven_hours: Math.min(12, hours) }),
+            });
+            msg(
+              `Lyft duty set to ${Math.min(12, hours).toFixed(2)}h of 12h — plan reallocated`,
+              "ok"
+            );
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+        row.querySelector(".btn-lyft-reset").addEventListener("click", async () => {
+          try {
+            const state = await api("/api/lyft/duty", {
+              method: "POST",
+              body: JSON.stringify({ driven_hours: 0 }),
+            });
+            msg("Lyft duty reset to 0h — full 12h cycle available", "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+      });
     }
 
     function renderPlan(state) {
@@ -1176,6 +1242,7 @@
       $("health-status").textContent =
         `health: oauth=${h.google_oauth ? "yes" : "no"} · local_metrics=${h.local_metrics_file ? "yes" : "no"}` +
         (h.detail ? ` · ${h.detail}` : "");
+      window.__lastLyftDuty = state.lyft_duty || {};
       renderSleepBattery(state.sleep_battery);
       renderSuggestions(
         state.suggestions || [],
