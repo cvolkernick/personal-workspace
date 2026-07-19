@@ -140,7 +140,12 @@ def empty_state() -> dict[str, Any]:
         "plan": None,
         "sleep_intervals": [],
         "activity_reviews": [],
-        "lyft_duty": {"driven_minutes": 0, "updated_at": None, "note": ""},
+        "lyft_duty": {
+            "driven_minutes": 0,
+            "updated_at": None,
+            "cap_reached_at": None,
+            "note": "",
+        },
     }
 
 
@@ -181,7 +186,10 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     out.setdefault("plan", None)
     out.setdefault("sleep_intervals", [])
     out.setdefault("activity_reviews", [])
-    out.setdefault("lyft_duty", {"driven_minutes": 0, "updated_at": None, "note": ""})
+    out.setdefault(
+        "lyft_duty",
+        {"driven_minutes": 0, "updated_at": None, "cap_reached_at": None, "note": ""},
+    )
     if not isinstance(out["items"], list):
         out["items"] = []
     if not isinstance(out["targets"], list):
@@ -193,7 +201,14 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     if not isinstance(out["activity_reviews"], list):
         out["activity_reviews"] = []
     if not isinstance(out.get("lyft_duty"), dict):
-        out["lyft_duty"] = {"driven_minutes": 0, "updated_at": None, "note": ""}
+        out["lyft_duty"] = {
+            "driven_minutes": 0,
+            "updated_at": None,
+            "cap_reached_at": None,
+            "note": "",
+        }
+    else:
+        out["lyft_duty"].setdefault("cap_reached_at", None)
     out["targets"] = _migrate_targets(list(out["targets"]))
     out["version"] = max(2, int(out.get("version") or 1))
     return out

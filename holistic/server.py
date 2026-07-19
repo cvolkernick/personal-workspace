@@ -436,6 +436,7 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 state = load_state(_data())
                 lyft_tgt = _get_target(state, "lyft")
                 cap = int((lyft_tgt or {}).get("drive_cap_minutes") or 12 * 60)
+                brk = int((lyft_tgt or {}).get("break_minutes") or 6 * 60)
                 if body.get("driven_minutes") is not None:
                     driven = float(body["driven_minutes"])
                 elif body.get("driven_hours") is not None:
@@ -456,6 +457,7 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     driven,
                     note=str(body.get("note") or ""),
                     drive_cap_minutes=cap,
+                    break_minutes=brk,
                 )
                 state = apply_plan(state)
                 save_state(state, _data())

@@ -799,9 +799,70 @@
           ? (Number(lyftDuty.drive_cap_minutes) || Number(s.drive_cap_minutes) || 720)
           : 0;
         const drivenHours = (drivenMin / 60);
+        const brkMin = isLyft
+          ? (Number(lyftDuty.break_minutes) || Number(s.break_minutes) || 360)
+          : 360;
+        const atLimit = isLyft && !!(lyftDuty.at_limit || drivenMin >= capMin);
+        const breakRem = isLyft && lyftDuty.break_remaining_minutes != null
+          ? Number(lyftDuty.break_remaining_minutes)
+          : (s.break_remaining_minutes != null ? Number(s.break_remaining_minutes) : null);
+        const breakDone = isLyft && !!(lyftDuty.break_complete || s.break_complete);
+        const stale = isLyft && !!(lyftDuty.stale || lyftDuty.needs_update_prompt);
+        const sinceUp = isLyft ? lyftDuty.minutes_since_update : null;
+        let breakBanner = "";
+        if (isLyft && atLimit) {
+          if (breakDone) {
+            breakBanner = `
+              <div class="walk-ask" style="border-color:#245c42;background:#0e1a14;margin-bottom:0.5rem">
+                <h4 style="color:var(--green)">✓ 6h offline break complete</h4>
+                <div class="path">You can drive again — reset duty to 0h to start a new 12h cycle.</div>
+              </div>`;
+          } else if (breakRem != null) {
+            const hr = Math.floor(breakRem / 60);
+            const mn = Math.round(breakRem % 60);
+            const ends = lyftDuty.break_ends_at || s.break_ends_at;
+            const endLabel = ends ? fmtWhen(ends) : "";
+            const pctBreak = Math.min(100, Math.round(((brkMin - breakRem) / brkMin) * 100));
+            breakBanner = `
+              <div class="walk-ask" style="border-color:#6b2e2e;background:#1a1010;margin-bottom:0.5rem">
+                <h4 style="color:var(--red)">Mandatory 6h offline break</h4>
+                <div class="meta" style="font-size:1.15rem;font-weight:700;margin:0.25rem 0">
+                  ${hr}h ${mn}m until you can drive again
+                </div>
+                <div class="pbar" title="Break progress">
+                  <div class="pbar-fill mid" style="width:${pctBreak}%"></div>
+                </div>
+                <div class="pbar-meta">
+                  <span>Break started when 12h was logged</span>
+                  <span>${endLabel ? "ends " + escapeHtml(endLabel) : ""}</span>
+                </div>
+                <div class="path" style="margin-top:0.35rem">
+                  Do not go online until this countdown hits zero (uninterrupted 6h offline).
+                </div>
+              </div>`;
+          } else {
+            breakBanner = `
+              <div class="walk-ask" style="border-color:#6b2e2e;background:#1a1010;margin-bottom:0.5rem">
+                <h4 style="color:var(--red)">At 12h cap — 6h break required</h4>
+                <div class="path">Set driven to 12h (or confirm) so we can start the break countdown from that log time.</div>
+              </div>`;
+          }
+        }
+        const staleBanner = (isLyft && stale && !atLimit) ? `
+          <div class="walk-ask" style="border-color:#6b5a1e;background:#1a1810;margin-bottom:0.5rem">
+            <h4 style="color:var(--yellow)">Please update Lyft hours driven</h4>
+            <div class="path">
+              Last entry was ${sinceUp != null
+                ? (Math.floor(sinceUp / 60) + "h " + Math.round(sinceUp % 60) + "m ago")
+                : "more than 6h ago / unknown"}.
+              Refresh the current 12h block so remaining drive time stays accurate.
+            </div>
+          </div>` : "";
         const lyftBlock = isLyft ? `
           <div class="walk-ask" style="border-color:#5a4030;background:#1a1410">
             <h4 style="color:var(--human,#f0a06a)">Lyft duty cycle (12h drive · 6h break)</h4>
+            ${staleBanner}
+            ${breakBanner}
             <div class="path" style="margin-bottom:0.4rem">
               ${escapeHtml(s.lyft_duty_summary || lyftDuty.summary || "Set hours already in driver mode for this 12h block.")}
             </div>
@@ -812,11 +873,12 @@
                   value="${drivenHours.toFixed(2)}" style="width:5.5rem" />
               </label>
               <button type="button" class="btn-lyft-set primary">Update duty</button>
+              <button type="button" class="btn-lyft-set-12">Set 12h (start break)</button>
               <button type="button" class="btn-lyft-reset ghost">Reset to 0</button>
             </div>
             <div class="path" style="margin-top:0.35rem">
-              Platform rule: uninterrupted 6h offline after 12h in driver mode (hours need not be consecutive).
-              Plan only allocates the remaining drive capacity.
+              Platform: uninterrupted 6h offline after 12h in driver mode.
+              Plan uses remaining drive capacity. Update when hours change; if 6h pass with no update, you’ll be prompted.
             </div>
           </div>` : "";
         const prog = pmap[s.id];
@@ -926,37 +988,40 @@
       bindWalkReviewButtons(wrap);
       wrap.querySelectorAll("[data-lyft-duty]").forEach((row) => {
         const input = row.querySelector(".lyft-driven-hours");
-        row.querySelector(".btn-lyft-set").addEventListener("click", async () => {
+        const setDuty = async (hours, label) => {
+          try {
+            const state = await api("/api/lyft/duty", {
+              method: "POST",
+              body: JSON.stringify({ driven_hours: Math.min(12, Math.max(0, hours)) }),
+            });
+            const d = state.lyft_duty || {};
+            let extra = "";
+            if (d.at_limit && d.break_remaining_minutes != null && !d.break_complete) {
+              const br = Number(d.break_remaining_minutes);
+              extra = ` · break: ${Math.floor(br / 60)}h ${Math.round(br % 60)}m until you can drive again`;
+            } else if (d.break_complete) {
+              extra = " · 6h break complete — reset to 0 for a new cycle";
+            }
+            msg(`${label || "Lyft duty updated"}${extra}`, "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        };
+        row.querySelector(".btn-lyft-set").addEventListener("click", () => {
           const hours = Number(input.value);
           if (Number.isNaN(hours) || hours < 0) {
             msg("Enter hours driven ≥ 0 (max 12)", "error");
             return;
           }
-          try {
-            const state = await api("/api/lyft/duty", {
-              method: "POST",
-              body: JSON.stringify({ driven_hours: Math.min(12, hours) }),
-            });
-            msg(
-              `Lyft duty set to ${Math.min(12, hours).toFixed(2)}h of 12h — plan reallocated`,
-              "ok"
-            );
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
+          setDuty(hours, `Lyft duty set to ${Math.min(12, hours).toFixed(2)}h of 12h`);
         });
-        row.querySelector(".btn-lyft-reset").addEventListener("click", async () => {
-          try {
-            const state = await api("/api/lyft/duty", {
-              method: "POST",
-              body: JSON.stringify({ driven_hours: 0 }),
-            });
-            msg("Lyft duty reset to 0h — full 12h cycle available", "ok");
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
+        const btn12 = row.querySelector(".btn-lyft-set-12");
+        if (btn12) {
+          btn12.addEventListener("click", () => setDuty(12, "Logged 12h — mandatory 6h offline break started"));
+        }
+        row.querySelector(".btn-lyft-reset").addEventListener("click", () => {
+          setDuty(0, "Lyft duty reset to 0h — full 12h cycle available");
         });
       });
     }
@@ -1410,7 +1475,7 @@
     $("log-date").value = d.toISOString().slice(0, 10);
     // First load: sync sleep (+ walks) from Google Health, then render
     syncHealthFromGoogle({ quiet: true });
-    // Battery discharge + plan on a timer; full Google sleep sync is on load / Sync button
+    // Battery + Lyft break countdown refresh every minute
     setInterval(() => refresh(), 60 * 1000);
   </script>
 </body>

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,6 +17,7 @@ from holistic.time_allocator.domain import (  # noqa: E402
     seed_starter,
 )
 from holistic.time_allocator.lyft_duty import (  # noqa: E402
+    lyft_duty_status,
     schedule_drive_in_window,
     set_lyft_driven,
 )
@@ -60,6 +61,32 @@ class LyftDutyTests(unittest.TestCase):
         self.assertEqual(sched["drive_minutes"], 4 * 60)
         self.assertEqual(sched["segments"][0]["role"], "break")
         self.assertEqual(sched["segments"][0]["minutes"], 6 * 60)
+
+    def test_stale_after_six_hours(self) -> None:
+        state = seed_starter(empty_state(), personal=True)
+        now = datetime(2026, 7, 19, 18, 0, tzinfo=timezone(timedelta(hours=-4)))
+        state = set_lyft_driven(state, 3 * 60, now=now - timedelta(hours=7))
+        st = lyft_duty_status(state, now=now)
+        self.assertTrue(st["stale"])
+        self.assertTrue(st["needs_update_prompt"])
+        self.assertGreaterEqual(st["minutes_since_update"], 6 * 60)
+
+    def test_break_countdown_after_12h(self) -> None:
+        state = seed_starter(empty_state(), personal=True)
+        now = datetime(2026, 7, 19, 12, 0, tzinfo=timezone(timedelta(hours=-4)))
+        state = set_lyft_driven(state, 12 * 60, now=now)
+        # 2h into the mandatory break
+        later = now + timedelta(hours=2)
+        st = lyft_duty_status(state, now=later)
+        self.assertTrue(st["at_limit"])
+        self.assertFalse(st["break_complete"])
+        self.assertAlmostEqual(st["break_remaining_minutes"], 4 * 60, delta=1)
+        self.assertFalse(st["can_drive_again"])
+        # After full 6h
+        done = now + timedelta(hours=6, minutes=1)
+        st2 = lyft_duty_status(state, now=done)
+        self.assertTrue(st2["break_complete"])
+        self.assertTrue(st2["can_drive_again"])
 
     def test_plan_uses_duty_remaining(self) -> None:
         state = seed_starter(empty_state(), personal=True)

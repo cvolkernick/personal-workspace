@@ -101,31 +101,86 @@ def recommend_next(
             }
         )
 
-    # Always surface Lyft duty status for UI even if no fill block (at limit / on break)
+    # Surface Lyft duty: at-limit break countdown, or stale update prompt
     lyft_tgt = get_target(state, "lyft")
     if lyft_tgt is not None:
         duty = lyft_duty_status(state, target=lyft_tgt)
-        if duty.get("at_limit") and not any(s.get("id") == "lyft" for s in suggestions):
-            suggestions.append(
-                {
-                    "id": "lyft",
-                    "title": "Lyft driving",
-                    "reason": duty.get("summary")
-                    or "12h driver-mode used — 6h offline break required",
-                    "priority": int(lyft_tgt.get("priority") or 3),
-                    "minutes": 0,
-                    "role": "fill",
-                    "source": "target",
-                    "urgency": "medium",
-                    "loggable": False,
-                    "log_mode": "duty",
-                    "done_today": duty.get("driven_minutes") or 0,
-                    "remaining_drive_minutes": duty.get("remaining_drive_minutes"),
-                    "drive_cap_minutes": duty.get("drive_cap_minutes"),
-                    "break_minutes": duty.get("break_minutes"),
-                    "lyft_duty_summary": duty.get("summary"),
-                }
-            )
+        has_lyft = any(s.get("id") == "lyft" for s in suggestions)
+        if duty.get("at_limit"):
+            if duty.get("break_complete"):
+                reason = (
+                    "Mandatory 6h offline break is complete — reset duty to 0h to start a new 12h cycle"
+                )
+                urgency = "medium"
+            elif duty.get("break_remaining_minutes") is not None:
+                br = float(duty["break_remaining_minutes"])
+                reason = (
+                    f"At 12h cap — {int(br // 60)}h {int(round(br % 60))}m left in mandatory "
+                    f"6h offline break before you can drive again"
+                )
+                urgency = "high"
+            else:
+                reason = duty.get("summary") or "12h driver-mode used — 6h offline break required"
+                urgency = "high"
+            if not has_lyft:
+                suggestions.insert(
+                    0,
+                    {
+                        "id": "lyft",
+                        "title": "Lyft — offline break",
+                        "reason": reason,
+                        "priority": int(lyft_tgt.get("priority") or 3),
+                        "minutes": int(duty.get("break_remaining_minutes") or duty.get("break_minutes") or 0),
+                        "role": "break",
+                        "source": "target",
+                        "urgency": urgency,
+                        "loggable": False,
+                        "log_mode": "duty",
+                        "done_today": duty.get("driven_minutes") or 0,
+                        "remaining_drive_minutes": 0,
+                        "drive_cap_minutes": duty.get("drive_cap_minutes"),
+                        "break_minutes": duty.get("break_minutes"),
+                        "break_remaining_minutes": duty.get("break_remaining_minutes"),
+                        "break_ends_at": duty.get("break_ends_at"),
+                        "break_complete": duty.get("break_complete"),
+                        "lyft_duty_summary": duty.get("summary"),
+                    },
+                )
+            else:
+                for s in suggestions:
+                    if s.get("id") == "lyft":
+                        s["reason"] = reason
+                        s["urgency"] = urgency
+                        s["break_remaining_minutes"] = duty.get("break_remaining_minutes")
+                        s["break_ends_at"] = duty.get("break_ends_at")
+                        s["break_complete"] = duty.get("break_complete")
+                        s["lyft_duty_summary"] = duty.get("summary")
+        elif duty.get("needs_update_prompt"):
+            # Stale duty — prompt near top
+            mins = duty.get("minutes_since_update")
+            if mins is not None:
+                age = f"{int(mins // 60)}h {int(mins % 60)}m ago"
+            else:
+                age = "unknown time ago"
+            stale_item = {
+                "id": "lyft-update",
+                "title": "Update Lyft hours driven",
+                "reason": (
+                    f"Last duty entry was {age} (>6h). "
+                    "Refresh hours driven in the current 12h block so the plan stays accurate."
+                ),
+                "priority": 9,
+                "minutes": 1,
+                "role": "meta",
+                "source": "lyft_duty",
+                "urgency": "high",
+                "loggable": False,
+                "log_mode": "duty",
+                "lyft_duty_summary": duty.get("summary"),
+            }
+            # Dedupe
+            if not any(s.get("id") == "lyft-update" for s in suggestions):
+                suggestions.insert(0, stale_item)
 
     # 2) Sleep battery (rolling 24h hours asleep) + 7d KPI
     battery = sleep_battery_for_state(state, now=now)

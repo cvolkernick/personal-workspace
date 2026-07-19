@@ -38,7 +38,9 @@
       "title": "Lyft driving",
       "kind": "fill_remainder",
       "priority": 3,
-      "notes": "Fill remaining active time after fixed targets + ad-hoc."
+      "notes": "Fill free active time, capped by Lyft duty: 12h driver mode then mandatory 6h offline break. Set driven-so-far in the current 12h block.",
+      "drive_cap_minutes": 720,
+      "break_minutes": 360
     }
   ],
   "logs": [
@@ -158,8 +160,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-19T14:33:43-04:00",
-    "window_end": "2026-07-20T14:33:43-04:00",
+    "window_start": "2026-07-19T17:29:54-04:00",
+    "window_end": "2026-07-20T17:29:54-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -200,16 +202,23 @@
         "source": "target",
         "id": "lyft",
         "title": "Lyft driving",
-        "minutes": 889,
+        "minutes": 450,
         "role": "fill",
         "kind": "fill_remainder",
         "priority": 3,
-        "done_today": 0
+        "done_today": 270,
+        "drive_cap_minutes": 720,
+        "break_minutes": 360,
+        "remaining_drive_minutes": 450,
+        "reason": "450m left in current 12h driver-mode block",
+        "lyft_duty_summary": "4h 30m of 12h driver-mode used (7h 30m left this cycle)"
       }
     ],
-    "total_block_minutes": 1440,
+    "total_block_minutes": 1001,
     "unallocated_active_minutes": 0,
-    "notes": [],
+    "notes": [
+      "Lyft: only 450m left in current 12h duty (driven 270m of 720m) \u2014 update duty as you drive; 6h offline required after the 12h cap"
+    ],
     "kpi_status": [
       {
         "id": "sleep",
@@ -443,5 +452,10 @@
       "status": "pending",
       "target_hint": "duchess-walk"
     }
-  ]
+  ],
+  "lyft_duty": {
+    "driven_minutes": 270,
+    "updated_at": "2026-07-19T17:24:56-04:00",
+    "note": ""
+  }
 }
