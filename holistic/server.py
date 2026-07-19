@@ -8,6 +8,7 @@
   POST /api/add | remove | allocate | set
   POST /api/targets/add | remove | update
   POST /api/log
+  POST /api/progress          — log time on a next-action {key, minutes?, complete?}
   POST /api/plan
   POST /api/health/sync       — import sleep into logs
   POST /api/recommend         — optional body {limit}
@@ -42,6 +43,7 @@ from holistic.time_allocator.domain import (  # noqa: E402
     kpi_status,
     list_items,
     list_targets,
+    log_action_progress,
     remove_item,
     remove_target,
     seed_starter,
@@ -287,6 +289,29 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     float(body["value"]),
                     on=body.get("date"),
                     note=str(body.get("note") or ""),
+                    accumulate=bool(body.get("accumulate", False)),
+                )
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
+                return
+
+            if path == "/api/progress":
+                key = str(body.get("key") or body.get("id") or "").strip()
+                if not key:
+                    self._json(400, {"ok": False, "error": "key is required"})
+                    return
+                complete = bool(body.get("complete", False))
+                minutes = body.get("minutes")
+                if minutes is not None:
+                    minutes = float(minutes)
+                state = log_action_progress(
+                    load_state(_data()),
+                    key,
+                    minutes=minutes,
+                    complete=complete,
+                    note=str(body.get("note") or ""),
+                    on=body.get("date"),
                 )
                 state = apply_plan(state)
                 save_state(state, _data())

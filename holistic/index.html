@@ -488,14 +488,17 @@
         <div class="stat"><div class="label">In window</div><div class="value">${h.toFixed(1)}h</div></div>
         <div class="stat"><div class="label">Target</div><div class="value">${tgt}h</div></div>
         <div class="stat"><div class="label">Charge</div><div class="value">${pct.toFixed(0)}%</div></div>
-        <div class="stat"><div class="label">Falls off ≤1h</div><div class="value">${Number(b.discharge_next_hour_hours || 0).toFixed(1)}h</div></div>
+        <div class="stat" title="How much current sleep will exit the trailing 24h window during the next hour if you stay awake">
+          <div class="label">Leaving next hour</div>
+          <div class="value">${Number(b.discharge_next_hour_hours || 0).toFixed(1)}h</div>
+        </div>
       `;
       $("battery-summary").textContent = b.summary || "";
       $("battery-source").textContent =
         `source: ${b.data_source || "—"} · intervals stored: ${b.interval_count_stored ?? "—"}` +
         (b.discharge_next_hour_hours > 0
-          ? ` · ~${Number(b.discharge_next_hour_hours).toFixed(1)}h will leave the window in the next hour if you stay awake`
-          : "");
+          ? ` · ~${Number(b.discharge_next_hour_hours).toFixed(1)}h of past sleep ages out of the 24h window in the next hour (battery discharges that much if you stay awake)`
+          : " · no sleep aging out of the window in the next hour");
 
       // 24h timeline with sleep segments
       const tl = $("sleep-timeline");
@@ -529,11 +532,31 @@
     function renderSuggestions(list) {
       const wrap = $("suggest-wrap");
       if (!list || !list.length) {
-        wrap.innerHTML = `<p class="empty">No suggestions — rebuild the plan or add targets.</p>`;
+        wrap.innerHTML = `<p class="empty">No open actions — nice. Add ad-hoc work or rebuild the plan.</p>`;
         return;
       }
-      wrap.innerHTML = list.map((s, idx) => `
-        <div class="suggest ${escapeAttr(s.urgency || "low")}">
+      wrap.innerHTML = list.map((s, idx) => {
+        const rem = Number(s.minutes) || 0;
+        const loggable = s.loggable !== false && s.role !== "meta" && s.role !== "reserve";
+        const session = s.log_mode === "session";
+        const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30);
+        const progressRow = loggable ? `
+          <div class="row progress-row" style="margin-top:0.55rem" data-id="${escapeAttr(s.id)}">
+            <label>min
+              <input type="number" class="prog-minutes" min="0" step="5" value="${defaultMin}" style="width:5rem" />
+            </label>
+            <button type="button" class="btn-log-partial primary">Log time</button>
+            <button type="button" class="btn-log-done">Mark done</button>
+            ${session ? `<span class="path">session = counts as 1 workout day</span>` : ""}
+            ${s.done_today ? `<span class="path">${s.done_today}m already today</span>` : ""}
+          </div>` : (s.role === "meta" || s.role === "reserve" ? `
+          <div class="row" style="margin-top:0.55rem">
+            <span class="path">${s.id === "sleep-log" || s.id === "sleep-protect" || s.id === "sleep-7d"
+              ? "Use Sync sleep / protect rest — not a timed work block"
+              : ""}</span>
+          </div>` : "");
+        return `
+        <div class="suggest ${escapeAttr(s.urgency || "low")}" data-action-id="${escapeAttr(s.id)}">
           <div class="row" style="justify-content:space-between">
             <h3>${idx + 1}. ${escapeHtml(s.title)}</h3>
             <span class="urgency ${escapeAttr(s.urgency)}">${escapeHtml(s.urgency || "")}</span>
@@ -542,9 +565,48 @@
           <div class="meta" style="margin-top:0.25rem">
             <span class="role ${escapeAttr(s.role)}">${escapeHtml(s.role)}</span>
             · pri ${s.priority}
-            ${s.minutes ? " · " + hours(s.minutes) : ""}
+            ${rem ? " · " + hours(rem) + " remaining" : ""}
           </div>
-        </div>`).join("");
+          ${progressRow}
+        </div>`;
+      }).join("");
+
+      wrap.querySelectorAll(".progress-row").forEach((row) => {
+        const id = row.getAttribute("data-id");
+        const input = row.querySelector(".prog-minutes");
+        row.querySelector(".btn-log-partial").addEventListener("click", async () => {
+          const minutes = Number(input.value);
+          if (!(minutes > 0)) {
+            msg("Enter minutes > 0", "error");
+            return;
+          }
+          try {
+            const state = await api("/api/progress", {
+              method: "POST",
+              body: JSON.stringify({ key: id, minutes, complete: false }),
+            });
+            msg(`Logged ${minutes}m on ${id} — plan updated`, "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+        row.querySelector(".btn-log-done").addEventListener("click", async () => {
+          try {
+            const minutes = Number(input.value);
+            const body = { key: id, complete: true };
+            if (minutes > 0) body.minutes = minutes;
+            const state = await api("/api/progress", {
+              method: "POST",
+              body: JSON.stringify(body),
+            });
+            msg(`Marked done: ${id} — plan updated`, "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+      });
     }
 
     function renderPlan(plan) {

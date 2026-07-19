@@ -137,11 +137,17 @@
       "target_id": "sleep",
       "value": 10.62,
       "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-19",
+      "target_id": "duchess-walk",
+      "value": 15.0,
+      "note": "progress"
     }
   ],
   "plan": {
-    "window_start": "2026-07-19T01:05:29-04:00",
-    "window_end": "2026-07-20T01:05:29-04:00",
+    "window_start": "2026-07-19T01:16:37-04:00",
+    "window_end": "2026-07-20T01:16:37-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -159,14 +165,14 @@
         "source": "target",
         "id": "duchess-walk",
         "title": "Walk Duchess",
-        "minutes": 45,
+        "minutes": 30,
         "role": "fixed",
         "kind": "daily_duration",
         "priority": 9,
         "sessions_hint": 1,
         "minutes_min": 30,
         "minutes_max": 60,
-        "done_today": 0
+        "done_today": 15
       },
       {
         "source": "target",
@@ -182,10 +188,11 @@
         "source": "target",
         "id": "lyft",
         "title": "Lyft driving",
-        "minutes": 855,
+        "minutes": 870,
         "role": "fill",
         "kind": "fill_remainder",
-        "priority": 3
+        "priority": 3,
+        "done_today": 0
       }
     ],
     "total_block_minutes": 1440,
@@ -238,13 +245,13 @@
         "title": "Walk Duchess",
         "kind": "daily_duration",
         "priority": 9,
-        "on_track": null,
-        "summary": "Today 0 min (target 30\u201360, plan 45) \u2014 not logged",
+        "on_track": false,
+        "summary": "Today 15 min (target 30\u201360)",
         "detail": {
           "target_minutes": 45,
           "minutes_min": 30,
           "minutes_max": 60,
-          "done_minutes": 0
+          "done_minutes": 15
         }
       },
       {

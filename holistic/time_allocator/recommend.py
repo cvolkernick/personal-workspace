@@ -36,12 +36,15 @@ def recommend_next(
     actionable = [
         b
         for b in plan_blocks
-        if b.get("role") in ("fixed", "session", "adhoc") and int(b.get("minutes") or 0) > 0
+        if b.get("role") in ("fixed", "session", "adhoc", "fill")
+        and int(b.get("minutes") or 0) > 0
     ]
     actionable.sort(key=lambda b: (-int(b.get("priority") or 0), str(b.get("role")), str(b.get("id"))))
 
     for b in actionable:
         role = str(b.get("role"))
+        loggable = True
+        log_mode = "minutes"  # or "session"
         if role == "fixed":
             urgency = "high"
             reason = b.get("reason") or "Daily target still open in this 24h window"
@@ -55,11 +58,20 @@ def recommend_next(
         elif role == "session":
             urgency = "high"
             reason = b.get("reason") or "Weekly frequency target needs a session"
+            log_mode = "session"
+        elif role == "fill":
+            urgency = "low"
+            reason = (
+                f"{b.get('minutes')} min of active capacity left after fixed obligations"
+                + (f" ({b.get('done_today')}m already logged today)" if b.get("done_today") else "")
+            )
         else:
             urgency = "medium" if int(b.get("priority") or 0) >= 5 else "low"
             reason = "Ad-hoc item on the plan"
             if b.get("soft_estimate"):
                 reason += " (soft 30m estimate — set real minutes if needed)"
+            if b.get("done_minutes"):
+                reason += f" ({b.get('done_minutes')}m already logged)"
         suggestions.append(
             {
                 "id": str(b.get("id")),
@@ -70,6 +82,9 @@ def recommend_next(
                 "role": role,
                 "source": str(b.get("source") or ""),
                 "urgency": urgency,
+                "loggable": loggable,
+                "log_mode": log_mode,
+                "done_today": int(b.get("done_today") or b.get("done_minutes") or 0),
             }
         )
 
@@ -121,23 +136,6 @@ def recommend_next(
                 "role": "reserve",
                 "source": "kpi",
                 "urgency": "medium",
-            }
-        )
-
-    # 3) Fill work as fallback (only if nothing higher still open)
-    fill_blocks = [b for b in plan_blocks if b.get("role") == "fill" and int(b.get("minutes") or 0) > 0]
-    if fill_blocks:
-        fb = max(fill_blocks, key=lambda b: int(b.get("minutes") or 0))
-        suggestions.append(
-            {
-                "id": str(fb.get("id")),
-                "title": str(fb.get("title") or "Fill work"),
-                "reason": f"{fb.get('minutes')} min of active capacity left after fixed obligations",
-                "priority": int(fb.get("priority") or 0),
-                "minutes": int(fb.get("minutes") or 0),
-                "role": "fill",
-                "source": "target",
-                "urgency": "low",
             }
         )
 

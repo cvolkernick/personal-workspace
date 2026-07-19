@@ -451,6 +451,7 @@ def add_log(
     *,
     on: date | str | None = None,
     note: str = "",
+    accumulate: bool = False,
 ) -> dict[str, Any]:
     """Record a metric for a target on a calendar day (local).
 
@@ -458,6 +459,8 @@ def add_log(
       sleep hours → value=7.5
       workout done → value=1
       Duchess minutes → value=45
+
+    If accumulate=True, add value to any existing same-day log instead of replace.
     """
     tgt = get_target(state, target_id)
     if tgt is None:
@@ -465,22 +468,137 @@ def add_log(
     day = _as_date(on).isoformat()
     out = normalize_state(state)
     logs = list(out.get("logs") or [])
-    # Replace same target+day entry (one value per day per target)
-    logs = [
-        lg
-        for lg in logs
-        if not (str(lg.get("target_id")) == tgt["id"] and str(lg.get("date")) == day)
-    ]
-    logs.append(
+    prev = 0.0
+    kept: list[dict[str, Any]] = []
+    for lg in logs:
+        if str(lg.get("target_id")) == tgt["id"] and str(lg.get("date")) == day:
+            if accumulate:
+                prev = float(lg.get("value") or 0)
+            # drop old row; rewrite below
+            continue
+        kept.append(lg)
+    new_val = (prev + float(value)) if accumulate else float(value)
+    kept.append(
         {
             "date": day,
             "target_id": tgt["id"],
-            "value": float(value),
+            "value": new_val,
             "note": (note or "").strip(),
         }
     )
-    logs.sort(key=lambda lg: (str(lg.get("date") or ""), str(lg.get("target_id") or "")))
-    out["logs"] = logs
+    kept.sort(key=lambda lg: (str(lg.get("date") or ""), str(lg.get("target_id") or "")))
+    out["logs"] = kept
+    return out
+
+
+def log_action_progress(
+    state: dict[str, Any],
+    key: str,
+    *,
+    minutes: float | None = None,
+    complete: bool = False,
+    note: str = "",
+    on: date | str | None = None,
+) -> dict[str, Any]:
+    """Log progress against a next-action / plan block and shrink remaining work.
+
+    - daily_duration target: accumulate minutes for today (Duchess walks)
+    - weekly_frequency: log session (1) when any progress or complete
+    - fill_remainder: accumulate minutes done today (Lyft)
+    - ad-hoc item: subtract minutes from remaining estimate
+    - complete=True: finish the remaining planned amount for that action
+    """
+    state = normalize_state(state)
+    key = (key or "").strip()
+    if not key:
+        raise ValueError("key is required")
+
+    plan = build_rolling_plan(state, as_of=_as_date(on))
+    block = next((b for b in (plan.get("blocks") or []) if str(b.get("id")) == key), None)
+    remaining = int(block.get("minutes") or 0) if block else 0
+
+    tgt = get_target(state, key)
+    item = get_item(state, key)
+
+    if complete:
+        if minutes is None:
+            if tgt and str(tgt.get("kind")) == "weekly_frequency":
+                minutes = float(tgt.get("session_minutes") or 60)
+            else:
+                minutes = float(remaining or 0)
+        if minutes <= 0 and tgt and str(tgt.get("kind")) == "weekly_frequency":
+            minutes = 1.0  # session flag
+
+    if minutes is None:
+        raise ValueError("minutes is required (or complete=true)")
+    minutes_f = float(minutes)
+    if minutes_f < 0:
+        raise ValueError("minutes must be ≥ 0")
+
+    out = state
+    day = _as_date(on)
+
+    if tgt is not None:
+        kind = str(tgt.get("kind") or "")
+        if kind == "daily_duration":
+            if minutes_f <= 0 and not complete:
+                raise ValueError("minutes must be > 0")
+            out = add_log(
+                out,
+                tgt["id"],
+                minutes_f if minutes_f > 0 else remaining,
+                on=day,
+                note=note or "progress",
+                accumulate=True,
+            )
+        elif kind == "weekly_frequency":
+            # One session day counts as 1 (or complete session)
+            out = add_log(
+                out,
+                tgt["id"],
+                1.0,
+                on=day,
+                note=note or (f"session ~{int(minutes_f)}m" if minutes_f else "session"),
+                accumulate=False,
+            )
+        elif kind == "fill_remainder":
+            out = add_log(
+                out,
+                tgt["id"],
+                minutes_f if minutes_f > 0 else remaining,
+                on=day,
+                note=note or "fill progress",
+                accumulate=True,
+            )
+        elif kind == "rolling_avg":
+            # Sleep hours (rare manual path)
+            hours = minutes_f / 60.0 if minutes_f > 12 else minutes_f
+            out = add_log(out, tgt["id"], hours, on=day, note=note or "manual sleep", accumulate=False)
+        else:
+            out = add_log(out, tgt["id"], minutes_f, on=day, note=note or "progress", accumulate=True)
+    elif item is not None:
+        # Reduce remaining ad-hoc minutes
+        cur = int(item.get("minutes") or 0)
+        if cur <= 0 and not block:
+            cur = 30  # soft estimate default
+        use = int(round(minutes_f)) if minutes_f > 0 else cur
+        if complete:
+            use = cur if cur > 0 else int(remaining or 0)
+        new_mins = max(0, cur - use)
+        out = set_minutes(out, item["id"], new_mins)
+        # Track cumulative done on the item for UI
+        out_items = []
+        for it in out.get("items") or []:
+            if it.get("id") == item["id"]:
+                it = dict(it)
+                it["done_minutes"] = int(it.get("done_minutes") or 0) + use
+                if note:
+                    it["last_progress_note"] = note
+            out_items.append(it)
+        out["items"] = out_items
+    else:
+        raise KeyError(f"no target or item matching: {key}")
+
     return out
 
 
@@ -766,12 +884,15 @@ def build_rolling_plan(
     # 4) Ad-hoc items by priority
     for it in list_items(state):
         mins = max(0, int(it.get("minutes") or 0))
+        done_m = int(it.get("done_minutes") or 0)
+        soft = False
         if mins <= 0:
+            if done_m > 0:
+                notes.append(f"Ad-hoc “{it.get('title')}”: complete ({done_m}m logged, 0 remaining)")
+                continue
             # Unsized ad-hoc: soft claim 30 min so they appear in the plan
             mins = 30
             soft = True
-        else:
-            soft = False
         take = min(mins, remaining_active)
         if take <= 0:
             notes.append(f"Deferred ad-hoc “{it.get('title')}”: no active time left")
@@ -788,30 +909,41 @@ def build_rolling_plan(
                 "kind": it.get("kind") or "task",
                 "priority": int(it.get("priority") or 0),
                 "soft_estimate": soft,
+                "done_minutes": done_m,
             }
         )
         remaining_active -= take
 
-    # 5) Fill remainder (Lyft etc.)
+    # 5) Fill remainder (Lyft etc.), reduced by minutes already logged today
     fillers = [t for t in targets if str(t.get("kind")) == "fill_remainder"]
     fillers.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     if fillers and remaining_active > 0:
-        # All remaining active time to highest-priority filler (usually one)
         primary = fillers[0]
-        blocks.append(
-            {
-                "source": "target",
-                "id": primary["id"],
-                "title": primary.get("title") or primary["id"],
-                "minutes": remaining_active,
-                "role": "fill",
-                "kind": "fill_remainder",
-                "priority": int(primary.get("priority") or 0),
-            }
-        )
+        fill_logs = logs_for_target(state, str(primary["id"]), since=today, until=today)
+        done_fill = int(sum(float(lg.get("value") or 0) for lg in fill_logs))
+        fill_left = max(0, remaining_active - done_fill)
+        if done_fill > 0:
+            notes.append(
+                f"{primary.get('title')}: {done_fill}m logged today, {fill_left}m fill remaining"
+            )
+        if fill_left > 0:
+            blocks.append(
+                {
+                    "source": "target",
+                    "id": primary["id"],
+                    "title": primary.get("title") or primary["id"],
+                    "minutes": fill_left,
+                    "role": "fill",
+                    "kind": "fill_remainder",
+                    "priority": int(primary.get("priority") or 0),
+                    "done_today": done_fill,
+                }
+            )
         remaining_active = 0
         for extra in fillers[1:]:
-            notes.append(f"Fill target “{extra.get('title')}” unused (primary filler is {primary.get('title')})")
+            notes.append(
+                f"Fill target “{extra.get('title')}” unused (primary filler is {primary.get('title')})"
+            )
     elif remaining_active > 0:
         notes.append(f"{remaining_active} active min unallocated (add a fill_remainder target like Lyft)")
 
