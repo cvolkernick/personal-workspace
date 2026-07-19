@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "enabled": false,
+  "enabled": true,
   "backend": "local",
   "cron_expression": "*/15 * * * *",
   "max_per_tick": 1,
@@ -17,5 +17,6 @@
   "install_marker": "projects-dashboard-scheduler",
   "last_tick_at": null,
   "last_tick_result": null,
-  "updated_at": "2026-07-19T20:55:07.168692+00:00"
+  "updated_at": "2026-07-19T21:07:04.507727+00:00",
+  "cron_installed_at": "2026-07-19T21:07:04.507269+00:00"
 }
