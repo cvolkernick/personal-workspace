@@ -18,6 +18,13 @@
           <p>Live lift logs · Google Health recovery, nutrition &amp; hydration</p>
         </div>
         <div class="actions">
+          <button
+            type="button"
+            id="btn-google-auth"
+            title="Re-authorize Google Health (weight, sleep, food logs, calories)"
+          >
+            Refresh Google auth
+          </button>
           <button type="button" id="btn-refresh" title="Force pull Google Health + GitHub now">
             Refresh remotes
           </button>
@@ -145,8 +152,8 @@
 
       <section class="grid two" style="margin-top: 1rem">
         <article class="card">
-          <h2>Calories intake vs burned</h2>
-          <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart"></canvas></div>
+          <h2>Calories intake vs burned · 30d</h2>
+          <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart last 30 days"></canvas></div>
           <p class="muted" id="nutrition-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
         <article class="card">
@@ -171,11 +178,12 @@
       </section>
 
       <section class="grid two" style="margin-top: 1rem" id="inventory-section">
-        <article class="card">
+        <article class="card" id="inventory-card">
           <h2>Ingredient inventory</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
-            Pantry/fridge catalog stored in
-            <code>fitness/nutrition/inventory.json</code> on GitHub.
+            Pantry/fridge catalog in <code>fitness/nutrition/inventory.json</code>.
+            Suggestions use food logs, macro gaps, and a staple catalog — one-click
+            restock or add.
           </p>
           <form class="log-form" id="ingredient-form">
             <div class="row cols-3">
@@ -209,14 +217,15 @@
             </div>
             <p class="muted" id="ing-status" style="margin: 0"></p>
           </form>
-          <ul class="session-list" id="inventory-list" style="margin-top: 0.75rem"></ul>
+          <div id="inventory-suggestions" class="inv-suggestions" style="margin-top: 0.85rem"></div>
+          <div id="inventory-list" class="inv-list" style="margin-top: 0.85rem"></div>
         </article>
 
         <article class="card" id="meal-plan-card">
           <h2>Daily targets &amp; meal plan</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
-            Targets in <code>fitness/nutrition/targets.json</code>. The rest-of-day
-            plan updates automatically on each load from Google Health intake +
+            Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
+            use Google Health daily intake (meal-level food logs when available) +
             in-stock ingredients. Use <strong>Refresh plan</strong> after edits.
           </p>
           <form class="log-form" id="targets-form">
@@ -234,8 +243,11 @@
             </div>
             <p class="muted" id="targets-status" style="margin: 0"></p>
           </form>
-          <div id="remaining-macros" class="muted" style="margin-top: 0.75rem; font-size: 0.9rem"></div>
+          <div id="remaining-macros" style="margin-top: 0.75rem"></div>
+          <div id="food-logs-today" class="food-logs-today" style="margin-top: 0.75rem"></div>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
+          <div id="food-coach-commentary" class="food-coach" style="margin-top: 1rem"></div>
+          <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
         </article>
       </section>
 

@@ -469,8 +469,8 @@
       ),
       45
     );
-    // Align calories chart x-axis with weight chart: full ~90-day civil span.
-    const calSpanDays = 90;
+    // Rolling 30d only — older Google Health burned totals were inflated.
+    const calSpanDays = 30;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -482,7 +482,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Prefer full series (not downsampled) so 90d axis is dense where data exists.
+    // Full series (not downsampled) mapped onto the 30d civil axis.
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -961,62 +961,233 @@
     });
   }
 
+  function filterSuggestionsAgainstInventory(store) {
+    const block = store && store.inventory_suggestions;
+    if (!block || !Array.isArray(block.suggestions)) return;
+    const ings = ((store.inventory && store.inventory.ingredients) || []).map((i) => ({
+      id: String(i.id || "").toLowerCase(),
+      name: String(i.name || "").toLowerCase(),
+      stock: i.in_stock !== false,
+    }));
+    block.suggestions = block.suggestions.filter((s) => {
+      const sid = String(s.id || "").toLowerCase();
+      const sname = String(s.name || "").toLowerCase();
+      const match = ings.find(
+        (i) => (sid && i.id === sid) || (sname && (i.name === sname || i.name.includes(sname) || sname.includes(i.name)))
+      );
+      if (!match) return true; // still missing → keep "add"
+      if (match.stock) return false; // already in stock
+      // out of stock: only keep if suggestion is restock
+      return s.action === "restock";
+    });
+    block.count = block.suggestions.length;
+  }
+
   function applyInventoryUpdate(inventory) {
     if (!state) state = {};
     if (!state.nutrition_store) state.nutrition_store = {};
     state.nutrition_store.inventory = inventory;
+    filterSuggestionsAgainstInventory(state.nutrition_store);
     renderInventory(state.nutrition_store);
+    renderInventorySuggestions(state.nutrition_store);
+  }
+
+  function invMacroStrip(ing) {
+    const pct = macroCalPct(ing.protein_g, ing.carbs_g, ing.fat_g);
+    const pPct = pct.p != null ? ` · ${pct.p}%` : "";
+    const cPct = pct.c != null ? ` · ${pct.c}%` : "";
+    const fPct = pct.f != null ? ` · ${pct.f}%` : "";
+    return `
+      <div class="inv-macro-strip">
+        <span class="inv-macro-pill macro-cals"><span class="pill-k">Cal</span> ${fmtNum(ing.calories)}</span>
+        <span class="inv-macro-pill macro-protein"><span class="pill-k">P</span> ${fmtNum(ing.protein_g)}g${pPct}</span>
+        <span class="inv-macro-pill macro-carbs"><span class="pill-k">C</span> ${fmtNum(ing.carbs_g)}g${cPct}</span>
+        <span class="inv-macro-pill macro-fat"><span class="pill-k">F</span> ${fmtNum(ing.fat_g)}g${fPct}</span>
+      </div>`;
   }
 
   function renderInventory(store) {
     const list = $("inventory-list");
     if (!list) return;
-    list.innerHTML = "";
     const items = ((store && store.inventory && store.inventory.ingredients) || []).slice();
-    items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    items.sort((a, b) => {
+      const sa = a.in_stock === false ? 1 : 0;
+      const sb = b.in_stock === false ? 1 : 0;
+      if (sa !== sb) return sa - sb;
+      return String(a.name).localeCompare(String(b.name));
+    });
     if (!items.length) {
-      list.innerHTML = `<li class="muted">No ingredients yet — add some above.</li>`;
+      list.innerHTML = `<div class="macro-summary"><p class="muted" style="margin:0">No ingredients yet — add some above or accept a suggestion.</p></div>`;
       return;
     }
+    const stocked = items.filter((i) => i.in_stock !== false).length;
+    let html = `<div class="macro-summary inv-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Pantry</div>
+          <div class="macro-summary-meta muted">${stocked} in stock · ${items.length - stocked} out · ${items.length} total</div>
+        </div>
+      </div>
+      <div class="inv-cards">`;
     items.forEach((ing) => {
-      const li = document.createElement("li");
       const stock = ing.in_stock !== false;
       const iid = String(ing.id || "").replace(/"/g, "&quot;");
       const iname = String(ing.name || "").replace(/"/g, "&quot;");
-      li.innerHTML = `
-        <div class="title">${ing.name} ${stock ? "" : "<span class='muted'>(out)</span>"}</div>
-        <div class="meta">${ing.category || "other"} · ${ing.serving_label || "1 serving"} ·
-          ${fmtNum(ing.calories)} kcal · P${fmtNum(ing.protein_g)} C${fmtNum(ing.carbs_g)} F${fmtNum(ing.fat_g)}</div>
-        <div class="actions" style="margin-top:0.35rem">
+      html += `<div class="inv-card${stock ? "" : " out"}">
+        <div class="inv-card-top">
+          <div>
+            <div class="inv-card-name">${ing.name || "Ingredient"}</div>
+            <div class="inv-card-meta muted">${ing.category || "other"} · ${ing.serving_label || "1 serving"}
+              ${stock ? "" : " · <span class='inv-out-badge'>out of stock</span>"}
+            </div>
+          </div>
+        </div>
+        ${invMacroStrip(ing)}
+        <div class="actions inv-card-actions">
           <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
-            ${stock ? "Mark out of stock" : "Mark in stock"}
+            ${stock ? "Mark out" : "Mark in stock"}
           </button>
           <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">Remove</button>
         </div>
-      `;
-      list.appendChild(li);
+      </div>`;
     });
+    html += `</div></div>`;
+    list.innerHTML = html;
+  }
+
+  function renderInventorySuggestions(store) {
+    const box = $("inventory-suggestions");
+    if (!box) return;
+    const block = (store && store.inventory_suggestions) || {};
+    const items = block.suggestions || [];
+    if (!items.length) {
+      box.innerHTML = "";
+      return;
+    }
+    let html = `<div class="macro-summary inv-suggest-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Suggested staples</div>
+          <div class="macro-summary-meta muted">${block.summary || "Based on logs, gaps, and catalog"}</div>
+        </div>
+      </div>
+      <div class="inv-cards">`;
+    items.forEach((s, idx) => {
+      const action = s.action === "restock" ? "restock" : "add";
+      const label = action === "restock" ? "Restock" : "Add to inventory";
+      const payload = encodeURIComponent(JSON.stringify({
+        id: s.id,
+        name: s.name,
+        category: s.category,
+        serving_label: s.serving_label,
+        calories: s.calories,
+        protein_g: s.protein_g,
+        carbs_g: s.carbs_g,
+        fat_g: s.fat_g,
+        in_stock: true,
+        notes: s.notes || "",
+      }));
+      html += `<div class="inv-card suggest">
+        <div class="inv-card-top">
+          <div>
+            <div class="inv-card-name">${s.name || "Staple"}
+              <span class="inv-action-badge inv-action-${action}">${action}</span>
+            </div>
+            <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
+            <div class="inv-reason">${s.reason || ""}</div>
+          </div>
+        </div>
+        ${invMacroStrip(s)}
+        <div class="actions inv-card-actions">
+          <button type="button" class="primary btn-suggest-apply" data-action="suggest-apply"
+            data-suggest-action="${action}" data-id="${String(s.id || "").replace(/"/g, "&quot;")}"
+            data-payload="${payload}" data-idx="${idx}">
+            ${label}
+          </button>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+    box.innerHTML = html;
   }
 
   /** One delegated listener — survives re-renders and avoids dead buttons. */
   function bindInventoryListOnce() {
-    const list = $("inventory-list");
-    if (!list || list.dataset.bound === "1") return;
-    list.dataset.bound = "1";
-    list.addEventListener("click", async (ev) => {
+    const root = $("inventory-card") || document;
+    if (root.dataset && root.dataset.invBound === "1") return;
+    if (root.dataset) root.dataset.invBound = "1";
+    root.addEventListener("click", async (ev) => {
       const btn = ev.target.closest("button[data-action]");
-      if (!btn || !list.contains(btn)) return;
+      if (!btn || !root.contains(btn)) return;
       ev.preventDefault();
       ev.stopPropagation();
       const action = btn.getAttribute("data-action");
       const id = (btn.getAttribute("data-id") || "").trim();
       const name = (btn.getAttribute("data-name") || "").trim();
-      if (!id && !name) {
-        showAlert("Remove failed: missing ingredient id", "err");
-        return;
-      }
       btn.disabled = true;
       try {
+        if (action === "suggest-apply") {
+          const payloadRaw = btn.getAttribute("data-payload") || "{}";
+          let body;
+          try {
+            body = JSON.parse(decodeURIComponent(payloadRaw));
+          } catch (_) {
+            throw new Error("bad suggestion payload");
+          }
+          const suggestAction = btn.getAttribute("data-suggest-action") || "add";
+          if (suggestAction === "restock" && body.id) {
+            const res = await fetch("/api/inventory/stock", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: body.id, in_stock: true }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) {
+              // Fall back to add if id missing from inventory
+              const res2 = await fetch("/api/inventory/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+              const data2 = await res2.json().catch(() => ({}));
+              if (!res2.ok || !data2.ok) throw new Error(data2.error || data.error || res.status);
+              applyInventoryUpdate(data2.inventory);
+            } else {
+              applyInventoryUpdate(data.inventory);
+            }
+            showAlert(`Restocked ${body.name || id}`, "ok");
+          } else {
+            const res = await fetch("/api/inventory/add", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+            applyInventoryUpdate(data.inventory);
+            showAlert(`Added ${body.name || id} to inventory`, "ok");
+          }
+          // Soft-remove applied suggestion from UI
+          if (state && state.nutrition_store && state.nutrition_store.inventory_suggestions) {
+            const sug = state.nutrition_store.inventory_suggestions;
+            const idx = Number(btn.getAttribute("data-idx"));
+            if (Array.isArray(sug.suggestions) && !Number.isNaN(idx)) {
+              sug.suggestions = sug.suggestions.filter((_, i) => i !== idx);
+              sug.count = sug.suggestions.length;
+            }
+            renderInventorySuggestions(state.nutrition_store);
+          }
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
+          return;
+        }
+        if (!id && !name) {
+          showAlert("Action failed: missing ingredient id", "err");
+          return;
+        }
         if (action === "remove") {
           const res = await fetch("/api/inventory/remove", {
             method: "POST",
@@ -1029,7 +1200,6 @@
           }
           applyInventoryUpdate(data.inventory);
           showAlert(`Removed ${name || id}`, "ok");
-          // Refresh meal plan only (no full remote pull)
           try {
             await generatePlan();
           } catch (_) {
@@ -1058,10 +1228,55 @@
           }
         }
       } catch (e) {
-        showAlert(`${action === "remove" ? "Remove" : "Stock update"} failed: ${e.message}`, "err");
+        showAlert(`Inventory action failed: ${e.message}`, "err");
         btn.disabled = false;
       }
     });
+  }
+
+  function macroCalPct(protein_g, carbs_g, fat_g) {
+    const p = Number(protein_g) || 0;
+    const c = Number(carbs_g) || 0;
+    const f = Number(fat_g) || 0;
+    const tot = p * 4 + c * 4 + f * 9;
+    if (tot <= 0) return { p: null, c: null, f: null };
+    return {
+      p: Math.round((p * 4 * 1000) / tot) / 10,
+      c: Math.round((c * 4 * 1000) / tot) / 10,
+      f: Math.round((f * 9 * 1000) / tot) / 10,
+    };
+  }
+
+  function targetPct(consumed, target) {
+    const t = Number(target) || 0;
+    if (t <= 0) return null;
+    return Math.min(999, Math.round(((Number(consumed) || 0) * 1000) / t) / 10);
+  }
+
+  function macroChip(kind, label, grams, calPct) {
+    const pct =
+      calPct != null && !Number.isNaN(calPct) ? ` · ${calPct}%` : "";
+    return `<div class="macro-chip macro-${kind}">
+      <span class="macro-chip-label">${label}</span>
+      <span class="macro-chip-value">${fmtNum(grams)} g<span class="macro-chip-pct">${pct}</span></span>
+    </div>`;
+  }
+
+  function progressRow(label, consumed, target, kind) {
+    const pct = targetPct(consumed, target);
+    const width = pct == null ? 0 : Math.min(100, pct);
+    const over = pct != null && pct > 105;
+    return `<div class="macro-progress-row">
+      <div class="macro-progress-meta">
+        <span class="macro-progress-label">${label}</span>
+        <span class="macro-progress-nums">${fmtNum(consumed)} / ${fmtNum(target)}${
+      pct != null ? ` · <strong>${pct}%</strong>` : ""
+    }</span>
+      </div>
+      <div class="macro-progress-track" aria-hidden="true">
+        <div class="macro-progress-fill macro-${kind}${over ? " over" : ""}" style="width:${width}%"></div>
+      </div>
+    </div>`;
   }
 
   function renderTargetsAndRemaining(store) {
@@ -1079,14 +1294,136 @@
       carbs_g: Math.max(0, (t.carbs_g || 0) - (c.carbs_g || 0)),
       fat_g: Math.max(0, (t.fat_g || 0) - (c.fat_g || 0)),
     };
+    const src =
+      c.source && c.source !== "none"
+        ? c.source.replace(/_/g, " ")
+        : "Google Health";
+    const nLogs =
+      c.food_log_count != null
+        ? c.food_log_count
+        : ((store && store.food_logs_today) || []).length;
+    const soFarPct = macroCalPct(c.protein_g, c.carbs_g, c.fat_g);
+    const remPct = macroCalPct(rem.protein_g, rem.carbs_g, rem.fat_g);
+    const calHit = targetPct(c.calories, t.calories);
+
     if ($("remaining-macros")) {
       $("remaining-macros").innerHTML = `
-        <strong>Today so far</strong> (local day ${c.date || "today"}, Google Health):
-        ${fmtNum(c.calories)} kcal · P${fmtNum(c.protein_g)} C${fmtNum(c.carbs_g)} F${fmtNum(c.fat_g)}
-        <br/>
-        <strong>Remaining to target</strong>:
-        ${fmtNum(rem.calories)} kcal · P${fmtNum(rem.protein_g)} C${fmtNum(rem.carbs_g)} F${fmtNum(rem.fat_g)}
+        <div class="macro-summary">
+          <div class="macro-summary-header">
+            <div>
+              <div class="macro-summary-title">Today so far</div>
+              <div class="macro-summary-meta muted">
+                ${c.date || "today"}
+                <span class="dot-sep">·</span> ${src}
+                ${nLogs ? `<span class="dot-sep">·</span> ${nLogs} meal log${nLogs === 1 ? "" : "s"}` : ""}
+              </div>
+            </div>
+            <div class="macro-kcal-block">
+              <div class="macro-kcal-value">${fmtNum(c.calories)}</div>
+              <div class="macro-kcal-label">kcal${
+                calHit != null ? ` · ${calHit}% of target` : ""
+              }</div>
+            </div>
+          </div>
+          <div class="macro-chip-row">
+            ${macroChip("protein", "Protein", c.protein_g, soFarPct.p)}
+            ${macroChip("carbs", "Carbs", c.carbs_g, soFarPct.c)}
+            ${macroChip("fat", "Fat", c.fat_g, soFarPct.f)}
+          </div>
+          <div class="macro-progress-list">
+            ${progressRow("Calories", c.calories, t.calories, "cals")}
+            ${progressRow("Protein", c.protein_g, t.protein_g, "protein")}
+            ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs")}
+            ${progressRow("Fat", c.fat_g, t.fat_g, "fat")}
+          </div>
+          <div class="macro-remaining-panel">
+            <div class="macro-summary-header">
+              <div class="macro-summary-title">Remaining to target</div>
+              <div class="macro-kcal-block compact">
+                <div class="macro-kcal-value">${fmtNum(rem.calories)}</div>
+                <div class="macro-kcal-label">kcal left</div>
+              </div>
+            </div>
+            <div class="macro-chip-row">
+              ${macroChip("protein", "Protein", rem.protein_g, remPct.p)}
+              ${macroChip("carbs", "Carbs", rem.carbs_g, remPct.c)}
+              ${macroChip("fat", "Fat", rem.fat_g, remPct.f)}
+            </div>
+          </div>
+        </div>
       `;
+    }
+  }
+
+  function renderFoodLogsToday(store) {
+    const box = $("food-logs-today");
+    if (!box) return;
+    const logs = (store && store.food_logs_today) || [];
+    if (!logs.length) {
+      box.innerHTML = `<p class="muted" style="margin:0;font-size:0.85rem">No meal-level food logs for today yet. Log food in Fitbit/Google Health (requires a valid Health OAuth connection).</p>`;
+      return;
+    }
+    let html = `<h3 class="today-subh" style="margin-bottom:0.35rem">Logged today</h3><ul class="session-list food-log-list">`;
+    logs.forEach((f) => {
+      const when = [f.time, f.meal_type].filter(Boolean).join(" · ");
+      const serve = f.serving_label ? ` · ${f.serving_label}` : "";
+      html += `<li>
+        <div class="title">${f.name || "Food"}${serve}</div>
+        <div class="meta">${when ? when + " · " : ""}${fmtNum(f.calories)} kcal · P${fmtNum(f.protein_g)} C${fmtNum(f.carbs_g)} F${fmtNum(f.fat_g)}</div>
+      </li>`;
+    });
+    html += `</ul>`;
+    box.innerHTML = html;
+  }
+
+  function renderFoodCoach(coach, store) {
+    const box = $("food-coach-commentary");
+    if (!box) return;
+    const fc = (coach && coach.food_commentary) || {};
+    const md = fc.markdown || "";
+    const working = fc.working_well || [];
+    const improve = fc.can_improve || [];
+    if (!md && !working.length && !improve.length) {
+      box.innerHTML = "";
+      return;
+    }
+    if (md && typeof marked !== "undefined" && marked.parse) {
+      box.innerHTML = `<div class="ask-md">${marked.parse(md)}</div>`;
+    } else {
+      let html = `<h3 class="today-subh">Coach commentary</h3>`;
+      if (working.length) {
+        html += `<p class="muted" style="margin:0.25rem 0"><strong>Working well</strong></p><ul class="reasons">${working.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+      }
+      if (improve.length) {
+        html += `<p class="muted" style="margin:0.25rem 0"><strong>Can improve</strong></p><ul class="reasons">${improve.map((x) => `<li>${x}</li>`).join("")}</ul>`;
+      }
+      box.innerHTML = html;
+    }
+
+    const labsBox = $("labs-summary");
+    if (labsBox) {
+      const labs = (fc.labs || (store && store.labs)) || {};
+      const panels = labs.panels || [];
+      if (labs.has_labs === false || (!panels.length && !labs.has_labs)) {
+        labsBox.innerHTML =
+          `Labs: none on file — optional <code>fitness/data/labs.json</code> for bi-annual/quarterly markers.`;
+      } else if (labs.has_labs) {
+        const flags = labs.flags || [];
+        labsBox.innerHTML = `Latest labs <strong>${labs.date || "—"}</strong>${
+          labs.lab ? ` (${labs.lab})` : ""
+        }: ${labs.marker_count || 0} markers${
+          flags.length
+            ? ` · flags: ${flags.map((f) => `${f.marker} ${f.status}`).join(", ")}`
+            : " · no coach flags"
+        }.`;
+      } else if (panels.length) {
+        const p = panels[panels.length - 1];
+        labsBox.innerHTML = `Latest labs <strong>${p.date || "—"}</strong>${
+          p.lab ? ` (${p.lab})` : ""
+        }: ${Object.keys(p.markers || {}).length} markers.`;
+      } else {
+        labsBox.innerHTML = "";
+      }
     }
   }
 
@@ -1311,8 +1648,12 @@
 
     if (data.health && data.health.error) {
       showAlert(`Google Health: ${data.health.error}`, "warn");
-      $("health-note").textContent =
-        "Some Google Health streams failed or need extra OAuth scopes (nutrition / activity). Recovery still uses available data.";
+      const err = String(data.health.error || "");
+      const needsAuth =
+        /token|refresh|oauth|credentials|invalid_grant|401|403/i.test(err);
+      $("health-note").textContent = needsAuth
+        ? "Google Health auth needs attention — use Refresh Google auth in the header, then Refresh remotes."
+        : "Some Google Health streams failed or need extra OAuth scopes (nutrition / activity). Recovery still uses available data.";
     } else if (!(data.health && data.health.weight && data.health.weight.length)) {
       $("health-note").textContent = "No weight samples returned for the recent window.";
     } else {
@@ -1327,7 +1668,7 @@
           "No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.";
       } else {
         $("nutrition-note").textContent =
-          `Nutrition days: ${n} · burned-calorie days: ${b} · green band = surplus (intake > burned), red = deficit`;
+          `Rolling 30d · nutrition days: ${n} · burned-calorie days: ${b} · green = surplus (intake > burned), red = deficit`;
       }
     }
 
@@ -1338,11 +1679,14 @@
     renderCharts(data);
     renderHistory(data.sessions || []);
     renderInventory(data.nutrition_store);
+    renderInventorySuggestions(data.nutrition_store);
     renderTargetsAndRemaining(data.nutrition_store);
+    renderFoodLogsToday(data.nutrition_store);
     // Auto meal plan is computed server-side on every dashboard load
     if (data.nutrition_store && data.nutrition_store.meal_plan) {
       renderMealPlan(data.nutrition_store.meal_plan);
     }
+    renderFoodCoach(data.coach, data.nutrition_store);
     renderExerciseCatalog(data.workout_store);
     renderWorkoutGoals(data.workout_store);
     if (data.workout_store && data.workout_store.plan) {
@@ -1897,6 +2241,69 @@
     if (status) status.textContent = "";
   }
 
+  async function refreshGoogleAuth() {
+    const btn = $("btn-google-auth");
+    if (btn) btn.disabled = true;
+    showAlert("Starting Google Health sign-in…", "ok");
+    try {
+      const res = await fetch("/api/google-health/auth/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: true }),
+      });
+      let data = {};
+      try {
+        data = await res.json();
+      } catch (_) {
+        data = {};
+      }
+      if (res.status === 404 || data.error === "not found") {
+        throw new Error(
+          "Auth API not found — restart the dashboard (Stop the old server, then run Start Resistance Dashboard) so it loads the new code."
+        );
+      }
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      if (data.auth_url) {
+        window.open(data.auth_url, "_blank", "noopener,noreferrer");
+      }
+      showAlert(
+        data.message ||
+          "Complete Google consent in the new tab. Waiting for authorization…",
+        "ok"
+      );
+      // Poll until flow finishes (ok / error) or ~5 minutes.
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 1500));
+        const stRes = await fetch("/api/google-health/auth/status", {
+          cache: "no-store",
+        });
+        const st = await stRes.json();
+        const flow = (st && st.flow) || {};
+        if (flow.status === "ok" || (st.token_ok && flow.status !== "pending")) {
+          showAlert(
+            flow.message || "Google Health authorized. Refreshing remotes…",
+            "ok"
+          );
+          await loadDashboard(true);
+          return;
+        }
+        if (flow.status === "error") {
+          throw new Error(flow.message || flow.error || "Authorization failed");
+        }
+      }
+      throw new Error(
+        "Timed out waiting for Google consent. Click Refresh Google auth to try again."
+      );
+    } catch (e) {
+      showAlert(`Google auth failed: ${e.message}`, "err");
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
   function init() {
     $("log-date").value = todayISO();
     addExerciseRow();
@@ -1904,6 +2311,9 @@
     $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     $("log-form").addEventListener("submit", submitWorkout);
     $("btn-refresh").addEventListener("click", () => loadDashboard(true));
+    if ($("btn-google-auth")) {
+      $("btn-google-auth").addEventListener("click", () => refreshGoogleAuth());
+    }
     $("btn-focus-log").addEventListener("click", () => {
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();

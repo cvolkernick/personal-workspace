@@ -123,6 +123,26 @@ class NutritionDay:
 
 
 @dataclass
+class FoodLogEntry:
+    """Meal-level food log from Google Health nutrition-log dataPoints."""
+
+    date: str
+    name: str
+    calories: Optional[float] = None
+    protein_g: Optional[float] = None
+    carbs_g: Optional[float] = None
+    fat_g: Optional[float] = None
+    meal_type: Optional[str] = None
+    serving_label: Optional[str] = None
+    time: Optional[str] = None  # HH:MM civil local when available
+    nutrients: Dict[str, float] = field(default_factory=dict)  # nutrient → grams
+    source: str = "google_health"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class HydrationDay:
     date: str
     water_ml: float
@@ -149,6 +169,7 @@ class HealthSnapshot:
     weight: List[WeightSample] = field(default_factory=list)
     sleep: List[SleepSample] = field(default_factory=list)
     nutrition: List[NutritionDay] = field(default_factory=list)
+    food_logs: List[FoodLogEntry] = field(default_factory=list)
     hydration: List[HydrationDay] = field(default_factory=list)
     calories_burned: List[CaloriesBurnedDay] = field(default_factory=list)
     error: Optional[str] = None
@@ -158,6 +179,7 @@ class HealthSnapshot:
             "weight": [w.to_dict() for w in self.weight],
             "sleep": [s.to_dict() for s in self.sleep],
             "nutrition": [n.to_dict() for n in self.nutrition],
+            "food_logs": [f.to_dict() for f in self.food_logs],
             "hydration": [h.to_dict() for h in self.hydration],
             "calories_burned": [c.to_dict() for c in self.calories_burned],
             "error": self.error,

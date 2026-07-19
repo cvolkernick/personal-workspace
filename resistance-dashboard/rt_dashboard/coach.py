@@ -7,6 +7,7 @@ from statistics import mean
 from typing import Any, Dict, List, Optional, Sequence
 
 from .models import (
+    FoodLogEntry,
     HealthSnapshot,
     HydrationDay,
     NutritionDay,
@@ -15,8 +16,24 @@ from .models import (
     SleepSample,
     WeightSample,
 )
+from .labs_store import labs_summary_for_coach
 from .test_noise import filter_sessions
 from .timeutil import local_today_iso
+
+# Rough daily intake targets used only for micro coaching (not medical RDAs).
+_MICRO_DAILY_HINTS_G = {
+    "DIETARY_FIBER": 25.0,
+    "SODIUM": 2.3,  # grams (~2300 mg)
+    "SUGAR": 50.0,
+    "POTASSIUM": 3.4,
+    "CALCIUM": 1.0,
+    "MAGNESIUM": 0.4,
+    "IRON": 0.018,
+    "ZINC": 0.011,
+    "VITAMIN_C": 0.09,
+    "VITAMIN_D": 0.00002,  # ~20 mcg as grams
+    "SATURATED_FAT": 20.0,
+}
 
 
 def _parse(d: str) -> Optional[datetime]:
@@ -329,11 +346,279 @@ def build_today_board(
     }
 
 
+def build_food_commentary(
+    *,
+    food_logs: Sequence[FoodLogEntry],
+    nutrition: Sequence[NutritionDay],
+    targets: dict,
+    consumed: dict,
+    adherence: dict,
+    labs: Optional[dict] = None,
+    as_of: Optional[str] = None,
+    window_days: int = 7,
+) -> dict:
+    """Rolling coach assessment of logged foods, macros, and micronutrients.
+
+    Deterministic (no model call). Surfaces what is working and what to improve.
+    Labs (bi-annual/quarterly) are optional long-horizon context.
+    """
+    day = as_of or local_today_iso()
+    window = set(_dates_back(day, window_days))
+    logs = [f for f in food_logs if f.date in window]
+    today_logs = [f for f in food_logs if f.date == day]
+
+    working: List[str] = []
+    improve: List[str] = []
+    notes: List[str] = []
+
+    # --- Macro adherence (7d) ---
+    p = adherence.get("protein") or {}
+    c = adherence.get("calories") or {}
+    if p.get("pct") is not None:
+        if p["pct"] >= 70:
+            working.append(
+                f"Protein hit rate is solid at {p['pct']}% of logged days "
+                f"({p.get('hits')}/{p.get('days_logged')})."
+            )
+        else:
+            improve.append(
+                f"Protein only hit target on {p['pct']}% of food-log days — "
+                f"prioritize a high-protein meal earlier."
+            )
+    if c.get("pct") is not None:
+        if c["pct"] >= 60:
+            working.append(f"Calorie control is on track ({c['pct']}% of days in range).")
+        elif c.get("days_logged", 0) >= 3:
+            improve.append(
+                f"Calories were in-range only {c['pct']}% of days — check evening snacks "
+                f"and liquid calories."
+            )
+
+    # --- Today's remaining ---
+    tgt_p = float(targets.get("protein_g") or 0)
+    tgt_cals = float(targets.get("calories") or 0)
+    rem_p = max(0.0, tgt_p - float(consumed.get("protein_g") or 0))
+    rem_c = max(0.0, tgt_cals - float(consumed.get("calories") or 0))
+    if today_logs:
+        notes.append(
+            f"Today: {len(today_logs)} food log{'s' if len(today_logs) != 1 else ''} · "
+            f"{float(consumed.get('calories') or 0):.0f} kcal · "
+            f"P {float(consumed.get('protein_g') or 0):.0f} g so far."
+        )
+        if rem_p > 40:
+            improve.append(
+                f"Still need ~{rem_p:.0f} g protein today ({rem_c:.0f} kcal left) — "
+                f"lean meat, dairy, or whey fits the remaining budget."
+            )
+        elif rem_p <= 15 and rem_c > 200:
+            improve.append(
+                f"Protein is nearly done; fill remaining ~{rem_c:.0f} kcal with "
+                f"fiber-heavy carbs/veg rather than more dense protein."
+            )
+        elif rem_p <= 15 and rem_c <= 150:
+            working.append("Today’s macros are essentially closed out — nice logging discipline.")
+    elif tgt_p > 0:
+        notes.append("No meal-level food logs for today yet (daily rollup may still have totals).")
+
+    # --- Food frequency / quality signals ---
+    name_counts: Dict[str, int] = {}
+    name_protein: Dict[str, float] = {}
+    for f in logs:
+        key = (f.name or "Unknown").strip()
+        if not key:
+            continue
+        name_counts[key] = name_counts.get(key, 0) + 1
+        name_protein[key] = name_protein.get(key, 0.0) + float(f.protein_g or 0)
+
+    if name_counts:
+        top = sorted(name_counts.items(), key=lambda x: (-x[1], x[0]))[:5]
+        top_s = ", ".join(f"{n}×{c}" for n, c in top[:3])
+        notes.append(f"Most logged foods ({window_days}d): {top_s}.")
+        # High-protein staples
+        staples = sorted(name_protein.items(), key=lambda x: -x[1])[:3]
+        if staples and staples[0][1] >= 50:
+            working.append(
+                f"Protein staples showing up: {', '.join(n for n, _ in staples if _ > 0)}."
+            )
+        # Ultra-frequent single item (monotony / possible over-reliance)
+        if top and top[0][1] >= 8:
+            improve.append(
+                f"“{top[0][0]}” logged {top[0][1]}× in {window_days}d — fine as a staple, "
+                f"but rotate sides for micronutrient variety."
+            )
+
+    # Low protein density foods dominating
+    dense_hits = 0
+    sparse_hits = 0
+    for f in logs:
+        cal = float(f.calories or 0)
+        prot = float(f.protein_g or 0)
+        if cal < 80:
+            continue
+        dens = prot / cal
+        if dens >= 0.08:  # ~32g protein / 400 kcal
+            dense_hits += 1
+        elif dens < 0.03 and cal >= 150:
+            sparse_hits += 1
+    if dense_hits >= 5 and dense_hits >= sparse_hits:
+        working.append(
+            f"Protein density looks good on {dense_hits} substantial logs in the window."
+        )
+    if sparse_hits >= 5 and sparse_hits > dense_hits:
+        improve.append(
+            f"{sparse_hits} higher-calorie / lower-protein logs — swap some for denser protein."
+        )
+
+    # --- Micronutrient aggregates (when present on logs) ---
+    micro_sums: Dict[str, float] = {}
+    micro_days: Dict[str, set] = {}
+    for f in logs:
+        for k, v in (f.nutrients or {}).items():
+            try:
+                fv = float(v)
+            except (TypeError, ValueError):
+                continue
+            micro_sums[k] = micro_sums.get(k, 0.0) + fv
+            micro_days.setdefault(k, set()).add(f.date)
+
+    micro_avg: Dict[str, float] = {}
+    for k, total in micro_sums.items():
+        nd = max(1, len(micro_days.get(k) or []))
+        micro_avg[k] = total / nd
+
+    micro_notes: List[str] = []
+    if micro_avg:
+        # Fiber
+        fiber = micro_avg.get("DIETARY_FIBER")
+        if fiber is not None:
+            if fiber >= 20:
+                working.append(f"Fiber avg ~{fiber:.0f} g/day on logged days — good for satiety.")
+            elif fiber < 15:
+                improve.append(
+                    f"Fiber avg only ~{fiber:.0f} g/day — add veg, berries, oats, or legumes."
+                )
+            micro_notes.append(f"fiber ~{fiber:.0f} g")
+        sodium = micro_avg.get("SODIUM")
+        if sodium is not None:
+            # Google stores grams; if value looks like mg-scale (>20), treat as mg→g
+            na = sodium if sodium < 20 else sodium / 1000.0
+            if na > 3.0:
+                improve.append(
+                    f"Sodium running high (~{na:.1f} g/day avg) — watch sauces, deli, and packaged foods."
+                )
+            micro_notes.append(f"Na ~{na:.1f} g")
+        sugar = micro_avg.get("SUGAR")
+        if sugar is not None and sugar > 60:
+            improve.append(f"Sugar avg ~{sugar:.0f} g/day — trim sweet drinks/snacks if cutting.")
+        sat = micro_avg.get("SATURATED_FAT")
+        if sat is not None and sat > 25:
+            improve.append(f"Saturated fat avg ~{sat:.0f} g/day — leaner cuts help if lipids are a focus.")
+        for key in ("POTASSIUM", "MAGNESIUM", "IRON", "CALCIUM", "VITAMIN_D", "VITAMIN_C"):
+            if key not in micro_avg:
+                continue
+            target = _MICRO_DAILY_HINTS_G.get(key)
+            if not target:
+                continue
+            avg = micro_avg[key]
+            # Skip near-zero noisy micros
+            if avg <= 0:
+                continue
+            if avg < target * 0.5:
+                label = key.replace("_", " ").title()
+                improve.append(
+                    f"{label} looks light in food logs vs a rough daily target — "
+                    f"confirm with variety or your latest labs."
+                )
+
+    # --- Labs (optional, slow-changing) ---
+    lab_sum = labs_summary_for_coach(labs)
+    if lab_sum.get("has_labs"):
+        flags = lab_sum.get("flags") or []
+        notes.append(
+            f"Latest labs: {lab_sum.get('date')}"
+            + (f" ({lab_sum.get('lab')})" if lab_sum.get("lab") else "")
+            + f" · {lab_sum.get('marker_count')} markers."
+        )
+        for fl in flags[:4]:
+            marker = str(fl.get("marker") or "").replace("_", " ")
+            improve.append(
+                f"Lab flag: {marker} = {fl.get('value')} ({fl.get('status')}; "
+                f"ref {fl.get('ref_low')}–{fl.get('ref_high')}) — "
+                f"diet may support this but retest with your clinician."
+            )
+        if not flags:
+            working.append(
+                f"Latest lab panel ({lab_sum.get('date')}) has no out-of-range flags "
+                f"vs coach reference hints."
+            )
+    else:
+        notes.append(
+            "Labs: none on file yet — drop bi-annual results into fitness/data/labs.json "
+            "when you have them."
+        )
+
+    if not logs and not (adherence.get("protein") or {}).get("days_logged"):
+        improve.append(
+            "No recent food logs — log meals in Fitbit/Google Health so coach feedback can go food-specific."
+        )
+
+    # Deduplicate while preserving order
+    def _dedupe(items: List[str]) -> List[str]:
+        seen = set()
+        out: List[str] = []
+        for x in items:
+            if x in seen:
+                continue
+            seen.add(x)
+            out.append(x)
+        return out
+
+    working = _dedupe(working)[:6]
+    improve = _dedupe(improve)[:8]
+    notes = _dedupe(notes)[:6]
+
+    # Markdown for UI
+    lines = ["### Coach commentary (food · macros · micros)"]
+    if notes:
+        lines.append("**Snapshot:** " + " ".join(notes))
+    if working:
+        lines.append("**Working well**")
+        for w in working:
+            lines.append(f"- {w}")
+    if improve:
+        lines.append("**Can improve**")
+        for w in improve:
+            lines.append(f"- {w}")
+    if not working and not improve:
+        lines.append("_Not enough food-log detail yet for a specific assessment._")
+
+    # Top foods payload for UI list
+    top_foods = [
+        {"name": n, "count": c, "protein_g": round(name_protein.get(n, 0.0), 1)}
+        for n, c in sorted(name_counts.items(), key=lambda x: (-x[1], x[0]))[:8]
+    ]
+
+    return {
+        "as_of": day,
+        "window_days": window_days,
+        "log_count": len(logs),
+        "today_log_count": len(today_logs),
+        "working_well": working,
+        "can_improve": improve,
+        "notes": notes,
+        "top_foods": top_foods,
+        "micro_avg_g": {k: round(v, 4) for k, v in sorted(micro_avg.items())[:20]},
+        "labs": lab_sum,
+        "markdown": "\n".join(lines),
+    }
+
+
 def build_coach_brief(
     *,
     today: dict,
     weekly: dict,
     recovery: RecoveryStatus,
+    food_commentary: Optional[dict] = None,
 ) -> dict:
     """Deterministic morning-style brief (no model call)."""
     lines: List[str] = []
@@ -383,6 +668,13 @@ def build_coach_brief(
         "Use **Log this plan** when you train, and Ask Grok for deeper questions "
         "(or try: `set stock chicken-breast off`, `refresh meal plan`)."
     )
+    fc = food_commentary or {}
+    improve = fc.get("can_improve") or []
+    working = fc.get("working_well") or []
+    if improve:
+        lines.append("**Food coach:** " + improve[0])
+    elif working:
+        lines.append("**Food coach:** " + working[0])
     return {
         "title": "Coach brief",
         "markdown": "\n\n".join(lines),
@@ -400,6 +692,7 @@ def build_coach_payload(
     meal_plan: dict,
     workout_plan: dict,
     as_of: Optional[str] = None,
+    labs: Optional[dict] = None,
 ) -> dict:
     day = as_of or local_today_iso()
     adherence = compute_adherence_7d(
@@ -428,10 +721,25 @@ def build_coach_payload(
         targets=targets or {},
         adherence=adherence,
     )
-    brief = build_coach_brief(today=today, weekly=weekly, recovery=recovery)
+    food_commentary = build_food_commentary(
+        food_logs=health.food_logs or [],
+        nutrition=health.nutrition,
+        targets=targets or {},
+        consumed=consumed or {},
+        adherence=adherence,
+        labs=labs,
+        as_of=day,
+    )
+    brief = build_coach_brief(
+        today=today,
+        weekly=weekly,
+        recovery=recovery,
+        food_commentary=food_commentary,
+    )
     return {
         "today": today,
         "adherence_7d": adherence,
         "weekly_review": weekly,
+        "food_commentary": food_commentary,
         "brief": brief,
     }

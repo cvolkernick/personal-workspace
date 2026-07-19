@@ -6,10 +6,12 @@ import unittest
 
 from rt_dashboard.coach import (
     build_coach_brief,
+    build_food_commentary,
     build_today_board,
     compute_adherence_7d,
 )
 from rt_dashboard.models import (
+    FoodLogEntry,
     HydrationDay,
     NutritionDay,
     RecoveryStatus,
@@ -48,6 +50,66 @@ class TestCoach(unittest.TestCase):
         self.assertEqual(board["recommendation"], "rest")
         brief = build_coach_brief(today=board, weekly={"bullets": ["Training: 3 sessions"]}, recovery=rec)
         self.assertIn("rest", brief["markdown"].lower())
+
+    def test_food_commentary_protein_gap(self):
+        logs = [
+            FoodLogEntry(
+                date="2026-07-11",
+                name="Chicken breast",
+                calories=280,
+                protein_g=52,
+                carbs_g=0,
+                fat_g=6,
+                nutrients={"DIETARY_FIBER": 0, "SODIUM": 0.1},
+            ),
+            FoodLogEntry(
+                date="2026-07-11",
+                name="Chips",
+                calories=400,
+                protein_g=4,
+                carbs_g=40,
+                fat_g=22,
+                nutrients={"DIETARY_FIBER": 2, "SODIUM": 0.5},
+            ),
+            FoodLogEntry(
+                date="2026-07-10",
+                name="Chicken breast",
+                calories=280,
+                protein_g=52,
+                carbs_g=0,
+                fat_g=6,
+            ),
+        ]
+        adh = {
+            "protein": {"pct": 40, "hits": 1, "days_logged": 3},
+            "calories": {"pct": 50, "days_logged": 3},
+        }
+        fc = build_food_commentary(
+            food_logs=logs,
+            nutrition=[
+                NutritionDay(date="2026-07-11", calories=680, protein_g=56, carbs_g=40, fat_g=28),
+            ],
+            targets={"calories": 2100, "protein_g": 210},
+            consumed={"calories": 680, "protein_g": 56},
+            adherence=adh,
+            labs={
+                "panels": [
+                    {
+                        "date": "2026-01-15",
+                        "lab": "Quest",
+                        "markers": {"vitamin_d_ng_ml": 18, "ldl_mg_dl": 90},
+                        "notes": "",
+                    }
+                ]
+            },
+            as_of="2026-07-11",
+        )
+        self.assertGreaterEqual(fc["today_log_count"], 2)
+        self.assertTrue(fc["can_improve"])
+        self.assertTrue(any("protein" in x.lower() for x in fc["can_improve"]))
+        self.assertTrue(fc["labs"]["has_labs"])
+        self.assertTrue(any(f["marker"] == "vitamin_d_ng_ml" for f in fc["labs"]["flags"]))
+        self.assertIn("Coach commentary", fc["markdown"])
 
 
 if __name__ == "__main__":

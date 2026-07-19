@@ -287,6 +287,9 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             "weight": _series_tail(health.get("weight"), h_days),
             "sleep": _series_tail(health.get("sleep"), h_days),
             "nutrition": _series_tail(health.get("nutrition"), h_days),
+            "food_logs": _series_tail(health.get("food_logs"), min(h_days, 7))
+            if isinstance(health.get("food_logs"), list)
+            else (nut.get("food_logs_recent") or [])[-40:],
             "hydration": _series_tail(health.get("hydration"), h_days),
             "calories_burned": _series_tail(health.get("calories_burned"), min(h_days, 14)),
             "notes": health.get("error"),
@@ -294,8 +297,10 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
         "nutrition_store": {
             "targets": nut.get("targets"),
             "today_consumed": nut.get("today_consumed"),
+            "food_logs_today": (nut.get("food_logs_today") or [])[:30],
             "inventory": stocked[:40],
             "meal_plan": meal_plan,
+            "labs": nut.get("labs"),
         },
         "workout_store": {
             "goals": wo.get("goals"),
@@ -304,6 +309,29 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
         },
         "coach": {
             "today": (dashboard.get("coach") or {}).get("today"),
+            "food_commentary": {
+                "working_well": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "working_well"
+                    )
+                    or []
+                )[:5],
+                "can_improve": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "can_improve"
+                    )
+                    or []
+                )[:6],
+                "top_foods": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "top_foods"
+                    )
+                    or []
+                )[:6],
+                "labs": ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                    "labs"
+                ),
+            },
             "adherence_7d": {
                 k: ((dashboard.get("coach") or {}).get("adherence_7d") or {}).get(k)
                 for k in ("protein", "sleep", "hydration", "calories")

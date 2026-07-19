@@ -584,13 +584,333 @@ footer {
 }
 
 .coach-brief,
-.weekly-review {
+.weekly-review,
+.food-coach {
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
 }
 
-.coach-brief .ask-md {
+.coach-brief .ask-md,
+.food-coach .ask-md {
   font-size: 0.92rem;
+}
+
+.food-log-list {
+  margin-top: 0.25rem;
+}
+
+.food-log-list li .title {
+  font-size: 0.92rem;
+}
+
+/* Daily targets / remaining macro summary */
+.macro-summary {
+  margin-top: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(36, 48, 68, 0.55), rgba(26, 35, 50, 0.35));
+}
+
+.macro-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.macro-summary-title {
+  font-weight: 650;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.macro-summary-meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.macro-summary-meta .dot-sep {
+  opacity: 0.55;
+  margin: 0 0.15rem;
+}
+
+.macro-kcal-block {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.macro-kcal-block.compact .macro-kcal-value {
+  font-size: 1.25rem;
+}
+
+.macro-kcal-value {
+  font-size: 1.55rem;
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.macro-kcal-label {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.macro-chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.macro-chip {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 0.55rem 0.65rem;
+  border-left-width: 3px;
+}
+
+.macro-chip.macro-protein {
+  border-left-color: #3d9cf0;
+}
+.macro-chip.macro-carbs {
+  border-left-color: #f0b429;
+}
+.macro-chip.macro-fat {
+  border-left-color: #c084fc;
+}
+.macro-chip.macro-cals {
+  border-left-color: var(--accent-2);
+}
+
+.macro-chip-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.macro-chip-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.macro-chip-pct {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.macro-progress-list {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.macro-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.2rem;
+}
+
+.macro-progress-label {
+  color: var(--muted);
+}
+
+.macro-progress-nums {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(45, 58, 79, 0.9);
+  overflow: hidden;
+}
+
+.macro-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+  min-width: 0;
+}
+
+.macro-progress-fill.macro-cals {
+  background: linear-gradient(90deg, #5ce1a8, #3d9cf0);
+}
+.macro-progress-fill.macro-protein {
+  background: #3d9cf0;
+}
+.macro-progress-fill.macro-carbs {
+  background: #f0b429;
+}
+.macro-progress-fill.macro-fat {
+  background: #c084fc;
+}
+.macro-progress-fill.over {
+  background: var(--danger);
+}
+
+.macro-remaining-panel {
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.macro-remaining-panel .macro-summary-header {
+  margin-bottom: 0.65rem;
+}
+
+@media (max-width: 520px) {
+  .macro-chip-row {
+    grid-template-columns: 1fr;
+  }
+  .macro-summary-header {
+    flex-direction: column;
+  }
+  .macro-kcal-block {
+    text-align: left;
+  }
+}
+
+/* Inventory cards — same macro color language as targets panel */
+.inv-panel,
+.inv-suggest-panel {
+  margin-top: 0;
+}
+
+.inv-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.inv-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 0.7rem 0.75rem;
+}
+
+.inv-card.out {
+  opacity: 0.78;
+  border-style: dashed;
+}
+
+.inv-card.suggest {
+  border-left: 3px solid var(--accent-2);
+}
+
+.inv-card-name {
+  font-weight: 650;
+  font-size: 0.98rem;
+  letter-spacing: -0.01em;
+}
+
+.inv-card-meta {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
+.inv-reason {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.inv-out-badge {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.inv-action-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.inv-action-badge.inv-action-restock {
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--warn);
+}
+
+.inv-action-badge.inv-action-add {
+  background: rgba(92, 225, 168, 0.15);
+  color: var(--accent-2);
+}
+
+.inv-macro-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.inv-macro-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.inv-macro-pill .pill-k {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.inv-macro-pill.macro-cals {
+  border-color: rgba(92, 225, 168, 0.45);
+  color: var(--accent-2);
+}
+.inv-macro-pill.macro-protein {
+  border-color: rgba(61, 156, 240, 0.5);
+  color: #6db7f5;
+}
+.inv-macro-pill.macro-carbs {
+  border-color: rgba(240, 180, 41, 0.5);
+  color: #f0c14d;
+}
+.inv-macro-pill.macro-fat {
+  border-color: rgba(192, 132, 252, 0.5);
+  color: #d0a4ff;
+}
+
+.inv-card-actions {
+  margin-top: 0.55rem;
+}
+
+.inv-card-actions button {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
 }
 
 #today-hub-grid {

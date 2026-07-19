@@ -80,14 +80,21 @@ from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_acti
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
+from rt_dashboard.google_auth import (  # noqa: E402
+    auth_flow_status as google_auth_status,
+    start_auth_flow as start_google_auth_flow,
+)
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
 from rt_dashboard.models import ExerciseEntry, HealthSnapshot, Session, SetEntry  # noqa: E402
+from rt_dashboard.labs_store import load_labs  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
+    food_logs_for_day,
     generate_meal_plan,
     remove_ingredient,
     set_in_stock,
+    suggest_inventory_staples,
     today_consumed_from_nutrition,
     update_targets,
 )
@@ -446,18 +453,35 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     payload["health"] = health.to_dict()
     payload["recovery"] = recovery.to_dict()
 
-    consumed = today_consumed_from_nutrition(health.nutrition, as_of=local_today)
+    today_logs = food_logs_for_day(health.food_logs or [], as_of=local_today)
+    consumed = today_consumed_from_nutrition(
+        health.nutrition,
+        as_of=local_today,
+        food_logs=health.food_logs or [],
+    )
     auto_plan = generate_meal_plan(
         nut["inventory"] or {"ingredients": []},
         nut["targets"] or {},
         consumed,
+        food_logs_today=today_logs,
     )
+    inv_suggestions = suggest_inventory_staples(
+        nut["inventory"] or {"ingredients": []},
+        targets=nut.get("targets") or {},
+        food_logs=health.food_logs or [],
+        consumed=consumed,
+    )
+    labs = load_labs(local_dir or "")
     payload["nutrition_store"] = {
         "inventory": nut["inventory"],
         "targets": nut["targets"],
         "sources": nut["sources"],
         "today_consumed": consumed,
+        "food_logs_today": today_logs,
+        "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
         "meal_plan": auto_plan,
+        "inventory_suggestions": inv_suggestions,
+        "labs": labs,
     }
 
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
@@ -497,6 +521,7 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             meal_plan=auto_plan,
             workout_plan=(payload.get("workout_store") or {}).get("plan") or {},
             as_of=local_today,
+            labs=labs,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"coach: {e}")
@@ -519,9 +544,11 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "health_weight_points": len(health.weight),
         "health_sleep_points": len(health.sleep),
         "health_nutrition_days": len(health.nutrition),
+        "health_food_logs": len(health.food_logs or []),
         "health_hydration_days": len(health.hydration),
         "health_calories_burned_days": len(health.calories_burned),
         "inventory_count": len((nut["inventory"].get("ingredients") or [])),
+        "labs_panels": len((labs.get("panels") or [])),
         "load_ms": elapsed_ms,
         "cache": cache_notes,
         "cache_ttl_sec": cache_ttl,
@@ -759,12 +786,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/google-health/auth/status":
+            try:
+                self._send_json(google_auth_status())
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path in ("/", "/index.html"):
             return super().do_GET()
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/api/google-health/auth/start":
+            try:
+                body = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
+                )
+                force = bool(body.get("force"))
+                result = start_google_auth_flow(force=force)
+                status = 200 if result.get("ok") else 400
+                self._send_json(result, status=status)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/workouts":
             try:
                 body = self._read_json()
@@ -949,6 +996,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # Prefer live consumed from dashboard nutrition days
                 from rt_dashboard.models import NutritionDay
 
+                from rt_dashboard.models import FoodLogEntry
+
                 nutrition_days = [
                     NutritionDay(
                         date=n["date"],
@@ -960,7 +1009,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     )
                     for n in (health.get("nutrition") or [])
                 ]
-                consumed = today_consumed_from_nutrition(nutrition_days)
+                food_entries = [
+                    FoodLogEntry(
+                        date=str(f.get("date") or ""),
+                        name=str(f.get("name") or "Logged food"),
+                        calories=f.get("calories"),
+                        protein_g=f.get("protein_g"),
+                        carbs_g=f.get("carbs_g"),
+                        fat_g=f.get("fat_g"),
+                        meal_type=f.get("meal_type"),
+                        serving_label=f.get("serving_label"),
+                        time=f.get("time"),
+                        nutrients=f.get("nutrients") or {},
+                        source=f.get("source") or "google_health",
+                    )
+                    for f in (health.get("food_logs") or [])
+                    if isinstance(f, dict) and f.get("date")
+                ]
+                # Prefer store's already-serialized today logs when present
+                today_logs = store.get("food_logs_today") or food_logs_for_day(
+                    food_entries
+                )
+                consumed = today_consumed_from_nutrition(
+                    nutrition_days, food_logs=food_entries
+                )
                 # allow override for testing
                 if body.get("consumed"):
                     consumed.update({k: float(body["consumed"][k]) for k in body["consumed"] if k in consumed})
@@ -968,6 +1040,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     store.get("inventory") or {"ingredients": []},
                     store.get("targets") or {},
                     consumed,
+                    food_logs_today=today_logs,
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:

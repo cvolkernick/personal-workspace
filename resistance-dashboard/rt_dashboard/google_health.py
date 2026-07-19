@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     CaloriesBurnedDay,
+    FoodLogEntry,
     HealthSnapshot,
     HydrationDay,
     NutritionDay,
@@ -350,6 +351,22 @@ class GoogleHealthClient:
         except GoogleHealthError:
             return []
 
+    def fetch_food_logs(self, days: int = 14) -> List[FoodLogEntry]:
+        """Meal-level nutrition-log entries (food names + macros + micros).
+
+        Daily rollups only give totals; meal plan / coach commentary need
+        individual foodDisplayName points. Bound pages tightly — food logs
+        are denser than daily weigh-ins.
+        """
+        days = max(1, min(int(days), 30))
+        # ~100 pts/page; heavy loggers may need more pages for 14d.
+        max_pages = 8 if days >= 14 else 4
+        try:
+            data = self._paginate_data_points("nutrition-log", max_pages=max_pages)
+            return parse_food_log_entries(data, days=days)
+        except GoogleHealthError:
+            return []
+
     def fetch_hydration(self, days: int = 90) -> List[HydrationDay]:
         """Water intake — needs googlehealth.nutrition.readonly."""
         days = max(1, min(int(days), 90))
@@ -410,6 +427,7 @@ class GoogleHealthClient:
         weight: List[WeightSample] = []
         sleep: List[SleepSample] = []
         nutrition: List[NutritionDay] = []
+        food_logs: List[FoodLogEntry] = []
         hydration: List[HydrationDay] = []
         calories_burned: List[CaloriesBurnedDay] = []
 
@@ -422,6 +440,10 @@ class GoogleHealthClient:
         def _nutrition() -> List[NutritionDay]:
             return self.fetch_nutrition(days=days)
 
+        def _food_logs() -> List[FoodLogEntry]:
+            # Meal-level detail for coach + meal plan (shorter window).
+            return self.fetch_food_logs(days=min(14, days))
+
         def _hydration() -> List[HydrationDay]:
             return self.fetch_hydration(days=days)
 
@@ -432,12 +454,13 @@ class GoogleHealthClient:
             "weight": _weight,
             "sleep": _sleep,
             "nutrition": _nutrition,
+            "food_logs": _food_logs,
             "hydration": _hydration,
             "calories_burned": _burned,
         }
-        # Parallel streams — sequential 5× calls was exceeding the dashboard
+        # Parallel streams — sequential multi-calls was exceeding the dashboard
         # 20s wall timeout even when Google was healthy.
-        with ThreadPoolExecutor(max_workers=5) as pool:
+        with ThreadPoolExecutor(max_workers=6) as pool:
             futs = {pool.submit(fn): name for name, fn in jobs.items()}
             for fut in as_completed(futs):
                 name = futs[fut]
@@ -455,6 +478,8 @@ class GoogleHealthClient:
                     sleep = result  # type: ignore[assignment]
                 elif name == "nutrition":
                     nutrition = result  # type: ignore[assignment]
+                elif name == "food_logs":
+                    food_logs = result  # type: ignore[assignment]
                 elif name == "hydration":
                     hydration = result  # type: ignore[assignment]
                 elif name == "calories_burned":
@@ -465,6 +490,7 @@ class GoogleHealthClient:
             not weight
             and not sleep
             and not nutrition
+            and not food_logs
             and not hydration
             and not calories_burned
             and err
@@ -474,6 +500,7 @@ class GoogleHealthClient:
             weight=weight,
             sleep=sleep,
             nutrition=nutrition,
+            food_logs=food_logs,
             hydration=hydration,
             calories_burned=calories_burned,
             error=err,
@@ -674,6 +701,83 @@ def _nutrient_grams_from_list(nlog: dict, name: str) -> Optional[float]:
     return None
 
 
+def _all_nutrients_grams(nlog: dict) -> Dict[str, float]:
+    """Map nutrient enum → grams (skip macros already on FoodLogEntry)."""
+    skip = {
+        "PROTEIN",
+        "TOTAL_PROTEIN",
+        "CARBOHYDRATES",
+        "CARBS",
+        "TOTAL_CARBOHYDRATE",
+        "TOTAL_CARBOHYDRATES",
+        "FAT",
+        "TOTAL_FAT",
+        "NUTRIENT_UNSPECIFIED",
+    }
+    out: Dict[str, float] = {}
+    for item in nlog.get("nutrients") or []:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("nutrient") or "").upper().strip()
+        if not key or key in skip:
+            continue
+        q = item.get("quantity") or {}
+        g = _mass_grams(q)
+        if g is None:
+            continue
+        out[key] = round(float(g), 4)
+    return out
+
+
+def _meal_type_label(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s.upper() in ("MEAL_TYPE_UNSPECIFIED", "UNSPECIFIED", ""):
+        return None
+    # BREAKFAST → Breakfast, BEFORE_LUNCH → Before lunch
+    return s.replace("_", " ").title()
+
+
+def _serving_label(nlog: dict) -> Optional[str]:
+    serving = nlog.get("serving") or {}
+    if not isinstance(serving, dict):
+        return None
+    amount = serving.get("amount")
+    unit = (
+        serving.get("foodMeasurementUnitDisplayName")
+        or serving.get("foodMeasurementUnit")
+        or ""
+    )
+    unit = str(unit).strip()
+    if amount is None and not unit:
+        return None
+    if amount is None:
+        return unit or None
+    try:
+        a = float(amount)
+        a_s = str(int(a)) if a == int(a) else f"{a:g}"
+    except (TypeError, ValueError):
+        a_s = str(amount)
+    return f"{a_s} {unit}".strip() if unit else a_s
+
+
+def _civil_time_hm(civil: Any) -> Optional[str]:
+    if not isinstance(civil, dict):
+        return None
+    t = civil.get("time") or {}
+    if not isinstance(t, dict):
+        return None
+    h = t.get("hours")
+    m = t.get("minutes")
+    if h is None and m is None:
+        return None
+    try:
+        return f"{int(h or 0):02d}:{int(m or 0):02d}"
+    except (TypeError, ValueError):
+        return None
+
+
 def _macros_from_nutrition_log(nlog: dict) -> Dict[str, Optional[float]]:
     """Extract calories + macros from a meal log or daily rollup nutritionLog block.
 
@@ -755,6 +859,86 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
             )
         )
     return out
+
+
+def parse_food_log_entries(payload: dict, days: int = 14) -> List[FoodLogEntry]:
+    """Parse meal-level nutrition-log dataPoints (keep food names + micros).
+
+    Google Health NutritionLog shape::
+      foodDisplayName, mealType, serving, energy.kcal,
+      totalCarbohydrate/totalFat, nutrients[{nutrient, quantity.grams}],
+      interval.civilStartTime.{date,time}
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    entries: List[FoodLogEntry] = []
+    for pt in payload.get("dataPoints") or []:
+        nlog = pt.get("nutritionLog") or pt.get("nutrition_log") or pt.get("nutrition")
+        if not isinstance(nlog, dict):
+            continue
+        date = None
+        time_hm = None
+        interval = nlog.get("interval") or {}
+        civil = interval.get("civilStartTime") or {}
+        if isinstance(civil, dict) and civil.get("date"):
+            date = _civil_date_str({"date": civil.get("date")})
+            time_hm = _civil_time_hm(civil)
+        if not date:
+            date = _parse_rfc3339_date(
+                str(interval.get("startTime") or pt.get("startTime") or "")
+            )
+        if not date or date < cutoff:
+            continue
+
+        name = (
+            str(nlog.get("foodDisplayName") or nlog.get("food_display_name") or "")
+            .strip()
+        )
+        if not name:
+            # Identified food resource name is not human-friendly; last resort.
+            food_ref = nlog.get("food")
+            if food_ref:
+                name = str(food_ref).rsplit("/", 1)[-1][:48]
+            else:
+                name = "Logged food"
+
+        macros = _macros_from_nutrition_log(nlog)
+        if all(
+            macros.get(k) is None
+            for k in ("calories", "protein_g", "carbs_g", "fat_g")
+        ):
+            # Empty / incomplete point — still keep if named? skip empty.
+            continue
+
+        entries.append(
+            FoodLogEntry(
+                date=date,
+                name=name,
+                calories=round(macros["calories"], 1)
+                if macros["calories"] is not None
+                else None,
+                protein_g=round(macros["protein_g"], 1)
+                if macros["protein_g"] is not None
+                else None,
+                carbs_g=round(macros["carbs_g"], 1)
+                if macros["carbs_g"] is not None
+                else None,
+                fat_g=round(macros["fat_g"], 1)
+                if macros["fat_g"] is not None
+                else None,
+                meal_type=_meal_type_label(nlog.get("mealType") or nlog.get("meal_type")),
+                serving_label=_serving_label(nlog),
+                time=time_hm,
+                nutrients=_all_nutrients_grams(nlog),
+                source="google_health",
+            )
+        )
+
+    # Chronological: date then time
+    def _sort_key(e: FoodLogEntry) -> Tuple[str, str, str]:
+        return (e.date, e.time or "99:99", e.name.lower())
+
+    entries.sort(key=_sort_key)
+    return entries
 
 
 def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
