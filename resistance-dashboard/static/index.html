@@ -133,19 +133,19 @@
       </section>
 
       <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" aria-label="Nutrition summary">
-        <div class="card stat">
+        <div class="card stat macro-stat macro-cals">
           <div class="label">Calories (latest day)</div>
           <div class="value" id="stat-calories">—</div>
         </div>
-        <div class="card stat">
+        <div class="card stat macro-stat macro-protein">
           <div class="label">Protein (g · % kcal)</div>
           <div class="value" id="stat-protein">—</div>
         </div>
-        <div class="card stat">
+        <div class="card stat macro-stat macro-carbs">
           <div class="label">Carbs (g · % kcal)</div>
           <div class="value" id="stat-carbs">—</div>
         </div>
-        <div class="card stat">
+        <div class="card stat macro-stat macro-fat">
           <div class="label">Fat (g · % kcal)</div>
           <div class="value" id="stat-fat">—</div>
         </div>
@@ -226,8 +226,9 @@
           <h2>Daily targets &amp; meal plan</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
             Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
-            use Google Health daily intake (meal-level food logs when available) +
-            in-stock ingredients. Use <strong>Refresh plan</strong> after edits.
+            use Google Health intake. <strong>Next / Later / Evening</strong> meals
+            only pick ingredients marked <strong>in stock</strong>. Use
+            <strong>Refresh plan</strong> after stock edits.
           </p>
           <form class="log-form" id="targets-form">
             <div class="row cols-4">

@@ -120,6 +120,45 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertEqual(consumed["source"], "food_logs")
         self.assertEqual(consumed["food_log_count"], 2)
 
+    def test_meal_plan_excludes_out_of_stock(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "serving_label": "6oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                    "in_stock": False,
+                },
+                {
+                    "id": "yogurt",
+                    "name": "Greek yogurt",
+                    "serving_label": "1 cup",
+                    "calories": 150,
+                    "protein_g": 20,
+                    "carbs_g": 8,
+                    "fat_g": 2,
+                    "in_stock": True,
+                },
+            ]
+        }
+        plan = generate_meal_plan(
+            inv,
+            {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        names = {i["name"] for i in plan["items"]}
+        self.assertNotIn("Chicken", names)
+        self.assertTrue(plan.get("in_stock_only"))
+        for it in plan["items"]:
+            self.assertTrue(it.get("in_stock", True))
+        for meal in plan["meals"]:
+            for it in meal["items"]:
+                self.assertNotEqual(it["name"], "Chicken")
+
     def test_plan_collapses_repeat_servings(self):
         from rt_dashboard.nutrition_planner import _collapse_plan_items
 

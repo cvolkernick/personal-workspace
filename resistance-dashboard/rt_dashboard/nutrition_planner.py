@@ -83,11 +83,28 @@ def normalize_ingredient(raw: dict) -> dict:
     }
 
 
+def is_in_stock(raw: dict) -> bool:
+    """True only when ingredient is actively marked in stock.
+
+    Missing key defaults to True for legacy rows; explicit false/0/\"false\"
+    are always out of stock.
+    """
+    if not isinstance(raw, dict):
+        return False
+    if "in_stock" not in raw:
+        return True
+    v = raw.get("in_stock")
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    return bool(v)
+
+
 def stocked_ingredients(inventory: dict) -> List[dict]:
+    """Return only ingredients currently marked in stock (for meal plans)."""
     return [
         normalize_ingredient(i)
         for i in inventory.get("ingredients") or []
-        if i.get("in_stock", True)
+        if is_in_stock(i)
     ]
 
 
@@ -207,7 +224,10 @@ def generate_meal_plan(
     """
     targets = normalize_targets(targets)
     rem = remaining_macros(targets, consumed)
+    # Meal plan MUST only use actively in-stock inventory (never out-of-stock).
     stocked = stocked_ingredients(inventory)
+    stocked_ids = {str(i.get("id") or "") for i in stocked}
+    stocked_names = {str(i.get("name") or "").strip().lower() for i in stocked}
     plan_items: List[dict] = []
     totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
     logged = list(food_logs_today or [])
@@ -219,10 +239,13 @@ def generate_meal_plan(
             "items": [],
             "planned_totals": totals,
             "remaining_after_plan": rem,
+            "remaining_before_plan": rem,
             "targets": targets,
             "consumed": consumed,
             "food_logs_today": logged,
-            "message": "No in-stock ingredients. Add items to inventory first.",
+            "stocked_count": 0,
+            "in_stock_only": True,
+            "message": "No in-stock ingredients. Mark items in stock (or add staples) first.",
         }
 
     # Soft calorie ceiling: don't exceed remaining + 10% or +80 kcal
@@ -289,6 +312,7 @@ def generate_meal_plan(
                 "protein_g": best["protein_g"],
                 "carbs_g": best["carbs_g"],
                 "fat_g": best["fat_g"],
+                "in_stock": True,
             }
         )
         pick_counts[str(best["id"])] = pick_counts.get(str(best["id"]), 0) + 1
@@ -296,6 +320,13 @@ def generate_meal_plan(
             totals[k] += float(best[k])
             rem[k] = round(max(0.0, rem[k] - float(best[k])), 1)
 
+    # Safety net: never surface an item that is not currently stocked
+    plan_items = [
+        it
+        for it in plan_items
+        if str(it.get("id") or "") in stocked_ids
+        or str(it.get("name") or "").strip().lower() in stocked_names
+    ]
     # Collapse repeated picks into one line with servings (e.g. 3× chicken)
     plan_items = _collapse_plan_items(plan_items)
     # Group into simple meal buckets
@@ -313,16 +344,19 @@ def generate_meal_plan(
         },
     )
 
-    msg = "Plan generated from remaining macros and in-stock ingredients."
+    msg = (
+        f"Plan from {len(stocked)} in-stock ingredient"
+        f"{'s' if len(stocked) != 1 else ''} only (out-of-stock excluded)."
+    )
     if logged:
-        msg = (
-            f"Plan uses {len(logged)} Google Health food log"
-            f"{'s' if len(logged) != 1 else ''} so far today + remaining macros."
+        msg += (
+            f" Uses {len(logged)} Google Health food log"
+            f"{'s' if len(logged) != 1 else ''} so far today for remaining macros."
         )
     if remaining_after["protein_g"] > 40:
-        msg += " Protein still short — add more high-protein items to inventory if needed."
+        msg += " Protein still short — restock high-protein items if needed."
     if remaining_after["calories"] > 300 and not plan_items:
-        msg = "Could not fit more servings without exceeding soft calorie ceiling."
+        msg = "Could not fit more servings without exceeding soft calorie ceiling (in-stock only)."
 
     return {
         "meals": meals,
@@ -333,6 +367,8 @@ def generate_meal_plan(
         "targets": targets,
         "consumed": consumed,
         "food_logs_today": logged,
+        "stocked_count": len(stocked),
+        "in_stock_only": True,
         "message": msg,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
     }

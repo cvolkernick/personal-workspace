@@ -160,6 +160,72 @@ button:disabled {
   font-size: 1.2rem;
 }
 
+/* Color-coded nutrition summary tiles (match Cal/P/C/F theme elsewhere) */
+#nutrition-stats .macro-stat {
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+#nutrition-stats .macro-stat.macro-cals {
+  border-left-color: #5ce1a8;
+  background: linear-gradient(
+    135deg,
+    rgba(92, 225, 168, 0.12),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-cals .label {
+  color: #9deed0;
+}
+#nutrition-stats .macro-stat.macro-cals .value {
+  color: #5ce1a8;
+}
+
+#nutrition-stats .macro-stat.macro-protein {
+  border-left-color: #3d9cf0;
+  background: linear-gradient(
+    135deg,
+    rgba(61, 156, 240, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-protein .label {
+  color: #8fc4f5;
+}
+#nutrition-stats .macro-stat.macro-protein .value {
+  color: #6db7f5;
+}
+
+#nutrition-stats .macro-stat.macro-carbs {
+  border-left-color: #f0b429;
+  background: linear-gradient(
+    135deg,
+    rgba(240, 180, 41, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-carbs .label {
+  color: #f0d080;
+}
+#nutrition-stats .macro-stat.macro-carbs .value {
+  color: #f0c14d;
+}
+
+#nutrition-stats .macro-stat.macro-fat {
+  border-left-color: #c084fc;
+  background: linear-gradient(
+    135deg,
+    rgba(192, 132, 252, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-fat .label {
+  color: #d8b4fe;
+}
+#nutrition-stats .macro-stat.macro-fat .value {
+  color: #d0a4ff;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
