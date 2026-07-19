@@ -188,7 +188,7 @@
     }
     .battery-shell {
       width: 100%;
-      max-width: 160px;
+      max-width: 220px;
       margin: 0 auto;
       border: 2px solid var(--border);
       border-radius: 14px;
@@ -208,7 +208,7 @@
       background: var(--border);
     }
     .battery-fill-wrap {
-      height: 88px;
+      height: 56px;
       border-radius: 10px;
       overflow: hidden;
       background: #0b0f14;
@@ -216,13 +216,16 @@
     }
     .battery-fill {
       position: absolute;
-      left: 0; right: 0; bottom: 0;
-      transition: height 0.4s ease, background 0.3s ease;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      transition: width 0.4s ease, background 0.3s ease;
     }
-    .battery-fill.critical { background: linear-gradient(180deg, #ff8a8a, #ff6b6b); }
-    .battery-fill.low { background: linear-gradient(180deg, #f5d76e, #f5c542); }
-    .battery-fill.ok { background: linear-gradient(180deg, #6ecf9a, #3dd68c); }
-    .battery-fill.full { background: linear-gradient(180deg, #7c9cff, #5b9fd4); }
+    .battery-fill.critical { background: linear-gradient(90deg, #ff6b6b, #ff8a8a); }
+    .battery-fill.low { background: linear-gradient(90deg, #f5c542, #f5d76e); }
+    .battery-fill.ok { background: linear-gradient(90deg, #3dd68c, #6ecf9a); }
+    .battery-fill.full { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
     .battery-label {
       position: absolute;
       inset: 0;
@@ -395,7 +398,7 @@
       <div class="battery-card">
         <div class="battery-shell" title="Hours asleep in the trailing 24h window">
           <div class="battery-fill-wrap">
-            <div class="battery-fill ok" id="battery-fill" style="height:0%"></div>
+            <div class="battery-fill ok" id="battery-fill" style="width:0%"></div>
             <div class="battery-label">
               <span class="big" id="battery-hours">—</span>
               <span class="sub" id="battery-target">/ 8h</span>
@@ -603,7 +606,7 @@
       if (!b) {
         $("battery-hours").textContent = "—";
         $("battery-summary").textContent = "No sleep battery data — Sync sleep from Google Health.";
-        $("battery-fill").style.height = "0%";
+        $("battery-fill").style.width = "0%";
         $("sleep-timeline").innerHTML = "";
         return;
       }
@@ -614,7 +617,8 @@
       $("battery-hours").textContent = `${h.toFixed(1)}h`;
       $("battery-target").textContent = `/ ${tgt}h`;
       const fill = $("battery-fill");
-      fill.style.height = `${pct}%`;
+      fill.style.width = `${pct}%`;
+      fill.style.height = "100%";
       fill.className = `battery-fill ${escapeAttr(level)}`;
       $("battery-stats").innerHTML = `
         <div class="stat"><div class="label">In window</div><div class="value">${h.toFixed(1)}h</div></div>
