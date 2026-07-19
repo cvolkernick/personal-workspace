@@ -5,6 +5,6 @@
   "entryway4": {"ip": "192.168.100.207", "mac": "6c29903d3195"},
   "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c"},
   "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6"},
-  "unassigned1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6"},
-  "unassigned2": {"ip": "192.168.100.203", "mac": "6c2990fe26e4"}
+  "masterbedroom1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6"},
+  "masterbedroom2": {"ip": "192.168.100.203", "mac": "6c2990fe26e4"}
 }
