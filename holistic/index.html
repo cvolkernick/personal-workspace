@@ -1206,6 +1206,43 @@
       }
     }
 
+    /** Pull sleep (+ walks) from Google Health, then render. Used on load and Sync button. */
+    async function syncHealthFromGoogle(opts) {
+      const quiet = !!(opts && opts.quiet);
+      try {
+        msg(quiet ? "Syncing sleep from Google Health…" : "Syncing sleep from Google Health…");
+        const state = await api("/api/health/sync", {
+          method: "POST",
+          body: JSON.stringify({ days: 14, overwrite: true }),
+        });
+        render(state);
+        const sync = state.sync || {};
+        const walks = (sync.walks || state.walk_sync || {});
+        const parts = [];
+        if (sync.imported || sync.intervals_imported) {
+          parts.push(
+            `${sync.imported || 0} night(s), ${sync.intervals_imported || 0} sleep interval(s)`
+          );
+        }
+        if (walks.fetched != null) {
+          parts.push(`${walks.fetched} walk(s), ${walks.new_pending || 0} new to review`);
+        }
+        if (parts.length) {
+          msg(`Synced from ${sync.source || "Google Health"}: ${parts.join(" · ")}`, "ok");
+        } else if (sync.error) {
+          msg(sync.error, "error");
+        } else {
+          msg("Google Health sync finished (no new samples)", quiet ? "" : "ok");
+        }
+        return state;
+      } catch (e) {
+        msg(String(e.message || e), "error");
+        // Still show last saved state if live sync fails
+        await refresh();
+        return null;
+      }
+    }
+
     $("btn-refresh").addEventListener("click", () => refresh());
     $("btn-walks").addEventListener("click", async () => {
       try {
@@ -1232,26 +1269,7 @@
         msg(String(e.message || e), "error");
       }
     });
-    $("btn-sync").addEventListener("click", async () => {
-      try {
-        const state = await api("/api/health/sync", {
-          method: "POST",
-          body: JSON.stringify({ days: 14, overwrite: true }),
-        });
-        const sync = state.sync || {};
-        if (sync.imported || sync.intervals_imported) {
-          msg(
-            `Synced ${sync.imported || 0} night total(s), ${sync.intervals_imported || 0} timed interval(s) from ${sync.source}`,
-            "ok"
-          );
-        } else {
-          msg(sync.error || "No sleep samples imported", "error");
-        }
-        render(state);
-      } catch (e) {
-        msg(String(e.message || e), "error");
-      }
-    });
+    $("btn-sync").addEventListener("click", () => syncHealthFromGoogle());
     $("btn-seed").addEventListener("click", async () => {
       if (!confirm("Replace targets with personal starter and clear ad-hoc items? Logs are cleared only if you re-seed from empty — this resets items/targets.")) return;
       try {
@@ -1319,9 +1337,9 @@
 
     const d = new Date();
     $("log-date").value = d.toISOString().slice(0, 10);
-    // First load: also pull latest Google walks for Duchess confirm/deny
-    refresh({ refreshWalks: true });
-    // Battery discharge + plan; walks rechecked less often via button / sleep sync
+    // First load: sync sleep (+ walks) from Google Health, then render
+    syncHealthFromGoogle({ quiet: true });
+    // Battery discharge + plan on a timer; full Google sleep sync is on load / Sync button
     setInterval(() => refresh(), 60 * 1000);
   </script>
 </body>
