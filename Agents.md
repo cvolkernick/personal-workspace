@@ -37,6 +37,42 @@
 - After completing a unit of work: `git_workflow.py sync` (or dashboard **Protect & push**).
 - Confirm local branch tracks remote after push (`git status -sb`). If remote moved, `git pull --rebase` then push.
 
+## Multi-dashboard / parallel work (worktrees)
+
+**Problem:** one monorepo checkout can only be on one branch. Editing Fitness while the
+main tree is on `work/holistic` or `work/orchestra` either lands commits on the wrong
+branch or serves **stale** `resistance-dashboard/` files.
+
+**Rule:** each domain has a dedicated worktree under
+`~/personal-workspace-worktrees/<area>/` on `work/<area>`.
+
+```bash
+# Create / refresh worktrees
+python3 projects-dashboard/worktrees.py ensure
+python3 projects-dashboard/worktrees.py list
+
+# Fitness path (use this for resistance edits & server)
+python3 projects-dashboard/worktrees.py path resistance-dashboard
+# → ~/personal-workspace-worktrees/resistance-dashboard
+```
+
+| Dashboard | Worktree dir | Branch |
+|-----------|--------------|--------|
+| Resistance / Fitness | `…/resistance-dashboard` | `work/resistance-dashboard` |
+| Holistic / Time | `…/holistic` | `work/holistic` |
+| Orchestra | `…/orchestra` | `work/orchestra` |
+| IoT | `…/iot` | `work/iot` |
+| Workflow | `…/projects-dashboard` | `work/projects-dashboard` |
+| Finance | `…/treasury` | `work/treasury` |
+
+- **Start scripts** (`resistance-dashboard/start.sh`, `holistic/start.command`, …) prefer
+  the matching worktree when it exists, so launchers keep working even if the main
+  checkout is on another branch.
+- **Agents:** before editing a domain, `cd` into that worktree (or
+  `git_workflow.py start <area>`). Never commit Fitness changes on `work/orchestra`
+  or `work/holistic`.
+- Env override: `PERSONAL_WORKSPACE_WORKTREES` (default `~/personal-workspace-worktrees`).
+
 ## Grok sessions vs git
 - Full session transcripts live under `~/.grok/sessions` (survive reboot; not for git).
 - Lightweight **session index** (IDs, titles, resume commands) → `ops/session-index/` via `session_backup.py` / sync.
