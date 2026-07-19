@@ -469,8 +469,8 @@
       ),
       45
     );
-    // Align calories chart x-axis with weight chart: full ~90-day civil span.
-    const calSpanDays = 90;
+    // Rolling 30d only — older Google Health burned totals were inflated.
+    const calSpanDays = 30;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -482,7 +482,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Prefer full series (not downsampled) so 90d axis is dense where data exists.
+    // Full series (not downsampled) mapped onto the 30d civil axis.
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -1327,7 +1327,7 @@
           "No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.";
       } else {
         $("nutrition-note").textContent =
-          `Nutrition days: ${n} · burned-calorie days: ${b} · green band = surplus (intake > burned), red = deficit`;
+          `Rolling 30d · nutrition days: ${n} · burned-calorie days: ${b} · green = surplus (intake > burned), red = deficit`;
       }
     }
 
