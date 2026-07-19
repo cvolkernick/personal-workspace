@@ -131,11 +131,17 @@
       "target_id": "sleep",
       "value": 6.03,
       "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-18",
+      "target_id": "sleep",
+      "value": 10.62,
+      "note": "synced from google_health"
     }
   ],
   "plan": {
-    "window_start": "2026-07-17T15:12:34-04:00",
-    "window_end": "2026-07-18T15:12:34-04:00",
+    "window_start": "2026-07-19T01:05:29-04:00",
+    "window_end": "2026-07-20T01:05:29-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -192,22 +198,14 @@
         "kind": "rolling_avg",
         "priority": 10,
         "on_track": false,
-        "summary": "6.80 hours avg over 7 day(s) (target \u2265 8)",
+        "summary": "7.18 hours avg over 6 day(s) (target \u2265 8)",
         "detail": {
           "window_days": 7,
           "target": 8.0,
           "unit": "hours",
-          "samples": 7,
-          "average": 6.8,
+          "samples": 6,
+          "average": 7.18,
           "days": [
-            {
-              "date": "2026-07-11",
-              "value": 8.83
-            },
-            {
-              "date": "2026-07-12",
-              "value": 6.3
-            },
             {
               "date": "2026-07-13",
               "value": 6.13
@@ -227,6 +225,10 @@
             {
               "date": "2026-07-17",
               "value": 6.03
+            },
+            {
+              "date": "2026-07-18",
+              "value": 10.62
             }
           ]
         }
@@ -269,5 +271,87 @@
         "detail": {}
       }
     ]
-  }
+  },
+  "sleep_intervals": [
+    {
+      "start": "2026-07-05T05:41:00+00:00",
+      "end": "2026-07-05T08:43:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-06T04:34:00+00:00",
+      "end": "2026-07-06T15:43:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-07T04:36:00+00:00",
+      "end": "2026-07-07T12:00:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-08T05:07:00+00:00",
+      "end": "2026-07-08T13:08:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-09T05:50:00+00:00",
+      "end": "2026-07-09T13:29:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-10T07:56:00+00:00",
+      "end": "2026-07-10T15:39:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-11T05:36:00+00:00",
+      "end": "2026-07-11T14:26:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-12T08:19:00+00:00",
+      "end": "2026-07-12T14:37:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-13T07:25:00+00:00",
+      "end": "2026-07-13T10:04:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-13T18:57:00+00:00",
+      "end": "2026-07-13T22:26:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-14T06:08:00+00:00",
+      "end": "2026-07-14T15:17:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-15T15:52:00+00:00",
+      "end": "2026-07-15T17:29:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-15T19:35:00+00:00",
+      "end": "2026-07-15T23:17:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-16T09:45:00+00:00",
+      "end": "2026-07-16T15:35:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-17T06:46:00+00:00",
+      "end": "2026-07-17T12:48:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-18T08:23:00+00:00",
+      "end": "2026-07-18T19:00:00+00:00",
+      "source": "google_health"
+    }
+  ]
 }

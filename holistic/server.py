@@ -54,6 +54,7 @@ from holistic.time_allocator.health_sync import (  # noqa: E402
     sync_sleep_logs,
 )
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
+from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
 from holistic.time_allocator.store import (  # noqa: E402
     load_state,
     resolve_data_path,
@@ -78,17 +79,20 @@ def state_payload() -> dict[str, Any]:
     total = sum(int(it.get("minutes") or 0) for it in items)
     plan = state.get("plan") or build_rolling_plan(state)
     suggestions = recommend_next(state, plan=plan)
+    sleep_battery = sleep_battery_for_state(state)
     return {
         "ok": True,
         "path": str(path),
         "items": items,
         "targets": targets,
         "logs": list(state.get("logs") or []),
+        "sleep_intervals": list(state.get("sleep_intervals") or []),
         "count": len(items),
         "total_minutes": total,
         "kpi_status": kpi_status(state),
         "plan": plan,
         "suggestions": suggestions,
+        "sleep_battery": sleep_battery,
         "health": health_credentials_status(),
     }
 

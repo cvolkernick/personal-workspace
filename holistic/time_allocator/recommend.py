@@ -6,6 +6,7 @@ from datetime import date, datetime, timezone
 from typing import Any
 
 from .domain import build_rolling_plan, kpi_status, list_items, normalize_state
+from .sleep_battery import sleep_battery_for_state
 
 
 def recommend_next(
@@ -72,46 +73,56 @@ def recommend_next(
             }
         )
 
-    # 2) KPI gaps not already covered (e.g. sleep logging)
+    # 2) Sleep battery (rolling 24h hours asleep) + 7d KPI
+    battery = sleep_battery_for_state(state, now=now)
+    asleep = float(battery.get("asleep_hours") or 0)
+    target_h = float(battery.get("target_hours") or 8)
+    if battery.get("data_source") == "none" or (
+        battery.get("interval_count_stored", 0) == 0 and battery.get("data_source") != "daily_log_approx"
+    ):
+        suggestions.append(
+            {
+                "id": "sleep-log",
+                "title": "Sync sleep intervals (Google Health)",
+                "reason": "No timed sleep data for the rolling 24h battery",
+                "priority": 10,
+                "minutes": 2,
+                "role": "meta",
+                "source": "kpi",
+                "urgency": "high",
+            }
+        )
+    elif asleep < target_h * 0.75:
+        suggestions.append(
+            {
+                "id": "sleep-protect",
+                "title": "Protect sleep — battery low",
+                "reason": (
+                    f"Only {asleep:.1f}h asleep in the last 24h "
+                    f"(target {target_h:g}h). Older sleep falls off the window as time passes."
+                ),
+                "priority": 10,
+                "minutes": int(max(0, (target_h - asleep) * 60)),
+                "role": "reserve",
+                "source": "sleep_battery",
+                "urgency": "high",
+            }
+        )
+
     sleep = kpis.get("sleep")
-    if sleep is not None:
-        samples = int((sleep.get("detail") or {}).get("samples") or 0)
-        on_track = sleep.get("on_track")
-        if samples == 0:
-            suggestions.append(
-                {
-                    "id": "sleep-log",
-                    "title": "Sync or log last night's sleep",
-                    "reason": "No sleep samples in the rolling window — KPI is blind without data",
-                    "priority": 10,
-                    "minutes": 2,
-                    "role": "meta",
-                    "source": "kpi",
-                    "urgency": "high",
-                }
-            )
-        elif on_track is False:
-            suggestions.append(
-                {
-                    "id": "sleep-protect",
-                    "title": "Protect tonight's sleep window",
-                    "reason": sleep.get("summary") or "Rolling sleep average is below target",
-                    "priority": 10,
-                    "minutes": int(
-                        next(
-                            (
-                                b.get("minutes")
-                                for b in plan_blocks
-                                if b.get("id") == "sleep"
-                            ),
-                            480,
-                        )
-                    ),
-                    "role": "reserve",
-                    "source": "kpi",
-                    "urgency": "high",
-                }
-            )
+    if sleep is not None and sleep.get("on_track") is False and asleep >= target_h * 0.75:
+        suggestions.append(
+            {
+                "id": "sleep-7d",
+                "title": "Rebuild 7-day sleep average",
+                "reason": sleep.get("summary") or "Rolling 7-day average still below target",
+                "priority": 9,
+                "minutes": 480,
+                "role": "reserve",
+                "source": "kpi",
+                "urgency": "medium",
+            }
+        )
 
     # 3) Fill work as fallback (only if nothing higher still open)
     fill_blocks = [b for b in plan_blocks if b.get("role") == "fill" and int(b.get("minutes") or 0) > 0]
