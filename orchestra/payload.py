@@ -11,12 +11,14 @@ try:
     from .collectors import collect_all_domains
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
+    from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
     from attention import compute_freshness, synthesize_attention
     from collectors import collect_all_domains
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
+    from recommendations import synthesize_recommendations
     from synergies import detect_synergies
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
@@ -174,6 +176,17 @@ def build_orchestra_payload(
         synergies=synergies,
     )
 
+    recommendations = synthesize_recommendations(
+        domains=domains,
+        priorities=priorities,
+        attention=attention,
+        synergies=synergies,
+        bridge=bridge,
+        freshness=freshness,
+    )
+    # Primary operator-facing action list (recommendations.items)
+    recommended_actions = list(recommendations.get("items") or [])
+
     links = []
     for spec in DOMAIN_SPECS:
         d = by_id.get(spec["id"]) or {}
@@ -198,17 +211,22 @@ def build_orchestra_payload(
         "service": "orchestra",
         "name": "Orchestrator",
         "purpose": (
-            "Top-level orchestration across strategy, workflow, finance, fitness, "
-            "time-allocation, and IoT/home — surfaces overlaps, synergies, and coordinated priorities."
+            "Automates holistic multi-domain analysis and synthesizes recommended next actions "
+            "from strategy, workflow, finance, fitness, time-allocation, and IoT — integrating "
+            "synergies, attention/hygiene, and priorities without manual triage."
         ),
         "generated_at": generated_at.isoformat(),
         "workspace": str(ws),
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
+        # Primary synthesized output for operators / agents
+        "recommendations": recommendations,
+        "recommended_actions": recommended_actions,
+        # Intermediate streams (detail / debug; UI demotes vs recommendations)
         "synergies": synergies,
         "priorities": priorities,
-        "action_plan": priorities,  # alias for UI / verification
+        "action_plan": recommended_actions,  # primary plan alias → recommended actions
         "attention": attention,
         "freshness": freshness,
         "bridge": bridge,
@@ -218,6 +236,7 @@ def build_orchestra_payload(
             "synergies": len(synergies),
             "synergies_high": high_synergies,
             "priorities": len(priorities),
+            "recommendations": len(recommended_actions),
             "initiatives": len(initiatives),
             "today_items": len(today_items),
             "bridge_candidates": len(bridge_candidates),
@@ -230,6 +249,13 @@ def build_orchestra_payload(
             "url": ORCHESTRA_URL,
             "probe_ports": probe_ports,
             "stale_hours": stale_hours,
+            "primary_output": "recommendations",
+            "streams": {
+                "recommendations": "Merged automated next actions (primary)",
+                "priorities": "Raw priority synthesis (input to recommendations)",
+                "attention": "Hygiene/attention digest (input to recommendations)",
+                "synergies": "Cross-domain links (input; high preferred, medium fallback)",
+            },
             "subordinate_ports": {
                 "financial-command": 8000,
                 "projects-dashboard": 8765,

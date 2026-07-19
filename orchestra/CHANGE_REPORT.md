@@ -1,11 +1,30 @@
-# Orchestra change report — attention + freshness enhancements
+# Orchestra change report — attention, freshness, automated recommendations
 
-**Date:** 2026-07-18  
-**Review:** [`REVIEW.md`](./REVIEW.md) (recommendations R1–R3)
+**Date:** 2026-07-18 (updated)  
+**Review:** [`REVIEW.md`](./REVIEW.md) (recommendations R1–R3 + automated action synthesis)
 
 ---
 
 ## What changed
+
+### 0. Automated recommended next actions (primary product surface)
+
+| Piece | Change |
+|-------|--------|
+| **New** `orchestra/recommendations.py` | `synthesize_recommendations` merges attention + high/medium synergies + priorities + bridge |
+| **`payload.py`** | `recommendations`, `recommended_actions`; `action_plan` now aliases **recommended actions** (not raw priorities); `meta.primary_output` |
+| **`server.py`** | `GET /api/recommendations` (+ `/api/actions`, `/api/next`) |
+| **`index.html`** | Hero briefing + **Recommended next actions**; supporting streams collapsed under details |
+
+**How it works:** On every payload build, Orchestra automatically:
+
+1. Surfaces **hygiene** first when needed (stale data, missing domains, finance stress, empty/overloaded today)
+2. Converts **high-strength synergies** into concrete coordinate actions
+3. Folds **priorities** in, boosted when they share domains with high synergies
+4. If **no high synergies** → mode `fallback_medium`: promotes medium synergies + top priorities with an explicit deferred note
+5. Fills with **day-bridge** candidates or **thin_data** seeding steps if still sparse
+
+Operators see a single ranked list with `action`, `why`, `urgency`, `kind`, and `sources` — no manual “is this high?” triage.
 
 ### 1. Operator attention digest (R1)
 
