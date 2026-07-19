@@ -101,6 +101,18 @@
       "fat_g": 0.0,
       "in_stock": true,
       "notes": ""
+    },
+    {
+      "id": "boneless-skinless-chicken-breast",
+      "name": "Boneless skinless chicken breast",
+      "category": "protein",
+      "serving_label": "1 logged serving (avg)",
+      "calories": 347.9,
+      "protein_g": 64.5,
+      "carbs_g": 0.0,
+      "fat_g": 6.1,
+      "in_stock": true,
+      "notes": ""
     }
   ]
 }
