@@ -89,6 +89,18 @@
       "carbs_g": 27,
       "fat_g": 3,
       "in_stock": true
+    },
+    {
+      "id": "men-s-vitamins-natural-berry-flavor",
+      "name": "Men's Vitamins, Natural Berry Flavor",
+      "category": "carb",
+      "serving_label": "1 logged serving (avg)",
+      "calories": 15.0,
+      "protein_g": 0.0,
+      "carbs_g": 4.0,
+      "fat_g": 0.0,
+      "in_stock": true,
+      "notes": ""
     }
   ]
 }
