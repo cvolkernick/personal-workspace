@@ -60,6 +60,10 @@ from holistic.time_allocator.health_sync import (  # noqa: E402
     health_credentials_status,
     sync_sleep_logs,
 )
+from holistic.time_allocator.actual import (  # noqa: E402
+    allocation_delta,
+    build_actual_allocation,
+)
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
 from holistic.time_allocator.store import (  # noqa: E402
@@ -91,7 +95,12 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     items = list_items(state)
     targets = list_targets(state)
     total = sum(int(it.get("minutes") or 0) for it in items)
+    # Remaining work plan (drives next actions)
     plan = state.get("plan") or build_rolling_plan(state)
+    # Full recommended split (ignores progress) for planned pie
+    plan_recommended = build_rolling_plan(state, ignore_progress=True)
+    actual = build_actual_allocation(state)
+    delta = allocation_delta(plan_recommended, actual)
     suggestions = recommend_next(state, plan=plan)
     sleep_battery = sleep_battery_for_state(state)
     walk_candidates = pending_walk_candidates(state, days=2)
@@ -108,6 +117,9 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "total_minutes": total,
         "kpi_status": kpi_status(state),
         "plan": plan,
+        "plan_recommended": plan_recommended,
+        "actual": actual,
+        "allocation_delta": delta,
         "suggestions": suggestions,
         "sleep_battery": sleep_battery,
         "health": health_credentials_status(),

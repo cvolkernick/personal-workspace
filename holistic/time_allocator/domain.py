@@ -729,6 +729,7 @@ def build_rolling_plan(
     now: datetime | None = None,
     window_minutes: int = 24 * 60,
     as_of: date | None = None,
+    ignore_progress: bool = False,
 ) -> dict[str, Any]:
     """Build a rolling window plan from targets + ad-hoc items.
 
@@ -738,6 +739,9 @@ def build_rolling_plan(
       3. weekly_frequency sessions if behind min_days (by priority)
       4. ad-hoc items with minutes > 0 (by priority); else estimate 30 if priority high
       5. fill_remainder gets everything left in *active* time (window − sleep reserve)
+
+    ignore_progress=True builds the *recommended* full split (no reductions for
+    minutes already logged). Default False = remaining work still open.
     """
     state = normalize_state(state)
     if now is None:
@@ -805,13 +809,13 @@ def build_rolling_plan(
         min_m = int(t.get("minutes_min") if t.get("minutes_min") is not None else plan_m)
         max_m = int(t.get("minutes_max") if t.get("minutes_max") is not None else plan_m)
         logs = logs_for_target(state, str(t["id"]), since=today, until=today)
-        done = int(sum(float(lg.get("value") or 0) for lg in logs))
+        done = 0 if ignore_progress else int(sum(float(lg.get("value") or 0) for lg in logs))
         # Plan remaining toward the default plan amount; min is the "done enough" bar
-        need = max(0, plan_m - done)
-        if done >= min_m and need <= 0:
+        need = plan_m if ignore_progress else max(0, plan_m - done)
+        if not ignore_progress and done >= min_m and need <= 0:
             notes.append(f"{t.get('title')}: already logged {done} min today (target {min_m}–{max_m})")
             continue
-        if done >= min_m and need > 0:
+        if not ignore_progress and done >= min_m and need > 0:
             # Optional stretch toward plan/max — still schedule remaining plan minutes lightly
             pass
         if need <= 0:
@@ -851,17 +855,16 @@ def build_rolling_plan(
         logs = logs_for_target(state, str(t["id"]), since=since, until=today)
         days_done = {str(lg.get("date")) for lg in logs if float(lg.get("value") or 0) > 0}
         n = len(days_done)
-        already_today = today.isoformat() in days_done
-        # Include if behind min and not already logged today; skip if at/above max
-        include = (n < min_d and not already_today) or (
-            n < max_d and not already_today and n < min_d
-        )
-        # Cleaner: include when n < min_d and not today; if on track (min<=n<=max) still optional — include only if behind
+        already_today = False if ignore_progress else (today.isoformat() in days_done)
+        # Include when behind min and not already logged today (or full recommended day)
         include = n < min_d and not already_today
+        if ignore_progress:
+            # Recommended day always budgets one session if under weekly max
+            include = n < max_d
         if already_today:
             notes.append(f"{t.get('title')}: already logged today ({n} days this week)")
             continue
-        if n >= max_d:
+        if n >= max_d and not ignore_progress:
             notes.append(f"{t.get('title')}: at max {max_d} days — no session planned")
             continue
         if not include and n >= min_d:
@@ -890,7 +893,13 @@ def build_rolling_plan(
         mins = max(0, int(it.get("minutes") or 0))
         done_m = int(it.get("done_minutes") or 0)
         soft = False
-        if mins <= 0:
+        if ignore_progress:
+            # Recommended = remaining + already done
+            mins = mins + done_m
+            if mins <= 0:
+                mins = 30
+                soft = True
+        elif mins <= 0:
             if done_m > 0:
                 notes.append(f"Ad-hoc “{it.get('title')}”: complete ({done_m}m logged, 0 remaining)")
                 continue
@@ -924,7 +933,11 @@ def build_rolling_plan(
     if fillers and remaining_active > 0:
         primary = fillers[0]
         fill_logs = logs_for_target(state, str(primary["id"]), since=today, until=today)
-        done_fill = int(sum(float(lg.get("value") or 0) for lg in fill_logs))
+        done_fill = (
+            0
+            if ignore_progress
+            else int(sum(float(lg.get("value") or 0) for lg in fill_logs))
+        )
         fill_left = max(0, remaining_active - done_fill)
         if done_fill > 0:
             notes.append(
@@ -965,6 +978,8 @@ def build_rolling_plan(
         "unallocated_active_minutes": remaining_active,
         "notes": notes,
         "kpi_status": kpis,
+        "ignore_progress": bool(ignore_progress),
+        "mode": "recommended" if ignore_progress else "remaining",
     }
 
 

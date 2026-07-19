@@ -134,6 +134,12 @@
     },
     {
       "date": "2026-07-18",
+      "target_id": "duchess-walk",
+      "value": 19.0,
+      "note": "confirmed Google walk 2026-07-19T02:59:26+00:00"
+    },
+    {
+      "date": "2026-07-18",
       "target_id": "sleep",
       "value": 10.62,
       "note": "synced from google_health"
@@ -146,8 +152,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-19T01:16:37-04:00",
-    "window_end": "2026-07-20T01:16:37-04:00",
+    "window_start": "2026-07-19T05:43:55-04:00",
+    "window_end": "2026-07-20T05:43:55-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -373,8 +379,9 @@
       "source": "google_health",
       "local_date": "2026-07-18",
       "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/8113320760079236392",
-      "status": "pending",
-      "target_hint": "duchess-walk"
+      "status": "confirmed_duchess",
+      "target_hint": "duchess-walk",
+      "reviewed_at": "2026-07-19T05:43:55-04:00"
     },
     {
       "id": "ex-2768807484503510341",

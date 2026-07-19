@@ -276,6 +276,25 @@
       border-top: 1px solid #1e2a36;
     }
     .walk-ask .walk-item:first-of-type { border-top: none; }
+    .dual-charts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-top: 0.75rem;
+    }
+    @media (max-width: 800px) {
+      .dual-charts { grid-template-columns: 1fr; }
+    }
+    .chart-col h3 {
+      margin: 0 0 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+    .chart-col .subhead { color: var(--muted); font-size: 0.82rem; margin: 0 0 0.65rem; }
+    .delta-pos { color: var(--yellow); }
+    .delta-neg { color: var(--green); }
+    .delta-zero { color: var(--muted); }
+    .role.unaccounted { color: #8aa0b5; border-color: #2a3540; }
   </style>
 </head>
 <body>
@@ -327,10 +346,27 @@
       <h2>Rolling 24h allocation</h2>
       <div class="window-range" id="window-range"></div>
       <div class="stats" id="plan-stats"></div>
-      <div class="chart-wrap">
-        <canvas id="pie" width="260" height="260" aria-label="24h allocation pie chart"></canvas>
-        <ul class="legend" id="pie-legend"></ul>
+      <div class="dual-charts">
+        <div class="chart-col">
+          <h3>Recommended</h3>
+          <p class="subhead">Suggested full split of the next 24h (ignores progress already logged)</p>
+          <div class="chart-wrap">
+            <canvas id="pie-planned" width="240" height="240" aria-label="Recommended 24h allocation"></canvas>
+            <ul class="legend" id="legend-planned"></ul>
+          </div>
+        </div>
+        <div class="chart-col">
+          <h3>Actual (logged)</h3>
+          <p class="subhead">What you’ve already spent in the trailing 24h window</p>
+          <div class="chart-wrap">
+            <canvas id="pie-actual" width="240" height="240" aria-label="Actual 24h allocation"></canvas>
+            <ul class="legend" id="legend-actual"></ul>
+          </div>
+        </div>
       </div>
+      <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em">Delta · plan − actual</h3>
+      <p class="path" style="margin:0 0 0.5rem">Positive = under plan (room to add). Negative = over plan for that bucket.</p>
+      <div id="delta-table"></div>
       <div id="plan-table" style="margin-top:0.75rem"></div>
       <ul class="notes" id="plan-notes"></ul>
       <p class="msg" id="status-msg"></p>
@@ -387,6 +423,7 @@
       adhoc: "#5b9fd4",
       fill: "#7c9cff",
       meta: "#3dd68c",
+      unaccounted: "#3a4552",
     };
     const msg = (text, kind) => {
       const el = $("status-msg");
@@ -429,15 +466,16 @@
       return `<span class="pill na">n/a</span>`;
     }
 
-    function drawPie(blocks) {
-      const canvas = $("pie");
+    function drawPie(blocks, canvasId, legendId, centerLabel) {
+      const canvas = $(canvasId);
+      const legend = $(legendId);
+      if (!canvas || !legend) return;
       const ctx = canvas.getContext("2d");
       const w = canvas.width, h = canvas.height;
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.42;
       const total = (blocks || []).reduce((s, b) => s + (Number(b.minutes) || 0), 0) || 1;
       let angle = -Math.PI / 2;
-      const legend = $("pie-legend");
       legend.innerHTML = "";
       if (!(blocks || []).length) {
         ctx.beginPath();
@@ -457,7 +495,6 @@
         ctx.closePath();
         ctx.fillStyle = color;
         ctx.fill();
-        // subtle stroke
         ctx.strokeStyle = "#0b0f14";
         ctx.lineWidth = 2;
         ctx.stroke();
@@ -466,20 +503,19 @@
         legend.innerHTML += `<li>
           <span class="swatch" style="background:${color}"></span>
           <span><strong>${escapeHtml(b.title)}</strong>
-            <span class="path"> · ${mins}m (${pct}%) · ${escapeHtml(b.role)}</span>
+            <span class="path"> · ${mins}m (${pct}%) · ${escapeHtml(b.role || "")}</span>
           </span>
         </li>`;
       });
-      // donut hole
       ctx.beginPath();
       ctx.arc(cx, cy, r * 0.52, 0, Math.PI * 2);
       ctx.fillStyle = "#121a22";
       ctx.fill();
       ctx.fillStyle = "#e7eef5";
-      ctx.font = "600 14px system-ui,sans-serif";
+      ctx.font = "600 13px system-ui,sans-serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillText("24h", cx, cy - 8);
+      ctx.fillText(centerLabel || "24h", cx, cy - 8);
       ctx.fillStyle = "#8aa0b5";
       ctx.font = "12px system-ui,sans-serif";
       ctx.fillText(hours(total), cx, cy + 10);
@@ -577,7 +613,10 @@
               method: "POST",
               body: JSON.stringify({ id, decision: "confirm" }),
             });
-            msg(`Logged Duchess walk — plan updated`, "ok");
+            // Server logs the Google activity's duration (minutes field on that walk)
+            const mins = row.querySelector("strong");
+            const label = mins ? mins.textContent : "walk minutes";
+            msg(`Yes — logged ${label} to Walk Duchess from that Google activity · plan & actual updated`, "ok");
             render(state);
           } catch (e) {
             msg(String(e.message || e), "error");
@@ -703,40 +742,83 @@
       bindWalkReviewButtons(wrap);
     }
 
-    function renderPlan(plan) {
-      if (!plan) {
+    function renderPlan(state) {
+      const planned = state.plan_recommended || state.plan;
+      const actual = state.actual;
+      const remaining = state.plan;
+      const delta = state.allocation_delta || [];
+
+      if (!planned) {
         $("plan-stats").innerHTML = "";
         $("plan-table").innerHTML = `<p class="empty">No plan yet.</p>`;
         $("plan-notes").innerHTML = "";
         $("window-range").textContent = "";
-        drawPie([]);
+        $("delta-table").innerHTML = "";
+        drawPie([], "pie-planned", "legend-planned", "Plan");
+        drawPie([], "pie-actual", "legend-actual", "Actual");
         return;
       }
-      const blocks = plan.blocks || [];
+      const pBlocks = planned.blocks || [];
+      const aBlocks = (actual && actual.blocks) || [];
       $("window-range").textContent =
-        `${fmtWhen(plan.window_start)} → ${fmtWhen(plan.window_end)}`;
+        `${fmtWhen(planned.window_start)} → ${fmtWhen(planned.window_end)}`;
+      const logged = (actual && actual.total_logged_minutes) || 0;
       $("plan-stats").innerHTML = `
-        <div class="stat"><div class="label">Window</div><div class="value">${hours(plan.window_minutes)}</div></div>
-        <div class="stat"><div class="label">Sleep reserve</div><div class="value">${hours(plan.sleep_reserve_minutes)}</div></div>
-        <div class="stat"><div class="label">Active</div><div class="value">${hours(plan.active_minutes)}</div></div>
-        <div class="stat"><div class="label">Blocks</div><div class="value">${blocks.length}</div></div>
+        <div class="stat"><div class="label">Window</div><div class="value">${hours(planned.window_minutes)}</div></div>
+        <div class="stat"><div class="label">Sleep reserve</div><div class="value">${hours(planned.sleep_reserve_minutes)}</div></div>
+        <div class="stat"><div class="label">Logged (actual)</div><div class="value">${hours(logged)}</div></div>
+        <div class="stat"><div class="label">Unaccounted</div><div class="value">${hours((actual && actual.unaccounted_minutes) || 0)}</div></div>
       `;
-      drawPie(blocks);
-      const w = Math.max(plan.window_minutes || 1, 1);
-      if (!blocks.length) {
-        $("plan-table").innerHTML = `<p class="empty">Empty plan — seed targets or rebuild.</p>`;
+      drawPie(pBlocks, "pie-planned", "legend-planned", "Plan");
+      drawPie(aBlocks, "pie-actual", "legend-actual", "Actual");
+
+      // Delta table
+      if (!delta.length) {
+        $("delta-table").innerHTML = `<p class="empty">No delta yet.</p>`;
       } else {
-        $("plan-table").innerHTML = `
+        $("delta-table").innerHTML = `
           <table>
             <thead><tr>
-              <th>Block</th><th>Role</th><th>Min</th><th>% of 24h</th>
+              <th>Bucket</th><th>Recommended</th><th>Actual</th><th>Gap (plan−actual)</th>
             </tr></thead>
             <tbody>
-              ${blocks.map((b) => {
+              ${delta.map((r) => {
+                const d = Number(r.delta_minutes) || 0;
+                const cls = d > 0 ? "delta-pos" : (d < 0 ? "delta-neg" : "delta-zero");
+                const hint = d > 0 ? "under — can allocate more" : (d < 0 ? "over plan" : "on plan");
+                return `<tr>
+                  <td><strong>${escapeHtml(r.title)}</strong>
+                    <div class="path">${escapeHtml(r.id)} · ${escapeHtml(r.role || "")}</div>
+                  </td>
+                  <td>${r.planned_minutes}m <span class="path">(${hours(r.planned_minutes)})</span></td>
+                  <td>${r.actual_minutes}m <span class="path">(${hours(r.actual_minutes)})</span></td>
+                  <td class="${cls}"><strong>${d > 0 ? "+" : ""}${d}m</strong>
+                    <div class="path">${hint}</div>
+                  </td>
+                </tr>`;
+              }).join("")}
+            </tbody>
+          </table>`;
+      }
+
+      // Remaining open work (next-actions feed)
+      const remBlocks = (remaining && remaining.blocks) || [];
+      const w = Math.max((planned.window_minutes) || 1, 1);
+      if (!remBlocks.length) {
+        $("plan-table").innerHTML = `<p class="empty" style="margin-top:0.5rem">No remaining open blocks — day targets met or empty plan.</p>`;
+      } else {
+        $("plan-table").innerHTML = `
+          <h3 style="margin:1rem 0 0.5rem;font-size:0.95rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.04em">Still open (remaining)</h3>
+          <table>
+            <thead><tr>
+              <th>Block</th><th>Role</th><th>Min left</th><th>% of 24h</th>
+            </tr></thead>
+            <tbody>
+              ${remBlocks.map((b) => {
                 const pct = Math.round(((Number(b.minutes) || 0) / w) * 100);
                 return `<tr>
                   <td><strong>${escapeHtml(b.title)}</strong>
-                    <div class="path">${escapeHtml(b.source)}:${escapeHtml(b.id)}${b.reason ? " · " + escapeHtml(b.reason) : ""}${b.soft_estimate ? " · soft estimate" : ""}${b.minutes_min != null ? ` · target ${b.minutes_min}–${b.minutes_max}m` : ""}</div>
+                    <div class="path">${escapeHtml(b.source || "")}:${escapeHtml(b.id)}${b.done_today != null ? ` · ${b.done_today}m done` : ""}</div>
                   </td>
                   <td><span class="role ${escapeAttr(b.role)}">${escapeHtml(b.role)}</span></td>
                   <td>${b.minutes} <span class="path">(${hours(b.minutes)})</span></td>
@@ -746,7 +828,11 @@
             </tbody>
           </table>`;
       }
-      $("plan-notes").innerHTML = (plan.notes || []).map((n) => `<li>${escapeHtml(n)}</li>`).join("");
+      const notes = [
+        ...((planned.notes) || []),
+        ...((actual && actual.notes) || []),
+      ];
+      $("plan-notes").innerHTML = notes.map((n) => `<li>${escapeHtml(n)}</li>`).join("");
     }
 
     function renderKpis(state) {
@@ -923,7 +1009,7 @@
         (h.detail ? ` · ${h.detail}` : "");
       renderSleepBattery(state.sleep_battery);
       renderSuggestions(state.suggestions || [], state.walk_candidates || []);
-      renderPlan(state.plan);
+      renderPlan(state);
       renderKpis(state);
       renderItems(state);
     }
