@@ -47,6 +47,7 @@ from scheduler import (  # noqa: E402
     complete_job,
     install_cron,
     load_config,
+    run_autonomous_loop,
     save_config,
     scheduler_payload,
     set_auto_start,
@@ -62,6 +63,11 @@ DEFAULT_PORT = 8765
 class ProjectsHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
+
+    def end_headers(self) -> None:  # type: ignore[override]
+        # Avoid stale index.html hiding Auto-start / scheduler controls
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        super().end_headers()
 
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("[projects] " + (fmt % args) + "\n")
@@ -108,7 +114,22 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 "true",
                 "yes",
             )
+            # Skip autonomous groom/queue when explicitly disabled (tests / raw reads)
+            auto_loop = (qs.get("auto_loop") or ["1"])[0] not in (
+                "0",
+                "false",
+                "no",
+            )
             try:
+                loop_meta: dict = {"ok": True, "ran": False}
+                if auto_loop:
+                    try:
+                        loop_meta = run_autonomous_loop(
+                            groom=True, queue=True, min_groom_interval_sec=45
+                        )
+                        loop_meta["ran"] = True
+                    except Exception as le:
+                        loop_meta = {"ok": False, "ran": True, "error": str(le)}
                 payload = collect_workspace_dashboard(only_touched=only_touched)
                 payload["backlog"] = backlog_payload(
                     include_done=(qs.get("backlog_all") or ["0"])[0]
@@ -126,6 +147,7 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     payload["scheduler"] = scheduler_payload()
                 except Exception as se:
                     payload["scheduler"] = {"ok": False, "error": str(se)}
+                payload["auto_loop"] = loop_meta
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
@@ -287,6 +309,15 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 self._json(200 if result.get("ok") else 400, result)
                 return
 
+            if path == "/api/scheduler/auto-loop":
+                result = run_autonomous_loop(
+                    groom=bool(body.get("groom", True)),
+                    queue=bool(body.get("queue", True)),
+                    min_groom_interval_sec=int(body.get("min_groom_interval_sec") or 0),
+                )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
             if path == "/api/scheduler/config":
                 cfg = load_config()
                 for k, v in body.items():
@@ -298,6 +329,7 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                         "eligible_statuses",
                         "eligible_slots",
                         "require_auto_start",
+                        "auto_queue_scheduled",
                         "spawn_grok",
                         "backend",
                     ):

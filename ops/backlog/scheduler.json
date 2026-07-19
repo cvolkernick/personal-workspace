@@ -13,14 +13,15 @@
     "this_week"
   ],
   "require_auto_start": true,
+  "auto_queue_scheduled": true,
   "spawn_grok": true,
   "install_marker": "projects-dashboard-scheduler",
-  "last_tick_at": "2026-07-19T21:15:00.413785+00:00",
+  "last_tick_at": "2026-07-19T21:30:00.500322+00:00",
   "last_tick_result": {
     "launched_count": 0,
     "errors": 0,
     "reconciled": 0
   },
-  "updated_at": "2026-07-19T21:15:00.414792+00:00",
+  "updated_at": "2026-07-19T21:30:00.501509+00:00",
   "cron_installed_at": "2026-07-19T21:07:04.507269+00:00"
 }

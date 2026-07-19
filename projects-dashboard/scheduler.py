@@ -42,7 +42,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "max_concurrent": 1,
     "eligible_statuses": ["ready"],
     "eligible_slots": ["now", "this_week"],
+    # When true, only items with auto_start=true are kicked off.
+    # auto_queue_scheduled sets that flag for ready+scheduled items after groom.
     "require_auto_start": True,
+    "auto_queue_scheduled": True,
     "spawn_grok": True,
     "install_marker": "projects-dashboard-scheduler",
     "last_tick_at": None,
@@ -148,11 +151,89 @@ def set_auto_start(backlog_id: str, enabled: bool = True) -> dict[str, Any]:
     found["auto_start"] = bool(enabled)
     found["auto_start_set_at"] = _now()
     found["updated_at"] = _now()
-    if enabled and (found.get("status") or "") == "idea":
-        # Auto-start implies approved for kickoff; keep idea→ready signal for ranking
-        found["status"] = "ready"
+    if enabled:
+        found["auto_start_source"] = "manual"
+        if (found.get("status") or "") == "idea":
+            # Auto-start implies approved for kickoff; keep idea→ready signal for ranking
+            found["status"] = "ready"
+    else:
+        found.pop("auto_start_source", None)
     save_backlog(data)
     return {"ok": True, "item": found, "auto_start": bool(enabled)}
+
+
+def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
+    """Queue ready + now/this_week items for the next scheduler tick.
+
+    Part of the autonomous loop: after groom schedules work, mark it
+    auto_start so cron (or Run tick) can initiate without a manual click.
+    """
+    cfg = load_config()
+    if not cfg.get("enabled") and not force:
+        return {
+            "ok": True,
+            "queued": [],
+            "count": 0,
+            "skipped": True,
+            "reason": "scheduler disabled",
+        }
+    if not cfg.get("auto_queue_scheduled", True) and not force:
+        return {
+            "ok": True,
+            "queued": [],
+            "count": 0,
+            "skipped": True,
+            "reason": "auto_queue_scheduled disabled",
+        }
+
+    slots = {str(s).lower() for s in (cfg.get("eligible_slots") or ["now", "this_week"])}
+    statuses = {str(s).lower() for s in (cfg.get("eligible_statuses") or ["ready"])}
+    queued: list[dict[str, Any]] = []
+    data = load_backlog()
+    dirty = False
+    for it in data.get("items") or []:
+        st = (it.get("status") or "idea").lower()
+        if st in ("planning", "active", "done", "parked"):
+            continue
+        if st not in statuses:
+            continue
+        slot = (it.get("schedule_slot") or "later").lower()
+        rank = it.get("press_rank") or 99
+        try:
+            rank = int(rank)
+        except (TypeError, ValueError):
+            rank = 99
+        if slot not in slots and not (rank <= 2 and "now" in slots):
+            continue
+        if it.get("auto_start"):
+            continue
+        it["auto_start"] = True
+        it["auto_start_set_at"] = _now()
+        it["auto_start_source"] = "auto-queue"
+        it["updated_at"] = _now()
+        dirty = True
+        queued.append(
+            {
+                "id": it.get("id"),
+                "title": it.get("title"),
+                "status": it.get("status"),
+                "schedule_slot": it.get("schedule_slot"),
+                "press_rank": it.get("press_rank"),
+            }
+        )
+    if dirty:
+        save_backlog(data)
+    return {
+        "ok": True,
+        "queued": queued,
+        "count": len(queued),
+        "skipped": False,
+        "message": (
+            f"Auto-queued {len(queued)} scheduled item(s) for kickoff"
+            if queued
+            else "No new items to auto-queue"
+        ),
+    }
 
 
 def _active_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -519,6 +600,64 @@ def complete_job(
     return {"ok": True, "job": job, "report": report}
 
 
+def run_autonomous_loop(
+    *,
+    groom: bool = True,
+    queue: bool = True,
+    min_groom_interval_sec: int = 45,
+) -> dict[str, Any]:
+    """Groom backlog and auto-queue scheduled ready work (dashboard load / cron pre-step).
+
+    Does not kick off jobs — that remains ``tick()`` / cron so load stays cheap.
+    """
+    from datetime import datetime, timezone
+
+    from backlog_groom import groom_backlog
+
+    out: dict[str, Any] = {
+        "ok": True,
+        "groomed": False,
+        "groom": None,
+        "queue": None,
+    }
+    if groom:
+        data = load_backlog()
+        last = data.get("last_groomed_at")
+        do_groom = True
+        if last and min_groom_interval_sec > 0:
+            try:
+                ts = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+                age = (datetime.now(timezone.utc) - ts).total_seconds()
+                if age < min_groom_interval_sec:
+                    do_groom = False
+                    out["groom_skipped"] = True
+                    out["groom_skip_reason"] = f"groomed {int(age)}s ago"
+            except (TypeError, ValueError):
+                pass
+        if do_groom:
+            g = groom_backlog(apply=True)
+            out["groomed"] = True
+            out["groom"] = {
+                "ok": g.get("ok"),
+                "message": g.get("message"),
+                "count": g.get("count"),
+                "changes": len(g.get("changes") or []),
+                "groomed_at": g.get("groomed_at"),
+            }
+    if queue:
+        out["queue"] = auto_queue_scheduled()
+    parts = []
+    if out.get("groom") and out["groom"].get("message"):
+        parts.append(out["groom"]["message"])
+    elif out.get("groom_skipped"):
+        parts.append("Groom skipped (recent)")
+    q = out.get("queue") or {}
+    if q.get("count"):
+        parts.append(q.get("message") or f"Queued {q['count']}")
+    out["message"] = " · ".join(parts) if parts else "Autonomous loop idle"
+    return out
+
+
 def scheduler_payload() -> dict[str, Any]:
     cfg = load_config()
     jobs_data = load_jobs()
@@ -527,7 +666,8 @@ def scheduler_payload() -> dict[str, Any]:
         jobs, key=lambda j: j.get("created_at") or "", reverse=True
     )
     cron = cron_status()
-    eligible = _eligible_items(cfg, jobs) if cfg.get("enabled") else []
+    # Eligible uses auto_start + schedule filters; list for UI even when disabled.
+    eligible = _eligible_items(cfg, jobs)
     # also list auto_start items even if disabled for UI
     auto_items = [
         {
@@ -537,6 +677,7 @@ def scheduler_payload() -> dict[str, Any]:
             "schedule_slot": it.get("schedule_slot"),
             "press_rank": it.get("press_rank"),
             "auto_start": True,
+            "auto_start_source": it.get("auto_start_source"),
         }
         for it in list_items(include_done=False, ranked=True)
         if it.get("auto_start")
@@ -565,7 +706,8 @@ def scheduler_payload() -> dict[str, Any]:
             "reports": str(REPORTS_DIR.relative_to(WORKSPACE_ROOT)),
         },
         "note": (
-            "Local cron ticks call initiate-goal for items with Auto-start enabled "
-            "that match schedule/status filters. Later: same store on Raspberry Pi."
+            "Autonomous loop: dashboard load grooms + auto-queues ready items in "
+            "now/this_week; cron (or Run tick) initiates goals and writes status reports. "
+            "Later: same store on Raspberry Pi."
         ),
     }

@@ -220,6 +220,52 @@
     .legend-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
     .view-toggle { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .view-toggle button.active { border-color: var(--accent); color: var(--accent); }
+    .local-toast {
+      display: none;
+      position: sticky;
+      top: 0.5rem;
+      z-index: 30;
+      margin: 0 0 0.65rem;
+      padding: 0.7rem 0.95rem;
+      border-radius: 10px;
+      border: 1px solid #245c42;
+      background: #0f2419;
+      color: var(--green);
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+    .local-toast.show { display: block; }
+    .local-toast.err {
+      border-color: #6b2e2e;
+      background: #2a1515;
+      color: var(--red);
+    }
+    button.btn-accent {
+      border-color: #245c42;
+      color: var(--green);
+      background: #0f2419;
+    }
+    button.btn-accent:hover { border-color: var(--green); color: var(--green); }
+    button.btn-accent.on {
+      background: #163526;
+      box-shadow: 0 0 0 1px rgba(61,214,140,0.35);
+    }
+    button.btn-kick {
+      border-color: #2a4a66;
+      color: var(--accent);
+      background: #121c28;
+    }
+    .card-actions {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem;
+      padding-top: 0.45rem; border-top: 1px solid var(--border);
+      align-items: center;
+    }
+    .card-actions .actions-label {
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--muted); font-weight: 700; margin-right: 0.15rem;
+    }
+    .pill.auto-on { color: var(--green); border-color: #245c42; background: #0f2419; }
   </style>
 </head>
 <body>
@@ -245,8 +291,10 @@
     <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
     <div id="strategy-focus"></div>
+    <div id="sched-toast" class="local-toast" role="status"></div>
     <div id="scheduler"></div>
     <div id="recommendations"></div>
+    <div id="bl-toast" class="local-toast" role="status"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
     <div id="resume"></div>
@@ -447,7 +495,7 @@
           <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
         </div>`;
 
-      // Auto-start scheduler + action status reports
+      // Autonomous work loop: groom → queue → tick → reports
       const sched = data.scheduler || {};
       const scfg = sched.config || {};
       const scron = sched.cron || {};
@@ -455,43 +503,47 @@
       const sreports = sched.reports || [];
       const seligible = sched.eligible || [];
       const sauto = sched.auto_start_items || [];
+      const loop = data.auto_loop || {};
       $("scheduler").innerHTML = `
-        <div class="section-title">Auto-start scheduler <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· local cron → initiate goal</span></div>
+        <div class="section-title">Autonomous work loop <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· enter → groom → schedule → kickoff → report</span></div>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
             <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
-              ${esc(sched.note || "")}
-              Queue items with <strong>Auto-start</strong> on a backlog card (status ready + schedule now/this week).
-              Cron ticks call <code>initiate goal</code> and write status reports.
+              On every dashboard load the backlog is <strong>auto-groomed</strong> (rank + schedule) and
+              <strong>ready</strong> items in <strong>now / this week</strong> are <strong>auto-queued</strong> for kickoff.
+              Cron (or <strong>Run tick now</strong>) runs <code>initiate goal</code> and writes status reports.
+              Override per card with <strong>Auto-start</strong> / Unqueue below.
               <br/><span class="id">Backend: ${esc(scfg.backend || "local")} · cron ${scron.installed ? "installed" : "not installed"} · scheduler ${scfg.enabled ? "enabled" : "disabled"}
-              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}</span>
+              · auto-queue ${scfg.auto_queue_scheduled !== false ? "on" : "off"}
+              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}
+              ${loop.message ? ` · load: ${esc(loop.message)}` : ""}</span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
-              <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable" : "Enable"}</button>
+              <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
               <button type="button" id="btn-sched-cron">${scron.installed ? "Remove cron" : "Install cron"}</button>
-              <button type="button" id="btn-sched-tick">Run tick now</button>
+              <button type="button" id="btn-sched-tick" class="btn-kick" title="Kick off next eligible queued job now">Run tick now</button>
             </div>
           </div>
           <div class="detail" style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem">
-            Schedule: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
+            Cron: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
             · max ${esc(scfg.max_per_tick ?? 1)}/tick · concurrent ${esc(scfg.max_concurrent ?? 1)}
             · slots: ${(scfg.eligible_slots || []).map((s) => esc(s)).join(", ") || "now, this_week"}
-            · ${sauto.length} auto-start · ${seligible.length} eligible now
+            · ${sauto.length} queued · ${seligible.length} eligible for next tick
           </div>
           ${sauto.length ? `
-            <h3 style="margin:0.35rem 0;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for auto-start</h3>
+            <h3 style="margin:0.35rem 0;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for kickoff</h3>
             ${sauto.map((a) => `
               <div class="sess">
-                <div><span class="pill active">auto</span></div>
+                <div><span class="pill auto-on">auto</span></div>
                 <div>
                   <div class="title">${esc(a.title)}</div>
-                  <div class="id">#${esc(a.press_rank || "—")} · ${esc(a.schedule_slot || "")} · ${esc(a.status)}</div>
+                  <div class="id">#${esc(a.press_rank || "—")} · ${esc(a.schedule_slot || "")} · ${esc(a.status)}${a.auto_start_source ? ` · ${esc(a.auto_start_source)}` : ""}</div>
                 </div>
                 <div><button type="button" class="btn-bl-auto-off" data-id="${esc(a.id)}">Unqueue</button></div>
               </div>`).join("")}
-          ` : `<div class="empty" style="padding:0.65rem">No auto-start items — enable Auto-start on a backlog card.</div>`}
+          ` : `<div class="empty" style="padding:0.65rem">Nothing queued yet — add backlog items, wait for auto-groom, or press Auto-start on a card.</div>`}
           <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
-          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet.</div>` :
+          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet — enable loop + Run tick now (or wait for cron).</div>` :
             sjobs.slice(0, 8).map((j) => `
               <div class="sess">
                 <div><span class="pill ${j.status === "completed" ? "clean" : j.status === "failed" ? "dirty" : "session"}">${esc(j.status)}</span></div>
@@ -506,7 +558,7 @@
                 </div>
               </div>`).join("")}
           <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Status reports</h3>
-          ${!sreports.length ? `<div class="empty" style="padding:0.55rem">No reports yet — run a tick after queueing work.</div>` :
+          ${!sreports.length ? `<div class="empty" style="padding:0.55rem">No reports yet — after a tick, action status lands here.</div>` :
             sreports.slice(0, 8).map((r) => `
               <div class="sess">
                 <div><span class="pill ${r.status === "completed" ? "clean" : r.status === "failed" ? "dirty" : "branch"}">${esc(r.status)}</span></div>
@@ -673,6 +725,7 @@
               <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
                 <span class="pill pri-${pri}">${esc(it.priority || "medium")}</span>
                 <span class="pill ${it.status === "planning" || it.status === "active" ? "active" : "muted"}">${esc(it.status)}</span>
+                ${it.auto_start ? `<span class="pill auto-on">auto-start</span>` : ""}
                 ${it.area ? `<span class="pill branch">${esc(it.area)}</span>` : ""}
                 ${it.score != null ? `<span class="pill muted">score ${esc(it.score)}</span>` : ""}
               </div>
@@ -697,10 +750,11 @@
                 </div>
               </div>
             ` : ""}
-            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
+            <div class="card-actions">
+              <span class="actions-label">Actions</span>
+              <button type="button" class="btn-bl-auto ${it.auto_start ? "btn-accent on" : "btn-accent"}" data-id="${esc(it.id)}" title="Queue or unqueue for autonomous kickoff (cron / Run tick)">${it.auto_start ? "★ Auto-start: ON" : "★ Auto-start"}</button>
+              <button type="button" class="btn-bl-initiate btn-kick" data-id="${esc(it.id)}" title="Start Grok planning + MVP now (manual)">Initiate goal now</button>
               <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
-              <button type="button" class="btn-bl-auto" data-id="${esc(it.id)}" title="Queue for cron auto-start (initiate goal)">${it.auto_start ? "Auto-start: ON" : "Auto-start"}</button>
-              <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}" title="Start Grok planning + MVP from current fields (works from idea)">Initiate goal</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
               <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
@@ -738,19 +792,20 @@
       }
 
       $("backlog").innerHTML = `
-        <div class="section-title">Backlog (groom · prioritize · schedule)</div>
+        <div class="section-title">Backlog <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· auto-groomed on load · ★ Auto-start queues kickoff</span></div>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
             <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:40rem">
-              Flow: <strong>idea</strong> → <strong>Edit / expand</strong> (clarify MVP &amp; notes) →
-              <strong>Initiate goal</strong> (starts Grok planning + MVP). No separate “mark ready” step.
-              <strong>Groom</strong> only re-ranks/schedules; it does not start work.
+              Enter work below (or via recommendations). On load it is <strong>auto-groomed</strong> into press order + schedule bands
+              (Do now / This week / …). Ready items in active slots are <strong>auto-queued</strong> for the autonomous loop.
+              Per card: <strong>★ Auto-start</strong> force-queue / unqueue · <strong>Initiate goal now</strong> starts immediately.
               ${bl.last_groomed_at ? `<br/><span class="id">Last groom ${esc(fmtWhen(bl.last_groomed_at))}</span>` : ""}
               <div class="legend-row">
                 <span class="pill pri-critical">critical</span>
                 <span class="pill pri-high">high</span>
                 <span class="pill pri-medium">medium</span>
                 <span class="pill pri-low">low</span>
+                <span class="pill auto-on">auto-start</span>
               </div>
             </div>
             <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-end">
@@ -759,7 +814,10 @@
                 <button type="button" id="btn-bl-view-schedule" class="${blView === "schedule" ? "active" : ""}">Schedule</button>
                 <button type="button" id="btn-bl-view-priority" class="${blView === "priority" ? "active" : ""}">Priority</button>
               </div>
-              <button type="button" id="btn-bl-groom" title="Auto score, rank, schedule, hygiene">Groom backlog</button>
+              <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
+                <button type="button" id="btn-bl-groom" title="Force re-score, rank, schedule">Groom now</button>
+                <button type="button" id="btn-sched-tick-bl" class="btn-kick" title="Same as Run tick now">Run tick now</button>
+              </div>
             </div>
           </div>
           <div style="display:grid;gap:0.45rem;margin-bottom:0.85rem">
@@ -873,6 +931,54 @@
     }
 
     let dataCache = null;
+    /** Sticky toast near backlog/scheduler so status is visible while scrolled. */
+    window.__localToast = null; // { zone: 'backlog'|'scheduler'|'top', msg, err? }
+
+    function toastZoneForUrl(url) {
+      if (!url) return "top";
+      if (url.includes("/api/scheduler") || url.includes("/api/backlog/initiate")) return "scheduler";
+      if (url.includes("/api/backlog") || url.includes("/api/recommendations")) return "backlog";
+      return "top";
+    }
+
+    function setLocalToast(zone, msg, isErr) {
+      window.__localToast = { zone: zone || "backlog", msg: String(msg || ""), err: !!isErr, at: Date.now() };
+    }
+
+    function applyLocalToast() {
+      const t = window.__localToast;
+      ["bl-toast", "sched-toast"].forEach((id) => {
+        const el = $(id);
+        if (!el) return;
+        el.classList.remove("show", "err");
+        el.textContent = "";
+      });
+      if ($("action-msg")) {
+        $("action-msg").classList.remove("show");
+        $("action-msg").textContent = "";
+      }
+      if (!t || !t.msg) return;
+      if (t.zone === "top") {
+        if ($("action-msg")) {
+          $("action-msg").textContent = t.msg;
+          $("action-msg").classList.add("show");
+          if (t.err) {
+            $("err").textContent = t.msg;
+            $("err").classList.add("show");
+          }
+        }
+        return;
+      }
+      const el = t.zone === "scheduler" ? $("sched-toast") : $("bl-toast");
+      if (!el) return;
+      el.textContent = t.msg;
+      el.classList.add("show");
+      if (t.err) el.classList.add("err");
+      try {
+        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (_) { /* ignore */ }
+    }
+
     async function load() {
       const btn = $("btn-refresh");
       btn.disabled = true;
@@ -885,6 +991,14 @@
         if (!data.ok) throw new Error(data.error || "API error");
         dataCache = data;
         render(data);
+        // Surface auto-loop result on first paint if no fresher action toast
+        const loop = data.auto_loop || {};
+        if (loop.message && (!window.__localToast || !window.__localToast.msg || (Date.now() - (window.__localToast.at || 0)) > 8000)) {
+          if (loop.groomed || (loop.queue && loop.queue.count) || loop.error) {
+            setLocalToast("backlog", loop.error ? `Auto-loop: ${loop.error}` : loop.message, !!loop.error);
+          }
+        }
+        applyLocalToast();
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
@@ -896,6 +1010,7 @@
     async function postAction(url, body) {
       $("action-msg").classList.remove("show");
       $("err").classList.remove("show");
+      const zone = toastZoneForUrl(url);
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -941,10 +1056,10 @@
             (data.skipped ? " (scheduler disabled — used force)" : "");
         }
         if (data.installed != null && data.line) {
-          msg = data.installed ? `Cron installed: ${data.line}` : "Cron removed";
+          msg = data.installed ? `Cron installed` : "Cron removed";
         }
         if (data.auto_start != null) {
-          msg = data.auto_start ? "Auto-start enabled for item" : "Auto-start cleared";
+          msg = data.auto_start ? `★ Auto-start ON: ${data.item && data.item.title ? data.item.title : "item"}` : "Auto-start cleared";
         }
         if (data.job && data.report) {
           msg = `Job ${data.job.status}: ${data.report.summary || ""}`;
@@ -952,10 +1067,14 @@
         if (data.committed) {
           msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
         }
-        $("action-msg").textContent = msg;
-        $("action-msg").classList.add("show");
+        if (data.queue && data.groomed != null) {
+          msg = data.message || "Autonomous loop ran";
+        }
+        setLocalToast(zone, msg, false);
         await load();
       } catch (e) {
+        setLocalToast(zone, e.message, true);
+        applyLocalToast();
         $("err").textContent = e.message;
         $("err").classList.add("show");
       }
@@ -1007,8 +1126,7 @@
         return;
       }
       if (t.id === "btn-sched-enable") {
-        const en = !((dataCache && dataCache.scheduler && dataCache.scheduler.config && dataCache.scheduler.config.enabled));
-        // toggle based on button label
+        // toggle based on button label ("Enable loop" / "Disable loop")
         const label = (t.textContent || "").toLowerCase();
         const enable = label.includes("enable");
         await postAction("/api/scheduler/config", { enabled: enable });
@@ -1020,7 +1138,7 @@
         else await postAction("/api/scheduler/install-cron", {});
         return;
       }
-      if (t.id === "btn-sched-tick") {
+      if (t.id === "btn-sched-tick" || t.id === "btn-sched-tick-bl") {
         await postAction("/api/scheduler/tick", { force: true });
         return;
       }

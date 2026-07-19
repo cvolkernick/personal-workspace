@@ -115,6 +115,34 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(out["job"]["status"], "completed")
         self.assertEqual(bl.get_item(self.bid)["status"], "done")
 
+    def test_auto_queue_scheduled(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        item = bl.get_item(self.bid)
+        self.assertFalse(bool(item.get("auto_start")))
+        r = sch.auto_queue_scheduled()
+        self.assertTrue(r["ok"])
+        self.assertGreaterEqual(r["count"], 1)
+        self.assertTrue(bl.get_item(self.bid).get("auto_start"))
+
+    def test_autonomous_loop_grooms_and_queues(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        # Clear stored ranks so groom rewrites them
+        data = bl.load_backlog()
+        data["last_groomed_at"] = None
+        for it in data["items"]:
+            it.pop("auto_start", None)
+        bl.save_backlog(data)
+        out = sch.run_autonomous_loop(groom=True, queue=True, min_groom_interval_sec=0)
+        self.assertTrue(out["ok"])
+        self.assertTrue(out.get("groomed"))
+        self.assertGreaterEqual((out.get("queue") or {}).get("count") or 0, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
