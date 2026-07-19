@@ -496,12 +496,16 @@
 
     function renderDevices() {
       setText("stat-count", String(devices.length));
-      let online = 0, offline = 0;
+      let online = 0;
+      let onCount = 0;
       for (const d of devices) {
-        if (d.status && d.status.ok) { online++; if (d.status.on) onCount++; }
+        if (d.status && d.status.ok) {
+          online++;
+          if (d.status.on) onCount++;
+        }
       }
-      setText("stat-online", `${online}/${devices.length}`);
-      setText("devices-hint", onCount ? `${onCount} on` : "grouped by room");
+      setText("stat-online", online + "/" + devices.length);
+      setText("devices-hint", onCount ? (onCount + " on") : "grouped by room");
 
       const root = document.getElementById("devices-by-room");
       if (!root) return;
