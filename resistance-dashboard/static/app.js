@@ -46,16 +46,57 @@
     return "needs-rest";
   }
 
+  /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
+  const ALERT_TTL = { ok: 5000, warn: 8000, err: 12000 };
+
   function showAlert(msg, kind = "warn") {
     const box = $("alerts");
+    if (!box) return;
     const el = document.createElement("div");
     el.className = `alert ${kind}`;
-    el.textContent = msg;
+    el.setAttribute("role", kind === "err" ? "alert" : "status");
+
+    const text = document.createElement("span");
+    text.className = "alert-text";
+    text.textContent = msg;
+
+    const dismiss = document.createElement("button");
+    dismiss.type = "button";
+    dismiss.className = "alert-dismiss";
+    dismiss.setAttribute("aria-label", "Dismiss");
+    dismiss.textContent = "✕";
+    dismiss.addEventListener("click", () => {
+      el.remove();
+      if (el._ttlTimer) clearTimeout(el._ttlTimer);
+    });
+
+    el.appendChild(text);
+    el.appendChild(dismiss);
     box.appendChild(el);
+
+    // Cap stack so runaway actions don't bury the page
+    while (box.children.length > 5) {
+      const first = box.firstElementChild;
+      if (first && first._ttlTimer) clearTimeout(first._ttlTimer);
+      first.remove();
+    }
+
+    const ttl = ALERT_TTL[kind] != null ? ALERT_TTL[kind] : ALERT_TTL.warn;
+    if (ttl > 0) {
+      el._ttlTimer = setTimeout(() => {
+        el.classList.add("alert-fade");
+        setTimeout(() => el.remove(), 320);
+      }, ttl);
+    }
   }
 
   function clearAlerts() {
-    $("alerts").innerHTML = "";
+    const box = $("alerts");
+    if (!box) return;
+    Array.from(box.children).forEach((el) => {
+      if (el._ttlTimer) clearTimeout(el._ttlTimer);
+    });
+    box.innerHTML = "";
   }
 
   function addSetRow(setsWrap, prefill = {}) {
@@ -300,18 +341,27 @@
     }
     const tabs = $("exercise-tabs");
     tabs.innerHTML = "";
-    exercises.slice(0, 8).forEach((name) => {
+    // Show full top-exercise list (backend ranks by session frequency).
+    // Previously capped at 8, which hid e.g. Tricep Pushdowns (#9–10).
+    exercises.forEach((name) => {
       const b = document.createElement("button");
       b.type = "button";
       b.textContent = name;
       if (name === selectedExercise) b.classList.add("active");
       b.addEventListener("click", () => {
         selectedExercise = name;
+        tabs.querySelectorAll("button").forEach((btn) => {
+          btn.classList.toggle("active", btn.textContent === selectedExercise);
+        });
         renderStrength(data);
-        renderCharts(data);
       });
       tabs.appendChild(b);
     });
+    if ($("strength-trend-note")) {
+      $("strength-trend-note").textContent = exercises.length
+        ? `${exercises.length} exercises ranked by log frequency — pick a tab to view trend`
+        : "No exercises with strength history yet.";
+    }
     renderStrength(data);
 
     const weights = downsamplePoints(
@@ -1539,25 +1589,46 @@
       return;
     }
     const meals = plan.meals || [];
-    let html = `<p class="muted">${plan.message || ""}</p>`;
-    html += `<p><strong>Planned add</strong>: ${fmtNum(plan.planned_totals?.calories)} kcal ·
-      P${fmtNum(plan.planned_totals?.protein_g)} C${fmtNum(plan.planned_totals?.carbs_g)} F${fmtNum(plan.planned_totals?.fat_g)}</p>`;
-    html += `<p class="muted">After plan remaining: ${fmtNum(plan.remaining_after_plan?.calories)} kcal ·
-      P${fmtNum(plan.remaining_after_plan?.protein_g)}</p>`;
+    const pt = plan.planned_totals || {};
+    const ra = plan.remaining_after_plan || {};
+    let html = `<div class="meal-plan-panel">`;
+    html += `<p class="muted" style="margin:0 0 0.65rem">${plan.message || ""}</p>`;
+    html += `<div class="meal-plan-totals">
+      <div class="meal-plan-totals-label">Planned add</div>
+      ${invMacroStrip(pt)}
+    </div>`;
+    html += `<div class="meal-plan-totals remaining">
+      <div class="meal-plan-totals-label">After plan remaining</div>
+      ${invMacroStrip(ra)}
+    </div>`;
     if (!meals.length) {
       html += `<p class="muted">No items planned.</p>`;
     } else {
       meals.forEach((m) => {
-        html += `<div style="margin-top:0.6rem;border-top:1px solid var(--border);padding-top:0.5rem">
-          <div class="title">${m.label}</div>
-          <div class="meta">${fmtNum(m.totals?.calories)} kcal · P${fmtNum(m.totals?.protein_g)}</div>
-          <ul style="margin:0.3rem 0 0;padding-left:1.1rem">`;
+        html += `<div class="meal-bucket">
+          <div class="meal-bucket-head">
+            <div class="title">${m.label}</div>
+            ${invMacroStrip(m.totals || {})}
+          </div>
+          <ul class="meal-item-list">`;
         (m.items || []).forEach((it) => {
-          html += `<li>${it.name} · ${it.serving_label} · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
+          const n = Number(it.servings) || 1;
+          const serve =
+            n > 1
+              ? `${n} × ${it.serving_label || "serving"}`
+              : it.serving_label || "1 serving";
+          html += `<li class="meal-item">
+            <div class="meal-item-name">${it.name}${
+            n > 1 ? ` <span class="meal-servings-badge">×${n}</span>` : ""
+          }</div>
+            <div class="meal-item-meta muted">${serve}</div>
+            ${invMacroStrip(it)}
+          </li>`;
         });
         html += `</ul></div>`;
       });
     }
+    html += `</div>`;
     box.innerHTML = html;
   }
 

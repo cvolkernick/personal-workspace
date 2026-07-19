@@ -262,6 +262,10 @@ def generate_meal_plan(
             iname = str(ing.get("name") or "").strip().lower()
             if iname and any(iname in ln or ln in iname for ln in logged_names if ln):
                 sc *= 0.85
+            # Stronger diversify vs items already in *this* plan
+            already = pick_counts.get(iid, 0)
+            if already >= 1:
+                sc *= 0.55 ** already
             if sc > 0:
                 candidates.append((sc, ing))
         if not candidates:
@@ -292,6 +296,8 @@ def generate_meal_plan(
             totals[k] += float(best[k])
             rem[k] = round(max(0.0, rem[k] - float(best[k])), 1)
 
+    # Collapse repeated picks into one line with servings (e.g. 3× chicken)
+    plan_items = _collapse_plan_items(plan_items)
     # Group into simple meal buckets
     meals = _bucket_meals(plan_items)
     for k in totals:
@@ -332,11 +338,49 @@ def generate_meal_plan(
     }
 
 
+def _collapse_plan_items(items: List[dict]) -> List[dict]:
+    """Merge identical ingredient picks into a single row with servings count."""
+    if not items:
+        return []
+    order: List[str] = []
+    by_key: Dict[str, dict] = {}
+    for it in items:
+        key = str(it.get("id") or it.get("name") or "").lower()
+        if not key:
+            key = f"anon-{len(by_key)}"
+        if key not in by_key:
+            row = {
+                "id": it.get("id"),
+                "name": it.get("name"),
+                "servings": int(it.get("servings") or 1),
+                "serving_label": it.get("serving_label") or "1 serving",
+                "calories": float(it.get("calories") or 0),
+                "protein_g": float(it.get("protein_g") or 0),
+                "carbs_g": float(it.get("carbs_g") or 0),
+                "fat_g": float(it.get("fat_g") or 0),
+            }
+            by_key[key] = row
+            order.append(key)
+        else:
+            row = by_key[key]
+            add_n = int(it.get("servings") or 1)
+            row["servings"] = int(row.get("servings") or 0) + add_n
+            for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+                row[k] = round(float(row[k]) + float(it.get(k) or 0), 1)
+    out = []
+    for key in order:
+        row = by_key[key]
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            row[k] = round(float(row[k]), 1)
+        out.append(row)
+    return out
+
+
 def _bucket_meals(items: List[dict]) -> List[dict]:
     if not items:
         return []
     labels = ["Next meal", "Later meal", "Evening", "Optional snack"]
-    # split into chunks of ~3 items
+    # Split by ~3 distinct items; multi-serving rows already collapsed
     meals = []
     chunk = 3
     for i in range(0, len(items), chunk):

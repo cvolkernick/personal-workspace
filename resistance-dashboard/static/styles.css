@@ -366,10 +366,45 @@ textarea {
 }
 
 .alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
   border-radius: 10px;
   padding: 0.7rem 0.85rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.55rem;
   font-size: 0.9rem;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.alert-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.alert-dismiss {
+  flex-shrink: 0;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+.alert-dismiss:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.alert.alert-fade {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .alert.warn {
@@ -390,6 +425,81 @@ textarea {
   color: #9deed0;
 }
 
+/* Meal plan — same Cal/P/C/F color language as inventory & targets */
+.meal-plan-panel {
+  margin-top: 0.25rem;
+}
+
+.meal-plan-totals {
+  margin-bottom: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.meal-plan-totals.remaining {
+  opacity: 0.92;
+}
+
+.meal-plan-totals-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  font-weight: 650;
+}
+
+.meal-bucket {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.meal-bucket-head .title {
+  font-weight: 650;
+  margin-bottom: 0.35rem;
+}
+
+.meal-item-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.meal-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(15, 20, 25, 0.35);
+}
+
+.meal-item-name {
+  font-weight: 650;
+  font-size: 0.95rem;
+}
+
+.meal-servings-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(61, 156, 240, 0.18);
+  color: #6db7f5;
+  vertical-align: middle;
+}
+
+.meal-item-meta {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -406,16 +516,19 @@ footer {
   gap: 0.4rem;
   flex-wrap: wrap;
   margin-bottom: 0.75rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
 }
 
 .tabs button {
-  font-size: 0.85rem;
-  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
 }
 
 .tabs button.active {
   border-color: var(--accent);
   background: rgba(61, 156, 240, 0.15);
+  color: var(--accent);
 }
 
 /* Ask Grok */

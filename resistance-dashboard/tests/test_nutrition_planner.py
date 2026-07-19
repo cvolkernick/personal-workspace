@@ -120,6 +120,48 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertEqual(consumed["source"], "food_logs")
         self.assertEqual(consumed["food_log_count"], 2)
 
+    def test_plan_collapses_repeat_servings(self):
+        from rt_dashboard.nutrition_planner import _collapse_plan_items
+
+        collapsed = _collapse_plan_items(
+            [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "servings": 1,
+                    "serving_label": "6 oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                },
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "servings": 1,
+                    "serving_label": "6 oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                },
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "servings": 1,
+                    "serving_label": "6 oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                },
+            ]
+        )
+        self.assertEqual(len(collapsed), 1)
+        self.assertEqual(collapsed[0]["servings"], 3)
+        self.assertEqual(collapsed[0]["protein_g"], 156.0)
+        self.assertEqual(collapsed[0]["calories"], 840.0)
+
     def test_generate_plan_fills_protein_from_stock(self):
         inv = {
             "ingredients": [

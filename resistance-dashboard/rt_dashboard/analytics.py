@@ -202,7 +202,8 @@ def recent_training_volume(
     return total
 
 
-def top_exercises(sessions: Sequence[Session], limit: int = 12) -> List[str]:
+def top_exercises(sessions: Sequence[Session], limit: int = 30) -> List[str]:
+    """Rank exercises by how often they appear in sessions (most logged first)."""
     counts: Dict[str, int] = defaultdict(int)
     for s in sessions:
         for e in s.exercises:
@@ -215,8 +216,10 @@ def dashboard_payload(sessions: Sequence[Session]) -> Dict[str, Any]:
     from .test_noise import filter_sessions, is_test_exercise_name
 
     clean = filter_sessions(sessions)
+    # Default 30 so secondary lifts (e.g. Tricep Pushdowns) are not dropped
+    # before the UI can show them; UI previously also sliced to 8.
     exercises = [
-        n for n in top_exercises(clean) if not is_test_exercise_name(n)
+        n for n in top_exercises(clean, limit=30) if not is_test_exercise_name(n)
     ]
     trends = {name: strength_trend(clean, name) for name in exercises}
     slopes = {
