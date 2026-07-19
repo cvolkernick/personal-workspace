@@ -62,6 +62,57 @@ def _run(
         return 1, "", str(e)
 
 
+def list_worktrees(repo: Path = WORKSPACE_ROOT) -> list[dict[str, str]]:
+    """Return [{path, branch, bare}] from ``git worktree list --porcelain``."""
+    repo = Path(repo).resolve()
+    code, out, _ = _run(repo, "worktree", "list", "--porcelain")
+    if code != 0 or not out:
+        return []
+    trees: list[dict[str, str]] = []
+    cur: dict[str, str] = {}
+    for line in out.splitlines():
+        if not line.strip():
+            if cur.get("path"):
+                trees.append(cur)
+            cur = {}
+            continue
+        if line.startswith("worktree "):
+            cur = {"path": line[len("worktree ") :].strip()}
+        elif line.startswith("branch "):
+            ref = line[len("branch ") :].strip()
+            if ref.startswith("refs/heads/"):
+                cur["branch"] = ref[len("refs/heads/") :]
+            else:
+                cur["branch"] = ref
+        elif line == "bare":
+            cur["bare"] = "1"
+        elif line.startswith("detached"):
+            cur["branch"] = cur.get("branch") or "(detached)"
+    if cur.get("path"):
+        trees.append(cur)
+    return trees
+
+
+def branch_worktree_path(repo: Path, branch: str) -> Optional[str]:
+    """If *branch* is checked out in another worktree, return that path; else None."""
+    repo = Path(repo).resolve()
+    want = (branch or "").strip()
+    if not want:
+        return None
+    for wt in list_worktrees(repo):
+        b = (wt.get("branch") or "").strip()
+        p = (wt.get("path") or "").strip()
+        if not b or not p:
+            continue
+        try:
+            elsewhere = Path(p).resolve() != repo
+        except OSError:
+            elsewhere = True
+        if b == want and elsewhere:
+            return p
+    return None
+
+
 def branch_name_for_area(area: str) -> str:
     area = re.sub(r"[^a-zA-Z0-9._-]+", "-", area.strip()).strip("-").lower()
     # Resolve TLD aliases (financial-command → treasury, fitness → resistance-dashboard)
@@ -218,8 +269,29 @@ def start_work(
     branch = branch_name_for_area(area)
     code, _existing, _ = _run(repo, "rev-parse", "--verify", branch)
     if code == 0:
+        elsewhere = branch_worktree_path(repo, branch)
+        if elsewhere:
+            return {
+                "ok": False,
+                "error": (
+                    f"Branch {branch} is already checked out in worktree "
+                    f"{elsewhere}. Stay on the current branch or run protect "
+                    f"from that worktree."
+                ),
+                "branch": branch,
+                "worktree": elsewhere,
+                "code": "worktree_busy",
+            }
         code2, _, err = _run(repo, "checkout", branch)
         if code2 != 0:
+            # Surface worktree errors clearly
+            if "already used by worktree" in (err or ""):
+                return {
+                    "ok": False,
+                    "error": err,
+                    "branch": branch,
+                    "code": "worktree_busy",
+                }
             return {"ok": False, "error": err or "checkout failed", "branch": branch}
         return {
             "ok": True,
@@ -384,17 +456,39 @@ def protect_work(
     branch_actions: list[str] = []
 
     # Prefer the work/<area> that matches dirty paths (FCC → work/treasury, not work/iot).
+    # If that branch is checked out in another git worktree, stay put and commit here
+    # (cannot checkout the same branch in two worktrees).
     expected_branch = branch_name_for_area(primary_area)
     need_switch = ensure_work_branch and primary_area not in ("misc", "_root") and (
         current in ("master", "main", None)
         or (current and current.startswith("work/") and current != expected_branch)
     )
     if need_switch:
-        sw = start_work(primary_area, repo=repo, from_branch="HEAD")
-        branch_actions.append(sw.get("message") or str(sw))
-        if not sw.get("ok"):
-            return {"ok": False, "error": sw.get("error"), "branch_actions": branch_actions}
-        current = sw.get("branch")
+        elsewhere = branch_worktree_path(repo, expected_branch)
+        if elsewhere:
+            branch_actions.append(
+                f"stayed on {current or 'HEAD'}; {expected_branch} is checked out at "
+                f"{elsewhere} — committing here instead"
+            )
+        else:
+            sw = start_work(primary_area, repo=repo, from_branch="HEAD")
+            branch_actions.append(sw.get("message") or str(sw))
+            if not sw.get("ok"):
+                # Worktree race or other checkout failure: fall back to current branch
+                if sw.get("code") == "worktree_busy" or "worktree" in (
+                    sw.get("error") or ""
+                ).lower():
+                    branch_actions.append(
+                        f"checkout blocked ({sw.get('error')}); staying on {current}"
+                    )
+                else:
+                    return {
+                        "ok": False,
+                        "error": sw.get("error"),
+                        "branch_actions": branch_actions,
+                    }
+            else:
+                current = sw.get("branch")
 
     # Stage
     for p in to_stage:

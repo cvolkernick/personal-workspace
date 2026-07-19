@@ -15,8 +15,10 @@ sys.path.insert(0, str(DASH))
 
 from git_workflow import (  # noqa: E402
     branch_name_for_area,
+    branch_worktree_path,
     collect_branch_status,
     dirty_paths,
+    list_worktrees,
     parse_porcelain_path,
     protect_work,
     start_work,
@@ -111,6 +113,33 @@ class TestGitWorkflow(unittest.TestCase):
         # remote has branch
         refs = _git(self.bare, "branch")
         self.assertIn("work/treasury", refs)
+
+    def test_protect_stays_when_branch_in_other_worktree(self) -> None:
+        """If work/<area> is checked out elsewhere, commit on current branch."""
+        (self.repo / "projects-dashboard").mkdir(exist_ok=True)
+        (self.repo / "projects-dashboard" / "x.txt").write_text("x\n", encoding="utf-8")
+        _git(self.repo, "checkout", "-b", "work/holistic")
+        # Create branch that will be "busy" in another worktree
+        _git(self.repo, "branch", "work/projects-dashboard")
+        wt = Path(self._td.name) / "other-wt"
+        _git(self.repo, "worktree", "add", str(wt), "work/projects-dashboard")
+        # Dirty projects-dashboard path while on work/holistic
+        (self.repo / "projects-dashboard" / "y.txt").write_text("y\n", encoding="utf-8")
+        r = protect_work(
+            self.repo,
+            message="test protect worktree busy",
+            push=True,
+            ensure_work_branch=True,
+        )
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["committed"])
+        # Must remain on holistic (cannot checkout projects-dashboard)
+        self.assertEqual(r["branch"], "work/holistic")
+        self.assertTrue(
+            any("worktree" in str(a).lower() or "stayed on" in str(a).lower()
+                for a in (r.get("branch_actions") or [])),
+            r.get("branch_actions"),
+        )
 
 
 class TestSessionIndex(unittest.TestCase):
