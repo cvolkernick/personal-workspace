@@ -45,6 +45,18 @@
     }
     button:hover { border-color: var(--accent); color: var(--accent); }
     button:disabled { opacity: 0.5; cursor: wait; }
+    a.btn-bl-orch {
+      display: inline-flex; align-items: center;
+      background: #1a3a55; border: 1px solid #2d6a9f; color: var(--text);
+      border-radius: 8px; padding: 0.4rem 0.75rem; font-size: 0.85rem;
+      font-weight: 600; text-decoration: none;
+    }
+    a.btn-bl-orch:hover { border-color: var(--accent); color: var(--accent); }
+    .rec-card.orch-focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(91,159,212,0.15);
+    }
     label.toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; color: var(--muted); }
     main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
     .error-banner {
@@ -610,6 +622,10 @@
       window.__blEditOpen = window.__blEditOpen || new Set();
       const fieldStyle = "background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:100%;font-family:inherit;box-sizing:border-box";
 
+      const focusItem = (new URLSearchParams(location.search)).get("item") || "";
+      const fromOrchestra = (new URLSearchParams(location.search)).get("from") === "orchestra";
+      const orchestraRec = (new URLSearchParams(location.search)).get("orchestra_rec") || "";
+
       function renderBlCard(it) {
         const pri = blPri(it.priority);
         const rank = it.press_rank || "—";
@@ -618,8 +634,13 @@
         const priOpts = ["low", "medium", "high", "critical"].map((p) =>
           `<option value="${p}"${(it.priority || "medium") === p ? " selected" : ""}>${p}</option>`
         ).join("");
+        const focused = focusItem && it.id === focusItem;
+        const orchQs = new URLSearchParams({ backlog: it.id });
+        if (orchestraRec) orchQs.set("rec", orchestraRec);
+        const orchUrl = `http://127.0.0.1:8790/?${orchQs.toString()}`;
+        const holUrl = `http://127.0.0.1:8770/?backlog=${encodeURIComponent(it.id)}${orchestraRec ? `&orchestra_rec=${encodeURIComponent(orchestraRec)}` : ""}&from=workflow`;
         return `
-          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-bl-id="${esc(it.id)}">
+          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}${focused ? " orch-focus" : ""}" data-bl-id="${esc(it.id)}" id="bl-${esc(it.id)}">
             <div class="rank-head">
               <div class="rank-badge ${blRankCls(rank)}" title="Press rank ${rank} · score ${it.score ?? "—"}">#${rank}</div>
               <div>
@@ -667,7 +688,10 @@
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
               <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
+              <a class="btn-bl-orch" href="${esc(orchUrl)}" target="_blank" rel="noopener" title="Open this item in Orchestrator">Orchestrator ↗</a>
+              <a class="btn-bl-orch" href="${esc(holUrl)}" target="_blank" rel="noopener" title="Open Time allocator with this backlog id">Time allocator ↗</a>
             </div>
+            ${focused || fromOrchestra && it.id === focusItem ? `<div class="id" style="margin-top:0.35rem;color:var(--accent)">Linked from Orchestrator${orchestraRec ? ` · rec ${esc(orchestraRec)}` : ""}</div>` : ""}
             ${it.seed_path ? `<code class="cmd" style="margin-top:0.35rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
               ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
             </code>` : ""}
@@ -846,6 +870,13 @@
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "API error");
         render(data);
+        // Deep link from Orchestrator: ?item=<backlog_id>
+        const focusId = (new URLSearchParams(location.search)).get("item");
+        if (focusId) {
+          const el = document.getElementById("bl-" + focusId)
+            || document.querySelector(`[data-bl-id="${CSS.escape(focusId)}"]`);
+          if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+        }
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
