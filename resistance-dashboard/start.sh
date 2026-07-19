@@ -36,7 +36,13 @@ if [ -f "$HOME/.config/resistance-dashboard/env" ]; then
   source "$HOME/.config/resistance-dashboard/env"
 fi
 
-export LOCAL_WORKSPACE_DIR="${LOCAL_WORKSPACE_DIR:-$WORKSPACE_DIR}"
+# When using the Fitness worktree, always point data at that tree (ignore a
+# stale LOCAL_WORKSPACE_DIR exported from another dashboard session).
+if [ -d "$WT_APP" ] && [ -f "$WT_APP/server.py" ]; then
+  export LOCAL_WORKSPACE_DIR="$WORKSPACE_DIR"
+else
+  export LOCAL_WORKSPACE_DIR="${LOCAL_WORKSPACE_DIR:-$WORKSPACE_DIR}"
+fi
 export PORT="${PORT:-8787}"
 
 # Free port if a previous instance is still up
