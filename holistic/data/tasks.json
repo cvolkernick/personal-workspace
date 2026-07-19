@@ -360,5 +360,49 @@
       "end": "2026-07-18T19:00:00+00:00",
       "source": "google_health"
     }
+  ],
+  "activity_reviews": [
+    {
+      "id": "ex-8113320760079236392",
+      "start": "2026-07-19T02:59:26+00:00",
+      "end": "2026-07-19T03:18:26+00:00",
+      "minutes": 19,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "MANUAL",
+      "source": "google_health",
+      "local_date": "2026-07-18",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/8113320760079236392",
+      "status": "pending",
+      "target_hint": "duchess-walk"
+    },
+    {
+      "id": "ex-2768807484503510341",
+      "start": "2026-07-18T01:02:38+00:00",
+      "end": "2026-07-18T01:31:19+00:00",
+      "minutes": 29,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "ACTIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-17",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/2768807484503510341",
+      "status": "pending",
+      "target_hint": "duchess-walk"
+    },
+    {
+      "id": "ex-6776369464145948600",
+      "start": "2026-07-17T03:23:20+00:00",
+      "end": "2026-07-17T03:41:16+00:00",
+      "minutes": 18,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "PASSIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-16",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/6776369464145948600",
+      "status": "pending",
+      "target_hint": "duchess-walk"
+    }
   ]
 }

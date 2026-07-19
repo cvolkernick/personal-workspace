@@ -46,6 +46,7 @@ def save_state(state: dict[str, Any], path: str | Path | None = None) -> Path:
         "logs": list(state.get("logs") or []),
         "plan": state.get("plan"),
         "sleep_intervals": list(state.get("sleep_intervals") or []),
+        "activity_reviews": list(state.get("activity_reviews") or []),
     }
     tmp = p.with_suffix(p.suffix + ".tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=False) + "\n", encoding="utf-8")

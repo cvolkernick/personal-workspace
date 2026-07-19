@@ -132,6 +132,7 @@ def empty_state() -> dict[str, Any]:
         "logs": [],
         "plan": None,
         "sleep_intervals": [],
+        "activity_reviews": [],
     }
 
 
@@ -163,6 +164,7 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     out.setdefault("logs", [])
     out.setdefault("plan", None)
     out.setdefault("sleep_intervals", [])
+    out.setdefault("activity_reviews", [])
     if not isinstance(out["items"], list):
         out["items"] = []
     if not isinstance(out["targets"], list):
@@ -171,6 +173,8 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
         out["logs"] = []
     if not isinstance(out["sleep_intervals"], list):
         out["sleep_intervals"] = []
+    if not isinstance(out["activity_reviews"], list):
+        out["activity_reviews"] = []
     out["targets"] = _migrate_targets(list(out["targets"]))
     out["version"] = max(2, int(out.get("version") or 1))
     return out

@@ -51,6 +51,11 @@ from holistic.time_allocator.domain import (  # noqa: E402
     set_priority,
     update_target,
 )
+from holistic.time_allocator.activity_review import (  # noqa: E402
+    pending_walk_candidates,
+    review_walk,
+    sync_walk_candidates,
+)
 from holistic.time_allocator.health_sync import (  # noqa: E402
     health_credentials_status,
     sync_sleep_logs,
@@ -73,22 +78,32 @@ def _data() -> Path | None:
     return _DATA_PATH
 
 
-def state_payload() -> dict[str, Any]:
+def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     path = resolve_data_path(_data())
     state = load_state(_data())
+    walk_sync_meta: dict[str, Any] | None = None
+    if refresh_walks:
+        try:
+            state, walk_sync_meta = sync_walk_candidates(state, days=3)
+            save_state(state, _data())
+        except Exception as e:  # noqa: BLE001
+            walk_sync_meta = {"ok": False, "error": str(e)}
     items = list_items(state)
     targets = list_targets(state)
     total = sum(int(it.get("minutes") or 0) for it in items)
     plan = state.get("plan") or build_rolling_plan(state)
     suggestions = recommend_next(state, plan=plan)
     sleep_battery = sleep_battery_for_state(state)
-    return {
+    walk_candidates = pending_walk_candidates(state, days=2)
+    payload = {
         "ok": True,
         "path": str(path),
         "items": items,
         "targets": targets,
         "logs": list(state.get("logs") or []),
         "sleep_intervals": list(state.get("sleep_intervals") or []),
+        "activity_reviews": list(state.get("activity_reviews") or []),
+        "walk_candidates": walk_candidates,
         "count": len(items),
         "total_minutes": total,
         "kpi_status": kpi_status(state),
@@ -97,6 +112,9 @@ def state_payload() -> dict[str, Any]:
         "sleep_battery": sleep_battery,
         "health": health_credentials_status(),
     }
+    if walk_sync_meta is not None:
+        payload["walk_sync"] = walk_sync_meta
+    return payload
 
 
 class TimeAllocatorHandler(SimpleHTTPRequestHandler):
@@ -141,7 +159,9 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, **health_credentials_status()})
             return
         if path == "/api/state":
-            self._json(200, state_payload())
+            qs = urlparse(self.path).query
+            refresh = "refresh_walks=1" in qs or "refresh_walks=true" in qs
+            self._json(200, state_payload(refresh_walks=refresh))
             return
         if path in ("/", "/index.html"):
             self.path = "/index.html"
@@ -350,15 +370,44 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 state, meta = sync_sleep_logs(
                     load_state(_data()), days=days, overwrite=overwrite
                 )
-                if meta.get("imported"):
+                # Also refresh walk candidates when syncing health
+                state, walk_meta = sync_walk_candidates(state, days=3)
+                meta["walks"] = walk_meta
+                if meta.get("imported") or walk_meta.get("new_pending"):
                     state = apply_plan(state)
-                    save_state(state, _data())
+                save_state(state, _data())
                 payload = state_payload()
                 payload["sync"] = meta
-                if not meta.get("ok") and not meta.get("imported"):
-                    self._json(200, payload)  # still return state; UI shows sync.error
+                if not meta.get("ok") and not meta.get("imported") and not walk_meta.get("fetched"):
+                    self._json(200, payload)
                     return
                 self._json(200, payload)
+                return
+
+            if path == "/api/activity/sync":
+                days = int(body.get("days") if body.get("days") is not None else 3)
+                state, meta = sync_walk_candidates(load_state(_data()), days=days)
+                save_state(state, _data())
+                payload = state_payload()
+                payload["walk_sync"] = meta
+                self._json(200, payload)
+                return
+
+            if path == "/api/activity/review":
+                rid = str(body.get("id") or body.get("review_id") or "").strip()
+                decision = str(body.get("decision") or "").strip()
+                if not rid or not decision:
+                    self._json(400, {"ok": False, "error": "id and decision required"})
+                    return
+                state = review_walk(
+                    load_state(_data()),
+                    rid,
+                    decision=decision,
+                    note=str(body.get("note") or ""),
+                )
+                state = apply_plan(state)
+                save_state(state, _data())
+                self._json(200, state_payload())
                 return
 
             self._json(404, {"ok": False, "error": f"unknown route: {path}"})

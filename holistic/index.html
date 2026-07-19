@@ -259,6 +259,23 @@
       opacity: 0.95;
     }
     .sleep-meta { color: var(--muted); font-size: 0.88rem; margin-top: 0.4rem; }
+    .walk-ask {
+      margin-top: 0.65rem;
+      padding: 0.65rem 0.75rem;
+      border-radius: 10px;
+      border: 1px dashed #3d5a40;
+      background: #0e1a14;
+    }
+    .walk-ask h4 { margin: 0 0 0.35rem; font-size: 0.92rem; color: var(--green); }
+    .walk-ask .walk-item {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      align-items: center;
+      padding: 0.4rem 0;
+      border-top: 1px solid #1e2a36;
+    }
+    .walk-ask .walk-item:first-of-type { border-top: none; }
   </style>
 </head>
 <body>
@@ -271,6 +288,7 @@
       <button type="button" id="btn-refresh">Refresh</button>
       <button type="button" class="primary" id="btn-plan">Rebuild 24h plan</button>
       <button type="button" id="btn-sync">Sync sleep (Google Health)</button>
+      <button type="button" id="btn-walks">Check for walks</button>
       <button type="button" class="ghost" id="btn-seed">Reset personal targets</button>
     </div>
   </header>
@@ -529,17 +547,71 @@
         : "−24h";
     }
 
-    function renderSuggestions(list) {
+    function walkCandidatesHtml(candidates) {
+      if (!candidates || !candidates.length) return "";
+      const items = candidates.map((w) => {
+        const when = w.start ? fmtWhen(w.start) : (w.local_date || "");
+        return `
+          <div class="walk-item" data-review-id="${escapeAttr(w.id)}">
+            <strong>${Number(w.minutes) || 0}m</strong>
+            <span class="path">${escapeHtml(when)}</span>
+            <span class="path">${escapeHtml(w.display_name || "Walk")} · ${escapeHtml(w.recording_method || "")}</span>
+            <button type="button" class="btn-walk-yes primary">Yes — Duchess</button>
+            <button type="button" class="btn-walk-no">No</button>
+          </div>`;
+      }).join("");
+      return `
+        <div class="walk-ask">
+          <h4>Was this a walk with Duchess?</h4>
+          <div class="path" style="margin-bottom:0.35rem">Detected from Google Health (not labeled Duchess automatically)</div>
+          ${items}
+        </div>`;
+    }
+
+    function bindWalkReviewButtons(root) {
+      (root || document).querySelectorAll(".walk-item").forEach((row) => {
+        const id = row.getAttribute("data-review-id");
+        row.querySelector(".btn-walk-yes").addEventListener("click", async () => {
+          try {
+            const state = await api("/api/activity/review", {
+              method: "POST",
+              body: JSON.stringify({ id, decision: "confirm" }),
+            });
+            msg(`Logged Duchess walk — plan updated`, "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+        row.querySelector(".btn-walk-no").addEventListener("click", async () => {
+          try {
+            const state = await api("/api/activity/review", {
+              method: "POST",
+              body: JSON.stringify({ id, decision: "deny" }),
+            });
+            msg(`Ignored walk (not Duchess)`, "ok");
+            render(state);
+          } catch (e) {
+            msg(String(e.message || e), "error");
+          }
+        });
+      });
+    }
+
+    function renderSuggestions(list, walkCandidates) {
       const wrap = $("suggest-wrap");
-      if (!list || !list.length) {
+      const walks = walkCandidates || [];
+      if ((!list || !list.length) && !walks.length) {
         wrap.innerHTML = `<p class="empty">No open actions — nice. Add ad-hoc work or rebuild the plan.</p>`;
         return;
       }
-      wrap.innerHTML = list.map((s, idx) => {
+      let html = (list || []).map((s, idx) => {
         const rem = Number(s.minutes) || 0;
         const loggable = s.loggable !== false && s.role !== "meta" && s.role !== "reserve";
         const session = s.log_mode === "session";
         const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30);
+        const isDuchess = s.id === "duchess-walk";
+        const walkBlock = isDuchess ? walkCandidatesHtml(walks) : "";
         const progressRow = loggable ? `
           <div class="row progress-row" style="margin-top:0.55rem" data-id="${escapeAttr(s.id)}">
             <label>min
@@ -567,9 +639,30 @@
             · pri ${s.priority}
             ${rem ? " · " + hours(rem) + " remaining" : ""}
           </div>
+          ${walkBlock}
           ${progressRow}
         </div>`;
       }).join("");
+
+      // If Duchess not in suggestions but walks pending, show a dedicated card
+      const hasDuchessCard = (list || []).some((s) => s.id === "duchess-walk");
+      if (walks.length && !hasDuchessCard) {
+        html = `
+          <div class="suggest high" data-action-id="duchess-walk-review">
+            <div class="row" style="justify-content:space-between">
+              <h3>Walk Duchess — review detected walks</h3>
+              <span class="urgency high">high</span>
+            </div>
+            <div class="meta">Google Health walks need a quick confirm before they count toward Duchess.</div>
+            ${walkCandidatesHtml(walks)}
+          </div>` + html;
+      }
+
+      if (!html) {
+        wrap.innerHTML = `<p class="empty">No open actions.</p>`;
+        return;
+      }
+      wrap.innerHTML = html;
 
       wrap.querySelectorAll(".progress-row").forEach((row) => {
         const id = row.getAttribute("data-id");
@@ -607,6 +700,7 @@
           }
         });
       });
+      bindWalkReviewButtons(wrap);
     }
 
     function renderPlan(plan) {
@@ -828,23 +922,52 @@
         `health: oauth=${h.google_oauth ? "yes" : "no"} · local_metrics=${h.local_metrics_file ? "yes" : "no"}` +
         (h.detail ? ` · ${h.detail}` : "");
       renderSleepBattery(state.sleep_battery);
-      renderSuggestions(state.suggestions || []);
+      renderSuggestions(state.suggestions || [], state.walk_candidates || []);
       renderPlan(state.plan);
       renderKpis(state);
       renderItems(state);
     }
 
-    async function refresh() {
+    async function refresh(opts) {
       try {
-        const state = await api("/api/state");
+        const q = opts && opts.refreshWalks ? "?refresh_walks=1" : "";
+        const state = await api("/api/state" + q);
         render(state);
-        msg("");
+        if (opts && opts.refreshWalks) {
+          const ws = state.walk_sync || {};
+          if (ws.fetched != null) {
+            msg(
+              `Walks: ${ws.fetched} fetched, ${ws.new_pending || 0} new to review`,
+              ws.ok === false ? "error" : "ok"
+            );
+          } else {
+            msg("");
+          }
+        } else {
+          msg("");
+        }
       } catch (e) {
         msg(String(e.message || e), "error");
       }
     }
 
-    $("btn-refresh").addEventListener("click", refresh);
+    $("btn-refresh").addEventListener("click", () => refresh());
+    $("btn-walks").addEventListener("click", async () => {
+      try {
+        const state = await api("/api/activity/sync", {
+          method: "POST",
+          body: JSON.stringify({ days: 3 }),
+        });
+        const ws = state.walk_sync || {};
+        msg(
+          `Walks: ${ws.fetched || 0} from Google, ${ws.new_pending || 0} new pending`,
+          ws.ok === false ? "error" : "ok"
+        );
+        render(state);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+      }
+    });
     $("btn-plan").addEventListener("click", async () => {
       try {
         const state = await api("/api/plan", { method: "POST", body: JSON.stringify({ apply: true }) });
@@ -941,9 +1064,10 @@
 
     const d = new Date();
     $("log-date").value = d.toISOString().slice(0, 10);
-    refresh();
-    // Refresh often enough that the sleep battery discharges visibly over time
-    setInterval(refresh, 60 * 1000);
+    // First load: also pull latest Google walks for Duchess confirm/deny
+    refresh({ refreshWalks: true });
+    // Battery discharge + plan; walks rechecked less often via button / sleep sync
+    setInterval(() => refresh(), 60 * 1000);
   </script>
 </body>
 </html>
