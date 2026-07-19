@@ -818,8 +818,9 @@
                 <div class="path">You can drive again — reset duty to 0h to start a new 12h cycle.</div>
               </div>`;
           } else if (breakRem != null) {
-            const hr = Math.floor(breakRem / 60);
-            const mn = Math.round(breakRem % 60);
+            const totalM = Math.max(0, Math.round(breakRem));
+            const hr = Math.floor(totalM / 60);
+            const mn = totalM % 60;
             const ends = lyftDuty.break_ends_at || s.break_ends_at;
             const endLabel = ends ? fmtWhen(ends) : "";
             const pctBreak = Math.min(100, Math.round(((brkMin - breakRem) / brkMin) * 100));

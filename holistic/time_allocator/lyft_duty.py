@@ -188,8 +188,8 @@ def lyft_duty_status(
                 f"mandatory {brk // 60}h break complete — reset duty to 0 to start a new cycle"
             )
         elif break_remaining_minutes is not None and break_ends_at:
-            hr = int(break_remaining_minutes // 60)
-            mn = int(round(break_remaining_minutes % 60))
+            total_m = max(0, int(round(break_remaining_minutes)))
+            hr, mn = total_m // 60, total_m % 60
             summary_parts.append(
                 f"{hr}h {mn}m until 6h offline break ends (can drive again after)"
             )

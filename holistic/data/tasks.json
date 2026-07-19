@@ -160,8 +160,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-19T17:29:54-04:00",
-    "window_end": "2026-07-20T17:29:54-04:00",
+    "window_start": "2026-07-19T17:33:13-04:00",
+    "window_end": "2026-07-20T17:33:13-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -200,24 +200,20 @@
       },
       {
         "source": "target",
-        "id": "lyft",
-        "title": "Lyft driving",
-        "minutes": 450,
-        "role": "fill",
-        "kind": "fill_remainder",
+        "id": "lyft-break",
+        "title": "Lyft mandatory offline break",
+        "minutes": 360,
+        "role": "break",
+        "kind": "lyft_break",
         "priority": 3,
-        "done_today": 270,
-        "drive_cap_minutes": 720,
-        "break_minutes": 360,
-        "remaining_drive_minutes": 450,
-        "reason": "450m left in current 12h driver-mode block",
-        "lyft_duty_summary": "4h 30m of 12h driver-mode used (7h 30m left this cycle)"
+        "reason": "6h uninterrupted offline after 12h driver mode"
       }
     ],
-    "total_block_minutes": 1001,
+    "total_block_minutes": 911,
     "unallocated_active_minutes": 0,
     "notes": [
-      "Lyft: only 450m left in current 12h duty (driven 270m of 720m) \u2014 update duty as you drive; 6h offline required after the 12h cap"
+      "Lyft: 12h driver-mode used \u2014 need 6h uninterrupted break before more driving (only 889m free left in window)",
+      "12h 0m of 12h driver-mode used (0h 0m left this cycle) \u00b7 5h 60m until 6h offline break ends (can drive again after)"
     ],
     "kpi_status": [
       {
@@ -454,8 +450,11 @@
     }
   ],
   "lyft_duty": {
-    "driven_minutes": 270,
-    "updated_at": "2026-07-19T17:24:56-04:00",
-    "note": ""
+    "driven_minutes": 720,
+    "updated_at": "2026-07-19T17:33:13-04:00",
+    "cap_reached_at": "2026-07-19T17:33:13-04:00",
+    "note": "",
+    "drive_cap_minutes": 720,
+    "break_minutes": 360
   }
 }

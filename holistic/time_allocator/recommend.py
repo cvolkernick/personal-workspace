@@ -113,9 +113,10 @@ def recommend_next(
                 )
                 urgency = "medium"
             elif duty.get("break_remaining_minutes") is not None:
-                br = float(duty["break_remaining_minutes"])
+                total_m = max(0, int(round(float(duty["break_remaining_minutes"]))))
+                hr, mn = total_m // 60, total_m % 60
                 reason = (
-                    f"At 12h cap — {int(br // 60)}h {int(round(br % 60))}m left in mandatory "
+                    f"At 12h cap — {hr}h {mn}m left in mandatory "
                     f"6h offline break before you can drive again"
                 )
                 urgency = "high"
