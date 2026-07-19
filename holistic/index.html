@@ -40,6 +40,16 @@
     }
     header h1 { margin: 0; font-size: 1.35rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.9rem; }
+    tr.orch-focus { outline: 2px solid var(--accent); outline-offset: -2px; background: #152033; }
+    a.cross-link {
+      display: inline-flex; color: var(--accent); font-size: 0.82rem; font-weight: 600;
+      text-decoration: none; margin-right: 0.5rem;
+    }
+    a.cross-link:hover { text-decoration: underline; }
+    .orch-banner {
+      background: #152033; border: 1px solid #2d6a9f; border-radius: 10px;
+      padding: 0.65rem 0.9rem; margin-bottom: 0.5rem; font-size: 0.9rem;
+    }
     main {
       max-width: 1100px;
       margin: 0 auto;
@@ -465,21 +475,72 @@
       });
     }
 
+    function crossDeepLinks() {
+      const qs = new URLSearchParams(location.search);
+      return {
+        item: qs.get("item") || "",
+        backlog: qs.get("backlog") || "",
+        from: qs.get("from") || "",
+        orchestraRec: qs.get("orchestra_rec") || "",
+      };
+    }
+
     function renderItems(state) {
       const items = state.items || [];
       const wrap = $("list-wrap");
+      const deep = crossDeepLinks();
       if (!items.length) {
-        wrap.innerHTML = `<p class="empty">No ad-hoc items. Leftover active time goes to Lyft after fixed targets.</p>`;
+        let empty = `<p class="empty">No ad-hoc items. Leftover active time goes to Lyft after fixed targets.</p>`;
+        if (deep.backlog || deep.from === "orchestra" || deep.from === "workflow") {
+          const orch = `http://127.0.0.1:8790/?${new URLSearchParams({
+            backlog: deep.backlog || "",
+            rec: deep.orchestraRec || "",
+            next: "1",
+          }).toString()}`;
+          const wf = deep.backlog
+            ? `http://127.0.0.1:8765/?item=${encodeURIComponent(deep.backlog)}&from=holistic`
+            : "http://127.0.0.1:8765/";
+          empty += `<div class="orch-banner">Deep-linked from ${escapeHtml(deep.from || "orchestrator")}.
+            <a class="cross-link" href="${escapeAttr(orch)}" target="_blank" rel="noopener">Open Orchestrator next action ↗</a>
+            <a class="cross-link" href="${escapeAttr(wf)}" target="_blank" rel="noopener">Open Workflow item ↗</a>
+            ${deep.backlog ? `<span class="path">backlog ${escapeHtml(deep.backlog)}</span>` : ""}
+          </div>`;
+        }
+        wrap.innerHTML = empty;
         return;
       }
       wrap.innerHTML = `
+        ${deep.backlog || deep.from === "orchestra" || deep.from === "workflow" ? `<div class="orch-banner">
+          Linked from Orchestrator / Workflow.
+          <a class="cross-link" href="http://127.0.0.1:8790/?${escapeAttr(new URLSearchParams({
+            backlog: deep.backlog || "",
+            rec: deep.orchestraRec || "",
+            next: "1",
+          }).toString())}" target="_blank" rel="noopener">Orchestrator ↗</a>
+          ${deep.backlog ? `<a class="cross-link" href="http://127.0.0.1:8765/?item=${escapeAttr(deep.backlog)}&from=holistic" target="_blank" rel="noopener">Workflow item ↗</a>` : ""}
+        </div>` : ""}
         <table>
           <thead><tr><th>Title</th><th>Pri</th><th>Min</th><th></th></tr></thead>
           <tbody>
-            ${items.map((it) => `
-              <tr data-id="${escapeAttr(it.id)}">
+            ${items.map((it) => {
+              const bid = it.backlog_id || "";
+              const focused = (deep.item && it.id === deep.item)
+                || (deep.backlog && bid && bid === deep.backlog);
+              const orchUrl = `http://127.0.0.1:8790/?${new URLSearchParams({
+                backlog: bid || deep.backlog || "",
+                rec: deep.orchestraRec || "",
+              }).toString()}`;
+              const wfUrl = bid
+                ? `http://127.0.0.1:8765/?item=${encodeURIComponent(bid)}&from=holistic`
+                : "";
+              return `
+              <tr data-id="${escapeAttr(it.id)}" data-backlog="${escapeAttr(bid)}" class="${focused ? "orch-focus" : ""}" id="hol-${escapeAttr(it.id)}">
                 <td><strong>${escapeHtml(it.title)}</strong>
-                  <div class="path">${escapeHtml(it.kind)} · ${escapeHtml(it.id)}</div>
+                  <div class="path">${escapeHtml(it.kind)} · ${escapeHtml(it.id)}${bid ? ` · bl ${escapeHtml(bid)}` : ""}</div>
+                  <div style="margin-top:0.25rem">
+                    <a class="cross-link" href="${escapeAttr(orchUrl)}" target="_blank" rel="noopener">Orchestrator ↗</a>
+                    ${wfUrl ? `<a class="cross-link" href="${escapeAttr(wfUrl)}" target="_blank" rel="noopener">Workflow ↗</a>` : ""}
+                  </div>
                 </td>
                 <td><input type="number" class="edit-priority" min="0" max="20" value="${Number(it.priority)||0}" style="width:4rem" /></td>
                 <td><input type="number" class="edit-minutes" min="0" step="5" value="${Number(it.minutes)||0}" style="width:5rem" /></td>
@@ -487,7 +548,8 @@
                   <button type="button" class="btn-save">Save</button>
                   <button type="button" class="btn-remove danger">Remove</button>
                 </td>
-              </tr>`).join("")}
+              </tr>`;
+            }).join("")}
           </tbody>
         </table>`;
       wrap.querySelectorAll("tr[data-id]").forEach((row) => {
@@ -522,6 +584,13 @@
           }
         });
       });
+      if (deep.item) {
+        const el = document.getElementById("hol-" + deep.item);
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+      } else if (deep.backlog) {
+        const el = wrap.querySelector(`tr[data-backlog="${CSS.escape(deep.backlog)}"]`);
+        if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+      }
     }
 
     function render(state) {
