@@ -2,10 +2,12 @@
 """Local server for the Orchestra top-level command center.
 
   GET  /api/health
-  GET  /api/orchestra   — full orchestration payload (domains, synergies, priorities)
+  GET  /api/orchestra   — full payload (recommendations primary; domains, synergies, …)
   GET  /api/domains
   GET  /api/synergies
   GET  /api/priorities
+  GET  /api/attention   — attention digest + freshness
+  GET  /api/recommendations — automated recommended next actions (primary)
   GET  /                — unified UI
 
 Usage:
@@ -129,6 +131,52 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "priorities": payload.get("priorities") or [],
                     "action_plan": payload.get("action_plan") or [],
+                },
+            )
+            return
+
+        if path == "/api/attention":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "attention": payload.get("attention") or [],
+                    "freshness": payload.get("freshness") or {},
+                    "counts": {
+                        "attention": (payload.get("counts") or {}).get("attention"),
+                        "stale_sources": (payload.get("counts") or {}).get(
+                            "stale_sources"
+                        ),
+                    },
+                },
+            )
+            return
+
+        if path in ("/api/recommendations", "/api/actions", "/api/next"):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            rec = payload.get("recommendations") or {}
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "recommendations": rec,
+                    "recommended_actions": payload.get("recommended_actions") or [],
+                    "summary": rec.get("summary"),
+                    "mode": rec.get("mode"),
+                    "focus": rec.get("focus") or [],
                 },
             )
             return
