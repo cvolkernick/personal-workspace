@@ -496,16 +496,16 @@
     }
 
     function renderDevices() {
-      document.getElementById("stat-count").textContent = String(devices.length);
+      setText("stat-count", String(devices.length));
       let online = 0, offline = 0;
       for (const d of devices) {
         if (d.status && d.status.ok) { online++; if (d.status.on) onn++; }
       }
-      document.getElementById("stat-online").textContent = `${online}/${devices.length}`;
-      document.getElementById("devices-hint").textContent =
-        onn ? `${onn} on` : "grouped by room";
+      setText("stat-online", `${online}/${devices.length}`);
+      setText("devices-hint", onn ? `${onn} on` : "grouped by room");
 
       const root = document.getElementById("devices-by-room");
+      if (!root) return;
       if (!devices.length) {
         root.innerHTML = '<div class="meta">No devices in registry</div>';
         return;
