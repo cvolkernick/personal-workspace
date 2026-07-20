@@ -10,3 +10,5 @@ projects-dashboard/ (http://127.0.0.1:8765/). Scope:
 
 Use the repo at personal-workspace as cwd. Prefer small durable changes,
 commit/push when work should persist, and keep the dashboard usable.
+
+Please /rename Workflow Management if this session title is not already set.

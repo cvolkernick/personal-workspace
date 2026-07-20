@@ -1,10 +1,11 @@
 #!/bin/bash
-# Open Grok Build for Workflow Management (personal-workspace)
+# Open named Grok Build session: Workflow Management
 set -euo pipefail
 ROOT='/Users/cvolkernick/personal-workspace'
-cd "$ROOT"
-PROMPT_FILE='/Users/cvolkernick/personal-workspace/ops/backlog/open-workflow-grok.prompt.txt'
-MODE='continue'
+RUN_CWD='/Users/cvolkernick'
+SESSION_ID='019f6e82-4398-72d0-b180-58f68680ae23'
+SESSION_NAME='Workflow Management'
+cd "$RUN_CWD"
 
 if command -v grok >/dev/null 2>&1; then
   GROK_BIN="$(command -v grok)"
@@ -16,14 +17,10 @@ else
 fi
 
 echo "=== Workflow Management → Grok Build ==="
-echo "Workspace: $ROOT"
-echo "Mode: $MODE (continue = resume last session for this cwd)"
+echo "Session: $SESSION_NAME"
+echo "ID:      $SESSION_ID"
+echo "Cwd:     $RUN_CWD"
+echo "Workspace files: $ROOT"
 echo ""
-
-if [ "$MODE" = "new" ]; then
-  echo "Starting a new Workflow Management Grok session…"
-  exec "$GROK_BIN" --cwd "$ROOT" --fullscreen "$(cat "$PROMPT_FILE")"
-fi
-
-echo "Continuing most recent Grok session for personal-workspace…"
-exec "$GROK_BIN" --cwd "$ROOT" --fullscreen --continue
+echo "Resuming named session (not most-recent)…"
+exec "$GROK_BIN" --cwd "$RUN_CWD" --fullscreen --resume "$SESSION_ID"

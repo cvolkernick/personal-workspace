@@ -208,9 +208,12 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 return
 
             if path == "/api/open-grok":
-                # Open Terminal → Grok Build for Workflow Management (continue or new)
-                mode = str(body.get("mode") or "continue")
-                result = open_workflow_grok(mode=mode)
+                # Open Terminal → named Workflow Management Grok session (by id/title)
+                result = open_workflow_grok(
+                    mode=str(body.get("mode") or "named"),
+                    session_id=body.get("session_id"),
+                    session_name=body.get("session_name"),
+                )
                 self._json(200 if result.get("ok") else 500, result)
                 return
 

@@ -280,7 +280,7 @@
     <div class="actions">
       <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched only</label>
       <span id="updated" class="sub"></span>
-      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Terminal with Grok Build — continues the Workflow Management (personal-workspace) session">Open Grok</button>
+      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Terminal with the named Workflow Management Grok session">Open Grok</button>
       <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>
       <button type="button" id="btn-sync" title="Session index + commit + push">Protect &amp; push</button>
       <button type="button" id="btn-refresh">Refresh</button>
@@ -932,52 +932,34 @@
     }
 
     let dataCache = null;
-    /** Sticky toast near backlog/scheduler so status is visible while scrolled. */
-    window.__localToast = null; // { zone: 'backlog'|'scheduler'|'top', msg, err? }
+    /** Status toast always at top of dashboard (#action-msg). */
+    window.__topToast = null; // { msg, err?, at }
 
-    function toastZoneForUrl(url) {
-      if (!url) return "top";
-      if (url.includes("/api/open-grok")) return "top";
-      if (url.includes("/api/scheduler") || url.includes("/api/backlog/initiate")) return "scheduler";
-      if (url.includes("/api/backlog") || url.includes("/api/recommendations")) return "backlog";
-      return "top";
+    function setTopToast(msg, isErr) {
+      window.__topToast = { msg: String(msg || ""), err: !!isErr, at: Date.now() };
     }
 
-    function setLocalToast(zone, msg, isErr) {
-      window.__localToast = { zone: zone || "backlog", msg: String(msg || ""), err: !!isErr, at: Date.now() };
-    }
-
-    function applyLocalToast() {
-      const t = window.__localToast;
+    function applyTopToast() {
+      const t = window.__topToast;
+      // Clear section-local toasts if present
       ["bl-toast", "sched-toast"].forEach((id) => {
         const el = $(id);
         if (!el) return;
         el.classList.remove("show", "err");
         el.textContent = "";
       });
-      if ($("action-msg")) {
-        $("action-msg").classList.remove("show");
-        $("action-msg").textContent = "";
-      }
+      if (!$("action-msg")) return;
+      $("action-msg").classList.remove("show");
+      $("action-msg").textContent = "";
       if (!t || !t.msg) return;
-      if (t.zone === "top") {
-        if ($("action-msg")) {
-          $("action-msg").textContent = t.msg;
-          $("action-msg").classList.add("show");
-          if (t.err) {
-            $("err").textContent = t.msg;
-            $("err").classList.add("show");
-          }
-        }
-        return;
+      $("action-msg").textContent = t.msg;
+      $("action-msg").classList.add("show");
+      if (t.err) {
+        $("err").textContent = t.msg;
+        $("err").classList.add("show");
       }
-      const el = t.zone === "scheduler" ? $("sched-toast") : $("bl-toast");
-      if (!el) return;
-      el.textContent = t.msg;
-      el.classList.add("show");
-      if (t.err) el.classList.add("err");
       try {
-        el.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (_) { /* ignore */ }
     }
 
@@ -993,14 +975,14 @@
         if (!data.ok) throw new Error(data.error || "API error");
         dataCache = data;
         render(data);
-        // Surface auto-loop result on first paint if no fresher action toast
+        // Surface auto-loop result at top if no fresher action toast
         const loop = data.auto_loop || {};
-        if (loop.message && (!window.__localToast || !window.__localToast.msg || (Date.now() - (window.__localToast.at || 0)) > 8000)) {
+        if (loop.message && (!window.__topToast || !window.__topToast.msg || (Date.now() - (window.__topToast.at || 0)) > 8000)) {
           if (loop.groomed || (loop.queue && loop.queue.count) || loop.error) {
-            setLocalToast("backlog", loop.error ? `Auto-loop: ${loop.error}` : loop.message, !!loop.error);
+            setTopToast(loop.error ? `Auto-loop: ${loop.error}` : loop.message, !!loop.error);
           }
         }
-        applyLocalToast();
+        applyTopToast();
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
@@ -1012,7 +994,6 @@
     async function postAction(url, body) {
       $("action-msg").classList.remove("show");
       $("err").classList.remove("show");
-      const zone = toastZoneForUrl(url);
       try {
         const res = await fetch(url, {
           method: "POST",
@@ -1075,11 +1056,11 @@
         if (url.includes("/api/open-grok")) {
           msg = data.message || (data.ok ? "Opened Grok in Terminal" : "Failed to open Grok");
         }
-        setLocalToast(zone, msg, false);
+        setTopToast(msg, false);
         await load();
       } catch (e) {
-        setLocalToast(zone, e.message, true);
-        applyLocalToast();
+        setTopToast(e.message, true);
+        applyTopToast();
         $("err").textContent = e.message;
         $("err").classList.add("show");
       }
@@ -1089,7 +1070,7 @@
     $("only-touched").addEventListener("change", load);
     $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
     $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
-    $("btn-open-grok").addEventListener("click", () => postAction("/api/open-grok", { mode: "continue" }));
+    $("btn-open-grok").addEventListener("click", () => postAction("/api/open-grok", { mode: "named" }));
     document.addEventListener("click", async (ev) => {
       const t = ev.target;
       if (!t) return;
