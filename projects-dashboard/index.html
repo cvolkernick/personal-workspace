@@ -292,10 +292,8 @@
     <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
     <div class="summary" id="summary"></div>
     <div id="strategy-focus"></div>
-    <div id="sched-toast" class="local-toast" role="status"></div>
     <div id="scheduler"></div>
     <div id="recommendations"></div>
-    <div id="bl-toast" class="local-toast" role="status"></div>
     <div id="backlog"></div>
     <div id="branches"></div>
     <div id="resume"></div>
@@ -516,8 +514,7 @@
               Override per card with <strong>Auto-start</strong> / Unqueue below.
               <br/><span class="id">Backend: ${esc(scfg.backend || "local")} · cron ${scron.installed ? "installed" : "not installed"} · scheduler ${scfg.enabled ? "enabled" : "disabled"}
               · auto-queue ${scfg.auto_queue_scheduled !== false ? "on" : "off"}
-              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}
-              ${loop.message ? ` · load: ${esc(loop.message)}` : ""}</span>
+              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}</span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
               <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
@@ -941,13 +938,6 @@
 
     function applyTopToast() {
       const t = window.__topToast;
-      // Clear section-local toasts if present
-      ["bl-toast", "sched-toast"].forEach((id) => {
-        const el = $(id);
-        if (!el) return;
-        el.classList.remove("show", "err");
-        el.textContent = "";
-      });
       if (!$("action-msg")) return;
       $("action-msg").classList.remove("show");
       $("action-msg").textContent = "";
@@ -958,9 +948,45 @@
         $("err").textContent = t.msg;
         $("err").classList.add("show");
       }
-      try {
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      } catch (_) { /* ignore */ }
+    }
+
+    function maybeToastAutoLoop(loop) {
+      if (!loop) return;
+      if (loop.error) {
+        setTopToast(`Auto-loop: ${loop.error}`, true);
+        return;
+      }
+      // Prefer explicit groom / queue status at the top with other toasts
+      const g = loop.groom || {};
+      const q = loop.queue || {};
+      const parts = [];
+      if (loop.groomed && (g.message || loop.message)) {
+        parts.push(g.message || "Groomed backlog");
+      } else if (loop.groom_skipped && loop.groom_skip_reason) {
+        // quiet skip — only show if nothing else to report
+      } else if (loop.message && /groom/i.test(loop.message)) {
+        parts.push(loop.message);
+      }
+      if (q.count) {
+        parts.push(q.message || `Auto-queued ${q.count}`);
+      } else if (loop.message && !parts.length && loop.ran) {
+        // e.g. combined "Groomed N items · Auto-queued …"
+        if (loop.groomed || (q && q.count != null && !q.skipped)) {
+          parts.push(loop.message);
+        }
+      }
+      if (!parts.length && loop.message && (loop.groomed || (q && q.count))) {
+        parts.push(loop.message);
+      }
+      if (!parts.length) return;
+      const msg = parts.join(" · ");
+      // Don't clobber a fresher user action toast (< 8s)
+      if (window.__topToast && window.__topToast.msg && (Date.now() - (window.__topToast.at || 0)) < 8000) {
+        // If existing toast is already the same groom text, keep it; else leave action toast
+        if (window.__topToast.msg === msg) applyTopToast();
+        return;
+      }
+      setTopToast(msg, false);
     }
 
     async function load() {
@@ -975,13 +1001,7 @@
         if (!data.ok) throw new Error(data.error || "API error");
         dataCache = data;
         render(data);
-        // Surface auto-loop result at top if no fresher action toast
-        const loop = data.auto_loop || {};
-        if (loop.message && (!window.__topToast || !window.__topToast.msg || (Date.now() - (window.__topToast.at || 0)) > 8000)) {
-          if (loop.groomed || (loop.queue && loop.queue.count) || loop.error) {
-            setTopToast(loop.error ? `Auto-loop: ${loop.error}` : loop.message, !!loop.error);
-          }
-        }
+        maybeToastAutoLoop(data.auto_loop || {});
         applyTopToast();
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
@@ -1027,7 +1047,7 @@
         if (data.item && data.item.title && !data.goal_objective) {
           msg = `Saved: ${data.item.title}`;
         }
-        if (data.groomed_at || data.applied) {
+        if (data.groomed_at || data.applied || (url.includes("/api/backlog/groom"))) {
           msg = data.message || `Groomed ${data.count ?? ""} items`;
           if (data.changes && data.changes.length) {
             msg += ` · ${data.changes.length} hygiene change(s)`;
