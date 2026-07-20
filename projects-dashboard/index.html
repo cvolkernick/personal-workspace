@@ -280,8 +280,7 @@
     <div class="actions">
       <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched only</label>
       <span id="updated" class="sub"></span>
-      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Terminal with Grok Build — continues the last personal-workspace (Workflow Management) session">Open Grok</button>
-      <button type="button" id="btn-open-grok-new" title="Open Terminal with a new Workflow Management Grok session">New Grok</button>
+      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Terminal with Grok Build — continues the Workflow Management (personal-workspace) session">Open Grok</button>
       <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>
       <button type="button" id="btn-sync" title="Session index + commit + push">Protect &amp; push</button>
       <button type="button" id="btn-refresh">Refresh</button>
@@ -1091,7 +1090,6 @@
     $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
     $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
     $("btn-open-grok").addEventListener("click", () => postAction("/api/open-grok", { mode: "continue" }));
-    $("btn-open-grok-new").addEventListener("click", () => postAction("/api/open-grok", { mode: "new" }));
     document.addEventListener("click", async (ev) => {
       const t = ev.target;
       if (!t) return;
