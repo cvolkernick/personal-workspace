@@ -18,10 +18,10 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | Theme | Idea | Examples |
 |-------|------|----------|
 | **Bitcoin & hard money** | Store of value / hard money stack | BTC; gold/silver (e.g. PAXG, GLDM or similar—optional sleeve) |
-| **Digital credit** | BTC-linked corporate / structured credit proxies | MSTR, STRC, ASST, SATA |
+| **Digital credit** | BTC-linked corporate / structured credit, yield, and fixed-income proxies | MSTR, STRC, ASST, SATA, **BITA** (BTC-based yield / fixed income) |
 | **Bitcoin infrastructure** | Mining / energy-intensive BTC infra | MARA, RIOT, CLSK, WULF, IREN |
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
-| **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX, BITA |
+| **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX |
 | **Energy** | Overarches BTC mining, AI infra, and hard-money macro | **No fixed tickers today**; agentic manager may add options with user approval |
 
 ### Macro framing
@@ -34,8 +34,8 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 
 | Sleeve | Target weight | What goes here |
 |--------|---------------|----------------|
-| **Bitcoin & digital credit complex** | **~40%** | BTC, digital credit (MSTR / STRC / ASST / SATA), BTC infra/miners (MARA, RIOT, CLSK, WULF, IREN), and related hard-money (gold/silver if held) |
-| **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX, BITA); room for energy or AI names the agent proposes |
+| **Bitcoin & digital credit complex** | **~40%** | BTC, digital credit / BTC yield (MSTR, STRC, ASST, SATA, **BITA**), BTC infra/miners (MARA, RIOT, CLSK, WULF, IREN), and optional hard-money metals (gold/silver if held—not required) |
+| **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX); room for energy or AI names the agent proposes |
 
 Weights are **targets for the investable equity+crypto book** (not cash buffers, Morpho collateral, or One Card float). Rebalance when FCC shows room above floors and user/agent policy allows.
 
@@ -52,9 +52,11 @@ Do **not** treat this markdown as authoritative for quantities or prices; refres
 
 See [positions.md](./positions.md). Current named holdings focus:
 
-BTC, MSTR, SATA, STRC, MARA, RIOT, CLSK, WULF, IREN, TSLA, SPCX, BITA  
+**~40% complex:** BTC, MSTR, SATA, STRC, ASST, BITA, MARA, RIOT, CLSK, WULF, IREN  
 
-Energy: open for agentic proposals (no fixed list).
+**~60% stocks:** TSLA, SPCX  
+
+Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~40%.
 
 ## Portfolio assessment
 

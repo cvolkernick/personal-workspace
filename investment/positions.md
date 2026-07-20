@@ -20,6 +20,7 @@
 | **STRC** | ~40% complex | Digital credit | Digital credit / BTC-linked structure |
 | **SATA** | ~40% complex | Digital credit | Digital credit sleeve |
 | **ASST** | ~40% complex | Digital credit | Digital credit sleeve (held / thesis-aligned) |
+| **BITA** | ~40% complex | Digital credit / BTC yield | BTC-based yield / fixed income — **not** stocks sleeve |
 | **MARA** | ~40% complex | BTC infrastructure | Miner |
 | **RIOT** | ~40% complex | BTC infrastructure | Miner |
 | **CLSK** | ~40% complex | BTC infrastructure | Miner |
@@ -27,7 +28,6 @@
 | **IREN** | ~40% complex | BTC infrastructure | Miner / energy-intensive infra |
 | **TSLA** | ~60% stocks | Growth / energy-adjacent equity | Stocks sleeve |
 | **SPCX** | ~60% stocks | Growth equity | Stocks sleeve |
-| **BITA** | ~60% stocks | Growth equity | Stocks sleeve |
 
 ## Optional / open sleeves (no fixed tickers)
 
