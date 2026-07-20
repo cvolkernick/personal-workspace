@@ -1,0 +1,10 @@
+Backlog project: Panamerica Auto Website
+
+Context:
+Create a business website / platform for Panamerica Auto
+
+Do this in two phases without asking me to re-specify basics:
+1) Planning — write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.
+2) Build — implement the MVP: basic website featuring high level services
+ Prefer living under personal-workspace/business/.
+Use git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.
