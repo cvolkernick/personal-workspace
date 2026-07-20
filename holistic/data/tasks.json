@@ -160,8 +160,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-19T17:33:13-04:00",
-    "window_end": "2026-07-20T17:33:13-04:00",
+    "window_start": "2026-07-19T22:44:25-04:00",
+    "window_end": "2026-07-20T22:44:25-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -213,7 +213,7 @@
     "unallocated_active_minutes": 0,
     "notes": [
       "Lyft: 12h driver-mode used \u2014 need 6h uninterrupted break before more driving (only 889m free left in window)",
-      "12h 0m of 12h driver-mode used (0h 0m left this cycle) \u00b7 5h 60m until 6h offline break ends (can drive again after)"
+      "12h 0m of 12h driver-mode used (0h 0m left this cycle) \u00b7 0h 49m until 6h offline break ends (can drive again after)"
     ],
     "kpi_status": [
       {
