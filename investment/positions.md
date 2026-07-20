@@ -43,12 +43,15 @@
 - Orders on **non-agentic** RH accounts (MCP rejects); use agentic account only for agent trades.
 - Using this table as a balance sheet (always defer to FCC).
 
-## Agentic RH notes
+## Agentic fund manager rules
 
-1. Prefer names on this allowlist unless the user expands it.
-2. When rebalancing toward **40% BTC-complex / 60% stocks**, use FCC portfolio + quotes—not static TBD shares.
-3. Energy or new AI names: propose rationale + size, then wait for confirmation.
-4. Respect treasury DCA pause when RH primary BP is below policy floor; fund agentic account separately for agent execution.
+1. **Active management** — no required weekly DCA; rebalance and rotate when thesis + risk/reward justify it.
+2. Prefer names on this allowlist unless the user expands it.
+3. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using FCC portfolio + live quotes (not this file’s quantities).
+4. Energy or new AI names: propose rationale + size, then wait for confirmation (default).
+5. **Do not** trade if FCC overall stress is red for liquidity (card/loan buffers) unless user overrides.
+6. Respect max notional / max position % once set in fund-manager policy config.
+7. Fund and trade only the **agentic** RH account for MCP orders; primary is separate.
 
 ## Tracking
 

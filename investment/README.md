@@ -7,9 +7,11 @@ Tracking for crypto, equities, and related sleeves. **Canonical live balances, b
 
 ## Strategy
 
-- **Weekly DCA** into thesis-aligned names when policy floors allow (see `treasury/` DCA governor / RH BP floor).
+- **Actively managed** book via an **agentic fund manager** (Robinhood Trading MCP) — not a fixed weekly DCA schedule.
 - **Modernized 60/40** target structure (see below)—not classic bonds/equities.
-- **Agentic RH** may only trade the agentic account; respect FCC policy and this thesis allowlist.
+- Manager may rebalance, rotate within the allowlist, and size into strength/weakness subject to **guardrails** (FCC liquidity floors, max trade size, approval mode).
+- **Agentic RH** may only place orders on the **agentic** account; primary margin is read/policy unless you change that elsewhere.
+- Optional **DCA-like** top-ups remain allowed when the manager chooses them; they are **not** the default cadence.
 
 ## Thesis (core)
 
@@ -37,7 +39,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Bitcoin & digital credit complex** | **~40%** | BTC, digital credit / BTC yield (MSTR, STRC, ASST, SATA, **BITA**), BTC infra/miners (MARA, RIOT, CLSK, WULF, IREN), and optional hard-money metals (gold/silver if held—not required) |
 | **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX); room for energy or AI names the agent proposes |
 
-Weights are **targets for the investable equity+crypto book** (not cash buffers, Morpho collateral, or One Card float). Rebalance when FCC shows room above floors and user/agent policy allows.
+Weights are **targets for the investable equity+crypto book** (not cash buffers, Morpho collateral, or One Card float). The agentic manager steers toward these bands when capital and FCC stress allow—not on a rigid calendar.
 
 ## Data source
 
@@ -69,16 +71,29 @@ Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~
 ### Risks
 - High correlation within the BTC-complex and growth equities in risk-off.
 - Miner and digital-credit names can be more volatile than spot BTC.
-- Small agentic account / thin RH book vs target weights—funding and DCA matter.
+- Small agentic account / thin RH book vs target weights—**fund the agentic account** before meaningful automation.
 - Gold/silver hard-money sleeve optional and may be empty.
+- Active management still inherits BTC/tech correlation; guardrails matter more than cadence.
 
 ### What this is *not*
 - Classic 60/40 stocks/bonds.
+- A fixed **weekly DCA** program (superseded by agentic active management).
 - Kalshi or prediction-market book (removed).
 - A substitute for FCC live data.
+
+## Agentic fund manager (operating model)
+
+| Layer | Role |
+|-------|------|
+| **Thesis** (`investment/`) | Allowlist, 40/60 targets, themes (energy open) |
+| **FCC / treasury** | Liquidity floors, stress, dual RH snapshot, human vs agent actions |
+| **Robinhood MCP** | Quotes, positions, place/cancel **on agentic account only** |
+| **Human** | Fund agentic book; set approval mode; expand allowlist; hard veto |
+
+See [positions.md](./positions.md) for allowlist + manager rules; [treasury-action-items.md](./treasury-action-items.md) for wiring status.
 
 ## Related
 
 - Action items / automation: [treasury-action-items.md](./treasury-action-items.md)
-- Policy / DCA: `treasury/policy.py`, `treasury/config.json`
+- Liquidity policy (floors / stress — not trade alpha): `treasury/policy.py`, `treasury/config.json`
 - RH agentic skill: Grok skill `robinhood-agentic`
