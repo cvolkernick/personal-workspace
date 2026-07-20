@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-07-20T21:35:01.407983+00:00",
+  "as_of": "2026-07-20T21:42:26.289075+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-20T21:35:01.407930+00:00",
+    "as_of": "2026-07-20T21:42:26.289021+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -14,7 +14,7 @@
     "nav_usd": 8.37,
     "cash_usd": 8.37,
     "buying_power_usd": 8.37,
-    "pending_deposits_usd": 8.37,
+    "pending_deposits_usd": 0.0,
     "equity_market_value_usd": 0.0,
     "weights_of_nav": {
       "btc_digital_credit": 0.0,
@@ -71,6 +71,8 @@
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion."
   },
   "policy_summary": {
+    "live": true,
+    "status": "live_autopilot",
     "require_user_confirm": false,
     "max_single_order_notional_usd": null,
     "scope": "agentic_only",
@@ -80,6 +82,11 @@
       "band_pct": 0.05,
       "cash_is_unallocated": true,
       "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+    },
+    "bootstrap_blocker": {
+      "kind": "robinhood_investment_profile",
+      "message": "Robinhood requires investment profile questionnaire before the second agentic trade.",
+      "url": "https://applink.robinhood.com/investment_profile?account_number=674601752&context=second_trade"
     }
   }
 }

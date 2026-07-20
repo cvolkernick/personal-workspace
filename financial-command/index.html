@@ -1307,11 +1307,13 @@
         ? [
             metric(
               "Mode",
-              (fma.approval && fma.approval.require_user_confirm === false
-                ? "Autopilot · no confirm"
-                : "Confirm trades") +
+              (fm.policy_summary && fm.policy_summary.live === false
+                ? "Paused"
+                : fma.approval && fma.approval.require_user_confirm === false
+                  ? "LIVE autopilot · no confirm"
+                  : "Confirm trades") +
                 (fma.approval && fma.approval.max_single_order_notional_usd == null
-                  ? " · no max order $"
+                  ? " · no max $"
                   : "")
             ),
             metric("Agentic NAV", money(fma.nav_usd)),
@@ -1334,7 +1336,15 @@
                 ? (fma.manager_hints || []).slice(0, 3).join(" · ")
                 : "—"
             ),
-          ].join("")
+            fm.policy_summary && fm.policy_summary.bootstrap_blocker
+              ? metric(
+                  "Bootstrap blocker",
+                  "Complete RH investor profile (agentic) — see fund manager runbook"
+                )
+              : "",
+          ]
+            .filter(Boolean)
+            .join("")
         : `<p class="hint">${escapeHtml(
             (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
           )}</p>`;

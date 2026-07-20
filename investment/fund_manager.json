@@ -3,10 +3,13 @@
   "name": "agentic_fund_manager",
   "as_of": "2026-07-20",
   "mode": "active",
+  "status": "live_autopilot",
+  "live": true,
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only.",
   "account": {
     "scope": "agentic_only",
     "config_key": "robinhood.agentic_account_number",
+    "account_number": "674601752",
     "notes": "Weightings and trades use agentic book only. Primary margin is out of scope for the fund manager."
   },
   "approval": {
@@ -79,17 +82,37 @@
   "guardrails": {
     "block_if_agentic_bp_zero": true,
     "respect_fcc_liquidity_stress": false,
-    "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital). Set respect_fcc_liquidity_stress true later if desired."
+    "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital)."
   },
   "execution": {
     "venue": "robinhood_mcp",
     "mcp_url": "https://agent.robinhood.com/mcp/trading",
-    "order_types_preferred": ["limit", "market"],
+    "order_types_preferred": ["market", "limit"],
+    "default_market_hours": "regular_hours",
+    "prefer_dollar_orders_for_small_book": true,
     "review_before_place": false,
-    "notes": "Trades only when account agentic_allowed=true. Prefer review_* only if manager wants a second look; not required by policy."
+    "notes": "Dollar/fractional market only in regular_hours (queue if after hours). Outside regular hours use extended limit only when fractional allowed."
+  },
+  "bootstrap": {
+    "initial_deploy": {
+      "planned_usd": 8.2,
+      "as_of": "2026-07-20T21:41:00Z",
+      "allocation": [
+        {"symbol": "MSTR", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "queued", "order_id": "6a5e9611-650f-4757-a331-ab2e010bc0a9"},
+        {"symbol": "MARA", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "blocked_investor_profile"},
+        {"symbol": "TSLA", "sleeve": "stocks_growth", "dollar_amount": 2.5, "status": "blocked_investor_profile"},
+        {"symbol": "SPCX", "sleeve": "stocks_growth", "dollar_amount": 2.4, "status": "blocked_investor_profile"}
+      ],
+      "blocker": {
+        "kind": "robinhood_investment_profile",
+        "message": "Robinhood requires investment profile questionnaire before the second agentic trade.",
+        "url": "https://applink.robinhood.com/investment_profile?account_number=674601752&context=second_trade"
+      }
+    }
   },
   "docs": {
     "thesis": "investment/README.md",
-    "positions": "investment/positions.md"
+    "positions": "investment/positions.md",
+    "runbook": "investment/FUND_MANAGER_RUNBOOK.md"
   }
 }

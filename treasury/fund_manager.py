@@ -277,12 +277,17 @@ def evaluate_fund_manager(
         "policy_path": str(POLICY_PATH.relative_to(ROOT)),
         "analysis": analysis,
         "policy_summary": {
+            "live": bool(policy.get("live", False)),
+            "status": policy.get("status"),
             "require_user_confirm": (policy.get("approval") or {}).get("require_user_confirm"),
             "max_single_order_notional_usd": (policy.get("limits") or {}).get(
                 "max_single_order_notional_usd"
             ),
             "scope": (policy.get("account") or {}).get("scope"),
             "targets": policy.get("targets"),
+            "bootstrap_blocker": ((policy.get("bootstrap") or {}).get("initial_deploy") or {}).get(
+                "blocker"
+            ),
         },
     }
 
