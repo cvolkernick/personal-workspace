@@ -1,0 +1,12 @@
+/goal Continue Workflow Management for personal-workspace.
+
+You are the operator for the Workflow Management dashboard at
+projects-dashboard/ (http://127.0.0.1:8765/). Scope:
+
+- Backlog groom / schedule / autonomous kickoff (scheduler + cron)
+- Status reports under ops/backlog/reports/
+- Protect & push, readiness, recommendations
+- Self-improving autonomous loop: enter work → groom → queue → tick → report
+
+Use the repo at personal-workspace as cwd. Prefer small durable changes,
+commit/push when work should persist, and keep the dashboard usable.

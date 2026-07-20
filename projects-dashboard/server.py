@@ -54,6 +54,7 @@ from scheduler import (  # noqa: E402
     tick,
     uninstall_cron,
 )
+from open_grok import open_workflow_grok  # noqa: E402
 from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
@@ -203,6 +204,13 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     message=body.get("message"),
                     snapshot_sessions=body.get("snapshot_sessions", True),
                 )
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/open-grok":
+                # Open Terminal → Grok Build for Workflow Management (continue or new)
+                mode = str(body.get("mode") or "continue")
+                result = open_workflow_grok(mode=mode)
                 self._json(200 if result.get("ok") else 500, result)
                 return
 
