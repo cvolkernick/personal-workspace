@@ -2,7 +2,7 @@
 
 - **Backlog id:** `6b74d2ca-d0ca-4c87-8c6c-60777e099a88`
 - **Priority:** medium
-- **Status:** in-progress (MVP building)
+- **Status:** done (MVP usable)
 - **Area:** business
 - **Created:** 2026-07-17T06:18:43.331881+00:00
 - **Initiated:** 2026-07-20T01:38:46.252801+00:00
@@ -28,12 +28,12 @@ Long-term vision (post-MVP): inventory browser, online booking, lead capture, re
 ## Success criteria
 
 - [x] Spec written (this file refined with problem, users, success criteria, non-goals, MVP scope, file layout, risks)
-- [ ] MVP implemented and runnable: self-contained `business/index.html` + README
-- [ ] Primary sections (hero + services) render correctly; site name + service descriptions present
-- [ ] Documented launch entry point runs cleanly (twice); HTTP fetches confirm content
-- [ ] Minimal tests read the real shipped HTML from disk and assert key content
-- [ ] All durable changes (seed + site) performed on `work/business` via git_workflow start + protect/sync; pushed
-- [ ] Seed updated to mark MVP usable + explicit next-iteration steps
+- [x] MVP implemented and runnable: self-contained `business/index.html` + README
+- [x] Primary sections (hero + services) render correctly; site name + service descriptions present
+- [x] Documented launch entry point runs cleanly (twice); HTTP fetches confirm content
+- [x] Minimal tests read the real shipped HTML from disk and assert key content
+- [x] All durable changes (seed + site) performed on `work/business` via git_workflow start + protect/sync; pushed
+- [x] Seed updated to mark MVP usable + explicit next-iteration steps
 
 ## Non-goals
 
@@ -82,15 +82,20 @@ business/
 
 MVP is intentionally tiny: a professional one-page marketing site that can be opened instantly. All service descriptions are plain content testable by string presence in the shipped file.
 
+**MVP usable** — basic website is live under business/, launchable, tested, committed & pushed on work/business. Next iteration items below. Update backlog item status accordingly.
+
 ## Next iteration (post-MVP)
 
-- Add simple contact form stub (static) or integrate formspree/netlify (no server).
-- Service detail pages or accordions with more copy.
-- Light inventory teaser section (hard-coded sample cars).
-- Real logo + 2-3 photos (with proper licensing/placeholders).
-- Deploy to GitHub Pages / Netlify / Vercel (one-command).
-- Basic analytics or call-to-action CTAs.
-- Move to a small framework if justified (only after MVP proven useful).
+Concrete follow-ups (pick in priority order):
+1. Add a visible "Request a Quote" or contact form that is at least a mailto: or static HTML form (no backend processing yet).
+2. Expand one service into a short detail section or modal with 3-4 bullet benefits (still static).
+3. Hard-code a "Featured Vehicles" teaser grid (3 sample listings with year/make/model/price).
+4. Add 1-2 inline SVG icons or a simple hero image (data URI) for visual interest without external files.
+5. Document + test a one-line deploy (e.g. GitHub Pages from /business or copy to docs/).
+6. Optional: make start.command also support --port and --no-browser like peers.
+7. Backlog grooming: move this card to "done" or create follow-up cards for inventory platform phase.
+
+Leave the site as the source of truth for the basic high-level services marketing site.
 
 ## Grok `/goal` objective
 
