@@ -1,8 +1,8 @@
 # Treasury action items — dual-venue liquidity strategy
 
-**Last updated:** 2026-07-17  
+**Last updated:** 2026-07-20  
 **UI:** Financial Command Center → `financial-command/` (`python3 launch.py`)  
-**Surfaces:** Coinbase (BTC collateral loan, High Yield vault, One Card, liquid USDC) ↔ Robinhood (equity/margin, DCA) via USDC bridge.
+**Surfaces:** Coinbase (BTC collateral loan, High Yield vault, One Card, liquid USDC) ↔ Robinhood (equity/margin + **Agentic MCP**, DCA) via USDC bridge.
 
 ## Audit findings (MVP → current)
 
@@ -18,10 +18,11 @@
 | No agent handoff brief | **Added** — copyable agent brief |
 | Policy floors hidden | **Added** — policy floors grid |
 | Static server only (no save API) | **Added** — `financial-command/server.py` |
-| RH only $144 BP visible | **Account limitation** — primary MCP account shows ~$144; confirm correct RH book |
+| RH only $144 BP visible | **Primary margin ••••9737** ~$146; **Agentic ••••1752** MCP-tradable (currently $0 — fund to trade) |
+| RH Agentic MCP | **Wired** — `~/.grok/config.toml` `[mcp_servers.robinhood-trading]` → `agent.robinhood.com/mcp/trading`; dual snapshot via `treasury/rh_sync.py` |
 | CB liquid ~$0 | **Expected if funds in Morpho vault/collateral** — enter vault/principal manually |
 | External USDC bridge | Still recommend-only (no Advanced Trade external send) |
-| RH positions (TSLA/STRC/…) | Not yet in UI (portfolio total only) — future |
+| RH positions (TSLA/STRC/…) | **In FCC Brokerage** from snapshot (primary positions list) |
 
 ## Do now (human)
 
@@ -37,7 +38,8 @@
 | Operation | How |
 | --- | --- |
 | Coinbase liquid USDC/BTC + BTC price | CLI via `treasury/adapters.py` / **Refresh live** |
-| Robinhood portfolio / BP | MCP `get_portfolio` → `treasury/snapshots/robinhood_latest.json` |
+| Robinhood portfolio / BP | MCP `get_accounts` + `get_portfolio` ×2 → `treasury/rh_sync.py` → `robinhood_latest.json` |
+| RH agentic equity/option orders | MCP place/cancel **only** on agentic account (`agentic_allowed=true`) |
 | Policy evaluate + priorities | `python3 treasury/run_treasury.py` or FCC server |
 | DCA governor | Pause if BP &lt; floor or margin heat high |
 | Buffer vs excess | `classify_liquid_usdc` |
@@ -53,18 +55,18 @@
 
 ## Enhancement backlog (next)
 
-1. RH equity positions table (symbols + weights) from MCP holdings if available.
+1. Fund agentic account + optional scheduled agent strategies (user-approved).
 2. Scheduled cron: `run_treasury.py` + email/calendar alert on red stress.
 3. Allowlisted Coinbase Send Money for capped bridge automation.
 4. Onchain Morpho position read if smart-wallet address known.
-5. Dual RH account merge (margin book + agentic) on one panel.
-6. Push-to-config from client localStorage when offline.
+5. Push-to-config from client localStorage when offline.
+6. Options level upgrade on agentic book if needed for option strategies.
 
 ## Daily / weekly agent loop
 
-1. MCP: refresh RH snapshot → write `robinhood_latest.json`.
+1. MCP: refresh RH dual snapshot (`get_accounts` + portfolios) → `rh_sync.py` → `robinhood_latest.json`.
 2. `python3 launch.py` or **Refresh live** in UI.
-3. Execute **agent** actions only (DCA pause/throttle) unless user authorizes trades.
+3. Execute **agent** actions only (DCA pause/throttle; agentic trades only with explicit user OK).
 4. Present **human** actions with amounts; after app updates, save manual fields.
 
 ## Related

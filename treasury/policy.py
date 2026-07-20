@@ -843,6 +843,20 @@ def evaluate_treasury(
             "rh_equity": equity,
             "rh_total_value": total_value,
             "rh_margin_use": margin_use,
+            "rh_account_last4": rh.get("account_number_last4"),
+            "rh_agentic_allowed_primary": rh.get("agentic_allowed"),
+            "rh_agentic_account_last4": (rh.get("agentic") or {}).get("account_number_last4"),
+            "rh_agentic_buying_power": _f((rh.get("agentic") or {}).get("buying_power"))
+            if (rh.get("agentic") or {}).get("buying_power") is not None
+            else None,
+            "rh_agentic_cash": _f((rh.get("agentic") or {}).get("cash"))
+            if (rh.get("agentic") or {}).get("cash") is not None
+            else None,
+            "rh_agentic_total_value": _f((rh.get("agentic") or {}).get("total_value"))
+            if (rh.get("agentic") or {}).get("total_value") is not None
+            else None,
+            "rh_agentic_mcp_connected": bool((rh.get("mcp") or {}).get("connected")),
+            "rh_positions_count": len(rh.get("positions") or []),
         },
         "buckets": buckets,
         "dca": dca,

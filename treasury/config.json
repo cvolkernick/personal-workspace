@@ -26,7 +26,8 @@
   "robinhood": {
     "account_number": "5QW39737",
     "agentic_account_number": "674601752",
-    "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
+    "mcp_url": "https://agent.robinhood.com/mcp/trading",
+    "notes": "Primary margin ••••9737 = DCA/BP policy (agentic_allowed=false for this agent). Agentic cash ••••1752 = MCP order placement only. Grok: [mcp_servers.robinhood-trading] in ~/.grok/config.toml. Refresh: agent get_accounts + get_portfolio ×2 → treasury/rh_sync.py."
   },
   "ynab": {
     "budget_name": null,

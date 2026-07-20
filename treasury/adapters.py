@@ -181,9 +181,47 @@ def fetch_robinhood_from_file(snapshot_path: Optional[Path] = None) -> Optional[
     return load_json(snap)
 
 
+def _mask_account(acct: Optional[str]) -> Optional[str]:
+    if not acct:
+        return None
+    s = str(acct).strip()
+    if len(s) <= 4:
+        return s
+    return s[-4:]
+
+
+def _fnum(val: Any, default: float = 0.0) -> float:
+    if val is None or val == "":
+        return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def normalize_robinhood_payload(data: Dict[str, Any], *, source: str = "snapshot") -> Dict[str, Any]:
-    """Normalize MCP/API portfolio payload into treasury fields."""
-    # Accept either flat treasury shape or raw MCP data envelope
+    """Normalize MCP/API portfolio payload into treasury fields.
+
+    Accepts flat treasury shape or raw MCP ``{data: {...}}`` envelopes from
+    ``get_portfolio``. Extra dual-account fields (``agentic``, ``positions``)
+    are preserved when already present on a flat snapshot.
+    """
+    # Already a flat multi-account snapshot
+    if (
+        isinstance(data.get("buying_power"), (int, float, str))
+        and "total_value" in data
+        and data.get("agentic") is not None
+        and not isinstance(data.get("buying_power"), dict)
+    ):
+        out = dict(data)
+        out["source"] = source or out.get("source") or "snapshot"
+        out.setdefault("as_of", _now())
+        out["buying_power"] = _fnum(out.get("buying_power"))
+        out["total_value"] = _fnum(out.get("total_value"))
+        out["equity_value"] = _fnum(out.get("equity_value"))
+        out["cash"] = _fnum(out.get("cash"))
+        return out
+
     body: Dict[str, Any] = data
     inner = data.get("data")
     if isinstance(inner, dict) and (
@@ -193,33 +231,147 @@ def normalize_robinhood_payload(data: Dict[str, Any], *, source: str = "snapshot
 
     bp_obj = body.get("buying_power")
     if isinstance(bp_obj, dict):
-        bp = float(bp_obj.get("buying_power") or 0)
+        bp = _fnum(bp_obj.get("buying_power"))
         unlev = bp_obj.get("unleveraged_buying_power")
-        unlev = None if unlev is None else float(unlev)
+        unlev = None if unlev is None else _fnum(unlev)
     else:
-        bp = float(bp_obj or body.get("buying_power_value") or 0)
+        bp = _fnum(bp_obj if bp_obj is not None else body.get("buying_power_value"))
         unlev = body.get("unleveraged_buying_power")
-        unlev = None if unlev is None else float(unlev)
+        unlev = None if unlev is None else _fnum(unlev)
 
-    return {
+    acct = data.get("account_number") or body.get("account_number")
+    last4 = data.get("account_number_last4") or _mask_account(acct)
+
+    out: Dict[str, Any] = {
         "source": source,
         "as_of": data.get("as_of") or body.get("as_of") or _now(),
-        "total_value": float(body.get("total_value") or 0),
-        "equity_value": float(body.get("equity_value") or 0),
-        "cash": float(body.get("cash") or 0),
+        "total_value": _fnum(body.get("total_value")),
+        "equity_value": _fnum(body.get("equity_value")),
+        "cash": _fnum(body.get("cash")),
         "buying_power": bp,
         "unleveraged_buying_power": unlev,
         "margin_use": body.get("margin_use"),
         "currency": body.get("currency") or "USD",
-        "account_number_last4": data.get("account_number_last4"),
+        "account_number_last4": last4,
     }
+    if acct:
+        out["account_number"] = str(acct)
+    if data.get("agentic_allowed") is not None:
+        out["agentic_allowed"] = bool(data.get("agentic_allowed"))
+    elif body.get("agentic_allowed") is not None:
+        out["agentic_allowed"] = bool(body.get("agentic_allowed"))
+    for key in (
+        "agentic",
+        "positions",
+        "accounts",
+        "mcp",
+        "nickname",
+        "brokerage_account_type",
+        "account_type",
+        "notes",
+    ):
+        if key in data and data[key] is not None:
+            out[key] = data[key]
+    return out
+
+
+def build_robinhood_dual_snapshot(
+    *,
+    primary_portfolio: Dict[str, Any],
+    agentic_portfolio: Optional[Dict[str, Any]] = None,
+    primary_account: Optional[str] = None,
+    agentic_account: Optional[str] = None,
+    primary_positions: Optional[list] = None,
+    agentic_positions: Optional[list] = None,
+    accounts: Optional[list] = None,
+    source: str = "live",
+    notes: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Merge margin (policy) + agentic (tradable by MCP) into one snapshot.
+
+    Policy DCA / BP floors use the **primary** book. Orders via MCP may only
+    place on accounts with ``agentic_allowed=true`` (the agentic book).
+    """
+    cfg = load_config()
+    rh_cfg = cfg.get("robinhood") or {}
+    primary_account = primary_account or rh_cfg.get("account_number") or ""
+    agentic_account = agentic_account or rh_cfg.get("agentic_account_number") or ""
+
+    primary = normalize_robinhood_payload(
+        {
+            **(primary_portfolio if isinstance(primary_portfolio, dict) else {}),
+            "account_number": primary_account,
+            "agentic_allowed": False,
+        },
+        source=source,
+    )
+    primary["account_number"] = primary_account
+    primary["account_number_last4"] = _mask_account(primary_account)
+    primary["agentic_allowed"] = False
+    if primary_positions is not None:
+        primary["positions"] = primary_positions
+
+    agentic_block: Optional[Dict[str, Any]] = None
+    if agentic_portfolio is not None or agentic_account:
+        agentic_block = normalize_robinhood_payload(
+            {
+                **(agentic_portfolio if isinstance(agentic_portfolio, dict) else {}),
+                "account_number": agentic_account,
+                "agentic_allowed": True,
+            },
+            source=source,
+        )
+        agentic_block["account_number"] = agentic_account
+        agentic_block["account_number_last4"] = _mask_account(agentic_account)
+        agentic_block["agentic_allowed"] = True
+        agentic_block["nickname"] = agentic_block.get("nickname") or "Agentic"
+        if agentic_positions is not None:
+            agentic_block["positions"] = agentic_positions
+
+    snap: Dict[str, Any] = {
+        "source": source,
+        "as_of": _now(),
+        "total_value": primary["total_value"],
+        "equity_value": primary["equity_value"],
+        "cash": primary["cash"],
+        "buying_power": primary["buying_power"],
+        "unleveraged_buying_power": primary.get("unleveraged_buying_power"),
+        "margin_use": primary.get("margin_use"),
+        "currency": primary.get("currency") or "USD",
+        "account_number": primary_account,
+        "account_number_last4": _mask_account(primary_account),
+        "agentic_allowed": False,
+        "positions": primary_positions if primary_positions is not None else primary.get("positions"),
+        "agentic": agentic_block,
+        "accounts": accounts or [],
+        "mcp": {
+            "url": "https://agent.robinhood.com/mcp/trading",
+            "server": "robinhood-trading",
+            "connected": True,
+            "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent",
+        },
+        "notes": notes
+        or (
+            "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. "
+            "Refresh via agent: get_accounts + get_portfolio ×2 → rh_sync / write snapshot."
+        ),
+    }
+    return snap
 
 
 def write_robinhood_snapshot(payload: Dict[str, Any], path: Optional[Path] = None) -> Path:
     """Persist a Robinhood portfolio payload for dashboard/adapters."""
     snap = path or (SNAPSHOTS_DIR / "robinhood_latest.json")
-    if "buying_power" in payload and "total_value" in payload and "source" in payload:
-        save_json(snap, payload)
+    if (
+        "buying_power" in payload
+        and "total_value" in payload
+        and "source" in payload
+        and not isinstance(payload.get("buying_power"), dict)
+    ):
+        # Preserve dual-account extras as-is
+        out = dict(payload)
+        out.setdefault("as_of", _now())
+        save_json(snap, out)
         return snap
     norm = normalize_robinhood_payload(payload, source=payload.get("source") or "live")
     save_json(snap, norm)
@@ -252,7 +404,8 @@ def fetch_robinhood(
         "buying_power": 0.0,
         "unleveraged_buying_power": None,
         "margin_use": None,
-        "live_error": "no robinhood snapshot — write via agent MCP get_portfolio",
+        "agentic": None,
+        "live_error": "no robinhood snapshot — write via agent MCP get_portfolio + treasury/rh_sync.py",
     }
 
 

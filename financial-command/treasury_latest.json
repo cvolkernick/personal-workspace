@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-18T02:17:58.527540+00:00",
+    "as_of": "2026-07-20T20:49:05.086121+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-17T23:49:24.228030+00:00",
@@ -832,13 +832,132 @@
     },
     "robinhood": {
       "source": "live",
-      "total_value": 144.016884525,
-      "equity_value": 143.932838525,
-      "cash": 0.08,
-      "buying_power": 0.08,
-      "unleveraged_buying_power": 0.08,
+      "as_of": "2026-07-20T20:49:01.020938+00:00",
+      "total_value": 146.1761376878,
+      "equity_value": 146.0820916878,
+      "cash": 0.09,
+      "buying_power": 0.09,
+      "unleveraged_buying_power": 0.09,
+      "margin_use": null,
+      "currency": "USD",
+      "account_number": "5QW39737",
       "account_number_last4": "9737",
-      "notes": "Primary margin account 5QW39737 via Robinhood MCP get_portfolio"
+      "agentic_allowed": false,
+      "positions": [
+        {
+          "symbol": "TSLA",
+          "quantity": "0.104883",
+          "average_buy_price": "400.450000",
+          "type": "long"
+        },
+        {
+          "symbol": "MSTR",
+          "quantity": "0.100598",
+          "average_buy_price": "104.380000",
+          "type": "long"
+        },
+        {
+          "symbol": "RIOT",
+          "quantity": "0.267885",
+          "average_buy_price": "26.130000",
+          "type": "long"
+        },
+        {
+          "symbol": "MARA",
+          "quantity": "0.676921",
+          "average_buy_price": "13.300000",
+          "type": "long"
+        },
+        {
+          "symbol": "CLSK",
+          "quantity": "0.611105",
+          "average_buy_price": "14.730000",
+          "type": "long"
+        },
+        {
+          "symbol": "WULF",
+          "quantity": "0.271591",
+          "average_buy_price": "25.770000",
+          "type": "long"
+        },
+        {
+          "symbol": "STRC",
+          "quantity": "0.095320",
+          "average_buy_price": "88.650000",
+          "type": "long"
+        },
+        {
+          "symbol": "SATA",
+          "quantity": "0.109230",
+          "average_buy_price": "92.560000",
+          "type": "long"
+        },
+        {
+          "symbol": "ASST",
+          "quantity": "0.626859",
+          "average_buy_price": "13.560000",
+          "type": "long"
+        },
+        {
+          "symbol": "IREN",
+          "quantity": "0.185640",
+          "average_buy_price": "48.480000",
+          "type": "long"
+        },
+        {
+          "symbol": "SPCX",
+          "quantity": "0.246840",
+          "average_buy_price": "170.150000",
+          "type": "long"
+        },
+        {
+          "symbol": "BITA",
+          "quantity": "0.118615",
+          "average_buy_price": "50.920000",
+          "type": "long"
+        }
+      ],
+      "agentic": {
+        "source": "live",
+        "as_of": "2026-07-20T20:49:01.020933+00:00",
+        "total_value": 0.0,
+        "equity_value": 0.0,
+        "cash": 0.0,
+        "buying_power": 0.0,
+        "unleveraged_buying_power": 0.0,
+        "margin_use": null,
+        "currency": "USD",
+        "account_number_last4": "1752",
+        "account_number": "674601752",
+        "agentic_allowed": true,
+        "nickname": "Agentic",
+        "positions": []
+      },
+      "accounts": [
+        {
+          "account_number": "5QW39737",
+          "type": "margin",
+          "is_default": true,
+          "agentic_allowed": false,
+          "option_level": "option_level_2",
+          "nickname": null
+        },
+        {
+          "account_number": "674601752",
+          "type": "cash",
+          "is_default": false,
+          "agentic_allowed": true,
+          "option_level": "",
+          "nickname": "Agentic"
+        }
+      ],
+      "mcp": {
+        "url": "https://agent.robinhood.com/mcp/trading",
+        "server": "robinhood-trading",
+        "connected": true,
+        "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
+      },
+      "notes": "Live MCP refresh 2026-07-20: primary margin \u2022\u2022\u2022\u20229737 + agentic \u2022\u2022\u2022\u20221752 (agentic_allowed=true). Agentic book unfunded."
     },
     "policy_overrides": {
       "cb_target_ltv_max": 0.5,
@@ -855,7 +974,7 @@
       "one_card_security_deposit_usdc": 500
     },
     "meta": {
-      "config_path": "/Users/cvolkernick/personal-workspace/treasury/config.json",
+      "config_path": "/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/config.json",
       "coinbase_source": "live",
       "robinhood_source": "live",
       "one_card_source": "ynab",
@@ -864,7 +983,7 @@
       "rh_accounts": {
         "primary": "5QW39737",
         "agentic": "674601752",
-        "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
+        "notes": "Primary margin \u2022\u2022\u2022\u20229737 = DCA/BP policy (agentic_allowed=false for this agent). Agentic cash \u2022\u2022\u2022\u20221752 = MCP order placement only. Grok: [mcp_servers.robinhood-trading] in ~/.grok/config.toml. Refresh: agent get_accounts + get_portfolio \u00d72 \u2192 treasury/rh_sync.py."
       },
       "ynab": {
         "budget_name": "Chris's Plan",
@@ -929,15 +1048,23 @@
       "expenses_combined_monthly": 16211.68,
       "expenses_coinbase_funded_monthly": 11862.82,
       "expenses_rh_funded_monthly": 4255.54,
-      "rh_buying_power": 0.08,
-      "rh_cash": 0.08,
+      "rh_buying_power": 0.09,
+      "rh_cash": 0.09,
       "rh_checking_cash": 2.43,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 0.0,
       "bill_pay_cash": 2.43,
-      "rh_equity": 143.932838525,
-      "rh_total_value": 144.016884525,
-      "rh_margin_use": null
+      "rh_equity": 146.0820916878,
+      "rh_total_value": 146.1761376878,
+      "rh_margin_use": null,
+      "rh_account_last4": "9737",
+      "rh_agentic_allowed_primary": false,
+      "rh_agentic_account_last4": "1752",
+      "rh_agentic_buying_power": 0.0,
+      "rh_agentic_cash": 0.0,
+      "rh_agentic_total_value": 0.0,
+      "rh_agentic_mcp_connected": true,
+      "rh_positions_count": 12
     },
     "buckets": {
       "liquid_usdc": 147.4306861255614,
@@ -970,8 +1097,8 @@
     "dca": {
       "allow_dca": false,
       "throttle": "pause",
-      "reason": "buying power 0.08 below floor 500.00",
-      "buying_power": 0.08,
+      "reason": "buying power 0.09 below floor 500.00",
+      "buying_power": 0.09,
       "bp_floor": 500.0,
       "margin_use": null
     },
@@ -1000,25 +1127,34 @@
         "rh_checking": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-07-17T23:49:24.228030+00:00",
-        "robinhood_as_of": null,
+        "robinhood_as_of": "2026-07-20T20:49:01.020938+00:00",
         "one_card_as_of": "2026-07-17T23:49:24.629239+00:00",
         "rh_checking_as_of": "2026-07-17T23:49:24.786535+00:00",
         "expenses_as_of": "2026-07-17T23:49:25.480458+00:00"
       },
-      "stale": [],
+      "stale": [
+        "coinbase data 69.0h old (>6.0h)",
+        "one_card data 69.0h old (>6.0h)",
+        "rh_checking data 69.0h old (>6.0h)",
+        "expenses data 69.0h old (>6.0h)"
+      ],
       "warnings": [
-        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv"
+        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv",
+        "coinbase data 69.0h old (>6.0h)",
+        "one_card data 69.0h old (>6.0h)",
+        "rh_checking data 69.0h old (>6.0h)",
+        "expenses data 69.0h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
         "Liquid CB balances exclude vault/collateral locked on Morpho."
       ],
-      "config_path": "/Users/cvolkernick/personal-workspace/treasury/config.json",
+      "config_path": "/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/config.json",
       "rh_accounts": {
         "primary": "5QW39737",
         "agentic": "674601752",
-        "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
+        "notes": "Primary margin \u2022\u2022\u2022\u20229737 = DCA/BP policy (agentic_allowed=false for this agent). Agentic cash \u2022\u2022\u2022\u20221752 = MCP order placement only. Grok: [mcp_servers.robinhood-trading] in ~/.grok/config.toml. Refresh: agent get_accounts + get_portfolio \u00d72 \u2192 treasury/rh_sync.py."
       }
     },
     "actions": [
@@ -1057,7 +1193,7 @@
       {
         "priority": 3,
         "kind": "dca_pause",
-        "title": "Pause DCA: buying power 0.08 below floor 500.00",
+        "title": "Pause DCA: buying power 0.09 below floor 500.00",
         "actor": "agent",
         "detail": "API-reachable: do not place equity DCA buys while paused. Review RH portfolio/BP.",
         "api_reachable": true
@@ -1139,7 +1275,7 @@
       {
         "n": 5,
         "actor": "agent",
-        "title": "Pause DCA: buying power 0.08 below floor 500.00",
+        "title": "Pause DCA: buying power 0.09 below floor 500.00",
         "api_reachable": true
       },
       {
@@ -1161,7 +1297,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00257842 (~$164.78)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nUpcoming expense estimates (sheet Personal): $16211.68/mo | CB-funded est $11862.82 | RH-checking est $4255.54 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | RH brokerage BP: $0.08 cash: $0.08 equity: $143.93\nDCA: PAUSE (pause) \u2014 buying power 0.08 below floor 500.00\nData quality: yellow score=0.75\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.08 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$11863/mo vs working USDC $147.43 (spot+vault)\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00257842 (~$164.78)\nOne Card owed: $418.55 (source=ynab) | 30d spend $0.0\nUpcoming expense estimates (sheet Personal): $16211.68/mo | CB-funded est $11862.82 | RH-checking est $4255.54 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | RH brokerage BP: $0.09 cash: $0.09 equity: $146.08\nDCA: PAUSE (pause) \u2014 buying power 0.09 below floor 500.00\nData quality: yellow score=0.75\nTop actions:\n  P0 [human|manual] Fill missing Coinbase app fields in config / UI\n  P1 [human|manual] Confirm Morpho loan LTV in Coinbase app\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $418.55 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.09 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$11863/mo vs working USDC $147.43 (spot+vault)\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
@@ -1183,10 +1319,10 @@
         "total": 147.4306861255614
       },
       "rh_cash_bp": {
-        "buying_power": 0.08,
-        "cash": 0.08,
-        "equity": 143.932838525,
-        "total_value": 144.016884525
+        "buying_power": 0.09,
+        "cash": 0.09,
+        "equity": 146.0820916878,
+        "total_value": 146.1761376878
       },
       "bridge_dry_powder": {
         "target": 200.0,

@@ -1,10 +1,129 @@
 {
   "source": "live",
-  "total_value": 144.016884525,
-  "equity_value": 143.932838525,
-  "cash": 0.08,
-  "buying_power": 0.08,
-  "unleveraged_buying_power": 0.08,
+  "as_of": "2026-07-20T20:49:01.020938+00:00",
+  "total_value": 146.1761376878,
+  "equity_value": 146.0820916878,
+  "cash": 0.09,
+  "buying_power": 0.09,
+  "unleveraged_buying_power": 0.09,
+  "margin_use": null,
+  "currency": "USD",
+  "account_number": "5QW39737",
   "account_number_last4": "9737",
-  "notes": "Primary margin account 5QW39737 via Robinhood MCP get_portfolio"
+  "agentic_allowed": false,
+  "positions": [
+    {
+      "symbol": "TSLA",
+      "quantity": "0.104883",
+      "average_buy_price": "400.450000",
+      "type": "long"
+    },
+    {
+      "symbol": "MSTR",
+      "quantity": "0.100598",
+      "average_buy_price": "104.380000",
+      "type": "long"
+    },
+    {
+      "symbol": "RIOT",
+      "quantity": "0.267885",
+      "average_buy_price": "26.130000",
+      "type": "long"
+    },
+    {
+      "symbol": "MARA",
+      "quantity": "0.676921",
+      "average_buy_price": "13.300000",
+      "type": "long"
+    },
+    {
+      "symbol": "CLSK",
+      "quantity": "0.611105",
+      "average_buy_price": "14.730000",
+      "type": "long"
+    },
+    {
+      "symbol": "WULF",
+      "quantity": "0.271591",
+      "average_buy_price": "25.770000",
+      "type": "long"
+    },
+    {
+      "symbol": "STRC",
+      "quantity": "0.095320",
+      "average_buy_price": "88.650000",
+      "type": "long"
+    },
+    {
+      "symbol": "SATA",
+      "quantity": "0.109230",
+      "average_buy_price": "92.560000",
+      "type": "long"
+    },
+    {
+      "symbol": "ASST",
+      "quantity": "0.626859",
+      "average_buy_price": "13.560000",
+      "type": "long"
+    },
+    {
+      "symbol": "IREN",
+      "quantity": "0.185640",
+      "average_buy_price": "48.480000",
+      "type": "long"
+    },
+    {
+      "symbol": "SPCX",
+      "quantity": "0.246840",
+      "average_buy_price": "170.150000",
+      "type": "long"
+    },
+    {
+      "symbol": "BITA",
+      "quantity": "0.118615",
+      "average_buy_price": "50.920000",
+      "type": "long"
+    }
+  ],
+  "agentic": {
+    "source": "live",
+    "as_of": "2026-07-20T20:49:01.020933+00:00",
+    "total_value": 0.0,
+    "equity_value": 0.0,
+    "cash": 0.0,
+    "buying_power": 0.0,
+    "unleveraged_buying_power": 0.0,
+    "margin_use": null,
+    "currency": "USD",
+    "account_number_last4": "1752",
+    "account_number": "674601752",
+    "agentic_allowed": true,
+    "nickname": "Agentic",
+    "positions": []
+  },
+  "accounts": [
+    {
+      "account_number": "5QW39737",
+      "type": "margin",
+      "is_default": true,
+      "agentic_allowed": false,
+      "option_level": "option_level_2",
+      "nickname": null
+    },
+    {
+      "account_number": "674601752",
+      "type": "cash",
+      "is_default": false,
+      "agentic_allowed": true,
+      "option_level": "",
+      "nickname": "Agentic"
+    }
+  ],
+  "mcp": {
+    "url": "https://agent.robinhood.com/mcp/trading",
+    "server": "robinhood-trading",
+    "connected": true,
+    "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
+  },
+  "notes": "Live MCP refresh 2026-07-20: primary margin \u2022\u2022\u2022\u20229737 + agentic \u2022\u2022\u2022\u20221752 (agentic_allowed=true). Agentic book unfunded."
 }

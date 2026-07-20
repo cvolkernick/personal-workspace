@@ -1258,12 +1258,38 @@
             .join("")
         : `<p class="hint">No pay-from data</p>`;
 
-      // Brokerage
+      // Brokerage (primary margin = policy/DCA; agentic = MCP-tradable)
+      const rhSnap = snap.robinhood || rh || {};
+      const rhAgentic = rhSnap.agentic || {};
+      const pos = rhSnap.positions || [];
       document.getElementById("rh-metrics").innerHTML = [
-        metric("Buying power", money(inp.rh_buying_power)),
-        metric("Equity", money(inp.rh_equity)),
-        metric("Total value", money(inp.rh_total_value)),
-        metric("Brokerage cash", money(inp.rh_cash)),
+        metric(
+          "Primary BP (policy)",
+          money(inp.rh_buying_power) +
+            (inp.rh_account_last4 ? ` · ••••${inp.rh_account_last4}` : "")
+        ),
+        metric("Primary equity", money(inp.rh_equity)),
+        metric("Primary total", money(inp.rh_total_value)),
+        metric("Primary cash", money(inp.rh_cash)),
+        metric(
+          "Agentic BP (tradable)",
+          (inp.rh_agentic_buying_power != null ? money(inp.rh_agentic_buying_power) : "—") +
+            (inp.rh_agentic_account_last4 ? ` · ••••${inp.rh_agentic_account_last4}` : "") +
+            (inp.rh_agentic_mcp_connected ? " · MCP" : "")
+        ),
+        metric(
+          "Agentic cash / value",
+          `${money(inp.rh_agentic_cash)} / ${money(inp.rh_agentic_total_value)}`
+        ),
+        metric(
+          "Positions (primary)",
+          pos.length
+            ? pos
+                .slice(0, 8)
+                .map((p) => p.symbol)
+                .join(" · ") + (pos.length > 8 ? ` +${pos.length - 8}` : "")
+            : String(inp.rh_positions_count ?? 0)
+        ),
         metric("DCA", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
         metric("Why", (ev.dca && ev.dca.reason) || "—"),
       ].join("");

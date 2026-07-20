@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 
 from treasury.adapters import (  # noqa: E402
     _parse_coinbase_balance_payload,
+    build_robinhood_dual_snapshot,
     build_snapshot,
     fetch_coinbase_liquid,
     fetch_robinhood,
@@ -56,6 +57,39 @@ class TestRobinhoodNormalize(unittest.TestCase):
         self.assertAlmostEqual(n["buying_power"], 0.08)
         self.assertAlmostEqual(n["total_value"], 144.23)
         self.assertEqual(n["source"], "live")
+
+    def test_dual_account_agentic(self):
+        snap = build_robinhood_dual_snapshot(
+            primary_portfolio={
+                "data": {
+                    "total_value": "100",
+                    "equity_value": "90",
+                    "cash": "10",
+                    "buying_power": {"buying_power": "10"},
+                }
+            },
+            agentic_portfolio={
+                "data": {
+                    "total_value": "50",
+                    "equity_value": "0",
+                    "cash": "50",
+                    "buying_power": {"buying_power": "50"},
+                }
+            },
+            primary_account="5QW39737",
+            agentic_account="674601752",
+            primary_positions=[{"symbol": "TSLA", "quantity": "1"}],
+            agentic_positions=[],
+            source="live",
+        )
+        self.assertAlmostEqual(snap["buying_power"], 10.0)
+        self.assertEqual(snap["account_number_last4"], "9737")
+        self.assertFalse(snap["agentic_allowed"])
+        self.assertAlmostEqual(snap["agentic"]["buying_power"], 50.0)
+        self.assertTrue(snap["agentic"]["agentic_allowed"])
+        self.assertEqual(snap["agentic"]["account_number_last4"], "1752")
+        self.assertEqual(snap["positions"][0]["symbol"], "TSLA")
+        self.assertTrue(snap["mcp"]["connected"])
 
 
 class TestSnapshotFallback(unittest.TestCase):
