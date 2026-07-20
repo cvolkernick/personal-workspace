@@ -1296,35 +1296,43 @@
         </table>`;
       wrap.querySelectorAll("tr[data-id]").forEach((row) => {
         const id = row.getAttribute("data-id");
-        row.querySelector(".btn-save").addEventListener("click", async () => {
-          try {
-            const next = await api("/api/set", {
-              method: "POST",
-              body: JSON.stringify({
-                key: id,
-                priority: Number(row.querySelector(".edit-priority").value),
-                minutes: Number(row.querySelector(".edit-minutes").value),
-              }),
-            });
-            msg(`Updated ${id}`, "ok");
-            render(next);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
-        row.querySelector(".btn-remove").addEventListener("click", async () => {
-          if (!confirm(`Remove “${id}”?`)) return;
-          try {
-            const next = await api("/api/remove", {
-              method: "POST",
-              body: JSON.stringify({ key: id }),
-            });
-            msg(`Removed ${id}`, "ok");
-            render(next);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
+        const btnSave = row.querySelector(".btn-save");
+        const btnRemove = row.querySelector(".btn-remove");
+        if (btnSave) {
+          btnSave.addEventListener("click", async () => {
+            try {
+              const priEl = row.querySelector(".edit-priority");
+              const minEl = row.querySelector(".edit-minutes");
+              const next = await api("/api/set", {
+                method: "POST",
+                body: JSON.stringify({
+                  key: id,
+                  priority: Number(priEl && priEl.value),
+                  minutes: Number(minEl && minEl.value),
+                }),
+              });
+              msg(`Updated ${id}`, "ok");
+              render(next);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
+        if (btnRemove) {
+          btnRemove.addEventListener("click", async () => {
+            if (!confirm(`Remove “${id}”?`)) return;
+            try {
+              const next = await api("/api/remove", {
+                method: "POST",
+                body: JSON.stringify({ key: id }),
+              });
+              msg(`Removed ${id}`, "ok");
+              render(next);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
       });
       if (deep.item) {
         const el = document.getElementById("hol-" + deep.item);
