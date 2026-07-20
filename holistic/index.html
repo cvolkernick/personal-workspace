@@ -745,33 +745,38 @@
     function bindWalkReviewButtons(root) {
       (root || document).querySelectorAll(".walk-item").forEach((row) => {
         const id = row.getAttribute("data-review-id");
-        row.querySelector(".btn-walk-yes").addEventListener("click", async () => {
-          try {
-            const state = await api("/api/activity/review", {
-              method: "POST",
-              body: JSON.stringify({ id, decision: "confirm" }),
-            });
-            // Server logs the Google activity's duration (minutes field on that walk)
-            const mins = row.querySelector("strong");
-            const label = mins ? mins.textContent : "walk minutes";
-            msg(`Yes — logged ${label} to Walk Duchess from that Google activity · plan & actual updated`, "ok");
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
-        row.querySelector(".btn-walk-no").addEventListener("click", async () => {
-          try {
-            const state = await api("/api/activity/review", {
-              method: "POST",
-              body: JSON.stringify({ id, decision: "deny" }),
-            });
-            msg(`Ignored walk (not Duchess)`, "ok");
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
+        const yes = row.querySelector(".btn-walk-yes");
+        const no = row.querySelector(".btn-walk-no");
+        if (yes) {
+          yes.addEventListener("click", async () => {
+            try {
+              const state = await api("/api/activity/review", {
+                method: "POST",
+                body: JSON.stringify({ id, decision: "confirm" }),
+              });
+              const mins = row.querySelector("strong");
+              const label = mins ? mins.textContent : "walk minutes";
+              msg(`Yes — logged ${label} to Walk Duchess from that Google activity · plan & actual updated`, "ok");
+              render(state);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
+        if (no) {
+          no.addEventListener("click", async () => {
+            try {
+              const state = await api("/api/activity/review", {
+                method: "POST",
+                body: JSON.stringify({ id, decision: "deny" }),
+              });
+              msg(`Ignored walk (not Duchess)`, "ok");
+              render(state);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
       });
     }
 
@@ -968,38 +973,44 @@
       wrap.querySelectorAll(".progress-row").forEach((row) => {
         const id = row.getAttribute("data-id");
         const input = row.querySelector(".prog-minutes");
-        row.querySelector(".btn-log-partial").addEventListener("click", async () => {
-          const minutes = Number(input.value);
-          if (!(minutes > 0)) {
-            msg("Enter minutes > 0", "error");
-            return;
-          }
-          try {
-            const state = await api("/api/progress", {
-              method: "POST",
-              body: JSON.stringify({ key: id, minutes, complete: false }),
-            });
-            msg(`Logged ${minutes}m on ${id} — plan updated`, "ok");
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
-        row.querySelector(".btn-log-done").addEventListener("click", async () => {
-          try {
-            const minutes = Number(input.value);
-            const body = { key: id, complete: true };
-            if (minutes > 0) body.minutes = minutes;
-            const state = await api("/api/progress", {
-              method: "POST",
-              body: JSON.stringify(body),
-            });
-            msg(`Marked done: ${id} — plan updated`, "ok");
-            render(state);
-          } catch (e) {
-            msg(String(e.message || e), "error");
-          }
-        });
+        const btnPartial = row.querySelector(".btn-log-partial");
+        const btnDone = row.querySelector(".btn-log-done");
+        if (btnPartial) {
+          btnPartial.addEventListener("click", async () => {
+            const minutes = Number(input && input.value);
+            if (!(minutes > 0)) {
+              msg("Enter minutes > 0", "error");
+              return;
+            }
+            try {
+              const state = await api("/api/progress", {
+                method: "POST",
+                body: JSON.stringify({ key: id, minutes, complete: false }),
+              });
+              msg(`Logged ${minutes}m on ${id} — plan updated`, "ok");
+              render(state);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
+        if (btnDone) {
+          btnDone.addEventListener("click", async () => {
+            try {
+              const minutes = Number(input && input.value);
+              const body = { key: id, complete: true };
+              if (minutes > 0) body.minutes = minutes;
+              const state = await api("/api/progress", {
+                method: "POST",
+                body: JSON.stringify(body),
+              });
+              msg(`Marked done: ${id} — plan updated`, "ok");
+              render(state);
+            } catch (e) {
+              msg(String(e.message || e), "error");
+            }
+          });
+        }
       });
       bindWalkReviewButtons(wrap);
       wrap.querySelectorAll("[data-lyft-duty]").forEach((row) => {
@@ -1014,7 +1025,8 @@
             let extra = "";
             if (d.at_limit && d.break_remaining_minutes != null && !d.break_complete) {
               const br = Number(d.break_remaining_minutes);
-              extra = ` · break: ${Math.floor(br / 60)}h ${Math.round(br % 60)}m until you can drive again`;
+              const totalM = Math.max(0, Math.round(br));
+              extra = ` · break: ${Math.floor(totalM / 60)}h ${totalM % 60}m until you can drive again`;
             } else if (d.break_complete) {
               extra = " · 6h break complete — reset to 0 for a new cycle";
             }
@@ -1024,21 +1036,27 @@
             msg(String(e.message || e), "error");
           }
         };
-        row.querySelector(".btn-lyft-set").addEventListener("click", () => {
-          const hours = Number(input.value);
-          if (Number.isNaN(hours) || hours < 0) {
-            msg("Enter hours driven ≥ 0 (max 12)", "error");
-            return;
-          }
-          setDuty(hours, `Lyft duty set to ${Math.min(12, hours).toFixed(2)}h of 12h`);
-        });
+        const btnSet = row.querySelector(".btn-lyft-set");
+        if (btnSet) {
+          btnSet.addEventListener("click", () => {
+            const hours = Number(input && input.value);
+            if (Number.isNaN(hours) || hours < 0) {
+              msg("Enter hours driven ≥ 0 (max 12)", "error");
+              return;
+            }
+            setDuty(hours, `Lyft duty set to ${Math.min(12, hours).toFixed(2)}h of 12h`);
+          });
+        }
         const btn12 = row.querySelector(".btn-lyft-set-12");
         if (btn12) {
           btn12.addEventListener("click", () => setDuty(12, "Logged 12h — mandatory 6h offline break started"));
         }
-        row.querySelector(".btn-lyft-reset").addEventListener("click", () => {
-          setDuty(0, "Lyft duty reset to 0h — full 12h cycle available");
-        });
+        const btnReset = row.querySelector(".btn-lyft-reset");
+        if (btnReset) {
+          btnReset.addEventListener("click", () => {
+            setDuty(0, "Lyft duty reset to 0h — full 12h cycle available");
+          });
+        }
       });
     }
 
