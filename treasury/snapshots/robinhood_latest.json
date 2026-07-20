@@ -1,11 +1,11 @@
 {
   "source": "live",
-  "as_of": "2026-07-20T20:49:01.020938+00:00",
+  "as_of": "2026-07-20T21:35:01.164024+00:00",
   "total_value": 146.1761376878,
   "equity_value": 146.0820916878,
   "cash": 0.09,
   "buying_power": 0.09,
-  "unleveraged_buying_power": 0.09,
+  "unleveraged_buying_power": null,
   "margin_use": null,
   "currency": "USD",
   "account_number": "5QW39737",
@@ -87,19 +87,20 @@
   ],
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-20T20:49:01.020933+00:00",
-    "total_value": 0.0,
+    "as_of": "2026-07-20T21:35:01.164020+00:00",
+    "total_value": 8.37,
     "equity_value": 0.0,
-    "cash": 0.0,
-    "buying_power": 0.0,
-    "unleveraged_buying_power": 0.0,
+    "cash": 8.37,
+    "buying_power": 8.37,
+    "unleveraged_buying_power": 8.37,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
     "nickname": "Agentic",
-    "positions": []
+    "positions": [],
+    "pending_deposits": 8.37
   },
   "accounts": [
     {
@@ -125,5 +126,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Live MCP refresh 2026-07-20: primary margin \u2022\u2022\u2022\u20229737 + agentic \u2022\u2022\u2022\u20221752 (agentic_allowed=true). Agentic book unfunded."
+  "notes": "Agentic funded ~$8.37 (pending_deposits). Fund manager v1 autopilot; agentic-only weights."
 }

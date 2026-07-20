@@ -43,15 +43,17 @@
 - Orders on **non-agentic** RH accounts (MCP rejects); use agentic account only for agent trades.
 - Using this table as a balance sheet (always defer to FCC).
 
-## Agentic fund manager rules
+## Agentic fund manager rules (v1)
+
+Source of truth for automation: [`fund_manager.json`](./fund_manager.json).
 
 1. **Active management** — no required weekly DCA; rebalance and rotate when thesis + risk/reward justify it.
-2. Prefer names on this allowlist unless the user expands it.
-3. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using FCC portfolio + live quotes (not this file’s quantities).
-4. Energy or new AI names: propose rationale + size, then wait for confirmation (default).
-5. **Do not** trade if FCC overall stress is red for liquidity (card/loan buffers) unless user overrides.
-6. Respect max notional / max position % once set in fund-manager policy config.
-7. Fund and trade only the **agentic** RH account for MCP orders; primary is separate.
+2. Prefer **core allowlist** names; energy/AI opportunistic names allowed at manager discretion (`allowlist.strict: false`).
+3. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using agentic NAV + live quotes only.
+4. **No per-trade user approval** — capital deposited to agentic is the risk budget and is fair game.
+5. **No max single-order notional** — size at manager discretion.
+6. FCC card/loan stress does **not** block agentic trades in v1 (separate capital).
+7. MCP orders **only** on the agentic account.
 
 ## Tracking
 

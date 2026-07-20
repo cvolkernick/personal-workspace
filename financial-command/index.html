@@ -587,11 +587,13 @@
       </div>
     </section>
 
-    <details class="panel" id="panel-brokerage">
+    <details class="panel" id="panel-brokerage" open>
       <summary>Brokerage (RH trading)</summary>
       <div class="body">
-        <p class="hint">Trading BP / equity — not ACH checking</p>
+        <p class="hint">Primary = legacy/read · Agentic = fund manager book (MCP tradable)</p>
         <div id="rh-metrics"></div>
+        <div class="hint" style="margin-top:0.75rem">Agentic fund manager (40/60 · autopilot v1)</div>
+        <div id="fund-manager-metrics"></div>
       </div>
     </details>
 
@@ -1290,9 +1292,52 @@
                 .join(" · ") + (pos.length > 8 ? ` +${pos.length - 8}` : "")
             : String(inp.rh_positions_count ?? 0)
         ),
-        metric("DCA", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
+        metric("DCA (legacy primary)", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
         metric("Why", (ev.dca && ev.dca.reason) || "—"),
       ].join("");
+
+      // Agentic fund manager (agentic account only)
+      const fm = data.fund_manager || ev.fund_manager || {};
+      const fma = fm.analysis || {};
+      const wDep = fma.weights_of_deployed || {};
+      const wNav = fma.weights_of_nav || {};
+      const pctLabel = (x) =>
+        x == null || !Number.isFinite(Number(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+      document.getElementById("fund-manager-metrics").innerHTML = fma.ok
+        ? [
+            metric(
+              "Mode",
+              (fma.approval && fma.approval.require_user_confirm === false
+                ? "Autopilot · no confirm"
+                : "Confirm trades") +
+                (fma.approval && fma.approval.max_single_order_notional_usd == null
+                  ? " · no max order $"
+                  : "")
+            ),
+            metric("Agentic NAV", money(fma.nav_usd)),
+            metric("Agentic BP / cash", `${money(fma.buying_power_usd)} / ${money(fma.cash_usd)}`),
+            metric(
+              "Deployed 40/60",
+              `BTC-complex ${pctLabel(wDep.btc_digital_credit)} · Stocks ${pctLabel(
+                wDep.stocks_growth
+              )}`
+            ),
+            metric(
+              "Of NAV",
+              `Complex ${pctLabel(wNav.btc_digital_credit)} · Stocks ${pctLabel(
+                wNav.stocks_growth
+              )} · Cash ${pctLabel(wNav.cash)}`
+            ),
+            metric(
+              "Manager hints",
+              (fma.manager_hints || []).length
+                ? (fma.manager_hints || []).slice(0, 3).join(" · ")
+                : "—"
+            ),
+          ].join("")
+        : `<p class="hint">${escapeHtml(
+            (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
+          )}</p>`;
 
       // YNAB txs collapsed
       const octx = oc.transactions || [];

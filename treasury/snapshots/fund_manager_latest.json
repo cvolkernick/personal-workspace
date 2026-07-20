@@ -1,0 +1,85 @@
+{
+  "ok": true,
+  "as_of": "2026-07-20T21:35:01.407983+00:00",
+  "agentic_account_number": "674601752",
+  "policy_path": "investment/fund_manager.json",
+  "analysis": {
+    "ok": true,
+    "as_of": "2026-07-20T21:35:01.407930+00:00",
+    "policy_version": 1,
+    "mode": "active",
+    "account_last4": "1752",
+    "account_number": "674601752",
+    "agentic_allowed": true,
+    "nav_usd": 8.37,
+    "cash_usd": 8.37,
+    "buying_power_usd": 8.37,
+    "pending_deposits_usd": 8.37,
+    "equity_market_value_usd": 0.0,
+    "weights_of_nav": {
+      "btc_digital_credit": 0.0,
+      "stocks_growth": 0.0,
+      "other": 0.0,
+      "cash": 1.0
+    },
+    "weights_of_deployed": {
+      "btc_digital_credit": null,
+      "stocks_growth": null
+    },
+    "targets": {
+      "btc_digital_credit_pct": 0.4,
+      "stocks_growth_pct": 0.6,
+      "band_pct": 0.05
+    },
+    "drift_deployed": {
+      "btc_digital_credit": null,
+      "stocks_growth": null
+    },
+    "in_band": {
+      "btc_digital_credit": null,
+      "stocks_growth": null
+    },
+    "positions": [],
+    "sleeve_market_value": {
+      "btc_digital_credit": 0.0,
+      "stocks_growth": 0.0,
+      "other": 0.0
+    },
+    "allowlist_core": [
+      "BTC",
+      "MSTR",
+      "STRC",
+      "SATA",
+      "ASST",
+      "BITA",
+      "MARA",
+      "RIOT",
+      "CLSK",
+      "WULF",
+      "IREN",
+      "TSLA",
+      "SPCX"
+    ],
+    "approval": {
+      "require_user_confirm": false,
+      "max_single_order_notional_usd": null
+    },
+    "manager_hints": [
+      "All cash (~$8.37). Deploy toward ~40% BTC-complex / ~60% stocks using core allowlist at manager discretion."
+    ],
+    "fair_game": true,
+    "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion."
+  },
+  "policy_summary": {
+    "require_user_confirm": false,
+    "max_single_order_notional_usd": null,
+    "scope": "agentic_only",
+    "targets": {
+      "btc_digital_credit_pct": 0.4,
+      "stocks_growth_pct": 0.6,
+      "band_pct": 0.05,
+      "cash_is_unallocated": true,
+      "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+    }
+  }
+}

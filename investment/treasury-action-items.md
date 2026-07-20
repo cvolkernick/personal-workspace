@@ -19,7 +19,7 @@
 | Policy floors hidden | **Added** — policy floors grid |
 | Static server only (no save API) | **Added** — `financial-command/server.py` |
 | RH only $144 BP visible | **Primary margin ••••9737** ~$146; **Agentic ••••1752** MCP-tradable (currently $0 — fund to trade) |
-| RH Agentic MCP | **Wired** — `~/.grok/config.toml` `[mcp_servers.robinhood-trading]` → `agent.robinhood.com/mcp/trading`; dual snapshot via `treasury/rh_sync.py` |
+| RH Agentic MCP | **Wired** — MCP + dual snapshot; **fund manager v1** (`investment/fund_manager.json`, `treasury/fund_manager.py`) autopilot agentic-only |
 | CB liquid ~$0 | **Expected if funds in Morpho vault/collateral** — enter vault/principal manually |
 | External USDC bridge | Still recommend-only (no Advanced Trade external send) |
 | RH positions (TSLA/STRC/…) | **In FCC Brokerage** from snapshot (primary positions list) |

@@ -85,12 +85,20 @@ Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~
 
 | Layer | Role |
 |-------|------|
-| **Thesis** (`investment/`) | Allowlist, 40/60 targets, themes (energy open) |
-| **FCC / treasury** | Liquidity floors, stress, dual RH snapshot, human vs agent actions |
+| **Policy** | [`fund_manager.json`](./fund_manager.json) — machine-readable rules |
+| **Thesis** | Allowlist, 40/60 targets, themes (energy open) |
+| **FCC / treasury** | Live weights via `treasury/fund_manager.py`; dual RH snapshot |
 | **Robinhood MCP** | Quotes, positions, place/cancel **on agentic account only** |
-| **Human** | Fund agentic book; set approval mode; expand allowlist; hard veto |
+| **Human** | **Fund agentic book** (sole risk budget); hard kill = withdraw capital |
 
-See [positions.md](./positions.md) for allowlist + manager rules; [treasury-action-items.md](./treasury-action-items.md) for wiring status.
+### v1 rules (confirmed)
+
+- **Weights:** agentic account only  
+- **Approval:** none — if capital is in agentic, it is fair game  
+- **Max order notional:** none — manager discretion  
+- **Risk control:** size of deposits to agentic only  
+
+See [positions.md](./positions.md); run `python3 treasury/fund_manager.py --write`.
 
 ## Related
 

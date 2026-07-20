@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "name": "agentic_fund_manager",
+  "as_of": "2026-07-20",
+  "mode": "active",
+  "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only.",
+  "account": {
+    "scope": "agentic_only",
+    "config_key": "robinhood.agentic_account_number",
+    "notes": "Weightings and trades use agentic book only. Primary margin is out of scope for the fund manager."
+  },
+  "approval": {
+    "require_user_confirm": false,
+    "notes": "v1: no per-trade approval. User controls downside via agentic funding only. If cash/BP is in the agentic account, it is fair game."
+  },
+  "limits": {
+    "max_single_order_notional_usd": null,
+    "max_position_pct": null,
+    "min_trade_notional_usd": 1.0,
+    "notes": "No max notional — agent discretion. Optional min avoids dust orders."
+  },
+  "targets": {
+    "btc_digital_credit_pct": 0.4,
+    "stocks_growth_pct": 0.6,
+    "band_pct": 0.05,
+    "cash_is_unallocated": true,
+    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+  },
+  "sleeves": {
+    "btc_digital_credit": {
+      "target_pct": 0.4,
+      "symbols": [
+        "BTC",
+        "MSTR",
+        "STRC",
+        "SATA",
+        "ASST",
+        "BITA",
+        "MARA",
+        "RIOT",
+        "CLSK",
+        "WULF",
+        "IREN"
+      ],
+      "optional_symbols": ["PAXG", "GLDM", "IAU", "SLV"],
+      "themes": ["bitcoin", "hard_money", "digital_credit", "btc_infrastructure", "btc_yield"]
+    },
+    "stocks_growth": {
+      "target_pct": 0.6,
+      "symbols": ["TSLA", "SPCX"],
+      "themes": ["growth_equity", "ai_stack", "energy_adjacent"]
+    },
+    "energy_opportunistic": {
+      "target_pct": null,
+      "symbols": [],
+      "open": true,
+      "notes": "No fixed tickers. Manager may add energy names within agentic capital at discretion; prefer thesis fit."
+    }
+  },
+  "allowlist": {
+    "strict": false,
+    "core": [
+      "BTC",
+      "MSTR",
+      "STRC",
+      "SATA",
+      "ASST",
+      "BITA",
+      "MARA",
+      "RIOT",
+      "CLSK",
+      "WULF",
+      "IREN",
+      "TSLA",
+      "SPCX"
+    ],
+    "notes": "strict=false: core preferred; manager may use energy/AI names at discretion within agentic capital. Prefer core for default rebalances."
+  },
+  "guardrails": {
+    "block_if_agentic_bp_zero": true,
+    "respect_fcc_liquidity_stress": false,
+    "notes": "v1: agentic funding is the risk budget. FCC card/loan stress does not block agentic trades (separate capital). Set respect_fcc_liquidity_stress true later if desired."
+  },
+  "execution": {
+    "venue": "robinhood_mcp",
+    "mcp_url": "https://agent.robinhood.com/mcp/trading",
+    "order_types_preferred": ["limit", "market"],
+    "review_before_place": false,
+    "notes": "Trades only when account agentic_allowed=true. Prefer review_* only if manager wants a second look; not required by policy."
+  },
+  "docs": {
+    "thesis": "investment/README.md",
+    "positions": "investment/positions.md"
+  }
+}

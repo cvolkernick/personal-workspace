@@ -23,6 +23,7 @@ from treasury.adapters import (  # noqa: E402
     load_config,
     save_json,
 )
+from treasury.fund_manager import evaluate_fund_manager, write_fund_manager_snapshot  # noqa: E402
 from treasury.policy import evaluate_treasury  # noqa: E402
 
 
@@ -55,9 +56,17 @@ def main(argv: list[str] | None = None) -> int:
         prefer_live_expenses=live,
     )
     result = evaluate_treasury(snap, policy=cfg.get("policy") or {})
+    # Agentic fund manager (agentic RH account only; see investment/fund_manager.json)
+    try:
+        fm = evaluate_fund_manager(rh_snapshot=snap.get("robinhood") or {})
+        write_fund_manager_snapshot(fm)
+    except Exception as e:  # noqa: BLE001 — never fail treasury for FM
+        fm = {"ok": False, "error": str(e)}
+    result["fund_manager"] = fm
     out = {
         "snapshot": snap,
         "evaluation": result,
+        "fund_manager": fm,
     }
     save_json(args.out, out)
     # Also publish to financial-command UI path
@@ -69,6 +78,12 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps({"ok": True, "stress": stress, "actions": n, "out": str(args.out)}, indent=2))
     for a in result["actions"][:8]:
         print(f"  P{a['priority']} [{a['actor']}] {a['title']}")
+    fa = (fm.get("analysis") or {}) if isinstance(fm, dict) else {}
+    if fa.get("ok"):
+        print(
+            f"  fund_manager nav=${fa.get('nav_usd')} bp=${fa.get('buying_power_usd')} "
+            f"deployed={fa.get('weights_of_deployed')}"
+        )
     return 0
 
 

@@ -857,6 +857,7 @@ def evaluate_treasury(
             else None,
             "rh_agentic_mcp_connected": bool((rh.get("mcp") or {}).get("connected")),
             "rh_positions_count": len(rh.get("positions") or []),
+            "rh_agentic_positions_count": len((rh.get("agentic") or {}).get("positions") or []),
         },
         "buckets": buckets,
         "dca": dca,
