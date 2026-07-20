@@ -50,11 +50,11 @@ def recommend_next(
             urgency = "high"
             reason = b.get("reason") or "Daily target still open in this 24h window"
             if b.get("minutes_min") is not None:
+                done = int(b.get("done_today") or 0)
+                left = int(b.get("minutes") or 0)
                 reason = (
                     f"Daily target: aim {b.get('minutes_min')}–{b.get('minutes_max')} min "
-                    f"({b.get('minutes')} min still planned"
-                    + (f", {b.get('done_today')} done today" if b.get("done_today") else "")
-                    + ")"
+                    f"(plan {left + done}m · {done}m logged in last 24h · {left}m still planned)"
                 )
         elif role == "session":
             urgency = "high"

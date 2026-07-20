@@ -784,10 +784,20 @@
         return;
       }
       let html = (list || []).map((s, idx) => {
-        const rem = Number(s.minutes) || 0;
+        const prog = pmap[s.id];
+        // Prefer delta map for consistent remaining vs progress bar
+        const actualForBar = prog ? Number(prog.actual) || 0 : (Number(s.done_today) || 0);
+        const plannedForBar = prog && prog.planned > 0
+          ? Number(prog.planned)
+          : (actualForBar + (Number(s.minutes) || 0));
+        const remFromProgress = Math.max(0, plannedForBar - actualForBar);
+        // "Remaining" must match progress math — never show e.g. 45m left at 136%
+        const rem = prog
+          ? remFromProgress
+          : Math.max(0, Number(s.minutes) || 0);
         const loggable = s.loggable !== false && s.role !== "meta" && s.role !== "reserve" && s.role !== "break";
         const session = s.log_mode === "session";
-        const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30);
+        const defaultMin = session ? (rem || 60) : Math.min(rem || 30, rem || 30) || 15;
         const isDuchess = s.id === "duchess-walk";
         const isLyft = s.id === "lyft";
         const walkBlock = isDuchess ? walkCandidatesHtml(walks) : "";
@@ -882,15 +892,15 @@
               Plan uses remaining drive capacity. Update when hours change; if 6h pass with no update, you’ll be prompted.
             </div>
           </div>` : "";
-        const prog = pmap[s.id];
-        const doneToday = Number(s.done_today) || (prog ? prog.actual : 0) || 0;
-        // Prefer allocation_delta map for actual/planned when available
-        const actualForBar = prog ? prog.actual : doneToday;
-        const plannedForBar = prog && prog.planned > 0 ? prog.planned : (actualForBar + rem);
         const st = progressStats(actualForBar, plannedForBar);
         const suggestExtra =
           st.over ? "over-plan" : (st.pct < 40 ? "low-progress" : "");
-        const progressRow = loggable ? `
+        const remLabel = st.over
+          ? `${st.actual}m logged (${Math.round(st.pctRaw)}% of ${st.planned}m plan)`
+          : (rem > 0
+            ? `${hours(rem)} remaining · ${st.actual}m logged`
+            : (st.actual > 0 ? `${st.actual}m logged · done for plan` : ""));
+        const progressRow = loggable && rem > 0 ? `
           <div class="row progress-row" style="margin-top:0.55rem" data-id="${escapeAttr(s.id)}">
             <label>min
               <input type="number" class="prog-minutes" min="0" step="5" value="${defaultMin}" style="width:5rem" />
@@ -898,14 +908,20 @@
             <button type="button" class="btn-log-partial primary">Log time</button>
             <button type="button" class="btn-log-done">Mark done</button>
             ${session ? `<span class="path">session = counts as 1 workout day</span>` : ""}
-            ${s.done_today ? `<span class="path">${s.done_today}m already today</span>` : ""}
+          </div>` : (loggable && st.over ? `
+          <div class="path" style="margin-top:0.45rem">Over plan target — optional extra logging still available below if needed.</div>
+          <div class="row progress-row" style="margin-top:0.35rem" data-id="${escapeAttr(s.id)}">
+            <label>min
+              <input type="number" class="prog-minutes" min="0" step="5" value="15" style="width:5rem" />
+            </label>
+            <button type="button" class="btn-log-partial primary">Log extra</button>
           </div>` : (s.role === "meta" || s.role === "reserve" ? `
           <div class="row" style="margin-top:0.55rem">
             <span class="path">${s.id === "sleep-log" || s.id === "sleep-protect" || s.id === "sleep-7d"
               ? "Use Sync sleep / protect rest — not a timed work block"
               : ""}</span>
-          </div>` : "");
-        const barBlock = (plannedForBar > 0 || actualForBar > 0) && loggable
+          </div>` : ""));
+        const barBlock = (plannedForBar > 0 || actualForBar > 0) && (loggable || st.over)
           ? `<div class="progress-caption">${progressBarHtml(actualForBar, plannedForBar)}</div>`
           : "";
         return `
@@ -920,8 +936,7 @@
           <div class="meta" style="margin-top:0.25rem">
             <span class="role ${escapeAttr(s.role)}">${escapeHtml(s.role)}</span>
             · pri ${s.priority}
-            ${rem ? " · " + hours(rem) + " remaining" : ""}
-            ${actualForBar ? ` · ${actualForBar}m logged` : ""}
+            ${remLabel ? " · " + remLabel : ""}
           </div>
           ${barBlock}
           ${walkBlock}

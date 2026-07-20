@@ -662,6 +662,41 @@ def logs_for_target(
     return rows
 
 
+def _local_dates_in_window(
+    now: datetime, window_minutes: int
+) -> list[date]:
+    """Local calendar dates that intersect [now − window, now]."""
+    win_start = now - timedelta(minutes=max(0, int(window_minutes)))
+    local_tz = now.tzinfo or timezone.utc
+    d0 = win_start.astimezone(local_tz).date()
+    d1 = now.astimezone(local_tz).date()
+    out: list[date] = []
+    cur = d0
+    while cur <= d1:
+        out.append(cur)
+        cur += timedelta(days=1)
+    return out
+
+
+def log_minutes_in_window(
+    state: dict[str, Any],
+    target_id: str,
+    *,
+    now: datetime,
+    window_minutes: int = 24 * 60,
+) -> int:
+    """Sum log values for target on local dates overlapping the rolling window.
+
+    Aligns daily targets with rolling-24h actuals (avoids “45m remaining” while
+    progress shows 100%+ from yesterday’s log still inside the window).
+    """
+    total = 0.0
+    for day in _local_dates_in_window(now, window_minutes):
+        for lg in logs_for_target(state, target_id, since=day, until=day):
+            total += float(lg.get("value") or 0)
+    return int(total)
+
+
 def kpi_status(state: dict[str, Any], *, as_of: date | None = None) -> list[dict[str, Any]]:
     """Summarize progress vs each ongoing target."""
     today = _as_date(as_of)
@@ -837,25 +872,41 @@ def build_rolling_plan(
                     }
                 )
 
-    # 2) Daily duration (fixed claims on active time), reduced by today's logs
+    # 2) Daily duration — reduced by logs in the rolling window (not only calendar "today")
     daily = [t for t in targets if str(t.get("kind")) == "daily_duration"]
     daily.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     for t in daily:
         plan_m = max(0, int(t.get("minutes") or 0))
         min_m = int(t.get("minutes_min") if t.get("minutes_min") is not None else plan_m)
         max_m = int(t.get("minutes_max") if t.get("minutes_max") is not None else plan_m)
-        logs = logs_for_target(state, str(t["id"]), since=today, until=today)
-        done = 0 if ignore_progress else int(sum(float(lg.get("value") or 0) for lg in logs))
-        # Plan remaining toward the default plan amount; min is the "done enough" bar
+        # Calendar-today (legacy note) + rolling-window done (matches progress bars)
+        logs_today = logs_for_target(state, str(t["id"]), since=today, until=today)
+        done_calendar = int(sum(float(lg.get("value") or 0) for lg in logs_today))
+        done_window = (
+            0
+            if ignore_progress
+            else log_minutes_in_window(
+                state, str(t["id"]), now=now, window_minutes=window
+            )
+        )
+        done = done_window
+        # Plan remaining toward default plan amount using window progress
         need = plan_m if ignore_progress else max(0, plan_m - done)
         if not ignore_progress and done >= min_m and need <= 0:
-            notes.append(f"{t.get('title')}: already logged {done} min today (target {min_m}–{max_m})")
+            notes.append(
+                f"{t.get('title')}: already logged {done} min in last "
+                f"{window // 60}h (target {min_m}–{max_m}"
+                + (f"; calendar today {done_calendar}m" if done_calendar != done else "")
+                + ")"
+            )
             continue
         if not ignore_progress and done >= min_m and need > 0:
             # Optional stretch toward plan/max — still schedule remaining plan minutes lightly
             pass
         if need <= 0:
-            notes.append(f"{t.get('title')}: complete for today ({done} min)")
+            notes.append(
+                f"{t.get('title')}: complete in window ({done} min ≥ plan {plan_m})"
+            )
             continue
         take = min(need, remaining_active)
         if take <= 0:
@@ -875,7 +926,8 @@ def build_rolling_plan(
                 "sessions_hint": t.get("sessions_hint"),
                 "minutes_min": min_m,
                 "minutes_max": max_m,
-                "done_today": done,
+                "done_today": done,  # rolling-window done (name kept for API compat)
+                "done_calendar_today": done_calendar,
             }
         )
         remaining_active -= take
