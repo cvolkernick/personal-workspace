@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-21T10:30:18.599773+00:00",
+  "as_of": "2026-07-21T21:28:53.585117+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 22.76,
-  "cash": 22.76,
-  "available": 22.76,
-  "cleared_balance": 22.76,
+  "balance_raw": 23.07,
+  "cash": 23.07,
+  "available": 23.07,
+  "cleared_balance": 23.07,
   "uncleared_balance": 0.0,
   "spend_30d": 2.24,
-  "inflow_30d": 25.0,
-  "transaction_count": 3,
+  "inflow_30d": 25.31,
+  "transaction_count": 4,
   "transactions": [
     {
       "id": "783fcba3-df65-4470-9b1b-c85f11ea85ff",
@@ -38,6 +38,17 @@
       "memo": null,
       "cleared": "cleared",
       "approved": true,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "0076d77d-1b0b-4fd3-a756-c90e8d45fccd",
+      "date": "2026-07-21",
+      "payee": "85B54665",
+      "amount": 0.31,
+      "amount_display": 0.31,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
       "category_name": "Inflow: Ready to Assign"
     },
     {

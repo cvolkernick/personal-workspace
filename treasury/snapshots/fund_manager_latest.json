@@ -1,30 +1,30 @@
 {
   "ok": true,
-  "as_of": "2026-07-21T21:36:09.479515+00:00",
+  "as_of": "2026-07-21T23:37:10.122969+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-21T21:36:09.479389+00:00",
+    "as_of": "2026-07-21T23:37:10.122855+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
-    "account_number": "674601752",
+    "account_number": null,
     "agentic_allowed": true,
-    "nav_usd": 8.232,
-    "cash_usd": 0.17,
-    "buying_power_usd": 0.17,
+    "nav_usd": 50.0,
+    "cash_usd": 50.0,
+    "buying_power_usd": 50.0,
     "pending_deposits_usd": null,
-    "equity_market_value_usd": 8.2005,
+    "equity_market_value_usd": 0.0,
     "weights_of_nav": {
-      "btc_digital_credit": 0.4009,
-      "stocks_growth": 0.5952,
+      "btc_digital_credit": 0.0,
+      "stocks_growth": 0.0,
       "other": 0.0,
-      "cash": 0.0207
+      "cash": 1.0
     },
     "weights_of_deployed": {
-      "btc_digital_credit": 0.4025,
-      "stocks_growth": 0.5975
+      "btc_digital_credit": null,
+      "stocks_growth": null
     },
     "targets": {
       "btc_digital_credit_pct": 0.4,
@@ -32,42 +32,17 @@
       "band_pct": 0.05
     },
     "drift_deployed": {
-      "btc_digital_credit": 0.0025,
-      "stocks_growth": -0.0025
+      "btc_digital_credit": null,
+      "stocks_growth": null
     },
     "in_band": {
-      "btc_digital_credit": true,
-      "stocks_growth": true
+      "btc_digital_credit": null,
+      "stocks_growth": null
     },
-    "positions": [
-      {
-        "symbol": "MSTR",
-        "quantity": 0.016286,
-        "market_value": 1.6499,
-        "sleeve": "btc_digital_credit"
-      },
-      {
-        "symbol": "MARA",
-        "quantity": 0.131841,
-        "market_value": 1.6506,
-        "sleeve": "btc_digital_credit"
-      },
-      {
-        "symbol": "TSLA",
-        "quantity": 0.006542,
-        "market_value": 2.5,
-        "sleeve": "stocks_growth"
-      },
-      {
-        "symbol": "SPCX",
-        "quantity": 0.018498,
-        "market_value": 2.3999,
-        "sleeve": "stocks_growth"
-      }
-    ],
+    "positions": [],
     "sleeve_market_value": {
-      "btc_digital_credit": 3.3006,
-      "stocks_growth": 4.9,
+      "btc_digital_credit": 0.0,
+      "stocks_growth": 0.0,
       "other": 0.0
     },
     "allowlist_core": [
@@ -90,12 +65,64 @@
       "max_single_order_notional_usd": null
     },
     "manager_hints": [
-      "Deployed mix within target bands \u2014 discretionary alpha only."
+      "All cash (~$50.00). Deploy toward ~40% BTC-complex / ~60% stocks using core allowlist at manager discretion."
     ],
     "fair_game": true,
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion."
   },
   "recent_decisions": [
+    {
+      "kind": "hold",
+      "outcome": "hold",
+      "need_llm": false,
+      "path": "rules",
+      "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); cash $0.17 immaterial",
+      "nav_usd": 8.232,
+      "buying_power_usd": 0.17,
+      "weights_before": {
+        "btc_digital_credit": 0.4025,
+        "stocks_growth": 0.5975
+      },
+      "weights_after_expected": {
+        "btc_digital_credit": 0.4025,
+        "stocks_growth": 0.5975
+      },
+      "rationale": {
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); cash $0.17 immaterial",
+        "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+        "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+        "thesis_tags": [
+          "rules_engine",
+          "modernized_60_40"
+        ]
+      },
+      "team_votes": {
+        "scout": {
+          "vote": "observe",
+          "note": "NAV $8.23 BP $0.17 cash $0.17"
+        },
+        "thesis": {
+          "vote": "ok",
+          "note": "deployed BTC 0.4025 stocks 0.5975"
+        },
+        "risk": {
+          "vote": "ok",
+          "note": "Agentic capital only; no trade if hold"
+        },
+        "critic": {
+          "vote": "ok",
+          "note": "Hold preferred when bands ok \u2014 avoid churn"
+        },
+        "executor": {
+          "vote": "hold",
+          "note": "No MCP orders on pure rules HOLD"
+        }
+      },
+      "actions": [],
+      "as_of": "2026-07-21T23:36:49.926336+00:00",
+      "schema_version": 1,
+      "account_scope": "agentic_only"
+    },
     {
       "kind": "deploy",
       "summary": "Complete bootstrap after investor profile cleared: MARA + TSLA + SPCX.",
@@ -263,5 +290,13 @@
     },
     "rationale_required": true,
     "bootstrap_blocker": null
+  },
+  "rules_review": {
+    "outcome": "need_llm",
+    "need_llm": true,
+    "summary": "Rules \u2192 need team/LLM: idle cash $50.00 to deploy toward 40/60",
+    "in_band": false,
+    "cash_material": true,
+    "logged": false
   }
 }

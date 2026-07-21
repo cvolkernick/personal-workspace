@@ -15,6 +15,7 @@ from treasury.fund_manager import (  # noqa: E402
     append_decision,
     load_decision_log,
     load_fund_policy,
+    rules_based_review,
     sleeve_for_symbol,
 )
 
@@ -70,6 +71,41 @@ class TestDecisionLog(unittest.TestCase):
             rows = load_decision_log(path=p, limit=5)
             self.assertEqual(len(rows), 1)
             self.assertEqual(rows[0]["kind"], "hold")
+
+
+class TestRulesReview(unittest.TestCase):
+    def test_hold_when_in_band(self):
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 0.17,
+                "buying_power": 0.17,
+                "total_value": 100,
+                "positions": [
+                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60},
+                ],
+            }
+        }
+        fm = rules_based_review(rh_snapshot=rh, log=False)
+        rr = fm["rules_review"]
+        self.assertFalse(rr["need_llm"])
+        self.assertEqual(rr["outcome"], "hold")
+
+    def test_need_llm_when_cash_idle(self):
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 50,
+                "buying_power": 50,
+                "total_value": 50,
+                "positions": [],
+            }
+        }
+        fm = rules_based_review(rh_snapshot=rh, log=False)
+        self.assertTrue(fm["rules_review"]["need_llm"])
 
 
 class TestAnalyze(unittest.TestCase):

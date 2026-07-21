@@ -524,8 +524,22 @@ def evaluate_treasury(
         "data_quality": data_quality["status"],
     }
     order = {"green": 0, "yellow": 1, "red": 2}
-    overall = max(stress.values(), key=lambda c: order.get(c, 0))
+    # Overall ops stress: material dimensions only (exclude pure data_quality from
+    # forcing red — missing Morpho LTV stays yellow on coinbase_ltv, not a hard red overall
+    # unless liquid/card/RH is red).
+    material = [
+        stress["coinbase_ltv"],
+        stress["coinbase_liquid"],
+        stress["coinbase_card"],
+        stress["robinhood"],
+    ]
+    overall = max(material, key=lambda c: order.get(c, 0))
+    # If only LTV unknown (yellow) and liquid is green/yellow from vault known, keep yellow
+    if overall == "red" and stress["coinbase_liquid"] != "red" and stress["coinbase_card"] != "red":
+        # RH BP below floor is yellow not red usually; if something else made red, leave it
+        pass
     stress["overall"] = overall
+    stress["dimensions"] = dict(stress)
 
     actions: List[Dict[str, Any]] = []
 
@@ -549,17 +563,37 @@ def evaluate_treasury(
             }
         )
 
-    if data_quality["missing_manual_fields"]:
+    missing = data_quality["missing_manual_fields"]
+    morpho_only = set(missing) <= {
+        "loan_principal_usdc",
+        "collateral_btc_usd",
+        "ltv",
+    } and bool(missing)
+    if missing and not morpho_only:
         add(
             0,
             "fill_manual",
             "Fill missing Coinbase app fields in config / UI",
             actor="human",
-            detail="Missing: " + ", ".join(data_quality["missing_manual_fields"]),
+            detail="Missing: " + ", ".join(missing),
+            api_reachable=False,
+        )
+    elif morpho_only:
+        add(
+            1,
+            "fill_morpho",
+            "Enter Morpho loan principal / collateral / LTV (Settings)",
+            actor="human",
+            detail=(
+                "Missing: "
+                + ", ".join(missing)
+                + ". Open Coinbase Borrow app → copy principal, collateral USD, LTV → FCC Settings. "
+                "Loan protection recommended. Fund-manager book is separate capital."
+            ),
             api_reachable=False,
         )
 
-    if ltv is None:
+    if ltv is None and not morpho_only:
         add(
             1,
             "ltv_check",
@@ -568,6 +602,8 @@ def evaluate_treasury(
             detail="LTV not readable via Advanced Trade API. Update treasury config; enable loan protection.",
             api_reachable=False,
         )
+    elif ltv is None and morpho_only:
+        pass  # covered by fill_morpho
     elif ltv >= _f(p["cb_target_ltv_max"]):
         add(
             1,

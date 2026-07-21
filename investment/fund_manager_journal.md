@@ -45,3 +45,17 @@
 - BUY TSLA $2.5 [filled] 6a5f8d3d-0021-44b7-be91-39c8ab3930dd
 - BUY SPCX $2.4 [filled] 6a5f8d3d-cb9d-4b74-b78e-eb319db463f9
 
+
+## 2026-07-21T23:36:49 — hold
+**Summary:** Rules HOLD: deployed mix in ±5% band (BTC-complex 40%, stocks 60%); cash $0.17 immaterial
+**Book:** NAV $8.232 · BP $0.17
+**Weights before (deployed):** BTC-complex 0.4025 · Stocks 0.5975
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** In-band + low cash → skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.
+**Team:**
+- **scout:** observe — NAV $8.23 BP $0.17 cash $0.17
+- **thesis:** ok — deployed BTC 0.4025 stocks 0.5975
+- **risk:** ok — Agentic capital only; no trade if hold
+- **critic:** ok — Hold preferred when bands ok — avoid churn
+- **executor:** hold — No MCP orders on pure rules HOLD
+

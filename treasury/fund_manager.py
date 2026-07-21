@@ -418,15 +418,302 @@ def evaluate_fund_manager(
     }
 
 
+def rules_based_review(
+    *,
+    rh_snapshot: Optional[Dict[str, Any]] = None,
+    policy: Optional[Dict[str, Any]] = None,
+    log: bool = True,
+) -> Dict[str, Any]:
+    """Daily review without LLM when possible.
+
+    - In-band deployed mix + no meaningful idle cash → HOLD (log + optional notify skip)
+    - Idle cash or drift → NEED_LLM (caller may run team debate / grok)
+    - live:false → OBSERVE only
+    """
+    policy = policy or load_fund_policy()
+    fm = evaluate_fund_manager(rh_snapshot=rh_snapshot, policy=policy)
+    analysis = fm.get("analysis") or {}
+    live = bool(policy.get("live", False))
+    targets = analysis.get("targets") or policy.get("targets") or {}
+    band = _f(targets.get("band_pct"), 0.05)
+    w = analysis.get("weights_of_deployed") or {}
+    btc = w.get("btc_digital_credit")
+    stocks = w.get("stocks_growth")
+    cash = _f(analysis.get("cash_usd"))
+    nav = _f(analysis.get("nav_usd"))
+    bp = _f(analysis.get("buying_power_usd"))
+    min_trade = _f((policy.get("limits") or {}).get("min_trade_notional_usd"), 1.0)
+    # Idle cash material if >= min_trade or >= 5% NAV
+    cash_material = cash >= min_trade and (nav <= 0 or cash / max(nav, 1e-9) >= 0.05)
+
+    in_band = (
+        btc is not None
+        and stocks is not None
+        and abs(btc - _f(targets.get("btc_digital_credit_pct"), 0.4)) <= band
+        and abs(stocks - _f(targets.get("stocks_growth_pct"), 0.6)) <= band
+    )
+
+    if not live:
+        outcome = "observe"
+        kind = "hold"
+        summary = "live:false — observe only, no trades"
+        need_llm = False
+    elif not analysis.get("ok"):
+        outcome = "error"
+        kind = "error"
+        summary = analysis.get("error") or "agentic analysis failed"
+        need_llm = False
+    elif in_band and not cash_material:
+        outcome = "hold"
+        kind = "hold"
+        summary = (
+            f"Rules HOLD: deployed mix in ±{band:.0%} band "
+            f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash ${cash:.2f} immaterial"
+        )
+        need_llm = False
+    elif cash_material and (btc is None or stocks is None or (btc == 0 and stocks == 0)):
+        outcome = "need_llm"
+        kind = "deploy"
+        summary = f"Rules → need team/LLM: idle cash ${cash:.2f} to deploy toward 40/60"
+        need_llm = True
+    elif not in_band and btc is not None:
+        outcome = "need_llm"
+        kind = "rebalance"
+        summary = (
+            f"Rules → need team/LLM: drift BTC-complex={btc:.0%} stocks={stocks:.0%} "
+            f"(targets 40/60 ±{band:.0%})"
+        )
+        need_llm = True
+    else:
+        outcome = "need_llm"
+        kind = "review"
+        summary = "Rules → need team/LLM: ambiguous state"
+        need_llm = True
+
+    decision = {
+        "kind": kind,
+        "outcome": outcome,
+        "need_llm": need_llm,
+        "path": "rules",
+        "summary": summary,
+        "nav_usd": analysis.get("nav_usd"),
+        "buying_power_usd": analysis.get("buying_power_usd"),
+        "weights_before": {
+            "btc_digital_credit": btc,
+            "stocks_growth": stocks,
+        },
+        "weights_after_expected": {
+            "btc_digital_credit": btc if kind == "hold" else _f(targets.get("btc_digital_credit_pct"), 0.4),
+            "stocks_growth": stocks if kind == "hold" else _f(targets.get("stocks_growth_pct"), 0.6),
+        },
+        "rationale": {
+            "summary": summary,
+            "why_now": (
+                "Scheduled daily review (rules path). Mid-session style; no day-trading."
+            ),
+            "why_not_alternatives": (
+                "In-band + low cash → skip LLM cost/latency. "
+                "Drift or deploy needs thesis/risk/critic debate before Executor trades."
+                if not need_llm
+                else "Quorum team should debate size/names; Executor only places after OK."
+            ),
+            "thesis_tags": ["rules_engine", "modernized_60_40"],
+        },
+        "team_votes": {
+            "scout": {
+                "vote": "observe",
+                "note": f"NAV ${nav:.2f} BP ${bp:.2f} cash ${cash:.2f}",
+            },
+            "thesis": {
+                "vote": "ok" if (in_band or not live) else "rebalance",
+                "note": f"deployed BTC {btc} stocks {stocks}",
+            },
+            "risk": {
+                "vote": "ok" if outcome == "hold" else "review",
+                "note": "Agentic capital only; no trade if hold",
+            },
+            "critic": {
+                "vote": "ok" if outcome == "hold" else "challenge",
+                "note": "Hold preferred when bands ok — avoid churn",
+            },
+            "executor": {
+                "vote": "hold" if not need_llm else "await_team",
+                "note": "No MCP orders on pure rules HOLD",
+            },
+        },
+        "actions": [],
+    }
+
+    logged = False
+    if log and live:
+        # Avoid spam: only log HOLD if last decision wasn't identical hold same day
+        should_log = True
+        if outcome == "hold":
+            recent = load_decision_log(limit=3)
+            if recent:
+                last = recent[0]
+                if last.get("kind") == "hold" and last.get("path") == "rules":
+                    last_day = (last.get("as_of") or "")[:10]
+                    if last_day == _now()[:10]:
+                        should_log = False
+        if should_log:
+            append_decision(decision)
+            logged = True
+
+    fm["rules_review"] = {
+        "outcome": outcome,
+        "need_llm": need_llm,
+        "summary": summary,
+        "in_band": in_band,
+        "cash_material": cash_material,
+        "logged": logged,
+    }
+    write_fund_manager_snapshot(fm)
+    return fm
+
+
+def notify_if_needed(
+    *,
+    decision_or_review: Dict[str, Any],
+    treasury_eval: Optional[Dict[str, Any]] = None,
+    force: bool = False,
+) -> Dict[str, Any]:
+    """Push ntfy alert for non-HOLD decisions or stale RH (optional email later)."""
+    import urllib.error
+    import urllib.request
+
+    cfg = load_config()
+    ncfg = (cfg.get("notifications") or {}) if isinstance(cfg, dict) else {}
+    topic = (
+        ncfg.get("ntfy_topic")
+        or __import__("os").environ.get("FCC_NTFY_TOPIC")
+        or "cvolk-grok-7f3k9x"
+    )
+    enabled = ncfg.get("enabled", True)
+    if not enabled and not force:
+        return {"ok": False, "skipped": "notifications disabled"}
+
+    rules = (decision_or_review.get("rules_review") or decision_or_review) if decision_or_review else {}
+    outcome = rules.get("outcome") or decision_or_review.get("kind")
+    need_llm = rules.get("need_llm")
+    summary = rules.get("summary") or decision_or_review.get("summary") or ""
+
+    # Stale RH from treasury eval
+    stale_msgs: List[str] = []
+    if treasury_eval:
+        dq = (treasury_eval.get("data_quality") or {}) if isinstance(treasury_eval, dict) else {}
+        for s in dq.get("stale") or []:
+            if "robinhood" in str(s).lower() or "rh" in str(s).lower():
+                stale_msgs.append(str(s))
+        for w in dq.get("warnings") or []:
+            if "robinhood" in str(w).lower() and "old" in str(w).lower():
+                stale_msgs.append(str(w))
+
+    should = force
+    title = "FCC fund manager"
+    body_parts: List[str] = []
+
+    if outcome in ("need_llm", "deploy", "rebalance", "rotate") or need_llm:
+        should = True
+        title = "FCC · fund review needs action"
+        body_parts.append(summary or "Team/LLM review recommended")
+    elif outcome == "error":
+        should = True
+        title = "FCC · fund manager error"
+        body_parts.append(summary)
+    elif outcome == "hold":
+        # quiet success — no notify unless forced
+        pass
+
+    if stale_msgs:
+        should = True
+        title = "FCC · stale RH feed"
+        body_parts.extend(stale_msgs[:3])
+
+    if not should:
+        return {"ok": True, "notified": False, "reason": "quiet hold"}
+
+    text = "\n".join(body_parts) or summary or "FCC alert"
+    url = f"https://ntfy.sh/{topic}"
+    try:
+        req = urllib.request.Request(
+            url,
+            data=text.encode("utf-8"),
+            headers={
+                "Title": title,
+                "Priority": "3",
+                "Tags": "chart_with_upwards_trend,robot",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return {
+                "ok": True,
+                "notified": True,
+                "status": resp.status,
+                "title": title,
+            }
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return {"ok": False, "notified": False, "error": str(e)}
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--write", action="store_true", help="Write fund_manager_latest.json")
     p.add_argument("--json", action="store_true", help="Print full JSON")
+    p.add_argument(
+        "--rules-review",
+        action="store_true",
+        help="Run rules-based daily review (HOLD if in band; else need_llm)",
+    )
+    p.add_argument(
+        "--notify",
+        action="store_true",
+        help="Send ntfy if non-HOLD / stale RH",
+    )
+    p.add_argument("--no-log", action="store_true", help="With --rules-review, do not append journal")
     args = p.parse_args(argv)
+
+    if args.rules_review:
+        result = rules_based_review(log=not args.no_log)
+        notify_result = None
+        if args.notify:
+            # attach treasury DQ for stale check
+            tre = load_json(SNAPSHOTS_DIR / "treasury_latest.json") or {}
+            ev = tre.get("evaluation") or tre
+            notify_result = notify_if_needed(
+                decision_or_review=result, treasury_eval=ev
+            )
+        out = {
+            "ok": result.get("ok"),
+            "rules_review": result.get("rules_review"),
+            "notify": notify_result,
+        }
+        print(json.dumps(out, indent=2))
+        rr = result.get("rules_review") or {}
+        # exit 2 = need LLM team; 0 = hold/observe; 1 = error
+        if rr.get("outcome") == "error":
+            return 1
+        if rr.get("need_llm"):
+            return 2
+        return 0
+
     result = evaluate_fund_manager()
     if args.write:
         path = write_fund_manager_snapshot(result)
         result["written"] = str(path)
+    if args.notify:
+        tre = load_json(SNAPSHOTS_DIR / "treasury_latest.json") or {}
+        print(
+            json.dumps(
+                notify_if_needed(
+                    decision_or_review={"kind": "hold", "summary": "manual notify check"},
+                    treasury_eval=tre.get("evaluation") or tre,
+                    force=False,
+                ),
+                indent=2,
+            )
+        )
     if args.json:
         print(json.dumps(result, indent=2))
     else:

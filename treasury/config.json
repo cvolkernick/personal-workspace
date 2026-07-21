@@ -36,6 +36,11 @@
     "x_money_account_name": "Checking – 2201",
     "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking – ####)."
   },
+  "notifications": {
+    "enabled": true,
+    "ntfy_topic": "cvolk-grok-7f3k9x",
+    "notes": "ntfy.sh push on fund need_llm / error / stale RH. Quiet on routine HOLD. Override with FCC_NTFY_TOPIC env."
+  },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
     "sheet_name": "Personal Expense Sheet",

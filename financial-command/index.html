@@ -806,19 +806,19 @@
     <details class="panel" id="panel-settings">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
-        <div class="hint">Morpho LTV / vault (app-only — not API)</div>
+        <div class="hint">Morpho (Coinbase Borrow) — app-only, not API. Fill so liquidity stress is accurate. Fund manager agentic book is separate capital.</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
             <label>Loan principal (USDC)</label>
-            <input id="m-principal" type="number" step="any" placeholder="e.g. 25000" />
+            <input id="m-principal" type="number" step="any" placeholder="from Borrow app" />
             <label>Collateral value (USD)</label>
-            <input id="m-collateral" type="number" step="any" placeholder="e.g. 60000" />
-            <label>LTV override (0–1)</label>
-            <input id="m-ltv" type="number" step="0.01" min="0" max="2" />
+            <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
+            <label>LTV (0–1, e.g. 0.35)</label>
+            <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
           </div>
           <div>
             <label>High Yield vault USDC</label>
-            <input id="m-vault" type="number" step="any" />
+            <input id="m-vault" type="number" step="any" placeholder="Morpho High Yield" />
             <label>One Card balance override</label>
             <input id="m-card-bal" type="number" step="any" placeholder="usually from YNAB" />
             <label>One Card USDC security deposit</label>
