@@ -15,6 +15,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     generate_meal_plan,
     remaining_macros,
     remove_ingredient,
+    suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
 )
@@ -34,6 +35,57 @@ class TestNutritionPlanner(unittest.TestCase):
         rem = remaining_macros(targets, consumed)
         self.assertEqual(rem["calories"], 1600)
         self.assertEqual(rem["protein_g"], 170)
+
+    def test_suggest_removals_duplicate_and_supplement(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken-a",
+                    "name": "Chicken breast",
+                    "category": "protein",
+                    "serving_label": "6 oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                    "in_stock": True,
+                },
+                {
+                    "id": "chicken-b",
+                    "name": "Chicken Breast",
+                    "category": "protein",
+                    "serving_label": "8 oz",
+                    "calories": 300,
+                    "protein_g": 50,
+                    "carbs_g": 0,
+                    "fat_g": 7,
+                    "in_stock": True,
+                },
+                {
+                    "id": "mens-vitamins",
+                    "name": "Men's Vitamins, Natural Berry Flavor",
+                    "category": "carb",
+                    "serving_label": "1 serving",
+                    "calories": 15,
+                    "protein_g": 0,
+                    "carbs_g": 4,
+                    "fat_g": 0,
+                    "in_stock": True,
+                },
+            ]
+        }
+        out = suggest_inventory_removals(
+            inv,
+            targets={"calories": 2100, "protein_g": 210},
+            food_logs=[],
+            max_suggestions=6,
+        )
+        self.assertTrue(out["suggestions"])
+        names = " ".join(s["name"].lower() for s in out["suggestions"])
+        self.assertTrue("vitamin" in names or "chicken" in names)
+        for s in out["suggestions"]:
+            self.assertEqual(s["action"], "remove")
+            self.assertTrue(s.get("reason"))
 
     def test_suggest_restock_and_catalog(self):
         inv = {

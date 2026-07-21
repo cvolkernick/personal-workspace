@@ -94,6 +94,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     generate_meal_plan,
     remove_ingredient,
     set_in_stock,
+    suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
     update_targets,
@@ -465,11 +466,17 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         consumed,
         food_logs_today=today_logs,
     )
+    inv_base = nut["inventory"] or {"ingredients": []}
     inv_suggestions = suggest_inventory_staples(
-        nut["inventory"] or {"ingredients": []},
+        inv_base,
         targets=nut.get("targets") or {},
         food_logs=health.food_logs or [],
         consumed=consumed,
+    )
+    inv_removals = suggest_inventory_removals(
+        inv_base,
+        targets=nut.get("targets") or {},
+        food_logs=health.food_logs or [],
     )
     labs = load_labs(local_dir or "")
     payload["nutrition_store"] = {
@@ -481,6 +488,7 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
         "meal_plan": auto_plan,
         "inventory_suggestions": inv_suggestions,
+        "inventory_removals": inv_removals,
         "labs": labs,
     }
 

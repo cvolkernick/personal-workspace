@@ -1054,25 +1054,40 @@
   }
 
   function filterSuggestionsAgainstInventory(store) {
-    const block = store && store.inventory_suggestions;
-    if (!block || !Array.isArray(block.suggestions)) return;
     const ings = ((store.inventory && store.inventory.ingredients) || []).map((i) => ({
       id: String(i.id || "").toLowerCase(),
       name: String(i.name || "").toLowerCase(),
       stock: i.in_stock !== false,
     }));
-    block.suggestions = block.suggestions.filter((s) => {
-      const sid = String(s.id || "").toLowerCase();
-      const sname = String(s.name || "").toLowerCase();
-      const match = ings.find(
-        (i) => (sid && i.id === sid) || (sname && (i.name === sname || i.name.includes(sname) || sname.includes(i.name)))
-      );
-      if (!match) return true; // still missing → keep "add"
-      if (match.stock) return false; // already in stock
-      // out of stock: only keep if suggestion is restock
-      return s.action === "restock";
-    });
-    block.count = block.suggestions.length;
+    const block = store && store.inventory_suggestions;
+    if (block && Array.isArray(block.suggestions)) {
+      block.suggestions = block.suggestions.filter((s) => {
+        const sid = String(s.id || "").toLowerCase();
+        const sname = String(s.name || "").toLowerCase();
+        const match = ings.find(
+          (i) =>
+            (sid && i.id === sid) ||
+            (sname && (i.name === sname || i.name.includes(sname) || sname.includes(i.name)))
+        );
+        if (!match) return true; // still missing → keep "add"
+        if (match.stock) return false; // already in stock
+        return s.action === "restock";
+      });
+      block.count = block.suggestions.length;
+    }
+    const rem = store && store.inventory_removals;
+    if (rem && Array.isArray(rem.suggestions)) {
+      rem.suggestions = rem.suggestions.filter((s) => {
+        const sid = String(s.id || "").toLowerCase();
+        const sname = String(s.name || "").toLowerCase();
+        return ings.some(
+          (i) =>
+            (sid && i.id === sid) ||
+            (sname && (i.name === sname || i.name.includes(sname) || sname.includes(i.name)))
+        );
+      });
+      rem.count = rem.suggestions.length;
+    }
   }
 
   function applyInventoryUpdate(inventory) {
@@ -1082,6 +1097,7 @@
     filterSuggestionsAgainstInventory(state.nutrition_store);
     renderInventory(state.nutrition_store);
     renderInventorySuggestions(state.nutrition_store);
+    renderInventoryRemovals(state.nutrition_store);
   }
 
   function invMacroStrip(ing, compact = false) {
@@ -1229,6 +1245,53 @@
     </div>`;
   }
 
+  function renderInventoryRemovals(store) {
+    const box = $("inventory-removals");
+    if (!box) return;
+    const block = (store && store.inventory_removals) || {};
+    const items = block.suggestions || [];
+    if (!items.length) {
+      box.innerHTML = "";
+      return;
+    }
+    let slides = "";
+    items.forEach((s, idx) => {
+      const iid = String(s.id || "").replace(/"/g, "&quot;");
+      const iname = String(s.name || "").replace(/"/g, "&quot;");
+      const reason = String(s.reason || "").slice(0, 110);
+      slides += `<div class="inv-slide inv-card compact suggest-remove">
+        <div class="inv-card-name">${s.name || "Item"}
+          <span class="inv-action-badge inv-action-remove">remove</span>
+        </div>
+        <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
+        ${
+          reason
+            ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${
+                String(s.reason || "").length > 110 ? "…" : ""
+              }</div>`
+            : ""
+        }
+        ${invMacroStrip(s, true)}
+        <div class="actions inv-card-actions compact">
+          <button type="button" class="btn-suggest-remove" data-action="suggest-remove"
+            data-id="${iid}" data-name="${iname}" data-idx="${idx}">
+            Remove
+          </button>
+        </div>
+      </div>`;
+    });
+    box.innerHTML = `<div class="macro-summary inv-remove-panel compact-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Suggested removals</div>
+          <div class="macro-summary-meta muted">${block.summary || "Items that may not help your plan"}</div>
+        </div>
+        <div class="inv-carousel-count muted">${items.length}</div>
+      </div>
+      ${invCarouselShell("remove-carousel", slides)}
+    </div>`;
+  }
+
   /** One delegated listener — survives re-renders and avoids dead buttons. */
   function bindInventoryListOnce() {
     // Cover inventory + meal plan so shared carousel arrows work in both columns
@@ -1264,6 +1327,34 @@
       const name = (btn.getAttribute("data-name") || "").trim();
       btn.disabled = true;
       try {
+        if (action === "suggest-remove") {
+          const res = await fetch("/api/inventory/remove", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, name }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+          applyInventoryUpdate(data.inventory);
+          showAlert(`Removed ${name || id} from inventory`, "ok");
+          if (state && state.nutrition_store && state.nutrition_store.inventory_removals) {
+            const rem = state.nutrition_store.inventory_removals;
+            const idx = Number(btn.getAttribute("data-idx"));
+            if (Array.isArray(rem.suggestions) && !Number.isNaN(idx)) {
+              rem.suggestions = rem.suggestions.filter((_, i) => i !== idx);
+              rem.count = rem.suggestions.length;
+            }
+            renderInventoryRemovals(state.nutrition_store);
+          }
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
+          return;
+        }
         if (action === "suggest-apply") {
           const payloadRaw = btn.getAttribute("data-payload") || "{}";
           let body;
@@ -1857,6 +1948,7 @@
     renderHistory(data.sessions || []);
     renderInventory(data.nutrition_store);
     renderInventorySuggestions(data.nutrition_store);
+    renderInventoryRemovals(data.nutrition_store);
     renderTargetsAndRemaining(data.nutrition_store);
     renderFoodLogsToday(data.nutrition_store);
     // Auto meal plan is computed server-side on every dashboard load

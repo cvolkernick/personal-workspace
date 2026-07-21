@@ -907,3 +907,200 @@ def suggest_inventory_staples(
         f"food logs, and staple catalog."
     )
     return {"suggestions": top, "summary": summary, "count": len(top)}
+
+
+def suggest_inventory_removals(
+    inventory: dict,
+    targets: Optional[dict] = None,
+    food_logs: Optional[Sequence[Any]] = None,
+    max_suggestions: int = 6,
+) -> dict:
+    """Suggest inventory items that may be worth removing (with short reasons).
+
+    Signals: near-duplicates, out-of-stock clutter, low protein density vs
+    cutting targets, non-meal items, and stocked items never logged when
+    stronger alternatives already exist.
+    """
+    targets = normalize_targets(targets or {})
+    logs = list(food_logs or [])
+    ingredients = [normalize_ingredient(i) for i in (inventory.get("ingredients") or [])]
+    if not ingredients:
+        return {
+            "suggestions": [],
+            "summary": "No inventory items to review.",
+            "count": 0,
+        }
+
+    # Food-log name hits for "actually used"
+    log_names: List[str] = []
+    log_counts: Dict[str, int] = {}
+    for f in logs:
+        if hasattr(f, "to_dict"):
+            d = f.to_dict()
+        elif isinstance(f, dict):
+            d = f
+        else:
+            continue
+        name = str(d.get("name") or "").strip()
+        if not name:
+            continue
+        log_names.append(name)
+        log_counts[name] = log_counts.get(name, 0) + 1
+
+    def _logged(ing: dict) -> int:
+        n = 0
+        for ln, c in log_counts.items():
+            if _names_overlap(ing.get("name") or "", ln):
+                n += c
+        return n
+
+    tgt_p = float(targets.get("protein_g") or 0)
+    high_protein_goal = tgt_p >= 150
+    stocked = [i for i in ingredients if is_in_stock(i)]
+    stocked_high_p = [i for i in stocked if _protein_density(i) >= 0.08]
+
+    candidates: List[dict] = []
+    # Track which id we keep when flagging duplicates
+    skip_keep: set = set()
+
+    # --- Duplicates: keep higher protein-density / logged one ---
+    for i, a in enumerate(ingredients):
+        for b in ingredients[i + 1 :]:
+            if not _names_overlap(a.get("name") or "", b.get("name") or ""):
+                continue
+            # Prefer keep: more log hits, then density, then in-stock
+            def rank(x: dict) -> tuple:
+                return (
+                    _logged(x),
+                    _protein_density(x),
+                    1 if is_in_stock(x) else 0,
+                    float(x.get("protein_g") or 0),
+                )
+
+            keep, drop = (a, b) if rank(a) >= rank(b) else (b, a)
+            kid = str(keep.get("id") or "")
+            did = str(drop.get("id") or "")
+            if did in skip_keep:
+                continue
+            skip_keep.add(did)
+            candidates.append(
+                {
+                    **drop,
+                    "action": "remove",
+                    "reason": (
+                        f"Near-duplicate of “{keep.get('name')}” — keep one entry "
+                        f"to simplify meal planning."
+                    ),
+                    "score": 90.0,
+                    "source": "duplicate",
+                }
+            )
+
+    for ing in ingredients:
+        iid = str(ing.get("id") or "")
+        if iid in skip_keep:
+            continue  # already suggested as duplicate drop
+        dens = _protein_density(ing)
+        cal = float(ing.get("calories") or 0)
+        prot = float(ing.get("protein_g") or 0)
+        name = str(ing.get("name") or "")
+        name_l = name.lower()
+        cat = str(ing.get("category") or "other").lower()
+        logged_n = _logged(ing)
+        in_stock = is_in_stock(ing)
+        reasons: List[str] = []
+        score = 0.0
+
+        # Non-meal / supplement-like clutter for the meal planner
+        non_meal_kw = (
+            "vitamin",
+            "multivitamin",
+            "supplement",
+            "gummy",
+            "capsule",
+            "tablet",
+            "probiotic",
+            "electrolyte packet",
+        )
+        if any(k in name_l for k in non_meal_kw) or (
+            prot < 3 and cal < 40 and cat in ("other", "carb")
+        ):
+            reasons.append(
+                "Looks like a supplement/micro item — meal planner works better with real food staples."
+            )
+            score += 55
+
+        # Out of stock + unused + low utility
+        if not in_stock and logged_n == 0 and dens < 0.06:
+            reasons.append(
+                "Out of stock and not in recent food logs — safe to prune dead catalog rows."
+            )
+            score += 50
+        elif not in_stock and logged_n == 0:
+            reasons.append("Out of stock with no recent logs — consider removing if you won’t buy again.")
+            score += 35
+
+        # Low protein density while chasing high protein targets
+        if high_protein_goal and dens < 0.04 and cal >= 100 and cat in ("fat", "other", "carb"):
+            if logged_n <= 1:
+                reasons.append(
+                    f"Low protein density ({prot:.0f}g / {cal:.0f} kcal) for a ~{int(tgt_p)}g protein target."
+                )
+                score += 40
+            elif dens < 0.025 and cal >= 150:
+                reasons.append(
+                    "Calorie-dense / low-protein for a cutting-style protein goal — easy to overshoot calories."
+                )
+                score += 32
+
+        # Stocked but never logged while better proteins exist
+        if (
+            in_stock
+            and logged_n == 0
+            and dens < 0.07
+            and len(stocked_high_p) >= 2
+            and not any(_names_overlap(name, h.get("name") or "") for h in stocked_high_p)
+        ):
+            reasons.append(
+                "In stock but not logged recently; stronger high-protein staples already cover meal plans."
+            )
+            score += 28
+
+        # Empty / zero-macro junk rows
+        if cal <= 0 and prot <= 0 and float(ing.get("carbs_g") or 0) <= 0:
+            reasons.append("No macros on file — not useful for planning until filled in (or remove).")
+            score += 45
+
+        if not reasons or score < 25:
+            continue
+        # Don't suggest removing a heavily logged staple
+        if logged_n >= 5 and dens >= 0.08:
+            continue
+
+        candidates.append(
+            {
+                **ing,
+                "action": "remove",
+                "reason": " ".join(reasons[:2]),
+                "score": round(score, 1),
+                "source": "heuristic",
+            }
+        )
+
+    # Dedupe by id, keep highest score
+    by_id: Dict[str, dict] = {}
+    for c in candidates:
+        k = str(c.get("id") or c.get("name") or "").lower()
+        if not k:
+            continue
+        if k not in by_id or float(c.get("score") or 0) > float(by_id[k].get("score") or 0):
+            by_id[k] = c
+    ranked = sorted(by_id.values(), key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
+    top = ranked[: max(1, int(max_suggestions))] if ranked else []
+    summary = (
+        f"{len(top)} removal suggestion{'s' if len(top) != 1 else ''} "
+        f"(duplicates, unused, or weak fit for targets)."
+        if top
+        else "No strong removal candidates — inventory looks lean."
+    )
+    return {"suggestions": top, "summary": summary, "count": len(top)}

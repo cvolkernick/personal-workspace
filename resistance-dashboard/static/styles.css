@@ -1213,6 +1213,24 @@ footer {
   color: var(--accent-2);
 }
 
+.inv-action-badge.inv-action-remove {
+  background: rgba(240, 113, 120, 0.18);
+  color: #f5a3a8;
+}
+
+.inv-card.suggest-remove {
+  border-left: 3px solid var(--danger);
+}
+
+.inv-remove-panel {
+  margin-top: 0;
+}
+
+.btn-suggest-remove {
+  border-color: rgba(240, 113, 120, 0.45) !important;
+  color: #f5a3a8 !important;
+}
+
 .inv-macro-strip {
   display: flex;
   flex-wrap: wrap;
