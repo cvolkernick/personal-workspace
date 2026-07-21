@@ -504,8 +504,28 @@ textarea {
   background: var(--bg);
 }
 
+.meal-plan-totals.compact {
+  margin-bottom: 0.45rem;
+  padding: 0.4rem 0.55rem;
+}
+
 .meal-plan-totals.remaining {
   opacity: 0.92;
+}
+
+.meal-bucket .inv-carousel-shell {
+  margin-top: 0.4rem;
+}
+
+.meal-bucket .inv-slide.meal-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  background: rgba(15, 20, 25, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-sizing: border-box;
 }
 
 .meal-plan-totals-label {
@@ -546,7 +566,12 @@ textarea {
 
 .meal-item-name {
   font-weight: 650;
-  font-size: 0.95rem;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .meal-servings-badge {

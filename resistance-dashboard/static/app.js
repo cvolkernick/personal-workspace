@@ -1231,18 +1231,19 @@
 
   /** One delegated listener — survives re-renders and avoids dead buttons. */
   function bindInventoryListOnce() {
-    const root = $("inventory-card") || document;
+    // Cover inventory + meal plan so shared carousel arrows work in both columns
+    const root = $("inventory-section") || $("inventory-card") || document;
     if (root.dataset && root.dataset.invBound === "1") return;
     if (root.dataset) root.dataset.invBound = "1";
     root.addEventListener("click", async (ev) => {
       const btn = ev.target.closest("button[data-action]");
       if (!btn || !root.contains(btn)) return;
-      ev.preventDefault();
-      ev.stopPropagation();
       const action = btn.getAttribute("data-action");
 
-      // Horizontal carousel navigation (no server call)
+      // Horizontal carousel navigation (pantry, staples, meal items)
       if (action === "carousel-nav") {
+        ev.preventDefault();
+        ev.stopPropagation();
         const cid = btn.getAttribute("data-carousel");
         const dir = Number(btn.getAttribute("data-dir") || 1);
         const scroller = cid ? document.getElementById(cid) : null;
@@ -1253,6 +1254,12 @@
         return;
       }
 
+      // Inventory actions only on inventory card
+      const invCard = $("inventory-card");
+      if (invCard && !invCard.contains(btn)) return;
+
+      ev.preventDefault();
+      ev.stopPropagation();
       const id = (btn.getAttribute("data-id") || "").trim();
       const name = (btn.getAttribute("data-name") || "").trim();
       btn.disabled = true;
@@ -1673,40 +1680,49 @@
     const pt = plan.planned_totals || {};
     const ra = plan.remaining_after_plan || {};
     let html = `<div class="meal-plan-panel">`;
-    html += `<p class="muted" style="margin:0 0 0.65rem">${plan.message || ""}</p>`;
-    html += `<div class="meal-plan-totals">
+    html += `<p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">${plan.message || ""}</p>`;
+    html += `<div class="meal-plan-totals compact">
       <div class="meal-plan-totals-label">Planned add</div>
-      ${invMacroStrip(pt)}
+      ${invMacroStrip(pt, true)}
     </div>`;
-    html += `<div class="meal-plan-totals remaining">
+    html += `<div class="meal-plan-totals remaining compact">
       <div class="meal-plan-totals-label">After plan remaining</div>
-      ${invMacroStrip(ra)}
+      ${invMacroStrip(ra, true)}
     </div>`;
     if (!meals.length) {
       html += `<p class="muted">No items planned.</p>`;
     } else {
-      meals.forEach((m) => {
-        html += `<div class="meal-bucket">
-          <div class="meal-bucket-head">
-            <div class="title">${m.label}</div>
-            ${invMacroStrip(m.totals || {})}
-          </div>
-          <ul class="meal-item-list">`;
-        (m.items || []).forEach((it) => {
+      meals.forEach((m, mi) => {
+        const items = m.items || [];
+        let slides = "";
+        items.forEach((it) => {
           const n = Number(it.servings) || 1;
           const serve =
             n > 1
               ? `${n} × ${it.serving_label || "serving"}`
               : it.serving_label || "1 serving";
-          html += `<li class="meal-item">
-            <div class="meal-item-name">${it.name}${
+          slides += `<div class="inv-slide meal-item compact">
+            <div class="meal-item-name">${it.name || "Item"}${
             n > 1 ? ` <span class="meal-servings-badge">×${n}</span>` : ""
           }</div>
             <div class="meal-item-meta muted">${serve}</div>
-            ${invMacroStrip(it)}
-          </li>`;
+            ${invMacroStrip(it, true)}
+          </div>`;
         });
-        html += `</ul></div>`;
+        const cid = `meal-carousel-${mi}`;
+        html += `<div class="meal-bucket">
+          <div class="meal-bucket-head">
+            <div class="title">${m.label || "Meal"} · ${items.length} item${
+          items.length === 1 ? "" : "s"
+        }</div>
+            ${invMacroStrip(m.totals || {}, true)}
+          </div>
+          ${
+            items.length
+              ? invCarouselShell(cid, slides, "No items")
+              : `<p class="muted" style="margin:0.35rem 0 0">No items.</p>`
+          }
+        </div>`;
       });
     }
     html += `</div>`;
