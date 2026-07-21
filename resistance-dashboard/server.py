@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resistance training dashboard server — real entry path."""
+"""FitDash (resistance training dashboard) server — real entry path."""
 
 from __future__ import annotations
 
@@ -1132,7 +1132,7 @@ def main() -> None:
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
-    print(f"Resistance dashboard listening on http://127.0.0.1:{port}/", flush=True)
+    print(f"FitDash listening on http://127.0.0.1:{port}/", flush=True)
     print(f"API: http://127.0.0.1:{port}/api/dashboard", flush=True)
     try:
         server.serve_forever()

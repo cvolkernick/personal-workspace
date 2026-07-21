@@ -50,6 +50,6 @@ if command -v lsof >/dev/null 2>&1; then
   lsof -ti:"$PORT" | xargs kill -9 2>/dev/null || true
 fi
 
-echo "Resistance dashboard → http://127.0.0.1:${PORT}/"
+echo "FitDash → http://127.0.0.1:${PORT}/"
 echo "LOCAL_WORKSPACE_DIR=$LOCAL_WORKSPACE_DIR"
 exec python3 server.py "$PORT"

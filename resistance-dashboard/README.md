@@ -1,4 +1,6 @@
-# Resistance Training Dashboard
+# FitDash
+
+Resistance training &amp; nutrition dashboard (working title: FitDash).
 
 Mobile-friendly dashboard that:
 
