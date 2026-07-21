@@ -106,11 +106,11 @@
       <label>Weight (lbs)
         <input type="number" class="set-weight" required min="0" step="0.5" value="${prefill.weight_lbs ?? ""}" />
       </label>
-      <label>Sets
-        <input type="number" class="set-sets" required min="1" step="1" value="${prefill.sets ?? 1}" />
-      </label>
       <label>Reps
         <input type="number" class="set-reps" required min="1" step="1" value="${prefill.reps ?? 10}" />
+      </label>
+      <label>Sets
+        <input type="number" class="set-sets" required min="1" step="1" value="${prefill.sets ?? 1}" />
       </label>
       <button type="button" class="set-remove" aria-label="Remove set">✕</button>
     `;
@@ -966,6 +966,11 @@
     const series =
       (selectedExercise && data.strength_trends && data.strength_trends[selectedExercise]) ||
       [];
+    const loadVals = series.map((p) => p.best_working_weight);
+    const e1rmVals = series.map((p) => p.best_e1rm);
+    const loadTrend = linearTrend(loadVals);
+    const e1rmTrend = linearTrend(e1rmVals);
+    const loadSlope = trendSlopePerDay(loadVals);
     destroyChart(strengthChart);
     strengthChart = new Chart($("chart-strength"), {
       type: "line",
@@ -974,23 +979,60 @@
         datasets: [
           {
             label: `${selectedExercise || "Exercise"} best load (lb)`,
-            data: series.map((p) => p.best_working_weight),
+            data: loadVals,
             borderColor: "#3d9cf0",
             tension: 0.25,
             pointRadius: 3,
+            order: 3,
+          },
+          {
+            label: "Load trend",
+            data: loadTrend,
+            borderColor: "#5ce1a8",
+            borderDash: [6, 4],
+            borderWidth: 2.5,
+            pointRadius: 0,
+            tension: 0,
+            order: 1,
           },
           {
             label: "Est. 1RM (Epley)",
-            data: series.map((p) => p.best_e1rm),
+            data: e1rmVals,
             borderColor: "#f0b429",
             borderDash: [5, 5],
             tension: 0.25,
             pointRadius: 2,
+            order: 4,
+          },
+          {
+            label: "1RM trend",
+            data: e1rmTrend,
+            borderColor: "#c084fc",
+            borderDash: [4, 4],
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0,
+            order: 2,
           },
         ],
       },
       options: chartDefaults(),
     });
+    if ($("strength-trend-note")) {
+      const n = series.length;
+      const exercises = (data && data.top_exercises) || [];
+      let base = exercises.length
+        ? `${exercises.length} exercises ranked by log frequency — pick a tab to view trend`
+        : "No exercises with strength history yet.";
+      if (selectedExercise && n >= 2 && loadSlope != null) {
+        const perWeek = loadSlope * 7;
+        const dir = perWeek > 0.05 ? "up" : perWeek < -0.05 ? "down" : "flat";
+        base = `${selectedExercise}: load trend ${dir} (~${perWeek >= 0 ? "+" : ""}${perWeek.toFixed(2)} lb/week) · ${n} sessions · dashed = linear fit`;
+      } else if (selectedExercise && n < 2) {
+        base = `${selectedExercise}: need ≥2 sessions for a trendline`;
+      }
+      $("strength-trend-note").textContent = base;
+    }
   }
 
   function renderHistory(sessions) {
