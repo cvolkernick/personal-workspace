@@ -1501,17 +1501,23 @@
       box.innerHTML = `<p class="muted" style="margin:0;font-size:0.85rem">No meal-level food logs for today yet. Log food in Fitbit/Google Health (requires a valid Health OAuth connection).</p>`;
       return;
     }
-    let html = `<h3 class="today-subh" style="margin-bottom:0.35rem">Logged today</h3><ul class="session-list food-log-list">`;
+    let slides = "";
     logs.forEach((f) => {
       const when = [f.time, f.meal_type].filter(Boolean).join(" · ");
-      const serve = f.serving_label ? ` · ${f.serving_label}` : "";
-      html += `<li>
-        <div class="title">${f.name || "Food"}${serve}</div>
-        <div class="meta">${when ? when + " · " : ""}${fmtNum(f.calories)} kcal · P${fmtNum(f.protein_g)} C${fmtNum(f.carbs_g)} F${fmtNum(f.fat_g)}</div>
-      </li>`;
+      const serve = f.serving_label || "";
+      slides += `<div class="inv-slide meal-item compact food-log-slide">
+        <div class="meal-item-name">${f.name || "Food"}</div>
+        <div class="meal-item-meta muted">${[when, serve].filter(Boolean).join(" · ") || "Logged meal"}</div>
+        ${invMacroStrip(f, true)}
+      </div>`;
     });
-    html += `</ul>`;
-    box.innerHTML = html;
+    box.innerHTML = `<div class="food-logs-carousel-panel">
+      <div class="macro-summary-header" style="margin-bottom:0.25rem">
+        <div class="macro-summary-title" style="font-size:0.95rem">Logged today</div>
+        <div class="inv-carousel-count muted">${logs.length}</div>
+      </div>
+      ${invCarouselShell("food-logs-carousel", slides)}
+    </div>`;
   }
 
   function renderFoodCoach(coach, store) {

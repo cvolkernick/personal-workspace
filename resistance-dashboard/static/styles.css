@@ -807,6 +807,18 @@ footer {
   font-size: 0.92rem;
 }
 
+.food-logs-carousel-panel {
+  margin-top: 0.15rem;
+}
+
+.food-logs-carousel-panel .inv-carousel-shell {
+  margin-top: 0.35rem;
+}
+
+.food-log-slide {
+  border-left: 3px solid rgba(92, 225, 168, 0.55);
+}
+
 /* Daily targets / remaining macro summary */
 .macro-summary {
   margin-top: 0.25rem;
