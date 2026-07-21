@@ -376,6 +376,38 @@
       color: var(--muted);
       margin-top: 0.35rem;
     }
+    .ask-box {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: flex-start;
+    }
+    .ask-box textarea {
+      flex: 1;
+      min-width: 16rem;
+      min-height: 3.2rem;
+      resize: vertical;
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      padding: 0.55rem 0.7rem;
+    }
+    .ask-answer {
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      white-space: pre-wrap;
+      line-height: 1.5;
+      font-size: 0.95rem;
+      max-height: 22rem;
+      overflow: auto;
+    }
+    .ask-answer:empty { display: none; }
+    .ask-meta { margin-top: 0.4rem; color: var(--muted); font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -393,6 +425,17 @@
     </div>
   </header>
   <main>
+    <section class="card" id="ask-grok-card">
+      <h2>Ask Grok</h2>
+      <p class="path" id="ask-status" style="margin:0 0 0.55rem">Checking Grok auth…</p>
+      <form id="ask-form" class="ask-box">
+        <textarea id="ask-question" placeholder="e.g. Where should I put more time today given my sleep and Lyft duty?" rows="2" required></textarea>
+        <button type="submit" class="primary" id="btn-ask">Ask</button>
+      </form>
+      <div class="ask-answer" id="ask-answer" aria-live="polite"></div>
+      <div class="ask-meta" id="ask-meta"></div>
+    </section>
+
     <section class="card" id="sleep-battery-card">
       <h2>Sleep battery · last 24 hours</h2>
       <div class="battery-card">
@@ -1421,6 +1464,56 @@
       }
     }
 
+    async function loadAskStatus() {
+      const el = $("ask-status");
+      if (!el) return;
+      try {
+        const st = await api("/api/ask/status");
+        if (st.ok) {
+          el.textContent = `Ready · ${st.model || "Grok"}${st.email ? " · " + st.email : ""} · ${st.source || ""}`;
+          el.style.color = "var(--green)";
+        } else {
+          el.textContent = st.error || "Grok auth not ready — run grok login or set XAI_API_KEY";
+          el.style.color = "var(--yellow)";
+        }
+      } catch (e) {
+        el.textContent = String(e.message || e);
+        el.style.color = "var(--red)";
+      }
+    }
+
+    $("ask-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const q = ($("ask-question").value || "").trim();
+      if (!q) return;
+      const btn = $("btn-ask");
+      const ans = $("ask-answer");
+      const meta = $("ask-meta");
+      btn.disabled = true;
+      ans.textContent = "Thinking…";
+      meta.textContent = "";
+      try {
+        const res = await api("/api/ask", {
+          method: "POST",
+          body: JSON.stringify({ question: q }),
+        });
+        ans.textContent = res.answer || "(no answer)";
+        const u = res.usage || {};
+        meta.textContent = [
+          res.model ? `model: ${res.model}` : "",
+          res.auth_source ? `auth: ${res.auth_source}` : "",
+          u.total_tokens != null ? `tokens: ${u.total_tokens}` : "",
+        ].filter(Boolean).join(" · ");
+        msg("Grok answered", "ok");
+      } catch (e) {
+        ans.textContent = "";
+        msg(String(e.message || e), "error");
+        meta.textContent = String(e.message || e);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     $("btn-refresh").addEventListener("click", () => refresh());
     $("btn-walks").addEventListener("click", async () => {
       try {
@@ -1516,6 +1609,7 @@
     const d = new Date();
     $("log-date").value = d.toISOString().slice(0, 10);
     // First load: sync sleep (+ walks) from Google Health, then render
+    loadAskStatus();
     syncHealthFromGoogle({ quiet: true });
     // Battery + Lyft break countdown refresh every minute
     setInterval(() => refresh(), 60 * 1000);

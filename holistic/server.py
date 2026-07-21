@@ -12,6 +12,8 @@
   POST /api/plan
   POST /api/health/sync       — import sleep into logs
   POST /api/recommend         — optional body {limit}
+  GET  /api/ask/status        — Grok auth ready?
+  POST /api/ask               — {question} about current time allocations
 
 Usage:
   python3 holistic/server.py
@@ -67,6 +69,11 @@ from holistic.time_allocator.actual import (  # noqa: E402
 from holistic.time_allocator.lyft_duty import (  # noqa: E402
     lyft_duty_status,
     set_lyft_driven,
+)
+from holistic.time_allocator.grok_ask import (  # noqa: E402
+    GrokAskError,
+    ask_about_time,
+    auth_status as grok_auth_status,
 )
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
@@ -181,6 +188,9 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
             qs = urlparse(self.path).query
             refresh = "refresh_walks=1" in qs or "refresh_walks=true" in qs
             self._json(200, state_payload(refresh_walks=refresh))
+            return
+        if path == "/api/ask/status":
+            self._json(200, {"ok": True, **grok_auth_status()})
             return
         if path in ("/", "/index.html"):
             self.path = "/index.html"
@@ -427,6 +437,28 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
+                return
+
+            if path == "/api/ask":
+                question = str(body.get("question") or body.get("q") or "").strip()
+                if not question:
+                    self._json(400, {"ok": False, "error": "question is required"})
+                    return
+                try:
+                    # Fresh snapshot so Grok sees current allocations
+                    snap = state_payload()
+                    result = ask_about_time(question, snap)
+                    self._json(200, result)
+                except GrokAskError as e:
+                    code = e.status if e.status in (400, 401, 403, 429) else 502
+                    self._json(
+                        code,
+                        {
+                            "ok": False,
+                            "error": str(e),
+                            "detail": (e.body or "")[:800],
+                        },
+                    )
                 return
 
             if path == "/api/lyft/duty":
