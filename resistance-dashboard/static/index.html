@@ -178,7 +178,45 @@
         </article>
       </section>
 
+      <section class="card" style="margin-top: 1rem" id="food-coach-section">
+        <h2>Coach commentary</h2>
+        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          Rolling assessment of logged foods, macros, and micronutrients — what is
+          working and what to improve.
+        </p>
+        <div id="food-coach-commentary" class="food-coach" style="margin-top: 0.5rem"></div>
+        <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
+      </section>
+
       <section class="grid two inv-meal-row" style="margin-top: 1rem" id="inventory-section">
+        <article class="card" id="meal-plan-card">
+          <h2>Daily targets &amp; meal plan</h2>
+          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+            Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
+            use Google Health intake. <strong>Next / Later / Evening</strong> meals
+            only pick ingredients marked <strong>in stock</strong>. Use
+            <strong>Refresh plan</strong> after stock edits.
+          </p>
+          <form class="log-form" id="targets-form">
+            <div class="row cols-4">
+              <label>Cal target<input type="number" id="tgt-cal" min="0" step="1" required /></label>
+              <label>Protein<input type="number" id="tgt-p" min="0" step="1" required /></label>
+              <label>Carbs<input type="number" id="tgt-c" min="0" step="1" required /></label>
+              <label>Fat<input type="number" id="tgt-f" min="0" step="1" required /></label>
+            </div>
+            <div class="actions">
+              <button type="submit">Save targets</button>
+              <button type="button" class="primary" id="btn-generate-plan">
+                Refresh plan
+              </button>
+            </div>
+            <p class="muted" id="targets-status" style="margin: 0"></p>
+          </form>
+          <div id="remaining-macros" style="margin-top: 0.75rem"></div>
+          <div id="food-logs-today" class="food-logs-today" style="margin-top: 0.75rem"></div>
+          <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
+        </article>
+
         <article class="card" id="inventory-card">
           <h2>Ingredient inventory</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
@@ -219,36 +257,6 @@
           </form>
           <div id="inventory-suggestions" class="inv-suggestions" style="margin-top: 0.85rem"></div>
           <div id="inventory-list" class="inv-list" style="margin-top: 0.85rem"></div>
-        </article>
-
-        <article class="card" id="meal-plan-card">
-          <h2>Daily targets &amp; meal plan</h2>
-          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
-            Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
-            use Google Health intake. <strong>Next / Later / Evening</strong> meals
-            only pick ingredients marked <strong>in stock</strong>. Use
-            <strong>Refresh plan</strong> after stock edits.
-          </p>
-          <form class="log-form" id="targets-form">
-            <div class="row cols-4">
-              <label>Cal target<input type="number" id="tgt-cal" min="0" step="1" required /></label>
-              <label>Protein<input type="number" id="tgt-p" min="0" step="1" required /></label>
-              <label>Carbs<input type="number" id="tgt-c" min="0" step="1" required /></label>
-              <label>Fat<input type="number" id="tgt-f" min="0" step="1" required /></label>
-            </div>
-            <div class="actions">
-              <button type="submit">Save targets</button>
-              <button type="button" class="primary" id="btn-generate-plan">
-                Refresh plan
-              </button>
-            </div>
-            <p class="muted" id="targets-status" style="margin: 0"></p>
-          </form>
-          <div id="remaining-macros" style="margin-top: 0.75rem"></div>
-          <div id="food-logs-today" class="food-logs-today" style="margin-top: 0.75rem"></div>
-          <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
-          <div id="food-coach-commentary" class="food-coach" style="margin-top: 1rem"></div>
-          <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
         </article>
       </section>
 

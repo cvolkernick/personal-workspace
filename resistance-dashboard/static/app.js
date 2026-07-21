@@ -1528,13 +1528,14 @@
     const working = fc.working_well || [];
     const improve = fc.can_improve || [];
     if (!md && !working.length && !improve.length) {
-      box.innerHTML = "";
+      box.innerHTML =
+        `<p class="muted" style="margin:0">Not enough food-log detail yet for a specific assessment.</p>`;
       return;
     }
     if (md && typeof marked !== "undefined" && marked.parse) {
       box.innerHTML = `<div class="ask-md">${marked.parse(md)}</div>`;
     } else {
-      let html = `<h3 class="today-subh">Coach commentary</h3>`;
+      let html = "";
       if (working.length) {
         html += `<p class="muted" style="margin:0.25rem 0"><strong>Working well</strong></p><ul class="reasons">${working.map((x) => `<li>${x}</li>`).join("")}</ul>`;
       }

@@ -788,15 +788,30 @@ footer {
 }
 
 .coach-brief,
-.weekly-review,
-.food-coach {
+.weekly-review {
   border-top: 1px solid var(--border);
   padding-top: 0.75rem;
 }
 
-.coach-brief .ask-md,
-.food-coach .ask-md {
+.coach-brief .ask-md {
   font-size: 0.92rem;
+}
+
+/* Standalone food coach card (above inventory / meal plan) */
+#food-coach-section .food-coach {
+  border-top: none;
+  padding-top: 0;
+}
+
+#food-coach-section .food-coach .ask-md {
+  font-size: 0.92rem;
+}
+
+#food-coach-section .food-coach .today-subh,
+#food-coach-section .food-coach .ask-md > h1:first-child,
+#food-coach-section .food-coach .ask-md > h2:first-child,
+#food-coach-section .food-coach .ask-md > h3:first-child {
+  display: none; /* section h2 already labels the block */
 }
 
 .food-log-list {
