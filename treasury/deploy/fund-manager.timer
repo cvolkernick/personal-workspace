@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily mid-session fund manager review (Mon–Fri)
+
+[Timer]
+# ~12:30 America/New_York — set host timezone to America/New_York or adjust OnCalendar
+OnCalendar=Mon..Fri *-*-* 12:30:00
+Persistent=true
+Unit=fund-manager.service
+
+[Install]
+WantedBy=timers.target

@@ -592,9 +592,9 @@
       <div class="body">
         <p class="hint">Primary = legacy/read · Agentic = fund manager book (MCP tradable)</p>
         <div id="rh-metrics"></div>
-        <div class="hint" style="margin-top:0.75rem">Agentic fund manager (40/60 · daily review · team quorum)</div>
+        <div class="hint" style="margin-top:0.75rem">Agentic fund manager (40/60 · ~daily auto review · team → executor)</div>
         <div id="fund-manager-metrics"></div>
-        <div class="hint" style="margin-top:0.75rem">Decision log / rationale (monitor &amp; feedback)</div>
+        <div class="hint" style="margin-top:0.75rem">Decision log — optional watch only (no action required)</div>
         <div id="fund-manager-decisions"></div>
       </div>
     </details>
@@ -1368,10 +1368,10 @@
             metric(
               "Cadence",
               fm.policy_summary && fm.policy_summary.cadence
-                ? `${fm.policy_summary.cadence.reviews_per_day || 1}×/day · ${
-                    fm.policy_summary.cadence.preferred_window || "mid_session"
-                  } (not open/close scalp)`
-                : "1×/day mid-session"
+                ? `~${fm.policy_summary.cadence.scheduled_reviews_per_day ||
+                    fm.policy_summary.cadence.reviews_per_day ||
+                    1} auto review/day · mid-session · no trade cap`
+                : "~1 auto review/day · no trade cap"
             ),
             metric(
               "Team",
@@ -1379,6 +1379,7 @@
                 ? "Scout · Thesis · Risk · Critic → Executor"
                 : "single manager"
             ),
+            metric("Your role", "Optional watch on this panel — no feedback required"),
           ]
             .filter(Boolean)
             .join("")
@@ -1386,7 +1387,7 @@
             (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
           )}</p>`;
 
-      // Decision log for human monitoring / feedback
+      // Decision log — glass box for optional owner oversight (does not require action)
       const decs = fm.recent_decisions || [];
       document.getElementById("fund-manager-decisions").innerHTML = decs.length
         ? decs
@@ -1395,14 +1396,22 @@
               const rat = d.rationale || {};
               const why =
                 (typeof rat === "string" ? rat : rat.why_now || rat.summary || d.summary) || "—";
+              const whyNot =
+                typeof rat === "object" && rat.why_not_alternatives
+                  ? rat.why_not_alternatives
+                  : "";
               const votes = d.team_votes || {};
-              const voteBits = ["thesis", "risk", "critic", "executor"]
+              const voteBits = ["scout", "thesis", "risk", "critic", "executor"]
                 .filter((r) => votes[r])
                 .map((r) => {
                   const v = votes[r];
                   const label = typeof v === "object" ? v.vote || v.stance || "—" : v;
                   return `${r}:${label}`;
                 })
+                .join(" · ");
+              const voteNotes = ["thesis", "risk", "critic"]
+                .filter((r) => votes[r] && typeof votes[r] === "object" && votes[r].note)
+                .map((r) => `${r}: ${votes[r].note}`)
                 .join(" · ");
               const acts = (d.actions || [])
                 .map((a) =>
@@ -1420,18 +1429,28 @@
                   d.kind || "decision"
                 )}</span>` +
                 `<span class="title">${escapeHtml(when)} · ${escapeHtml(
-                  (d.summary || "").toString().slice(0, 80)
+                  (d.summary || "").toString().slice(0, 90)
                 )}</span></div>` +
-                `<div class="why">${escapeHtml(String(why).slice(0, 280))}</div>` +
+                `<div class="why"><strong>Why:</strong> ${escapeHtml(
+                  String(why).slice(0, 320)
+                )}</div>` +
+                (whyNot
+                  ? `<div class="why"><strong>Not:</strong> ${escapeHtml(
+                      String(whyNot).slice(0, 200)
+                    )}</div>`
+                  : "") +
                 (voteBits
                   ? `<div class="do">Votes: ${escapeHtml(voteBits)}</div>`
+                  : "") +
+                (voteNotes
+                  ? `<div class="why">${escapeHtml(voteNotes.slice(0, 280))}</div>`
                   : "") +
                 (acts ? `<div class="do">Actions: ${escapeHtml(acts)}</div>` : "") +
                 `</div>`
               );
             })
             .join("")
-        : `<p class="hint">No decisions logged yet — each review appends rationale here for monitoring.</p>`;
+        : `<p class="hint">No decisions yet. Scheduled daily reviews will appear here for optional monitoring.</p>`;
 
       // YNAB txs collapsed
       const octx = oc.transactions || [];

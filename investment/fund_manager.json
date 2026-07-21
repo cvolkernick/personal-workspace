@@ -7,12 +7,15 @@
   "live": true,
   "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management.",
   "cadence": {
+    "scheduled_reviews_per_day": 1,
     "reviews_per_day": 1,
+    "max_trades_per_day": null,
+    "max_trades_per_review": null,
     "timezone": "America/New_York",
     "preferred_window": "mid_session",
     "preferred_local_time": "12:30",
     "avoid": ["market_open_first_30m", "market_close_last_30m", "intraday_momentum"],
-    "notes": "Once daily review is enough. Avoid open/close volatility; no HFT/swing/day-trading mandate. Missed day = next scheduled review, not catch-up spam."
+    "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap — a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false→true. Avoid open/close noise; no day-trading mandate."
   },
   "team": {
     "enabled": true,
@@ -47,8 +50,11 @@
   },
   "rationale": {
     "required_on_every_decision": true,
-    "audience": "human_monitor",
-    "purpose": "Owner reviews thinking, flags mistakes, tweets/shares insights, monitors ongoing behavior",
+    "audience": "human_optional_monitor",
+    "purpose": "Surface ongoing debate and thinking on the FCC dashboard so the owner can observe without intervening. Human feedback is optional — step in only when something looks wrong.",
+    "owner_intervention": "optional",
+    "owner_must_respond": false,
+    "primary_surface": "financial-command dashboard (fund manager decision log)",
     "min_fields": [
       "summary",
       "weights_before",
@@ -61,6 +67,12 @@
     "log_path": "treasury/snapshots/fund_manager_decisions.jsonl",
     "fcc_panel": true
   },
+  "automation": {
+    "unattended": true,
+    "kickoff": "scheduled",
+    "runner": "treasury/fund_manager_daily.sh",
+    "notes": "Do not require manual session start or dashboard load. Prefer always-on host (e.g. Pi) systemd timer / cron once per trading day mid-session. Dashboard is observe-only glass box."
+  },
   "account": {
     "scope": "agentic_only",
     "config_key": "robinhood.agentic_account_number",
@@ -69,7 +81,8 @@
   },
   "approval": {
     "require_user_confirm": false,
-    "notes": "No per-trade pop-up. Human monitors via decision log / FCC; kill switch is capital or live:false. Feedback via journal comments or owner tweets/notes."
+    "require_owner_feedback": false,
+    "notes": "No per-trade pop-up and no required owner feedback. Dashboard shows debate for optional oversight. Kill switch: withdraw agentic capital or set live:false."
   },
   "limits": {
     "max_single_order_notional_usd": null,

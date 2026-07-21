@@ -1,62 +1,65 @@
 # Agentic fund manager — operating model
 
-**Status:** `live_autopilot` · **Cadence:** ~**1× per day** (mid-session preferred) · **Not** day-trading.
+**Status:** `live_autopilot`  
+**Schedule:** ~**1 automated review per trading day** (mid-session preferred)  
+**Trade cap:** **none** — a review may hold or place many orders  
+**Owner role:** **optional observer** via FCC (not required to kick off or reply)
 
-## Why rationale is logged
+## Design intent
 
-You want to **see how the team thinks**, spot mistakes, give feedback, and optionally tweet interesting decisions. Every decision should leave a trail:
+| You want | How we handle it |
+|----------|------------------|
+| See agent thinking / debate | Decision log on **FCC dashboard** + JSONL + journal |
+| Step in only when needed | No required feedback; intervene via policy/`live`/capital when you choose |
+| Automated as possible | Scheduled runner (Pi/cron) — **not** “open dashboard to run” |
+| Not day-trading | Prefer mid-session; avoid open/close noise; no HFT mandate |
+| Multiple trades if justified | **No max trades/day** — only schedule is ~daily attention |
 
-| Artifact | Path | Use |
-|----------|------|-----|
-| Structured log | `treasury/snapshots/fund_manager_decisions.jsonl` | Machine-readable audit |
-| Human journal | `investment/fund_manager_journal.md` | Readable history |
-| FCC panel | Brokerage → **Decision log / rationale** | Ongoing monitor |
+## Where to watch (no action required)
 
-Each entry: summary, weights before, team votes, why now / why not alternatives, actions + order ids.
+FCC → **Brokerage** → **Decision log / rationale**
+
+Shows team votes, why now, actions. Refresh the page anytime; it does **not** start a review.
+
+Also:
+- `treasury/snapshots/fund_manager_decisions.jsonl`
+- `investment/fund_manager_journal.md`
 
 ## Team (debate → single executor)
 
 | Role | Orders? | Job |
 |------|---------|-----|
-| **Scout** | No | Book snapshot, weights, light market context |
-| **Thesis** | No | 40/60 + allowlist / themes |
-| **Risk** | No | Trade or not; size; capital bounds |
-| **Critic** | No | Challenge weak ideas; can block / cut size |
-| **Executor** | **Yes** | Only role that places/cancels on Robinhood MCP |
+| Scout | No | Book, weights, light context |
+| Thesis | No | 40/60 + thesis fit |
+| Risk | No | Trade or not; size |
+| Critic | No | Challenge / block / cut size |
+| **Executor** | **Yes** | Only place/cancel on RH MCP; must log rationale |
 
-**Quorum:** Risk OK + Thesis OK; Critic can force hold or size-down. Scout is advisory.
+Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 
-## Cadence (your preference)
+## Unattended automation
 
-- **Once daily** active review is enough  
-- Prefer **mid-session** (e.g. ~12:30 America/New_York)  
-- **Avoid** first/last ~30 minutes of the session (open/close noise)  
-- **Not** momentum / swing / day-trading; no high-frequency mandate  
-- Missed day → next scheduled review (no catch-up spam)
-
-Automation target: **Pi or always-on timer once/day in market hours** — not “when FCC loads.”
-
-## What it optimizes
-
-Modernized **40% BTC & digital credit** / **60% stocks** on the **agentic account only**.  
-Risk budget = deposits into agentic. No per-trade human approval; you monitor via the log.
-
-## Daily review loop (when automated or agent-run)
-
-```text
-1. Scout: MCP portfolio + positions + weights (fund_manager.py)
-2. Thesis / Risk / Critic: debate → structured votes
-3. If quorum fails → HOLD + log rationale
-4. If quorum passes → Executor places/cancels + log full rationale
-5. Refresh FCC snapshot; owner reviews decision panel
+```bash
+# Manual test from repo root
+./treasury/fund_manager_daily.sh
 ```
 
-## Kill / feedback
+**Pi / always-on (preferred):**
+1. Clone/sync `personal-workspace` on the Pi  
+2. Ensure `grok` CLI + Robinhood MCP auth work headless  
+3. Install timer units from `treasury/deploy/` (edit paths/user)  
+   - `fund-manager.service` + `fund-manager.timer`  
+   - Or cron: `30 12 * * 1-5 /path/treasury/fund_manager_daily.sh` with `TZ=America/New_York`  
+4. Logs: `treasury/snapshots/fund_manager_daily_*.log`
 
-- Soft pause: `"live": false` in `investment/fund_manager.json`  
-- Hard stop: withdraw agentic capital / disconnect MCP  
-- Feedback: note wrong calls in journal, or tell the agent next session (“don’t do X”)
+Dashboard load is **observe-only** — never the scheduler.
 
-## Bootstrap history
+## Kill switches
 
-See decision log + journal for MSTR then MARA/TSLA/SPCX deploy after investor-profile gate cleared.
+- `"live": false` in `investment/fund_manager.json`  
+- Withdraw agentic capital  
+- Disable timer / disconnect MCP  
+
+## Strategy reminder
+
+Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**. Risk = deposits into that account.

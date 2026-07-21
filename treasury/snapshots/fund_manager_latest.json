@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-07-21T20:46:21.227081+00:00",
+  "as_of": "2026-07-21T20:56:56.423640+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-21T20:46:21.226941+00:00",
+    "as_of": "2026-07-21T20:56:56.423306+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -215,7 +215,10 @@
       "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
     },
     "cadence": {
+      "scheduled_reviews_per_day": 1,
       "reviews_per_day": 1,
+      "max_trades_per_day": null,
+      "max_trades_per_review": null,
       "timezone": "America/New_York",
       "preferred_window": "mid_session",
       "preferred_local_time": "12:30",
@@ -224,7 +227,7 @@
         "market_close_last_30m",
         "intraday_momentum"
       ],
-      "notes": "Once daily review is enough. Avoid open/close volatility; no HFT/swing/day-trading mandate. Missed day = next scheduled review, not catch-up spam."
+      "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap \u2014 a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false\u2192true. Avoid open/close noise; no day-trading mandate."
     },
     "team_enabled": true,
     "quorum": {

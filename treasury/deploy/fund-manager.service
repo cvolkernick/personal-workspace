@@ -1,0 +1,14 @@
+[Unit]
+Description=Agentic fund manager daily review (Grok headless + RH MCP)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/personal-workspace
+# Adjust User/WorkingDirectory for your Pi path
+ExecStart=/home/pi/personal-workspace/treasury/fund_manager_daily.sh
+Nice=10
+
+[Install]
+WantedBy=multi-user.target
