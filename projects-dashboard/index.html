@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Workflow Management — personal-workspace</title>
+  <title>Workflow — Autonomous Dev Loop</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -32,100 +32,82 @@
       border-bottom: 1px solid var(--border);
       display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
       align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(8px);
     }
-    header h1 { margin: 0; font-size: 1.25rem; font-weight: 650; letter-spacing: -0.02em; }
-    header .sub { color: var(--muted); font-size: 0.85rem; }
+    header h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.82rem; }
     header .header-left { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; }
     header .header-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center; }
-    .actions { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-    button, label.toggle {
+    .actions { display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap; }
+    button, label.toggle, select, input, textarea {
       background: var(--panel); color: var(--text);
       border: 1px solid var(--border); border-radius: 8px;
-      padding: 0.45rem 0.9rem; font-size: 0.9rem; cursor: pointer; font-weight: 600;
+      padding: 0.42rem 0.85rem; font-size: 0.88rem; font-weight: 600;
     }
+    button { cursor: pointer; }
     button:hover { border-color: var(--accent); color: var(--accent); }
     button:disabled { opacity: 0.5; cursor: wait; }
-    label.toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; color: var(--muted); }
-    main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+    button.btn-accent {
+      border-color: #245c42; color: var(--green); background: #0f2419;
+    }
+    button.btn-accent:hover { border-color: var(--green); }
+    button.btn-accent.on { background: #163526; box-shadow: 0 0 0 1px rgba(61,214,140,0.35); }
+    button.btn-kick { border-color: #2a4a66; color: var(--accent); background: #121c28; }
+    label.toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; color: var(--muted); cursor: pointer; }
+    main { max-width: 980px; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
     .error-banner {
       background: #2a1515; border: 1px solid #6b2e2e; color: var(--red);
-      padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; display: none;
+      padding: 0.7rem 1rem; border-radius: 8px; margin-bottom: 0.85rem; display: none;
     }
     .error-banner.show { display: block; }
-    .verdict {
-      border-radius: 14px; padding: 1.1rem 1.25rem; margin-bottom: 1rem;
-      border: 1px solid var(--border); display: grid; gap: 0.5rem;
+    #action-msg { background: #0f2419; border-color: #245c42; color: var(--green); }
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.55rem;
+      margin-bottom: 1rem;
     }
-    .verdict.ready { background: #0f2419; border-color: #245c42; }
-    .verdict.caution { background: #2a2410; border-color: #6b5a1e; }
-    .verdict.blocked { background: #2a1515; border-color: #6b2e2e; }
-    .verdict h2 { margin: 0; font-size: 1.2rem; }
-    .verdict .tag {
-      display: inline-block; font-size: 0.75rem; font-weight: 700;
-      letter-spacing: 0.08em; text-transform: uppercase; padding: 0.2rem 0.55rem;
-      border-radius: 999px; border: 1px solid currentColor;
-    }
-    .verdict.ready .tag { color: var(--green); }
-    .verdict.caution .tag { color: var(--yellow); }
-    .verdict.blocked .tag { color: var(--red); }
-    .summary { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.65rem; margin-bottom: 1rem; }
-    .stat {
-      background: var(--panel); border: 1px solid var(--border);
-      border-radius: 10px; padding: 0.65rem 0.85rem; min-width: 0;
-      cursor: pointer; text-align: left; width: 100%;
-      color: inherit; font: inherit;
+    .pipe-stat {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.9rem;
+      text-align: left;
+      cursor: pointer;
+      color: inherit;
+      font: inherit;
+      width: 100%;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
-    .stat:hover { border-color: var(--accent); }
-    .stat.open { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,159,212,0.25); }
-    .stat .n { font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .stat .l { color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
-    .stat .stat-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.35rem; }
-    .stat .chev { color: var(--muted); font-size: 0.75rem; transition: transform 0.15s; }
-    .stat.open .chev { transform: rotate(90deg); color: var(--accent); }
-    .stat-detail {
-      display: none; margin-top: 0.55rem; padding-top: 0.55rem;
-      border-top: 1px solid var(--border); text-align: left;
+    .pipe-stat:hover { border-color: var(--accent); }
+    .pipe-stat .n {
+      font-size: 1.55rem; font-weight: 750; font-variant-numeric: tabular-nums;
+      line-height: 1.1;
     }
-    .stat.open .stat-detail { display: block; }
-    .stat-detail .title { font-weight: 650; font-size: 0.88rem; margin-bottom: 0.25rem; }
-    .stat-detail .detail { color: var(--muted); font-size: 0.82rem; }
-    .stat-detail code {
-      display: block; margin-top: 0.35rem; padding: 0.35rem 0.45rem;
-      background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.72rem; color: var(--blue); word-break: break-all;
+    .pipe-stat .l {
+      color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.05em; margin-top: 0.25rem; font-weight: 600;
     }
-    .stat.lvl-ok { border-color: #245c42; }
-    .stat.lvl-warn { border-color: #6b5a1e; }
-    .stat.lvl-info { border-color: #2a4a66; }
-    .stat.lvl-blocked { border-color: #6b2e2e; }
+    .pipe-stat .hint { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; font-weight: 500; }
+    .pipe-stat.has-alert { border-color: #245c42; box-shadow: 0 0 0 1px rgba(61,214,140,0.2); }
+    .pipe-stat.has-warn { border-color: #6b5a1e; }
+    .pipe-stat.has-run { border-color: #5b3a7a; }
     .card {
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 12px; padding: 1rem 1.15rem; display: grid; gap: 0.55rem; margin-bottom: 0.85rem;
+      border-radius: 12px; padding: 0.95rem 1.1rem; margin-bottom: 0.85rem;
     }
-    .card h2, .card h3 { margin: 0; }
-    .card h2 { font-size: 1.05rem; }
-    .card h3 { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-    .lvl {
-      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
-      padding: 0.15rem 0.4rem; border-radius: 6px;
-      border: 1px solid var(--border);
+    .section-title {
+      margin: 1.15rem 0 0.5rem; font-size: 0.8rem; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
     }
-    .lvl.ok { color: var(--green); border-color: #245c42; }
-    .lvl.warn { color: var(--yellow); border-color: #6b5a1e; }
-    .lvl.info { color: var(--accent); border-color: #2a4a66; }
-    .lvl.blocked { color: var(--red); border-color: #6b2e2e; }
-    .cmd {
-      display: block; margin-top: 0.35rem; padding: 0.4rem 0.55rem;
-      background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      font-size: 0.78rem; color: var(--blue); word-break: break-all;
+    .section-title .sub {
+      text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--muted);
     }
-    .section-title.compact { margin-top: 0.75rem; }
     .pill {
       display: inline-flex; align-items: center; gap: 0.3rem;
-      padding: 0.22rem 0.55rem; border-radius: 999px; font-weight: 600; font-size: 0.72rem;
+      padding: 0.2rem 0.5rem; border-radius: 999px; font-weight: 600; font-size: 0.7rem;
       border: 1px solid var(--border); background: #0e151c;
     }
     .pill.clean { color: var(--green); border-color: #245c42; }
@@ -134,172 +116,130 @@
     .pill.active { color: var(--green); border-color: #245c42; background: #0f2419; }
     .pill.session { color: var(--purple); border-color: #5b3a7a; }
     .pill.muted { color: var(--muted); font-weight: 500; }
-    .meta { display: grid; gap: 0.25rem; font-size: 0.9rem; }
-    .meta .row { display: grid; grid-template-columns: 5.5rem 1fr; gap: 0.5rem; }
-    .meta .label { color: var(--muted); }
-    .meta .val { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.82rem; word-break: break-all; }
-    .meta a { color: var(--accent); text-decoration: none; }
-    .sess {
-      display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 0.75rem;
-      align-items: start; padding: 0.45rem 0.5rem; border-radius: 8px;
-      background: #0e151c; font-size: 0.85rem; margin-top: 0.35rem;
-    }
-    .sess .title { font-weight: 600; }
-    .sess .id { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; }
-    .sess .when { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
-    .section-title {
-      margin: 1.4rem 0 0.65rem; font-size: 0.85rem; color: var(--muted);
-      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600;
-    }
-    .dirty-list { margin: 0.2rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.8rem;
-      font-family: ui-monospace, Menlo, monospace; }
-    .focus-list { list-style: disc; margin: 0 0 0.65rem; padding-left: 1.25rem; }
-    .focus-item {
-      margin: 0.4rem 0; color: var(--text); font-family: inherit; font-size: 0.92rem;
-      line-height: 1.45; word-break: break-word;
-    }
-    .focus-item strong { font-weight: 650; color: var(--text); }
-    .focus-item em { font-style: italic; color: var(--muted); }
-    .focus-item.done { opacity: 0.7; text-decoration: line-through; }
-    .copy-btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; margin-left: 0.35rem; }
-    .two-col { display: grid; gap: 0.85rem; }
-    @media (min-width: 900px) {
-      .two-col { grid-template-columns: 1fr 1fr; align-items: start; }
-    }
-    footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
-    .empty { color: var(--muted); text-align: center; padding: 1.25rem; border: 1px dashed var(--border); border-radius: 12px; }
-    /* Recommendation priority + press rank */
+    .pill.auto-on { color: var(--green); border-color: #245c42; background: #0f2419; }
     .pill.pri-critical { color: #ff6b6b; border-color: #6b2e2e; background: #2a1515; }
     .pill.pri-high { color: #f5a623; border-color: #6b4a1e; background: #2a1f10; }
     .pill.pri-medium { color: #5b9fd4; border-color: #2a4a66; background: #121c28; }
     .pill.pri-low { color: #8aa0b5; border-color: #2a3540; background: #141a20; }
-    .rec-card {
-      background: #0e151c;
-      border: 1px solid var(--border);
-      border-left-width: 4px;
-      border-radius: 12px;
-      padding: 0.75rem 0.85rem;
-      margin-bottom: 0.5rem;
-      display: grid;
-      gap: 0.35rem;
+    .sess {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.5rem 0.75rem;
+      align-items: start; padding: 0.5rem 0.55rem; border-radius: 8px;
+      background: #0e151c; font-size: 0.85rem; margin-top: 0.4rem;
     }
-    .rec-card.pri-critical { border-left-color: #ff6b6b; background: linear-gradient(90deg, #2a1515 0%, #0e151c 28%); }
-    .rec-card.pri-high { border-left-color: #f5a623; background: linear-gradient(90deg, #2a1f10 0%, #0e151c 28%); }
-    .rec-card.pri-medium { border-left-color: #5b9fd4; background: linear-gradient(90deg, #121c28 0%, #0e151c 28%); }
-    .rec-card.pri-low { border-left-color: #3a4550; background: #0e151c; }
-    .rec-card.rank-1 { box-shadow: 0 0 0 1px rgba(255,107,107,0.25); }
+    .sess .title { font-weight: 600; }
+    .sess .id { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 0.72rem; }
+    .sess .when { color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+    .sess a { color: var(--accent); }
+    .empty {
+      color: var(--muted); text-align: center; padding: 0.9rem;
+      border: 1px dashed var(--border); border-radius: 10px; font-size: 0.88rem;
+    }
+    .rec-card {
+      background: #0e151c; border: 1px solid var(--border); border-left-width: 4px;
+      border-radius: 12px; padding: 0.7rem 0.8rem; margin-bottom: 0.45rem;
+    }
+    .rec-card.pri-critical { border-left-color: #ff6b6b; }
+    .rec-card.pri-high { border-left-color: #f5a623; }
+    .rec-card.pri-medium { border-left-color: #5b9fd4; }
+    .rec-card.pri-low { border-left-color: #3a4550; }
+    .rec-card.rank-1 { box-shadow: 0 0 0 1px rgba(255,107,107,0.2); }
+    .rank-head {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem; align-items: start;
+    }
     .rank-badge {
       display: inline-flex; align-items: center; justify-content: center;
-      min-width: 2rem; height: 2rem; border-radius: 999px;
-      font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums;
-      border: 1px solid var(--border); background: #0a1016;
+      min-width: 1.85rem; height: 1.85rem; border-radius: 999px;
+      font-weight: 800; font-size: 0.9rem; border: 1px solid var(--border); background: #0a1016;
     }
     .rank-badge.r1 { color: #ff6b6b; border-color: #6b2e2e; background: #2a1515; }
     .rank-badge.r2 { color: #f5a623; border-color: #6b4a1e; background: #2a1f10; }
     .rank-badge.r3 { color: #5b9fd4; border-color: #2a4a66; background: #121c28; }
-    .rank-head {
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      gap: 0.65rem;
-      align-items: start;
-    }
-    .pri-band {
-      display: flex; align-items: center; gap: 0.5rem;
-      margin: 0.85rem 0 0.4rem;
-      padding: 0.35rem 0.55rem;
-      border-radius: 8px;
-      font-size: 0.78rem;
-      font-weight: 700;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-    }
-    .pri-band.critical { color: #ff6b6b; background: #2a1515; border: 1px solid #6b2e2e; }
-    .pri-band.high { color: #f5a623; background: #2a1f10; border: 1px solid #6b4a1e; }
-    .pri-band.medium { color: #5b9fd4; background: #121c28; border: 1px solid #2a4a66; }
-    .pri-band.low { color: #8aa0b5; background: #141a20; border: 1px solid #2a3540; }
-    .legend-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
-    .view-toggle { display: flex; gap: 0.35rem; flex-wrap: wrap; }
-    .view-toggle button.active { border-color: var(--accent); color: var(--accent); }
-    .local-toast {
-      display: none;
-      position: sticky;
-      top: 0.5rem;
-      z-index: 30;
-      margin: 0 0 0.65rem;
-      padding: 0.7rem 0.95rem;
-      border-radius: 10px;
-      border: 1px solid #245c42;
-      background: #0f2419;
-      color: var(--green);
-      font-size: 0.9rem;
-      font-weight: 600;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
-    }
-    .local-toast.show { display: block; }
-    .local-toast.err {
-      border-color: #6b2e2e;
-      background: #2a1515;
-      color: var(--red);
-    }
-    button.btn-accent {
-      border-color: #245c42;
-      color: var(--green);
-      background: #0f2419;
-    }
-    button.btn-accent:hover { border-color: var(--green); color: var(--green); }
-    button.btn-accent.on {
-      background: #163526;
-      box-shadow: 0 0 0 1px rgba(61,214,140,0.35);
-    }
-    button.btn-kick {
-      border-color: #2a4a66;
-      color: var(--accent);
-      background: #121c28;
-    }
     .card-actions {
-      display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.45rem;
-      padding-top: 0.45rem; border-top: 1px solid var(--border);
-      align-items: center;
+      display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem;
+      padding-top: 0.4rem; border-top: 1px solid var(--border); align-items: center;
     }
-    .card-actions .actions-label {
-      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em;
-      color: var(--muted); font-weight: 700; margin-right: 0.15rem;
+    .detail { color: var(--muted); font-size: 0.86rem; }
+    .id { color: var(--muted); font-size: 0.78rem; font-family: ui-monospace, Menlo, monospace; }
+    details.more {
+      margin-top: 1.25rem; border: 1px solid var(--border); border-radius: 12px;
+      background: var(--panel); padding: 0.35rem 0.85rem 0.65rem;
     }
-    .pill.auto-on { color: var(--green); border-color: #245c42; background: #0f2419; }
+    details.more > summary {
+      cursor: pointer; padding: 0.65rem 0.15rem; color: var(--muted);
+      font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700;
+      list-style: none;
+    }
+    details.more > summary::-webkit-details-marker { display: none; }
+    details.more[open] > summary { color: var(--accent); border-bottom: 1px solid var(--border); margin-bottom: 0.65rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem; }
+    .loop-legend {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center;
+      margin: 0 0 0.85rem; padding: 0.55rem 0.75rem; border-radius: 10px;
+      background: #0e151c; border: 1px solid var(--border); font-size: 0.8rem; color: var(--muted);
+    }
+    .loop-legend strong { color: var(--text); font-weight: 650; }
+    footer { margin-top: 1.5rem; color: var(--muted); font-size: 0.78rem; text-align: center; }
+    .cmd {
+      display: block; margin-top: 0.3rem; padding: 0.35rem 0.5rem;
+      background: #0a1016; border-radius: 6px; border: 1px solid var(--border);
+      font-family: ui-monospace, Menlo, monospace; font-size: 0.75rem; color: var(--blue);
+      word-break: break-all;
+    }
+    .copy-btn { font-size: 0.72rem; padding: 0.2rem 0.45rem; margin-left: 0.3rem; }
+    .view-toggle { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    .view-toggle button.active { border-color: var(--accent); color: var(--accent); }
+    .field {
+      background: #0a1016; border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; padding: 0.45rem 0.55rem; font-size: 0.85rem; width: 100%;
+      font-family: inherit;
+    }
+    .live-dot {
+      display: inline-block; width: 0.45rem; height: 0.45rem; border-radius: 999px;
+      background: var(--green); margin-right: 0.35rem; box-shadow: 0 0 0 3px rgba(61,214,140,0.15);
+    }
+    .live-dot.off { background: var(--muted); box-shadow: none; }
   </style>
 </head>
 <body>
   <header>
     <div class="header-left">
       <div>
-        <h1>Workflow Management</h1>
-        <div class="sub">personal-workspace · pre-reset readiness</div>
+        <h1>Autonomous Dev Loop</h1>
+        <div class="sub">backlog → schedule → agent → PR → review</div>
       </div>
       <div class="header-meta" id="header-meta"></div>
     </div>
     <div class="actions">
-      <label class="toggle"><input type="checkbox" id="only-touched" checked /> Touched only</label>
       <span id="updated" class="sub"></span>
-      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Terminal with the named Workflow Management Grok session">Open Grok</button>
-      <button type="button" id="btn-session-index" title="Write ops/session-index to disk">Session index</button>
-      <button type="button" id="btn-sync" title="Session index + commit + push">Protect &amp; push</button>
       <button type="button" id="btn-refresh">Refresh</button>
+      <button type="button" id="btn-sync" title="Commit + push durable work">Protect &amp; push</button>
+      <button type="button" id="btn-open-grok" class="btn-accent" title="Open Workflow Management Grok session">Open Grok</button>
     </div>
   </header>
   <main>
     <div id="err" class="error-banner" role="alert"></div>
-    <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
-    <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
-    <div class="summary" id="summary"></div>
-    <div id="strategy-focus"></div>
-    <div id="scheduler"></div>
-    <div id="recommendations"></div>
+    <div id="action-msg" class="error-banner" role="status"></div>
+
+    <div class="loop-legend" id="loop-status">
+      <span><span class="live-dot off" id="live-dot"></span><span id="live-label">Loading…</span></span>
+    </div>
+
+    <div class="pipeline" id="pipeline"></div>
+
+    <div id="attention"></div>
+    <div id="inflight"></div>
     <div id="backlog"></div>
-    <div id="branches"></div>
-    <div id="resume"></div>
-    <div class="section-title">Projects (exit readiness by area)</div>
-    <div id="list"><div class="empty">Loading…</div></div>
-    <div id="listeners"></div>
+
+    <details class="more" id="more-panel">
+      <summary>More · suggestions, focus, system health, projects</summary>
+      <div id="strategy-focus"></div>
+      <div id="recommendations"></div>
+      <div id="system"></div>
+      <div id="branches"></div>
+      <div id="list"></div>
+      <div id="settings"></div>
+    </details>
+
     <footer id="footer"></footer>
   </main>
   <script>
@@ -307,19 +247,12 @@
     function esc(s) {
       return String(s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
     }
-    /** Light markdown for Today's focus lines (**bold**, *italic*, [links](url)). */
     function mdInline(s) {
       let t = String(s ?? "");
-      // Markdown links → label only
       t = t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-      // Escape first so we only inject intentional tags
       t = esc(t);
-      // **bold** then *italic*
       t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
       t = t.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
-      t = t.replace(/_([^_\n]+)_/g, "<em>$1</em>");
-      // leftover **
-      t = t.replace(/\*\*/g, "");
       return t;
     }
     function fmtWhen(iso) {
@@ -330,177 +263,54 @@
         return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
       } catch { return esc(iso); }
     }
-    function remoteLinks(remotes) {
-      if (!remotes?.length) return "—";
-      return remotes.map((r) => {
-        let href = r.url || "";
-        if (href.startsWith("git@")) {
-          const m = href.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
-          if (m) href = `https://${m[1]}/${m[2].replace(/\.git$/, "")}`;
-        } else if (href.endsWith(".git")) href = href.replace(/\.git$/, "");
-        const label = `${r.name}: ${r.url}`;
-        return href.startsWith("http")
-          ? `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(label)}</a>`
-          : esc(label);
-      }).join("<br>");
-    }
     function copyText(text) {
       navigator.clipboard?.writeText(text).catch(() => {});
     }
+    function priClass(p) {
+      const x = (p || "medium").toLowerCase();
+      return ["critical", "high", "medium", "low"].includes(x) ? x : "medium";
+    }
+    function jobStatusLabel(st) {
+      const m = {
+        queued: "queued",
+        pending_terminal: "waiting Terminal",
+        agent_running: "agent running",
+        launched: "kicked off",
+        running: "in progress",
+        pr_ready: "PR ready",
+        completed: "done",
+        failed: "failed",
+        cancelled: "cancelled",
+      };
+      return m[st] || st || "—";
+    }
+    function jobPill(st) {
+      if (st === "pr_ready" || st === "completed") return "clean";
+      if (st === "failed" || st === "pending_terminal") return "dirty";
+      if (st === "agent_running" || st === "launched" || st === "running") return "session";
+      return "muted";
+    }
 
-    // Remember which pre-reset indicators are expanded across refresh
     window.__openChecks = window.__openChecks || new Set();
+    window.__blEditOpen = window.__blEditOpen || new Set();
+    window.__blView = window.__blView || "press";
+    window.__recView = window.__recView || "press";
+
+    function scrollToId(id) {
+      const el = $(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
 
     function render(data) {
       const r = data.readiness || {};
       const ws = data.workspace || {};
       const projects = data.projects || [];
-      const c = r.counts || {};
-      const verdict = r.verdict || "caution";
       const br = data.branches || {};
-      const checks = r.checks || [];
-      const byId = Object.fromEntries(checks.map((ch) => [ch.id, ch]));
-
-      // Header: branch + git status + verdict
-      const verdictClass = verdict === "ready" ? "clean" : verdict === "blocked" ? "dirty" : "dirty";
-      $("header-meta").innerHTML = `
-        <span class="pill branch" title="Current branch">${esc(br.current || ws.branch || "—")}</span>
-        <span class="pill ${ws.dirty ? "dirty" : "clean"}" title="Working tree">${esc(ws.status_label || "—")}</span>
-        <span class="pill ${verdict === "ready" ? "clean" : "dirty"}" title="${esc(r.verdict_label || "")}">${esc(verdict)}</span>
-        ${ws.upstream ? `<span class="pill muted" title="Upstream">${esc(ws.upstream)}</span>` : ""}
-        ${(ws.remotes && ws.remotes[0]) ? `<span class="pill muted" title="${esc(ws.remotes[0].url)}">remote</span>` : ""}
-      `;
-
-      // Map checklist items → expandable status indicator boxes
-      const indicators = [
-        {
-          id: "uncommitted",
-          label: "Uncommitted",
-          value: c.dirty_files ?? 0,
-          color: "var(--yellow)",
-          check: byId.uncommitted,
-        },
-        {
-          id: "unpushed",
-          label: "Unpushed",
-          value: c.ahead ?? "—",
-          color: "var(--accent)",
-          check: byId.unpushed || byId.behind,
-        },
-        {
-          id: "sessions_disk",
-          label: "Sessions on disk",
-          value: c.persisted_sessions ?? 0,
-          color: "var(--green)",
-          check: byId.sessions_disk,
-        },
-        {
-          id: "live_agents",
-          label: "Live agents",
-          value: c.live_sessions ?? 0,
-          color: "var(--purple)",
-          check: byId.live_agents,
-        },
-        {
-          id: "dirty_projects",
-          label: "Dirty areas",
-          value: c.dirty_projects ?? 0,
-          color: "var(--yellow)",
-          check: byId.dirty_projects,
-        },
-        {
-          id: "servers",
-          label: "Servers",
-          value: c.listeners ?? 0,
-          color: "var(--blue)",
-          check: byId.servers,
-        },
-        {
-          id: "stashes",
-          label: "Stashes",
-          value: c.stashes ?? 0,
-          color: "var(--muted)",
-          check: byId.stashes,
-        },
-      ].filter((ind) => ind.check || ind.value);
-
-      // Also surface any checklist items not mapped above
-      const mappedIds = new Set(indicators.map((i) => i.id));
-      for (const ch of checks) {
-        if (!mappedIds.has(ch.id) && ch.id !== "behind") {
-          indicators.push({
-            id: ch.id,
-            label: ch.title || ch.id,
-            value: (ch.level || "").toUpperCase(),
-            color: ch.level === "ok" ? "var(--green)" : ch.level === "warn" ? "var(--yellow)" : "var(--accent)",
-            check: ch,
-          });
-        }
-      }
-
-      $("summary").innerHTML = indicators.map((ind) => {
-        const ch = ind.check || {};
-        const level = ch.level || "info";
-        const open = window.__openChecks.has(ind.id);
-        const paths = (ch.paths || []).slice(0, 12);
-        return `
-          <button type="button" class="stat lvl-${esc(level)}${open ? " open" : ""}" data-check-id="${esc(ind.id)}" aria-expanded="${open}">
-            <div class="stat-top">
-              <div>
-                <div class="n" style="color:${ind.color}">${esc(ind.value)}</div>
-                <div class="l">${esc(ind.label)}</div>
-              </div>
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.25rem">
-                <span class="lvl ${esc(level)}">${esc(level)}</span>
-                <span class="chev">▶</span>
-              </div>
-            </div>
-            <div class="stat-detail">
-              <div class="title">${esc(ch.title || ind.label)}</div>
-              <div class="detail">${esc(ch.detail || "No additional detail.")}</div>
-              ${ch.action ? `<code>${esc(ch.action)}</code>` : ""}
-              ${paths.length ? `<ul class="dirty-list">${paths.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
-            </div>
-          </button>`;
-      }).join("");
-
-      // Strategy focus panel (planning content — not a project card)
-      const sf = data.strategy_focus || {};
-      const openFocus = sf.open_items || [];
-      const doneFocus = sf.done_items || [];
-      $("strategy-focus").innerHTML = `
-        <div class="section-title">Today's focus <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· strategy/today.md (planning, not a project)</span></div>
-        <div class="card">
-          <div class="detail" style="color:var(--muted);font-size:0.88rem;margin-bottom:0.5rem">
-            ${esc(sf.note || "North-star planning content.")}
-            ${sf.bets_blurb ? `<br/><span class="id">Bets: ${esc(sf.bets_blurb)}</span>` : ""}
-          </div>
-          ${!openFocus.length && !doneFocus.length
-            ? `<div class="empty" style="padding:0.75rem">No checklist items in strategy/today.md yet.</div>`
-            : `
-              ${openFocus.length ? `
-                <h3 style="margin:0 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Open (${openFocus.length})</h3>
-                <ul class="focus-list">
-                  ${openFocus.map((t) => `<li class="focus-item">${mdInline(t)}</li>`).join("")}
-                </ul>
-              ` : ""}
-              ${doneFocus.length ? `
-                <h3 style="margin:0.5rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Done (${doneFocus.length})</h3>
-                <ul class="focus-list">
-                  ${doneFocus.slice(0, 5).map((t) => `<li class="focus-item done">${mdInline(t)}</li>`).join("")}
-                </ul>
-              ` : ""}
-            `}
-          <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
-        </div>`;
-
-      // Autonomous work loop: groom → queue → tick → reports
       const sched = data.scheduler || {};
       const scfg = sched.config || {};
       const scron = sched.cron || {};
       const sjobs = sched.jobs || [];
       const sreports = sched.reports || [];
-      const seligible = sched.eligible || [];
       const sauto = sched.auto_start_items || [];
       const spending = sched.pending_terminal_jobs || [];
       const sprs = sched.pr_ready_jobs || [];
@@ -510,260 +320,146 @@
       const loop = data.auto_loop || {};
       const backend = scfg.backend || "local";
       const execMode = scfg.execution_mode || sexec.mode || "auto";
-      $("scheduler").innerHTML = `
-        <div class="section-title">Autonomous work loop <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· backlog → groom → schedule → agent/PR → review</span></div>
+      const bl = data.backlog || {};
+      const blRanked = (bl.ranked || bl.items || []).filter((i) => !["done", "parked"].includes(i.status));
+
+      const inProgress = sjobs.filter((j) =>
+        ["agent_running", "launched", "running", "queued"].includes(j.status)
+      );
+      const waiting = sjobs.filter((j) => j.status === "pending_terminal");
+      const prReady = sprs.length ? sprs : sjobs.filter((j) => j.status === "pr_ready");
+      const recentDone = sjobs.filter((j) => ["completed", "failed"].includes(j.status)).slice(0, 5);
+      const newPrCount = (snewprs && snewprs.length) ? snewprs.length : prReady.filter((j) => j.is_new_since_load).length;
+
+      // Header
+      $("header-meta").innerHTML = `
+        <span class="pill branch">${esc(br.current || ws.branch || "—")}</span>
+        <span class="pill ${ws.dirty ? "dirty" : "clean"}">${esc(ws.status_label || "—")}</span>
+        <span class="pill ${backend === "raspi" ? "session" : "muted"}">${esc(backend)}</span>
+        <span class="pill muted">${esc(execMode)}</span>
+      `;
+
+      // Live status line
+      const lastTick = scfg.last_tick_at ? fmtWhen(scfg.last_tick_at) : "never";
+      const lastRes = scfg.last_tick_result || {};
+      const live = scfg.enabled && (backend === "raspi" || scron.installed);
+      $("live-dot").className = "live-dot" + (live ? "" : " off");
+      $("live-label").innerHTML = live
+        ? `<strong>Loop on</strong> · ${esc(backend)} · last tick ${esc(lastTick)}`
+          + (lastRes.pr_ready_count ? ` · ${esc(lastRes.pr_ready_count)} PR` : "")
+          + (lastRes.launched_count ? ` · ${esc(lastRes.launched_count)} launched` : "")
+          + (lastRes.pending_terminal_count ? ` · ${esc(lastRes.pending_terminal_count)} waiting` : "")
+        : `<strong>Loop off</strong> · enable under Settings`;
+      if (loop.claim && loop.claim.claimed_count) {
+        $("live-label").innerHTML += ` · auto-claimed ${esc(loop.claim.claimed_count)}`;
+      }
+
+      // Pipeline strip
+      $("pipeline").innerHTML = `
+        <button type="button" class="pipe-stat ${sauto.length ? "has-alert" : ""}" data-jump="backlog">
+          <div class="n" style="color:var(--green)">${sauto.length}</div>
+          <div class="l">Queued</div>
+          <div class="hint">auto-start · next tick</div>
+        </button>
+        <button type="button" class="pipe-stat ${inProgress.length || waiting.length ? "has-run" : ""}" data-jump="inflight">
+          <div class="n" style="color:var(--purple)">${inProgress.length + waiting.length}</div>
+          <div class="l">In progress</div>
+          <div class="hint">${inProgress.length} running · ${waiting.length} waiting</div>
+        </button>
+        <button type="button" class="pipe-stat ${prReady.length ? "has-alert" : ""}" data-jump="attention">
+          <div class="n" style="color:${prReady.length ? "var(--green)" : "var(--muted)"}">${prReady.length}</div>
+          <div class="l">PRs to review</div>
+          <div class="hint">${newPrCount ? newPrCount + " new since last load" : "open & merge"}</div>
+        </button>
+        <button type="button" class="pipe-stat" data-jump="backlog">
+          <div class="n" style="color:var(--accent)">${blRanked.length}</div>
+          <div class="l">Backlog</div>
+          <div class="hint">active ideas / ready</div>
+        </button>
+      `;
+
+      // —— Attention: PRs ——
+      const prList = (snewprs && snewprs.length ? snewprs : prReady).slice(0, 12);
+      $("attention").innerHTML = `
+        <div class="section-title" id="attention-title">Needs review <span class="sub">· agent finished · open PR · approve or request changes</span></div>
         <div class="card">
-          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
-            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
-              On load: <strong>auto-groom</strong>, <strong>auto-queue</strong>, and <strong>auto-claim</strong> any
-              <code>pending_terminal</code> jobs (opens Terminal on this Mac).
-              Schedule: <strong>${esc(backend)}</strong>${backend === "raspi" ? " (Pi 24/7)" : ""}.
-              Exec: <strong>${esc(execMode)}</strong>
-              ${sexec.use_agent ? " · server agent builds branch + PR" : ""}.
-              <br/><span class="id">${esc(sched.note || "")}
-              ${sched.deploy_hint ? `<br/>${esc(sched.deploy_hint)}` : ""}
-              <br/>Host: grok ${sruntime.has_grok ? "yes" : "no"} · Terminal ${sruntime.has_macos_terminal ? "yes" : "no"}
-              · ${sexec.reason ? esc(sexec.reason) : ""}
-              · scheduler ${scfg.enabled ? "enabled" : "disabled"}
-              · local cron ${scron.installed ? "on" : "off"}
-              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}
-              ${loop.claim && loop.claim.claimed_count ? ` · auto-claimed ${esc(loop.claim.claimed_count)}` : ""}</span>
-            </div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end;align-items:center">
-              <label class="id">Backend
-                <select id="sched-backend" style="background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.35rem 0.5rem;margin-left:0.25rem">
-                  <option value="local"${backend === "local" ? " selected" : ""}>local (Mac cron)</option>
-                  <option value="raspi"${backend === "raspi" ? " selected" : ""}>raspi (24/7 Pi)</option>
-                </select>
-              </label>
-              <label class="id">Exec
-                <select id="sched-exec" style="background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.35rem 0.5rem;margin-left:0.25rem">
-                  <option value="auto"${execMode === "auto" ? " selected" : ""}>auto</option>
-                  <option value="agent"${execMode === "agent" ? " selected" : ""}>agent (Pi→PR)</option>
-                  <option value="queue"${execMode === "queue" ? " selected" : ""}>queue (Terminal)</option>
-                  <option value="spawn"${execMode === "spawn" ? " selected" : ""}>spawn Grok</option>
-                </select>
-              </label>
-              <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
-              <button type="button" id="btn-sched-cron">${scron.installed ? "Remove local cron" : "Install local cron"}</button>
-              <button type="button" id="btn-sched-tick" class="btn-kick" title="Kick off next eligible job now">Run tick now</button>
-              <button type="button" id="btn-sched-claim" title="Manual fallback — pending also auto-claims on dashboard load">Claim pending now</button>
-            </div>
+          ${!prList.length
+            ? `<div class="empty">No PRs waiting. When the Pi finishes a job you’ll see it here with a Review link.</div>`
+            : prList.map((j) => `
+              <div class="sess">
+                <div><span class="pill ${j.is_new_since_load === false ? "muted" : "clean"}">${j.is_new_since_load === false ? "PR" : "NEW PR"}</span></div>
+                <div>
+                  <div class="title">${esc(j.title)}</div>
+                  <div class="id">
+                    ${esc(j.branch || "")}${j.pr_number != null ? ` · #${esc(j.pr_number)}` : ""}
+                    · ${esc(fmtWhen(j.pr_ready_at || j.created_at))}
+                    ${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank" rel="noopener">open on GitHub</a>` : ""}
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
+                  ${j.pr_url ? `<a class="btn-kick" style="display:inline-block;padding:0.35rem 0.65rem;text-decoration:none;border:1px solid var(--border);border-radius:8px;font-weight:650;font-size:0.82rem" href="${esc(j.pr_url)}" target="_blank" rel="noopener">Review PR</a>` : ""}
+                  <button type="button" class="btn-job-complete" data-id="${esc(j.id)}" title="Mark done after you merge">Mark done</button>
+                </div>
+              </div>`).join("")}
+          <div class="detail" style="margin-top:0.55rem">
+            How you’ll know: <strong>NEW PR</strong> badges appear after a Pi tick opens a pull request.
+            Auto-refresh every 45s while this page is open.
           </div>
-          <div class="detail" style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem">
-            Schedule: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
-            · max ${esc(scfg.max_per_tick ?? 1)}/tick · concurrent ${esc(scfg.max_concurrent ?? 1)}
-            · slots: ${(scfg.eligible_slots || []).map((s) => esc(s)).join(", ") || "now, this_week"}
-            · ${sauto.length} auto-queued · ${seligible.length} eligible · ${spending.length} pending Terminal
-          </div>
+        </div>`;
+
+      // —— In flight ——
+      const flight = [...inProgress, ...waiting].slice(0, 15);
+      $("inflight").innerHTML = `
+        <div class="section-title" id="inflight-title">Kicked off &amp; in progress <span class="sub">· agent running · Terminal · waiting</span></div>
+        <div class="card">
+          ${!flight.length
+            ? `<div class="empty">Nothing in flight. Queued work starts on the next Pi tick (~15 min) or via Run tick in Settings.</div>`
+            : flight.map((j) => `
+              <div class="sess">
+                <div><span class="pill ${jobPill(j.status)}">${esc(jobStatusLabel(j.status))}</span></div>
+                <div>
+                  <div class="title">${esc(j.title)}</div>
+                  <div class="id">
+                    ${esc(j.id)}
+                    ${j.branch ? ` · ${esc(j.branch)}` : ""}
+                    · ${esc(fmtWhen(j.started_at || j.launched_at || j.pending_at || j.created_at))}
+                    ${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank">PR</a>` : ""}
+                    ${j.error ? ` · ${esc(j.error)}` : ""}
+                  </div>
+                </div>
+                <div class="when">${esc(j.backend || "")}</div>
+              </div>`).join("")}
           ${sauto.length ? `
-            <h3 style="margin:0.35rem 0;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for kickoff</h3>
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for next tick</h3>
             ${sauto.map((a) => `
               <div class="sess">
-                <div><span class="pill auto-on">auto</span></div>
+                <div><span class="pill auto-on">queued</span></div>
                 <div>
                   <div class="title">${esc(a.title)}</div>
-                  <div class="id">#${esc(a.press_rank || "—")} · ${esc(a.schedule_slot || "")} · ${esc(a.status)}${a.auto_start_source ? ` · ${esc(a.auto_start_source)}` : ""}</div>
+                  <div class="id">#${esc(a.press_rank || "—")} · ${esc(a.schedule_slot || "")} · ${esc(a.status)}</div>
                 </div>
                 <div><button type="button" class="btn-bl-auto-off" data-id="${esc(a.id)}">Unqueue</button></div>
               </div>`).join("")}
-          ` : `<div class="empty" style="padding:0.65rem">Nothing auto-queued — add backlog items or wait for auto-groom.</div>`}
-          ${(snewprs.length || sprs.length) ? `
-            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">PRs ready for review ${snewprs.length ? `(${snewprs.length} new since last load)` : ""}</h3>
-            ${(snewprs.length ? snewprs : sprs).slice(0, 10).map((j) => `
-              <div class="sess">
-                <div><span class="pill ${j.is_new_since_load === false ? "muted" : "clean"}">${j.is_new_since_load === false ? "pr" : "new pr"}</span></div>
-                <div>
-                  <div class="title">${esc(j.title)}</div>
-                  <div class="id">${esc(j.branch || "")} · ${esc(j.id)}
-                    ${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank" rel="noopener">open PR #${esc(j.pr_number || "")}</a>` : ""}
-                  </div>
-                </div>
-                <div>
-                  ${j.pr_url ? `<a class="btn-kick" style="display:inline-block;padding:0.35rem 0.65rem;text-decoration:none;border:1px solid var(--border);border-radius:8px" href="${esc(j.pr_url)}" target="_blank" rel="noopener">Review</a>` : ""}
-                  <button type="button" class="btn-job-complete" data-id="${esc(j.id)}" title="Mark job done after you merge">Done</button>
-                </div>
-              </div>`).join("")}
-          ` : `<div class="empty" style="padding:0.55rem;margin-top:0.5rem">No agent PRs waiting — Pi ticks open PRs when Grok+token are configured.</div>`}
-          ${spending.length ? `
-            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Pending Terminal (auto-claims on load)</h3>
-            ${spending.map((j) => `
-              <div class="sess">
-                <div><span class="pill dirty">pending</span></div>
-                <div>
-                  <div class="title">${esc(j.title)}</div>
-                  <div class="id">${esc(j.id)} · ${esc(j.launch_script || j.claim_hint || "")}</div>
-                </div>
-                <div><button type="button" class="btn-job-claim" data-id="${esc(j.id)}">Claim now</button></div>
-              </div>`).join("")}
           ` : ""}
-          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
-          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet — enable loop + Run tick (or Pi timer).</div>` :
-            sjobs.slice(0, 8).map((j) => `
+          ${recentDone.length ? `
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Recent finished</h3>
+            ${recentDone.map((j) => `
               <div class="sess">
-                <div><span class="pill ${j.status === "completed" || j.status === "pr_ready" ? "clean" : j.status === "failed" ? "dirty" : j.status === "pending_terminal" ? "dirty" : "session"}">${esc(j.status)}</span></div>
+                <div><span class="pill ${jobPill(j.status)}">${esc(jobStatusLabel(j.status))}</span></div>
                 <div>
                   <div class="title">${esc(j.title)}</div>
-                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.pr_ready_at || j.launched_at || j.pending_at || j.created_at))}${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank">PR</a>` : ""}${j.error ? ` · ${esc(j.error)}` : ""}</div>
+                  <div class="id">${esc(fmtWhen(j.completed_at || j.finished_at || j.created_at))}${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank">PR</a>` : ""}</div>
                 </div>
-                <div>
-                  ${j.status === "pending_terminal"
-                    ? `<button type="button" class="btn-job-claim" data-id="${esc(j.id)}">Claim</button>`
-                    : ""}
-                  ${j.status === "pr_ready" && j.pr_url
-                    ? `<a href="${esc(j.pr_url)}" target="_blank" rel="noopener" style="font-size:0.8rem">Review PR</a>`
-                    : ""}
-                  ${j.status === "launched" || j.status === "running" || j.status === "pr_ready"
-                    ? `<button type="button" class="btn-job-complete" data-id="${esc(j.id)}">Mark complete</button>`
-                    : ""}
-                </div>
-              </div>`).join("")}
-          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Status reports</h3>
-          ${!sreports.length ? `<div class="empty" style="padding:0.55rem">No reports yet — after a tick, action status lands here.</div>` :
-            sreports.slice(0, 8).map((r) => `
-              <div class="sess">
-                <div><span class="pill ${r.status === "completed" ? "clean" : r.status === "failed" ? "dirty" : "branch"}">${esc(r.status)}</span></div>
-                <div>
-                  <div class="title">${esc(r.title || r.id)}</div>
-                  <div class="id">${esc(r.summary || "")}</div>
-                  ${(r.actions || []).slice(0, 3).map((a) => `<div class="id">· ${esc(a)}</div>`).join("")}
-                </div>
-                <div class="when">${fmtWhen(r.updated_at || r.created_at)}</div>
-              </div>`).join("")}
-        </div>`;
-
-      // Recommendations panel — press rank + priority color coding
-      const rec = data.recommendations || {};
-      const ranked = rec.ranked || rec.pending || [];
-      const byPri = rec.by_priority || [];
-      const recHist = (rec.history || []).slice().reverse().slice(0, 8);
-      const view = window.__recView || "press"; // press | priority
-
-      function priClass(p) {
-        const x = (p || "medium").toLowerCase();
-        return ["critical", "high", "medium", "low"].includes(x) ? x : "medium";
-      }
-      function rankBadgeClass(n) {
-        if (n === 1) return "r1";
-        if (n === 2) return "r2";
-        if (n === 3) return "r3";
-        return "";
-      }
-      function renderRecCard(s) {
-        const pri = priClass(s.priority);
-        const rank = s.press_rank || "—";
-        const reasons = (s.rank_reasons || []).slice(0, 3).map((r) => esc(r)).join(" · ");
-        const body = s.kind === "new_item"
-          ? esc((s.description || s.rationale || "").slice(0, 280))
-          : esc(s.action || s.description || "");
-        return `
-          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-id="${esc(s.id)}">
-            <div class="rank-head">
-              <div class="rank-badge ${rankBadgeClass(rank)}" title="Press rank ${rank} (score ${s.score ?? "—"})">#${rank}</div>
-              <div>
-                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center">
-                  <span class="title" style="font-weight:650">${esc(s.title)}</span>
-                  ${s.rank_label ? `<span class="pill pri-${pri}">${esc(s.rank_label)}</span>` : ""}
-                </div>
-                <div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">${body}</div>
-                ${s.mvp_scope ? `<div class="id" style="margin-top:0.2rem">MVP: ${esc(s.mvp_scope)}</div>` : ""}
-                <div class="id" style="margin-top:0.2rem">${esc(s.rationale || "")}</div>
-                ${reasons ? `<div class="id" style="margin-top:0.15rem;color:var(--accent)">Why this rank: ${reasons}</div>` : ""}
-              </div>
-              <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
-                <span class="pill pri-${pri}">${esc(s.priority || "medium")}</span>
-                <span class="pill ${s.kind === "new_item" ? "active" : "muted"}">${esc(s.kind === "new_item" ? "new" : "action")}</span>
-                ${s.area ? `<span class="pill branch">${esc(s.area)}</span>` : ""}
-                ${s.score != null ? `<span class="pill muted">score ${esc(s.score)}</span>` : ""}
-              </div>
-            </div>
-            <div style="display:flex;gap:0.35rem;flex-wrap:wrap;margin-top:0.25rem">
-              <button type="button" class="btn-rec-approve" data-id="${esc(s.id)}">${s.kind === "new_item" ? "Approve → backlog" : "Approve"}</button>
-              <button type="button" class="btn-rec-reject" data-id="${esc(s.id)}">Reject</button>
-            </div>
-          </article>`;
-      }
-
-      let bodyHtml = "";
-      if (!ranked.length) {
-        bodyHtml = `<div class="empty" style="padding:0.75rem">No suggestions — add backlog items or refresh.</div>`;
-      } else if (view === "priority") {
-        bodyHtml = byPri.map((g) => `
-          <div class="pri-band ${esc(g.priority)}">${esc(g.label)} · ${g.count} item${g.count === 1 ? "" : "s"}</div>
-          ${(g.items || []).map(renderRecCard).join("")}
-        `).join("");
-      } else {
-        const top = ranked.filter((s) => (s.press_rank || 99) <= 3);
-        const rest = ranked.filter((s) => (s.press_rank || 99) > 3);
-        bodyHtml = `
-          <h3 style="margin:0.35rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Press order — do these first</h3>
-          ${top.map(renderRecCard).join("")}
-          ${rest.length ? `
-            <h3 style="margin:0.75rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Then / when free</h3>
-            ${rest.map(renderRecCard).join("")}
-          ` : ""}
-        `;
-      }
-
-      $("recommendations").innerHTML = `
-        <div class="section-title">Recommended next steps</div>
-        <div class="card">
-          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.5rem">
-            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:40rem">
-              Ranked by <strong>press order</strong> (#1 = do first): priority + urgency (dirty git, ready to initiate, in-flight planning, today’s focus).
-              Color = priority. <strong>Approve</strong> applies; <strong>Reject</strong> dismisses.
-              ${rec.generated_at ? `<br/><span class="id">Generated ${esc(fmtWhen(rec.generated_at))}</span>` : ""}
-              <div class="legend-row">
-                <span class="pill pri-critical">critical</span>
-                <span class="pill pri-high">high</span>
-                <span class="pill pri-medium">medium</span>
-                <span class="pill pri-low">low</span>
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-end">
-              <div class="view-toggle">
-                <button type="button" id="btn-rec-view-press" class="${view === "press" ? "active" : ""}">Press order</button>
-                <button type="button" id="btn-rec-view-priority" class="${view === "priority" ? "active" : ""}">By priority</button>
-              </div>
-              <button type="button" id="btn-rec-refresh">Refresh suggestions</button>
-            </div>
-          </div>
-          ${bodyHtml}
-          ${recHist.length ? `
-            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Recent decisions</h3>
-            ${recHist.map((s) => `
-              <div class="sess">
-                <div><span class="pill ${s.status === "approved" ? "clean" : "muted"}">${esc(s.status)}</span></div>
-                <div><div class="title">${esc(s.title)}</div><div class="id">#${esc(s.press_rank || "—")} · ${esc(s.kind)} · ${esc(s.priority || "")}</div></div>
-                <div class="when">${fmtWhen(s.resolved_at)}</div>
+                <div></div>
               </div>`).join("")}
           ` : ""}
         </div>`;
 
-      // Backlog panel — press rank, priority colors, schedule bands + auto-groom
-      const bl = data.backlog || {};
-      const blView = window.__blView || "press"; // press | schedule | priority
-      const blRanked = bl.ranked || bl.items || [];
-      const blBySched = bl.by_schedule || [];
-      const blByPri = bl.by_priority || [];
-
-      function blPri(p) {
-        const x = (p || "medium").toLowerCase();
-        return ["critical", "high", "medium", "low"].includes(x) ? x : "medium";
-      }
-      function blRankCls(n) {
-        if (n === 1) return "r1";
-        if (n === 2) return "r2";
-        if (n === 3) return "r3";
-        return "";
-      }
-      window.__blEditOpen = window.__blEditOpen || new Set();
+      // —— Backlog ——
       const fieldStyle = "background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:100%;font-family:inherit;box-sizing:border-box";
-
       function renderBlCard(it) {
-        const pri = blPri(it.priority);
+        const pri = priClass(it.priority);
         const rank = it.press_rank || "—";
-        const reasons = (it.rank_reasons || []).slice(0, 3).map((r) => esc(r)).join(" · ");
         const editing = window.__blEditOpen.has(it.id);
         const priOpts = ["low", "medium", "high", "critical"].map((p) =>
           `<option value="${p}"${(it.priority || "medium") === p ? " selected" : ""}>${p}</option>`
@@ -771,234 +467,194 @@
         return `
           <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-bl-id="${esc(it.id)}">
             <div class="rank-head">
-              <div class="rank-badge ${blRankCls(rank)}" title="Press rank ${rank} · score ${it.score ?? "—"}">#${rank}</div>
+              <div class="rank-badge ${rank === 1 ? "r1" : rank === 2 ? "r2" : rank === 3 ? "r3" : ""}">#${rank}</div>
               <div>
-                <div style="display:flex;flex-wrap:wrap;gap:0.35rem;align-items:center">
+                <div style="display:flex;flex-wrap:wrap;gap:0.3rem;align-items:center">
                   <span class="title" style="font-weight:650">${esc(it.title)}</span>
-                  ${it.rank_label ? `<span class="pill pri-${pri}">${esc(it.rank_label)}</span>` : ""}
                   ${it.schedule_label ? `<span class="pill branch">${esc(it.schedule_label)}</span>` : ""}
+                  ${it.auto_start ? `<span class="pill auto-on">queued</span>` : ""}
                 </div>
-                ${!editing && it.description ? `<div class="detail" style="color:var(--muted);font-size:0.85rem;margin-top:0.25rem">${esc(it.description.slice(0,220))}${it.description.length>220?"…":""}</div>` : ""}
                 ${!editing && it.mvp_scope ? `<div class="id" style="margin-top:0.2rem">MVP: ${esc(it.mvp_scope)}</div>` : ""}
-                ${!editing && it.notes ? `<div class="id" style="margin-top:0.15rem">Next: ${esc(it.notes.slice(0,160))}</div>` : ""}
-                ${!editing && reasons ? `<div class="id" style="margin-top:0.15rem;color:var(--accent)">Why: ${reasons}</div>` : ""}
+                ${!editing && it.description ? `<div class="detail" style="margin-top:0.2rem">${esc(it.description.slice(0, 160))}${it.description.length > 160 ? "…" : ""}</div>` : ""}
               </div>
-              <div style="display:flex;flex-direction:column;gap:0.3rem;align-items:flex-end">
+              <div style="display:flex;flex-direction:column;gap:0.25rem;align-items:flex-end">
                 <span class="pill pri-${pri}">${esc(it.priority || "medium")}</span>
-                <span class="pill ${it.status === "planning" || it.status === "active" ? "active" : "muted"}">${esc(it.status)}</span>
-                ${it.auto_start ? `<span class="pill auto-on">auto-start</span>` : ""}
-                ${it.area ? `<span class="pill branch">${esc(it.area)}</span>` : ""}
-                ${it.score != null ? `<span class="pill muted">score ${esc(it.score)}</span>` : ""}
+                <span class="pill muted">${esc(it.status)}</span>
               </div>
             </div>
             ${editing ? `
-              <div class="bl-edit" data-edit-id="${esc(it.id)}" style="display:grid;gap:0.4rem;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border)">
-                <label class="id">Title<input class="bl-edit-title" style="${fieldStyle};margin-top:0.2rem" value="${esc(it.title)}" /></label>
-                <label class="id">Description / problem<textarea class="bl-edit-desc" rows="3" style="${fieldStyle};margin-top:0.2rem">${esc(it.description || "")}</textarea></label>
-                <label class="id">MVP scope<input class="bl-edit-mvp" style="${fieldStyle};margin-top:0.2rem" value="${esc(it.mvp_scope || "")}" placeholder="Smallest shippable slice" /></label>
-                <label class="id">Next step / notes<textarea class="bl-edit-notes" rows="2" style="${fieldStyle};margin-top:0.2rem" placeholder="What needs clarifying before you start?">${esc(it.notes || "")}</textarea></label>
-                <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
-                  <label class="id">Priority
-                    <select class="bl-edit-priority" style="${fieldStyle};width:auto;min-width:7rem;margin-top:0.2rem">${priOpts}</select>
-                  </label>
-                  <label class="id">Area
-                    <input class="bl-edit-area" style="${fieldStyle};width:10rem;margin-top:0.2rem" value="${esc(it.area || "")}" placeholder="e.g. treasury" />
-                  </label>
-                </div>
-                <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
-                  <button type="button" class="btn-bl-save" data-id="${esc(it.id)}">Save changes</button>
+              <div class="bl-edit" style="display:grid;gap:0.4rem;margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border)">
+                <label class="id">Title<input class="bl-edit-title field" style="margin-top:0.2rem" value="${esc(it.title)}" /></label>
+                <label class="id">Description<textarea class="bl-edit-desc field" rows="2" style="margin-top:0.2rem">${esc(it.description || "")}</textarea></label>
+                <label class="id">MVP<input class="bl-edit-mvp field" style="margin-top:0.2rem" value="${esc(it.mvp_scope || "")}" /></label>
+                <label class="id">Notes<textarea class="bl-edit-notes field" rows="2" style="margin-top:0.2rem">${esc(it.notes || "")}</textarea></label>
+                <div style="display:flex;flex-wrap:wrap;gap:0.4rem">
+                  <select class="bl-edit-priority field" style="width:auto">${priOpts}</select>
+                  <input class="bl-edit-area field" style="width:9rem" value="${esc(it.area || "")}" placeholder="area" />
+                  <button type="button" class="btn-bl-save" data-id="${esc(it.id)}">Save</button>
                   <button type="button" class="btn-bl-cancel-edit" data-id="${esc(it.id)}">Cancel</button>
                 </div>
               </div>
             ` : ""}
             <div class="card-actions">
-              <span class="actions-label">Actions</span>
-              <button type="button" class="btn-bl-auto ${it.auto_start ? "btn-accent on" : "btn-accent"}" data-id="${esc(it.id)}" title="Queue or unqueue for autonomous kickoff (cron / Run tick)">${it.auto_start ? "★ Auto-start: ON" : "★ Auto-start"}</button>
-              <button type="button" class="btn-bl-initiate btn-kick" data-id="${esc(it.id)}" title="Start Grok planning + MVP now (manual)">Initiate goal now</button>
-              <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
+              <button type="button" class="btn-bl-auto ${it.auto_start ? "btn-accent on" : "btn-accent"}" data-id="${esc(it.id)}" title="Queue for autonomous Pi kickoff">${it.auto_start ? "★ Queued" : "★ Queue for agent"}</button>
+              <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide" : "Edit"}</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
               <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
             </div>
-            ${it.seed_path ? `<code class="cmd" style="margin-top:0.35rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
-              ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
-            </code>` : ""}
           </article>`;
       }
-
-      let blBody = "";
-      if (!blRanked.length) {
-        blBody = `<div class="empty">No backlog items yet — add one above or run Groom after import.</div>`;
-      } else if (blView === "schedule") {
-        blBody = (blBySched.length ? blBySched : [{ label: "All", items: blRanked }]).map((g) => `
-          <div class="pri-band ${g.slot === "now" ? "critical" : g.slot === "this_week" ? "high" : g.slot === "next_week" ? "medium" : "low"}">${esc(g.label)} · ${g.count || (g.items||[]).length}</div>
-          ${(g.items || []).map(renderBlCard).join("")}
-        `).join("");
-      } else if (blView === "priority") {
-        blBody = (blByPri.length ? blByPri : []).map((g) => `
-          <div class="pri-band ${esc(g.priority)}">${esc(g.label)} · ${g.count}</div>
-          ${(g.items || []).map(renderBlCard).join("")}
-        `).join("") || blRanked.map(renderBlCard).join("");
-      } else {
-        const top = blRanked.filter((i) => (i.press_rank || 99) <= 3 && i.status !== "parked");
-        const rest = blRanked.filter((i) => !top.includes(i));
-        blBody = `
-          <h3 style="margin:0.25rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Press order — work these first</h3>
-          ${top.map(renderBlCard).join("")}
-          ${rest.length ? `
-            <h3 style="margin:0.75rem 0 0.4rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued / scheduled</h3>
-            ${rest.map(renderBlCard).join("")}
-          ` : ""}
-        `;
-      }
-
+      const top = blRanked.filter((i) => (i.press_rank || 99) <= 5);
+      const rest = blRanked.filter((i) => !top.includes(i));
       $("backlog").innerHTML = `
-        <div class="section-title">Backlog <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· auto-groomed on load · ★ Auto-start queues kickoff</span></div>
+        <div class="section-title" id="backlog-title">Backlog <span class="sub">· add work · queue for agent · auto-groomed on load</span></div>
         <div class="card">
-          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
-            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:40rem">
-              Enter work below (or via recommendations). On load it is <strong>auto-groomed</strong> into press order + schedule bands
-              (Do now / This week / …). Ready items in active slots are <strong>auto-queued</strong> for the autonomous loop.
-              Per card: <strong>★ Auto-start</strong> force-queue / unqueue · <strong>Initiate goal now</strong> starts immediately.
-              ${bl.last_groomed_at ? `<br/><span class="id">Last groom ${esc(fmtWhen(bl.last_groomed_at))}</span>` : ""}
-              <div class="legend-row">
-                <span class="pill pri-critical">critical</span>
-                <span class="pill pri-high">high</span>
-                <span class="pill pri-medium">medium</span>
-                <span class="pill pri-low">low</span>
-                <span class="pill auto-on">auto-start</span>
-              </div>
-            </div>
-            <div style="display:flex;flex-direction:column;gap:0.35rem;align-items:flex-end">
-              <div class="view-toggle">
-                <button type="button" id="btn-bl-view-press" class="${blView === "press" ? "active" : ""}">Press order</button>
-                <button type="button" id="btn-bl-view-schedule" class="${blView === "schedule" ? "active" : ""}">Schedule</button>
-                <button type="button" id="btn-bl-view-priority" class="${blView === "priority" ? "active" : ""}">Priority</button>
-              </div>
-              <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
-                <button type="button" id="btn-bl-groom" title="Force re-score, rank, schedule">Groom now</button>
-                <button type="button" id="btn-sched-tick-bl" class="btn-kick" title="Same as Run tick now">Run tick now</button>
-              </div>
-            </div>
-          </div>
-          <div style="display:grid;gap:0.45rem;margin-bottom:0.85rem">
-            <input id="bl-title" placeholder="Title — what do you want to build?" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.9rem;width:100%" />
-            <textarea id="bl-desc" rows="2" placeholder="Description / problem (optional)" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.85rem;width:100%;font-family:inherit"></textarea>
-            <input id="bl-mvp" placeholder="MVP scope (optional) — smallest shippable slice" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.5rem 0.65rem;font-size:0.85rem;width:100%" />
+          <div style="display:grid;gap:0.4rem;margin-bottom:0.75rem">
+            <input id="bl-title" class="field" placeholder="New work — what should the agent build?" />
+            <input id="bl-mvp" class="field" placeholder="MVP (optional) — smallest shippable slice" />
             <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
-              <select id="bl-priority" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem">
-                <option value="low">low</option>
-                <option value="medium" selected>medium</option>
+              <select id="bl-priority" class="field" style="width:auto">
+                <option value="medium">medium</option>
                 <option value="high">high</option>
                 <option value="critical">critical</option>
+                <option value="low">low</option>
               </select>
-              <input id="bl-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:10rem" />
-              <button type="button" id="btn-bl-add">Add to backlog</button>
-              <button type="button" id="btn-bl-import" title="Import from initiatives/*.md">Import initiatives</button>
+              <input id="bl-area" class="field" style="width:9rem" placeholder="area" />
+              <button type="button" id="btn-bl-add" class="btn-accent">Add</button>
             </div>
+            <textarea id="bl-desc" class="field" rows="1" placeholder="Description (optional)" style="display:none"></textarea>
           </div>
-          ${blBody}
+          ${!blRanked.length
+            ? `<div class="empty">Backlog empty — add a task above. It will be groomed and can be queued for the Pi agent.</div>`
+            : `${top.map(renderBlCard).join("")}${rest.length ? rest.map(renderBlCard).join("") : ""}`}
         </div>`;
 
-      // Branches panel (list only — current branch/status live in header)
-      const branchList = br.branches || [];
-      $("branches").innerHTML = `
+      // —— Secondary: today's focus ——
+      const sf = data.strategy_focus || {};
+      const openFocus = sf.open_items || [];
+      $("strategy-focus").innerHTML = openFocus.length ? `
+        <div class="section-title">Today's focus</div>
+        <div class="card">
+          <ul style="margin:0;padding-left:1.1rem">
+            ${openFocus.slice(0, 6).map((t) => `<li style="margin:0.3rem 0">${mdInline(t)}</li>`).join("")}
+          </ul>
+        </div>` : "";
+
+      // Recommendations (compact)
+      const rec = data.recommendations || {};
+      const ranked = rec.ranked || rec.pending || [];
+      $("recommendations").innerHTML = ranked.length ? `
+        <div class="section-title">Suggestions</div>
+        <div class="card">
+          ${ranked.slice(0, 4).map((s) => `
+            <div class="sess">
+              <div><span class="pill pri-${priClass(s.priority)}">${esc(s.priority || "")}</span></div>
+              <div><div class="title">${esc(s.title)}</div><div class="id">${esc((s.rationale || "").slice(0, 100))}</div></div>
+              <div style="display:flex;gap:0.3rem">
+                <button type="button" class="btn-rec-approve" data-id="${esc(s.id)}">Add</button>
+                <button type="button" class="btn-rec-reject" data-id="${esc(s.id)}">Skip</button>
+              </div>
+            </div>`).join("")}
+          <button type="button" id="btn-rec-refresh" style="margin-top:0.45rem">Refresh suggestions</button>
+        </div>` : `
+        <div class="section-title">Suggestions</div>
+        <div class="card"><div class="empty">No suggestions · <button type="button" id="btn-rec-refresh">Refresh</button></div></div>`;
+
+      // System health compact
+      const c = r.counts || {};
+      $("system").innerHTML = `
+        <div class="section-title">System</div>
+        <div class="card">
+          <div class="legend">
+            <span class="pill ${ws.dirty ? "dirty" : "clean"}">git ${esc(ws.status_label || "—")}</span>
+            <span class="pill muted">dirty files ${esc(c.dirty_files ?? 0)}</span>
+            <span class="pill muted">sessions ${esc(c.persisted_sessions ?? 0)}</span>
+            <span class="pill muted">servers ${esc(c.listeners ?? 0)}</span>
+          </div>
+          <div class="detail" style="margin-top:0.45rem">Grok on this host: ${sruntime.has_grok ? "yes" : "no"} · Pi agent: ${sexec.use_agent || backend === "raspi" ? "preferred" : "—"} · last tick ${esc(lastTick)}</div>
+        </div>`;
+
+      // Branches compact
+      const branchList = (br.branches || []).filter((b) => b.current || b.is_work).slice(0, 8);
+      $("branches").innerHTML = branchList.length ? `
         <div class="section-title">Branches</div>
         <div class="card">
-          ${branchList.length ? branchList.map((b) => `
+          ${branchList.map((b) => `
             <div class="sess">
-              <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
-              <div>
-                <div class="title">${esc(b.name)}</div>
-                <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
-              </div>
-              <div class="when">${b.is_master ? "integration" : ""}</div>
-            </div>`).join("") : `<div class="empty">No branches</div>`}
-          <div style="margin-top:0.65rem;display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
-            <input id="start-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.85rem" />
-            <button type="button" id="btn-start-work">Start work/&lt;area&gt;</button>
-          </div>
-        </div>`;
-
-      const kit = data.resume_kit || {};
-      const sess = kit.sessions || [];
-      $("resume").innerHTML = `
-        <div class="section-title">Resume kit (after reboot)</div>
-        <div class="card">
-          <div class="detail" style="color:var(--muted);font-size:0.9rem;margin-bottom:0.5rem">${esc(kit.note || "")}</div>
-          ${!sess.length ? `<div class="empty">No workspace-linked sessions to resume.</div>` :
-            sess.map((s) => `
-              <div class="sess">
-                <div>${s.pid_alive ? `<span class="pill active">live</span>` : s.persisted ? `<span class="pill session">on disk</span>` : `<span class="pill muted">?</span>`}</div>
-                <div>
-                  <div class="title">${esc(s.title)}</div>
-                  <div class="id">${esc(s.id)}${s.areas?.length ? ` · ${esc(s.areas.join(", "))}` : ""}</div>
-                  <code class="cmd">${esc(s.resume_cmd)}
-                    <button type="button" class="copy-btn" data-copy="${esc(s.resume_cmd)}">Copy</button>
-                  </code>
-                </div>
-                <div class="when">${fmtWhen(s.last_active_at)}</div>
-              </div>`).join("")}
-        </div>`;
-
-      if (!projects.length) {
-        $("list").innerHTML = `<div class="empty">No project areas (try unchecking “Touched only”).</div>`;
-      } else {
-        $("list").innerHTML = projects.map((p) => {
-          const dirtyFiles = (p.dirty_files || []).slice(0, 8).map((f) => `<li>${esc(f)}</li>`).join("");
-          const cmds = (p.resume_cmds || []).map((c) =>
-            `<code class="cmd">${esc(c)} <button type="button" class="copy-btn" data-copy="${esc(c)}">Copy</button></code>`
-          ).join("");
-          return `
-            <div class="card">
-              <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;justify-content:space-between">
-                <h2>${esc(p.name)}</h2>
-                <div style="display:flex;gap:0.35rem;flex-wrap:wrap">
-                  <span class="pill ${p.exit_ready ? "clean" : "dirty"}">${p.exit_ready ? "exit-ready" : "protect first"}</span>
-                  <span class="pill ${p.dirty ? "dirty" : "clean"}">${esc(p.status_label)}</span>
-                  ${(p.active_session_count || 0) > 0 ? `<span class="pill active">${p.active_session_count} live</span>` : ""}
-                </div>
-              </div>
-              <div class="detail" style="color:var(--muted);font-size:0.9rem">${esc(p.exit_note || "")}</div>
-              ${dirtyFiles ? `<ul class="dirty-list">${dirtyFiles}</ul>` : ""}
-              ${cmds ? `<div style="margin-top:0.35rem">${cmds}</div>` : ""}
-              ${(p.sessions || []).slice(0, 4).map((s) => `
-                <div class="sess">
-                  <div>${s.pid_alive ? `<span class="pill active">live</span>` : `<span class="pill session">session</span>`}</div>
-                  <div><div class="title">${esc(s.title)}</div><div class="id">${esc(s.id)}</div></div>
-                  <div class="when">${fmtWhen(s.last_active_at)}</div>
-                </div>`).join("")}
-            </div>`;
-        }).join("");
-      }
-
-      const listeners = data.listeners || [];
-      $("listeners").innerHTML = listeners.length ? `
-        <div class="section-title">Local servers (optional stop)</div>
-        <div class="card">
-          ${listeners.map((L) => `
-            <div class="meta" style="margin-bottom:0.4rem">
-              <div class="row"><span class="label">${esc(L.label)}</span>
-              <span class="val">:${L.port} · pids ${esc((L.pids||[]).join(", "))} · <a href="${esc(L.url)}" target="_blank">${esc(L.url)}</a></span></div>
+              <div>${b.current ? `<span class="pill active">HEAD</span>` : `<span class="pill session">work</span>`}</div>
+              <div><div class="title">${esc(b.name)}</div><div class="id">${esc(b.sha || "")}</div></div>
+              <div></div>
             </div>`).join("")}
         </div>` : "";
 
-      $("footer").textContent = data.purpose || "";
+      // Projects
+      if (!projects.length) {
+        $("list").innerHTML = "";
+      } else {
+        $("list").innerHTML = `
+          <div class="section-title">Project areas</div>
+          ${projects.slice(0, 8).map((p) => `
+            <div class="card" style="padding:0.65rem 0.85rem">
+              <div style="display:flex;justify-content:space-between;gap:0.5rem;flex-wrap:wrap">
+                <strong>${esc(p.name)}</strong>
+                <span class="pill ${p.dirty ? "dirty" : "clean"}">${esc(p.status_label)}</span>
+              </div>
+            </div>`).join("")}`;
+      }
+
+      // Settings
+      $("settings").innerHTML = `
+        <div class="section-title">Loop settings</div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+            <label class="id">Backend
+              <select id="sched-backend" class="field" style="width:auto;display:inline-block;margin-left:0.25rem">
+                <option value="local"${backend === "local" ? " selected" : ""}>local</option>
+                <option value="raspi"${backend === "raspi" ? " selected" : ""}>raspi (24/7)</option>
+              </select>
+            </label>
+            <label class="id">Exec
+              <select id="sched-exec" class="field" style="width:auto;display:inline-block;margin-left:0.25rem">
+                <option value="auto"${execMode === "auto" ? " selected" : ""}>auto</option>
+                <option value="agent"${execMode === "agent" ? " selected" : ""}>agent → PR</option>
+                <option value="queue"${execMode === "queue" ? " selected" : ""}>queue Terminal</option>
+                <option value="spawn"${execMode === "spawn" ? " selected" : ""}>spawn Grok</option>
+              </select>
+            </label>
+            <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
+            <button type="button" id="btn-sched-tick" class="btn-kick">Run tick now</button>
+            <button type="button" id="btn-sched-claim">Claim pending</button>
+            <button type="button" id="btn-session-index">Session index</button>
+          </div>
+          <div class="id" style="margin-top:0.5rem">
+            ${esc(sched.note || "")}
+            ${scfg.last_tick_at ? `<br/>Last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}
+          </div>
+        </div>`;
+
+      $("footer").textContent = "Autonomous loop: enter work → groom/queue → Pi agent → PR review here → merge on GitHub";
       $("updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
 
       document.querySelectorAll("[data-copy]").forEach((btn) => {
         btn.addEventListener("click", () => copyText(btn.getAttribute("data-copy") || ""));
       });
+      document.querySelectorAll("[data-jump]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const j = btn.getAttribute("data-jump");
+          if (j === "attention") scrollToId("attention");
+          else if (j === "inflight") scrollToId("inflight");
+          else if (j === "backlog") scrollToId("backlog");
+        });
+      });
     }
 
     let dataCache = null;
-    /** Status toast always at top of dashboard (#action-msg). */
-    window.__topToast = null; // { msg, err?, at }
+    window.__topToast = null;
 
     function setTopToast(msg, isErr) {
       window.__topToast = { msg: String(msg || ""), err: !!isErr, at: Date.now() };
     }
-
     function applyTopToast() {
       const t = window.__topToast;
       if (!$("action-msg")) return;
@@ -1012,65 +668,40 @@
         $("err").classList.add("show");
       }
     }
-
-    function maybeToastAutoLoop(loop) {
+    function maybeToastAutoLoop(loop, sched) {
       if (!loop) return;
-      if (loop.error) {
-        setTopToast(`Auto-loop: ${loop.error}`, true);
-        return;
-      }
-      // Prefer explicit groom / queue status at the top with other toasts
-      const g = loop.groom || {};
-      const q = loop.queue || {};
+      if (loop.error) { setTopToast(`Auto-loop: ${loop.error}`, true); return; }
       const parts = [];
-      if (loop.groomed && (g.message || loop.message)) {
-        parts.push(g.message || "Groomed backlog");
-      } else if (loop.groom_skipped && loop.groom_skip_reason) {
-        // quiet skip — only show if nothing else to report
-      } else if (loop.message && /groom/i.test(loop.message)) {
-        parts.push(loop.message);
+      if (loop.claim && loop.claim.claimed_count) {
+        parts.push(loop.claim.message || `Auto-claimed ${loop.claim.claimed_count}`);
       }
-      if (q.count) {
-        parts.push(q.message || `Auto-queued ${q.count}`);
-      } else if (loop.message && !parts.length && loop.ran) {
-        // e.g. combined "Groomed N items · Auto-queued …"
-        if (loop.groomed || (q && q.count != null && !q.skipped)) {
-          parts.push(loop.message);
-        }
-      }
-      if (!parts.length && loop.message && (loop.groomed || (q && q.count))) {
-        parts.push(loop.message);
-      }
+      const newPrs = (sched && sched.new_prs_since_last_load) || [];
+      if (newPrs.length) parts.push(`${newPrs.length} new PR(s) ready for review`);
+      // Quiet: skip pure groom noise unless something actionable happened
       if (!parts.length) return;
       const msg = parts.join(" · ");
-      // Don't clobber a fresher user action toast (< 8s)
-      if (window.__topToast && window.__topToast.msg && (Date.now() - (window.__topToast.at || 0)) < 8000) {
-        // If existing toast is already the same groom text, keep it; else leave action toast
-        if (window.__topToast.msg === msg) applyTopToast();
-        return;
-      }
+      if (window.__topToast && window.__topToast.msg && (Date.now() - (window.__topToast.at || 0)) < 8000) return;
       setTopToast(msg, false);
     }
 
     async function load() {
       const btn = $("btn-refresh");
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
       $("err").classList.remove("show");
-      const only = $("only-touched").checked ? "1" : "0";
       try {
-        const res = await fetch(`/api/projects?only_touched=${only}`, { cache: "no-store" });
+        const res = await fetch(`/api/projects?only_touched=1`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "API error");
         dataCache = data;
         render(data);
-        maybeToastAutoLoop(data.auto_loop || {});
+        maybeToastAutoLoop(data.auto_loop || {}, data.scheduler || {});
         applyTopToast();
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
       } finally {
-        btn.disabled = false;
+        if (btn) btn.disabled = false;
       }
     }
 
@@ -1086,65 +717,34 @@
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || JSON.stringify(data));
         let msg = data.message
-          || (data.committed ? `Committed ${data.sha || ""} on ${data.branch || ""}` : "OK")
-          + (data.pushed ? " · pushed" : "")
-          + (data.count != null && data.sessions == null ? ` · ${data.count} sessions indexed` : "")
-          + (data.added ? ` · imported ${data.added.length}` : "");
+          || (data.committed ? `Committed ${data.sha || ""}` : "OK")
+          + (data.pushed ? " · pushed" : "");
         if (data.steps) {
           msg = data.steps.map((s) => {
             const body = s.ok
-              ? (s.committed ? `committed ${s.sha || ""} on ${s.branch || ""}` : (s.message || "ok"))
+              ? (s.committed ? `committed ${s.sha || ""}` : (s.message || "ok"))
               : (s.error || "fail");
-            const ba = (s.branch_actions || []).filter(Boolean).join("; ");
-            return `${s.step}:${body}${ba ? ` (${ba})` : ""}`;
+            return `${s.step}:${body}`;
           }).join(" · ");
-          // If any step left dirty / failed, surface as error not green OK
-          if (data.steps.some((s) => s.ok === false)) {
-            throw new Error(msg);
-          }
+          if (data.steps.some((s) => s.ok === false)) throw new Error(msg);
         }
         if (data.goal_objective) {
-          msg = `Initiated · seed ${data.seed_path || ""} · objective copied if Terminal launch ran. Paste /goal in Grok.`;
+          msg = `Initiated · ${data.seed_path || ""}`;
           copyText(data.goal_objective);
         }
-        if (data.item && data.item.title && !data.goal_objective) {
-          msg = `Saved: ${data.item.title}`;
-        }
+        if (data.item && data.item.title && !data.goal_objective) msg = `Saved: ${data.item.title}`;
         if (data.groomed_at || data.applied || (url.includes("/api/backlog/groom"))) {
           msg = data.message || `Groomed ${data.count ?? ""} items`;
-          if (data.changes && data.changes.length) {
-            msg += ` · ${data.changes.length} hygiene change(s)`;
-          }
         }
-        if (data.launched_count != null || data.ticked_at || data.pending_terminal_count != null) {
-          msg = data.message || (
-            `Tick: launched ${data.launched_count ?? 0}` +
-            (data.pending_terminal_count ? `, pending Terminal ${data.pending_terminal_count}` : "") +
-            (data.reconciled ? `, reconciled ${data.reconciled}` : "") +
-            (data.skipped ? " (scheduler disabled — used force)" : "")
-          );
+        if (data.launched_count != null || data.ticked_at || data.pending_terminal_count != null || data.pr_ready_count != null) {
+          msg = data.message || `Tick: launched ${data.launched_count ?? 0}, PRs ${data.pr_ready_count ?? 0}`;
         }
-        if (data.claimed_count != null) {
-          msg = data.message || `Claimed ${data.claimed_count} pending job(s)`;
-        }
-        if (data.installed != null && data.line) {
-          msg = data.installed ? `Cron installed` : "Cron removed";
-        }
+        if (data.claimed_count != null) msg = data.message || `Claimed ${data.claimed_count}`;
         if (data.auto_start != null) {
-          msg = data.auto_start ? `★ Auto-start ON: ${data.item && data.item.title ? data.item.title : "item"}` : "Auto-start cleared";
+          msg = data.auto_start ? `Queued for agent: ${data.item?.title || "item"}` : "Unqueued";
         }
-        if (data.job && data.report) {
-          msg = `Job ${data.job.status}: ${data.report.summary || ""}`;
-        }
-        if (data.committed) {
-          msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
-        }
-        if (data.queue && data.groomed != null) {
-          msg = data.message || "Autonomous loop ran";
-        }
-        if (url.includes("/api/open-grok")) {
-          msg = data.message || (data.ok ? "Opened Grok in Terminal" : "Failed to open Grok");
-        }
+        if (data.job && data.report) msg = `Job ${data.job.status}: ${data.report.summary || ""}`;
+        if (url.includes("/api/open-grok")) msg = data.message || "Opened Grok";
         setTopToast(msg, false);
         await load();
       } catch (e) {
@@ -1156,38 +756,23 @@
     }
 
     $("btn-refresh").addEventListener("click", load);
-    $("only-touched").addEventListener("change", load);
     $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
-    $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
     $("btn-open-grok").addEventListener("click", () => postAction("/api/open-grok", { mode: "named" }));
+
     document.addEventListener("change", async (ev) => {
       const t = ev.target;
       if (!t) return;
-      if (t.id === "sched-backend") {
-        await postAction("/api/scheduler/config", { backend: t.value });
-        return;
-      }
-      if (t.id === "sched-exec") {
-        await postAction("/api/scheduler/config", { execution_mode: t.value });
-      }
+      if (t.id === "sched-backend") await postAction("/api/scheduler/config", { backend: t.value });
+      if (t.id === "sched-exec") await postAction("/api/scheduler/config", { execution_mode: t.value });
     });
+
     document.addEventListener("click", async (ev) => {
       const t = ev.target;
       if (!t) return;
-      if (t.id === "btn-start-work") {
-        const area = ($("start-area") && $("start-area").value) || "";
-        if (!area.trim()) {
-          $("err").textContent = "Enter an area name (e.g. treasury)";
-          $("err").classList.add("show");
-          return;
-        }
-        postAction("/api/start-work", { area: area.trim() });
-        return;
-      }
       if (t.id === "btn-bl-add") {
         const title = ($("bl-title") && $("bl-title").value) || "";
         if (!title.trim()) {
-          $("err").textContent = "Backlog title required";
+          $("err").textContent = "Title required";
           $("err").classList.add("show");
           return;
         }
@@ -1200,32 +785,15 @@
           status: "idea",
         });
         if ($("bl-title")) $("bl-title").value = "";
-        if ($("bl-desc")) $("bl-desc").value = "";
         if ($("bl-mvp")) $("bl-mvp").value = "";
         return;
       }
-      if (t.id === "btn-bl-import") {
-        await postAction("/api/backlog/import", {});
-        return;
-      }
-      if (t.id === "btn-bl-groom") {
-        await postAction("/api/backlog/groom", { apply: true });
-        return;
-      }
       if (t.id === "btn-sched-enable") {
-        // toggle based on button label ("Enable loop" / "Disable loop")
-        const label = (t.textContent || "").toLowerCase();
-        const enable = label.includes("enable");
+        const enable = (t.textContent || "").toLowerCase().includes("enable");
         await postAction("/api/scheduler/config", { enabled: enable });
         return;
       }
-      if (t.id === "btn-sched-cron") {
-        const label = (t.textContent || "").toLowerCase();
-        if (label.includes("remove")) await postAction("/api/scheduler/uninstall-cron", {});
-        else await postAction("/api/scheduler/install-cron", {});
-        return;
-      }
-      if (t.id === "btn-sched-tick" || t.id === "btn-sched-tick-bl") {
+      if (t.id === "btn-sched-tick") {
         await postAction("/api/scheduler/tick", { force: true });
         return;
       }
@@ -1233,48 +801,15 @@
         await postAction("/api/scheduler/claim", { max_jobs: 3 });
         return;
       }
-      if (t.id === "sched-backend" || t.id === "sched-exec") {
-        return; // change handled below
-      }
-      if (t.id === "btn-bl-view-press") {
-        window.__blView = "press";
-        load();
-        return;
-      }
-      if (t.id === "btn-bl-view-schedule") {
-        window.__blView = "schedule";
-        load();
-        return;
-      }
-      if (t.id === "btn-bl-view-priority") {
-        window.__blView = "priority";
-        load();
+      if (t.id === "btn-session-index") {
+        await postAction("/api/session-index", {});
         return;
       }
       if (t.id === "btn-rec-refresh") {
         await postAction("/api/recommendations/refresh", {});
         return;
       }
-      if (t.id === "btn-rec-view-press") {
-        window.__recView = "press";
-        load();
-        return;
-      }
-      if (t.id === "btn-rec-view-priority") {
-        window.__recView = "priority";
-        load();
-        return;
-      }
-      // Expand/collapse pre-reset status indicators
-      const checkBtn = t.closest && t.closest("[data-check-id]");
-      if (checkBtn && checkBtn.classList.contains("stat")) {
-        const cid = checkBtn.getAttribute("data-check-id");
-        if (window.__openChecks.has(cid)) window.__openChecks.delete(cid);
-        else window.__openChecks.add(cid);
-        checkBtn.classList.toggle("open");
-        checkBtn.setAttribute("aria-expanded", checkBtn.classList.contains("open") ? "true" : "false");
-        return;
-      }
+
       const id = t.getAttribute && t.getAttribute("data-id");
       if (!id) return;
       if (t.classList.contains("btn-rec-approve")) {
@@ -1300,11 +835,7 @@
         const root = t.closest("[data-bl-id]") || t.closest(".rec-card");
         if (!root) return;
         const title = (root.querySelector(".bl-edit-title") || {}).value || "";
-        if (!String(title).trim()) {
-          $("err").textContent = "Title is required";
-          $("err").classList.add("show");
-          return;
-        }
+        if (!String(title).trim()) return;
         await postAction("/api/backlog/update", {
           id,
           title: String(title).trim(),
@@ -1318,9 +849,8 @@
         return;
       }
       if (t.classList.contains("btn-bl-auto") || t.classList.contains("btn-bl-auto-off")) {
-        // Auto-start: ON → turn off; Auto-start → turn on; Unqueue → off
         const turnOn = t.classList.contains("btn-bl-auto")
-          && !(t.textContent || "").includes("ON");
+          && !(t.textContent || "").includes("Queued");
         await postAction("/api/scheduler/auto-start", { id, enabled: turnOn });
         return;
       }
@@ -1336,11 +866,6 @@
         await postAction("/api/scheduler/claim", { job_id: id, max_jobs: 1 });
         return;
       }
-      if (t.classList.contains("btn-bl-initiate")) {
-        // Idea → Initiate is intentional; no ready gate
-        await postAction("/api/backlog/initiate", { id, spawn: true });
-        return;
-      }
       if (t.classList.contains("btn-bl-done")) {
         await postAction("/api/backlog/update", { id, status: "done" });
         return;
@@ -1354,7 +879,12 @@
         await postAction("/api/backlog/delete", { id });
       }
     });
+
     load();
+    // Auto-refresh so PR/in-progress state stays current without manual reloads
+    setInterval(() => {
+      if (document.visibilityState === "visible") load();
+    }, 45000);
   </script>
 </body>
 </html>
