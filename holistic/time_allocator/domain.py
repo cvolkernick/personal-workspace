@@ -1126,6 +1126,9 @@ def build_rolling_plan(
     elif remaining_active > 0:
         notes.append(f"{remaining_active} active min unallocated (add a fill_remainder target like Lyft)")
 
+    from .order import sort_allocation_blocks
+
+    blocks = sort_allocation_blocks(blocks)
     total_block = sum(int(b["minutes"]) for b in blocks)
     kpis = kpi_status(state, as_of=today)
 

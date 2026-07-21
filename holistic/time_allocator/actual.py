@@ -197,9 +197,9 @@ def build_actual_allocation(
             # keep richer title
         else:
             merged[bid] = dict(b)
-    blocks = list(merged.values())
-    blocks.sort(key=lambda b: (-int(b.get("minutes") or 0), str(b.get("title") or "")))
+    from .order import sort_allocation_blocks
 
+    blocks = list(merged.values())
     total = sum(int(b.get("minutes") or 0) for b in blocks)
     unaccounted = max(0, window - total)
     if unaccounted > 0:
@@ -216,6 +216,7 @@ def build_actual_allocation(
         notes.append(
             f"{unaccounted} min of the window has no logged activity yet"
         )
+    blocks = sort_allocation_blocks(blocks)
 
     return {
         "window_start": win_start.isoformat(timespec="seconds"),
@@ -243,10 +244,9 @@ def allocation_delta(
         for b in (actual.get("blocks") or [])
         if str(b.get("id")) != "_unaccounted"
     }
-    ids = sorted(set(p_map) | set(a_map), key=lambda i: (
-        -int((p_map.get(i) or a_map.get(i) or {}).get("minutes") or 0),
-        i,
-    ))
+    from .order import id_sort_key
+
+    ids = sorted(set(p_map) | set(a_map), key=id_sort_key)
     rows: list[dict[str, Any]] = []
     for i in ids:
         pb = p_map.get(i) or {}

@@ -661,6 +661,36 @@
       return `<span class="pill na">n/a</span>`;
     }
 
+    // Keep Recommended / Actual pies & legends in the same category order
+    const CANONICAL_PIE_IDS = {
+      sleep: 0,
+      "duchess-walk": 1,
+      workout: 2,
+      lyft: 3,
+      "lyft-break": 4,
+      _unaccounted: 900,
+    };
+    const ROLE_PIE_RANK = {
+      reserve: 10, fixed: 20, session: 30, fill: 40, break: 50, adhoc: 60, unaccounted: 80,
+    };
+    function sortPieBlocks(blocks) {
+      return (blocks || []).slice().sort((a, b) => {
+        const aid = String(a.id || "");
+        const bid = String(b.id || "");
+        const ac = CANONICAL_PIE_IDS.hasOwnProperty(aid) ? CANONICAL_PIE_IDS[aid] : null;
+        const bc = CANONICAL_PIE_IDS.hasOwnProperty(bid) ? CANONICAL_PIE_IDS[bid] : null;
+        if (ac != null || bc != null) {
+          if (ac == null) return 1;
+          if (bc == null) return -1;
+          return ac - bc;
+        }
+        const ar = ROLE_PIE_RANK[a.role] ?? 50;
+        const br = ROLE_PIE_RANK[b.role] ?? 50;
+        if (ar !== br) return ar - br;
+        return String(a.title || "").localeCompare(String(b.title || ""));
+      });
+    }
+
     function drawPie(blocks, canvasId, legendId, centerLabel) {
       const canvas = $(canvasId);
       const legend = $(legendId);
@@ -669,10 +699,11 @@
       const w = canvas.width, h = canvas.height;
       ctx.clearRect(0, 0, w, h);
       const cx = w / 2, cy = h / 2, r = Math.min(w, h) * 0.42;
-      const total = (blocks || []).reduce((s, b) => s + (Number(b.minutes) || 0), 0) || 1;
+      const ordered = sortPieBlocks(blocks);
+      const total = ordered.reduce((s, b) => s + (Number(b.minutes) || 0), 0) || 1;
       let angle = -Math.PI / 2;
       legend.innerHTML = "";
-      if (!(blocks || []).length) {
+      if (!ordered.length) {
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fillStyle = "#1e2a36";
@@ -680,7 +711,7 @@
         legend.innerHTML = `<li class="empty">No blocks</li>`;
         return;
       }
-      (blocks || []).forEach((b, i) => {
+      ordered.forEach((b, i) => {
         const mins = Number(b.minutes) || 0;
         const slice = (mins / total) * Math.PI * 2;
         const color = ROLE_COLORS[b.role] || `hsl(${(i * 47) % 360} 50% 50%)`;
