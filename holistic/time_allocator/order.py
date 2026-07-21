@@ -28,9 +28,12 @@ ROLE_RANK: dict[str, int] = {
 
 def block_sort_key(block: dict[str, Any]) -> tuple:
     bid = str(block.get("id") or "")
+    role = str(block.get("role") or "")
+    # Always last so pies/legends line up and free time is easy to spot
+    if bid == "_unaccounted" or role == "unaccounted":
+        return (2, 0, bid)
     if bid in CANONICAL_IDS:
         return (0, CANONICAL_IDS[bid], bid)
-    role = str(block.get("role") or "")
     return (1, ROLE_RANK.get(role, 50), str(block.get("title") or ""), bid)
 
 
@@ -41,6 +44,8 @@ def sort_allocation_blocks(blocks: list[dict[str, Any]] | None) -> list[dict[str
 
 def id_sort_key(item_id: str) -> tuple:
     bid = str(item_id or "")
+    if bid == "_unaccounted":
+        return (2, 0, bid)
     if bid in CANONICAL_IDS:
         return (0, CANONICAL_IDS[bid], bid)
     return (1, 50, bid)

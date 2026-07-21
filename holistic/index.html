@@ -673,21 +673,27 @@
     const ROLE_PIE_RANK = {
       reserve: 10, fixed: 20, session: 30, fill: 40, break: 50, adhoc: 60, unaccounted: 80,
     };
+    function pieRank(b) {
+      const id = String(b.id || "");
+      const role = String(b.role || "");
+      if (id === "_unaccounted" || role === "unaccounted") return [2, 0, id];
+      if (Object.prototype.hasOwnProperty.call(CANONICAL_PIE_IDS, id)) {
+        return [0, CANONICAL_PIE_IDS[id], id];
+      }
+      return [1, ROLE_PIE_RANK[role] ?? 50, String(b.title || ""), id];
+    }
     function sortPieBlocks(blocks) {
       return (blocks || []).slice().sort((a, b) => {
-        const aid = String(a.id || "");
-        const bid = String(b.id || "");
-        const ac = CANONICAL_PIE_IDS.hasOwnProperty(aid) ? CANONICAL_PIE_IDS[aid] : null;
-        const bc = CANONICAL_PIE_IDS.hasOwnProperty(bid) ? CANONICAL_PIE_IDS[bid] : null;
-        if (ac != null || bc != null) {
-          if (ac == null) return 1;
-          if (bc == null) return -1;
-          return ac - bc;
+        const ka = pieRank(a);
+        const kb = pieRank(b);
+        for (let i = 0; i < Math.max(ka.length, kb.length); i++) {
+          const va = ka[i];
+          const vb = kb[i];
+          if (va === vb) continue;
+          if (typeof va === "number" && typeof vb === "number") return va - vb;
+          return String(va).localeCompare(String(vb));
         }
-        const ar = ROLE_PIE_RANK[a.role] ?? 50;
-        const br = ROLE_PIE_RANK[b.role] ?? 50;
-        if (ar !== br) return ar - br;
-        return String(a.title || "").localeCompare(String(b.title || ""));
+        return 0;
       });
     }
 
