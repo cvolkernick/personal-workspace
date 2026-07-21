@@ -966,9 +966,85 @@ footer {
 }
 
 /* Inventory cards — same macro color language as targets panel */
+/* Inventory + meal plan side-by-side: don't stretch meal plan to pantry height */
+#inventory-section.inv-meal-row,
+.inv-meal-row {
+  align-items: start;
+}
+
 .inv-panel,
 .inv-suggest-panel {
   margin-top: 0;
+}
+
+.inv-panel.compact-panel,
+.inv-suggest-panel.compact-panel {
+  padding: 0.65rem 0.7rem;
+}
+
+.inv-carousel-count {
+  font-size: 0.8rem;
+  font-weight: 650;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+/* Horizontal carousel for pantry / suggestions */
+.inv-carousel-shell {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.inv-carousel {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 0.25rem;
+}
+
+.inv-carousel-track {
+  display: flex;
+  gap: 0.5rem;
+  width: max-content;
+  padding: 0.1rem 0.05rem;
+}
+
+.inv-slide {
+  scroll-snap-align: start;
+  flex: 0 0 min(200px, 72vw);
+  width: min(200px, 72vw);
+  max-width: 220px;
+}
+
+.inv-carousel-nav {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 10px;
+  width: 2rem;
+  height: 2.4rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.inv-carousel-nav:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.inv-carousel-empty {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
 }
 
 .inv-cards {
@@ -984,6 +1060,14 @@ footer {
   padding: 0.7rem 0.75rem;
 }
 
+.inv-card.compact {
+  padding: 0.55rem 0.6rem;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
 .inv-card.out {
   opacity: 0.78;
   border-style: dashed;
@@ -995,13 +1079,23 @@ footer {
 
 .inv-card-name {
   font-weight: 650;
-  font-size: 0.98rem;
+  font-size: 0.92rem;
   letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.inv-card.compact .inv-card-name {
+  font-size: 0.88rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .inv-card-meta {
-  font-size: 0.8rem;
-  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+  line-height: 1.3;
 }
 
 .inv-reason {
@@ -1009,6 +1103,17 @@ footer {
   font-size: 0.85rem;
   color: var(--text);
   line-height: 1.35;
+}
+
+.inv-reason.compact {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 1.9em;
 }
 
 .inv-out-badge {
@@ -1045,6 +1150,11 @@ footer {
   margin-top: 0.55rem;
 }
 
+.inv-macro-strip.compact {
+  margin-top: 0.35rem;
+  gap: 0.25rem;
+}
+
 .inv-macro-pill {
   display: inline-flex;
   align-items: baseline;
@@ -1056,6 +1166,11 @@ footer {
   font-variant-numeric: tabular-nums;
   border: 1px solid var(--border);
   background: var(--bg-card);
+}
+
+.inv-macro-strip.compact .inv-macro-pill {
+  padding: 0.15rem 0.35rem;
+  font-size: 0.7rem;
 }
 
 .inv-macro-pill .pill-k {
@@ -1087,9 +1202,32 @@ footer {
   margin-top: 0.55rem;
 }
 
+.inv-card-actions.compact {
+  margin-top: auto;
+  padding-top: 0.35rem;
+  gap: 0.3rem;
+}
+
 .inv-card-actions button {
   font-size: 0.85rem;
   padding: 0.4rem 0.7rem;
+}
+
+.inv-card-actions.compact button {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.5rem;
+}
+
+@media (max-width: 520px) {
+  .inv-carousel-shell {
+    grid-template-columns: 1fr;
+  }
+  .inv-carousel-nav {
+    display: none;
+  }
+  .inv-slide {
+    flex-basis: min(170px, 78vw);
+  }
 }
 
 #today-hub-grid {

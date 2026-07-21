@@ -1084,8 +1084,18 @@
     renderInventorySuggestions(state.nutrition_store);
   }
 
-  function invMacroStrip(ing) {
+  function invMacroStrip(ing, compact = false) {
     const pct = macroCalPct(ing.protein_g, ing.carbs_g, ing.fat_g);
+    if (compact) {
+      // Dense one-line macros for carousel cards
+      return `
+      <div class="inv-macro-strip compact">
+        <span class="inv-macro-pill macro-cals">${fmtNum(ing.calories)}</span>
+        <span class="inv-macro-pill macro-protein">P${fmtNum(ing.protein_g)}</span>
+        <span class="inv-macro-pill macro-carbs">C${fmtNum(ing.carbs_g)}</span>
+        <span class="inv-macro-pill macro-fat">F${fmtNum(ing.fat_g)}</span>
+      </div>`;
+    }
     const pPct = pct.p != null ? ` · ${pct.p}%` : "";
     const cPct = pct.c != null ? ` · ${pct.c}%` : "";
     const fPct = pct.f != null ? ` · ${pct.f}%` : "";
@@ -1095,6 +1105,22 @@
         <span class="inv-macro-pill macro-protein"><span class="pill-k">P</span> ${fmtNum(ing.protein_g)}g${pPct}</span>
         <span class="inv-macro-pill macro-carbs"><span class="pill-k">C</span> ${fmtNum(ing.carbs_g)}g${cPct}</span>
         <span class="inv-macro-pill macro-fat"><span class="pill-k">F</span> ${fmtNum(ing.fat_g)}g${fPct}</span>
+      </div>`;
+  }
+
+  function invCarouselShell(id, slidesHtml, emptyMsg) {
+    if (!slidesHtml) {
+      return `<p class="muted inv-carousel-empty">${emptyMsg || "Nothing here yet."}</p>`;
+    }
+    return `
+      <div class="inv-carousel-shell" data-carousel-id="${id}">
+        <button type="button" class="inv-carousel-nav prev" data-action="carousel-nav" data-carousel="${id}" data-dir="-1" aria-label="Previous">‹</button>
+        <div class="inv-carousel" id="${id}" tabindex="0">
+          <div class="inv-carousel-track">
+            ${slidesHtml}
+          </div>
+        </div>
+        <button type="button" class="inv-carousel-nav next" data-action="carousel-nav" data-carousel="${id}" data-dir="1" aria-label="Next">›</button>
       </div>`;
   }
 
@@ -1109,42 +1135,42 @@
       return String(a.name).localeCompare(String(b.name));
     });
     if (!items.length) {
-      list.innerHTML = `<div class="macro-summary"><p class="muted" style="margin:0">No ingredients yet — add some above or accept a suggestion.</p></div>`;
+      list.innerHTML = `<div class="macro-summary inv-panel compact-panel">
+        <div class="macro-summary-title">Pantry</div>
+        <p class="muted" style="margin:0.35rem 0 0">No ingredients yet — add above or accept a suggestion.</p>
+      </div>`;
       return;
     }
     const stocked = items.filter((i) => i.in_stock !== false).length;
-    let html = `<div class="macro-summary inv-panel">
-      <div class="macro-summary-header">
-        <div>
-          <div class="macro-summary-title">Pantry</div>
-          <div class="macro-summary-meta muted">${stocked} in stock · ${items.length - stocked} out · ${items.length} total</div>
-        </div>
-      </div>
-      <div class="inv-cards">`;
+    let slides = "";
     items.forEach((ing) => {
       const stock = ing.in_stock !== false;
       const iid = String(ing.id || "").replace(/"/g, "&quot;");
       const iname = String(ing.name || "").replace(/"/g, "&quot;");
-      html += `<div class="inv-card${stock ? "" : " out"}">
-        <div class="inv-card-top">
-          <div>
-            <div class="inv-card-name">${ing.name || "Ingredient"}</div>
-            <div class="inv-card-meta muted">${ing.category || "other"} · ${ing.serving_label || "1 serving"}
-              ${stock ? "" : " · <span class='inv-out-badge'>out of stock</span>"}
-            </div>
-          </div>
-        </div>
-        ${invMacroStrip(ing)}
-        <div class="actions inv-card-actions">
+      slides += `<div class="inv-slide inv-card compact${stock ? "" : " out"}">
+        <div class="inv-card-name">${ing.name || "Ingredient"}${
+        stock ? "" : ' <span class="inv-out-badge">out</span>'
+      }</div>
+        <div class="inv-card-meta muted">${ing.category || "other"} · ${ing.serving_label || "1 serving"}</div>
+        ${invMacroStrip(ing, true)}
+        <div class="actions inv-card-actions compact">
           <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
-            ${stock ? "Mark out" : "Mark in stock"}
+            ${stock ? "Out" : "In stock"}
           </button>
-          <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">Remove</button>
+          <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">✕</button>
         </div>
       </div>`;
     });
-    html += `</div></div>`;
-    list.innerHTML = html;
+    list.innerHTML = `<div class="macro-summary inv-panel compact-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Pantry</div>
+          <div class="macro-summary-meta muted">${stocked} in · ${items.length - stocked} out · swipe or arrows</div>
+        </div>
+        <div class="inv-carousel-count muted">${items.length}</div>
+      </div>
+      ${invCarouselShell("pantry-carousel", slides)}
+    </div>`;
   }
 
   function renderInventorySuggestions(store) {
@@ -1156,41 +1182,33 @@
       box.innerHTML = "";
       return;
     }
-    let html = `<div class="macro-summary inv-suggest-panel">
-      <div class="macro-summary-header">
-        <div>
-          <div class="macro-summary-title">Suggested staples</div>
-          <div class="macro-summary-meta muted">${block.summary || "Based on logs, gaps, and catalog"}</div>
-        </div>
-      </div>
-      <div class="inv-cards">`;
+    let slides = "";
     items.forEach((s, idx) => {
       const action = s.action === "restock" ? "restock" : "add";
-      const label = action === "restock" ? "Restock" : "Add to inventory";
-      const payload = encodeURIComponent(JSON.stringify({
-        id: s.id,
-        name: s.name,
-        category: s.category,
-        serving_label: s.serving_label,
-        calories: s.calories,
-        protein_g: s.protein_g,
-        carbs_g: s.carbs_g,
-        fat_g: s.fat_g,
-        in_stock: true,
-        notes: s.notes || "",
-      }));
-      html += `<div class="inv-card suggest">
-        <div class="inv-card-top">
-          <div>
-            <div class="inv-card-name">${s.name || "Staple"}
-              <span class="inv-action-badge inv-action-${action}">${action}</span>
-            </div>
-            <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
-            <div class="inv-reason">${s.reason || ""}</div>
-          </div>
+      const label = action === "restock" ? "Restock" : "Add";
+      const payload = encodeURIComponent(
+        JSON.stringify({
+          id: s.id,
+          name: s.name,
+          category: s.category,
+          serving_label: s.serving_label,
+          calories: s.calories,
+          protein_g: s.protein_g,
+          carbs_g: s.carbs_g,
+          fat_g: s.fat_g,
+          in_stock: true,
+          notes: s.notes || "",
+        })
+      );
+      const reason = String(s.reason || "").slice(0, 90);
+      slides += `<div class="inv-slide inv-card compact suggest">
+        <div class="inv-card-name">${s.name || "Staple"}
+          <span class="inv-action-badge inv-action-${action}">${action}</span>
         </div>
-        ${invMacroStrip(s)}
-        <div class="actions inv-card-actions">
+        <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
+        ${reason ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${String(s.reason || "").length > 90 ? "…" : ""}</div>` : ""}
+        ${invMacroStrip(s, true)}
+        <div class="actions inv-card-actions compact">
           <button type="button" class="primary btn-suggest-apply" data-action="suggest-apply"
             data-suggest-action="${action}" data-id="${String(s.id || "").replace(/"/g, "&quot;")}"
             data-payload="${payload}" data-idx="${idx}">
@@ -1199,8 +1217,16 @@
         </div>
       </div>`;
     });
-    html += `</div></div>`;
-    box.innerHTML = html;
+    box.innerHTML = `<div class="macro-summary inv-suggest-panel compact-panel">
+      <div class="macro-summary-header">
+        <div>
+          <div class="macro-summary-title">Suggested staples</div>
+          <div class="macro-summary-meta muted">${block.summary || "Based on logs, gaps, and catalog"}</div>
+        </div>
+        <div class="inv-carousel-count muted">${items.length}</div>
+      </div>
+      ${invCarouselShell("suggest-carousel", slides)}
+    </div>`;
   }
 
   /** One delegated listener — survives re-renders and avoids dead buttons. */
@@ -1214,6 +1240,19 @@
       ev.preventDefault();
       ev.stopPropagation();
       const action = btn.getAttribute("data-action");
+
+      // Horizontal carousel navigation (no server call)
+      if (action === "carousel-nav") {
+        const cid = btn.getAttribute("data-carousel");
+        const dir = Number(btn.getAttribute("data-dir") || 1);
+        const scroller = cid ? document.getElementById(cid) : null;
+        if (scroller) {
+          const step = Math.max(180, Math.floor(scroller.clientWidth * 0.85));
+          scroller.scrollBy({ left: dir * step, behavior: "smooth" });
+        }
+        return;
+      }
+
       const id = (btn.getAttribute("data-id") || "").trim();
       const name = (btn.getAttribute("data-name") || "").trim();
       btn.disabled = true;
