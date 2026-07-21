@@ -511,6 +511,153 @@
     .src-metric .dot.cb { background: #5b9fd4; }
     .src-metric .dot.rh { background: #3dd68c; }
     .src-metric .dot.other { background: #6a7a8a; }
+
+    /* Fund manager — first-class glass box */
+    .fm-hero {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 0.85rem;
+      align-items: stretch;
+    }
+    @media (max-width: 720px) {
+      .fm-hero { grid-template-columns: 1fr; }
+    }
+    .alloc-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .alloc-row {
+      background: #0e151c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.55rem 0.7rem;
+    }
+    .alloc-row .top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.35rem;
+    }
+    .alloc-row .name { color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; }
+    .alloc-row .pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .alloc-row .pct.in { color: var(--green); }
+    .alloc-row .pct.out { color: var(--yellow); }
+    .alloc-bar {
+      height: 10px;
+      background: #1a2430;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .alloc-bar .fill { display: block; height: 100%; border-radius: 6px; }
+    .alloc-bar .fill.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
+    .alloc-bar .fill.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    .alloc-bar .target-mark {
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 2px;
+      background: #e7eef5;
+      opacity: 0.85;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    }
+    .pos-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .pos-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.35rem;
+      border-bottom: 1px solid #1a2430;
+    }
+    .pos-table td {
+      padding: 0.35rem;
+      border-bottom: 1px solid #151d26;
+      font-variant-numeric: tabular-nums;
+    }
+    .pos-table tr:last-child td { border-bottom: 0; }
+    .sleeve-chip {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .sleeve-chip.btc { background: #3a2a10; color: #f5c542; border: 1px solid #6b5a1e; }
+    .sleeve-chip.stocks { background: #1a2840; color: #7eb8e8; border: 1px solid #2a4060; }
+    .sleeve-chip.other { background: #252830; color: var(--muted); border: 1px solid #3a4050; }
+    .status-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    @media (max-width: 640px) {
+      .status-split { grid-template-columns: 1fr; }
+    }
+    .status-tile {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.7rem;
+      background: #0e151c;
+    }
+    .status-tile .lab {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .status-tile .val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+    .status-tile.red { border-color: #5a2a2a; }
+    .status-tile.red .val { color: var(--red); }
+    .status-tile.yellow { border-color: #5a4a1a; }
+    .status-tile.yellow .val { color: var(--yellow); }
+    .status-tile.green { border-color: #1e4a32; }
+    .status-tile.green .val { color: var(--green); }
+    .feeds span[title] { cursor: help; border-bottom: 1px dotted #3a4a5a; }
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem;
+      margin-bottom: 0.55rem;
+    }
+    .card-head h2 { margin: 0; }
+    .live-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--green);
+    }
+    .live-dot::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.2);
+    }
+    .live-dot.off { color: var(--muted); }
+    .live-dot.off::before { background: var(--muted); box-shadow: none; }
+    .poll-note { font-size: 0.7rem; color: var(--muted); }
   </style>
 </head>
 <body>
@@ -518,9 +665,10 @@
     <div class="row">
       <div>
         <h1>Financial Command Center</h1>
-        <div class="sub">Liquidity · LTV · bills · spend</div>
+        <div class="sub">Liquidity · fund manager · bills · spend</div>
       </div>
       <div class="controls">
+        <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
       </div>
@@ -534,9 +682,33 @@
   <main>
     <div id="load-error" class="error hidden"></div>
     <div id="status-why" class="status-why yellow">Loading…</div>
+    <div class="status-split" id="status-split"></div>
+
+    <section class="card" id="fund-manager-card">
+      <div class="card-head">
+        <h2>Fund manager</h2>
+        <span class="live-dot" id="fm-live-dot">Autopilot</span>
+      </div>
+      <p class="hint" style="margin-top:0">
+        Agentic RH only · ~daily team review · optional watch — no action required
+      </p>
+      <div class="fm-hero">
+        <div>
+          <div class="hint">Allocation vs 40 / 60 targets</div>
+          <div class="alloc-stack" id="fm-alloc"></div>
+          <div id="fund-manager-metrics" style="margin-top:0.65rem"></div>
+        </div>
+        <div>
+          <div class="hint">Agentic holdings</div>
+          <div id="fm-holdings"></div>
+        </div>
+      </div>
+      <div class="hint" style="margin-top:0.85rem">Decision log — team debate &amp; rationale</div>
+      <div id="fund-manager-decisions"></div>
+    </section>
 
     <section class="card" id="actions-card">
-      <h2>Do now</h2>
+      <h2>Do now (liquidity &amp; ops)</h2>
       <div class="actions" id="actions-top"></div>
       <button type="button" id="show-all-actions" class="hidden">Show all actions</button>
       <div class="actions hidden" id="actions-rest" style="margin-top:0.5rem"></div>
@@ -587,15 +759,11 @@
       </div>
     </section>
 
-    <details class="panel" id="panel-brokerage" open>
-      <summary>Brokerage (RH trading)</summary>
+    <details class="panel" id="panel-brokerage">
+      <summary>Brokerage detail (RH primary metrics)</summary>
       <div class="body">
-        <p class="hint">Primary = legacy/read · Agentic = fund manager book (MCP tradable)</p>
+        <p class="hint">Primary margin = legacy/read for this agent · fund manager lives in card above</p>
         <div id="rh-metrics"></div>
-        <div class="hint" style="margin-top:0.75rem">Agentic fund manager (40/60 · ~daily auto review · team → executor)</div>
-        <div id="fund-manager-metrics"></div>
-        <div class="hint" style="margin-top:0.75rem">Decision log — optional watch only (no action required)</div>
-        <div id="fund-manager-decisions"></div>
       </div>
     </details>
 
@@ -1019,7 +1187,51 @@
       why.className = "status-why " + overall;
       why.textContent = statusWhy(ev, snap);
 
-      // Feeds line
+      // Split: liquidity stress vs fund manager health (less confusing than one red banner)
+      const fmEarly = data.fund_manager || ev.fund_manager || {};
+      const fmaEarly = fmEarly.analysis || {};
+      const wDepEarly = fmaEarly.weights_of_deployed || {};
+      const band = (fmaEarly.targets && fmaEarly.targets.band_pct) || 0.05;
+      const tgtB = (fmaEarly.targets && fmaEarly.targets.btc_digital_credit_pct) || 0.4;
+      const tgtS = (fmaEarly.targets && fmaEarly.targets.stocks_growth_pct) || 0.6;
+      const inBandB =
+        wDepEarly.btc_digital_credit == null
+          ? null
+          : Math.abs(wDepEarly.btc_digital_credit - tgtB) <= band;
+      const inBandS =
+        wDepEarly.stocks_growth == null
+          ? null
+          : Math.abs(wDepEarly.stocks_growth - tgtS) <= band;
+      let fmHealth = "yellow";
+      let fmHealthLabel = "No agentic analysis";
+      if (fmaEarly.ok) {
+        if (inBandB && inBandS) {
+          fmHealth = "green";
+          fmHealthLabel = "In band · ~40/60";
+        } else if (wDepEarly.btc_digital_credit == null && (fmaEarly.cash_usd || 0) > 0) {
+          fmHealth = "yellow";
+          fmHealthLabel = "Cash idle · not deployed";
+        } else {
+          fmHealth = "yellow";
+          fmHealthLabel = "Drift vs targets";
+        }
+        if (fmEarly.policy_summary && fmEarly.policy_summary.live === false) {
+          fmHealth = "yellow";
+          fmHealthLabel = "Paused (live:false)";
+        }
+      }
+      document.getElementById("status-split").innerHTML = [
+        `<div class="status-tile ${overall}"><div class="lab">Liquidity / ops stress</div>` +
+          `<div class="val">${overall.toUpperCase()}</div>` +
+          `<div class="hint" style="margin:0.25rem 0 0">Buffers · LTV · bills · One Card</div></div>`,
+        `<div class="status-tile ${fmHealth}"><div class="lab">Fund manager book</div>` +
+          `<div class="val">${escapeHtml(fmHealthLabel)}</div>` +
+          `<div class="hint" style="margin:0.25rem 0 0">Agentic NAV ${money(
+            fmaEarly.nav_usd
+          )} · separate capital</div></div>`,
+      ].join("");
+
+      // Feeds line (hover for age)
       const meta = snap.meta || {};
       const src = (ev.data_quality && ev.data_quality.sources) || {};
       const feeds = [
@@ -1038,7 +1250,11 @@
           .map(([label, s, asOf]) => {
             const cls = feedClass(s, asOf);
             const mark = cls === "ok" ? "✓" : cls === "warn" ? "⚠" : "✗";
-            return `<span class="${cls}">${label} ${mark}</span>`;
+            const age = ageLabel(asOf);
+            const tip = asOf
+              ? `${label}: source=${s || "—"} · ${age || "age ?"} · warn if >6h`
+              : `${label}: no as_of`;
+            return `<span class="${cls}" title="${escapeHtml(tip)}">${label} ${mark}</span>`;
           })
           .join("");
 
@@ -1113,9 +1329,28 @@
           target: "cash-credit",
         },
         {
+          k: "Agentic NAV",
+          v: money(
+            ((data.fund_manager || ev.fund_manager || {}).analysis || {}).nav_usd
+          ),
+          s: (() => {
+            const w =
+              ((data.fund_manager || ev.fund_manager || {}).analysis || {})
+                .weights_of_deployed || {};
+            if (w.btc_digital_credit == null) return "fund manager";
+            return (
+              Math.round(w.btc_digital_credit * 100) +
+              "/" +
+              Math.round((w.stocks_growth || 0) * 100) +
+              " deploy"
+            );
+          })(),
+          target: "fund-manager-card",
+        },
+        {
           k: "RH BP",
           v: money(inp.rh_buying_power),
-          s: "brokerage",
+          s: "primary brokerage",
           target: "panel-brokerage",
         },
         {
@@ -1284,7 +1519,7 @@
             .join("")
         : `<p class="hint">No pay-from data</p>`;
 
-      // Brokerage (primary margin = policy/DCA; agentic = MCP-tradable)
+      // Brokerage detail (primary)
       const rhSnap = snap.robinhood || rh || {};
       const rhAgentic = rhSnap.agentic || {};
       const pos = rhSnap.positions || [];
@@ -1298,56 +1533,99 @@
         metric("Primary total", money(inp.rh_total_value)),
         metric("Primary cash", money(inp.rh_cash)),
         metric(
-          "Agentic BP (tradable)",
-          (inp.rh_agentic_buying_power != null ? money(inp.rh_agentic_buying_power) : "—") +
-            (inp.rh_agentic_account_last4 ? ` · ••••${inp.rh_agentic_account_last4}` : "") +
-            (inp.rh_agentic_mcp_connected ? " · MCP" : "")
-        ),
-        metric(
-          "Agentic cash / value",
-          `${money(inp.rh_agentic_cash)} / ${money(inp.rh_agentic_total_value)}`
-        ),
-        metric(
           "Positions (primary)",
           pos.length
             ? pos
-                .slice(0, 8)
+                .slice(0, 10)
                 .map((p) => p.symbol)
-                .join(" · ") + (pos.length > 8 ? ` +${pos.length - 8}` : "")
+                .join(" · ") + (pos.length > 10 ? ` +${pos.length - 10}` : "")
             : String(inp.rh_positions_count ?? 0)
         ),
         metric("DCA (legacy primary)", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
         metric("Why", (ev.dca && ev.dca.reason) || "—"),
       ].join("");
 
-      // Agentic fund manager (agentic account only)
+      // Fund manager card (first-class)
       const fm = data.fund_manager || ev.fund_manager || {};
       const fma = fm.analysis || {};
       const wDep = fma.weights_of_deployed || {};
       const wNav = fma.weights_of_nav || {};
       const pctLabel = (x) =>
         x == null || !Number.isFinite(Number(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+      const liveOn = !(fm.policy_summary && fm.policy_summary.live === false);
+      const liveDot = document.getElementById("fm-live-dot");
+      if (liveDot) {
+        liveDot.textContent = liveOn ? "Autopilot live" : "Paused";
+        liveDot.className = "live-dot" + (liveOn ? "" : " off");
+      }
+
+      const btcPct = wDep.btc_digital_credit;
+      const stPct = wDep.stocks_growth;
+      const btcOk = btcPct != null && Math.abs(btcPct - 0.4) <= 0.05;
+      const stOk = stPct != null && Math.abs(stPct - 0.6) <= 0.05;
+      document.getElementById("fm-alloc").innerHTML = fma.ok
+        ? [
+            `<div class="alloc-row"><div class="top"><span class="name">BTC &amp; digital credit</span>` +
+              `<span class="pct ${btcOk ? "in" : "out"}">${pctLabel(btcPct)} ` +
+              `<span class="hint">target 40%</span></span></div>` +
+              `<div class="alloc-bar"><i class="fill btc" style="width:${Math.min(
+                100,
+                Math.round((btcPct || 0) * 100)
+              )}%"></i>` +
+              `<span class="target-mark" style="left:40%"></span></div></div>`,
+            `<div class="alloc-row"><div class="top"><span class="name">Stocks / growth</span>` +
+              `<span class="pct ${stOk ? "in" : "out"}">${pctLabel(stPct)} ` +
+              `<span class="hint">target 60%</span></span></div>` +
+              `<div class="alloc-bar"><i class="fill stocks" style="width:${Math.min(
+                100,
+                Math.round((stPct || 0) * 100)
+              )}%"></i>` +
+              `<span class="target-mark" style="left:60%"></span></div></div>`,
+          ].join("")
+        : `<p class="hint">No allocation yet</p>`;
+
+      // Holdings from agentic positions (analysis or snapshot)
+      const apos =
+        (fma.positions && fma.positions.length
+          ? fma.positions
+          : (rhAgentic.positions || []).map((p) => ({
+              symbol: p.symbol,
+              quantity: p.quantity,
+              sleeve: "—",
+              market_value: null,
+            }))) || [];
+      document.getElementById("fm-holdings").innerHTML = apos.length
+        ? `<table class="pos-table"><thead><tr><th>Symbol</th><th>Sleeve</th><th>Qty</th><th>Est. $</th></tr></thead><tbody>` +
+          apos
+            .slice(0, 12)
+            .map((p) => {
+              const sl = p.sleeve || "other";
+              const chip =
+                sl === "btc_digital_credit"
+                  ? "btc"
+                  : sl === "stocks_growth"
+                    ? "stocks"
+                    : "other";
+              const slabel =
+                sl === "btc_digital_credit"
+                  ? "BTC+"
+                  : sl === "stocks_growth"
+                    ? "Stocks"
+                    : sl;
+              return (
+                `<tr><td><strong>${escapeHtml(p.symbol || "—")}</strong></td>` +
+                `<td><span class="sleeve-chip ${chip}">${escapeHtml(slabel)}</span></td>` +
+                `<td>${escapeHtml(String(p.quantity ?? "—"))}</td>` +
+                `<td>${p.market_value != null ? money(p.market_value) : "—"}</td></tr>`
+              );
+            })
+            .join("") +
+          `</tbody></table>`
+        : `<p class="hint">No agentic positions</p>`;
+
       document.getElementById("fund-manager-metrics").innerHTML = fma.ok
         ? [
-            metric(
-              "Mode",
-              (fm.policy_summary && fm.policy_summary.live === false
-                ? "Paused"
-                : fma.approval && fma.approval.require_user_confirm === false
-                  ? "LIVE autopilot · no confirm"
-                  : "Confirm trades") +
-                (fma.approval && fma.approval.max_single_order_notional_usd == null
-                  ? " · no max $"
-                  : "")
-            ),
-            metric("Agentic NAV", money(fma.nav_usd)),
-            metric("Agentic BP / cash", `${money(fma.buying_power_usd)} / ${money(fma.cash_usd)}`),
-            metric(
-              "Deployed 40/60",
-              `BTC-complex ${pctLabel(wDep.btc_digital_credit)} · Stocks ${pctLabel(
-                wDep.stocks_growth
-              )}`
-            ),
+            metric("NAV / BP / cash", `${money(fma.nav_usd)} · ${money(fma.buying_power_usd)} · ${money(fma.cash_usd)}`),
             metric(
               "Of NAV",
               `Complex ${pctLabel(wNav.btc_digital_credit)} · Stocks ${pctLabel(
@@ -1355,40 +1633,22 @@
               )} · Cash ${pctLabel(wNav.cash)}`
             ),
             metric(
-              "Manager hints",
+              "Hints",
               (fma.manager_hints || []).length
-                ? (fma.manager_hints || []).slice(0, 3).join(" · ")
+                ? (fma.manager_hints || []).slice(0, 2).join(" · ")
                 : "—"
             ),
-            fm.policy_summary && fm.policy_summary.bootstrap_blocker
-              ? metric(
-                  "Bootstrap blocker",
-                  "Complete RH investor profile (agentic) — see fund manager runbook"
-                )
-              : "",
             metric(
               "Cadence",
-              fm.policy_summary && fm.policy_summary.cadence
-                ? `~${fm.policy_summary.cadence.scheduled_reviews_per_day ||
-                    fm.policy_summary.cadence.reviews_per_day ||
-                    1} auto review/day · mid-session · no trade cap`
-                : "~1 auto review/day · no trade cap"
+              "~1 auto review/day · mid-session · no trade cap"
             ),
-            metric(
-              "Team",
-              fm.policy_summary && fm.policy_summary.team_enabled
-                ? "Scout · Thesis · Risk · Critic → Executor"
-                : "single manager"
-            ),
-            metric("Your role", "Optional watch on this panel — no feedback required"),
-          ]
-            .filter(Boolean)
-            .join("")
+            metric("Team", "Scout · Thesis · Risk · Critic → Executor"),
+          ].join("")
         : `<p class="hint">${escapeHtml(
             (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
           )}</p>`;
 
-      // Decision log — glass box for optional owner oversight (does not require action)
+      // Decision log — glass box
       const decs = fm.recent_decisions || [];
       document.getElementById("fund-manager-decisions").innerHTML = decs.length
         ? decs
@@ -1603,6 +1863,7 @@
           data = await res.json();
         }
         if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury payload");
+        window.__treasury = data;
         render(data);
       } catch (e) {
         errEl.classList.remove("hidden");
@@ -1656,6 +1917,11 @@
 
     document.getElementById("btn-refresh").addEventListener("click", refreshLive);
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+    // Soft auto-poll treasury JSON (does not call RH MCP — keeps UI fresh)
+    setInterval(() => {
+      if (document.hidden) return;
+      loadTreasury();
+    }, 5 * 60 * 1000);
     document.getElementById("show-all-actions").addEventListener("click", () => {
       showAllActions = !showAllActions;
       if (window.__treasury) render(window.__treasury);

@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-07-21T21:30:20.812580+00:00",
+  "as_of": "2026-07-21T21:36:09.479515+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-21T21:30:20.812457+00:00",
+    "as_of": "2026-07-21T21:36:09.479389+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -262,10 +262,6 @@
       "notes": "Risk + Thesis must OK; Critic may force hold or size-down. Scout is advisory."
     },
     "rationale_required": true,
-    "bootstrap_blocker": {
-      "kind": "robinhood_investment_profile",
-      "message": "Robinhood requires investment profile questionnaire before the second agentic trade.",
-      "url": "https://applink.robinhood.com/investment_profile?account_number=674601752&context=second_trade"
-    }
+    "bootstrap_blocker": null
   }
 }

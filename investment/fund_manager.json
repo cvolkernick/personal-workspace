@@ -167,18 +167,15 @@
   "bootstrap": {
     "initial_deploy": {
       "planned_usd": 8.2,
-      "as_of": "2026-07-20T21:41:00Z",
+      "as_of": "2026-07-21T15:16:00Z",
+      "status": "complete",
       "allocation": [
-        {"symbol": "MSTR", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "queued", "order_id": "6a5e9611-650f-4757-a331-ab2e010bc0a9"},
-        {"symbol": "MARA", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "blocked_investor_profile"},
-        {"symbol": "TSLA", "sleeve": "stocks_growth", "dollar_amount": 2.5, "status": "blocked_investor_profile"},
-        {"symbol": "SPCX", "sleeve": "stocks_growth", "dollar_amount": 2.4, "status": "blocked_investor_profile"}
+        {"symbol": "MSTR", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "filled"},
+        {"symbol": "MARA", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "filled"},
+        {"symbol": "TSLA", "sleeve": "stocks_growth", "dollar_amount": 2.5, "status": "filled"},
+        {"symbol": "SPCX", "sleeve": "stocks_growth", "dollar_amount": 2.4, "status": "filled"}
       ],
-      "blocker": {
-        "kind": "robinhood_investment_profile",
-        "message": "Robinhood requires investment profile questionnaire before the second agentic trade.",
-        "url": "https://applink.robinhood.com/investment_profile?account_number=674601752&context=second_trade"
-      }
+      "blocker": null
     }
   },
   "docs": {
