@@ -178,8 +178,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-21T04:49:49-04:00",
-    "window_end": "2026-07-22T04:49:49-04:00",
+    "window_start": "2026-07-21T04:54:22-04:00",
+    "window_end": "2026-07-22T04:54:22-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
