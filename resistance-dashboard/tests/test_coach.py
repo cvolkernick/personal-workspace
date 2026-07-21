@@ -109,7 +109,7 @@ class TestCoach(unittest.TestCase):
         self.assertTrue(any("protein" in x.lower() for x in fc["can_improve"]))
         self.assertTrue(fc["labs"]["has_labs"])
         self.assertTrue(any(f["marker"] == "vitamin_d_ng_ml" for f in fc["labs"]["flags"]))
-        self.assertIn("Coach commentary", fc["markdown"])
+        self.assertIn("Nutrition Coach", fc["markdown"])
 
 
 if __name__ == "__main__":

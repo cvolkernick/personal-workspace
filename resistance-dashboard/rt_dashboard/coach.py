@@ -578,7 +578,7 @@ def build_food_commentary(
     notes = _dedupe(notes)[:6]
 
     # Markdown for UI
-    lines = ["### Coach commentary (food · macros · micros)"]
+    lines = ["### Nutrition Coach"]
     if notes:
         lines.append("**Snapshot:** " + " ".join(notes))
     if working:
@@ -672,9 +672,9 @@ def build_coach_brief(
     improve = fc.get("can_improve") or []
     working = fc.get("working_well") or []
     if improve:
-        lines.append("**Food coach:** " + improve[0])
+        lines.append("**Nutrition Coach:** " + improve[0])
     elif working:
-        lines.append("**Food coach:** " + working[0])
+        lines.append("**Nutrition Coach:** " + working[0])
     return {
         "title": "Coach brief",
         "markdown": "\n\n".join(lines),
