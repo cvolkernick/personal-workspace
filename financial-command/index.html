@@ -556,7 +556,7 @@
           <div id="cb-metrics"></div>
         </div>
         <div>
-          <div class="hint">One Card · RH Checking</div>
+          <div class="hint">One Card · RH Checking · X Money</div>
           <div id="cash-credit-side"></div>
         </div>
       </div>
@@ -608,6 +608,10 @@
           <div>
             <div class="hint">RH Checking txs</div>
             <div id="rh-checking-txs"></div>
+          </div>
+          <div>
+            <div class="hint">X Money txs</div>
+            <div id="x-money-txs"></div>
           </div>
         </div>
       </div>
@@ -1019,6 +1023,7 @@
         ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of],
         ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of],
         ["RH check", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of],
+        ["X Money", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of],
         ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of],
         ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of],
       ];
@@ -1072,6 +1077,7 @@
       // KPIs
       const oc = snap.one_card || {};
       const rhc = snap.rh_checking || {};
+      const xm = snap.x_money || {};
       const ex = snap.expenses || {};
       const es = ex.summary || {};
       const kpis = [
@@ -1095,6 +1101,12 @@
           k: "RH Checking",
           v: money(inp.rh_checking_cash ?? rhc.cash),
           s: "bill-pay float",
+          target: "cash-credit",
+        },
+        {
+          k: "X Money",
+          v: money(inp.x_money_cash ?? xm.cash),
+          s: (inp.x_money_account || xm.account_name || "YNAB").toString().slice(0, 28),
           target: "cash-credit",
         },
         {
@@ -1177,8 +1189,17 @@
         metric("USDC security deposit", money(inp.card_security_deposit_usdc)),
         metric("Card source", inp.card_source || oc.source || "—"),
         metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
+        metric(
+          "X Money",
+          money(inp.x_money_cash ?? xm.cash) +
+            (inp.x_money_account || xm.account_name
+              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 24)}`
+              : "")
+        ),
+        metric("Bank cash (RH+X)", money(inp.bank_cash)),
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
         metric("Checking 30d out", money(rhc.spend_30d)),
+        metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
       ].join("");
 
       // Upcoming bills (sheet Personal) — urgency matches spreadsheet colors
@@ -1374,6 +1395,18 @@
             )
             .join("")
         : `<p class="hint">No checking txs</p>`;
+      const xmtx = xm.transactions || [];
+      document.getElementById("x-money-txs").innerHTML = xmtx.length
+        ? xmtx
+            .slice(0, 8)
+            .map(
+              (t) =>
+                `<div class="metric"><span class="label">${t.date || ""} · ${
+                  t.payee || "—"
+                }</span><span class="val">${money(t.amount_display ?? t.amount)}</span></div>`
+            )
+            .join("")
+        : `<p class="hint">No X Money txs</p>`;
 
       document.getElementById("expenses-top-disc").innerHTML = (
         discTab.top_targets ||

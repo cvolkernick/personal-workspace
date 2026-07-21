@@ -33,7 +33,8 @@
     "budget_name": null,
     "account_name": null,
     "checking_account_name": null,
-    "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card + RH Checking."
+    "x_money_account_name": "Checking – 2201",
+    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking – ####)."
   },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",

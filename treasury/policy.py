@@ -258,10 +258,15 @@ def assess_data_quality(
     elif oc.get("live_error"):
         warnings.append(f"YNAB One Card: {oc['live_error']}")
     rhc = snapshot.get("rh_checking") or {}
+    xm = snapshot.get("x_money") or {}
     if rhc.get("source") in (None, "empty"):
         warnings.append("RH Checking / YNAB snapshot missing — link in YNAB and run ynab_sync")
     elif rhc.get("live_error"):
         warnings.append(f"YNAB RH Checking: {rhc['live_error']}")
+    if xm.get("source") in (None, "empty"):
+        warnings.append("X Money / YNAB snapshot missing — link in YNAB and run ynab_sync")
+    elif xm.get("live_error"):
+        warnings.append(f"YNAB X Money: {xm['live_error']}")
     ex = snapshot.get("expenses") or {}
     if ex.get("source") in (None, "empty"):
         warnings.append("Expense sheet missing — run treasury/expenses_sync.py")
@@ -283,6 +288,7 @@ def assess_data_quality(
         ("robinhood", rh),
         ("one_card", oc),
         ("rh_checking", rhc),
+        ("x_money", xm),
         ("expenses", ex),
     ):
         as_of = _parse_as_of(src.get("as_of"))
@@ -312,9 +318,11 @@ def assess_data_quality(
         sources_ok += 1
     if rhc.get("source") not in (None, "empty") and not rhc.get("live_error"):
         sources_ok += 1
+    if xm.get("source") not in (None, "empty") and not xm.get("live_error"):
+        sources_ok += 1
     if ex.get("source") not in (None, "empty") and not ex.get("live_error"):
         sources_ok += 1
-    score = (manual_filled / manual_total) * 0.5 + (sources_ok / 5.0) * 0.5
+    score = (manual_filled / manual_total) * 0.5 + (sources_ok / 6.0) * 0.5
 
     status = "green"
     if missing_manual or stale:
@@ -333,11 +341,13 @@ def assess_data_quality(
             "robinhood": rh.get("source"),
             "one_card": oc.get("source"),
             "rh_checking": rhc.get("source"),
+            "x_money": xm.get("source"),
             "expenses": ex.get("source"),
             "coinbase_as_of": cb.get("as_of"),
             "robinhood_as_of": rh.get("as_of"),
             "one_card_as_of": oc.get("as_of"),
             "rh_checking_as_of": rhc.get("as_of"),
+            "x_money_as_of": xm.get("as_of"),
             "expenses_as_of": ex.get("as_of"),
         },
         "stale": stale,
@@ -382,6 +392,7 @@ def evaluate_treasury(
 
     one_card = snapshot.get("one_card") or {}
     rh_checking = snapshot.get("rh_checking") or {}
+    x_money = snapshot.get("x_money") or {}
     vault_raw = man.get("vault_usdc")
     vault_known = not _is_missing(vault_raw)
     vault_usdc = _f(vault_raw) if vault_known else 0.0
@@ -428,7 +439,17 @@ def evaluate_treasury(
         rh_checking_cash = _f(rh_checking.get("cash"))
     elif not _is_missing(rh_checking.get("available")):
         rh_checking_cash = _f(rh_checking.get("available"))
-    # Effective cash for bill-pay: checking first, else brokerage cash
+    x_money_cash = None
+    if not _is_missing(x_money.get("cash")):
+        x_money_cash = _f(x_money.get("cash"))
+    elif not _is_missing(x_money.get("available")):
+        x_money_cash = _f(x_money.get("available"))
+    bank_cash = (rh_checking_cash or 0.0) + (x_money_cash or 0.0)
+    if rh_checking_cash is None and x_money_cash is None:
+        bank_cash_known = False
+    else:
+        bank_cash_known = True
+    # Effective cash for bill-pay: RH Checking first (ACH), else brokerage cash
     bill_pay_cash = rh_checking_cash if rh_checking_cash is not None else cash
     equity = _f(rh.get("equity_value", rh.get("total_value")))
     total_value = _f(rh.get("total_value", equity))
@@ -776,6 +797,8 @@ def evaluate_treasury(
         + " | Actual spend: YNAB",
         f"RH Checking (YNAB): ${rh_checking_cash if rh_checking_cash is not None else 'n/a'}"
         + (f" | 30d spend ${rh_checking.get('spend_30d')}" if rh_checking.get("spend_30d") is not None else "")
+        + f" | X Money: ${x_money_cash if x_money_cash is not None else 'n/a'}"
+        + (f" ({x_money.get('account_name')})" if x_money.get("account_name") else "")
         + f" | RH brokerage BP: ${bp:.2f} cash: ${cash:.2f} equity: ${equity:.2f}",
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
@@ -839,6 +862,10 @@ def evaluate_treasury(
             "rh_checking_cash": rh_checking_cash,
             "rh_checking_account": rh_checking.get("account_name"),
             "rh_checking_spend_30d": rh_checking.get("spend_30d"),
+            "x_money_cash": x_money_cash,
+            "x_money_account": x_money.get("account_name"),
+            "x_money_spend_30d": x_money.get("spend_30d"),
+            "bank_cash": bank_cash if bank_cash_known else None,
             "bill_pay_cash": bill_pay_cash,
             "rh_equity": equity,
             "rh_total_value": total_value,

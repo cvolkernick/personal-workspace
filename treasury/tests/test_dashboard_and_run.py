@@ -26,6 +26,7 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("dueUrgency", html)
         self.assertIn("Brokerage", html)
         self.assertIn("Actual spend", html)
+        self.assertIn("X Money", html)
         self.assertIn("Capital targets", html)
         self.assertIn("Settings", html)
         self.assertIn("/api/refresh", html)

@@ -1,0 +1,58 @@
+{
+  "source": "ynab",
+  "as_of": "2026-07-21T10:30:18.599773+00:00",
+  "provider": "ynab",
+  "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+  "budget_name": "Chris's Plan",
+  "account_id": "cc4aa802-28b5-47bd-b8e4-fae703c98a93",
+  "account_name": "Checking \u2013 2201",
+  "account_type": "checking",
+  "direct_import_linked": true,
+  "direct_import_in_error": false,
+  "balance_raw": 22.76,
+  "cash": 22.76,
+  "available": 22.76,
+  "cleared_balance": 22.76,
+  "uncleared_balance": 0.0,
+  "spend_30d": 2.24,
+  "inflow_30d": 25.0,
+  "transaction_count": 3,
+  "transactions": [
+    {
+      "id": "783fcba3-df65-4470-9b1b-c85f11ea85ff",
+      "date": "2026-07-21",
+      "payee": "Coinbase",
+      "amount": -2.24,
+      "amount_display": -2.24,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "94fa0890-a3da-4b0e-b423-edf24b621cfb",
+      "date": "2026-07-21",
+      "payee": "Starting Balance",
+      "amount": 0.0,
+      "amount_display": 0.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": true,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "87b2dbb2-a65b-4096-b879-0a97ee341eb0",
+      "date": "2026-07-21",
+      "payee": "X Money Promotional Bonus Payment",
+      "amount": 25.0,
+      "amount_display": 25.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
+    }
+  ],
+  "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float.",
+  "token_source": "/Users/cvolkernick/.config/ynab/token",
+  "since": "2026-04-22"
+}

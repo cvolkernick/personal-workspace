@@ -14,8 +14,10 @@ from treasury.ynab_sync import (  # noqa: E402
     milli_to_units,
     normalize_one_card,
     normalize_rh_checking,
+    normalize_x_money,
     pick_one_card_account,
     pick_rh_checking_account,
+    pick_x_money_account,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
 
@@ -42,11 +44,24 @@ class TestPickAccount(unittest.TestCase):
     def test_prefers_rh_checking(self):
         accts = [
             {"name": "Coinbase One Card – 5361", "type": "creditCard", "deleted": False, "closed": False},
-            {"name": "RH Checking – 3646", "type": "checking", "deleted": False, "closed": False},
-            {"name": "Other Checking", "type": "checking", "deleted": False, "closed": False},
+            {"name": "RH Checking – 3646", "type": "checking", "deleted": False, "closed": False, "id": "rh"},
+            {"name": "Other Checking", "type": "checking", "deleted": False, "closed": False, "id": "xm"},
         ]
         a = pick_rh_checking_account(accts)
         self.assertEqual(a["name"], "RH Checking – 3646")
+
+    def test_prefers_x_money_or_leftover_checking(self):
+        accts = [
+            {"name": "RH Checking – 3646", "type": "checking", "deleted": False, "closed": False, "id": "rh"},
+            {"name": "Checking – 2201", "type": "checking", "deleted": False, "closed": False, "id": "xm"},
+        ]
+        a = pick_x_money_account(accts, exclude_ids={"rh"})
+        self.assertEqual(a["name"], "Checking – 2201")
+        named = [
+            {"name": "X Money", "type": "cash", "deleted": False, "closed": False, "id": "x1"},
+            {"name": "Checking – 2201", "type": "checking", "deleted": False, "closed": False, "id": "c1"},
+        ]
+        self.assertEqual(pick_x_money_account(named)["name"], "X Money")
 
 
 class TestNormalize(unittest.TestCase):
@@ -130,6 +145,21 @@ class TestNormalizeChecking(unittest.TestCase):
         self.assertAlmostEqual(snap["spend_30d"], 50.0)
         self.assertAlmostEqual(snap["inflow_30d"], 100.0)
 
+    def test_x_money_cash(self):
+        account = {
+            "id": "x1",
+            "name": "Checking – 2201",
+            "type": "checking",
+            "balance": 22760,
+            "balance_currency": 22.76,
+            "cleared_balance": 22760,
+            "uncleared_balance": 0,
+            "direct_import_linked": True,
+        }
+        snap = normalize_x_money(account, [], budget_id="b1", budget_name="Chris's Plan")
+        self.assertAlmostEqual(snap["cash"], 22.76)
+        self.assertEqual(snap["account_name"], "Checking – 2201")
+
 
 class TestPolicyUsesOneCard(unittest.TestCase):
     def test_card_from_one_card_snapshot(self):
@@ -149,6 +179,11 @@ class TestPolicyUsesOneCard(unittest.TestCase):
                 "cash": 2.43,
                 "account_name": "RH Checking – 3646",
             },
+            "x_money": {
+                "source": "ynab",
+                "cash": 22.76,
+                "account_name": "Checking – 2201",
+            },
             "robinhood": {
                 "buying_power": 2000,
                 "cash": 1000,
@@ -160,6 +195,8 @@ class TestPolicyUsesOneCard(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["card_balance"], 418.55)
         self.assertEqual(ev["inputs"]["card_source"], "ynab")
         self.assertAlmostEqual(ev["inputs"]["rh_checking_cash"], 2.43)
+        self.assertAlmostEqual(ev["inputs"]["x_money_cash"], 22.76)
+        self.assertAlmostEqual(ev["inputs"]["bank_cash"], 25.19)
         self.assertAlmostEqual(ev["inputs"]["bill_pay_cash"], 2.43)
         self.assertNotIn("card_balance", ev["data_quality"]["missing_manual_fields"])
         kinds = [a["kind"] for a in ev["actions"]]
