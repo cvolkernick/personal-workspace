@@ -270,8 +270,9 @@ def detect_runtime() -> dict[str, Any]:
         home = Path.home() / ".grok" / "bin" / "grok"
         if home.is_file() and os.access(home, os.X_OK):
             grok = str(home)
-    has_open = Path("/usr/bin/open").is_file()  # macOS Terminal launcher
     sysname = platform.system().lower()
+    # macOS only: /usr/bin/open launches Terminal.app (Linux may have an unrelated `open`)
+    has_open = sysname == "darwin" and Path("/usr/bin/open").is_file()
     return {
         "ok": True,
         "platform": sysname,
