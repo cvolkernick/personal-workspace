@@ -1,67 +1,62 @@
-# Agentic fund manager — live runbook
+# Agentic fund manager — operating model
 
-**Status:** `live_autopilot` (policy + MCP). Full multi-name deployment blocked until RH investor profile is complete.
+**Status:** `live_autopilot` · **Cadence:** ~**1× per day** (mid-session preferred) · **Not** day-trading.
 
-## One-time human step (required now)
+## Why rationale is logged
 
-Robinhood blocked trades after the **first** agentic order until the investment profile is filled:
+You want to **see how the team thinks**, spot mistakes, give feedback, and optionally tweet interesting decisions. Every decision should leave a trail:
 
-→ **[Complete investor profile for agentic account](https://applink.robinhood.com/investment_profile?account_number=674601752&context=second_trade)**  
-(Desktop recommended.)
+| Artifact | Path | Use |
+|----------|------|-----|
+| Structured log | `treasury/snapshots/fund_manager_decisions.jsonl` | Machine-readable audit |
+| Human journal | `investment/fund_manager_journal.md` | Readable history |
+| FCC panel | Brokerage → **Decision log / rationale** | Ongoing monitor |
 
-After that, tell the agent: *“profile done — finish fund manager deploy”* (or any new session with fund manager skill will resume).
+Each entry: summary, weights before, team votes, why now / why not alternatives, actions + order ids.
 
-## What is already live
+## Team (debate → single executor)
 
-| Piece | Location |
-|-------|----------|
-| Policy | `investment/fund_manager.json` (`live: true`, no trade approval) |
-| Thesis / allowlist | `investment/README.md`, `positions.md` |
-| Weights engine | `python3 treasury/fund_manager.py --write` |
-| RH dual snapshot | `treasury/rh_sync.py` + MCP |
-| FCC panel | Brokerage → Agentic fund manager |
-| Grok skill | `robinhood-agentic` |
-| MCP | `https://agent.robinhood.com/mcp/trading` |
+| Role | Orders? | Job |
+|------|---------|-----|
+| **Scout** | No | Book snapshot, weights, light market context |
+| **Thesis** | No | 40/60 + allowlist / themes |
+| **Risk** | No | Trade or not; size; capital bounds |
+| **Critic** | No | Challenge weak ideas; can block / cut size |
+| **Executor** | **Yes** | Only role that places/cancels on Robinhood MCP |
 
-## Autopilot rules (v1)
+**Quorum:** Risk OK + Thesis OK; Critic can force hold or size-down. Scout is advisory.
 
-1. Trade **only** agentic account `••••1752` / config `agentic_account_number`.
-2. **No** per-trade user confirmation.
-3. **No** max order notional — discretion within agentic capital.
-4. Targets: **~40%** BTC & digital credit · **~60%** stocks (of deployed equity).
-5. Risk budget = **money you deposit** into agentic.
-6. Kill switch = withdraw agentic funds / disconnect MCP.
+## Cadence (your preference)
 
-## Bootstrap deploy (2026-07-20 after hours)
+- **Once daily** active review is enough  
+- Prefer **mid-session** (e.g. ~12:30 America/New_York)  
+- **Avoid** first/last ~30 minutes of the session (open/close noise)  
+- **Not** momentum / swing / day-trading; no high-frequency mandate  
+- Missed day → next scheduled review (no catch-up spam)
 
-| Symbol | $ | Sleeve | Result |
-|--------|---|--------|--------|
-| MSTR | 1.65 | BTC-complex | **Queued** for next regular open (`order_id` `6a5e9611-…`) |
-| MARA | 1.65 | BTC-complex | Blocked — investor profile |
-| TSLA | 2.50 | Stocks | Blocked — investor profile |
-| SPCX | 2.40 | Stocks | Blocked — investor profile |
+Automation target: **Pi or always-on timer once/day in market hours** — not “when FCC loads.”
 
-Dollar market orders use `regular_hours` so they queue if placed after the close.
+## What it optimizes
 
-## Ongoing agent loop
+Modernized **40% BTC & digital credit** / **60% stocks** on the **agentic account only**.  
+Risk budget = deposits into agentic. No per-trade human approval; you monitor via the log.
+
+## Daily review loop (when automated or agent-run)
 
 ```text
-1. get_accounts / get_portfolio / get_equity_positions (agentic)
-2. rh_sync envelope → robinhood_latest.json
-3. python3 treasury/run_treasury.py --offline   # updates FCC + fund_manager_latest.json
-4. Read fund_manager analysis (weights, hints)
-5. If fair_game and live: rebalance / deploy via place_equity_order on agentic
-6. Log notable actions in investment/fund_manager_journal.md
+1. Scout: MCP portfolio + positions + weights (fund_manager.py)
+2. Thesis / Risk / Critic: debate → structured votes
+3. If quorum fails → HOLD + log rationale
+4. If quorum passes → Executor places/cancels + log full rationale
+5. Refresh FCC snapshot; owner reviews decision panel
 ```
 
-## After profile complete — finish deploy
+## Kill / feedback
 
-1. Confirm BP and no open errors.
-2. Place remaining sleeve buys (MARA + TSLA + SPCX or updated discretion) with `dollar_amount` + `type=market` + `regular_hours`.
-3. After fills: refresh snapshot; verify deployed weights ≈ 40/60.
-4. Resume discretionary active management (no weekly DCA).
+- Soft pause: `"live": false` in `investment/fund_manager.json`  
+- Hard stop: withdraw agentic capital / disconnect MCP  
+- Feedback: note wrong calls in journal, or tell the agent next session (“don’t do X”)
 
-## Kill / pause
+## Bootstrap history
 
-- Soft pause: set `"live": false` in `fund_manager.json`.
-- Hard stop: withdraw capital from agentic or disable MCP connector.
+See decision log + journal for MSTR then MARA/TSLA/SPCX deploy after investor-profile gate cleared.

@@ -12,6 +12,8 @@ if str(ROOT) not in sys.path:
 
 from treasury.fund_manager import (  # noqa: E402
     analyze_agentic_book,
+    append_decision,
+    load_decision_log,
     load_fund_policy,
     sleeve_for_symbol,
 )
@@ -28,6 +30,11 @@ class TestFundPolicy(unittest.TestCase):
         self.assertIn("BITA", p["sleeves"]["btc_digital_credit"]["symbols"])
         self.assertNotIn("BITA", p["sleeves"]["stocks_growth"]["symbols"])
         self.assertIn("TSLA", p["sleeves"]["stocks_growth"]["symbols"])
+        self.assertEqual(p["cadence"]["reviews_per_day"], 1)
+        self.assertTrue(p["team"]["enabled"])
+        self.assertTrue(p["rationale"]["required_on_every_decision"])
+        self.assertTrue(p["team"]["roles"]["executor"]["writes_orders"])
+        self.assertFalse(p["team"]["roles"]["critic"]["writes_orders"])
 
     def test_sleeve_tags(self):
         p = load_fund_policy()
@@ -35,6 +42,29 @@ class TestFundPolicy(unittest.TestCase):
         self.assertEqual(sleeve_for_symbol("mstr", p), "btc_digital_credit")
         self.assertEqual(sleeve_for_symbol("TSLA", p), "stocks_growth")
         self.assertEqual(sleeve_for_symbol("XYZ", p), "other")
+
+
+class TestDecisionLog(unittest.TestCase):
+    def test_append_and_load(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "dec.jsonl"
+            append_decision(
+                {
+                    "kind": "hold",
+                    "summary": "test hold",
+                    "rationale": {"why_now": "in band"},
+                    "team_votes": {"risk": {"vote": "ok", "note": "fine"}},
+                    "actions": [],
+                },
+                path=p,
+                also_journal=False,
+            )
+            rows = load_decision_log(path=p, limit=5)
+            self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0]["kind"], "hold")
 
 
 class TestAnalyze(unittest.TestCase):

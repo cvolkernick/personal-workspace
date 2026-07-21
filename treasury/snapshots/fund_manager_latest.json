@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-07-20T21:42:26.289075+00:00",
+  "as_of": "2026-07-21T20:46:21.227081+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-20T21:42:26.289021+00:00",
+    "as_of": "2026-07-21T20:46:21.226941+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -70,6 +70,137 @@
     "fair_game": true,
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion."
   },
+  "recent_decisions": [
+    {
+      "kind": "deploy",
+      "summary": "Complete bootstrap after investor profile cleared: MARA + TSLA + SPCX.",
+      "nav_usd": 8.39,
+      "buying_power_usd": 6.72,
+      "weights_before": {
+        "btc_digital_credit": 1.0,
+        "stocks_growth": 0.0
+      },
+      "weights_after_expected": {
+        "btc_digital_credit": 0.4,
+        "stocks_growth": 0.6
+      },
+      "rationale": {
+        "summary": "Profile gate lifted; finish 40/60 with miner + growth equities.",
+        "why_now": "Second-trade block cleared; residual BP available; not open/close scalp.",
+        "why_not_alternatives": "Skipped BITA (wide spreads earlier); preferred MARA for BTC-infra; TSLA/SPCX for stocks sleeve.",
+        "thesis_tags": [
+          "btc_infrastructure",
+          "growth_equity"
+        ]
+      },
+      "team_votes": {
+        "scout": {
+          "vote": "observe",
+          "note": "MSTR filled; BP ~$6.72"
+        },
+        "thesis": {
+          "vote": "ok",
+          "note": "Need stocks sleeve + more BTC-complex"
+        },
+        "risk": {
+          "vote": "ok",
+          "note": "Still within agentic capital"
+        },
+        "critic": {
+          "vote": "ok",
+          "note": "Accept concentration on 4 names at this size"
+        },
+        "executor": {
+          "vote": "execute",
+          "note": "MARA $1.65, TSLA $2.50, SPCX $2.40 market GFD"
+        }
+      },
+      "actions": [
+        {
+          "symbol": "MARA",
+          "side": "buy",
+          "notional_usd": 1.65,
+          "status": "filled",
+          "order_id": "6a5f8d2e-f5b3-442b-a37b-8ba3aab75119"
+        },
+        {
+          "symbol": "TSLA",
+          "side": "buy",
+          "notional_usd": 2.5,
+          "status": "filled",
+          "order_id": "6a5f8d3d-0021-44b7-be91-39c8ab3930dd"
+        },
+        {
+          "symbol": "SPCX",
+          "side": "buy",
+          "notional_usd": 2.4,
+          "status": "filled",
+          "order_id": "6a5f8d3d-cb9d-4b74-b78e-eb319db463f9"
+        }
+      ],
+      "as_of": "2026-07-21T15:16:13+00:00",
+      "schema_version": 1,
+      "account_scope": "agentic_only"
+    },
+    {
+      "kind": "deploy",
+      "summary": "Bootstrap agentic book toward modernized 40/60 (first order MSTR).",
+      "nav_usd": 8.37,
+      "buying_power_usd": 8.37,
+      "weights_before": {
+        "btc_digital_credit": null,
+        "stocks_growth": null
+      },
+      "weights_after_expected": {
+        "btc_digital_credit": 0.4,
+        "stocks_growth": 0.6
+      },
+      "rationale": {
+        "summary": "All-cash agentic book; seed BTC-complex and stocks sleeves with liquid core names.",
+        "why_now": "Go-live after policy + MCP wired; deploy idle cash once (not DCA cadence).",
+        "why_not_alternatives": "Avoided open/close scalp style; used small dollar markets on core allowlist only.",
+        "thesis_tags": [
+          "btc_digital_credit",
+          "stocks_growth",
+          "active_management"
+        ]
+      },
+      "team_votes": {
+        "scout": {
+          "vote": "observe",
+          "note": "NAV ~$8.37 all cash; BP live"
+        },
+        "thesis": {
+          "vote": "ok",
+          "note": "MSTR for digital credit; later MARA + TSLA/SPCX for 40/60"
+        },
+        "risk": {
+          "vote": "ok",
+          "note": "Risk bounded by agentic deposits only"
+        },
+        "critic": {
+          "vote": "ok",
+          "note": "Tiny book; diversification limited by size"
+        },
+        "executor": {
+          "vote": "execute",
+          "note": "Place MSTR $1.65; profile blocked further until cleared"
+        }
+      },
+      "actions": [
+        {
+          "symbol": "MSTR",
+          "side": "buy",
+          "notional_usd": 1.65,
+          "status": "filled",
+          "order_id": "6a5e9611-650f-4757-a331-ab2e010bc0a9"
+        }
+      ],
+      "as_of": "2026-07-20T21:41:37+00:00",
+      "schema_version": 1,
+      "account_scope": "agentic_only"
+    }
+  ],
   "policy_summary": {
     "live": true,
     "status": "live_autopilot",
@@ -83,6 +214,26 @@
       "cash_is_unallocated": true,
       "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
     },
+    "cadence": {
+      "reviews_per_day": 1,
+      "timezone": "America/New_York",
+      "preferred_window": "mid_session",
+      "preferred_local_time": "12:30",
+      "avoid": [
+        "market_open_first_30m",
+        "market_close_last_30m",
+        "intraday_momentum"
+      ],
+      "notes": "Once daily review is enough. Avoid open/close volatility; no HFT/swing/day-trading mandate. Missed day = next scheduled review, not catch-up spam."
+    },
+    "team_enabled": true,
+    "quorum": {
+      "require_risk_ok": true,
+      "require_thesis_ok": true,
+      "critic_can_block": true,
+      "notes": "Risk + Thesis must OK; Critic may force hold or size-down. Scout is advisory."
+    },
+    "rationale_required": true,
     "bootstrap_blocker": {
       "kind": "robinhood_investment_profile",
       "message": "Robinhood requires investment profile questionnaire before the second agentic trade.",

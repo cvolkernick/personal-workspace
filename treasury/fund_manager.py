@@ -27,6 +27,8 @@ from treasury.adapters import (  # noqa: E402
 
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
 FM_SNAPSHOT = SNAPSHOTS_DIR / "fund_manager_latest.json"
+DECISIONS_PATH = SNAPSHOTS_DIR / "fund_manager_decisions.jsonl"
+JOURNAL_PATH = ROOT / "investment" / "fund_manager_journal.md"
 
 
 def _now() -> str:
@@ -258,11 +260,126 @@ def analyze_agentic_book(
     }
 
 
+def write_fund_manager_snapshot(result: Dict[str, Any], path: Optional[Path] = None) -> Path:
+    out = path or FM_SNAPSHOT
+    save_json(out, result)
+    return out
+
+
+def load_decision_log(
+    path: Optional[Path] = None,
+    *,
+    limit: int = 30,
+) -> List[Dict[str, Any]]:
+    """Load recent fund-manager decisions (newest last in file → return newest first)."""
+    p = path or DECISIONS_PATH
+    if not p.is_file():
+        return []
+    rows: List[Dict[str, Any]] = []
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    except OSError:
+        return []
+    return list(reversed(rows[-limit:]))
+
+
+def append_decision(
+    decision: Dict[str, Any],
+    *,
+    path: Optional[Path] = None,
+    also_journal: bool = True,
+) -> Dict[str, Any]:
+    """Append one decision with rationale for human monitoring (JSONL + optional markdown).
+
+    Expected keys (flexible): as_of, kind (deploy|rebalance|hold|rotate|error),
+    summary, rationale {why_now, why_not_alternatives, thesis_tags},
+    team_votes {scout, thesis, risk, critic, executor},
+    actions [{symbol, side, notional_usd, status, order_id}],
+    weights_before, weights_after_expected, nav_usd, buying_power_usd.
+    """
+    p = path or DECISIONS_PATH
+    p.parent.mkdir(parents=True, exist_ok=True)
+    entry = dict(decision)
+    entry.setdefault("as_of", _now())
+    entry.setdefault("schema_version", 1)
+    entry.setdefault("account_scope", "agentic_only")
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+
+    if also_journal:
+        _append_journal_markdown(entry)
+
+    return entry
+
+
+def _append_journal_markdown(entry: Dict[str, Any]) -> None:
+    JOURNAL_PATH.parent.mkdir(parents=True, exist_ok=True)
+    if not JOURNAL_PATH.is_file():
+        JOURNAL_PATH.write_text("# Fund manager journal\n\n", encoding="utf-8")
+
+    rat = entry.get("rationale") or {}
+    if isinstance(rat, str):
+        rat = {"summary": rat}
+    votes = entry.get("team_votes") or {}
+    actions = entry.get("actions") or []
+    lines = [
+        f"\n## {entry.get('as_of', _now())[:19]} — {entry.get('kind', 'decision')}\n",
+        f"**Summary:** {entry.get('summary') or rat.get('summary') or '—'}\n",
+    ]
+    if entry.get("nav_usd") is not None:
+        lines.append(
+            f"**Book:** NAV ${entry.get('nav_usd')} · BP ${entry.get('buying_power_usd')}\n"
+        )
+    wb = entry.get("weights_before") or {}
+    if wb:
+        lines.append(
+            f"**Weights before (deployed):** BTC-complex {wb.get('btc_digital_credit')} · "
+            f"Stocks {wb.get('stocks_growth')}\n"
+        )
+    if rat.get("why_now"):
+        lines.append(f"**Why now:** {rat['why_now']}\n")
+    if rat.get("why_not_alternatives"):
+        lines.append(f"**Why not alternatives:** {rat['why_not_alternatives']}\n")
+    if votes:
+        lines.append("**Team:**\n")
+        for role in ("scout", "thesis", "risk", "critic", "executor"):
+            if role in votes:
+                v = votes[role]
+                if isinstance(v, dict):
+                    lines.append(
+                        f"- **{role}:** {v.get('vote', v.get('stance', '—'))} — {v.get('note', '')}\n"
+                    )
+                else:
+                    lines.append(f"- **{role}:** {v}\n")
+    if actions:
+        lines.append("**Actions:**\n")
+        for a in actions:
+            if isinstance(a, dict):
+                lines.append(
+                    f"- {a.get('side', '?').upper()} {a.get('symbol', '?')} "
+                    f"${a.get('notional_usd', a.get('dollar_amount', '?'))} "
+                    f"[{a.get('status', '?')}] {a.get('order_id') or ''}\n"
+                )
+            else:
+                lines.append(f"- {a}\n")
+    lines.append("\n")
+    with JOURNAL_PATH.open("a", encoding="utf-8") as f:
+        f.writelines(lines)
+
+
 def evaluate_fund_manager(
     *,
     rh_snapshot: Optional[Dict[str, Any]] = None,
     policy: Optional[Dict[str, Any]] = None,
     quotes: Optional[Dict[str, float]] = None,
+    decision_limit: int = 20,
 ) -> Dict[str, Any]:
     policy = policy or load_fund_policy()
     if rh_snapshot is None:
@@ -270,12 +387,17 @@ def evaluate_fund_manager(
     analysis = analyze_agentic_book(rh_snapshot, policy, quotes=quotes)
     cfg = load_config()
     agentic_acct = (cfg.get("robinhood") or {}).get("agentic_account_number")
+    decisions = load_decision_log(limit=decision_limit)
+    cadence = policy.get("cadence") or {}
+    team = policy.get("team") or {}
+    rationale_cfg = policy.get("rationale") or {}
     return {
         "ok": bool(analysis.get("ok")),
         "as_of": _now(),
         "agentic_account_number": agentic_acct,
         "policy_path": str(POLICY_PATH.relative_to(ROOT)),
         "analysis": analysis,
+        "recent_decisions": decisions,
         "policy_summary": {
             "live": bool(policy.get("live", False)),
             "status": policy.get("status"),
@@ -285,17 +407,15 @@ def evaluate_fund_manager(
             ),
             "scope": (policy.get("account") or {}).get("scope"),
             "targets": policy.get("targets"),
+            "cadence": cadence,
+            "team_enabled": bool(team.get("enabled")),
+            "quorum": team.get("quorum"),
+            "rationale_required": bool(rationale_cfg.get("required_on_every_decision", True)),
             "bootstrap_blocker": ((policy.get("bootstrap") or {}).get("initial_deploy") or {}).get(
                 "blocker"
             ),
         },
     }
-
-
-def write_fund_manager_snapshot(result: Dict[str, Any], path: Optional[Path] = None) -> Path:
-    out = path or FM_SNAPSHOT
-    save_json(out, result)
-    return out
 
 
 def main(argv: Optional[List[str]] = None) -> int:
