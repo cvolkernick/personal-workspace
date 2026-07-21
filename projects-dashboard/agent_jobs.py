@@ -339,6 +339,98 @@ def push_branch(branch: str, repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
     }
 
 
+def parse_pr_number(pr_url: Optional[str] = None, pr_number: Any = None) -> Optional[int]:
+    if pr_number is not None:
+        try:
+            return int(pr_number)
+        except (TypeError, ValueError):
+            pass
+    if not pr_url:
+        return None
+    m = re.search(r"/pull/(\d+)", str(pr_url))
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def fetch_pull_request(
+    *,
+    pr_url: Optional[str] = None,
+    pr_number: Any = None,
+    head: Optional[str] = None,
+    repo_slug: str = "cvolkernick/personal-workspace",
+) -> dict[str, Any]:
+    """Fetch PR state from GitHub (merged / open / closed)."""
+    token = github_token()
+    if not token:
+        return {"ok": False, "error": "GITHUB_TOKEN not set"}
+
+    num = parse_pr_number(pr_url, pr_number)
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "personal-workspace-scheduler",
+    }
+
+    def _get(url: str) -> dict[str, Any]:
+        req = urllib.request.Request(url, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            return {"ok": True, "data": data}
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")[:400]
+            return {"ok": False, "error": f"HTTP {e.code}: {body}"}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    if num:
+        out = _get(f"https://api.github.com/repos/{repo_slug}/pulls/{num}")
+        if not out.get("ok"):
+            return out
+        data = out["data"]
+        return {
+            "ok": True,
+            "number": data.get("number"),
+            "url": data.get("html_url"),
+            "state": data.get("state"),  # open | closed
+            "merged": bool(data.get("merged")),
+            "merged_at": data.get("merged_at"),
+            "title": data.get("title"),
+            "head": (data.get("head") or {}).get("ref"),
+            "base": (data.get("base") or {}).get("ref"),
+        }
+
+    # Fallback: find PR by head branch
+    if head:
+        owner = repo_slug.split("/")[0]
+        ref = head if ":" in head else f"{owner}:{head}"
+        out = _get(
+            f"https://api.github.com/repos/{repo_slug}/pulls"
+            f"?state=all&head={quote(ref, safe=':')}&per_page=5"
+        )
+        if not out.get("ok"):
+            return out
+        arr = out.get("data") or []
+        if not isinstance(arr, list) or not arr:
+            return {"ok": False, "error": f"no PR found for head {head}"}
+        data = arr[0]
+        return {
+            "ok": True,
+            "number": data.get("number"),
+            "url": data.get("html_url"),
+            "state": data.get("state"),
+            "merged": bool(data.get("merged")),
+            "merged_at": data.get("merged_at"),
+            "title": data.get("title"),
+            "head": (data.get("head") or {}).get("ref"),
+            "base": (data.get("base") or {}).get("ref"),
+        }
+
+    return {"ok": False, "error": "need pr_url, pr_number, or head branch"}
+
+
 def create_pull_request(
     *,
     title: str,

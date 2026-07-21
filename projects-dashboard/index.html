@@ -675,6 +675,9 @@
       if (loop.claim && loop.claim.claimed_count) {
         parts.push(loop.claim.message || `Auto-claimed ${loop.claim.claimed_count}`);
       }
+      const rec = loop.reconcile || {};
+      if (rec.merged) parts.push(`${rec.merged} PR(s) merged → done`);
+      if (rec.orphaned) parts.push(`cleared ${rec.orphaned} stale job(s)`);
       const newPrs = (sched && sched.new_prs_since_last_load) || [];
       if (newPrs.length) parts.push(`${newPrs.length} new PR(s) ready for review`);
       // Quiet: skip pure groom noise unless something actionable happened

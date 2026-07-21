@@ -1,12 +1,12 @@
 {
   "version": 1,
-  "updated_at": "2026-07-21T10:02:33.123554+00:00",
+  "updated_at": "2026-07-21T10:16:21.625651+00:00",
   "jobs": [
     {
       "id": "job-9e5ac3a399",
       "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
       "title": "Panamerica Auto Website",
-      "status": "running",
+      "status": "cancelled",
       "created_at": "2026-07-20T01:38:46.252406+00:00",
       "backend": "local",
       "schedule_slot": "this_week",
@@ -22,8 +22,10 @@
       "seed_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md",
       "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
       "launch_script": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.launch.sh",
-      "latest_report_id": "rpt-job-9e5ac3a399",
-      "updated_at": "2026-07-20T07:15:01.031181+00:00"
+      "latest_report_id": "rpt-job-9e5ac3a399-orphan",
+      "updated_at": "2026-07-21T10:16:21.604567+00:00",
+      "completed_at": "2026-07-21T10:16:21.604415+00:00",
+      "result": "orphaned: backlog returned to ready/idea (no live session)"
     }
   ]
 }

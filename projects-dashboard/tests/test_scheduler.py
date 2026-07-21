@@ -147,6 +147,58 @@ class TestScheduler(unittest.TestCase):
         self.assertTrue(plan.get("use_agent"))
         self.assertFalse(plan.get("should_spawn"))
 
+    def test_orphan_running_cleared_when_backlog_ready(self) -> None:
+        """Stale Terminal launch must not stay 'running' forever."""
+        sch.set_auto_start(self.bid, True)
+        jobs = {
+            "version": 1,
+            "jobs": [
+                {
+                    "id": "job-stale1",
+                    "backlog_id": self.bid,
+                    "title": "Auto job",
+                    "status": "running",
+                    "created_at": "2026-07-01T00:00:00+00:00",
+                    "launched_at": "2026-07-01T00:00:00+00:00",
+                }
+            ],
+        }
+        sch.save_jobs(jobs)
+        # backlog is ready (not planning) → orphan
+        out = sch.reconcile_jobs(save=True)
+        self.assertGreaterEqual(out.get("orphaned") or 0, 1)
+        self.assertEqual(sch.load_jobs()["jobs"][0]["status"], "cancelled")
+
+    def test_merged_pr_marks_job_and_backlog_done(self) -> None:
+        jobs = {
+            "version": 1,
+            "jobs": [
+                {
+                    "id": "job-pr1",
+                    "backlog_id": self.bid,
+                    "title": "Auto job",
+                    "status": "pr_ready",
+                    "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/99",
+                    "pr_number": 99,
+                    "created_at": "2026-07-20T00:00:00+00:00",
+                }
+            ],
+        }
+        sch.save_jobs(jobs)
+        with mock.patch("agent_jobs.fetch_pull_request") as fp:
+            fp.return_value = {
+                "ok": True,
+                "number": 99,
+                "url": "https://github.com/cvolkernick/personal-workspace/pull/99",
+                "state": "closed",
+                "merged": True,
+                "merged_at": "2026-07-21T12:00:00Z",
+            }
+            out = sch.reconcile_jobs(save=True)
+        self.assertEqual(out.get("merged"), 1)
+        self.assertEqual(sch.load_jobs()["jobs"][0]["status"], "completed")
+        self.assertEqual(bl.get_item(self.bid)["status"], "done")
+
     def test_claim_pending_opens_launch(self) -> None:
         sch.set_auto_start(self.bid, True)
         cfg = sch.load_config()

@@ -533,10 +533,18 @@ def uninstall_cron() -> dict[str, Any]:
 
 
 def _reconcile_completions(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Mark launched/running/pending jobs completed when backlog status is done/parked."""
+    """Sync job status from backlog + orphaned Terminal launches."""
     updated = []
+    active_like = (
+        "launched",
+        "running",
+        "queued",
+        "pending_terminal",
+        "agent_running",
+        "pr_ready",
+    )
     for job in jobs_data.get("jobs") or []:
-        if job.get("status") not in ("launched", "running", "queued", "pending_terminal"):
+        if job.get("status") not in active_like:
             continue
         bid = job.get("backlog_id")
         item = get_item(bid) if bid else None
@@ -573,7 +581,130 @@ def _reconcile_completions(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
             job["status"] = "running"
             job["updated_at"] = _now()
             updated.append(job)
+        elif (
+            job.get("status") in ("launched", "running", "pending_terminal")
+            and st in ("ready", "idea")
+            and not job.get("pr_url")
+        ):
+            # Terminal session was kicked off earlier but item is no longer planning —
+            # treat as orphaned so the dashboard stops showing phantom "in progress".
+            prior = job.get("status")
+            job["status"] = "cancelled"
+            job["completed_at"] = _now()
+            job["result"] = "orphaned: backlog returned to ready/idea (no live session)"
+            job["updated_at"] = _now()
+            report = {
+                "id": f"rpt-{job.get('id')}-orphan",
+                "job_id": job.get("id"),
+                "backlog_id": bid,
+                "title": job.get("title"),
+                "status": "cancelled",
+                "summary": (
+                    f"Cleared stale job for “{job.get('title')}” — backlog is {st}, "
+                    "not planning/active, and no PR is linked."
+                ),
+                "actions": [
+                    "Reconcile: orphaned Terminal/agent job",
+                    f"Prior job status was {prior}",
+                ],
+                "source": "scheduler-reconcile-orphan",
+            }
+            write_report(report)
+            job["latest_report_id"] = report["id"]
+            updated.append(job)
     return updated
+
+
+def _reconcile_merged_prs(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
+    """When a linked GitHub PR is merged, complete the job and mark backlog done."""
+    from agent_jobs import fetch_pull_request  # noqa: WPS433
+
+    updated: list[dict[str, Any]] = []
+    for job in jobs_data.get("jobs") or []:
+        if job.get("status") not in ("pr_ready", "launched", "running", "agent_running"):
+            continue
+        if not (job.get("pr_url") or job.get("pr_number") or job.get("branch")):
+            continue
+        pr = fetch_pull_request(
+            pr_url=job.get("pr_url"),
+            pr_number=job.get("pr_number"),
+            head=job.get("branch"),
+        )
+        if not pr.get("ok"):
+            job["pr_check_error"] = pr.get("error")
+            continue
+        job["pr_url"] = pr.get("url") or job.get("pr_url")
+        job["pr_number"] = pr.get("number") or job.get("pr_number")
+        job["pr_state"] = pr.get("state")
+        job["pr_merged"] = pr.get("merged")
+        if pr.get("merged"):
+            job["status"] = "completed"
+            job["completed_at"] = pr.get("merged_at") or _now()
+            job["result"] = f"PR #{pr.get('number')} merged"
+            job["updated_at"] = _now()
+            bid = job.get("backlog_id")
+            if bid:
+                update_item(
+                    str(bid),
+                    {
+                        "status": "done",
+                        "last_pr_url": pr.get("url"),
+                        "auto_start": False,
+                    },
+                )
+            report = {
+                "id": f"rpt-{job.get('id')}-merged",
+                "job_id": job.get("id"),
+                "backlog_id": bid,
+                "title": job.get("title"),
+                "status": "completed",
+                "summary": (
+                    f"PR merged for “{job.get('title')}”. "
+                    f"{pr.get('url')}. Backlog marked done."
+                ),
+                "actions": [
+                    f"Detected merge of PR #{pr.get('number')}",
+                    f"Merged at {pr.get('merged_at') or 'unknown'}",
+                    "Backlog status → done",
+                ],
+                "pr_url": pr.get("url"),
+                "source": "scheduler-pr-merge",
+            }
+            write_report(report)
+            job["latest_report_id"] = report["id"]
+            updated.append(job)
+        elif pr.get("state") == "closed" and not pr.get("merged"):
+            # Closed without merge — leave pr_ready but note it
+            job["pr_closed_unmerged"] = True
+            job["updated_at"] = _now()
+    return updated
+
+
+def reconcile_jobs(*, save: bool = True) -> dict[str, Any]:
+    """Run all job reconciliation (backlog + GitHub PR merge). Safe on dashboard load."""
+    jobs_data = load_jobs()
+    orphaned = _reconcile_completions(jobs_data)
+    merged = _reconcile_merged_prs(jobs_data)
+    if save and (orphaned or merged):
+        save_jobs(jobs_data)
+    return {
+        "ok": True,
+        "orphaned": len(orphaned),
+        "merged": len(merged),
+        "merged_jobs": [
+            {
+                "id": j.get("id"),
+                "title": j.get("title"),
+                "pr_url": j.get("pr_url"),
+            }
+            for j in merged
+        ],
+        "message": (
+            f"Reconciled: {len(merged)} PR merge(s), {len(orphaned)} orphan clear(s)"
+            if (merged or orphaned)
+            else "Nothing to reconcile"
+        ),
+    }
 
 
 def tick(*, force: bool = False) -> dict[str, Any]:
@@ -593,7 +724,10 @@ def tick(*, force: bool = False) -> dict[str, Any]:
 
     jobs_data = load_jobs()
     jobs = list(jobs_data.get("jobs") or [])
-    reconciled = _reconcile_completions(jobs_data)
+    recon = reconcile_jobs(save=True)
+    jobs_data = load_jobs()
+    jobs = list(jobs_data.get("jobs") or [])
+    reconciled = (recon.get("orphaned") or 0) + (recon.get("merged") or 0)
 
     max_conc = int(cfg.get("max_concurrent") or 1)
     max_tick = int(cfg.get("max_per_tick") or 1)
@@ -824,7 +958,8 @@ def tick(*, force: bool = False) -> dict[str, Any]:
         "pr_ready": pr_ready,
         "pr_ready_count": len(pr_ready),
         "errors": errors,
-        "reconciled": len(reconciled),
+        "reconciled": reconciled,
+        "reconcile": recon,
         "active_jobs": len(_active_jobs(jobs)),
         "eligible_remaining": len(_eligible_items(cfg, jobs)),
         "execution": exec_plan,
@@ -834,6 +969,7 @@ def tick(*, force: bool = False) -> dict[str, Any]:
             f"Tick: launched {len(launched)}, pending Terminal {len(pending)}, "
             f"PRs {len(pr_ready)}"
             + (f", errors {len(errors)}" if errors else "")
+            + (f", reconciled {reconciled}" if reconciled else "")
         ),
     }
     cfg["last_tick_at"] = result["ticked_at"]
@@ -1043,6 +1179,11 @@ def run_autonomous_loop(
             }
     if queue:
         out["queue"] = auto_queue_scheduled()
+    # Sync merged PRs → done + clear orphaned "running" jobs
+    try:
+        out["reconcile"] = reconcile_jobs(save=True)
+    except Exception as e:
+        out["reconcile"] = {"ok": False, "error": str(e)}
     # Auto-claim pending Terminal jobs when this host can open Grok (Mac dashboard)
     cfg = load_config()
     claim_out = None
@@ -1073,6 +1214,11 @@ def run_autonomous_loop(
         parts.append(q.get("message") or f"Queued {q['count']}")
     if claim_out and claim_out.get("claimed_count"):
         parts.append(claim_out.get("message") or f"Auto-claimed {claim_out['claimed_count']}")
+    rec = out.get("reconcile") or {}
+    if rec.get("merged"):
+        parts.append(f"{rec['merged']} PR(s) merged → done")
+    if rec.get("orphaned"):
+        parts.append(f"cleared {rec['orphaned']} stale job(s)")
     out["message"] = " · ".join(parts) if parts else "Autonomous loop idle"
     return out
 
