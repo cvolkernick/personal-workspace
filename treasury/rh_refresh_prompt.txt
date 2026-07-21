@@ -1,0 +1,11 @@
+Unattended Robinhood snapshot refresh for personal-workspace FCC (read-only trades NOT required).
+
+1. Use Robinhood MCP: get_accounts.
+2. get_portfolio + get_equity_positions for primary (config robinhood.account_number, e.g. 5QW39737) and agentic (agentic_account_number, e.g. 674601752).
+3. Build envelope JSON and run:
+   python3 treasury/rh_sync.py --stdin
+   with primary_portfolio/agentic_portfolio (wrap MCP data as {"data": ...}), accounts, primary_positions, agentic_positions, primary_account, agentic_account, source "live".
+4. python3 -m treasury.fund_manager --write
+5. python3 -m treasury.run_treasury --offline
+
+Do not place orders. End with one line: RH refreshed as_of=... primary_bp=... agentic_nav=...

@@ -1,0 +1,12 @@
+[Unit]
+Description=Refresh Robinhood dual snapshot for FCC
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/personal-workspace
+ExecStart=/home/pi/personal-workspace/treasury/rh_refresh.sh
+
+[Install]
+WantedBy=multi-user.target

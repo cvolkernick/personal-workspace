@@ -1,11 +1,11 @@
 {
   "source": "live",
-  "as_of": "2026-07-20T21:42:26.209057+00:00",
-  "total_value": 146.1761376878,
-  "equity_value": 146.0820916878,
-  "cash": 0.09,
-  "buying_power": 0.09,
-  "unleveraged_buying_power": null,
+  "as_of": "2026-07-21T21:30:20.723012+00:00",
+  "total_value": 151.1840787736,
+  "equity_value": 151.0800327736,
+  "cash": 0.1,
+  "buying_power": 0.1,
+  "unleveraged_buying_power": 0.1,
   "margin_use": null,
   "currency": "USD",
   "account_number": "5QW39737",
@@ -57,7 +57,7 @@
     {
       "symbol": "SATA",
       "quantity": "0.109230",
-      "average_buy_price": "92.560000",
+      "average_buy_price": "92.470000",
       "type": "long"
     },
     {
@@ -87,20 +87,44 @@
   ],
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-20T21:42:26.209053+00:00",
-    "total_value": 8.37,
-    "equity_value": 0.0,
-    "cash": 8.37,
-    "buying_power": 8.37,
-    "unleveraged_buying_power": null,
+    "as_of": "2026-07-21T21:30:20.723008+00:00",
+    "total_value": 8.231971798,
+    "equity_value": 8.061971798,
+    "cash": 0.17,
+    "buying_power": 0.17,
+    "unleveraged_buying_power": 0.17,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
     "nickname": "Agentic",
-    "positions": [],
-    "pending_deposits": 0
+    "positions": [
+      {
+        "symbol": "MSTR",
+        "quantity": "0.016286",
+        "average_buy_price": "101.310000",
+        "type": "long"
+      },
+      {
+        "symbol": "MARA",
+        "quantity": "0.131841",
+        "average_buy_price": "12.520000",
+        "type": "long"
+      },
+      {
+        "symbol": "TSLA",
+        "quantity": "0.006542",
+        "average_buy_price": "382.150000",
+        "type": "long"
+      },
+      {
+        "symbol": "SPCX",
+        "quantity": "0.018498",
+        "average_buy_price": "129.740000",
+        "type": "long"
+      }
+    ]
   },
   "accounts": [
     {
@@ -108,15 +132,14 @@
       "type": "margin",
       "is_default": true,
       "agentic_allowed": false,
-      "option_level": "option_level_2",
-      "nickname": null
+      "option_level": "option_level_2"
     },
     {
       "account_number": "674601752",
       "type": "cash",
       "is_default": false,
       "agentic_allowed": true,
-      "option_level": "",
+      "option_level": "option_level_2",
       "nickname": "Agentic"
     }
   ],
@@ -126,5 +149,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Autopilot live. MSTR $1.65 queued. Investor profile required before further agentic trades."
+  "notes": "Live MCP refresh dual-account for FCC freshness."
 }

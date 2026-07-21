@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install (macOS user launchd) — refresh RH every 3 hours:
+    cp treasury/deploy/com.personalworkspace.rh-refresh.plist ~/Library/LaunchAgents/
+    # Edit WorkingDirectory + ProgramArguments path if needed
+    launchctl load ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+
+  Unload:
+    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.rh-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/rh_refresh.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>StartInterval</key>
+  <integer>10800</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/rh_refresh_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/rh_refresh_launchd.err.log</string>
+</dict>
+</plist>

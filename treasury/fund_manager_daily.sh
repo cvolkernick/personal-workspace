@@ -51,6 +51,12 @@ if [[ ! -f "${PROMPT_FILE}" ]]; then
   exit 1
 fi
 
+# Fresh RH snapshot first (also kept green by rh_refresh.sh every 3h)
+if [[ -x "${ROOT}/treasury/rh_refresh.sh" ]]; then
+  echo "Pre-review RH refresh…"
+  bash "${ROOT}/treasury/rh_refresh.sh" || echo "WARN: rh_refresh failed"
+fi
+
 # Prefer grok headless when available (full team + MCP trades)
 if command -v grok >/dev/null 2>&1; then
   echo "Running grok headless daily review…"

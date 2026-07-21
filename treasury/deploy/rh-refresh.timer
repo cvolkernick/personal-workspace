@@ -1,0 +1,11 @@
+[Unit]
+Description=Robinhood snapshot refresh every 3h (FCC freshness)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=3h
+Persistent=true
+Unit=rh-refresh.service
+
+[Install]
+WantedBy=timers.target

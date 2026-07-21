@@ -743,6 +743,7 @@
       return (h / 24).toFixed(1) + "d ago";
     }
     function feedClass(src, asOf, staleH = 6) {
+      // RH is refreshed on a 3h schedule (agent/MCP); warn still at 6h.
       if (!src || src === "empty") return "bad";
       if (asOf) {
         const t = Date.parse(asOf);

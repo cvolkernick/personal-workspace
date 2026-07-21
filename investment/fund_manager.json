@@ -71,7 +71,10 @@
     "unattended": true,
     "kickoff": "scheduled",
     "runner": "treasury/fund_manager_daily.sh",
-    "notes": "Do not require manual session start or dashboard load. Prefer always-on host (e.g. Pi) systemd timer / cron once per trading day mid-session. Dashboard is observe-only glass box."
+    "rh_refresh_runner": "treasury/rh_refresh.sh",
+    "rh_refresh_interval_hours": 3,
+    "rh_stale_warn_hours": 6,
+    "notes": "Do not require manual session start or dashboard load. RH snapshot: every ~3h via rh_refresh.sh (launchd/cron/Pi) so FCC 'RH trade' stays green (<6h). Fund review: once/day mid-session. Dashboard is observe-only glass box."
   },
   "account": {
     "scope": "agentic_only",
