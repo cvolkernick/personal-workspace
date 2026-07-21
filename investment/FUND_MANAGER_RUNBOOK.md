@@ -39,20 +39,30 @@ Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 
 ## Unattended automation
 
+```text
+rh_refresh → rules review
+  ├─ HOLD (in band, low cash) → log, quiet (no ntfy, no LLM)
+  └─ need_llm (drift / deploy) → Grok team → Executor → ntfy
+```
+
 ```bash
-# Manual test from repo root
+# Rules only (cheap)
+python3 -m treasury.fund_manager --rules-review --notify
+
+# Full daily script
 ./treasury/fund_manager_daily.sh
 ```
 
-**Pi / always-on (preferred):**
+**Pi / always-on (preferred):** see `treasury/deploy/PI_SETUP.md`
+
 1. Clone/sync `personal-workspace` on the Pi  
-2. Ensure `grok` CLI + Robinhood MCP auth work headless  
-3. Install timer units from `treasury/deploy/` (edit paths/user)  
-   - `fund-manager.service` + `fund-manager.timer`  
-   - Or cron: `30 12 * * 1-5 /path/treasury/fund_manager_daily.sh` with `TZ=America/New_York`  
+2. `grok` CLI + Robinhood MCP auth headless  
+3. Enable `rh-refresh.timer` (~3h) + `fund-manager.timer` (weekdays ~12:30 ET)  
 4. Logs: `treasury/snapshots/fund_manager_daily_*.log`
 
-Dashboard load is **observe-only** — never the scheduler.
+**Notifications:** ntfy topic in `config.json` → `notifications.ntfy_topic`. Alerts on need_llm / error / stale RH only.
+
+Dashboard is **observe-only** — never the scheduler.
 
 ## Kill switches
 
