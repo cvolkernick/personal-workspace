@@ -7,6 +7,9 @@ Wants=network-online.target
 Type=oneshot
 WorkingDirectory=%h/personal-workspace
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace/projects-dashboard
+# Secrets (GITHUB_TOKEN) — create with chmod 600; never commit
+EnvironmentFile=-%h/.config/workflow-scheduler.env
 # Best-effort sync so ops/backlog matches remote before tick
 ExecStartPre=-/usr/bin/git -C %h/personal-workspace pull --rebase --autostash
 ExecStart=/usr/bin/python3 %h/personal-workspace/projects-dashboard/run_scheduler.py tick

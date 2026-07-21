@@ -503,28 +503,31 @@
       const seligible = sched.eligible || [];
       const sauto = sched.auto_start_items || [];
       const spending = sched.pending_terminal_jobs || [];
+      const sprs = sched.pr_ready_jobs || [];
+      const snewprs = sched.new_prs_since_last_load || sprs.filter((j) => j.is_new_since_load);
       const sruntime = sched.runtime || {};
       const sexec = sched.execution || {};
       const loop = data.auto_loop || {};
       const backend = scfg.backend || "local";
       const execMode = scfg.execution_mode || sexec.mode || "auto";
       $("scheduler").innerHTML = `
-        <div class="section-title">Autonomous work loop <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· enter → groom → schedule → kickoff → report</span></div>
+        <div class="section-title">Autonomous work loop <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· backlog → groom → schedule → agent/PR → review</span></div>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
             <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
-              On load: <strong>auto-groom</strong> + <strong>auto-queue</strong> ready items in now/this week.
-              Schedule authority: <strong>${esc(backend)}</strong>
-              ${backend === "raspi" ? "(Pi 24/7 timer)" : "(this machine cron — sleeps when laptop sleeps)"}.
-              Execution: <strong>${esc(execMode)}</strong>
-              ${!sruntime.has_grok ? " · Grok not on this host → jobs go <code>pending_terminal</code> until claimed here." : ""}.
+              On load: <strong>auto-groom</strong>, <strong>auto-queue</strong>, and <strong>auto-claim</strong> any
+              <code>pending_terminal</code> jobs (opens Terminal on this Mac).
+              Schedule: <strong>${esc(backend)}</strong>${backend === "raspi" ? " (Pi 24/7)" : ""}.
+              Exec: <strong>${esc(execMode)}</strong>
+              ${sexec.use_agent ? " · server agent builds branch + PR" : ""}.
               <br/><span class="id">${esc(sched.note || "")}
               ${sched.deploy_hint ? `<br/>${esc(sched.deploy_hint)}` : ""}
               <br/>Host: grok ${sruntime.has_grok ? "yes" : "no"} · Terminal ${sruntime.has_macos_terminal ? "yes" : "no"}
               · ${sexec.reason ? esc(sexec.reason) : ""}
               · scheduler ${scfg.enabled ? "enabled" : "disabled"}
-              · cron ${scron.installed ? "installed" : "not installed"}
-              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}</span>
+              · local cron ${scron.installed ? "on" : "off"}
+              ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}
+              ${loop.claim && loop.claim.claimed_count ? ` · auto-claimed ${esc(loop.claim.claimed_count)}` : ""}</span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end;align-items:center">
               <label class="id">Backend
@@ -536,14 +539,15 @@
               <label class="id">Exec
                 <select id="sched-exec" style="background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.35rem 0.5rem;margin-left:0.25rem">
                   <option value="auto"${execMode === "auto" ? " selected" : ""}>auto</option>
-                  <option value="queue"${execMode === "queue" ? " selected" : ""}>queue (Terminal claim)</option>
+                  <option value="agent"${execMode === "agent" ? " selected" : ""}>agent (Pi→PR)</option>
+                  <option value="queue"${execMode === "queue" ? " selected" : ""}>queue (Terminal)</option>
                   <option value="spawn"${execMode === "spawn" ? " selected" : ""}>spawn Grok</option>
                 </select>
               </label>
               <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
               <button type="button" id="btn-sched-cron">${scron.installed ? "Remove local cron" : "Install local cron"}</button>
               <button type="button" id="btn-sched-tick" class="btn-kick" title="Kick off next eligible job now">Run tick now</button>
-              <button type="button" id="btn-sched-claim" class="btn-accent" title="Open Terminal for pending_terminal jobs on this Mac">Launch pending on this Mac</button>
+              <button type="button" id="btn-sched-claim" title="Manual fallback — pending also auto-claims on dashboard load">Claim pending now</button>
             </div>
           </div>
           <div class="detail" style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem">
@@ -564,8 +568,25 @@
                 <div><button type="button" class="btn-bl-auto-off" data-id="${esc(a.id)}">Unqueue</button></div>
               </div>`).join("")}
           ` : `<div class="empty" style="padding:0.65rem">Nothing auto-queued — add backlog items or wait for auto-groom.</div>`}
+          ${(snewprs.length || sprs.length) ? `
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">PRs ready for review ${snewprs.length ? `(${snewprs.length} new since last load)` : ""}</h3>
+            ${(snewprs.length ? snewprs : sprs).slice(0, 10).map((j) => `
+              <div class="sess">
+                <div><span class="pill ${j.is_new_since_load === false ? "muted" : "clean"}">${j.is_new_since_load === false ? "pr" : "new pr"}</span></div>
+                <div>
+                  <div class="title">${esc(j.title)}</div>
+                  <div class="id">${esc(j.branch || "")} · ${esc(j.id)}
+                    ${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank" rel="noopener">open PR #${esc(j.pr_number || "")}</a>` : ""}
+                  </div>
+                </div>
+                <div>
+                  ${j.pr_url ? `<a class="btn-kick" style="display:inline-block;padding:0.35rem 0.65rem;text-decoration:none;border:1px solid var(--border);border-radius:8px" href="${esc(j.pr_url)}" target="_blank" rel="noopener">Review</a>` : ""}
+                  <button type="button" class="btn-job-complete" data-id="${esc(j.id)}" title="Mark job done after you merge">Done</button>
+                </div>
+              </div>`).join("")}
+          ` : `<div class="empty" style="padding:0.55rem;margin-top:0.5rem">No agent PRs waiting — Pi ticks open PRs when Grok+token are configured.</div>`}
           ${spending.length ? `
-            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Pending Terminal claim (Pi prepared / no local Grok)</h3>
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Pending Terminal (auto-claims on load)</h3>
             ${spending.map((j) => `
               <div class="sess">
                 <div><span class="pill dirty">pending</span></div>
@@ -573,23 +594,26 @@
                   <div class="title">${esc(j.title)}</div>
                   <div class="id">${esc(j.id)} · ${esc(j.launch_script || j.claim_hint || "")}</div>
                 </div>
-                <div><button type="button" class="btn-job-claim btn-accent" data-id="${esc(j.id)}">Launch</button></div>
+                <div><button type="button" class="btn-job-claim" data-id="${esc(j.id)}">Claim now</button></div>
               </div>`).join("")}
           ` : ""}
           <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
           ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet — enable loop + Run tick (or Pi timer).</div>` :
             sjobs.slice(0, 8).map((j) => `
               <div class="sess">
-                <div><span class="pill ${j.status === "completed" ? "clean" : j.status === "failed" ? "dirty" : j.status === "pending_terminal" ? "dirty" : "session"}">${esc(j.status)}</span></div>
+                <div><span class="pill ${j.status === "completed" || j.status === "pr_ready" ? "clean" : j.status === "failed" ? "dirty" : j.status === "pending_terminal" ? "dirty" : "session"}">${esc(j.status)}</span></div>
                 <div>
                   <div class="title">${esc(j.title)}</div>
-                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.launched_at || j.pending_at || j.created_at))}${j.error ? ` · ${esc(j.error)}` : ""}</div>
+                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.pr_ready_at || j.launched_at || j.pending_at || j.created_at))}${j.pr_url ? ` · <a href="${esc(j.pr_url)}" target="_blank">PR</a>` : ""}${j.error ? ` · ${esc(j.error)}` : ""}</div>
                 </div>
                 <div>
                   ${j.status === "pending_terminal"
-                    ? `<button type="button" class="btn-job-claim btn-accent" data-id="${esc(j.id)}">Launch</button>`
+                    ? `<button type="button" class="btn-job-claim" data-id="${esc(j.id)}">Claim</button>`
                     : ""}
-                  ${j.status === "launched" || j.status === "running"
+                  ${j.status === "pr_ready" && j.pr_url
+                    ? `<a href="${esc(j.pr_url)}" target="_blank" rel="noopener" style="font-size:0.8rem">Review PR</a>`
+                    : ""}
+                  ${j.status === "launched" || j.status === "running" || j.status === "pr_ready"
                     ? `<button type="button" class="btn-job-complete" data-id="${esc(j.id)}">Mark complete</button>`
                     : ""}
                 </div>

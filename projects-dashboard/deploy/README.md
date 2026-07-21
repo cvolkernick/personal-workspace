@@ -46,13 +46,32 @@ bash projects-dashboard/deploy/install_remote.sh pi@YOUR_PI_IP
 
 Keep local Mac cron **disabled** (or uninstall) so only the Pi ticks.
 
-## Option B — Install Grok Build on the Pi
+## Option B — Full agent on Pi (branch → work → push → PR)
 
-If Grok Build supports your Pi architecture (check current install docs for Linux aarch64):
+When the Pi has **Grok Build** + **GITHUB_TOKEN**, ticks run the unattended agent pipeline:
+
+1. `git pull` master  
+2. Create `work/auto/<slug>-<id>`  
+3. Headless `grok --single --always-approve` against the backlog prompt  
+4. Commit + push  
+5. Open a GitHub PR  
+6. Job status becomes **`pr_ready`** — shown on the Mac dashboard for review  
+
+```bash
+# On Pi (chmod 600; never commit):
+mkdir -p ~/.config
+echo 'GITHUB_TOKEN=ghp_...' > ~/.config/workflow-scheduler.env
+chmod 600 ~/.config/workflow-scheduler.env
+# Install Grok Build for linux aarch64 per xAI docs into ~/.grok/bin/grok
+```
+
+Without Grok, the agent step falls back to **`pending_terminal`**, which the Mac dashboard **auto-claims** on load (opens Terminal).
+
+## Option C — Install Grok only for interactive spawn
 
 1. Install Grok CLI on the Pi under `~/.grok/bin/grok`.
 2. Set `"execution_mode": "spawn"` and optionally `"prefer_headless_spawn": true`.
-3. Note: interactive `/goal` without a real TTY is limited — prefer Option A for full Terminal UX.
+3. Interactive `/goal` is still better on a Mac Terminal — prefer B or A for review UX.
 
 ## Deploy script
 

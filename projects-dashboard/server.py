@@ -48,6 +48,7 @@ from scheduler import (  # noqa: E402
     complete_job,
     install_cron,
     load_config,
+    mark_dashboard_load,
     run_autonomous_loop,
     save_config,
     scheduler_payload,
@@ -150,6 +151,11 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 except Exception as se:
                     payload["scheduler"] = {"ok": False, "error": str(se)}
                 payload["auto_loop"] = loop_meta
+                # Stamp load *after* PR "new since last load" is computed
+                try:
+                    payload["dashboard_load"] = mark_dashboard_load()
+                except Exception:
+                    payload["dashboard_load"] = {"ok": False}
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
@@ -342,6 +348,9 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                         "eligible_slots",
                         "require_auto_start",
                         "auto_queue_scheduled",
+                        "auto_claim_on_load",
+                        "auto_claim_max",
+                        "prefer_agent_on_server",
                         "spawn_grok",
                         "prefer_headless_spawn",
                         "execution_mode",

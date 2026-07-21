@@ -15,6 +15,9 @@
   ],
   "require_auto_start": true,
   "auto_queue_scheduled": true,
+  "auto_claim_on_load": true,
+  "auto_claim_max": 1,
+  "prefer_agent_on_server": true,
   "spawn_grok": true,
   "install_marker": "projects-dashboard-scheduler",
   "raspi_ssh": "prism-agent@192.168.100.98",
@@ -28,7 +31,8 @@
     "execution_mode": "auto",
     "execution_reason": "auto: macOS Terminal + grok"
   },
-  "updated_at": "2026-07-21T09:23:21.253290+00:00",
+  "last_dashboard_load_at": null,
+  "updated_at": "2026-07-21T09:35:33.133728+00:00",
   "cron_installed_at": "2026-07-19T21:07:04.507269+00:00",
   "cron_uninstalled_at": "2026-07-21T09:23:10.938892+00:00"
 }

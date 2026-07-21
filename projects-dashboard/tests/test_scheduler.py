@@ -139,6 +139,14 @@ class TestScheduler(unittest.TestCase):
         self.assertEqual(out["job"]["status"], "completed")
         self.assertEqual(bl.get_item(self.bid)["status"], "done")
 
+    def test_resolve_agent_mode_on_linux_like(self) -> None:
+        cfg = sch.load_config()
+        cfg["execution_mode"] = "agent"
+        sch.save_config(cfg)
+        plan = sch.resolve_execution_mode()
+        self.assertTrue(plan.get("use_agent"))
+        self.assertFalse(plan.get("should_spawn"))
+
     def test_claim_pending_opens_launch(self) -> None:
         sch.set_auto_start(self.bid, True)
         cfg = sch.load_config()
