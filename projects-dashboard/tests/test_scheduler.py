@@ -63,7 +63,8 @@ class TestScheduler(unittest.TestCase):
         # Don't open Terminal in tests
         cfg = sch.load_config()
         cfg["enabled"] = True
-        cfg["spawn_grok"] = False
+        cfg["execution_mode"] = "spawn"
+        cfg["spawn_grok"] = True
         sch.save_config(cfg)
 
         with mock.patch.object(sch, "initiate_item") as init:
@@ -73,7 +74,7 @@ class TestScheduler(unittest.TestCase):
                 "prompt_path": "ops/backlog/seeds/x.prompt.txt",
                 "launch_script": "ops/backlog/seeds/x.launch.sh",
                 "goal_objective": "do it",
-                "spawn": {"ok": True, "method": "test"},
+                "spawn": {"attempted": True, "ok": True, "method": "test"},
             }
             result = sch.tick(force=True)
         self.assertTrue(result["ok"])
@@ -84,6 +85,28 @@ class TestScheduler(unittest.TestCase):
         # auto_start cleared
         item2 = bl.get_item(self.bid)
         self.assertFalse(item2.get("auto_start"))
+
+    def test_tick_queue_mode_pending_terminal(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertEqual(result.get("pending_terminal_count"), 1)
+        self.assertEqual(result.get("launched_count"), 0)
+        self.assertEqual(sch.load_jobs()["jobs"][-1]["status"], "pending_terminal")
+        init.assert_called()
+        self.assertFalse(init.call_args.kwargs.get("try_spawn_grok"))
 
     def test_disabled_skips_without_force(self) -> None:
         sch.set_auto_start(self.bid, True)
@@ -97,7 +120,8 @@ class TestScheduler(unittest.TestCase):
         sch.set_auto_start(self.bid, True)
         cfg = sch.load_config()
         cfg["enabled"] = True
-        cfg["spawn_grok"] = False
+        cfg["execution_mode"] = "spawn"
+        cfg["spawn_grok"] = True
         sch.save_config(cfg)
         with mock.patch.object(sch, "initiate_item") as init:
             init.return_value = {
@@ -106,7 +130,7 @@ class TestScheduler(unittest.TestCase):
                 "prompt_path": "p",
                 "launch_script": "l",
                 "goal_objective": "g",
-                "spawn": {},
+                "spawn": {"attempted": True, "ok": True, "method": "test"},
             }
             sch.tick(force=True)
         job_id = sch.load_jobs()["jobs"][-1]["id"]
@@ -114,6 +138,36 @@ class TestScheduler(unittest.TestCase):
         self.assertTrue(out["ok"])
         self.assertEqual(out["job"]["status"], "completed")
         self.assertEqual(bl.get_item(self.bid)["status"], "done")
+
+    def test_claim_pending_opens_launch(self) -> None:
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        launch_rel = "ops/backlog/seeds/claim-test.launch.sh"
+        launch_path = self.backlog / "seeds" / "claim-test.launch.sh"
+        launch_path.parent.mkdir(parents=True, exist_ok=True)
+        launch_path.write_text("#!/bin/bash\necho ok\n", encoding="utf-8")
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": launch_rel,
+                "goal_objective": "g",
+                "spawn": {"attempted": False},
+            }
+            sch.tick(force=True)
+        with mock.patch.object(sch, "detect_runtime", return_value={
+            "has_grok": True,
+            "has_macos_terminal": True,
+            "can_spawn_terminal": True,
+        }), mock.patch.object(sch.subprocess, "run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="", stderr="")
+            out = sch.claim_pending_jobs(max_jobs=1)
+        self.assertEqual(out["claimed_count"], 1)
+        self.assertEqual(sch.load_jobs()["jobs"][-1]["status"], "launched")
 
     def test_auto_queue_scheduled(self) -> None:
         cfg = sch.load_config()

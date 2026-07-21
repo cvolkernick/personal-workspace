@@ -1,0 +1,15 @@
+[Unit]
+Description=Workflow Management dashboard (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 %h/personal-workspace/projects-dashboard/server.py --port 8765 --bind 0.0.0.0 --no-browser
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

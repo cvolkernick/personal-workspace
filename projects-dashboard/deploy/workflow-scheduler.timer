@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Workflow Management scheduler every 15 minutes
+Requires=workflow-scheduler.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=workflow-scheduler.service
+
+[Install]
+WantedBy=timers.target

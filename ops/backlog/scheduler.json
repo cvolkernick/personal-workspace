@@ -2,6 +2,7 @@
   "version": 1,
   "enabled": true,
   "backend": "local",
+  "execution_mode": "auto",
   "cron_expression": "*/15 * * * *",
   "max_per_tick": 1,
   "max_concurrent": 1,
@@ -16,12 +17,17 @@
   "auto_queue_scheduled": true,
   "spawn_grok": true,
   "install_marker": "projects-dashboard-scheduler",
-  "last_tick_at": "2026-07-21T09:00:00.978500+00:00",
+  "raspi_ssh": "",
+  "raspi_dir": "",
+  "last_tick_at": "2026-07-21T09:15:00.904436+00:00",
   "last_tick_result": {
     "launched_count": 0,
+    "pending_terminal_count": 0,
     "errors": 0,
-    "reconciled": 0
+    "reconciled": 0,
+    "execution_mode": "auto",
+    "execution_reason": "auto: macOS Terminal + grok"
   },
-  "updated_at": "2026-07-21T09:00:00.981557+00:00",
+  "updated_at": "2026-07-21T09:15:00.928077+00:00",
   "cron_installed_at": "2026-07-19T21:07:04.507269+00:00"
 }

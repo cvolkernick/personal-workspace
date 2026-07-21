@@ -1,0 +1,19 @@
+[Unit]
+Description=Workflow Management scheduler tick (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+# Best-effort sync so ops/backlog matches remote before tick
+ExecStartPre=-/usr/bin/git -C %h/personal-workspace pull --rebase --autostash
+ExecStart=/usr/bin/python3 %h/personal-workspace/projects-dashboard/run_scheduler.py tick
+# Optional: push job/report updates after tick (non-fatal)
+ExecStartPost=-/usr/bin/git -C %h/personal-workspace add ops/backlog
+ExecStartPost=-/bin/bash -c 'cd %h/personal-workspace && git diff --cached --quiet || git commit -m "scheduler: tick results (raspi)"'
+ExecStartPost=-/usr/bin/git -C %h/personal-workspace push
+
+[Install]
+WantedBy=default.target

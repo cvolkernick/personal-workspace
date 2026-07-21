@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
-"""CLI entry for local workflow scheduler (cron-friendly).
+"""CLI entry for workflow scheduler (cron / systemd / dashboard).
 
 Usage:
   python3 projects-dashboard/run_scheduler.py tick
   python3 projects-dashboard/run_scheduler.py tick --force
   python3 projects-dashboard/run_scheduler.py status
+  python3 projects-dashboard/run_scheduler.py claim
+  python3 projects-dashboard/run_scheduler.py claim --all
   python3 projects-dashboard/run_scheduler.py install-cron
   python3 projects-dashboard/run_scheduler.py uninstall-cron
   python3 projects-dashboard/run_scheduler.py enable
   python3 projects-dashboard/run_scheduler.py disable
+  python3 projects-dashboard/run_scheduler.py runtime
 """
 
 from __future__ import annotations
@@ -25,8 +28,11 @@ if str(WS) not in sys.path:
     sys.path.insert(0, str(WS))
 
 from scheduler import (  # noqa: E402
+    claim_pending_jobs,
+    detect_runtime,
     install_cron,
     load_config,
+    resolve_execution_mode,
     save_config,
     scheduler_payload,
     tick,
@@ -43,6 +49,23 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if cmd == "status":
         print(json.dumps(scheduler_payload(), indent=2))
+        return 0
+    if cmd == "runtime":
+        print(json.dumps(resolve_execution_mode(), indent=2))
+        return 0
+    if cmd == "claim":
+        max_jobs = 99 if "--all" in argv else 1
+        jid = None
+        if "--job" in argv:
+            i = argv.index("--job")
+            if i + 1 < len(argv):
+                jid = argv[i + 1]
+        print(
+            json.dumps(
+                claim_pending_jobs(max_jobs=max_jobs, job_id=jid),
+                indent=2,
+            )
+        )
         return 0
     if cmd == "install-cron":
         print(json.dumps(install_cron(), indent=2))

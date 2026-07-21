@@ -44,6 +44,7 @@ from recommendations import (  # noqa: E402
     generate_recommendations,
 )
 from scheduler import (  # noqa: E402
+    claim_pending_jobs,
     complete_job,
     install_cron,
     load_config,
@@ -342,7 +343,11 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                         "require_auto_start",
                         "auto_queue_scheduled",
                         "spawn_grok",
+                        "prefer_headless_spawn",
+                        "execution_mode",
                         "backend",
+                        "raspi_ssh",
+                        "raspi_dir",
                     ):
                         cfg[k] = v
                 self._json(200, {"ok": True, "config": save_config(cfg)})
@@ -350,6 +355,14 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
             if path == "/api/scheduler/tick":
                 result = tick(force=bool(body.get("force", True)))
+                self._json(200 if result.get("ok") else 500, result)
+                return
+
+            if path == "/api/scheduler/claim":
+                result = claim_pending_jobs(
+                    max_jobs=int(body.get("max_jobs") or 1),
+                    job_id=body.get("job_id"),
+                )
                 self._json(200 if result.get("ok") else 500, result)
                 return
 

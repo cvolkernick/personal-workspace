@@ -502,31 +502,55 @@
       const sreports = sched.reports || [];
       const seligible = sched.eligible || [];
       const sauto = sched.auto_start_items || [];
+      const spending = sched.pending_terminal_jobs || [];
+      const sruntime = sched.runtime || {};
+      const sexec = sched.execution || {};
       const loop = data.auto_loop || {};
+      const backend = scfg.backend || "local";
+      const execMode = scfg.execution_mode || sexec.mode || "auto";
       $("scheduler").innerHTML = `
         <div class="section-title">Autonomous work loop <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· enter → groom → schedule → kickoff → report</span></div>
         <div class="card">
           <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.55rem">
             <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
-              On every dashboard load the backlog is <strong>auto-groomed</strong> (rank + schedule) and
-              <strong>ready</strong> items in <strong>now / this week</strong> are <strong>auto-queued</strong> for kickoff.
-              Cron (or <strong>Run tick now</strong>) runs <code>initiate goal</code> and writes status reports.
-              Override per card with <strong>Auto-start</strong> / Unqueue below.
-              <br/><span class="id">Backend: ${esc(scfg.backend || "local")} · cron ${scron.installed ? "installed" : "not installed"} · scheduler ${scfg.enabled ? "enabled" : "disabled"}
-              · auto-queue ${scfg.auto_queue_scheduled !== false ? "on" : "off"}
+              On load: <strong>auto-groom</strong> + <strong>auto-queue</strong> ready items in now/this week.
+              Schedule authority: <strong>${esc(backend)}</strong>
+              ${backend === "raspi" ? "(Pi 24/7 timer)" : "(this machine cron — sleeps when laptop sleeps)"}.
+              Execution: <strong>${esc(execMode)}</strong>
+              ${!sruntime.has_grok ? " · Grok not on this host → jobs go <code>pending_terminal</code> until claimed here." : ""}.
+              <br/><span class="id">${esc(sched.note || "")}
+              ${sched.deploy_hint ? `<br/>${esc(sched.deploy_hint)}` : ""}
+              <br/>Host: grok ${sruntime.has_grok ? "yes" : "no"} · Terminal ${sruntime.has_macos_terminal ? "yes" : "no"}
+              · ${sexec.reason ? esc(sexec.reason) : ""}
+              · scheduler ${scfg.enabled ? "enabled" : "disabled"}
+              · cron ${scron.installed ? "installed" : "not installed"}
               ${scfg.last_tick_at ? ` · last tick ${esc(fmtWhen(scfg.last_tick_at))}` : ""}</span>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end">
+            <div style="display:flex;flex-wrap:wrap;gap:0.35rem;justify-content:flex-end;align-items:center">
+              <label class="id">Backend
+                <select id="sched-backend" style="background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.35rem 0.5rem;margin-left:0.25rem">
+                  <option value="local"${backend === "local" ? " selected" : ""}>local (Mac cron)</option>
+                  <option value="raspi"${backend === "raspi" ? " selected" : ""}>raspi (24/7 Pi)</option>
+                </select>
+              </label>
+              <label class="id">Exec
+                <select id="sched-exec" style="background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.35rem 0.5rem;margin-left:0.25rem">
+                  <option value="auto"${execMode === "auto" ? " selected" : ""}>auto</option>
+                  <option value="queue"${execMode === "queue" ? " selected" : ""}>queue (Terminal claim)</option>
+                  <option value="spawn"${execMode === "spawn" ? " selected" : ""}>spawn Grok</option>
+                </select>
+              </label>
               <button type="button" id="btn-sched-enable">${scfg.enabled ? "Disable loop" : "Enable loop"}</button>
-              <button type="button" id="btn-sched-cron">${scron.installed ? "Remove cron" : "Install cron"}</button>
-              <button type="button" id="btn-sched-tick" class="btn-kick" title="Kick off next eligible queued job now">Run tick now</button>
+              <button type="button" id="btn-sched-cron">${scron.installed ? "Remove local cron" : "Install local cron"}</button>
+              <button type="button" id="btn-sched-tick" class="btn-kick" title="Kick off next eligible job now">Run tick now</button>
+              <button type="button" id="btn-sched-claim" class="btn-accent" title="Open Terminal for pending_terminal jobs on this Mac">Launch pending on this Mac</button>
             </div>
           </div>
           <div class="detail" style="color:var(--muted);font-size:0.82rem;margin-bottom:0.5rem">
-            Cron: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
+            Schedule: <code>${esc(scfg.cron_expression || "*/15 * * * *")}</code>
             · max ${esc(scfg.max_per_tick ?? 1)}/tick · concurrent ${esc(scfg.max_concurrent ?? 1)}
             · slots: ${(scfg.eligible_slots || []).map((s) => esc(s)).join(", ") || "now, this_week"}
-            · ${sauto.length} queued · ${seligible.length} eligible for next tick
+            · ${sauto.length} auto-queued · ${seligible.length} eligible · ${spending.length} pending Terminal
           </div>
           ${sauto.length ? `
             <h3 style="margin:0.35rem 0;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Queued for kickoff</h3>
@@ -539,17 +563,32 @@
                 </div>
                 <div><button type="button" class="btn-bl-auto-off" data-id="${esc(a.id)}">Unqueue</button></div>
               </div>`).join("")}
-          ` : `<div class="empty" style="padding:0.65rem">Nothing queued yet — add backlog items, wait for auto-groom, or press Auto-start on a card.</div>`}
-          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
-          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet — enable loop + Run tick now (or wait for cron).</div>` :
-            sjobs.slice(0, 8).map((j) => `
+          ` : `<div class="empty" style="padding:0.65rem">Nothing auto-queued — add backlog items or wait for auto-groom.</div>`}
+          ${spending.length ? `
+            <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Pending Terminal claim (Pi prepared / no local Grok)</h3>
+            ${spending.map((j) => `
               <div class="sess">
-                <div><span class="pill ${j.status === "completed" ? "clean" : j.status === "failed" ? "dirty" : "session"}">${esc(j.status)}</span></div>
+                <div><span class="pill dirty">pending</span></div>
                 <div>
                   <div class="title">${esc(j.title)}</div>
-                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.launched_at || j.created_at))}${j.error ? ` · ${esc(j.error)}` : ""}</div>
+                  <div class="id">${esc(j.id)} · ${esc(j.launch_script || j.claim_hint || "")}</div>
+                </div>
+                <div><button type="button" class="btn-job-claim btn-accent" data-id="${esc(j.id)}">Launch</button></div>
+              </div>`).join("")}
+          ` : ""}
+          <h3 style="margin:0.85rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Jobs</h3>
+          ${!sjobs.length ? `<div class="empty" style="padding:0.55rem">No jobs yet — enable loop + Run tick (or Pi timer).</div>` :
+            sjobs.slice(0, 8).map((j) => `
+              <div class="sess">
+                <div><span class="pill ${j.status === "completed" ? "clean" : j.status === "failed" ? "dirty" : j.status === "pending_terminal" ? "dirty" : "session"}">${esc(j.status)}</span></div>
+                <div>
+                  <div class="title">${esc(j.title)}</div>
+                  <div class="id">${esc(j.id)} · ${esc(fmtWhen(j.launched_at || j.pending_at || j.created_at))}${j.error ? ` · ${esc(j.error)}` : ""}</div>
                 </div>
                 <div>
+                  ${j.status === "pending_terminal"
+                    ? `<button type="button" class="btn-job-claim btn-accent" data-id="${esc(j.id)}">Launch</button>`
+                    : ""}
                   ${j.status === "launched" || j.status === "running"
                     ? `<button type="button" class="btn-job-complete" data-id="${esc(j.id)}">Mark complete</button>`
                     : ""}
@@ -1053,10 +1092,16 @@
             msg += ` · ${data.changes.length} hygiene change(s)`;
           }
         }
-        if (data.launched_count != null || data.ticked_at) {
-          msg = `Tick: launched ${data.launched_count ?? 0}` +
+        if (data.launched_count != null || data.ticked_at || data.pending_terminal_count != null) {
+          msg = data.message || (
+            `Tick: launched ${data.launched_count ?? 0}` +
+            (data.pending_terminal_count ? `, pending Terminal ${data.pending_terminal_count}` : "") +
             (data.reconciled ? `, reconciled ${data.reconciled}` : "") +
-            (data.skipped ? " (scheduler disabled — used force)" : "");
+            (data.skipped ? " (scheduler disabled — used force)" : "")
+          );
+        }
+        if (data.claimed_count != null) {
+          msg = data.message || `Claimed ${data.claimed_count} pending job(s)`;
         }
         if (data.installed != null && data.line) {
           msg = data.installed ? `Cron installed` : "Cron removed";
@@ -1091,6 +1136,17 @@
     $("btn-sync").addEventListener("click", () => postAction("/api/sync", {}));
     $("btn-session-index").addEventListener("click", () => postAction("/api/session-index", {}));
     $("btn-open-grok").addEventListener("click", () => postAction("/api/open-grok", { mode: "named" }));
+    document.addEventListener("change", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === "sched-backend") {
+        await postAction("/api/scheduler/config", { backend: t.value });
+        return;
+      }
+      if (t.id === "sched-exec") {
+        await postAction("/api/scheduler/config", { execution_mode: t.value });
+      }
+    });
     document.addEventListener("click", async (ev) => {
       const t = ev.target;
       if (!t) return;
@@ -1148,6 +1204,13 @@
       if (t.id === "btn-sched-tick" || t.id === "btn-sched-tick-bl") {
         await postAction("/api/scheduler/tick", { force: true });
         return;
+      }
+      if (t.id === "btn-sched-claim") {
+        await postAction("/api/scheduler/claim", { max_jobs: 3 });
+        return;
+      }
+      if (t.id === "sched-backend" || t.id === "sched-exec") {
+        return; // change handled below
       }
       if (t.id === "btn-bl-view-press") {
         window.__blView = "press";
@@ -1243,6 +1306,10 @@
           summary: "Marked complete from dashboard",
           status: "completed",
         });
+        return;
+      }
+      if (t.classList.contains("btn-job-claim")) {
+        await postAction("/api/scheduler/claim", { job_id: id, max_jobs: 1 });
         return;
       }
       if (t.classList.contains("btn-bl-initiate")) {

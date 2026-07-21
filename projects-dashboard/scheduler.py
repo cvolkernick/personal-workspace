@@ -1,18 +1,29 @@
-"""Local auto-start scheduler for approved/queued backlog work.
+"""Auto-start scheduler for approved/queued backlog work.
 
 Cron (or manual tick) picks items with ``auto_start=true`` that are eligible
 (status ready / scheduled now|this_week, not already planning/running) and
-runs ``initiate_item`` (kick off Grok /goal). Status reports land under
-``ops/backlog/reports/`` and are shown on the dashboard.
+runs ``initiate_item`` (seed + optional Grok /goal kickoff).
 
-Local-first. Later: same job store can be consumed by a Raspberry Pi agent.
+Backends:
+  - ``local`` — Mac/host crontab (laptop-friendly; sleeps when machine sleeps)
+  - ``raspi`` — Raspberry Pi is the 24/7 schedule authority (systemd timer)
+
+Execution modes (Grok Build may be missing on the Pi):
+  - ``auto`` — spawn Grok when available; otherwise leave job ``pending_terminal``
+  - ``spawn`` — always try to open Grok (needs CLI + ideally a Terminal)
+  - ``queue`` — never spawn; prepare seeds and wait for a Mac/Terminal claim
+
+Status reports land under ``ops/backlog/reports/``.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import platform
+import shutil
 import subprocess
+import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,7 +47,10 @@ REPORTS_DIR = BACKLOG_DIR / "reports"
 DEFAULT_CONFIG: dict[str, Any] = {
     "version": 1,
     "enabled": False,
-    "backend": "local",  # local | raspi (future)
+    # local = this machine's cron; raspi = always-on Pi owns the schedule
+    "backend": "local",  # local | raspi
+    # auto | spawn | queue — how to run work when a tick fires
+    "execution_mode": "auto",
     "cron_expression": "*/15 * * * *",
     "max_per_tick": 1,
     "max_concurrent": 1,
@@ -46,14 +60,19 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # auto_queue_scheduled sets that flag for ready+scheduled items after groom.
     "require_auto_start": True,
     "auto_queue_scheduled": True,
+    # Legacy flag; prefer execution_mode. Kept for older configs.
     "spawn_grok": True,
     "install_marker": "projects-dashboard-scheduler",
+    # Optional: SSH target for remote Pi timer install (user@host)
+    "raspi_ssh": "",
+    "raspi_dir": "",
     "last_tick_at": None,
     "last_tick_result": None,
 }
 
 JOB_STATUSES = (
     "queued",
+    "pending_terminal",  # seed ready; wait for Mac/Terminal (or Pi Grok) claim
     "launched",
     "running",
     "completed",
@@ -237,7 +256,90 @@ def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
 
 
 def _active_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [j for j in jobs if j.get("status") in ("queued", "launched", "running")]
+    return [
+        j
+        for j in jobs
+        if j.get("status") in ("queued", "pending_terminal", "launched", "running")
+    ]
+
+
+def detect_runtime() -> dict[str, Any]:
+    """Detect whether this host can spawn Grok Build / Terminal."""
+    grok = shutil.which("grok")
+    if not grok:
+        home = Path.home() / ".grok" / "bin" / "grok"
+        if home.is_file() and os.access(home, os.X_OK):
+            grok = str(home)
+    has_open = Path("/usr/bin/open").is_file()  # macOS Terminal launcher
+    sysname = platform.system().lower()
+    return {
+        "ok": True,
+        "platform": sysname,
+        "machine": platform.machine(),
+        "has_grok": bool(grok),
+        "grok_bin": grok,
+        "has_macos_terminal": has_open,
+        "can_spawn_terminal": bool(grok and has_open),
+        "can_spawn_headless": bool(grok) and not has_open,
+        "recommended_execution": (
+            "spawn"
+            if (grok and has_open)
+            else ("spawn" if grok else "queue")
+        ),
+        "note": (
+            "Grok Build + Terminal available — can spawn interactively."
+            if (grok and has_open)
+            else (
+                "Grok CLI present without macOS Terminal — headless spawn may work; "
+                "queue to a Mac frontend is safer for interactive /goal."
+                if grok
+                else "Grok Build not installed — tick prepares seeds and leaves jobs "
+                "pending_terminal for claim on a Mac with Terminal."
+            )
+        ),
+    }
+
+
+def resolve_execution_mode(cfg: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+    """Decide whether this tick should spawn Grok or only queue for Terminal claim."""
+    cfg = cfg or load_config()
+    runtime = detect_runtime()
+    mode = str(cfg.get("execution_mode") or "auto").lower().strip()
+    if mode not in ("auto", "spawn", "queue"):
+        # legacy spawn_grok bool
+        mode = "spawn" if cfg.get("spawn_grok", True) else "queue"
+
+    if mode == "queue":
+        should_spawn = False
+        reason = "execution_mode=queue"
+    elif mode == "spawn":
+        should_spawn = True
+        reason = "execution_mode=spawn"
+    else:
+        # auto
+        if runtime.get("can_spawn_terminal"):
+            should_spawn = True
+            reason = "auto: macOS Terminal + grok"
+        elif runtime.get("can_spawn_headless"):
+            # Prefer queue on headless Pi unless operator forced spawn —
+            # interactive /goal is poor without a TTY; still allow if spawn_grok.
+            if cfg.get("spawn_grok", True) and cfg.get("prefer_headless_spawn"):
+                should_spawn = True
+                reason = "auto: headless grok (prefer_headless_spawn)"
+            else:
+                should_spawn = False
+                reason = "auto: headless host → queue pending_terminal (safer)"
+        else:
+            should_spawn = False
+            reason = "auto: no grok → queue pending_terminal"
+
+    return {
+        "mode": mode,
+        "should_spawn": should_spawn,
+        "reason": reason,
+        "runtime": runtime,
+        "backend": cfg.get("backend") or "local",
+    }
 
 
 def _eligible_items(cfg: dict[str, Any], jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -247,7 +349,7 @@ def _eligible_items(cfg: dict[str, Any], jobs: list[dict[str, Any]]) -> list[dic
     in_flight_ids = {
         j.get("backlog_id")
         for j in jobs
-        if j.get("status") in ("queued", "launched", "running")
+        if j.get("status") in ("queued", "pending_terminal", "launched", "running")
     }
     out = []
     for it in list_items(include_done=False, ranked=True):
@@ -316,7 +418,11 @@ def cron_status() -> dict[str, Any]:
 
 
 def install_cron() -> dict[str, Any]:
-    """Install/replace local crontab entry for the scheduler tick."""
+    """Install/replace local crontab entry for the scheduler tick.
+
+    For 24/7 scheduling prefer backend=raspi + deploy/install_remote.sh on the Pi.
+    This installs a crontab on *this* host only.
+    """
     cfg = load_config()
     marker = cfg.get("install_marker") or "projects-dashboard-scheduler"
     desired = _cron_line(cfg)
@@ -352,7 +458,21 @@ def install_cron() -> dict[str, Any]:
     cfg["enabled"] = True
     cfg["cron_installed_at"] = _now()
     save_config(cfg)
-    return {"ok": True, "installed": True, "line": desired, "config": load_config()}
+    note = None
+    if (cfg.get("backend") or "local") == "raspi":
+        note = (
+            "backend=raspi: local cron installed as a fallback. "
+            "For true 24/7 ticks, run projects-dashboard/deploy/install_remote.sh "
+            "on the Pi (systemd timer)."
+        )
+    return {
+        "ok": True,
+        "installed": True,
+        "line": desired,
+        "config": load_config(),
+        "note": note,
+        "message": "Local cron installed" + (f" · {note}" if note else ""),
+    }
 
 
 def uninstall_cron() -> dict[str, Any]:
@@ -384,10 +504,10 @@ def uninstall_cron() -> dict[str, Any]:
 
 
 def _reconcile_completions(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
-    """Mark launched/running jobs completed when backlog status is done/parked."""
+    """Mark launched/running/pending jobs completed when backlog status is done/parked."""
     updated = []
     for job in jobs_data.get("jobs") or []:
-        if job.get("status") not in ("launched", "running", "queued"):
+        if job.get("status") not in ("launched", "running", "queued", "pending_terminal"):
             continue
         bid = job.get("backlog_id")
         item = get_item(bid) if bid else None
@@ -428,7 +548,7 @@ def _reconcile_completions(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def tick(*, force: bool = False) -> dict[str, Any]:
-    """Run one scheduler cycle (called by cron or dashboard)."""
+    """Run one scheduler cycle (called by cron, systemd timer, or dashboard)."""
     cfg = load_config()
     if not cfg.get("enabled") and not force:
         return {
@@ -437,6 +557,9 @@ def tick(*, force: bool = False) -> dict[str, Any]:
             "reason": "scheduler disabled",
             "config": cfg,
         }
+
+    exec_plan = resolve_execution_mode(cfg)
+    should_spawn = bool(exec_plan.get("should_spawn"))
 
     jobs_data = load_jobs()
     jobs = list(jobs_data.get("jobs") or [])
@@ -447,6 +570,7 @@ def tick(*, force: bool = False) -> dict[str, Any]:
     active = _active_jobs(jobs)
     slots = max(0, max_conc - len(active))
     launched = []
+    pending = []
     errors = []
 
     if slots > 0:
@@ -460,6 +584,7 @@ def tick(*, force: bool = False) -> dict[str, Any]:
                 "status": "queued",
                 "created_at": _now(),
                 "backend": cfg.get("backend") or "local",
+                "execution_mode": exec_plan.get("mode"),
                 "schedule_slot": it.get("schedule_slot"),
                 "press_rank": it.get("press_rank"),
             }
@@ -467,7 +592,7 @@ def tick(*, force: bool = False) -> dict[str, Any]:
             try:
                 result = initiate_item(
                     str(it["id"]),
-                    try_spawn_grok=bool(cfg.get("spawn_grok", True)),
+                    try_spawn_grok=should_spawn,
                 )
                 if not result.get("ok"):
                     job["status"] = "failed"
@@ -488,32 +613,68 @@ def tick(*, force: bool = False) -> dict[str, Any]:
                     errors.append(job)
                     continue
 
-                job["status"] = "launched"
-                job["launched_at"] = _now()
-                job["spawn"] = result.get("spawn")
+                spawn = result.get("spawn") or {}
+                spawn_ok = bool(spawn.get("ok")) if spawn.get("attempted") else False
                 job["seed_path"] = result.get("seed_path")
                 job["prompt_path"] = result.get("prompt_path")
                 job["launch_script"] = result.get("launch_script")
+                job["spawn"] = spawn
+                job["execution_reason"] = exec_plan.get("reason")
+
+                if should_spawn and spawn_ok:
+                    job["status"] = "launched"
+                    job["launched_at"] = _now()
+                    summary = (
+                        f"Auto-started goal for “{it.get('title')}”. "
+                        f"Spawn: {spawn.get('method') or 'ok'}."
+                    )
+                    actions = [
+                        f"Tick execution: {exec_plan.get('reason')}",
+                        "Ran initiate_item + spawned Grok",
+                        f"Seed: {result.get('seed_path')}",
+                    ]
+                    launched.append(job)
+                else:
+                    # Seed prepared; wait for Terminal claim (Mac frontend or Pi with grok)
+                    job["status"] = "pending_terminal"
+                    job["pending_at"] = _now()
+                    job["claim_hint"] = (
+                        f"bash {result.get('launch_script')}"
+                        if result.get("launch_script")
+                        else "Open dashboard → Launch pending"
+                    )
+                    if should_spawn and spawn.get("attempted") and not spawn_ok:
+                        job["spawn_error"] = spawn.get("error") or "spawn failed"
+                        summary = (
+                            f"Prepared “{it.get('title')}” but Grok spawn failed "
+                            f"({job.get('spawn_error')}). Queued for Terminal claim."
+                        )
+                    else:
+                        summary = (
+                            f"Prepared “{it.get('title')}” for kickoff "
+                            f"({exec_plan.get('reason')}). "
+                            "Awaiting Terminal claim on a host with Grok Build."
+                        )
+                    actions = [
+                        f"Tick execution: {exec_plan.get('reason')}",
+                        "Ran initiate_item (seed + launch script; no interactive spawn)",
+                        f"Seed: {result.get('seed_path')}",
+                        f"Claim: {job.get('claim_hint')}",
+                    ]
+                    pending.append(job)
+
                 report = {
                     "id": f"rpt-{job_id}",
                     "job_id": job_id,
                     "backlog_id": it.get("id"),
                     "title": it.get("title"),
-                    "status": "launched",
-                    "summary": (
-                        f"Auto-started goal for “{it.get('title')}”. "
-                        f"Backlog status → planning. Spawn: "
-                        f"{(result.get('spawn') or {}).get('method') or 'n/a'}."
-                    ),
-                    "actions": [
-                        "Selected by scheduler tick (auto_start + schedule/status filters)",
-                        "Ran initiate_item (seed + /goal prompt + optional Terminal launch)",
-                        f"Seed: {result.get('seed_path')}",
-                        f"Prompt: {result.get('prompt_path')}",
-                    ],
+                    "status": job["status"],
+                    "summary": summary,
+                    "actions": actions,
                     "details": {
                         "objective_preview": (result.get("goal_objective") or "")[:400],
-                        "spawn": result.get("spawn"),
+                        "spawn": spawn,
+                        "execution": exec_plan,
                     },
                     "source": "scheduler-tick",
                 }
@@ -529,7 +690,6 @@ def tick(*, force: bool = False) -> dict[str, Any]:
                         bi["updated_at"] = _now()
                         break
                 save_backlog(data)
-                launched.append(job)
             except Exception as e:
                 job["status"] = "failed"
                 job["error"] = str(e)
@@ -544,22 +704,140 @@ def tick(*, force: bool = False) -> dict[str, Any]:
         "ticked_at": _now(),
         "launched": launched,
         "launched_count": len(launched),
+        "pending_terminal": pending,
+        "pending_terminal_count": len(pending),
         "errors": errors,
         "reconciled": len(reconciled),
         "active_jobs": len(_active_jobs(jobs)),
         "eligible_remaining": len(_eligible_items(cfg, jobs)),
+        "execution": exec_plan,
         "reports": list_reports(limit=10),
         "config": load_config(),
+        "message": (
+            f"Tick: launched {len(launched)}, pending Terminal {len(pending)}"
+            + (f", errors {len(errors)}" if errors else "")
+        ),
     }
     cfg["last_tick_at"] = result["ticked_at"]
     cfg["last_tick_result"] = {
         "launched_count": result["launched_count"],
+        "pending_terminal_count": result["pending_terminal_count"],
         "errors": len(errors),
         "reconciled": result["reconciled"],
+        "execution_mode": exec_plan.get("mode"),
+        "execution_reason": exec_plan.get("reason"),
     }
     save_config(cfg)
     result["config"] = load_config()
     return result
+
+
+def claim_pending_jobs(
+    *,
+    max_jobs: int = 1,
+    job_id: Optional[str] = None,
+) -> dict[str, Any]:
+    """Open Terminal (or headless grok) for jobs in ``pending_terminal``.
+
+    Intended for a Mac frontend when the Pi (or any headless host) prepared
+    seeds but could not spawn an interactive Grok session.
+    """
+    runtime = detect_runtime()
+    jobs_data = load_jobs()
+    jobs = list(jobs_data.get("jobs") or [])
+    pending = [
+        j
+        for j in jobs
+        if j.get("status") == "pending_terminal"
+        and (not job_id or j.get("id") == job_id)
+    ]
+    if not pending:
+        return {
+            "ok": True,
+            "claimed": [],
+            "claimed_count": 0,
+            "message": "No pending_terminal jobs",
+            "runtime": runtime,
+        }
+
+    claimed = []
+    errors = []
+    for job in pending[: max(1, int(max_jobs))]:
+        launch = job.get("launch_script")
+        if not launch:
+            # try backlog item
+            item = get_item(str(job.get("backlog_id") or ""))
+            launch = (item or {}).get("launch_script")
+        if not launch:
+            errors.append({"id": job.get("id"), "error": "no launch_script"})
+            continue
+        path = WORKSPACE_ROOT / launch
+        if not path.is_file():
+            errors.append({"id": job.get("id"), "error": f"missing {launch}"})
+            continue
+        try:
+            if runtime.get("has_macos_terminal"):
+                proc = subprocess.run(
+                    ["open", "-a", "Terminal", str(path.resolve())],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                )
+                if proc.returncode != 0:
+                    raise OSError(proc.stderr or "open Terminal failed")
+                method = "open -a Terminal → launch.sh"
+            elif runtime.get("has_grok"):
+                subprocess.Popen(
+                    ["bash", str(path.resolve())],
+                    cwd=str(WORKSPACE_ROOT),
+                    start_new_session=True,
+                )
+                method = "bash launch.sh (headless)"
+            else:
+                errors.append(
+                    {
+                        "id": job.get("id"),
+                        "error": "no Terminal/grok on this host — run launch script on a Mac",
+                        "launch_script": launch,
+                    }
+                )
+                continue
+            job["status"] = "launched"
+            job["launched_at"] = _now()
+            job["claimed_at"] = _now()
+            job["claim_method"] = method
+            job["updated_at"] = _now()
+            report = {
+                "id": f"rpt-{job.get('id')}-claim",
+                "job_id": job.get("id"),
+                "backlog_id": job.get("backlog_id"),
+                "title": job.get("title"),
+                "status": "launched",
+                "summary": f"Claimed pending job on frontend ({method}).",
+                "actions": [
+                    "claim_pending_jobs opened launch script",
+                    f"Script: {launch}",
+                ],
+                "source": "scheduler-claim",
+            }
+            write_report(report)
+            job["latest_report_id"] = report["id"]
+            claimed.append(job)
+        except Exception as e:
+            errors.append({"id": job.get("id"), "error": str(e)})
+
+    save_jobs(jobs_data)
+    return {
+        "ok": True,
+        "claimed": claimed,
+        "claimed_count": len(claimed),
+        "errors": errors,
+        "runtime": runtime,
+        "message": (
+            f"Claimed {len(claimed)} pending job(s)"
+            + (f" · {len(errors)} error(s)" if errors else "")
+        ),
+    }
 
 
 def complete_job(
@@ -666,6 +944,7 @@ def scheduler_payload() -> dict[str, Any]:
         jobs, key=lambda j: j.get("created_at") or "", reverse=True
     )
     cron = cron_status()
+    exec_plan = resolve_execution_mode(cfg)
     # Eligible uses auto_start + schedule filters; list for UI even when disabled.
     eligible = _eligible_items(cfg, jobs)
     # also list auto_start items even if disabled for UI
@@ -682,12 +961,16 @@ def scheduler_payload() -> dict[str, Any]:
         for it in list_items(include_done=False, ranked=True)
         if it.get("auto_start")
     ]
+    pending_terminal = [j for j in jobs_sorted if j.get("status") == "pending_terminal"]
     return {
         "ok": True,
         "config": cfg,
         "cron": cron,
+        "runtime": exec_plan.get("runtime"),
+        "execution": exec_plan,
         "jobs": jobs_sorted[:40],
         "active_jobs": _active_jobs(jobs),
+        "pending_terminal_jobs": pending_terminal[:20],
         "eligible": [
             {
                 "id": it.get("id"),
@@ -705,9 +988,15 @@ def scheduler_payload() -> dict[str, Any]:
             "jobs": str(JOBS_PATH.relative_to(WORKSPACE_ROOT)),
             "reports": str(REPORTS_DIR.relative_to(WORKSPACE_ROOT)),
         },
+        "deploy_hint": (
+            "For 24/7 ticks on a Raspberry Pi: "
+            "bash projects-dashboard/deploy/install_remote.sh pi@HOST "
+            "(systemd timer). Set backend=raspi and execution_mode=auto|queue."
+        ),
         "note": (
-            "Autonomous loop: dashboard load grooms + auto-queues ready items in "
-            "now/this_week; cron (or Run tick) initiates goals and writes status reports. "
-            "Later: same store on Raspberry Pi."
+            "Autonomous loop: groom + auto-queue ready items; schedule authority is "
+            "local cron or Pi systemd timer. If Grok Build is missing (typical on Pi), "
+            "jobs stay pending_terminal until claimed on a Mac with Terminal "
+            "(or install Grok on the Pi and set execution_mode=spawn)."
         ),
     }
