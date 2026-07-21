@@ -412,7 +412,18 @@ def create_pull_request(
                     }
             except Exception:
                 pass
-        return {"ok": False, "error": f"HTTP {e.code}: {body_txt}"}
+        hint = None
+        if e.code == 403:
+            hint = (
+                "GITHUB_TOKEN needs Contents:write + Pull requests:write "
+                "(fine-grained) or classic scope `repo`. Re-issue the token "
+                "and update ~/.config/workflow-scheduler.env on the Pi."
+            )
+        return {
+            "ok": False,
+            "error": f"HTTP {e.code}: {body_txt}",
+            "hint": hint,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}
 

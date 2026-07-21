@@ -58,12 +58,30 @@ When the Pi has **Grok Build** + **GITHUB_TOKEN**, ticks run the unattended agen
 6. Job status becomes **`pr_ready`** — shown on the Mac dashboard for review  
 
 ```bash
-# On Pi (chmod 600; never commit):
+# Grok CLI (linux aarch64):
+curl -fsSL https://x.ai/cli/install.sh | bash
+# Copy auth from a logged-in Mac (or run `grok login` on the Pi):
+#   scp ~/.grok/auth.json prism-agent@PI:~/.grok/auth.json && chmod 600 ...
+
+# GitHub token (chmod 600; never commit):
 mkdir -p ~/.config
-echo 'GITHUB_TOKEN=ghp_...' > ~/.config/workflow-scheduler.env
+cat > ~/.config/workflow-scheduler.env <<'EOF'
+GITHUB_TOKEN=github_pat_...   # fine-grained: Contents R/W + Pull requests R/W on this repo
+PATH=$HOME/.grok/bin:/usr/bin:/bin
+HOME=/home/prism-agent
+EOF
 chmod 600 ~/.config/workflow-scheduler.env
-# Install Grok Build for linux aarch64 per xAI docs into ~/.grok/bin/grok
 ```
+
+**Token permissions required for full autonomy**
+
+| Permission | Why |
+|------------|-----|
+| **Contents: Read and write** | `git push` job branches |
+| **Pull requests: Read and write** | Open PRs via API |
+| **Metadata: Read** | Always required on fine-grained PATs |
+
+Without Pull requests:write, the Pi can still implement + push; PR open will fail with 403 until the token is upgraded.
 
 Without Grok, the agent step falls back to **`pending_terminal`**, which the Mac dashboard **auto-claims** on load (opens Terminal).
 
