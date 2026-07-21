@@ -1688,13 +1688,15 @@
     const ra = plan.remaining_after_plan || {};
     let html = `<div class="meal-plan-panel">`;
     html += `<p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">${plan.message || ""}</p>`;
-    html += `<div class="meal-plan-totals compact">
-      <div class="meal-plan-totals-label">Planned add</div>
-      ${invMacroStrip(pt, true)}
-    </div>`;
-    html += `<div class="meal-plan-totals remaining compact">
-      <div class="meal-plan-totals-label">After plan remaining</div>
-      ${invMacroStrip(ra, true)}
+    html += `<div class="meal-plan-totals-row">
+      <div class="meal-plan-totals compact">
+        <div class="meal-plan-totals-label">Planned add</div>
+        ${invMacroStrip(pt, true)}
+      </div>
+      <div class="meal-plan-totals remaining compact">
+        <div class="meal-plan-totals-label">After plan remaining</div>
+        ${invMacroStrip(ra, true)}
+      </div>
     </div>`;
     if (!meals.length) {
       html += `<p class="muted">No items planned.</p>`;

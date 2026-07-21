@@ -496,21 +496,39 @@ textarea {
   margin-top: 0.25rem;
 }
 
+.meal-plan-totals-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
 .meal-plan-totals {
-  margin-bottom: 0.65rem;
+  margin-bottom: 0;
   padding: 0.55rem 0.65rem;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--bg);
+  min-width: 0;
 }
 
 .meal-plan-totals.compact {
-  margin-bottom: 0.45rem;
+  margin-bottom: 0;
   padding: 0.4rem 0.55rem;
 }
 
 .meal-plan-totals.remaining {
   opacity: 0.92;
+}
+
+.meal-plan-totals-row .inv-macro-strip.compact {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .meal-plan-totals-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 .meal-bucket .inv-carousel-shell {
