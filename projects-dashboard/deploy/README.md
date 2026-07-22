@@ -69,10 +69,21 @@ When the Pi has **Grok Build** + **GITHUB_TOKEN**, ticks run the unattended agen
 ```bash
 # Grok CLI (linux aarch64):
 curl -fsSL https://x.ai/cli/install.sh | bash
-# Copy *fresh* auth from a logged-in Mac (tokens expire — re-copy when jobs fail "Not signed in"):
-#   scp ~/.grok/auth.json prism-agent@PI:~/.grok/auth.json && ssh prism-agent@PI 'chmod 600 ~/.grok/auth.json'
-# Or set XAI_API_KEY in the env file below.
-# Verify: ssh prism-agent@PI 'grok --single "pong" --max-turns 1 --always-approve'
+
+# Preferred: device login ON THE PI (Pi owns refresh_token → auto-refresh works headless)
+ssh prism-agent@PI
+grok login --device-auth
+# open the printed URL on any phone/laptop, enter the code, wait for "Signed in"
+
+# Backup while Mac is awake (copies Mac session every 20 min):
+bash projects-dashboard/install_mac_auth_sync.sh prism-agent@PI
+# one-shot: bash projects-dashboard/sync_pi_grok_auth.sh prism-agent@PI
+
+# Optional pay-as-you-go key (no OIDC; set in env file below):
+#   export XAI_API_KEY=xai-...   # from https://console.x.ai
+
+# Verify:
+ssh prism-agent@PI 'export PATH=$HOME/.grok/bin:$PATH; grok --single "pong" --max-turns 1 --always-approve'
 
 # GitHub token (chmod 600; never commit):
 mkdir -p ~/.config
@@ -80,11 +91,13 @@ cat > ~/.config/workflow-scheduler.env <<'EOF'
 GITHUB_TOKEN=github_pat_...   # fine-grained: Contents R/W + Pull requests R/W on this repo
 PATH=$HOME/.grok/bin:/usr/bin:/bin
 HOME=/home/prism-agent
-# Optional alternative to auth.json:
+# Optional alternative to OIDC auth.json:
 # XAI_API_KEY=xai-...
 EOF
 chmod 600 ~/.config/workflow-scheduler.env
 ```
+
+**Grok auth on Pi (why it broke before):** browser OIDC access tokens expire in hours. A one-time `scp` of Mac `auth.json` goes stale; headless ticks then fail with “Not signed in” and produce empty/scaffold PRs. Fix: **device-auth on the Pi** (native refresh) + optional Mac LaunchAgent sync.
 
 **PR quality gate:** a job only becomes `pr_ready` when headless Grok **succeeds** and commits **implementation files** (not `ops/backlog/seeds/*` alone). Auth failure or seed-only diffs → `pending_terminal` / failed, no fake PR.
 

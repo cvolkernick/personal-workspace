@@ -88,6 +88,31 @@ def which_grok() -> Optional[str]:
     return None
 
 
+def load_scheduler_env() -> dict[str, str]:
+    """Load ~/.config/workflow-scheduler.env into os.environ (non-destructive for unset keys)."""
+    loaded: dict[str, str] = {}
+    path = Path.home() / ".config" / "workflow-scheduler.env"
+    if not path.is_file():
+        return loaded
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k, v = k.strip(), v.strip().strip('"').strip("'")
+            if not k:
+                continue
+            # Prefer file for secrets used by agent; do not clobber existing non-empty env
+            if k in ("XAI_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "GH_PAT") or not os.environ.get(k):
+                if v:
+                    os.environ[k] = v
+                    loaded[k] = "<set>" if k.endswith("TOKEN") or "KEY" in k or "PAT" in k else v
+    except OSError:
+        pass
+    return loaded
+
+
 def ensure_git_repo(
     repo: Path = WORKSPACE_ROOT,
     *,
@@ -459,6 +484,7 @@ def run_headless_agent(
     max_turns: int = MAX_AGENT_TURNS,
 ) -> dict[str, Any]:
     """Run Grok Build headless if installed."""
+    load_scheduler_env()  # XAI_API_KEY / PATH from Pi env file when not in systemd
     grok = which_grok()
     if not grok:
         return {
@@ -473,7 +499,11 @@ def run_headless_agent(
             "ok": False,
             "skipped": True,
             "error": auth.get("error") or "Grok not authenticated",
-            "hint": auth.get("hint"),
+            "hint": auth.get("hint")
+            or (
+                "On Pi: grok login --device-auth. "
+                "On Mac: bash projects-dashboard/sync_pi_grok_auth.sh"
+            ),
             "auth": auth,
         }
     # Headless single-session with auto-approve for unattended work
