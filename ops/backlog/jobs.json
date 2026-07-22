@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-22T04:00:24.262005+00:00",
+  "updated_at": "2026-07-22T04:08:27.633769+00:00",
   "jobs": [
     {
       "id": "job-9e5ac3a399",
@@ -83,7 +83,7 @@
       "id": "job-8ebc98310f",
       "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
       "title": "Panamerica Auto Website",
-      "status": "pr_ready",
+      "status": "cancelled",
       "created_at": "2026-07-22T04:00:20.420887+00:00",
       "backend": "raspi",
       "execution_mode": "agent",
@@ -184,7 +184,10 @@
       "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/2",
       "pr_number": 2,
       "pr_ready_at": "2026-07-22T04:00:24.256002+00:00",
-      "latest_report_id": "rpt-job-8ebc98310f"
+      "latest_report_id": "rpt-job-8ebc98310f",
+      "result": "closed: seed-only PR (agent not authenticated)",
+      "completed_at": "2026-07-22T04:08:27.633420+00:00",
+      "updated_at": "2026-07-22T04:08:27.633420+00:00"
     }
   ]
 }
