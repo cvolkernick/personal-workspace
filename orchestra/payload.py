@@ -79,6 +79,36 @@ def build_orchestra_payload(
     s_sig = strategy.get("signals") or {}
     initiatives = list(s_sig.get("initiatives") or [])
     today_items = list(s_sig.get("today_open") or [])
+    # Structured Today's Focus view-model (cards for orchestra UI)
+    today_focus = s_sig.get("today_focus")
+    if not isinstance(today_focus, dict):
+        today_focus = {
+            "date": "",
+            "path": s_sig.get("today_path") or "strategy/today.md",
+            "bets_path": s_sig.get("bets_path") or "strategy/bets.md",
+            "thematic_bets": list(s_sig.get("thematic_bets") or []),
+            "items": [],
+            "done_items": [],
+            "open_count": len(today_items),
+            "done_count": 0,
+            "initiatives": [
+                {
+                    "id": i.get("id"),
+                    "title": i.get("title"),
+                    "path": i.get("path"),
+                    "status": i.get("status"),
+                    "next_action": i.get("next_action"),
+                    "linked_bets": i.get("linked_bets") or [],
+                }
+                for i in initiatives
+            ],
+            "available": bool(today_items),
+            "edit_hint": "Edit strategy/today.md in any editor.",
+            "add_initiative_hint": (
+                "Create initiatives/<slug>.md from initiatives/_TEMPLATE.md "
+                "with title, status, linked_bets, next_action."
+            ),
+        }
 
     workflow = by_id.get("workflow") or {}
     backlog = (workflow.get("signals") or {}).get("backlog") or {}
@@ -220,6 +250,8 @@ def build_orchestra_payload(
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
+        # Human-authored daily plan (strategy/today.md) — prominent UI surface
+        "today_focus": today_focus,
         # Primary synthesized output for operators / agents
         "recommendations": recommendations,
         "recommended_actions": recommended_actions,

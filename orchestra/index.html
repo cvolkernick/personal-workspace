@@ -193,6 +193,142 @@
       padding: 1rem; border-top: 1px solid var(--border);
     }
     code { font-size: 0.8em; background: #0a1018; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    /* —— Today's Focus (human-authored daily plan) —— */
+    .today-focus {
+      background:
+        linear-gradient(135deg, rgba(91, 159, 212, 0.12) 0%, transparent 45%),
+        linear-gradient(225deg, rgba(192, 132, 252, 0.10) 0%, var(--panel) 55%);
+      border: 1px solid #2a4560;
+      border-radius: 14px;
+      padding: 1.05rem 1.15rem 1.15rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 0 0 1px rgba(91, 159, 212, 0.08), 0 12px 40px rgba(0, 0, 0, 0.25);
+    }
+    .today-focus .tf-header {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+      align-items: flex-start; justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .today-focus .tf-header h2 {
+      margin: 0; font-size: 1.15rem; font-weight: 700;
+      letter-spacing: -0.02em;
+      display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    }
+    .today-focus .tf-date {
+      color: var(--cyan); font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+    }
+    .today-focus .tf-meta {
+      color: var(--muted); font-size: 0.85rem; max-width: 40rem;
+      margin: 0.2rem 0 0;
+    }
+    .today-focus .tf-actions {
+      display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center;
+    }
+    .today-focus .tf-actions .path-pill {
+      font-size: 0.75rem; color: var(--muted);
+      background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.3rem 0.55rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .focus-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.75rem;
+      margin-top: 0.85rem;
+    }
+    .focus-card {
+      background: rgba(8, 12, 18, 0.55);
+      border: 1px solid #2a3a50;
+      border-radius: 12px;
+      padding: 0.85rem 0.95rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      min-height: 140px;
+      transition: border-color 0.15s ease, transform 0.15s ease;
+    }
+    .focus-card:hover { border-color: #3d6a9a; transform: translateY(-1px); }
+    .focus-card.top {
+      border-color: #3a6a9a;
+      background: linear-gradient(160deg, #152238 0%, rgba(8, 12, 18, 0.7) 70%);
+    }
+    .focus-card .fc-rank {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.55rem; height: 1.55rem; border-radius: 7px;
+      background: #1a3050; color: var(--cyan); font-size: 0.82rem; font-weight: 700;
+      flex-shrink: 0;
+    }
+    .focus-card .fc-title-row {
+      display: flex; gap: 0.45rem; align-items: flex-start;
+    }
+    .focus-card h3 {
+      margin: 0; font-size: 0.95rem; font-weight: 650; line-height: 1.35;
+      flex: 1;
+    }
+    .focus-card .fc-detail {
+      color: var(--muted); font-size: 0.84rem; flex: 1;
+    }
+    .focus-card .fc-why {
+      font-size: 0.8rem; color: #b8cfe0;
+      border-left: 2px solid var(--purple);
+      padding-left: 0.55rem; margin-top: 0.15rem;
+    }
+    .focus-card .fc-why::before {
+      content: "Why · "; color: var(--purple); font-weight: 700; font-size: 0.72rem;
+      letter-spacing: 0.03em; text-transform: uppercase;
+    }
+    .focus-card .fc-links {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center;
+      margin-top: 0.15rem;
+    }
+    .focus-card .fc-init {
+      font-size: 0.75rem; color: var(--accent);
+      background: #0d1a28; border: 1px solid #2a4a6a;
+      border-radius: 6px; padding: 0.12rem 0.4rem;
+      max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .tf-side {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+      margin-top: 0.95rem;
+    }
+    @media (max-width: 720px) {
+      .tf-side { grid-template-columns: 1fr; }
+    }
+    .tf-panel {
+      background: rgba(8, 12, 18, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem 0.85rem;
+    }
+    .tf-panel h4 {
+      margin: 0 0 0.45rem; font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted);
+    }
+    .tf-panel .bet-row, .tf-panel .init-row {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; margin-bottom: 0.35rem;
+    }
+    .tf-panel .init-row {
+      flex-direction: column; gap: 0.35rem;
+    }
+    .tf-panel .init-item {
+      font-size: 0.82rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.35rem;
+    }
+    .tf-panel .init-item:first-child { border-top: none; padding-top: 0; }
+    .tf-panel .init-item .init-title { font-weight: 600; }
+    .tf-panel .init-item .init-na { color: var(--muted); font-size: 0.78rem; }
+    .tf-empty {
+      color: var(--muted); font-size: 0.9rem; padding: 0.75rem 0.25rem;
+    }
+    .tf-guide {
+      margin-top: 0.75rem; padding-top: 0.65rem;
+      border-top: 1px dashed #2a3a50;
+      font-size: 0.8rem; color: var(--muted);
+      display: flex; flex-wrap: wrap; gap: 0.35rem 1rem;
+    }
+    .tf-guide strong { color: var(--text); font-weight: 650; }
   </style>
 </head>
 <body>
@@ -210,6 +346,40 @@
     <div class="error-banner" id="error"></div>
     <div class="summary" id="summary"></div>
 
+    <!-- Today's Focus: human-authored plan from strategy/today.md -->
+    <section class="today-focus" id="sec-today-focus" aria-label="Today's Focus">
+      <div class="tf-header">
+        <div>
+          <h2>
+            Today's Focus
+            <span class="badge" id="tf-count">0</span>
+          </h2>
+          <div class="tf-date" id="tf-date"></div>
+          <p class="tf-meta" id="tf-meta">Highest-leverage next actions from strategy/today.md</p>
+        </div>
+        <div class="tf-actions">
+          <span class="path-pill" id="tf-path" title="Source of truth">strategy/today.md</span>
+          <button type="button" id="btn-copy-today" title="Copy path to clipboard">Copy path</button>
+        </div>
+      </div>
+      <div class="focus-cards" id="focus-cards"></div>
+      <div class="tf-side">
+        <div class="tf-panel">
+          <h4>North-star bets</h4>
+          <div class="bet-row" id="tf-bets"></div>
+        </div>
+        <div class="tf-panel">
+          <h4>Active initiatives</h4>
+          <div class="init-row" id="tf-initiatives"></div>
+        </div>
+      </div>
+      <div class="tf-guide" id="tf-guide">
+        <span><strong>Edit plan:</strong> open <code>strategy/today.md</code></span>
+        <span><strong>Add initiative:</strong> copy <code>initiatives/_TEMPLATE.md</code> → new slug under <code>initiatives/</code></span>
+        <span><strong>Bets:</strong> <code>strategy/bets.md</code></span>
+      </div>
+    </section>
+
     <div class="briefing" id="briefing" hidden>
       <div class="mode" id="rec-mode"></div>
       <div id="rec-summary"></div>
@@ -219,6 +389,7 @@
       <h2>Recommended next actions <span class="badge" id="rec-count">0</span></h2>
       <p class="sub" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem">
         Fully automated from domains, synergies (high preferred; medium fallback), attention hygiene, and priorities — no manual triage required.
+        Complements the human-authored <em>Today's Focus</em> above.
       </p>
       <div class="list" id="recommendations"></div>
     </section>
@@ -320,6 +491,104 @@
       }).join("") || '<div class="row detail">No synergies match this filter — try All, or add initiatives / today items / treasury actions.</div>';
     }
 
+    function renderTodayFocus(data) {
+      const strategy = (data.domains || []).find((d) => d.id === "strategy") || {};
+      const sSig = strategy.signals || {};
+      const tf = data.today_focus || sSig.today_focus || {};
+      const items = tf.items || [];
+      const bets = tf.thematic_bets || sSig.thematic_bets || [];
+      const inits = tf.initiatives || sSig.initiatives || [];
+      const path = tf.path || sSig.today_path || "strategy/today.md";
+      const betsPath = tf.bets_path || sSig.bets_path || "strategy/bets.md";
+
+      $("tf-count").textContent = String(tf.open_count != null ? tf.open_count : items.length);
+      $("tf-date").textContent = tf.date
+        ? "Plan date · " + tf.date
+        : (items.length ? "Open checklist from " + path : "No date set — update " + path);
+      $("tf-path").textContent = path;
+      $("tf-meta").textContent = tf.context
+        ? tf.context
+        : "Synthesized micro-plan: highest-leverage 2–5 actions for the next 24–48h. Source of truth is Markdown.";
+
+      if (!items.length) {
+        $("focus-cards").innerHTML =
+          `<div class="tf-empty">
+            No open items in <code>${esc(path)}</code>.
+            Add a few checklist lines under <strong>Top Priorities Right Now</strong>, e.g.
+            <code>- [ ] **Ship X** (detail). *Why this moves the bet: AI leverage.*</code>
+            then hit Refresh.
+          </div>`;
+      } else {
+        $("focus-cards").innerHTML = items.map((it, i) => {
+          const top = i < 3 ? " top" : "";
+          const doms = (it.domains || [])
+            .filter((d) => d !== "strategy")
+            .map((x) => `<span class="tag">${esc(x)}</span>`)
+            .join("");
+          const betPills = (it.linked_bets || [])
+            .map((b) => `<span class="pill high">${esc(b)}</span>`)
+            .join("");
+          const why = it.why
+            ? `<div class="fc-why">${esc(it.why)}</div>`
+            : "";
+          const detail = it.detail
+            ? `<div class="fc-detail">${esc(it.detail)}</div>`
+            : "";
+          let initHtml = "";
+          if (it.initiative && it.initiative.path) {
+            initHtml = `<span class="fc-init" title="${esc(it.initiative.next_action || "")}">↗ ${esc(it.initiative.path)}</span>`;
+          }
+          return `<article class="focus-card${top}">
+            <div class="fc-title-row">
+              <span class="fc-rank">${esc(it.rank || i + 1)}</span>
+              <h3>${esc(it.title || "")}</h3>
+            </div>
+            ${detail}
+            ${why}
+            <div class="fc-links">
+              ${betPills}
+              ${doms}
+              ${initHtml}
+            </div>
+          </article>`;
+        }).join("");
+      }
+
+      $("tf-bets").innerHTML = bets.length
+        ? bets.map((b) => `<span class="pill high">${esc(b)}</span>`).join("")
+          + ` <span class="tag" title="${esc(betsPath)}">${esc(betsPath)}</span>`
+        : `<span class="detail">No thematic bets parsed — edit ${esc(betsPath)}</span>`;
+
+      const activeInits = (inits || []).filter((ini) => {
+        const st = (ini.status || "").toLowerCase();
+        return !["done", "cancelled", "archived"].includes(st);
+      });
+      $("tf-initiatives").innerHTML = activeInits.length
+        ? activeInits.slice(0, 6).map((ini) => {
+            const betsTag = (ini.linked_bets || [])
+              .map((b) => `<span class="tag">${esc(b)}</span>`)
+              .join("");
+            return `<div class="init-item">
+              <div class="init-title">
+                <span class="pill ${(ini.status || "todo") === "active" ? "ok" : "medium"}">${esc(ini.status || "todo")}</span>
+                ${esc(ini.title || ini.id || "")}
+              </div>
+              <div class="init-na">${esc(ini.next_action || "Set next_action in frontmatter")}</div>
+              <div class="tags" style="margin-top:0.2rem">
+                <span class="tag">${esc(ini.path || ("initiatives/" + (ini.id || "") + ".md"))}</span>
+                ${betsTag}
+              </div>
+            </div>`;
+          }).join("")
+        : `<div class="detail">No active initiatives. Copy <code>initiatives/_TEMPLATE.md</code> to start one.</div>`;
+
+      $("tf-guide").innerHTML = `
+        <span><strong>Edit plan:</strong> open <code>${esc(path)}</code> · ${esc(tf.edit_hint || "checklist MD")}</span>
+        <span><strong>Add initiative:</strong> ${esc(tf.add_initiative_hint || "copy initiatives/_TEMPLATE.md")}</span>
+        <span><strong>Bets:</strong> <code>${esc(betsPath)}</code></span>
+      `;
+    }
+
     function render(data) {
       lastData = data;
       showError("");
@@ -341,19 +610,25 @@
       const rec = data.recommendations || {};
       const recItems = data.recommended_actions || rec.items || data.action_plan || [];
       const recMode = rec.mode || "—";
+      const tfOpen = (data.today_focus && data.today_focus.open_count != null)
+        ? data.today_focus.open_count
+        : (c.today_items ?? "—");
       $("summary").innerHTML = [
+        ["Today's Focus", tfOpen, "open"],
         ["Recommended", c.recommendations ?? recItems.length ?? "—", recMode],
         ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
         ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
         ["High synergies", c.synergies_high ?? "—", "of " + (c.synergies ?? "—")],
         ["Stale", staleN, "sources"],
-        ["Today", c.today_items ?? "—", "open"],
         ["Bridge", c.bridge_candidates ?? "—", "to allocate"],
       ].map(([l, n, sub]) =>
         `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
       ).join("");
 
-      // Primary: automated briefing + recommended actions
+      // Human-authored daily plan (primary operator surface for planning)
+      renderTodayFocus(data);
+
+      // Automated briefing + recommended actions
       const briefing = $("briefing");
       if (rec.summary) {
         briefing.hidden = false;
@@ -510,6 +785,18 @@
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));
     $("btn-probe").addEventListener("click", () => load(true));
+    $("btn-copy-today").addEventListener("click", async () => {
+      const path = ($("tf-path").textContent || "strategy/today.md").trim();
+      try {
+        await navigator.clipboard.writeText(path);
+        const btn = $("btn-copy-today");
+        const prev = btn.textContent;
+        btn.textContent = "Copied";
+        setTimeout(() => { btn.textContent = prev; }, 1200);
+      } catch (_) {
+        showError("Could not copy path — select strategy/today.md manually.");
+      }
+    });
     $("syn-filters").addEventListener("click", (ev) => {
       const btn = ev.target.closest("button[data-syn]");
       if (!btn) return;

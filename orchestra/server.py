@@ -8,6 +8,7 @@
   GET  /api/priorities
   GET  /api/attention   — attention digest + freshness
   GET  /api/recommendations — automated recommended next actions (primary)
+  GET  /api/today       — Today's Focus from strategy/today.md (cards + links)
   GET  /                — unified UI
 
 Usage:
@@ -177,6 +178,27 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "summary": rec.get("summary"),
                     "mode": rec.get("mode"),
                     "focus": rec.get("focus") or [],
+                },
+            )
+            return
+
+        if path in ("/api/today", "/api/today-focus", "/api/focus"):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            tf = payload.get("today_focus") or {}
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "today_focus": tf,
+                    "items": tf.get("items") or [],
+                    "open_count": tf.get("open_count"),
+                    "path": tf.get("path") or "strategy/today.md",
                 },
             )
             return

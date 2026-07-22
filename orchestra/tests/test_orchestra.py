@@ -33,6 +33,8 @@ from collectors import (  # noqa: E402
     collect_iot,
     collect_strategy,
     collect_workflow,
+    parse_today_focus,
+    _checklist_items,
 )
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
@@ -753,6 +755,99 @@ class RecommendationsTests(unittest.TestCase):
             for item in payload["recommended_actions"]:
                 self.assertTrue(item.get("action"))
                 self.assertTrue(item.get("title"))
+
+
+class TodayFocusTests(unittest.TestCase):
+    """Today's Focus parser + payload surface for the daily action planner MVP."""
+
+    def test_checklist_items_extract_title_why_done(self) -> None:
+        md = """
+## Top
+- [ ] **Ship automation** (command center cards). *Why this moves the bet: AI leverage.*
+- [x] **Already done** should not be open
+- [ ] Plain line without bold title
+"""
+        items = _checklist_items(md)
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[0]["title"], "Ship automation")
+        self.assertIn("command center", items[0]["detail"])
+        self.assertIn("AI leverage", items[0]["why"])
+        self.assertFalse(items[0]["done"])
+        self.assertTrue(items[1]["done"])
+        self.assertFalse(items[2]["done"])
+
+    def test_parse_today_focus_links_initiative_and_bets(self) -> None:
+        text = """# Today
+**Date:** 2026-07-22
+**Context:** Daily micro plan for the bets.
+## Top Priorities Right Now
+- [ ] **Next action from AI/Autonomy leverage initiative** (command center automation). *Why this moves the bet: AI/Autonomy/Robotics leverage.*
+- [ ] **Fitness / Health enabler action** hit the full PPL session. *Link to bets: energy for deep work.*
+- [x] done item ignored for open list
+"""
+        initiatives = [
+            {
+                "id": "build-automation",
+                "path": "initiatives/build-automation.md",
+                "title": "Build small automation for leverage",
+                "status": "active",
+                "linked_bets": ["AI/Autonomy/Robotics"],
+                "next_action": "Prototype a script that synthesizes today.md",
+            }
+        ]
+        focus = parse_today_focus(
+            text,
+            initiatives=initiatives,
+            thematic_bets=["Energy", "Bitcoin", "AI", "Autonomy", "Robotics"],
+        )
+        self.assertEqual(focus["date"], "2026-07-22")
+        self.assertEqual(focus["open_count"], 2)
+        self.assertEqual(focus["done_count"], 1)
+        self.assertEqual(len(focus["items"]), 2)
+        first = focus["items"][0]
+        self.assertIn("AI", " ".join(first.get("linked_bets") or []) or first["title"])
+        self.assertTrue(first.get("why") or first.get("detail"))
+        # Fitness item should tag fitness domain
+        fit = focus["items"][1]
+        self.assertIn("fitness", fit.get("domains") or [])
+        self.assertEqual(focus["path"], "strategy/today.md")
+        self.assertIn("_TEMPLATE", focus.get("add_initiative_hint") or "")
+
+    def test_payload_exposes_today_focus(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            # template should not become an initiative
+            _write(
+                ws / "initiatives" / "_TEMPLATE.md",
+                """---
+title: "Template should be skipped"
+status: todo
+next_action: "never"
+---
+""",
+            )
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            self.assertIn("today_focus", payload)
+            tf = payload["today_focus"]
+            self.assertGreaterEqual(tf.get("open_count") or 0, 3)
+            self.assertGreaterEqual(len(tf.get("items") or []), 3)
+            for item in tf["items"]:
+                self.assertTrue(item.get("title"))
+                self.assertIn("rank", item)
+            # Strategy signals carry the same structure
+            strategy = next(d for d in payload["domains"] if d["id"] == "strategy")
+            self.assertIn("today_focus", strategy["signals"])
+            init_ids = {i.get("id") for i in strategy["signals"]["initiatives"]}
+            self.assertNotIn("_TEMPLATE", init_ids)
+            self.assertNotIn(None, init_ids)
+
+    def test_ui_contains_today_focus_section(self) -> None:
+        html = (ORCH / "index.html").read_text(encoding="utf-8")
+        self.assertIn('id="sec-today-focus"', html)
+        self.assertIn("Today's Focus", html)
+        self.assertIn("renderTodayFocus", html)
+        self.assertIn("focus-cards", html)
+        self.assertIn("initiatives/_TEMPLATE.md", html)
 
 
 if __name__ == "__main__":
