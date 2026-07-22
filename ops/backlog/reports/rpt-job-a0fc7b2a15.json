@@ -1,0 +1,110 @@
+{
+  "id": "rpt-job-a0fc7b2a15",
+  "job_id": "job-a0fc7b2a15",
+  "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+  "title": "Panamerica Auto Website",
+  "status": "pending_terminal",
+  "summary": "Agent could not finish on server (agent finished without implementation files (only seed/scaffold or no changes) \u2014 refusing empty/scaffold PR). Queued for Terminal auto-claim.",
+  "actions": [
+    "Tick: execution_mode=agent \u2192 branch/work/push/PR",
+    "Fell back to pending_terminal",
+    "agent finished without implementation files (only seed/scaffold or no changes) \u2014 refusing empty/scaffold PR"
+  ],
+  "details": {
+    "agent": {
+      "ok": false,
+      "error": "agent finished without implementation files (only seed/scaffold or no changes) \u2014 refusing empty/scaffold PR",
+      "branch": "work/auto/panamerica-auto-website-a0fc7b2a",
+      "pr_url": null,
+      "pr_number": null,
+      "message": null,
+      "needs_terminal": true,
+      "steps": [
+        {
+          "step": "ensure_git",
+          "ok": true,
+          "error": null,
+          "cloned": null,
+          "initialized": null
+        },
+        {
+          "step": "pull",
+          "ok": true,
+          "detail": {
+            "code": 0,
+            "out": "hard-sync origin/master (no rebase of schedule branch)",
+            "err": "Switched to and reset branch 'master'"
+          }
+        },
+        {
+          "step": "branch",
+          "ok": true,
+          "branch": "work/auto/panamerica-auto-website-a0fc7b2a",
+          "created": true,
+          "via": "checkout -B origin/master"
+        },
+        {
+          "step": "initiate_seed",
+          "ok": true,
+          "seed_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md"
+        },
+        {
+          "step": "agent",
+          "ok": true,
+          "skipped": null,
+          "method": "grok --single --always-approve",
+          "error": null
+        },
+        {
+          "step": "classify_changes",
+          "ok": true,
+          "base_sha": "74e5033efaf9",
+          "commits_ahead": 1,
+          "implementation": [],
+          "scaffold": [
+            "ops/backlog/items.json",
+            "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
+            "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.launch.sh",
+            "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md",
+            "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
+            "ops/session-index/history/20260722T044120Z.json",
+            "ops/session-index/latest.json"
+          ],
+          "uncommitted": []
+        },
+        {
+          "step": "restore_home_branch",
+          "ok": true,
+          "branch": "work/holistic",
+          "via": "checkout -f",
+          "stash_pop": null,
+          "error": null
+        }
+      ]
+    },
+    "execution": {
+      "mode": "agent",
+      "should_spawn": false,
+      "use_agent": true,
+      "reason": "execution_mode=agent \u2192 branch/work/push/PR",
+      "runtime": {
+        "ok": true,
+        "platform": "linux",
+        "machine": "aarch64",
+        "has_grok": true,
+        "grok_bin": "/home/prism-agent/.grok/bin/grok",
+        "has_macos_terminal": false,
+        "can_spawn_terminal": false,
+        "can_spawn_headless": true,
+        "recommended_execution": "spawn",
+        "note": "Grok CLI present without macOS Terminal \u2014 headless spawn may work; queue to a Mac frontend is safer for interactive /goal."
+      },
+      "backend": "raspi"
+    }
+  },
+  "pr_url": null,
+  "source": "scheduler-agent",
+  "created_at": "2026-07-22T04:41:47.647527+00:00",
+  "updated_at": "2026-07-22T04:41:47.647540+00:00",
+  "path": "ops/backlog/reports/rpt-job-a0fc7b2a15.json"
+}
