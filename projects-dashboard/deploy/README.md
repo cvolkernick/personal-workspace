@@ -69,8 +69,10 @@ When the Pi has **Grok Build** + **GITHUB_TOKEN**, ticks run the unattended agen
 ```bash
 # Grok CLI (linux aarch64):
 curl -fsSL https://x.ai/cli/install.sh | bash
-# Copy auth from a logged-in Mac (or run `grok login` on the Pi):
-#   scp ~/.grok/auth.json prism-agent@PI:~/.grok/auth.json && chmod 600 ...
+# Copy *fresh* auth from a logged-in Mac (tokens expire — re-copy when jobs fail "Not signed in"):
+#   scp ~/.grok/auth.json prism-agent@PI:~/.grok/auth.json && ssh prism-agent@PI 'chmod 600 ~/.grok/auth.json'
+# Or set XAI_API_KEY in the env file below.
+# Verify: ssh prism-agent@PI 'grok --single "pong" --max-turns 1 --always-approve'
 
 # GitHub token (chmod 600; never commit):
 mkdir -p ~/.config
@@ -78,9 +80,14 @@ cat > ~/.config/workflow-scheduler.env <<'EOF'
 GITHUB_TOKEN=github_pat_...   # fine-grained: Contents R/W + Pull requests R/W on this repo
 PATH=$HOME/.grok/bin:/usr/bin:/bin
 HOME=/home/prism-agent
+# Optional alternative to auth.json:
+# XAI_API_KEY=xai-...
 EOF
 chmod 600 ~/.config/workflow-scheduler.env
 ```
+
+**PR quality gate:** a job only becomes `pr_ready` when headless Grok **succeeds** and commits **implementation files** (not `ops/backlog/seeds/*` alone). Auth failure or seed-only diffs → `pending_terminal` / failed, no fake PR.
+
 
 **Token permissions required for full autonomy**
 

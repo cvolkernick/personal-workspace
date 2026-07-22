@@ -293,28 +293,113 @@ def build_agent_prompt(item: dict[str, Any], *, seed_path: str = "", job_id: str
     mvp = item.get("mvp_scope") or "(define a minimal shippable slice)"
     notes = item.get("notes") or ""
     desc = item.get("description") or ""
+    area = item.get("area") or "misc"
     return (
         f"You are running unattended on a 24/7 worker for personal-workspace.\n"
-        f"Implement this backlog item and leave durable git changes ready to commit.\n\n"
+        f"Your output must be the **implemented MVP** as real project files — "
+        f"not a plan, seed, or prompt file.\n\n"
         f"## Task\n"
         f"**Title:** {title}\n"
         f"**Priority:** {item.get('priority')}\n"
-        f"**Area:** {item.get('area') or 'misc'}\n"
-        f"**MVP:** {mvp}\n"
+        f"**Area:** {area}\n"
+        f"**MVP (ship this):** {mvp}\n"
         f"**Description:** {desc}\n"
         f"**Notes:** {notes}\n"
         f"**Backlog id:** {item.get('id')}\n"
         f"**Job id:** {job_id}\n"
-        f"**Seed (if any):** {seed_path}\n\n"
+        f"**Seed path (reference only — do not treat writing seeds as done):** "
+        f"{seed_path or 'n/a'}\n\n"
+        f"## Required outcome\n"
+        f"1. Implement the MVP under an appropriate project directory "
+        f"(e.g. a new folder or existing area for `{area}`).\n"
+        f"2. Include enough code/HTML/config that a human can open or run it.\n"
+        f"3. Add a short README in the project folder with how to run/verify.\n"
+        f"4. Prefer tests when they fit; otherwise leave clear verify steps.\n\n"
         f"## Rules\n"
-        f"1. Stay on the current git branch; do not push yourself if tools forbid it — "
-        f"still make commits if protect/sync helpers exist.\n"
-        f"2. Implement the MVP only; avoid drive-by refactors.\n"
-        f"3. Run tests relevant to your changes when feasible.\n"
+        f"1. Stay on the current git branch; make file changes in the working tree.\n"
+        f"2. Do **not** only update `ops/backlog/**` seeds/prompts — that is scaffolding.\n"
+        f"3. Implement the MVP only; avoid drive-by refactors.\n"
         f"4. Prefer small, reviewable diffs.\n"
         f"5. When done, summarize files changed and how to verify.\n"
         f"6. Do not print secrets or tokens.\n"
     )
+
+
+def is_scaffold_path(path: str) -> bool:
+    """Paths that must not alone count as 'implemented work' for a PR."""
+    p = (path or "").replace("\\", "/").lstrip("./")
+    if p.startswith("ops/backlog/seeds/"):
+        return True
+    if p.startswith("ops/backlog/reports/"):
+        return True
+    if p.startswith("ops/session-index/"):
+        return True
+    if p in {
+        "ops/backlog/items.json",
+        "ops/backlog/jobs.json",
+        "ops/backlog/scheduler.json",
+        "ops/backlog/suggestions.json",
+        "ops/backlog/workflow-session.json",
+    }:
+        return True
+    return False
+
+
+def split_dirty_paths(paths: list[str]) -> tuple[list[str], list[str]]:
+    impl = [p for p in paths if not is_scaffold_path(p)]
+    scaffold = [p for p in paths if is_scaffold_path(p)]
+    return impl, scaffold
+
+
+def grok_auth_status() -> dict[str, Any]:
+    """Best-effort check that Grok CLI can authenticate (auth.json / env)."""
+    auth = Path.home() / ".grok" / "auth.json"
+    info: dict[str, Any] = {
+        "ok": False,
+        "has_auth_file": auth.is_file(),
+        "has_xai_api_key": bool((os.environ.get("XAI_API_KEY") or "").strip()),
+        "auth_path": str(auth) if auth.is_file() else None,
+    }
+    if info["has_xai_api_key"]:
+        info["ok"] = True
+        info["via"] = "XAI_API_KEY"
+        return info
+    if not auth.is_file():
+        info["error"] = "no ~/.grok/auth.json and no XAI_API_KEY"
+        info["hint"] = (
+            "On Mac: grok login. Copy ~/.grok/auth.json to the Pi "
+            "(chmod 600), or set XAI_API_KEY in ~/.config/workflow-scheduler.env"
+        )
+        return info
+    try:
+        data = json.loads(auth.read_text(encoding="utf-8"))
+        expires = None
+        if isinstance(data, dict):
+            for v in data.values():
+                if isinstance(v, dict) and v.get("expires_at"):
+                    expires = v.get("expires_at")
+                    break
+        info["expires_at"] = expires
+        if expires:
+            try:
+                exp = datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+                if exp.tzinfo is None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp <= datetime.now(timezone.utc):
+                    info["error"] = f"auth expired at {expires}"
+                    info["hint"] = (
+                        "Refresh on a logged-in Mac (`grok login`) and scp "
+                        "~/.grok/auth.json to the Pi"
+                    )
+                    return info
+            except (TypeError, ValueError):
+                pass
+        info["ok"] = True
+        info["via"] = "auth.json"
+        return info
+    except (OSError, json.JSONDecodeError) as e:
+        info["error"] = str(e)
+        return info
 
 
 def run_headless_agent(
@@ -332,6 +417,15 @@ def run_headless_agent(
             "error": "grok CLI not installed on this host",
             "hint": "Install Grok Build on the Pi, or auto-claim on Mac Terminal",
         }
+    auth = grok_auth_status()
+    if not auth.get("ok"):
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": auth.get("error") or "Grok not authenticated",
+            "hint": auth.get("hint"),
+            "auth": auth,
+        }
     # Headless single-session with auto-approve for unattended work
     cmd = [
         grok,
@@ -344,13 +438,35 @@ def run_headless_agent(
         "--always-approve",
     ]
     code, out, err = _run(*cmd, cwd=repo, timeout=3600)
+    combined = f"{out or ''}\n{err or ''}"
+    auth_fail = any(
+        s in combined.lower()
+        for s in (
+            "not signed in",
+            "authenticate",
+            "grok login",
+            "xai_api_key",
+            "unauthorized",
+            "401",
+        )
+    )
+    ok = code == 0 and not auth_fail
+    error = None
+    if not ok:
+        error = (err or out or f"exit {code}").strip()
+        if auth_fail and "not signed in" in combined.lower():
+            error = (
+                "Grok not signed in on this host. "
+                "Refresh ~/.grok/auth.json from a logged-in Mac or set XAI_API_KEY."
+            )
     return {
-        "ok": code == 0,
+        "ok": ok,
         "code": code,
         "method": "grok --single --always-approve",
         "stdout_tail": (out or "")[-2000:],
         "stderr_tail": (err or "")[-1000:],
-        "error": None if code == 0 else (err or out or f"exit {code}"),
+        "error": error,
+        "auth": auth,
     }
 
 
@@ -705,7 +821,8 @@ def execute_agent_job(
     result: dict[str, Any]
 
     try:
-        # 3) prepare seed (no terminal spawn)
+        # 3) Optional seed files for Mac claim fallback — never count as MVP work.
+        # Prefer in-memory implement-MVP prompt so PRs are not seed-only.
         seed_path = ""
         prompt_path = ""
         launch_script = ""
@@ -724,17 +841,10 @@ def execute_agent_job(
                 launch_script = init.get("launch_script") or ""
                 item = get_item(item_id) or item
 
+        # Always use implementation-focused prompt (not interactive /goal seed text)
         prompt = build_agent_prompt(item, seed_path=seed_path, job_id=job_id)
-        if prompt_path:
-            try:
-                # Prefer full goal prompt from initiate
-                pfile = repo / prompt_path
-                if pfile.is_file():
-                    prompt = pfile.read_text(encoding="utf-8")
-            except OSError:
-                pass
 
-        # 4) agent
+        # 4) agent — must succeed for a real PR
         agent = run_headless_agent(prompt, repo=repo)
         steps.append(
             {
@@ -746,11 +856,71 @@ def execute_agent_job(
             }
         )
 
-        # 5) commit whatever changed (even partial progress)
         dirty = dirty_paths(repo)
-        commit_result: dict[str, Any] = {"ok": True, "dirty": dirty, "committed": False}
-        if dirty:
-            msg = f"auto({job_id}): {item.get('title') or item_id}"
+        impl_dirty, scaffold_dirty = split_dirty_paths(dirty)
+        steps.append(
+            {
+                "step": "classify_changes",
+                "ok": True,
+                "implementation": impl_dirty,
+                "scaffold": scaffold_dirty,
+            }
+        )
+
+        if not agent.get("ok"):
+            # Keep seed/launch files for Mac Terminal claim; do not open a PR.
+            result = {
+                "ok": False,
+                "error": agent.get("error") or "agent failed",
+                "needs_terminal": True,
+                "branch": branch,
+                "seed_path": seed_path,
+                "launch_script": launch_script,
+                "prompt_path": prompt_path,
+                "implementation_files": impl_dirty,
+                "steps": steps,
+                "hint": agent.get("hint")
+                or "Fix Grok auth on the worker, or claim on Mac Terminal",
+            }
+            return result
+
+        if not impl_dirty:
+            result = {
+                "ok": False,
+                "error": (
+                    "agent finished without implementation files "
+                    "(only seed/scaffold or no changes) — refusing empty/scaffold PR"
+                ),
+                "needs_terminal": True,
+                "branch": branch,
+                "seed_path": seed_path,
+                "launch_script": launch_script,
+                "prompt_path": prompt_path,
+                "implementation_files": [],
+                "scaffold_files": scaffold_dirty,
+                "steps": steps,
+            }
+            return result
+
+        # 5) commit implementation only (never stage ops/backlog seeds as the PR body)
+        commit_result: dict[str, Any] = {"ok": True, "dirty": impl_dirty, "committed": False}
+        msg = f"auto({job_id}): {item.get('title') or item_id}"
+        # Ensure scaffold is not staged
+        for p in scaffold_dirty:
+            _run("git", "-C", str(repo), "restore", "--staged", "--worktree", "--", p)
+        for p in impl_dirty:
+            _run("git", "-C", str(repo), "add", "--", p)
+        code_c, out_c, err_c = _run(
+            "git",
+            "-C",
+            str(repo),
+            "commit",
+            "-m",
+            msg,
+            timeout=120,
+        )
+        if code_c != 0:
+            # fallback to protect_work if commit needs identity etc.
             prot = protect_work(
                 repo,
                 message=msg,
@@ -762,33 +932,28 @@ def execute_agent_job(
                 "committed": bool(prot.get("committed")),
                 "sha": prot.get("sha"),
                 "error": prot.get("error"),
-                "dirty_before": dirty,
+                "via": "protect_work",
+                "dirty_before": impl_dirty,
             }
-            # ensure we're still on job branch
-            _run("git", "-C", str(repo), "checkout", branch)
+        else:
+            code_s, sha, _ = _run("git", "-C", str(repo), "rev-parse", "--short", "HEAD")
+            commit_result = {
+                "ok": True,
+                "committed": True,
+                "sha": sha if code_s == 0 else None,
+                "via": "git commit",
+                "dirty_before": impl_dirty,
+            }
+        _run("git", "-C", str(repo), "checkout", branch)
         steps.append({"step": "commit", **commit_result})
 
-        if agent.get("skipped") and not dirty:
+        if not commit_result.get("committed"):
             result = {
                 "ok": False,
-                "error": agent.get("error") or "agent unavailable and no changes",
+                "error": commit_result.get("error") or "commit failed",
                 "needs_terminal": True,
                 "branch": branch,
-                "seed_path": seed_path,
-                "launch_script": launch_script,
-                "prompt_path": prompt_path,
-                "steps": steps,
-            }
-            return result
-
-        if not agent.get("ok") and not dirty and not commit_result.get("committed"):
-            result = {
-                "ok": False,
-                "error": agent.get("error") or "agent failed with no commits",
-                "needs_terminal": True,
-                "branch": branch,
-                "seed_path": seed_path,
-                "launch_script": launch_script,
+                "implementation_files": impl_dirty,
                 "steps": steps,
             }
             return result
@@ -801,18 +966,22 @@ def execute_agent_job(
                 "ok": False,
                 "error": push.get("error") or "push failed",
                 "branch": branch,
+                "implementation_files": impl_dirty,
                 "steps": steps,
                 "partial": True,
             }
             return result
 
-        # 7) PR
+        # 7) PR — only after agent ok + implementation commit
+        files_list = "\n".join(f"- `{p}`" for p in impl_dirty[:40])
         pr_body = (
-            f"## Autonomous job\n\n"
+            f"## Autonomous implementation\n\n"
             f"- **Backlog:** {item.get('title')}\n"
             f"- **Job:** `{job_id}`\n"
             f"- **Branch:** `{branch}`\n"
             f"- **MVP:** {item.get('mvp_scope') or 'n/a'}\n\n"
+            f"### Files (implementation)\n"
+            f"{files_list or '_see diff_'}\n\n"
             f"### Agent\n"
             f"- method: {agent.get('method') or 'n/a'}\n"
             f"- ok: {agent.get('ok')}\n\n"
@@ -846,6 +1015,7 @@ def execute_agent_job(
                 "pr_number": pr.get("number"),
                 "seed_path": seed_path,
                 "launch_script": launch_script,
+                "implementation_files": impl_dirty,
                 "agent": agent,
                 "steps": steps,
                 "status": "pr_ready",
@@ -858,6 +1028,7 @@ def execute_agent_job(
             "error": pr.get("error") or "PR creation failed",
             "branch": branch,
             "pushed": True,
+            "implementation_files": impl_dirty,
             "steps": steps,
             "partial": True,
         }
