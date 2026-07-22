@@ -977,26 +977,30 @@ def evaluate_treasury(
         "strategy_context": {
             "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
             "usdc_model": (
-                "BTC → Morpho collateral → borrow USDC → pay One Card + High Yield vault. "
-                "Idle Advanced Trade USDC often ~$0 by design (lower yield than vault)."
+                "CB: BTC → Morpho collateral → borrow USDC → One Card + High Yield vault. "
+                "RH: equity/margin → cash → USDG → Robinhood Earn (Morpho ~7% est.). "
+                "Idle broker cash intentionally low vs Morpho yield sleeves."
             ),
             "priority_order": [
-                "Protect Morpho LTV (<50% target)",
+                "Protect CB Morpho LTV (<50% target)",
                 "Card / buffers from working USDC (vault + spot)",
+                "RH margin heat if funding USDG Earn from equity collateral",
                 "RH Checking float for ACH bills",
-                "RH margin heat / DCA throttle",
-                "Pull vault when paying card or topping collateral",
+                "USDG Earn (manual track) as RH yield sleeve",
+                "Agentic equity 40/60 (separate from yield sleeves)",
                 "Bridge recommend CB↔RH",
-                "Excess → vault / capital targets / DCA",
+                "Excess → vault / USDG Earn / capital targets",
             ],
             "double_leverage_warning": (
-                "Do not fund RH margin-driven DCA with freshly borrowed Coinbase USDC "
-                "without an explicit risk budget. BTC and growth equities often dump together."
+                "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly "
+                "borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities "
+                "often dump together — dual Morpho loops stack liquidation risk."
             ),
             "in_app_only": [
                 "loan protection",
-                "Morpho repay/add collateral",
-                "High Yield vault deposit/withdraw",
+                "Morpho repay/add collateral (CB)",
+                "High Yield vault deposit/withdraw (CB)",
+                "Robinhood Earn USDG lend/withdraw (Morpho self-custody wallet)",
                 "One Card pay / autopay",
                 "external USDC send (bridge)",
             ],
