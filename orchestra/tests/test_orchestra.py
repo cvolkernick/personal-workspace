@@ -26,6 +26,7 @@ from attention import (  # noqa: E402
     synthesize_attention,
 )
 from collectors import (  # noqa: E402
+    build_today_focus,
     collect_all_domains,
     collect_finance,
     collect_fitness,
@@ -63,10 +64,12 @@ Investment / Wealth Building supports Bitcoin accumulation.
     _write(
         base / "strategy" / "today.md",
         """# Today
+**Date:** 2026-07-22
+**Context:** Fixture micro plan for tests
 ## Top Priorities Right Now
-- [ ] **Next action from AI/Autonomy leverage initiative** (command center automation)
+- [ ] **Next action from AI/Autonomy leverage initiative** (command center automation). *Why this moves the bet: Advances AI/Autonomy leverage.*
 - [ ] **Fitness / Health enabler action** hit the full PPL session + nutrition
-- [ ] **Investment / thematic bet maintenance** review DCA and treasury liquidity
+- [ ] **Investment / thematic bet maintenance** review DCA and treasury liquidity for Bitcoin
 - [x] already done item should be ignored
 """,
     )
@@ -254,6 +257,44 @@ next_action: "Fill Morpho LTV fields and confirm buying power floor"
     return base
 
 
+class TodayFocusTests(unittest.TestCase):
+    def test_build_today_focus_cards_and_links(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            focus = build_today_focus(ws)
+            self.assertTrue(focus["ok"])
+            self.assertEqual(focus["path"], "strategy/today.md")
+            self.assertEqual(focus["bets_path"], "strategy/bets.md")
+            self.assertEqual(focus["date"], "2026-07-22")
+            self.assertIn("Fixture", focus.get("context") or "")
+            self.assertGreaterEqual(focus["open_count"], 3)
+            self.assertGreaterEqual(focus["done_count"], 1)
+            first = focus["open_items"][0]
+            self.assertIn("AI/Autonomy", first["title"])
+            self.assertTrue(first.get("detail"))
+            self.assertIn("rank", first)
+            # Bitcoin should match investment item
+            blobs = " ".join(
+                f"{i.get('title','')} {i.get('detail','')} {' '.join(i.get('linked_bets') or [])}"
+                for i in focus["open_items"]
+            )
+            self.assertIn("Bitcoin", blobs)
+            guide = focus["new_initiative_guide"]
+            self.assertIn("initiatives/", guide["summary"])
+            self.assertEqual(guide["template_path"], "initiatives/_template.md")
+            self.assertIn("next_action", guide["fields"])
+
+    def test_payload_exposes_today_focus(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            self.assertTrue(payload["ok"])
+            tf = payload.get("today_focus") or {}
+            self.assertTrue(tf.get("ok"))
+            self.assertGreaterEqual(tf.get("open_count") or 0, 3)
+            self.assertEqual(payload["counts"]["today_items"], tf["open_count"])
+
+
 class CollectorsAggregationTests(unittest.TestCase):
     def test_multi_domain_status_aggregation_from_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -270,6 +311,9 @@ class CollectorsAggregationTests(unittest.TestCase):
             self.assertGreaterEqual(by["strategy"]["signals"]["today_count"], 3)
             self.assertIn("Bitcoin", by["strategy"]["signals"]["thematic_bets"])
             self.assertGreaterEqual(len(by["strategy"]["signals"]["initiatives"]), 2)
+            # Structured focus nested under strategy signals
+            tf = by["strategy"]["signals"].get("today_focus") or {}
+            self.assertGreaterEqual(tf.get("open_count") or 0, 3)
 
             self.assertTrue(by["workflow"]["available"])
             self.assertGreaterEqual(by["workflow"]["signals"]["backlog"]["count"], 1)

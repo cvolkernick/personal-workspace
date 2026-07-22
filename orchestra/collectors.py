@@ -43,6 +43,228 @@ def _checklist_open(md: str) -> list[str]:
     return out
 
 
+def _strip_md_emphasis(s: str) -> str:
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
+    s = re.sub(r"\*(.+?)\*", r"\1", s)
+    s = re.sub(r"`([^`]+)`", r"\1", s)
+    return s.strip()
+
+
+def _split_title_detail(raw: str) -> tuple[str, str]:
+    """Split a checklist line into short title + why/detail (bet/initiative link)."""
+    raw = (raw or "").strip()
+    if not raw:
+        return "", ""
+    # Prefer explicit *Why…* / *Link…* italic tail
+    m = re.search(
+        r"\s+\*((?:Why|Link|Link to bets?|Why this moves)[^*]+)\*\s*$",
+        raw,
+        re.I,
+    )
+    if m:
+        detail = m.group(1).strip()
+        title = raw[: m.start()].strip().rstrip(".").rstrip()
+        return _strip_md_emphasis(title), detail
+    # Parenthetical tail as secondary detail
+    m2 = re.match(r"^(.+?)\s+\(([^)]{8,})\)\s*\.?\s*$", raw)
+    if m2 and not m2.group(1).count("("):
+        title = _strip_md_emphasis(m2.group(1).strip())
+        detail = m2.group(2).strip()
+        return title, detail
+    # Bold lead as title, remainder as detail
+    m3 = re.match(r"^\*\*(.+?)\*\*\s*(.*)$", raw)
+    if m3:
+        title = m3.group(1).strip()
+        rest = m3.group(2).strip().strip("—–-").strip()
+        rest = _strip_md_emphasis(rest)
+        return title, rest
+    return _strip_md_emphasis(raw), ""
+
+
+def _parse_checklist_items(md: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Parse open and done checklist items into structured cards."""
+    open_items: list[dict[str, Any]] = []
+    done_items: list[dict[str, Any]] = []
+    for line in md.splitlines():
+        m_open = re.match(r"^\s*[-*]\s*\[\s*\]\s*(.+)$", line)
+        m_done = re.match(r"^\s*[-*]\s*\[[xX]\]\s*(.+)$", line)
+        if m_open:
+            raw = m_open.group(1).strip()
+            title, detail = _split_title_detail(raw)
+            open_items.append(
+                {
+                    "raw": raw,
+                    "title": title or raw,
+                    "detail": detail,
+                    "done": False,
+                }
+            )
+        elif m_done:
+            raw = m_done.group(1).strip()
+            title, detail = _split_title_detail(raw)
+            done_items.append(
+                {
+                    "raw": raw,
+                    "title": title or raw,
+                    "detail": detail,
+                    "done": True,
+                }
+            )
+    for i, item in enumerate(open_items, start=1):
+        item["rank"] = i
+    for i, item in enumerate(done_items, start=1):
+        item["rank"] = i
+    return open_items, done_items
+
+
+def _extract_today_meta(md: str) -> dict[str, str]:
+    """Pull Date / Context lines from strategy/today.md body."""
+    date = ""
+    context = ""
+    for line in md.splitlines():
+        s = line.strip()
+        m_date = re.match(r"^\*?\*?Date:?\*?\*?\s*(.+)$", s, re.I)
+        if m_date and not date:
+            date = _strip_md_emphasis(m_date.group(1))
+            continue
+        m_ctx = re.match(r"^\*?\*?Context:?\*?\*?\s*(.+)$", s, re.I)
+        if m_ctx and not context:
+            context = _strip_md_emphasis(m_ctx.group(1))
+            continue
+    return {"date": date, "context": context}
+
+
+def _bets_blurb(bets_text: str) -> str:
+    """First useful blurb from strategy/bets.md for the Today panel."""
+    lines = [ln.strip() for ln in bets_text.splitlines() if ln.strip()]
+    for ln in lines[1:10]:
+        if ln.startswith("#"):
+            break
+        if ln.startswith("**") or ln.startswith("-"):
+            return _strip_md_emphasis(ln.strip("*").strip())
+        if not ln.startswith("["):
+            return ln
+    return ""
+
+
+def _match_item_links(
+    item: dict[str, Any],
+    *,
+    bets: list[str],
+    initiatives: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Attach matching thematic bets + initiative ids for UI deep-links."""
+    blob = f"{item.get('title', '')} {item.get('detail', '')} {item.get('raw', '')}".lower()
+    matched_bets = [b for b in bets if b.lower() in blob]
+    # Soft keyword → bet aliases
+    aliases = {
+        "bitcoin": "Bitcoin",
+        "btc": "Bitcoin",
+        "energy": "Energy",
+        "nuclear": "Energy",
+        "ai": "AI",
+        "agent": "AI",
+        "autonomy": "Autonomy",
+        "automation": "Autonomy",
+        "robot": "Robotics",
+        "command center": "AI",
+        "orchestra": "AI",
+    }
+    for key, bet in aliases.items():
+        if key in blob and bet in bets and bet not in matched_bets:
+            matched_bets.append(bet)
+    matched_inits: list[dict[str, str]] = []
+    for init in initiatives:
+        title = str(init.get("title") or "")
+        iid = str(init.get("id") or "")
+        path = str(init.get("path") or f"initiatives/{iid}.md")
+        tokens = [
+            t
+            for t in re.split(r"[^a-z0-9]+", f"{title} {iid}".lower())
+            if len(t) >= 4
+        ]
+        if iid and iid.replace("-", " ") in blob:
+            matched_inits.append({"id": iid, "title": title, "path": path})
+            continue
+        hits = sum(1 for t in tokens if t in blob)
+        if hits >= 2 or (iid and any(t in blob for t in iid.split("-") if len(t) >= 5)):
+            matched_inits.append({"id": iid, "title": title, "path": path})
+    # Dedupe initiatives
+    seen: set[str] = set()
+    uniq_inits: list[dict[str, str]] = []
+    for mi in matched_inits:
+        if mi["id"] in seen:
+            continue
+        seen.add(mi["id"])
+        uniq_inits.append(mi)
+    out = dict(item)
+    out["linked_bets"] = matched_bets[:5]
+    out["linked_initiatives"] = uniq_inits[:3]
+    return out
+
+
+def build_today_focus(workspace: Path) -> dict[str, Any]:
+    """Structured Today's Focus for the command-center UI (from strategy MD)."""
+    ws = Path(workspace)
+    bets_path = ws / "strategy" / "bets.md"
+    today_path = ws / "strategy" / "today.md"
+    bets_text = _read_text(bets_path)
+    today_text = _read_text(today_path)
+    thematic: list[str] = []
+    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
+        if re.search(rf"\b{name}\b", bets_text, re.I):
+            thematic.append(name)
+    meta = _extract_today_meta(today_text)
+    open_raw, done_raw = _parse_checklist_items(today_text)
+    initiatives = collect_initiatives(ws)
+    open_items = [
+        _match_item_links(it, bets=thematic, initiatives=initiatives) for it in open_raw
+    ]
+    done_items = [
+        _match_item_links(it, bets=thematic, initiatives=initiatives) for it in done_raw
+    ]
+    active_inits = [
+        i
+        for i in initiatives
+        if (i.get("status") or "").lower()
+        in ("active", "todo", "in_progress", "planning", "ready")
+    ]
+    return {
+        "ok": bool(today_text or bets_text or initiatives),
+        "path": "strategy/today.md" if today_path.is_file() else None,
+        "bets_path": "strategy/bets.md" if bets_path.is_file() else None,
+        "initiatives_dir": "initiatives/",
+        "date": meta.get("date") or "",
+        "context": meta.get("context") or "",
+        "bets_blurb": _bets_blurb(bets_text),
+        "thematic_bets": thematic,
+        "open_items": open_items,
+        "done_items": done_items,
+        "open_count": len(open_items),
+        "done_count": len(done_items),
+        "initiatives": initiatives,
+        "active_initiatives": active_inits,
+        "edit_hint": "Edit strategy/today.md in any editor (or ask Grok to refresh it from initiatives).",
+        "new_initiative_guide": {
+            "summary": (
+                "Add a new initiative as a structured Markdown file under initiatives/ "
+                "(YAML frontmatter + Description / Current Next Action / Progress)."
+            ),
+            "template_path": "initiatives/_template.md",
+            "example_path": "initiatives/improve-command-center-daily-planner.md",
+            "fields": [
+                "title",
+                "status",
+                "linked_bets",
+                "priority_impact",
+                "next_action",
+                "energy",
+                "domain_weighting_context",
+            ],
+        },
+    }
+
+
 def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     """Minimal YAML-ish frontmatter: key: value or key: ["a","b"]."""
     if not text.startswith("---"):
@@ -156,28 +378,24 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
 
 def collect_strategy(workspace: Path) -> dict[str, Any]:
     ws = Path(workspace)
-    bets_path = ws / "strategy" / "bets.md"
-    today_path = ws / "strategy" / "today.md"
-    bets_text = _read_text(bets_path)
-    today_text = _read_text(today_path)
-    thematic = []
-    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
-        if re.search(rf"\b{name}\b", bets_text, re.I):
-            thematic.append(name)
-    open_items = _checklist_open(today_text)
-    initiatives = collect_initiatives(ws)
-    status = "ok" if bets_text or today_text else "missing"
+    focus = build_today_focus(ws)
+    thematic = list(focus.get("thematic_bets") or [])
+    open_items = [it.get("raw") or it.get("title") or "" for it in (focus.get("open_items") or [])]
+    # Keep plain strings for priorities/synergies (backward compatible)
+    open_items = [s for s in open_items if s]
+    if not open_items:
+        open_items = _checklist_open(_read_text(ws / "strategy" / "today.md"))
+    initiatives = list(focus.get("initiatives") or [])
+    bets_ok = bool(focus.get("bets_path"))
+    today_ok = bool(focus.get("path"))
+    status = "ok" if bets_ok or today_ok or initiatives else "missing"
     summary_bits = []
     if thematic:
         summary_bits.append("bets: " + ", ".join(thematic[:5]))
     if open_items:
         summary_bits.append(f"{len(open_items)} open today item(s)")
     if initiatives:
-        active_n = sum(
-            1
-            for i in initiatives
-            if (i.get("status") or "").lower() in ("active", "todo", "in_progress", "planning")
-        )
+        active_n = len(focus.get("active_initiatives") or [])
         summary_bits.append(f"{active_n} initiative(s)")
     return {
         "id": "strategy",
@@ -188,11 +406,12 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
             "thematic_bets": thematic,
             "today_open": open_items,
             "today_count": len(open_items),
+            "today_focus": focus,
             "initiatives": initiatives,
-            "bets_path": "strategy/bets.md" if bets_path.is_file() else None,
-            "today_path": "strategy/today.md" if today_path.is_file() else None,
+            "bets_path": focus.get("bets_path"),
+            "today_path": focus.get("path"),
         },
-        "available": bool(bets_text or today_text or initiatives),
+        "available": bool(bets_ok or today_ok or initiatives),
         "live": None,
         "url": None,
         "launch": None,

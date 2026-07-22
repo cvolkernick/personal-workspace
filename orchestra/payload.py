@@ -8,14 +8,14 @@ from typing import Any, Optional
 
 try:
     from .attention import compute_freshness, synthesize_attention
-    from .collectors import collect_all_domains
+    from .collectors import build_today_focus, collect_all_domains
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
     from attention import compute_freshness, synthesize_attention
-    from collectors import collect_all_domains
+    from collectors import build_today_focus, collect_all_domains
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
     from recommendations import synthesize_recommendations
@@ -79,6 +79,12 @@ def build_orchestra_payload(
     s_sig = strategy.get("signals") or {}
     initiatives = list(s_sig.get("initiatives") or [])
     today_items = list(s_sig.get("today_open") or [])
+    # Prefer structured focus already built in collect_strategy; rebuild if missing
+    today_focus = s_sig.get("today_focus")
+    if not isinstance(today_focus, dict) or not today_focus.get("ok", True):
+        today_focus = build_today_focus(ws)
+    elif not today_focus.get("path") and not today_focus.get("open_items"):
+        today_focus = build_today_focus(ws)
 
     workflow = by_id.get("workflow") or {}
     backlog = (workflow.get("signals") or {}).get("backlog") or {}
@@ -220,6 +226,8 @@ def build_orchestra_payload(
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
+        # Human-maintained daily plan (strategy/today.md) — primary visual for operators
+        "today_focus": today_focus,
         # Primary synthesized output for operators / agents
         "recommendations": recommendations,
         "recommended_actions": recommended_actions,
@@ -251,6 +259,7 @@ def build_orchestra_payload(
             "stale_hours": stale_hours,
             "primary_output": "recommendations",
             "streams": {
+                "today_focus": "Human-maintained strategy/today.md focus cards",
                 "recommendations": "Merged automated next actions (primary)",
                 "priorities": "Raw priority synthesis (input to recommendations)",
                 "attention": "Hygiene/attention digest (input to recommendations)",
