@@ -1,0 +1,25 @@
+{
+  "id": "rpt-done-0cb116db",
+  "job_id": "job-221fb04f75",
+  "backlog_id": "0cb116db-cfee-485e-b841-629a8593e61d",
+  "title": "Improve command center daily action planner (Today's Focus)",
+  "status": "completed",
+  "summary": "Backlog item marked done. MVP: orchestra/collectors.py, orchestra/index.html, orchestra/server.py. https://github.com/cvolkernick/personal-workspace/pull/6",
+  "actions": [
+    "Verified MVP paths on disk",
+    "Ran unit tests for MVP module",
+    "Set backlog status=done"
+  ],
+  "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/6",
+  "implementation_files": [
+    "orchestra/collectors.py",
+    "orchestra/index.html",
+    "orchestra/server.py",
+    "orchestra/tests/test_orchestra.py",
+    "strategy/today.md"
+  ],
+  "source": "complete-outstanding-backlog-goal",
+  "created_at": "2026-07-22T04:42:15.112966+00:00",
+  "updated_at": "2026-07-22T04:42:15.116223+00:00",
+  "path": "ops/backlog/reports/rpt-done-0cb116db.json"
+}

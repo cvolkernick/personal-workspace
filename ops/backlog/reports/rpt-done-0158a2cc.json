@@ -1,0 +1,23 @@
+{
+  "id": "rpt-done-0158a2cc",
+  "job_id": "job-manual-portfolio-mvp",
+  "backlog_id": "0158a2cc-f5cf-4b68-998c-f80133b85cfc",
+  "title": "Personal Portfolio Website",
+  "status": "completed",
+  "summary": "Backlog item marked done. MVP: personal/portfolio/index.html, personal/portfolio/server.py, personal/portfolio/tests/test_portfolio.py.",
+  "actions": [
+    "Verified MVP paths on disk",
+    "Ran unit tests for MVP module",
+    "Set backlog status=done"
+  ],
+  "pr_url": null,
+  "implementation_files": [
+    "personal/portfolio/index.html",
+    "personal/portfolio/server.py",
+    "personal/portfolio/tests/test_portfolio.py"
+  ],
+  "source": "complete-outstanding-backlog-goal",
+  "created_at": "2026-07-22T04:42:15.112966+00:00",
+  "updated_at": "2026-07-22T04:42:15.118429+00:00",
+  "path": "ops/backlog/reports/rpt-done-0158a2cc.json"
+}

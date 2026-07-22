@@ -1,7 +1,7 @@
 """Top-level orchestra dashboard — cross-domain coordination for personal-workspace.
 
-Aggregates strategy, workflow, finance/treasury, fitness/health, and time-allocation
-into one payload with synergies and a coordinated action plan.
+Aggregates strategy, workflow, finance/treasury, fitness/health, time-allocation,
+and IoT into one payload with synergies, priorities, attention, and freshness.
 """
 
 try:

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Orchestra — personal-workspace</title>
+  <title>Orchestrator — personal-workspace</title>
   <style>
     :root {
       --bg: #080c12;
@@ -70,9 +70,15 @@
     .stat {
       background: var(--panel); border: 1px solid var(--border);
       border-radius: 10px; padding: 0.7rem 0.85rem;
+      min-width: 0;
     }
     .stat .n { font-size: 1.45rem; font-weight: 700; letter-spacing: -0.03em; }
-    .stat .l { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .stat .l {
+      color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.04em; line-height: 1.25;
+      overflow: hidden; text-overflow: ellipsis;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    }
     section { margin-bottom: 1.75rem; }
     section h2 {
       margin: 0 0 0.75rem; font-size: 1.05rem; font-weight: 650;
@@ -107,12 +113,53 @@
     .pill.partial, .pill.missing, .pill.unknown { color: var(--yellow); }
     .pill.live { color: var(--cyan); border-color: var(--cyan); }
     .pill.down { color: var(--muted); }
-    .pill.high { color: var(--orange); }
+    .pill.high, .pill.critical { color: var(--orange); }
+    .pill.critical { color: var(--red); border-color: var(--red); }
     .pill.medium { color: var(--accent); }
-    .pill.low { color: var(--muted); }
+    .pill.low, .pill.info { color: var(--muted); }
     .pill.overlap { color: var(--purple); }
     .pill.connection, .pill.relationship { color: var(--accent); }
     .pill.synergy { color: var(--green); }
+    .pill.stale { color: var(--red); border-color: var(--red); }
+    .pill.fresh { color: var(--green); }
+    .filters { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0 0 0.65rem; }
+    .filters button.active { border-color: var(--accent); color: var(--accent); background: #152536; }
+    .row.attn-critical, .row.attn-high {
+      border-color: #5a3030;
+      background: linear-gradient(135deg, #1a1010 0%, var(--panel) 55%);
+    }
+    .briefing {
+      background: linear-gradient(135deg, #121a28 0%, var(--panel) 70%);
+      border: 1px solid #2a3a55;
+      border-radius: 12px;
+      padding: 0.95rem 1.1rem;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .briefing .mode {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--cyan); margin-bottom: 0.35rem;
+    }
+    .row.rec-top {
+      border-color: #3a5a8a;
+      background: linear-gradient(135deg, #152238 0%, var(--panel) 55%);
+    }
+    .row .action-line {
+      font-weight: 650; font-size: 0.98rem; margin-top: 0.15rem;
+    }
+    details.secondary {
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem 0.85rem 0.75rem;
+      background: var(--panel2);
+    }
+    details.secondary > summary {
+      cursor: pointer; font-weight: 650; font-size: 0.95rem;
+      color: var(--muted); padding: 0.35rem 0;
+    }
+    details.secondary[open] > summary { color: var(--text); margin-bottom: 0.5rem; }
     a.link {
       color: var(--accent); text-decoration: none; font-size: 0.85rem; font-weight: 600;
     }
@@ -146,12 +193,150 @@
       padding: 1rem; border-top: 1px solid var(--border);
     }
     code { font-size: 0.8em; background: #0a1018; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    /* —— Today's Focus (strategy/today.md) —— */
+    #sec-today {
+      margin-bottom: 1.5rem;
+    }
+    .today-hero {
+      background:
+        linear-gradient(135deg, rgba(91,159,212,0.12) 0%, transparent 42%),
+        linear-gradient(225deg, rgba(192,132,252,0.10) 0%, var(--panel) 55%);
+      border: 1px solid #2a4a6a;
+      border-radius: 14px;
+      padding: 1rem 1.15rem 1.15rem;
+      box-shadow: 0 0 0 1px rgba(91,159,212,0.08);
+    }
+    .today-hero-head {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+      align-items: flex-start; justify-content: space-between;
+      margin-bottom: 0.75rem;
+    }
+    .today-hero-head h2 {
+      margin: 0; font-size: 1.15rem; font-weight: 700;
+      letter-spacing: -0.02em;
+      background: linear-gradient(90deg, #e7eef5, #7dd3fc 60%, #c084fc);
+      -webkit-background-clip: text; background-clip: text;
+      color: transparent;
+    }
+    .today-meta {
+      color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0 0;
+      max-width: 48rem;
+    }
+    .today-actions {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+    }
+    .today-actions button, .today-actions a.btn-link {
+      background: #152536; color: var(--text);
+      border: 1px solid #2d6a9f; border-radius: 8px;
+      padding: 0.35rem 0.75rem; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; text-decoration: none;
+      display: inline-flex; align-items: center; gap: 0.3rem;
+    }
+    .today-actions button:hover, .today-actions a.btn-link:hover {
+      border-color: var(--cyan); color: var(--cyan);
+    }
+    .today-bets {
+      display: flex; flex-wrap: wrap; gap: 0.35rem;
+      margin: 0 0 0.85rem; align-items: center;
+    }
+    .today-bets .label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted); font-weight: 700;
+    }
+    .pill.bet {
+      color: var(--purple); border-color: #6b4a8a; background: #1a1228;
+      text-transform: none; letter-spacing: 0.02em;
+    }
+    .focus-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 0.7rem;
+    }
+    .focus-card {
+      background: rgba(8,12,18,0.55);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 0.95rem;
+      display: flex; flex-direction: column; gap: 0.4rem;
+      min-height: 110px;
+      position: relative;
+    }
+    .focus-card.top {
+      border-color: #3a5a8a;
+      background: linear-gradient(160deg, #152238 0%, rgba(8,12,18,0.65) 70%);
+    }
+    .focus-card.done {
+      opacity: 0.72;
+      border-style: dashed;
+    }
+    .focus-card .focus-title {
+      font-weight: 650; font-size: 0.95rem; line-height: 1.35;
+    }
+    .focus-card.done .focus-title { text-decoration: line-through; color: var(--muted); }
+    .focus-card .focus-detail {
+      color: var(--muted); font-size: 0.84rem; flex: 1;
+    }
+    .focus-card .focus-links {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.15rem;
+    }
+    .focus-card .focus-links .tag a {
+      color: var(--accent); text-decoration: none;
+    }
+    .focus-card .focus-links .tag a:hover { text-decoration: underline; }
+    .today-footer-bar {
+      display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+      align-items: flex-start; justify-content: space-between;
+      margin-top: 0.9rem; padding-top: 0.75rem;
+      border-top: 1px solid var(--border);
+      font-size: 0.84rem; color: var(--muted);
+    }
+    .today-footer-bar code { font-size: 0.85em; }
+    .init-guide {
+      background: var(--panel2);
+      border: 1px dashed #3a4a5a;
+      border-radius: 10px;
+      padding: 0.65rem 0.85rem;
+      margin-top: 0.75rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+    }
+    .init-guide strong { color: var(--text); }
+    .init-guide .fields { margin: 0.35rem 0 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .raw-md {
+      margin-top: 0.75rem;
+      background: #0a1018;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+      max-height: 280px;
+      overflow: auto;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      display: none;
+    }
+    .raw-md.show { display: block; }
+    .raw-md h1, .raw-md h2, .raw-md h3 { color: var(--text); margin: 0.6rem 0 0.35rem; }
+    .raw-md h1 { font-size: 1.05rem; }
+    .raw-md h2 { font-size: 0.95rem; }
+    .raw-md p, .raw-md li { color: var(--muted); }
+    .raw-md strong { color: var(--text); }
+    .raw-md ul { padding-left: 1.2rem; margin: 0.35rem 0; }
+    .raw-md a { color: var(--accent); }
+    .toast {
+      position: fixed; bottom: 1.25rem; right: 1.25rem;
+      background: #1a3a55; border: 1px solid #2d6a9f; color: var(--text);
+      padding: 0.55rem 0.9rem; border-radius: 8px; font-size: 0.85rem;
+      font-weight: 600; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s; z-index: 50;
+    }
+    .toast.show { opacity: 1; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
 </head>
 <body>
   <header>
     <div>
-      <h1>Orchestra</h1>
+      <h1>Orchestrator</h1>
       <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
     </div>
     <div class="actions">
@@ -163,31 +348,92 @@
     <div class="error-banner" id="error"></div>
     <div class="summary" id="summary"></div>
 
+    <section id="sec-today" aria-label="Today's Focus">
+      <div class="today-hero">
+        <div class="today-hero-head">
+          <div>
+            <h2>Today's Focus</h2>
+            <p class="today-meta" id="today-meta">Loading strategy/today.md…</p>
+          </div>
+          <div class="today-actions">
+            <button type="button" id="btn-copy-today" title="Copy path for your editor">Copy path</button>
+            <button type="button" id="btn-toggle-md" title="Show rendered source markdown">View source MD</button>
+            <a class="btn-link" id="link-today-api" href="/api/strategy/today.md" target="_blank" rel="noopener">Raw MD</a>
+            <a class="btn-link" id="link-bets-api" href="/api/strategy/bets.md" target="_blank" rel="noopener">Bets</a>
+          </div>
+        </div>
+        <div class="today-bets" id="today-bets"></div>
+        <div class="focus-grid" id="today-cards"></div>
+        <div class="raw-md" id="today-raw-md" aria-live="polite"></div>
+        <div class="today-footer-bar">
+          <div id="today-edit-hint">
+            Source of truth: <code>strategy/today.md</code> · refresh after edits
+          </div>
+          <div id="today-done-note"></div>
+        </div>
+        <div class="init-guide" id="init-guide"></div>
+      </div>
+    </section>
+
+    <div class="briefing" id="briefing" hidden>
+      <div class="mode" id="rec-mode"></div>
+      <div id="rec-summary"></div>
+    </div>
+
+    <section id="sec-recommendations">
+      <h2>Recommended next actions <span class="badge" id="rec-count">0</span></h2>
+      <p class="sub" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem">
+        Fully automated from domains, synergies (high preferred; medium fallback), attention hygiene, and priorities — no manual triage required.
+      </p>
+      <div class="list" id="recommendations"></div>
+    </section>
+
     <section id="sec-domains">
       <h2>Domains <span class="badge" id="dom-count">0</span></h2>
       <div class="grid" id="domains"></div>
-    </section>
-
-    <section id="sec-synergies">
-      <h2>Overlaps · Connections · Synergies <span class="badge" id="syn-count">0</span></h2>
-      <div class="list" id="synergies"></div>
-    </section>
-
-    <section id="sec-priorities">
-      <h2>Coordinated action plan <span class="badge" id="pri-count">0</span></h2>
-      <div class="list" id="priorities"></div>
     </section>
 
     <section id="sec-links">
       <h2>Launch subordinates</h2>
       <div class="list" id="links"></div>
     </section>
+
+    <details class="secondary" id="sec-detail-streams">
+      <summary>Supporting analysis (attention · synergies · raw priorities · day bridge)</summary>
+      <section id="sec-attention" style="margin-top:0.75rem">
+        <h2>Needs attention <span class="badge" id="att-count">0</span></h2>
+        <p class="sub" id="att-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
+        <div class="list" id="attention"></div>
+      </section>
+      <section id="sec-synergies">
+        <h2>Overlaps · Connections · Synergies <span class="badge" id="syn-count">0</span></h2>
+        <div class="filters" id="syn-filters">
+          <button type="button" data-syn="all" class="active">All</button>
+          <button type="button" data-syn="high">High only</button>
+        </div>
+        <div class="list" id="synergies"></div>
+      </section>
+      <section id="sec-priorities">
+        <h2>Raw priority stream <span class="badge" id="pri-count">0</span></h2>
+        <div class="list" id="priorities"></div>
+      </section>
+      <section id="sec-bridge">
+        <h2>Day bridge <span class="badge" id="bridge-count">0</span></h2>
+        <p class="sub" id="bridge-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
+        <div class="list" id="bridge"></div>
+      </section>
+    </details>
   </main>
-  <footer id="footer">Orchestra · personal-workspace</footer>
+  <footer id="footer">Orchestrator · personal-workspace</footer>
+  <div class="toast" id="toast" role="status"></div>
 
   <script>
     const $ = (id) => document.getElementById(id);
     let lastProbe = false;
+    let lastData = null;
+    let synFilter = "all";
+    let rawMdShown = false;
+    let lastTodayPath = "strategy/today.md";
 
     function showError(msg) {
       const el = $("error");
@@ -196,46 +442,161 @@
       el.classList.add("show");
     }
 
+    function toast(msg) {
+      const el = $("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove("show"), 2200);
+    }
+
     function esc(s) {
       return String(s ?? "").replace(/[&<>"']/g, (c) => ({
         "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
       })[c]);
     }
 
-    function render(data) {
-      showError("");
-      $("purpose").textContent = data.purpose || "Orchestra";
-      const c = data.counts || {};
-      $("summary").innerHTML = [
-        ["Domains", c.domains_available ?? "—", "available"],
-        ["Synergies", c.synergies ?? "—", "links"],
-        ["Priorities", c.priorities ?? "—", "actions"],
-        ["Initiatives", c.initiatives ?? "—", "active"],
-        ["Today", c.today_items ?? "—", "open"],
-      ].map(([l, n, sub]) =>
-        `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
-      ).join("");
+    function mdInline(s) {
+      // Light bold/code for card titles without full markdown
+      return esc(s)
+        .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+        .replace(/`([^`]+)`/g, "<code>$1</code>");
+    }
 
-      const domains = data.domains || [];
-      $("dom-count").textContent = String(domains.length);
-      $("domains").innerHTML = domains.map((d) => {
-        const live = d.live === true ? '<span class="pill live">live</span>'
-          : d.live === false ? '<span class="pill down">offline</span>' : "";
-        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
-        return `<article class="card">
-          <h3>${esc(d.label || d.id)}</h3>
-          <div class="sum">${esc(d.summary || "")}</div>
-          <div class="meta">
-            <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
-            ${live}
-            ${url}
+    function renderTodayFocus(focus) {
+      const f = focus || {};
+      lastTodayPath = f.path || "strategy/today.md";
+      const open = f.open_items || [];
+      const done = f.done_items || [];
+      const bets = f.thematic_bets || [];
+      const date = f.date || "";
+      const ctx = f.context || "";
+      const metaBits = [];
+      if (date) metaBits.push(date);
+      metaBits.push(open.length + " open · " + done.length + " done");
+      if (f.bets_blurb) metaBits.push(f.bets_blurb);
+      $("today-meta").textContent = metaBits.join(" · ") + (ctx ? " — " + ctx : "");
+      if (ctx && !date && !f.bets_blurb) {
+        $("today-meta").textContent = ctx;
+      }
+
+      $("today-bets").innerHTML = bets.length
+        ? `<span class="label">Bets</span>` +
+          bets.map((b) => `<span class="pill bet">${esc(b)}</span>`).join("") +
+          (f.bets_path
+            ? ` <a class="link" href="/api/strategy/bets.md" target="_blank" rel="noopener">strategy/bets.md →</a>`
+            : "")
+        : `<span class="label">Bets</span><span class="detail">No thematic bets found in strategy/bets.md</span>`;
+
+      const cards = [];
+      open.forEach((item, i) => {
+        const top = i < 3 ? " top" : "";
+        const betTags = (item.linked_bets || []).map(
+          (b) => `<span class="pill bet">${esc(b)}</span>`
+        ).join("");
+        const initTags = (item.linked_initiatives || []).map((ini) =>
+          `<span class="tag"><a href="#" data-init-path="${esc(ini.path || "")}" title="${esc(ini.path || "")}">${esc(ini.title || ini.id || "initiative")}</a></span>`
+        ).join("");
+        cards.push(`<article class="focus-card${top}">
+          <div class="title">
+            <span class="rank">${esc(item.rank || i + 1)}</span>
+            <span class="pill high">open</span>
           </div>
-        </article>`;
-      }).join("") || '<div class="row detail">No domains loaded.</div>';
+          <div class="focus-title">${mdInline(item.title || item.raw || "")}</div>
+          ${item.detail ? `<div class="focus-detail">${mdInline(item.detail)}</div>` : ""}
+          <div class="focus-links">${betTags}${initTags}</div>
+        </article>`);
+      });
+      done.slice(0, 4).forEach((item, i) => {
+        cards.push(`<article class="focus-card done">
+          <div class="title"><span class="pill ok">done</span></div>
+          <div class="focus-title">${mdInline(item.title || item.raw || "")}</div>
+          ${item.detail ? `<div class="focus-detail">${mdInline(item.detail)}</div>` : ""}
+        </article>`);
+      });
+      $("today-cards").innerHTML = cards.length
+        ? cards.join("")
+        : `<div class="row detail" style="grid-column:1/-1">No checklist items yet. Edit <code>strategy/today.md</code> and add 2–5 open <code>- [ ]</code> items for the next 24–48h.</div>`;
 
-      const syns = data.synergies || [];
-      $("syn-count").textContent = String(syns.length);
-      $("synergies").innerHTML = syns.map((s) => {
+      $("today-edit-hint").innerHTML =
+        `Source of truth: <code>${esc(lastTodayPath)}</code> · ${esc(f.edit_hint || "edit in any editor")} · API <code>/api/today</code>`;
+      $("today-done-note").textContent = done.length
+        ? `${done.length} completed item(s) kept for momentum (check off in the MD file).`
+        : "Check off items in the MD file as you finish them.";
+
+      const guide = f.new_initiative_guide || {};
+      const fields = (guide.fields || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+      const active = f.active_initiatives || [];
+      const activeHtml = active.length
+        ? `<div style="margin-top:0.45rem"><strong>Active initiatives</strong>: ${
+            active.map((a) =>
+              `<span class="tag" title="${esc(a.path || "")}">${esc(a.title || a.id)}</span>`
+            ).join(" ")
+          }</div>`
+        : "";
+      $("init-guide").innerHTML = `
+        <strong>Add new initiative</strong> — ${esc(guide.summary || "Create a structured MD under initiatives/.")}
+        Copy from <code>${esc(guide.template_path || "initiatives/_template.md")}</code>
+        or mirror <code>${esc(guide.example_path || "initiatives/improve-command-center-daily-planner.md")}</code>.
+        <div class="fields">${fields}</div>
+        ${activeHtml}
+      `;
+    }
+
+    async function toggleRawMd() {
+      const box = $("today-raw-md");
+      rawMdShown = !rawMdShown;
+      if (!rawMdShown) {
+        box.classList.remove("show");
+        $("btn-toggle-md").textContent = "View source MD";
+        return;
+      }
+      $("btn-toggle-md").textContent = "Hide source MD";
+      box.classList.add("show");
+      box.innerHTML = "<p class='detail'>Loading…</p>";
+      try {
+        const res = await fetch("/api/strategy/today.md", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const text = await res.text();
+        if (typeof marked !== "undefined" && marked.parse) {
+          if (typeof marked.setOptions === "function") {
+            marked.setOptions({ gfm: true, breaks: true });
+          }
+          box.innerHTML = marked.parse(text);
+        } else {
+          box.innerHTML = `<pre style="white-space:pre-wrap;margin:0;color:var(--muted)">${esc(text)}</pre>`;
+        }
+      } catch (e) {
+        box.innerHTML = `<p class="detail">Could not load markdown: ${esc(e.message)}</p>`;
+      }
+    }
+
+    function relAge(iso) {
+      if (!iso) return "";
+      const t = Date.parse(iso);
+      if (Number.isNaN(t)) return "";
+      const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+      if (mins < 1) return "just now";
+      if (mins < 60) return mins + "m ago";
+      const hrs = Math.round(mins / 60);
+      if (hrs < 48) return hrs + "h ago";
+      return Math.round(hrs / 24) + "d ago";
+    }
+
+    function formatAgeHours(h) {
+      if (h == null || Number.isNaN(Number(h))) return "";
+      const n = Number(h);
+      if (n < 1) return Math.round(n * 60) + "m";
+      if (n < 48) return n.toFixed(n < 10 ? 1 : 0) + "h";
+      return (n / 24).toFixed(1) + "d";
+    }
+
+    function renderSynergies(syns) {
+      const filtered = synFilter === "high"
+        ? syns.filter((s) => (s.strength || "") === "high")
+        : syns;
+      $("syn-count").textContent = String(filtered.length) + (synFilter === "high" ? "/" + syns.length : "");
+      $("synergies").innerHTML = filtered.map((s) => {
         const doms = (s.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
         const ev = (s.evidence || []).slice(0, 3).map((e) => `<span class="tag">${esc(e)}</span>`).join("");
         return `<div class="row">
@@ -247,9 +608,123 @@
           <div class="detail">${esc(s.detail || "")}</div>
           <div class="tags">${doms}${ev}</div>
         </div>`;
-      }).join("") || '<div class="row detail">No cross-domain synergies detected yet — add initiatives, today items, or treasury actions.</div>';
+      }).join("") || '<div class="row detail">No synergies match this filter — try All, or add initiatives / today items / treasury actions.</div>';
+    }
 
-      const pris = data.priorities || data.action_plan || [];
+    function render(data) {
+      lastData = data;
+      showError("");
+      $("purpose").textContent = data.purpose || "Orchestrator";
+      const c = data.counts || {};
+      const domains = data.domains || [];
+      // Strategy is files-only — surface in the top stats strip + Today's Focus hero.
+      const strategy = domains.find((d) => d.id === "strategy") || {};
+      const sSig = strategy.signals || {};
+      const bets = sSig.thematic_bets || [];
+      const dashDomains = domains.filter((d) => d.id !== "strategy");
+      const dashAvailable = dashDomains.filter((d) => d.available).length;
+      const fresh = data.freshness || {};
+      const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
+
+      const strategySub = bets.length
+        ? bets.slice(0, 5).join(" · ")
+        : (strategy.available ? "files ok" : "missing");
+      const rec = data.recommendations || {};
+      const recItems = data.recommended_actions || rec.items || data.action_plan || [];
+      const recMode = rec.mode || "—";
+      const todayFocus = data.today_focus || sSig.today_focus || {};
+      $("summary").innerHTML = [
+        ["Today", c.today_items ?? todayFocus.open_count ?? "—", "focus open"],
+        ["Recommended", c.recommendations ?? recItems.length ?? "—", recMode],
+        ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
+        ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
+        ["High synergies", c.synergies_high ?? "—", "of " + (c.synergies ?? "—")],
+        ["Stale", staleN, "sources"],
+        ["Bridge", c.bridge_candidates ?? "—", "to allocate"],
+      ].map(([l, n, sub]) =>
+        `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
+      ).join("");
+
+      renderTodayFocus(todayFocus);
+
+      // Primary: automated briefing + recommended actions
+      const briefing = $("briefing");
+      if (rec.summary) {
+        briefing.hidden = false;
+        $("rec-mode").textContent = "Mode: " + recMode + (rec.deferred_note ? " · fallback active" : "");
+        $("rec-summary").textContent = rec.summary;
+      } else {
+        briefing.hidden = true;
+      }
+      $("rec-count").textContent = String(recItems.length);
+      $("recommendations").innerHTML = recItems.length
+        ? recItems.map((r, i) => {
+            const urg = r.urgency || "medium";
+            const top = i < 3 ? " rec-top" : "";
+            const doms = (r.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            const srcs = (r.sources || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            return `<div class="row${top}">
+              <div class="title">
+                <span class="rank">${esc(r.rank || i + 1)}</span>
+                <span class="pill ${esc(urg)}">${esc(urg)}</span>
+                <span class="tag">${esc(r.kind || "action")}</span>
+                ${esc(r.title || "")}
+              </div>
+              <div class="action-line">${esc(r.action || r.title || "")}</div>
+              <div class="detail">${esc(r.why || "")}</div>
+              <div class="tags">${doms}${srcs}</div>
+            </div>`;
+          }).join("")
+        : '<div class="row detail">No automated recommendations yet — add today items, initiatives, or domain data.</div>';
+
+      const atts = data.attention || [];
+      $("att-count").textContent = String(atts.length);
+      const thr = fresh.stale_threshold_hours;
+      $("att-note").textContent = atts.length
+        ? "Input stream to recommendations (hygiene). Stale threshold: " + (thr != null ? thr + "h" : "default") + "."
+        : "No attention flags — hygiene stream clear.";
+      $("attention").innerHTML = atts.length
+        ? atts.map((a) => {
+            const sev = a.severity || "medium";
+            const doms = (a.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            return `<div class="row attn-${esc(sev)}">
+              <div class="title">
+                <span class="rank">${esc(a.rank || "")}</span>
+                <span class="pill ${esc(sev)}">${esc(sev)}</span>
+                <span class="tag">${esc(a.kind || "note")}</span>
+                ${esc(a.title || "")}
+              </div>
+              <div class="detail">${esc(a.detail || "")}</div>
+              <div class="tags">${doms}</div>
+            </div>`;
+          }).join("")
+        : '<div class="row detail">No attention items — system looks clear.</div>';
+
+      $("dom-count").textContent = String(dashDomains.length);
+      $("domains").innerHTML = dashDomains.map((d) => {
+        const live = d.live === true ? '<span class="pill live">live</span>'
+          : d.live === false ? '<span class="pill down">offline</span>' : "";
+        const stalePill = d.stale
+          ? `<span class="pill stale">stale${d.age_hours != null ? " " + esc(formatAgeHours(d.age_hours)) : ""}</span>`
+          : (d.age_hours != null
+            ? `<span class="pill fresh">${esc(formatAgeHours(d.age_hours))}</span>`
+            : "");
+        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
+        return `<article class="card">
+          <h3>${esc(d.label || d.id)}</h3>
+          <div class="sum">${esc(d.summary || "")}</div>
+          <div class="meta">
+            <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
+            ${live}
+            ${stalePill}
+            ${url}
+          </div>
+        </article>`;
+      }).join("") || '<div class="row detail">No domains loaded.</div>';
+
+      renderSynergies(data.synergies || []);
+
+      const pris = data.priorities || [];
       $("pri-count").textContent = String(pris.length);
       $("priorities").innerHTML = pris.map((p, i) => {
         const top = i < 3 ? " top" : "";
@@ -265,7 +740,31 @@
         </div>`;
       }).join("") || '<div class="row detail">No coordinated priorities yet.</div>';
 
-      const links = data.links || [];
+      const br = data.bridge || {};
+      const cand = br.candidates || [];
+      const linked = br.linked || [];
+      $("bridge-count").textContent = String(cand.length);
+      $("bridge-note").innerHTML = `${esc(br.note || "")}
+        ${br.workflow_url ? ` · <a class="link" href="${esc(br.workflow_url)}" target="_blank" rel="noopener">Workflow</a>` : ""}
+        ${br.allocator_url ? ` · <a class="link" href="${esc(br.allocator_url)}" target="_blank" rel="noopener">Time allocator</a>` : ""}
+        ${br.send_hint ? ` · <span class="detail">${esc(br.send_hint)}</span>` : ""}`;
+      const candHtml = cand.length
+        ? cand.map((item) => `
+          <div class="row">
+            <div class="title">
+              <span class="rank">${esc(item.press_rank || "·")}</span>
+              ${esc(item.title || "")}
+            </div>
+            <div class="detail">${esc(item.schedule_label || "")} · ${esc(item.priority || "")} · ${esc(item.status || "")}${item.area ? ` · ${esc(item.area)}` : ""}</div>
+            <div class="tags"><span class="pill medium">send from Workflow</span></div>
+          </div>`).join("")
+        : '<div class="row detail">No unlinked backlog candidates — groom workflow or all top items are already on the day plan.</div>';
+      const linkedHtml = linked.length
+        ? `<div class="row detail" style="margin-top:0.5rem"><strong>On day plan (${linked.length}):</strong> ${linked.map((l) => esc(l.title || l.id)).join(" · ")}</div>`
+        : "";
+      $("bridge").innerHTML = candHtml + linkedHtml;
+
+      const links = (data.links || []).filter((l) => l.id !== "strategy");
       $("links").innerHTML = links.map((l) => {
         const port = l.port != null ? `port ${l.port}` : "files only";
         const url = l.url
@@ -280,7 +779,10 @@
       }).join("");
 
       const gen = data.generated_at || "";
-      $("footer").textContent = `Orchestra · ${gen} · workspace ${data.workspace || ""}`;
+      const rel = relAge(gen);
+      const staleNote = staleN ? ` · ${staleN} stale source(s)` : "";
+      $("footer").textContent =
+        `Orchestrator · ${rel || gen}${staleNote} · workspace ${data.workspace || ""}`;
     }
 
     async function load(probe) {
@@ -302,6 +804,37 @@
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));
     $("btn-probe").addEventListener("click", () => load(true));
+    $("btn-copy-today").addEventListener("click", async () => {
+      const path = lastTodayPath || "strategy/today.md";
+      try {
+        await navigator.clipboard.writeText(path);
+        toast("Copied " + path);
+      } catch (_) {
+        toast(path);
+      }
+    });
+    $("btn-toggle-md").addEventListener("click", () => toggleRawMd());
+    $("today-cards").addEventListener("click", (ev) => {
+      const a = ev.target.closest("a[data-init-path]");
+      if (!a) return;
+      ev.preventDefault();
+      const p = a.getAttribute("data-init-path") || "";
+      if (p) {
+        navigator.clipboard.writeText(p).then(
+          () => toast("Copied " + p),
+          () => toast(p)
+        );
+      }
+    });
+    $("syn-filters").addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-syn]");
+      if (!btn) return;
+      synFilter = btn.getAttribute("data-syn") || "all";
+      $("syn-filters").querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+      if (lastData) renderSynergies(lastData.synergies || []);
+    });
     load(false);
   </script>
 </body>

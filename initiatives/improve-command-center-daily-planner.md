@@ -3,9 +3,9 @@ title: "Improve command center daily action planner (Today's Focus)"
 status: active
 linked_bets: ["AI/Autonomy/Robotics"]
 priority_impact: high
-next_action: "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)"
+next_action: "Use Orchestra Today's Focus for one real planning day; refine strategy/today.md open items from live context"
 energy: medium
-target_date: "2026-06-10 or ongoing"
+target_date: "2026-07-22 ongoing"
 domain_weighting_context: "Agents / AI tooling (currently high because this directly advances the AI/Autonomy/Robotics leverage bet and reduces synthesis friction across all domains)"
 ---
 
@@ -15,16 +15,16 @@ Evolve the command center from a good visual reader into the place where macro s
 This initiative itself is meta: building the tool that helps execute on the other bets.
 
 ## Current Next Action
-Add / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make "Add new initiative" guidance point to creating a real structured MD like this one.
+Use Orchestra **Today's Focus** for one real planning day; keep `strategy/today.md` as the source of truth and refresh open items from active initiatives.
 
 ## Progress / Wins
 - [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).
-- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).
+- [x] First implementation of the Today's Focus rendering + supporting MDs (`strategy/today.md`, `strategy/bets.md`, initiative template, Orchestra UI + `/api/today`).
 - [ ] User starts using the new flow for at least one real day of planning.
 
 ## Notes / Ideas
 - Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.
-- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.
+- Orchestra fetches structured focus via the payload / `/api/today` and can render raw `strategy/today.md` with marked.js over HTTP.
 - Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).
 
 See the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.
