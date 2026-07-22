@@ -806,19 +806,27 @@
     <details class="panel" id="panel-settings">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
-        <div class="hint">Morpho (Coinbase Borrow) — app-only, not API. Fill so liquidity stress is accurate. Fund manager agentic book is separate capital.</div>
+        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
-            <label>Loan principal (USDC)</label>
+            <label>CB loan principal (USDC)</label>
             <input id="m-principal" type="number" step="any" placeholder="from Borrow app" />
-            <label>Collateral value (USD)</label>
+            <label>CB collateral value (USD)</label>
             <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
-            <label>LTV (0–1, e.g. 0.35)</label>
+            <label>CB LTV (0–1, e.g. 0.35)</label>
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
+            <label>CB High Yield vault USDC</label>
+            <input id="m-vault" type="number" step="any" placeholder="Morpho High Yield" />
           </div>
           <div>
-            <label>High Yield vault USDC</label>
-            <input id="m-vault" type="number" step="any" placeholder="Morpho High Yield" />
+            <label>RH USDG Earn (lent principal)</label>
+            <input id="m-usdg-earn" type="number" step="any" placeholder="Robinhood Earn · Morpho USDG" />
+            <label>RH USDG Earn APY est. (0–1)</label>
+            <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="e.g. 0.07" />
+            <label>RH margin loan used (USD)</label>
+            <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
+            <label>RH equity collateral (USD)</label>
+            <input id="m-rh-eq-coll" type="number" step="any" placeholder="optional · book backing margin" />
             <label>One Card balance override</label>
             <input id="m-card-bal" type="number" step="any" placeholder="usually from YNAB" />
             <label>One Card USDC security deposit</label>
@@ -1533,6 +1541,19 @@
         metric("Primary total", money(inp.rh_total_value)),
         metric("Primary cash", money(inp.rh_cash)),
         metric(
+          "USDG Earn (Morpho)",
+          inp.rh_usdg_earn_usdg != null
+            ? money(inp.rh_usdg_earn_usdg) +
+                (inp.rh_usdg_earn_apy_est != null
+                  ? ` · ~${(Number(inp.rh_usdg_earn_apy_est) * 100).toFixed(1)}% est.`
+                  : " · manual")
+            : "enter in Settings"
+        ),
+        metric(
+          "RH margin loan / equity coll.",
+          `${money(inp.rh_margin_loan_usd)} / ${money(inp.rh_equity_collateral_usd)}`
+        ),
+        metric(
           "Positions (primary)",
           pos.length
             ? pos
@@ -1828,6 +1849,12 @@
           inp.card_security_deposit_usdc
       );
       set("m-card-avail", man.card_available_credit);
+      const rhCfg = (snap.meta && snap.meta.rh_accounts) || {};
+      const rhMan = snap.robinhood || {};
+      set("m-usdg-earn", rhMan.usdg_earn_usdg ?? inp.rh_usdg_earn_usdg);
+      set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? inp.rh_usdg_earn_apy_est ?? 0.07);
+      set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
+      set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
 
       window.__treasury = data;
     }
@@ -1845,6 +1872,21 @@
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
+      };
+    }
+
+    function readRobinhoodForm() {
+      const num = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const v = el.value;
+        return v === "" ? null : v;
+      };
+      return {
+        usdg_earn_usdg: num("m-usdg-earn"),
+        usdg_earn_apy_est: num("m-usdg-apy"),
+        margin_loan_usd: num("m-rh-margin-loan"),
+        equity_collateral_usd: num("m-rh-eq-coll"),
       };
     }
 
@@ -1903,7 +1945,10 @@
         const res = await fetch("/api/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ coinbase_manual: readManualForm() }),
+          body: JSON.stringify({
+            coinbase_manual: readManualForm(),
+            robinhood: readRobinhoodForm(),
+          }),
         });
         const body = await res.json();
         if (!res.ok || !body.ok) throw new Error(body.error || res.status);

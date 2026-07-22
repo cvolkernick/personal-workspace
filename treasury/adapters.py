@@ -469,6 +469,12 @@ def build_snapshot(
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     rh_cfg = cfg.get("robinhood") or {}
+    # Manual RH yield sleeve (Robinhood Earn / USDG / Morpho) — not a clean MCP field
+    rh = dict(rh)
+    rh["usdg_earn_usdg"] = rh_cfg.get("usdg_earn_usdg")
+    rh["usdg_earn_apy_est"] = rh_cfg.get("usdg_earn_apy_est")
+    rh["margin_loan_usd"] = rh_cfg.get("margin_loan_usd")
+    rh["equity_collateral_usd"] = rh_cfg.get("equity_collateral_usd")
     ynab_cfg = cfg.get("ynab") or {}
     exp_cfg = cfg.get("expenses_sheet") or {}
     return {

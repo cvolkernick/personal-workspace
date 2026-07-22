@@ -2,7 +2,7 @@
 
 **Last updated:** 2026-07-20  
 **UI:** Financial Command Center → `financial-command/` (`python3 launch.py`)  
-**Surfaces:** Coinbase (BTC collateral loan, High Yield vault, One Card, liquid USDC) ↔ Robinhood (equity/margin + **Agentic MCP**, DCA) via USDC bridge.
+**Surfaces:** Coinbase (BTC Morpho loan → High Yield vault, One Card, liquid USDC) ↔ Robinhood (equity/margin → **USDG Earn / Morpho ~7%**, **Agentic MCP** equity book) via USDC bridge.
 
 ## Audit findings (MVP → current)
 
@@ -20,6 +20,7 @@
 | Static server only (no save API) | **Added** — `financial-command/server.py` |
 | RH only $144 BP visible | **Primary margin ••••9737** ~$146; **Agentic ••••1752** MCP-tradable (currently $0 — fund to trade) |
 | RH Agentic MCP | **Wired** — MCP + dual snapshot; **fund manager v1** (`investment/fund_manager.json`, `treasury/fund_manager.py`) autopilot agentic-only |
+| RH USDG Earn (Morpho ~7%) | **Manual track** — Robinhood Earn lends USDG via Morpho self-custody wallet; rolls into portfolio/crypto display, not clean MCP cash. FCC Settings: `usdg_earn_usdg` |
 | CB liquid ~$0 | **Expected if funds in Morpho vault/collateral** — enter vault/principal manually |
 | External USDC bridge | Still recommend-only (no Advanced Trade external send) |
 | RH positions (TSLA/STRC/…) | **In FCC Brokerage** from snapshot (primary positions list) |

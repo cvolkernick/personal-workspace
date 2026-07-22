@@ -27,7 +27,11 @@
     "account_number": "5QW39737",
     "agentic_account_number": "674601752",
     "mcp_url": "https://agent.robinhood.com/mcp/trading",
-    "notes": "Primary ••••9737 = legacy/read for this agent. Agentic ••••1752 = fund manager book (autopilot v1, agentic-only weights, no trade approval, no max order $). Policy: investment/fund_manager.json. MCP: agent.robinhood.com/mcp/trading."
+    "usdg_earn_usdg": null,
+    "usdg_earn_apy_est": 0.07,
+    "margin_loan_usd": null,
+    "equity_collateral_usd": null,
+    "notes": "Primary ••••9737 = equity book + optional margin to fund USDG. Agentic ••••1752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto→Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
   },
   "ynab": {
     "budget_name": null,

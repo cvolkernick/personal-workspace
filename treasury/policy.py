@@ -921,6 +921,19 @@ def evaluate_treasury(
             "rh_agentic_mcp_connected": bool((rh.get("mcp") or {}).get("connected")),
             "rh_positions_count": len(rh.get("positions") or []),
             "rh_agentic_positions_count": len((rh.get("agentic") or {}).get("positions") or []),
+            # Robinhood Earn (USDG via Morpho) — manual; may not appear as separate MCP cash
+            "rh_usdg_earn_usdg": _f(rh.get("usdg_earn_usdg"))
+            if not _is_missing(rh.get("usdg_earn_usdg"))
+            else None,
+            "rh_usdg_earn_apy_est": _f(rh.get("usdg_earn_apy_est"))
+            if not _is_missing(rh.get("usdg_earn_apy_est"))
+            else None,
+            "rh_margin_loan_usd": _f(rh.get("margin_loan_usd"))
+            if not _is_missing(rh.get("margin_loan_usd"))
+            else None,
+            "rh_equity_collateral_usd": _f(rh.get("equity_collateral_usd"))
+            if not _is_missing(rh.get("equity_collateral_usd"))
+            else None,
         },
         "buckets": buckets,
         "dca": dca,

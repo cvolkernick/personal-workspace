@@ -7,11 +7,30 @@ Tracking for crypto, equities, and related sleeves. **Canonical live balances, b
 
 ## Strategy
 
-- **Actively managed** book via an **agentic fund manager** (Robinhood Trading MCP) — not a fixed weekly DCA schedule.
+- **Actively managed** equity book via an **agentic fund manager** (Robinhood Trading MCP) — not a fixed weekly DCA schedule.
 - **Modernized 60/40** target structure (see below)—not classic bonds/equities.
 - Manager may rebalance, rotate within the allowlist, and size into strength/weakness subject to **guardrails** (FCC liquidity floors, max trade size, approval mode).
 - **Agentic RH** may only place orders on the **agentic** account; primary margin is read/policy unless you change that elsewhere.
 - Optional **DCA-like** top-ups remain allowed when the manager chooses them; they are **not** the default cadence.
+
+### Dual-venue Morpho yield loops (cash float)
+
+Parallel “borrow against risk assets → park stablecoin in Morpho yield” on **both** brokers:
+
+| Venue | Collateral / funding | Stablecoin parked for yield | Product |
+|-------|----------------------|----------------------------|---------|
+| **Coinbase** | BTC as Morpho **loan collateral** → borrow **USDC** | High Yield USDC Morpho vault (working float) | Coinbase Lend / Morpho High Yield |
+| **Robinhood** | **Equity book** (margin / buying power against stocks) → free cash → buy **USDG** | **Robinhood Earn**: lend USDG onchain via self-custody wallet into a **Morpho** vault (~**7%** estimated APY, variable; promo + protocol) | [Robinhood Earn](https://robinhood.com/us/en/support/articles/crypto-earn/) |
+
+**Confirmed naming:** product is **Robinhood Earn** on **USDG** (Paxos dollar stablecoin), powered by **Morpho** (Steakhouse-curated vault). Not FDIC/SIPC deposit insurance; rate is an estimate (protocol APR + incentives), can change; not “bank cash yield.”
+
+**How RH Earn shows in balances:** Official docs say active principal + lifetime rewards are **rolled into overall portfolio / crypto holdings** for convenience; lent USDG sits in a **self-custody wallet** + Morpho contracts—not a separate brokerage “cash” line. **MCP `get_portfolio` is unlikely to expose a clean Earn field** → track **manually in FCC Settings** (`robinhood.usdg_earn_usdg`).
+
+**Strategy intent (mirror CB):**
+1. Size equity collateral carefully (margin use vs liquidation risk).
+2. Deploy freed cash into **USDG → Earn (Morpho)** rather than idle cash.
+3. Treat Earn balance as **RH yield sleeve** (like CB vault), not agentic equity alpha.
+4. Keep LTV / margin heat monitored; yield does not justify forced liquidation risk.
 
 ## Thesis (core)
 
@@ -39,7 +58,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Bitcoin & digital credit complex** | **~40%** | BTC, digital credit / BTC yield (MSTR, STRC, ASST, SATA, **BITA**), BTC infra/miners (MARA, RIOT, CLSK, WULF, IREN), and optional hard-money metals (gold/silver if held—not required) |
 | **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX); room for energy or AI names the agent proposes |
 
-Weights are **targets for the investable equity+crypto book** (not cash buffers, Morpho collateral, or One Card float). The agentic manager steers toward these bands when capital and FCC stress allow—not on a rigid calendar.
+Weights are **targets for the investable equity book** (not cash buffers, CB Morpho collateral, RH USDG Earn sleeve, or One Card float). The agentic manager steers equity toward 40/60; **USDG Earn is a separate RH yield sleeve**, parallel to CB High Yield vault.
 
 ## Data source
 

@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-07-21T23:36:50.016238+00:00",
+    "as_of": "2026-07-22T21:02:50.553054+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-21T21:28:46.788260+00:00",
+      "as_of": "2026-07-22T03:48:48.063449+00:00",
       "liquid_usdc": 49.9976281255614,
       "liquid_btc": 1.8677294815e-06,
-      "btc_usd_price": 66292.0,
-      "liquid_btc_usd": 0.123815522787598,
+      "btc_usd_price": 66315.88,
+      "liquid_btc_usd": 0.12386012416761623,
       "by_currency": {
         "USDC": 49.9969421904,
         "USD": 0.0006859351614,
@@ -20,7 +20,7 @@
       "collateral_btc_usd": null,
       "ltv": null,
       "vault_usdc": "147.43",
-      "card_balance": 304.58,
+      "card_balance": 310.75,
       "card_available_credit": null,
       "one_card_security_deposit_usdc": 500,
       "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance.",
@@ -28,7 +28,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-07-21T21:28:47.942359+00:00",
+      "as_of": "2026-07-22T03:48:48.473782+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -37,16 +37,16 @@
       "account_type": "creditCard",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -304.58,
-      "balance_owed": 304.58,
-      "card_balance": 304.58,
+      "balance_raw": -310.75,
+      "balance_owed": 310.75,
+      "card_balance": 310.75,
       "available_credit": null,
       "card_available_credit": null,
-      "cleared_balance": -304.58,
+      "cleared_balance": -310.75,
       "uncleared_balance": 0.0,
-      "spend_30d": 179.13,
+      "spend_30d": 185.3,
       "payments_30d": 340.42,
-      "transaction_count": 20,
+      "transaction_count": 24,
       "transactions": [
         {
           "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -236,6 +236,50 @@
           "category_name": "Uncategorized"
         },
         {
+          "id": "7c6a34a3-054f-4e6f-b0dd-d618e4646354",
+          "date": "2026-07-19",
+          "payee": "Wawa",
+          "amount": -3.0,
+          "amount_display": -3.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "fee817f7-1a56-4839-829c-6890addb1406",
+          "date": "2026-07-19",
+          "payee": "RaceTrac",
+          "amount": -1.07,
+          "amount_display": -1.07,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+          "date": "2026-07-19",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+          "date": "2026-07-19",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
           "id": "d126b3d6-b995-46fc-8c41-aa33a0666dae",
           "date": "2026-07-19",
           "payee": "Payment",
@@ -275,7 +319,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-07-21T21:28:49.558070+00:00",
+      "as_of": "2026-07-22T03:48:48.628096+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -311,7 +355,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-07-21T21:28:53.585117+00:00",
+      "as_of": "2026-07-22T03:48:48.773212+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -320,21 +364,43 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 23.07,
-      "cash": 23.07,
-      "available": 23.07,
-      "cleared_balance": 23.07,
+      "balance_raw": 80.19,
+      "cash": 80.19,
+      "available": 80.19,
+      "cleared_balance": 80.19,
       "uncleared_balance": 0.0,
-      "spend_30d": 2.24,
-      "inflow_30d": 25.31,
-      "transaction_count": 4,
+      "spend_30d": 13.84,
+      "inflow_30d": 94.03,
+      "transaction_count": 8,
       "transactions": [
+        {
+          "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
+          "date": "2026-07-21",
+          "payee": "Tesla Supercharger",
+          "amount": -10.97,
+          "amount_display": -10.97,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
         {
           "id": "783fcba3-df65-4470-9b1b-c85f11ea85ff",
           "date": "2026-07-21",
           "payee": "Coinbase",
           "amount": -2.24,
           "amount_display": -2.24,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "3698b6e8-7b4f-4690-b3cc-b6b5b8508172",
+          "date": "2026-07-21",
+          "payee": "7-Eleven",
+          "amount": -0.63,
+          "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
           "approved": false,
@@ -363,11 +429,33 @@
           "category_name": "Inflow: Ready to Assign"
         },
         {
+          "id": "b55fe759-a250-46e7-9b9d-dddfb1ef1ec1",
+          "date": "2026-07-21",
+          "payee": "Transfer from @atj721",
+          "amount": 1.0,
+          "amount_display": 1.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
           "id": "87b2dbb2-a65b-4096-b879-0a97ee341eb0",
           "date": "2026-07-21",
           "payee": "X Money Promotional Bonus Payment",
           "amount": 25.0,
           "amount_display": 25.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "78dbbff9-64c9-47ac-aedc-7ca1db03a42e",
+          "date": "2026-07-21",
+          "payee": "Lyft",
+          "amount": 67.72,
+          "amount_display": 67.72,
           "memo": null,
           "cleared": "cleared",
           "approved": false,
@@ -380,7 +468,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-21T21:29:02.622889+00:00",
+      "as_of": "2026-07-22T03:48:49.496335+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1248,7 +1336,11 @@
         "connected": true,
         "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
       },
-      "notes": "Live MCP refresh dual-account for FCC freshness."
+      "notes": "Live MCP refresh dual-account for FCC freshness.",
+      "usdg_earn_usdg": null,
+      "usdg_earn_apy_est": 0.07,
+      "margin_loan_usd": null,
+      "equity_collateral_usd": null
     },
     "policy_overrides": {
       "cb_target_ltv_max": 0.5,
@@ -1275,7 +1367,7 @@
       "rh_accounts": {
         "primary": "5QW39737",
         "agentic": "674601752",
-        "notes": "Primary \u2022\u2022\u2022\u20229737 = legacy/read for this agent. Agentic \u2022\u2022\u2022\u20221752 = fund manager book (autopilot v1, agentic-only weights, no trade approval, no max order $). Policy: investment/fund_manager.json. MCP: agent.robinhood.com/mcp/trading."
+        "notes": "Primary \u2022\u2022\u2022\u20229737 = equity book + optional margin to fund USDG. Agentic \u2022\u2022\u2022\u20221752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto\u2192Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
       },
       "ynab": {
         "budget_name": "Chris's Plan",
@@ -1322,18 +1414,18 @@
       "vault_known": true,
       "count_vault_toward_buffers": true,
       "liquid_btc": 1.8677294815e-06,
-      "liquid_btc_usd": 0.123815522787598,
-      "btc_usd_price": 66292.0,
+      "liquid_btc_usd": 0.12386012416761623,
+      "btc_usd_price": 66315.88,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
       "vault_usdc": 147.43,
-      "card_balance": 304.58,
-      "card_available_credit": 195.42000000000002,
+      "card_balance": 310.75,
+      "card_available_credit": 189.25,
       "card_security_deposit_usdc": 500.0,
       "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
-      "one_card_spend_30d": 179.13,
+      "one_card_spend_30d": 185.3,
       "one_card_account": "Coinbase One Card \u2013 5361",
       "expenses_upcoming_monthly": 16262.16,
       "expenses_personal_monthly": 16262.16,
@@ -1347,10 +1439,10 @@
       "rh_checking_cash": 2.43,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 0.0,
-      "x_money_cash": 23.07,
+      "x_money_cash": 80.19,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 2.24,
-      "bank_cash": 25.5,
+      "x_money_spend_30d": 13.84,
+      "bank_cash": 82.62,
       "bill_pay_cash": 2.43,
       "rh_equity": 151.0800327736,
       "rh_total_value": 151.1840787736,
@@ -1363,7 +1455,11 @@
       "rh_agentic_total_value": 8.231971798,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 12,
-      "rh_agentic_positions_count": 4
+      "rh_agentic_positions_count": 4,
+      "rh_usdg_earn_usdg": null,
+      "rh_usdg_earn_apy_est": 0.07,
+      "rh_margin_loan_usd": null,
+      "rh_equity_collateral_usd": null
     },
     "buckets": {
       "liquid_usdc": 197.4276281255614,
@@ -1434,16 +1530,29 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-07-21T21:28:46.788260+00:00",
+        "coinbase_as_of": "2026-07-22T03:48:48.063449+00:00",
         "robinhood_as_of": "2026-07-21T21:30:20.723012+00:00",
-        "one_card_as_of": "2026-07-21T21:28:47.942359+00:00",
-        "rh_checking_as_of": "2026-07-21T21:28:49.558070+00:00",
-        "x_money_as_of": "2026-07-21T21:28:53.585117+00:00",
-        "expenses_as_of": "2026-07-21T21:29:02.622889+00:00"
+        "one_card_as_of": "2026-07-22T03:48:48.473782+00:00",
+        "rh_checking_as_of": "2026-07-22T03:48:48.628096+00:00",
+        "x_money_as_of": "2026-07-22T03:48:48.773212+00:00",
+        "expenses_as_of": "2026-07-22T03:48:49.496335+00:00"
       },
-      "stale": [],
+      "stale": [
+        "coinbase data 17.2h old (>6.0h)",
+        "robinhood data 23.5h old (>6.0h)",
+        "one_card data 17.2h old (>6.0h)",
+        "rh_checking data 17.2h old (>6.0h)",
+        "x_money data 17.2h old (>6.0h)",
+        "expenses data 17.2h old (>6.0h)"
+      ],
       "warnings": [
-        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv"
+        "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv",
+        "coinbase data 17.2h old (>6.0h)",
+        "robinhood data 23.5h old (>6.0h)",
+        "one_card data 17.2h old (>6.0h)",
+        "rh_checking data 17.2h old (>6.0h)",
+        "x_money data 17.2h old (>6.0h)",
+        "expenses data 17.2h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -1454,7 +1563,7 @@
       "rh_accounts": {
         "primary": "5QW39737",
         "agentic": "674601752",
-        "notes": "Primary \u2022\u2022\u2022\u20229737 = legacy/read for this agent. Agentic \u2022\u2022\u2022\u20221752 = fund manager book (autopilot v1, agentic-only weights, no trade approval, no max order $). Policy: investment/fund_manager.json. MCP: agent.robinhood.com/mcp/trading."
+        "notes": "Primary \u2022\u2022\u2022\u20229737 = equity book + optional margin to fund USDG. Agentic \u2022\u2022\u2022\u20221752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto\u2192Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
       }
     },
     "actions": [
@@ -1477,7 +1586,7 @@
       {
         "priority": 2,
         "kind": "card_paydown",
-        "title": "One Card balance $304.58 \u2014 pay down in app / confirm autopay",
+        "title": "One Card balance $310.75 \u2014 pay down in app / confirm autopay",
         "actor": "human",
         "detail": "Autopay + manual paydown only. Maximize available credit in-app.",
         "api_reachable": false
@@ -1555,7 +1664,7 @@
       {
         "n": 3,
         "actor": "human",
-        "title": "One Card balance $304.58 \u2014 pay down in app / confirm autopay",
+        "title": "One Card balance $310.75 \u2014 pay down in app / confirm autopay",
         "api_reachable": false
       },
       {
@@ -1589,7 +1698,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $197.43 (spot $50.00 + vault $147.43) | BTC liquid: 0.00000187 (~$0.12)\nOne Card owed: $304.58 (source=ynab) | 30d spend $179.13\nUpcoming expense estimates (sheet Personal): $16262.16/mo | CB-funded est $11873.04 | RH-checking est $4273.87 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | X Money: $23.07 (Checking \u2013 2201) | RH brokerage BP: $0.10 cash: $0.10 equity: $151.08\nDCA: PAUSE (pause) \u2014 buying power 0.10 below floor 500.00\nData quality: yellow score=0.75\nTop actions:\n  P1 [human|manual] Enter Morpho loan principal / collateral / LTV (Settings)\n  P2 [either|manual] USDC float short $302.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $304.58 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.10 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$11873/mo vs working USDC $197.43 (spot+vault)\n  P3 [either|API] Est. RH Checking\u2013funded bills ~$4274/mo vs checking float $2.43 (YNAB RH Checking)\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $197.43 (spot $50.00 + vault $147.43) | BTC liquid: 0.00000187 (~$0.12)\nOne Card owed: $310.75 (source=ynab) | 30d spend $185.3\nUpcoming expense estimates (sheet Personal): $16262.16/mo | CB-funded est $11873.04 | RH-checking est $4273.87 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | X Money: $80.19 (Checking \u2013 2201) | RH brokerage BP: $0.10 cash: $0.10 equity: $151.08\nDCA: PAUSE (pause) \u2014 buying power 0.10 below floor 500.00\nData quality: yellow score=0.75\nTop actions:\n  P1 [human|manual] Enter Morpho loan principal / collateral / LTV (Settings)\n  P2 [either|manual] USDC float short $302.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $310.75 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.10 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$11873/mo vs working USDC $197.43 (spot+vault)\n  P3 [either|API] Est. RH Checking\u2013funded bills ~$4274/mo vs checking float $2.43 (YNAB RH Checking)\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
@@ -1645,12 +1754,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-21T23:36:50.016729+00:00",
+      "as_of": "2026-07-22T21:02:50.553589+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-21T23:36:50.016592+00:00",
+        "as_of": "2026-07-22T21:02:50.553450+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -1965,12 +2074,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-21T23:36:50.016729+00:00",
+    "as_of": "2026-07-22T21:02:50.553589+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-21T23:36:50.016592+00:00",
+      "as_of": "2026-07-22T21:02:50.553450+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
