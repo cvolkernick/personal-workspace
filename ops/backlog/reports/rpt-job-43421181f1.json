@@ -1,0 +1,71 @@
+{
+  "id": "rpt-job-43421181f1",
+  "job_id": "job-43421181f1",
+  "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+  "title": "Panamerica Auto Website",
+  "status": "failed",
+  "summary": "Agent failed: error: you need to resolve your current index first",
+  "actions": [
+    "Tick: execution_mode=agent \u2192 branch/work/push/PR",
+    "Agent failed: error: you need to resolve your current index first"
+  ],
+  "details": {
+    "agent": {
+      "ok": false,
+      "error": "error: you need to resolve your current index first",
+      "branch": "work/auto/panamerica-auto-website-43421181",
+      "pr_url": null,
+      "pr_number": null,
+      "message": null,
+      "needs_terminal": null,
+      "steps": [
+        {
+          "step": "ensure_git",
+          "ok": true,
+          "error": null,
+          "cloned": null,
+          "initialized": null
+        },
+        {
+          "step": "pull",
+          "ok": false,
+          "detail": {
+            "code": 1,
+            "out": "Created autostash: a539d28\nAuto-merging ops/backlog/suggestions.json\nCONFLICT (content): Merge conflict in ops/backlog/suggestions.json\nAuto-merging ops/session-index/latest.json\nCONFLICT (content): Merge conflict in ops/session-index/latest.json",
+            "err": "From https://github.com/cvolkernick/personal-workspace\n * branch            master     -> FETCH_HEAD\nRebasing (1/130)\nRebasing (2/130)\nerror: could not apply 8c5b691... holistic: rolling 24h sleep battery (charge/discharge)\nhint: Resolve all conflicts manually, mark them as resolved with\nhint: \"git "
+          }
+        },
+        {
+          "step": "branch",
+          "ok": false,
+          "error": "error: you need to resolve your current index first",
+          "branch": "work/auto/panamerica-auto-website-43421181"
+        }
+      ]
+    },
+    "execution": {
+      "mode": "agent",
+      "should_spawn": false,
+      "use_agent": true,
+      "reason": "execution_mode=agent \u2192 branch/work/push/PR",
+      "runtime": {
+        "ok": true,
+        "platform": "linux",
+        "machine": "aarch64",
+        "has_grok": true,
+        "grok_bin": "/home/prism-agent/.grok/bin/grok",
+        "has_macos_terminal": false,
+        "can_spawn_terminal": false,
+        "can_spawn_headless": true,
+        "recommended_execution": "spawn",
+        "note": "Grok CLI present without macOS Terminal \u2014 headless spawn may work; queue to a Mac frontend is safer for interactive /goal."
+      },
+      "backend": "raspi"
+    }
+  },
+  "pr_url": null,
+  "source": "scheduler-agent",
+  "created_at": "2026-07-22T03:59:06.712848+00:00",
+  "updated_at": "2026-07-22T03:59:06.712863+00:00",
+  "path": "ops/backlog/reports/rpt-job-43421181f1.json"
+}

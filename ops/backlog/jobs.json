@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-22T03:54:33.229054+00:00",
+  "updated_at": "2026-07-22T03:59:06.714959+00:00",
   "jobs": [
     {
       "id": "job-9e5ac3a399",
@@ -26,6 +26,58 @@
       "updated_at": "2026-07-21T10:16:21.604567+00:00",
       "completed_at": "2026-07-21T10:16:21.604415+00:00",
       "result": "orphaned: backlog returned to ready/idea (no live session)"
+    },
+    {
+      "id": "job-43421181f1",
+      "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+      "title": "Panamerica Auto Website",
+      "status": "failed",
+      "created_at": "2026-07-22T03:59:05.040299+00:00",
+      "backend": "raspi",
+      "execution_mode": "agent",
+      "schedule_slot": "now",
+      "press_rank": 2,
+      "execution_reason": "execution_mode=agent \u2192 branch/work/push/PR",
+      "started_at": "2026-07-22T03:59:05.040336+00:00",
+      "agent": {
+        "ok": false,
+        "error": "error: you need to resolve your current index first",
+        "branch": "work/auto/panamerica-auto-website-43421181",
+        "pr_url": null,
+        "pr_number": null,
+        "message": null,
+        "needs_terminal": null,
+        "steps": [
+          {
+            "step": "ensure_git",
+            "ok": true,
+            "error": null,
+            "cloned": null,
+            "initialized": null
+          },
+          {
+            "step": "pull",
+            "ok": false,
+            "detail": {
+              "code": 1,
+              "out": "Created autostash: a539d28\nAuto-merging ops/backlog/suggestions.json\nCONFLICT (content): Merge conflict in ops/backlog/suggestions.json\nAuto-merging ops/session-index/latest.json\nCONFLICT (content): Merge conflict in ops/session-index/latest.json",
+              "err": "From https://github.com/cvolkernick/personal-workspace\n * branch            master     -> FETCH_HEAD\nRebasing (1/130)\nRebasing (2/130)\nerror: could not apply 8c5b691... holistic: rolling 24h sleep battery (charge/discharge)\nhint: Resolve all conflicts manually, mark them as resolved with\nhint: \"git "
+            }
+          },
+          {
+            "step": "branch",
+            "ok": false,
+            "error": "error: you need to resolve your current index first",
+            "branch": "work/auto/panamerica-auto-website-43421181"
+          }
+        ]
+      },
+      "branch": "work/auto/panamerica-auto-website-43421181",
+      "seed_path": null,
+      "launch_script": null,
+      "error": "error: you need to resolve your current index first",
+      "finished_at": "2026-07-22T03:59:06.712613+00:00",
+      "latest_report_id": "rpt-job-43421181f1"
     }
   ]
 }
