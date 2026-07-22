@@ -1,0 +1,18 @@
+{
+  "id": "rpt-done-6b74d2ca-linkfix",
+  "job_id": "job-56a031d880",
+  "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+  "title": "Panamerica Auto Website",
+  "status": "completed",
+  "summary": "Criterion 3 fix: last_job_id=job-56a031d880, last_pr_url=https://github.com/cvolkernick/personal-workspace/pull/4 (merged).",
+  "actions": [
+    "Pointed completion link at job-56a031d880",
+    "Set last_pr_url to PR #4",
+    "Cancelled superseding pending_terminal job if present"
+  ],
+  "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/4",
+  "source": "skeptic-fix-criterion-3",
+  "created_at": "2026-07-22T04:45:52.759320+00:00",
+  "updated_at": "2026-07-22T04:45:52.761322+00:00",
+  "path": "ops/backlog/reports/rpt-done-6b74d2ca-linkfix.json"
+}
