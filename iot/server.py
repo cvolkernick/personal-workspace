@@ -159,6 +159,15 @@ class IoTHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("[iot] " + (fmt % args) + "\n")
 
+    def end_headers(self) -> None:
+        path = getattr(self, "path", "") or ""
+        if path in ("/", "/index.html") or path.endswith(".html") or path.endswith(".js"):
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
+
+
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(code)

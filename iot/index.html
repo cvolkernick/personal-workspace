@@ -856,7 +856,7 @@
           if (banner) banner.style.display = "none";
         }
         if (!data.ok) toast("Backend health failed: " + (data.error || "unknown"), false);
-        log("health " + JSON.stringify({
+        log("health " + JSON.stringify({ uiBuild: "2026-07-22-onCount",
           n: data.registry && data.registry.count,
           groups: data.groups,
           schedule: data.schedule_enabled,
