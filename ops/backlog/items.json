@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-17T17:39:37.266906+00:00",
+  "updated_at": "2026-07-22T04:08:44.489500+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -115,17 +115,17 @@
       "title": "Panamerica Auto Website",
       "description": "Create a business website / platform for Panamerica Auto",
       "priority": "medium",
-      "status": "ready",
+      "status": "planning",
       "tags": [],
       "area": "business",
       "mvp_scope": "basic website featuring high level services",
       "notes": "",
       "created_at": "2026-07-17T06:18:43.331881+00:00",
-      "updated_at": "2026-07-17T06:18:43.332216+00:00",
-      "seed_path": null,
-      "goal_objective": null,
-      "initiated_at": null,
-      "launch_script": null,
+      "updated_at": "2026-07-22T04:08:44.489414+00:00",
+      "seed_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md",
+      "goal_objective": "Backlog project: Panamerica Auto Website\n\nContext:\nCreate a business website / platform for Panamerica Auto\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: basic website featuring high level services\n Prefer living under personal-workspace/business/.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
+      "initiated_at": "2026-07-22T04:08:44.489389+00:00",
+      "launch_script": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.launch.sh",
       "score": 88,
       "press_rank": 2,
       "rank_label": "Do next",
@@ -138,7 +138,9 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:10.731214+00:00"
+      "last_groomed_at": "2026-07-17T14:19:10.731214+00:00",
+      "objective_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
+      "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt"
     },
     {
       "id": "0158a2cc-f5cf-4b68-998c-f80133b85cfc",
