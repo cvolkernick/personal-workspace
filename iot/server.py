@@ -12,8 +12,14 @@
   POST /api/schedule/location — {latitude, longitude, timezone?}
   POST /api/schedule/routine  — patch a routine {id, enabled?, ...}
 
+When a remote backend is configured (backend.json or --backend URL), this process
+only serves the UI and reverse-proxies /api/* to the Pi (or other always-on host).
+Local schedule worker is disabled in proxy mode so routines fire once on the Pi.
+
 Usage:
   python3 iot/server.py
+  python3 iot/server.py --backend http://192.168.100.98:8780
+  python3 iot/server.py --local          # force direct LAN control (no proxy)
   python3 iot/server.py --port 8780 --no-browser
 """
 
@@ -23,7 +29,8 @@ import argparse
 import json
 import sys
 import threading
-import time
+import urllib.error
+import urllib.request
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -34,6 +41,8 @@ IOT_DIR = Path(__file__).resolve().parent
 ROOT = IOT_DIR.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+DEFAULT_BACKEND_CONFIG = IOT_DIR / "backend.json"
 
 from iot.control import (  # noqa: E402
     DEFAULT_BRIGHTNESS,
@@ -77,6 +86,20 @@ _TRANSPORT = None  # type: ignore
 _BOUND_PORT: int = DEFAULT_PORT
 _BOUND_HOST: str = "127.0.0.1"
 _SCHEDULER_STOP: Optional[threading.Event] = None
+# Remote Pi / always-on backend (None = direct local control)
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+
+
+def load_backend_config(path: Optional[Path] = None) -> dict[str, Any]:
+    p = path or DEFAULT_BACKEND_CONFIG
+    if not p.is_file():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+    except (OSError, json.JSONDecodeError):
+        return {}
 
 
 def _registry() -> dict:
@@ -136,6 +159,16 @@ class IoTHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("[iot] " + (fmt % args) + "\n")
 
+    def end_headers(self) -> None:
+        # Prevent browsers from caching a broken/stale index.html
+        path = getattr(self, "path", "") or ""
+        if path in ("/", "/index.html") or path.endswith(".html") or path.endswith(".js"):
+            self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
+        super().end_headers()
+
+
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(code)
@@ -156,6 +189,71 @@ class IoTHandler(SimpleHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
 
+    def _proxy_api(self, method: str) -> bool:
+        """If backend configured, forward /api/* to remote host. Returns True if handled."""
+        if not _BACKEND_URL:
+            return False
+        parsed = urlparse(self.path)
+        if not parsed.path.startswith("/api/"):
+            return False
+
+        url = _BACKEND_URL.rstrip("/") + self.path
+        body: Optional[bytes] = None
+        headers = {"Accept": "application/json"}
+        if method in ("POST", "PUT", "PATCH"):
+            length = int(self.headers.get("Content-Length") or 0)
+            body = self.rfile.read(length) if length > 0 else b"{}"
+            headers["Content-Type"] = (
+                self.headers.get("Content-Type") or "application/json"
+            )
+
+        req = urllib.request.Request(url, data=body, method=method, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=90) as resp:
+                data = resp.read()
+                code = resp.status
+                ctype = resp.headers.get("Content-Type") or "application/json; charset=utf-8"
+        except urllib.error.HTTPError as e:
+            data = e.read()
+            code = e.code
+            ctype = e.headers.get("Content-Type") or "application/json; charset=utf-8"
+        except Exception as e:  # noqa: BLE001
+            self._json(
+                502,
+                {
+                    "ok": False,
+                    "error": f"backend unreachable: {type(e).__name__}: {e}",
+                    "backend": _BACKEND_URL,
+                    "backend_label": _BACKEND_LABEL,
+                    "proxy": True,
+                },
+            )
+            return True
+
+        # Annotate health so UI can show proxy → Pi
+        if parsed.path == "/api/health":
+            try:
+                payload = json.loads(data.decode("utf-8") if data else "{}")
+                if isinstance(payload, dict):
+                    payload["proxy"] = True
+                    payload["backend"] = _BACKEND_URL
+                    payload["backend_label"] = _BACKEND_LABEL or _BACKEND_URL
+                    payload["frontend"] = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
+                    data = json.dumps(payload, default=str).encode("utf-8")
+                    ctype = "application/json; charset=utf-8"
+            except json.JSONDecodeError:
+                pass
+
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("X-IoT-Proxy-Backend", _BACKEND_URL)
+        self.end_headers()
+        self.wfile.write(data)
+        return True
+
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
@@ -164,6 +262,8 @@ class IoTHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
+        if self._proxy_api("GET"):
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
@@ -192,6 +292,8 @@ class IoTHandler(SimpleHTTPRequestHandler):
                         load_schedule(_sched_path())
                     )
                     is not None,
+                    "proxy": False,
+                    "backend": None,
                 },
             )
             return
@@ -286,6 +388,8 @@ class IoTHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        if self._proxy_api("POST"):
+            return
         path = urlparse(self.path).path
         body = self._read_json()
 
@@ -444,12 +548,23 @@ class IoTHandler(SimpleHTTPRequestHandler):
 def main(argv: Optional[list[str]] = None) -> int:
     global _BULBS_PATH, _BOUND_PORT, _BOUND_HOST, _SCHEDULER_STOP
     global _GROUPS_PATH, _SCHEDULE_PATH, _STATE_PATH
+    global _BACKEND_URL, _BACKEND_LABEL
     parser = argparse.ArgumentParser(description="IoT local dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--bulbs", type=Path, default=None, help="Path to bulbs.json")
     parser.add_argument("--groups", type=Path, default=None)
     parser.add_argument("--schedule", type=Path, default=None)
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help="Proxy /api/* to this base URL (e.g. http://192.168.100.98:8780)",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force direct local control (ignore backend.json)",
+    )
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--no-scheduler", action="store_true")
     args = parser.parse_args(argv)
@@ -459,17 +574,39 @@ def main(argv: Optional[list[str]] = None) -> int:
     _BOUND_PORT = int(args.port)
     _BOUND_HOST = str(args.host)
 
+    # Resolve backend: --local wins, then --backend, then backend.json
+    if args.local:
+        _BACKEND_URL = None
+        _BACKEND_LABEL = ""
+    elif args.backend:
+        _BACKEND_URL = str(args.backend).rstrip("/")
+        _BACKEND_LABEL = urlparse(_BACKEND_URL).hostname or _BACKEND_URL
+    else:
+        cfg = load_backend_config()
+        url = (cfg.get("url") or "").strip()
+        _BACKEND_URL = url.rstrip("/") if url else None
+        _BACKEND_LABEL = str(cfg.get("label") or "") or (
+            urlparse(_BACKEND_URL).hostname if _BACKEND_URL else ""
+        )
+
+    # Proxy mode: never run a second schedule loop on the Mac
+    use_scheduler = (not args.no_scheduler) and (_BACKEND_URL is None)
+
     server = ThreadingHTTPServer((args.host, args.port), IoTHandler)
     _BOUND_HOST, _BOUND_PORT = server.server_address[0], int(server.server_address[1])
     url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"IoT dashboard → {url}")
-    print(f"bulbs → {_BULBS_PATH or DEFAULT_BULBS_PATH}")
+    if _BACKEND_URL:
+        print(f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]")
+        print("scheduler → remote backend (local worker off)")
+    else:
+        print(f"bulbs → {_BULBS_PATH or DEFAULT_BULBS_PATH}")
+        print("mode → local direct control")
     print("API: /api/health /api/devices /api/groups /api/schedule /api/control")
 
     stop = threading.Event()
     _SCHEDULER_STOP = stop
-    worker: Optional[threading.Thread] = None
-    if not args.no_scheduler:
+    if use_scheduler:
         worker = threading.Thread(
             target=_scheduler_loop, args=(stop,), name="iot-schedule", daemon=True
         )
