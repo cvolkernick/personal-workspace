@@ -46,6 +46,53 @@ class TestAgentJobs(unittest.TestCase):
         self.assertIn("one page", p)
         self.assertNotIn("/goal", p)
 
+    def test_changed_paths_includes_committed(self) -> None:
+        """Agent mid-session commits must still count as implementation."""
+        import tempfile
+        import subprocess
+        from pathlib import Path
+        from unittest import mock
+
+        td = tempfile.TemporaryDirectory()
+        repo = Path(td.name)
+        subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "t@t.com"], cwd=repo, check=True, capture_output=True
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "t"], cwd=repo, check=True, capture_output=True
+        )
+        (repo / "base.txt").write_text("b\n", encoding="utf-8")
+        subprocess.run(["git", "add", "base.txt"], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "base"], cwd=repo, check=True, capture_output=True
+        )
+        base = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=repo, text=True
+        ).strip()
+        (repo / "sites").mkdir()
+        (repo / "sites" / "index.html").write_text("<h1>hi</h1>\n", encoding="utf-8")
+        (repo / "ops").mkdir()
+        (repo / "ops" / "backlog").mkdir(parents=True)
+        (repo / "ops" / "backlog" / "seeds").mkdir(parents=True)
+        (repo / "ops" / "backlog" / "seeds" / "x.md").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "add", "."], cwd=repo, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "agent work"], cwd=repo, check=True, capture_output=True
+        )
+        # clean tree — this is what fooled the old gate
+        porcelain = subprocess.check_output(
+            ["git", "status", "--porcelain"], cwd=repo, text=True
+        ).strip()
+        self.assertEqual(porcelain, "")
+        changed = aj.changed_paths_since(repo, base)
+        impl, sc = aj.split_dirty_paths(changed)
+        self.assertIn("sites/index.html", impl)
+        self.assertIn("ops/backlog/seeds/x.md", sc)
+        self.assertGreaterEqual(aj.commits_ahead(repo, base), 1)
+        td.cleanup()
+
+
 
 if __name__ == "__main__":
     unittest.main()

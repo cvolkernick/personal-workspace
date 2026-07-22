@@ -1,0 +1,16 @@
+{
+  "id": "rpt-panamerica-impl-pr",
+  "job_id": "job-56a031d880",
+  "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
+  "title": "Panamerica Auto Website",
+  "status": "pr_ready",
+  "summary": "Implementation PR: https://github.com/cvolkernick/personal-workspace/pull/4",
+  "actions": [
+    "Opened clean PR with business/panamerica-auto only"
+  ],
+  "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/4",
+  "source": "manual-recover",
+  "created_at": "2026-07-22T04:14:53.227859+00:00",
+  "updated_at": "2026-07-22T04:14:53.227863+00:00",
+  "path": "ops/backlog/reports/rpt-panamerica-impl-pr.json"
+}

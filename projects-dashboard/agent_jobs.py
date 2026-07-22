@@ -351,6 +351,56 @@ def split_dirty_paths(paths: list[str]) -> tuple[list[str], list[str]]:
     return impl, scaffold
 
 
+def _rev_parse(repo: Path, rev: str = "HEAD") -> Optional[str]:
+    code, out, _ = _run("git", "-C", str(repo), "rev-parse", rev)
+    return out.strip() if code == 0 and out else None
+
+
+def changed_paths_since(repo: Path, base_sha: str) -> list[str]:
+    """Files changed by commits after *base_sha* plus uncommitted dirty paths.
+
+    Headless agents often commit mid-session (Agents.md auto-protect), so the
+    working tree can be clean while the branch still has real work.
+    """
+    repo = Path(repo).resolve()
+    paths: list[str] = []
+    seen: set[str] = set()
+    if base_sha:
+        code, out, _ = _run(
+            "git",
+            "-C",
+            str(repo),
+            "diff",
+            "--name-only",
+            f"{base_sha}...HEAD",
+        )
+        if code == 0 and out:
+            for line in out.splitlines():
+                p = line.strip()
+                if p and p not in seen:
+                    seen.add(p)
+                    paths.append(p)
+    for p in dirty_paths(repo):
+        if p not in seen:
+            seen.add(p)
+            paths.append(p)
+    return paths
+
+
+def commits_ahead(repo: Path, base_sha: str) -> int:
+    if not base_sha:
+        return 0
+    code, out, _ = _run(
+        "git", "-C", str(repo), "rev-list", "--count", f"{base_sha}..HEAD"
+    )
+    if code != 0:
+        return 0
+    try:
+        return int((out or "0").strip() or "0")
+    except ValueError:
+        return 0
+
+
 def grok_auth_status() -> dict[str, Any]:
     """Best-effort check that Grok CLI can authenticate (auth.json / env)."""
     auth = Path.home() / ".grok" / "auth.json"
@@ -818,6 +868,7 @@ def execute_agent_job(
             "branch": br.get("branch"),
         }
     branch = br["branch"]
+    base_sha = _rev_parse(repo, "HEAD")  # tip before agent (should be origin/master)
     result: dict[str, Any]
 
     try:
@@ -856,19 +907,26 @@ def execute_agent_job(
             }
         )
 
-        dirty = dirty_paths(repo)
-        impl_dirty, scaffold_dirty = split_dirty_paths(dirty)
+        # Ensure we are still on the job branch (agent may have switched)
+        _run("git", "-C", str(repo), "checkout", branch)
+
+        # Include commits the agent made mid-session (not only uncommitted dirt)
+        all_changed = changed_paths_since(repo, base_sha or "")
+        impl_files, scaffold_files = split_dirty_paths(all_changed)
+        ahead = commits_ahead(repo, base_sha or "")
         steps.append(
             {
                 "step": "classify_changes",
                 "ok": True,
-                "implementation": impl_dirty,
-                "scaffold": scaffold_dirty,
+                "base_sha": (base_sha or "")[:12],
+                "commits_ahead": ahead,
+                "implementation": impl_files,
+                "scaffold": scaffold_files,
+                "uncommitted": dirty_paths(repo),
             }
         )
 
-        if not agent.get("ok"):
-            # Keep seed/launch files for Mac Terminal claim; do not open a PR.
+        if not agent.get("ok") and not impl_files:
             result = {
                 "ok": False,
                 "error": agent.get("error") or "agent failed",
@@ -877,14 +935,14 @@ def execute_agent_job(
                 "seed_path": seed_path,
                 "launch_script": launch_script,
                 "prompt_path": prompt_path,
-                "implementation_files": impl_dirty,
+                "implementation_files": impl_files,
                 "steps": steps,
                 "hint": agent.get("hint")
                 or "Fix Grok auth on the worker, or claim on Mac Terminal",
             }
             return result
 
-        if not impl_dirty:
+        if not impl_files:
             result = {
                 "ok": False,
                 "error": (
@@ -897,83 +955,100 @@ def execute_agent_job(
                 "launch_script": launch_script,
                 "prompt_path": prompt_path,
                 "implementation_files": [],
-                "scaffold_files": scaffold_dirty,
+                "scaffold_files": scaffold_files,
                 "steps": steps,
             }
             return result
 
-        # 5) commit implementation only (never stage ops/backlog seeds as the PR body)
-        commit_result: dict[str, Any] = {"ok": True, "dirty": impl_dirty, "committed": False}
-        msg = f"auto({job_id}): {item.get('title') or item_id}"
-        # Ensure scaffold is not staged
-        for p in scaffold_dirty:
-            _run("git", "-C", str(repo), "restore", "--staged", "--worktree", "--", p)
-        for p in impl_dirty:
-            _run("git", "-C", str(repo), "add", "--", p)
-        code_c, out_c, err_c = _run(
-            "git",
-            "-C",
-            str(repo),
-            "commit",
-            "-m",
-            msg,
-            timeout=120,
-        )
-        if code_c != 0:
-            # fallback to protect_work if commit needs identity etc.
-            prot = protect_work(
-                repo,
-                message=msg,
-                push=False,
-                ensure_work_branch=False,
+        # Agent may have already committed implementation; commit any leftover impl dirt.
+        # Never stage scaffold-only paths into the PR commit.
+        uncommitted = dirty_paths(repo)
+        uncommitted_impl, uncommitted_scaffold = split_dirty_paths(uncommitted)
+        commit_result: dict[str, Any] = {
+            "ok": True,
+            "committed": ahead > 0 and not uncommitted_impl,
+            "already_committed_by_agent": ahead > 0,
+            "commits_ahead_before": ahead,
+            "dirty_impl": uncommitted_impl,
+        }
+        if uncommitted_impl:
+            msg = f"auto({job_id}): {item.get('title') or item_id}"
+            for p in uncommitted_scaffold:
+                _run("git", "-C", str(repo), "restore", "--staged", "--worktree", "--", p)
+            for p in uncommitted_impl:
+                _run("git", "-C", str(repo), "add", "--", p)
+            code_c, _out_c, err_c = _run(
+                "git", "-C", str(repo), "commit", "-m", msg, timeout=120
             )
-            commit_result = {
-                "ok": bool(prot.get("ok")),
-                "committed": bool(prot.get("committed")),
-                "sha": prot.get("sha"),
-                "error": prot.get("error"),
-                "via": "protect_work",
-                "dirty_before": impl_dirty,
-            }
-        else:
-            code_s, sha, _ = _run("git", "-C", str(repo), "rev-parse", "--short", "HEAD")
-            commit_result = {
-                "ok": True,
-                "committed": True,
-                "sha": sha if code_s == 0 else None,
-                "via": "git commit",
-                "dirty_before": impl_dirty,
-            }
-        _run("git", "-C", str(repo), "checkout", branch)
+            if code_c != 0:
+                prot = protect_work(
+                    repo,
+                    message=msg,
+                    push=False,
+                    ensure_work_branch=False,
+                )
+                commit_result.update(
+                    {
+                        "ok": bool(prot.get("ok")),
+                        "committed": bool(prot.get("committed")),
+                        "sha": prot.get("sha"),
+                        "error": prot.get("error"),
+                        "via": "protect_work",
+                    }
+                )
+            else:
+                code_s, sha, _ = _run(
+                    "git", "-C", str(repo), "rev-parse", "--short", "HEAD"
+                )
+                commit_result.update(
+                    {
+                        "ok": True,
+                        "committed": True,
+                        "sha": sha if code_s == 0 else None,
+                        "via": "git commit",
+                    }
+                )
+            _run("git", "-C", str(repo), "checkout", branch)
+            # refresh file list after commit
+            all_changed = changed_paths_since(repo, base_sha or "")
+            impl_files, scaffold_files = split_dirty_paths(all_changed)
         steps.append({"step": "commit", **commit_result})
 
-        if not commit_result.get("committed"):
+        ahead = commits_ahead(repo, base_sha or "")
+        if ahead < 1 and not dirty_paths(repo):
+            # Should not happen if impl_files non-empty, but be safe
             result = {
                 "ok": False,
-                "error": commit_result.get("error") or "commit failed",
-                "needs_terminal": True,
+                "error": "implementation detected but nothing to push",
                 "branch": branch,
-                "implementation_files": impl_dirty,
+                "implementation_files": impl_files,
                 "steps": steps,
             }
             return result
 
-        # 6) push
+        # 6) push (agent may have already pushed; still ensure remote is up to date)
         push = push_branch(branch, repo=repo)
         steps.append({"step": "push", **push})
         if not push.get("ok"):
-            result = {
-                "ok": False,
-                "error": push.get("error") or "push failed",
-                "branch": branch,
-                "implementation_files": impl_dirty,
-                "steps": steps,
-                "partial": True,
-            }
-            return result
+            # If remote already has the branch tip, treat as ok
+            code_r, rem, _ = _run(
+                "git", "-C", str(repo), "ls-remote", "--heads", "origin", branch
+            )
+            if code_r != 0 or not (rem or "").strip():
+                result = {
+                    "ok": False,
+                    "error": push.get("error") or "push failed",
+                    "branch": branch,
+                    "implementation_files": impl_files,
+                    "steps": steps,
+                    "partial": True,
+                }
+                return result
+            steps[-1]["remote_exists"] = True
+            steps[-1]["ok"] = True
 
-        # 7) PR — only after agent ok + implementation commit
-        files_list = "\n".join(f"- `{p}`" for p in impl_dirty[:40])
+        # 7) PR — only with implementation files (committed and/or pushed)
+        files_list = "\n".join(f"- `{p}`" for p in impl_files[:40])
         pr_body = (
             f"## Autonomous implementation\n\n"
             f"- **Backlog:** {item.get('title')}\n"
@@ -984,7 +1059,8 @@ def execute_agent_job(
             f"{files_list or '_see diff_'}\n\n"
             f"### Agent\n"
             f"- method: {agent.get('method') or 'n/a'}\n"
-            f"- ok: {agent.get('ok')}\n\n"
+            f"- ok: {agent.get('ok')}\n"
+            f"- commits_ahead_of_base: {ahead}\n\n"
             f"### Verify\n"
             f"Review the diff, run tests if applicable, then approve/merge.\n\n"
             f"_Opened by workflow scheduler agent_jobs on {_now()}_\n"
@@ -1015,7 +1091,7 @@ def execute_agent_job(
                 "pr_number": pr.get("number"),
                 "seed_path": seed_path,
                 "launch_script": launch_script,
-                "implementation_files": impl_dirty,
+                "implementation_files": impl_files,
                 "agent": agent,
                 "steps": steps,
                 "status": "pr_ready",
@@ -1028,7 +1104,7 @@ def execute_agent_job(
             "error": pr.get("error") or "PR creation failed",
             "branch": branch,
             "pushed": True,
-            "implementation_files": impl_dirty,
+            "implementation_files": impl_files,
             "steps": steps,
             "partial": True,
         }
