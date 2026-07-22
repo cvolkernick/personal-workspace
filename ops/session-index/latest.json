@@ -1,7 +1,7 @@
 {
   "version": 1,
   "kind": "grok-session-index",
-  "generated_at": "2026-07-22T03:57:26.442064+00:00",
+  "generated_at": "2026-07-22T03:57:28.211223+00:00",
   "grok_home": "/Users/cvolkernick/.grok",
   "note": "Index only (titles, IDs, resume commands). Full transcripts stay in ~/.grok/sessions and are not copied into git. Reboot-safe resume uses these IDs; machine-loss recovery of chat text needs a full archive (see session_backup.write_full_archive).",
   "count": 23,
