@@ -241,6 +241,38 @@ class TestScheduler(unittest.TestCase):
         self.assertGreaterEqual(r["count"], 1)
         self.assertTrue(bl.get_item(self.bid).get("auto_start"))
 
+    def test_tick_auto_queues_without_prior_flag(self) -> None:
+        """Pi ticks must queue ready+scheduled items themselves (no dashboard)."""
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        cfg["require_auto_start"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        data = bl.load_backlog()
+        for it in data["items"]:
+            it.pop("auto_start", None)
+            it["status"] = "ready"
+            it["schedule_slot"] = "now"
+        bl.save_backlog(data)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/x.md",
+                "prompt_path": "ops/backlog/seeds/x.prompt.txt",
+                "launch_script": "ops/backlog/seeds/x.launch.sh",
+                "goal_objective": "do it",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        self.assertGreaterEqual(result.get("auto_queued_count") or 0, 1)
+        self.assertEqual(result.get("pending_terminal_count"), 1)
+        self.assertIn("pre_loop", result)
+        self.assertTrue((result.get("pre_loop") or {}).get("queue", {}).get("ok"))
+        # auto_start cleared after launch
+        self.assertFalse(bool(bl.get_item(self.bid).get("auto_start")))
+
     def test_autonomous_loop_grooms_and_queues(self) -> None:
         cfg = sch.load_config()
         cfg["enabled"] = True

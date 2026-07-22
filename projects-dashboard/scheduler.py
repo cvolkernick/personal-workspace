@@ -1,8 +1,9 @@
 """Auto-start scheduler for approved/queued backlog work.
 
-Cron (or manual tick) picks items with ``auto_start=true`` that are eligible
-(status ready / scheduled now|this_week, not already planning/running) and
-runs ``initiate_item`` (seed + optional Grok /goal kickoff).
+Each tick (cron / systemd / dashboard) is a full autonomous cycle:
+  1. Groom backlog (score + schedule slots)
+  2. Auto-queue ready + now/this_week items (``auto_start=true``)
+  3. Launch up to ``max_per_tick`` eligible jobs (spawn / agent / pending_terminal)
 
 Backends:
   - ``local`` — Mac/host crontab (laptop-friendly; sleeps when machine sleeps)
@@ -12,6 +13,7 @@ Execution modes (Grok Build may be missing on the Pi):
   - ``auto`` — spawn Grok when available; otherwise leave job ``pending_terminal``
   - ``spawn`` — always try to open Grok (needs CLI + ideally a Terminal)
   - ``queue`` — never spawn; prepare seeds and wait for a Mac/Terminal claim
+  - ``agent`` — unattended branch → work → push → PR (intended for Pi)
 
 Status reports land under ``ops/backlog/reports/``.
 """
@@ -708,7 +710,14 @@ def reconcile_jobs(*, save: bool = True) -> dict[str, Any]:
 
 
 def tick(*, force: bool = False) -> dict[str, Any]:
-    """Run one scheduler cycle (called by cron, systemd timer, or dashboard)."""
+    """Run one full scheduler cycle (cron, systemd timer, or dashboard).
+
+    Pre-steps (so the Pi is fully autonomous without a Mac dashboard load):
+      - groom backlog ranks/schedule slots
+      - auto-queue ready + eligible-slot items (``auto_start=true``)
+      - reconcile completed/orphaned/merged jobs
+    Then launch up to ``max_per_tick`` eligible jobs.
+    """
     cfg = load_config()
     if not cfg.get("enabled") and not force:
         return {
@@ -718,6 +727,28 @@ def tick(*, force: bool = False) -> dict[str, Any]:
             "config": cfg,
         }
 
+    # --- Pre-step: groom + auto-queue (was only on dashboard load) ---
+    pre_loop: dict[str, Any] = {"groom": None, "queue": None}
+    try:
+        from backlog_groom import groom_backlog  # noqa: WPS433
+
+        g = groom_backlog(apply=True)
+        pre_loop["groom"] = {
+            "ok": g.get("ok"),
+            "message": g.get("message"),
+            "count": g.get("count"),
+            "changes": len(g.get("changes") or []),
+            "groomed_at": g.get("groomed_at"),
+        }
+    except Exception as e:
+        pre_loop["groom"] = {"ok": False, "error": str(e)}
+    try:
+        pre_loop["queue"] = auto_queue_scheduled(force=force)
+    except Exception as e:
+        pre_loop["queue"] = {"ok": False, "error": str(e)}
+
+    # Reload config after pre-step (queue may touch timestamps only via backlog)
+    cfg = load_config()
     exec_plan = resolve_execution_mode(cfg)
     should_spawn = bool(exec_plan.get("should_spawn"))
     use_agent = bool(exec_plan.get("use_agent"))
@@ -948,9 +979,12 @@ def tick(*, force: bool = False) -> dict[str, Any]:
     jobs_data["jobs"] = jobs
     save_jobs(jobs_data)
 
+    queued_n = int((pre_loop.get("queue") or {}).get("count") or 0)
     result = {
         "ok": True,
         "ticked_at": _now(),
+        "pre_loop": pre_loop,
+        "auto_queued_count": queued_n,
         "launched": launched,
         "launched_count": len(launched),
         "pending_terminal": pending,
@@ -966,14 +1000,15 @@ def tick(*, force: bool = False) -> dict[str, Any]:
         "reports": list_reports(limit=10),
         "config": load_config(),
         "message": (
-            f"Tick: launched {len(launched)}, pending Terminal {len(pending)}, "
-            f"PRs {len(pr_ready)}"
+            f"Tick: queued {queued_n}, launched {len(launched)}, "
+            f"pending Terminal {len(pending)}, PRs {len(pr_ready)}"
             + (f", errors {len(errors)}" if errors else "")
             + (f", reconciled {reconciled}" if reconciled else "")
         ),
     }
     cfg["last_tick_at"] = result["ticked_at"]
     cfg["last_tick_result"] = {
+        "auto_queued_count": queued_n,
         "launched_count": result["launched_count"],
         "pending_terminal_count": result["pending_terminal_count"],
         "pr_ready_count": result["pr_ready_count"],
@@ -1139,9 +1174,10 @@ def run_autonomous_loop(
     queue: bool = True,
     min_groom_interval_sec: int = 45,
 ) -> dict[str, Any]:
-    """Groom backlog and auto-queue scheduled ready work (dashboard load / cron pre-step).
+    """Groom + auto-queue for dashboard load (cheap; does not launch jobs).
 
-    Does not kick off jobs — that remains ``tick()`` / cron so load stays cheap.
+    Full kickoff (including groom/queue) lives in ``tick()`` so the Pi timer
+    is autonomous without requiring a Mac dashboard open.
     """
     from datetime import datetime, timezone
 

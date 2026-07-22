@@ -6,10 +6,17 @@ The Mac sleeps; the Pi should not. Move **schedule authority** (groom pre-step +
 
 | Layer | Role |
 |--------|------|
-| **Pi (systemd timer)** | Every 15m: `run_scheduler.py tick` — auto-queue + initiate seeds |
+| **Pi (systemd timer)** | Every 15m: `run_scheduler.py tick` — **groom → auto-queue → launch** |
 | **Job store** | `ops/backlog/jobs.json` + reports (git-synced or shared clone) |
 | **Grok Build** | Optional on Pi. If missing, jobs become **`pending_terminal`** |
-| **Mac frontend** | Dashboard **Launch pending** claims those jobs → opens Terminal + Grok |
+| **Mac frontend** | Dashboard reviews `pr_ready`; **Launch pending** claims Terminal jobs |
+
+`tick()` is the full autonomous cycle (no Mac dashboard required):
+
+1. Groom ranks / schedule slots  
+2. Auto-queue ready + `now`/`this_week` items (`auto_start=true`)  
+3. Launch up to `max_per_tick` (agent / spawn / pending_terminal)  
+4. Write jobs + reports; unit post-steps commit/push `ops/backlog`
 
 ### Execution modes (`ops/backlog/scheduler.json`)
 
@@ -18,8 +25,10 @@ The Mac sleeps; the Pi should not. Move **schedule authority** (groom pre-step +
 | **auto** (default) | Spawn Grok when Terminal+CLI available; otherwise queue `pending_terminal` |
 | **queue** | Never spawn; always prepare seeds for Mac claim |
 | **spawn** | Always try to start Grok (needs CLI; on Pi needs Grok installed) |
+| **agent** | Unattended branch → headless Grok → push → open PR (`pr_ready`) |
 
-Recommended for Pi without Grok: `"backend": "raspi"`, `"execution_mode": "auto"` (or `"queue"`).
+Recommended for Pi with Grok + `GITHUB_TOKEN`: `"backend": "raspi"`, `"execution_mode": "agent"`.  
+Without Grok: `"execution_mode": "auto"` (or `"queue"`) so jobs wait for Mac Terminal.
 
 ## Option A — Pi schedules, Mac runs Grok (recommended first)
 
