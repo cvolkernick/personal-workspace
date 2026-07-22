@@ -1,0 +1,153 @@
+{
+  "id": "rpt-job-221fb04f75",
+  "job_id": "job-221fb04f75",
+  "backlog_id": "0cb116db-cfee-485e-b841-629a8593e61d",
+  "title": "Improve command center daily action planner (Today's Focus)",
+  "status": "pr_ready",
+  "summary": "Agent finished \u201cImprove command center daily action planner (Today's Focus)\u201d. PR: https://github.com/cvolkernick/personal-workspace/pull/6",
+  "actions": [
+    "Tick: execution_mode=agent \u2192 branch/work/push/PR",
+    "Branch work/auto/improve-command-center-daily-action-plan-221fb04f",
+    "PR https://github.com/cvolkernick/personal-workspace/pull/6"
+  ],
+  "details": {
+    "agent": {
+      "ok": true,
+      "error": null,
+      "branch": "work/auto/improve-command-center-daily-action-plan-221fb04f",
+      "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/6",
+      "pr_number": 6,
+      "message": "PR ready: https://github.com/cvolkernick/personal-workspace/pull/6",
+      "needs_terminal": null,
+      "steps": [
+        {
+          "step": "ensure_git",
+          "ok": true,
+          "error": null,
+          "cloned": null,
+          "initialized": null
+        },
+        {
+          "step": "pull",
+          "ok": true,
+          "detail": {
+            "code": 0,
+            "out": "hard-sync origin/master (no rebase of schedule branch)",
+            "err": "Switched to and reset branch 'master'"
+          }
+        },
+        {
+          "step": "branch",
+          "ok": true,
+          "branch": "work/auto/improve-command-center-daily-action-plan-221fb04f",
+          "created": true,
+          "via": "checkout -B origin/master"
+        },
+        {
+          "step": "initiate_seed",
+          "ok": true,
+          "seed_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md"
+        },
+        {
+          "step": "agent",
+          "ok": true,
+          "skipped": null,
+          "method": "grok --single --always-approve",
+          "error": null
+        },
+        {
+          "step": "classify_changes",
+          "ok": true,
+          "base_sha": "74e5033efaf9",
+          "commits_ahead": 1,
+          "implementation": [
+            "initiatives/_template.md",
+            "initiatives/improve-command-center-daily-planner.md",
+            "orchestra/README.md",
+            "orchestra/collectors.py",
+            "orchestra/index.html",
+            "orchestra/payload.py",
+            "orchestra/server.py",
+            "orchestra/tests/test_orchestra.py",
+            "strategy/today.md"
+          ],
+          "scaffold": [
+            "ops/session-index/history/20260722T042910Z.json",
+            "ops/session-index/latest.json",
+            "ops/backlog/items.json",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt"
+          ],
+          "uncommitted": [
+            "ops/backlog/items.json",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt"
+          ]
+        },
+        {
+          "step": "commit",
+          "ok": true,
+          "committed": true,
+          "already_committed_by_agent": true,
+          "commits_ahead_before": 1,
+          "dirty_impl": []
+        },
+        {
+          "step": "push",
+          "ok": true,
+          "code": 0,
+          "out": "branch 'work/auto/improve-command-center-daily-action-plan-221fb04f' set up to track 'origin/work/auto/improve-command-center-daily-action-plan-221fb04f'.",
+          "error": null
+        },
+        {
+          "step": "pr",
+          "ok": true,
+          "url": "https://github.com/cvolkernick/personal-workspace/pull/6",
+          "number": 6,
+          "error": null,
+          "existing": null
+        },
+        {
+          "step": "restore_home_branch",
+          "ok": true,
+          "branch": "work/holistic",
+          "via": "checkout -f",
+          "stash_pop": {
+            "ok": false,
+            "out": "Auto-merging ops/backlog/items.json\nCONFLICT (content): Merge conflict in ops/backlog/items.json\nAuto-merging ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nCONFLICT (a",
+            "error": "Auto-merging ops/backlog/items.json\nCONFLICT (content): Merge conflict in ops/backlog/items.json\nAuto-merging ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nCONFLICT (add/add): Merge conflict in ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nOn branch work/holistic\nYour branch is up to date with 'origin/work/holistic'.\n\nUnmerged paths:\n  (use \"git restore --staged <file>...\" to unstage)\n  (use \"git add <file>...\" to mark resolution)\n\tboth modified:   ops/backlog/items.json\n\tboth added:      ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")\nThe stash entry is kept in case you need it again."
+          },
+          "error": null
+        }
+      ]
+    },
+    "execution": {
+      "mode": "agent",
+      "should_spawn": false,
+      "use_agent": true,
+      "reason": "execution_mode=agent \u2192 branch/work/push/PR",
+      "runtime": {
+        "ok": true,
+        "platform": "linux",
+        "machine": "aarch64",
+        "has_grok": true,
+        "grok_bin": "/home/prism-agent/.grok/bin/grok",
+        "has_macos_terminal": false,
+        "can_spawn_terminal": false,
+        "can_spawn_headless": true,
+        "recommended_execution": "spawn",
+        "note": "Grok CLI present without macOS Terminal \u2014 headless spawn may work; queue to a Mac frontend is safer for interactive /goal."
+      },
+      "backend": "raspi"
+    }
+  },
+  "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/6",
+  "source": "scheduler-agent",
+  "created_at": "2026-07-22T04:29:41.723438+00:00",
+  "updated_at": "2026-07-22T04:29:41.723451+00:00",
+  "path": "ops/backlog/reports/rpt-job-221fb04f75.json"
+}

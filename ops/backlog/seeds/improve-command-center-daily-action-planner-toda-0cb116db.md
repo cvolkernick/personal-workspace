@@ -2,102 +2,95 @@
 
 - **Backlog id:** `0cb116db-cfee-485e-b841-629a8593e61d`
 - **Priority:** medium
-- **Status:** in_progress
-- **Area:** `orchestra`
+- **Status:** planning
+- **Area:** (tbd)
 - **Created:** 2026-07-17T06:14:42.157807+00:00
-- **Initiated:** 2026-07-19T21:10:43.827530+00:00
+- **Initiated:** 2026-07-22T04:24:34.710234+00:00
 
 ## Problem / intent
 
-The command center (Orchestra) already aggregates domains, synergies, and a merged priority/recommendation stream. What is still missing as a first-class daily surface is a **trustworthy, low-friction "Today's Focus"** view: open checklist items from `strategy/today.md` rendered as prominent cards with enough context to act, plus clear links back to bets and initiatives so the user does not re-synthesize scattered notes each morning.
+## Description
+Evolve the command center from a good visual reader into the place where macro strategy (the bets + dynamic domains) becomes a trustworthy, low-friction daily action plan. The key is a synthesized "Today's Focus" view that surfaces the highest-leverage next actions without the user having to manually re-synthesize scattered notes every time.
 
-This initiative is meta: the tool that helps execute on the other bets.
+This initiative itself is meta: building the tool that helps execute on the other bets.
 
-**Path clarification:** Backlog notes historically said `dashboard/index.html`. The live command center is **`orchestra/index.html` + `orchestra/server.py`**. MVP ships there.
+## Current Next Action
+Add / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make "Add new initiative" guidance point to creating a real structured MD like this one.
 
-## Users
+## Progress / Wins
+- [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).
+- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).
+- [ ] User starts using the new flow for at least one real day of planning.
 
-- **Primary:** solo operator of personal-workspace who already maintains (or will maintain) lightweight MD under `strategy/` and `initiatives/`.
-- **Secondary:** Grok/agents that update `strategy/today.md` or propose next actions; they need a stable payload shape (`today_focus` / open items) to reason over.
+## Notes / Ideas
+- Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.
+- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.
+- Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).
 
-## Success criteria
-
-- [x] Spec written (this file refined): problem, users, success criteria, non-goals, MVP, file layout, risks, area=`orchestra`.
-- [ ] MVP implemented and runnable: prominent **Today's Focus** section in Orchestra UI with card-style open items from `strategy/today.md`.
-- [ ] Happy-path verification: unit tests drive shipped collectors/payload; open checklist lines appear in API/payload fields the UI uses; server `/api/orchestra` consistent with workspace `today.md`.
-- [ ] Source/edit guidance: visible paths to `strategy/today.md`, `strategy/bets.md`, `initiatives/`; "Add new initiative" points at structured initiative MD (frontmatter fields like title, status, linked_bets, next_action).
-- [ ] Changes committed on `work/orchestra` and pushed via `git_workflow.py sync`.
-
-## Non-goals
-
-- Automated Grok rewrites of `strategy/today.md` from initiative status changes (future iteration).
-- Full multi-user polish, auth, or remote hosting.
-- Obsidian plugins or editor integration beyond portable MD on disk.
-- Replacing the broader recommendations / coordinated action plan streams — Today's Focus is the primary *daily* slice, not a replacement for synthesis.
-- Proving the human used the flow for a real calendar day (habit, not code).
-- Live full-file `marked.js` dump of entire `today.md` (optional polish if cards + links already satisfy MVP).
+See the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.
 
 ## MVP scope
 
-Smallest shippable slice:
+_Define the smallest shippable slice._
 
-1. **Collector:** Parse open checklist lines from `strategy/today.md` into structured focus items (title, optional why/context from italics or parentheticals, raw line, source path). Keep string list `today_open` for existing consumers.
-2. **Payload:** Top-level `today_focus` object: `items` (structured cards), `count`, paths (`today_path`, `bets_path`, `initiatives_dir`), and short `add_initiative_guidance` for the UI. `counts.today_items` remains consistent.
-3. **UI:** Prominent **Today's Focus** section near the top of `orchestra/index.html` (above or immediately after the single-next hero / before demoted streams): card grid for open items; source/edit copy; links to bets + initiatives; "Add new initiative" guidance naming the structured MD pattern.
-4. **Tests:** Fixture with open checklist lines → assert those titles appear in `today_focus.items` / strategy signals via real `build_orchestra_payload` / `collect_strategy`.
-5. **Strategy MDs:** Keep/refresh skeleton `strategy/today.md` + `strategy/bets.md` as source of truth (already present).
+## Success criteria (draft)
 
-## File layout
+- [ ] Spec written (this file refined)
+- [ ] MVP implemented and runnable
+- [ ] Basic verification (test or manual checklist) passes
+- [ ] Changes committed on `work/<area>` and pushed
 
-| Path | Role |
-|------|------|
-| `strategy/today.md` | Source of truth for today's open checklist |
-| `strategy/bets.md` | Macro bets (link target) |
-| `initiatives/*.md` | Structured initiative MDs (template for "add new") |
-| `orchestra/collectors.py` | Parse open items + structured today focus fields |
-| `orchestra/payload.py` | Expose `today_focus` on orchestra payload |
-| `orchestra/index.html` | Today's Focus section + cards + guidance |
-| `orchestra/server.py` | Existing `/api/orchestra` (no new write API for MVP) |
-| `orchestra/tests/test_orchestra.py` | Happy-path tests |
-| `ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md` | This seed/spec |
+## Non-goals
 
-## Risks
+- Full multi-user polish
+- Premature optimization
 
-- **Branch vs TLD:** UI/server belong on `work/orchestra`; `ops/` and `strategy/` are shared workspace paths — prefer orchestra worktree; seed progress updates may land with the orchestra commit or a follow-up on workflow branch.
-- **Breaking consumers:** Keep `signals.today_open` as `list[str]` for synergies/priorities; add structured data alongside, not as a replacement of the string list.
-- **Empty today.md:** UI must show empty state + guidance to edit `strategy/today.md`, not a blank hole.
-- **Stale main checkout:** Main tree may be on another work branch; implement in `~/personal-workspace-worktrees/orchestra`.
+## Notes
 
-## Progress / Wins
-
-- [x] Requirements gathered via Socratic process (Today's Focus is the highest-value first slice).
-- [x] Design/spec refined in this seed (area = orchestra).
-- [ ] First implementation of Today's Focus rendering + structured payload fields.
-- [ ] User starts using the new flow for at least one real day of planning (post-MVP / human).
-
-## Next iteration steps (after MVP)
-
-1. Optional full MD body preview of `today.md` via marked.js when served over HTTP.
-2. Agent-assisted refresh: propose edits to `today.md` from initiative `next_action` + status changes.
-3. Click-to-complete / write-back open checklist items (out of MVP).
-4. Deeper initiative card links when today item text matches an initiative title/id.
-
-## Notes / Ideas
-
-- Keep MD as source of truth (frontmatter + body) for editor/Obsidian portability.
-- Dashboard fetches payload live; cards are presentational over payload fields (no ranking logic duplicated in the browser).
-- Parent requirements: `strategy/command-center-requirements.md`.
+Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)
 
 ## Grok `/goal` objective
 
 ```
 Backlog project: Improve command center daily action planner (Today's Focus)
-… (see backlog item 0cb116db; implement MVP on work/orchestra)
+
+Context:
+## Description
+Evolve the command center from a good visual reader into the place where macro strategy (the bets + dynamic domains) becomes a trustworthy, low-friction daily action plan. The key is a synthesized "Today's Focus" view that surfaces the highest-leverage next actions without the user having to manually re-synthesize scattered notes every time.
+
+This initiative itself is meta: building the tool that helps execute on the other bets.
+
+## Current Next Action
+Add / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make "Add new initiative" guidance point to creating a real structured MD like this one.
+
+## Progress / Wins
+- [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).
+- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).
+- [ ] User starts using the new flow for at least one real day of planning.
+
+## Notes / Ideas
+- Keep the source of truth as lightweight MD (frontmatter + body) so it's editable in any editor and portable to Obsidian later if desired.
+- The dashboard HTML can fetch and render it live (using the existing marked.js pattern) when served over HTTP.
+- Over time this can become more automated (Grok proposes updates to today.md based on initiative status changes).
+
+See the parent requirements doc in `strategy/command-center-requirements.md` for the full context and other related initiatives.
+
+Do this in two phases without asking me to re-specify basics:
+1) Planning — write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.
+2) Build — implement the MVP: A minimal working slice we can use and iterate on, with tests or verification for the happy path, committed in personal-workspace.
+ Place durable work under personal-workspace on an appropriate work/<area> branch.
+Use git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.
 ```
 
 ## How to start
 
+From personal-workspace (preferred — starts Grok with `/goal` already set):
+
 ```bash
 bash ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh
-# or: cd ~/personal-workspace-worktrees/orchestra && work on orchestra/
 ```
+
+That runs: `grok --cwd personal-workspace "$(cat …prompt.txt)"` where the prompt
+begins with `/goal …` plus backlog title/MVP/notes/seed path.
+
+After planning, implement MVP and iterate. Update backlog status via the dashboard.
