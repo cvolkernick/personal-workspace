@@ -1,0 +1,19 @@
+{
+  "id": "rpt-job-549c7cd1dc-pr",
+  "job_id": "job-549c7cd1dc",
+  "backlog_id": "0cb116db-cfee-485e-b841-629a8593e61d",
+  "title": "Improve command center daily action planner (Today's Focus)",
+  "status": "pr_ready",
+  "summary": "Kickoff complete. Agent implemented Today's Focus; PR https://github.com/cvolkernick/personal-workspace/pull/5",
+  "actions": [
+    "Scheduler tick selected ready item 0cb116db",
+    "Agent built orchestra/strategy Today's Focus work",
+    "PR opened: https://github.com/cvolkernick/personal-workspace/pull/5"
+  ],
+  "pr_url": "https://github.com/cvolkernick/personal-workspace/pull/5",
+  "branch": "work/auto/improve-command-center-daily-action-plan-549c7cd1",
+  "source": "kickoff-goal",
+  "created_at": "2026-07-22T04:28:57.260146+00:00",
+  "updated_at": "2026-07-22T04:28:57.261413+00:00",
+  "path": "ops/backlog/reports/rpt-job-549c7cd1dc-pr.json"
+}

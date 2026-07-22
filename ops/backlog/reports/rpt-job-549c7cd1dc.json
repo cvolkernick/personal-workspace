@@ -1,0 +1,154 @@
+{
+  "id": "rpt-job-549c7cd1dc",
+  "job_id": "job-549c7cd1dc",
+  "backlog_id": "0cb116db-cfee-485e-b841-629a8593e61d",
+  "title": "Improve command center daily action planner (Today's Focus)",
+  "status": "failed",
+  "summary": "Agent failed: HTTP 401: {\r\n  \"message\": \"Bad credentials\",\r\n  \"documentation_url\": \"https://docs.github.com/rest\",\r\n  \"status\": \"401\"\r\n}",
+  "actions": [
+    "Tick: execution_mode=agent \u2192 branch/work/push/PR",
+    "Agent failed: HTTP 401: {\r\n  \"message\": \"Bad credentials\",\r\n  \"documentation_url\": \"https://docs.github.com/rest\",\r\n  \"status\": \"401\"\r\n}"
+  ],
+  "details": {
+    "agent": {
+      "ok": false,
+      "error": "HTTP 401: {\r\n  \"message\": \"Bad credentials\",\r\n  \"documentation_url\": \"https://docs.github.com/rest\",\r\n  \"status\": \"401\"\r\n}",
+      "branch": "work/auto/improve-command-center-daily-action-plan-549c7cd1",
+      "pr_url": null,
+      "pr_number": null,
+      "message": null,
+      "needs_terminal": null,
+      "steps": [
+        {
+          "step": "ensure_git",
+          "ok": true,
+          "error": null,
+          "cloned": null,
+          "initialized": null
+        },
+        {
+          "step": "pull",
+          "ok": true,
+          "detail": {
+            "code": 0,
+            "out": "hard-sync origin/master (no rebase of schedule branch)",
+            "err": "Switched to and reset branch 'master'"
+          }
+        },
+        {
+          "step": "branch",
+          "ok": true,
+          "branch": "work/auto/improve-command-center-daily-action-plan-549c7cd1",
+          "created": true,
+          "via": "checkout -B origin/master"
+        },
+        {
+          "step": "initiate_seed",
+          "ok": true,
+          "seed_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md"
+        },
+        {
+          "step": "agent",
+          "ok": true,
+          "skipped": null,
+          "method": "grok --single --always-approve",
+          "error": null
+        },
+        {
+          "step": "classify_changes",
+          "ok": true,
+          "base_sha": "74e5033efaf9",
+          "commits_ahead": 1,
+          "implementation": [
+            "initiatives/_TEMPLATE.md",
+            "initiatives/improve-command-center-daily-planner.md",
+            "orchestra/README.md",
+            "orchestra/collectors.py",
+            "orchestra/index.html",
+            "orchestra/payload.py",
+            "orchestra/server.py",
+            "orchestra/tests/test_orchestra.py",
+            "strategy/README.md",
+            "strategy/today.md"
+          ],
+          "scaffold": [
+            "ops/session-index/history/20260722T042748Z.json",
+            "ops/session-index/latest.json",
+            "ops/backlog/items.json",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt"
+          ],
+          "uncommitted": [
+            "ops/backlog/items.json",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.launch.sh",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md",
+            "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt"
+          ]
+        },
+        {
+          "step": "commit",
+          "ok": true,
+          "committed": true,
+          "already_committed_by_agent": true,
+          "commits_ahead_before": 1,
+          "dirty_impl": []
+        },
+        {
+          "step": "push",
+          "ok": true,
+          "code": 128,
+          "out": "",
+          "error": "remote: Invalid username or token. Password authentication is not supported for Git operations.\nfatal: Authentication failed for 'https://github.com/cvolkernick/personal-workspace.git/'",
+          "remote_exists": true
+        },
+        {
+          "step": "pr",
+          "ok": false,
+          "url": null,
+          "number": null,
+          "error": "HTTP 401: {\r\n  \"message\": \"Bad credentials\",\r\n  \"documentation_url\": \"https://docs.github.com/rest\",\r\n  \"status\": \"401\"\r\n}",
+          "existing": null
+        },
+        {
+          "step": "restore_home_branch",
+          "ok": true,
+          "branch": "work/holistic",
+          "via": "checkout -f",
+          "stash_pop": {
+            "ok": false,
+            "out": "Auto-merging ops/backlog/items.json\nCONFLICT (content): Merge conflict in ops/backlog/items.json\nAuto-merging ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nCONFLICT (a",
+            "error": "Auto-merging ops/backlog/items.json\nCONFLICT (content): Merge conflict in ops/backlog/items.json\nAuto-merging ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nCONFLICT (add/add): Merge conflict in ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\nOn branch work/holistic\nYour branch is up to date with 'origin/work/holistic'.\n\nUnmerged paths:\n  (use \"git restore --staged <file>...\" to unstage)\n  (use \"git add <file>...\" to mark resolution)\n\tboth modified:   ops/backlog/items.json\n\tboth added:      ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.md\n\nno changes added to commit (use \"git add\" and/or \"git commit -a\")\nThe stash entry is kept in case you need it again."
+          },
+          "error": null
+        }
+      ]
+    },
+    "execution": {
+      "mode": "agent",
+      "should_spawn": false,
+      "use_agent": true,
+      "reason": "execution_mode=agent \u2192 branch/work/push/PR",
+      "runtime": {
+        "ok": true,
+        "platform": "darwin",
+        "machine": "arm64",
+        "has_grok": true,
+        "grok_bin": "/Users/cvolkernick/.grok/bin/grok",
+        "has_macos_terminal": true,
+        "can_spawn_terminal": true,
+        "can_spawn_headless": false,
+        "recommended_execution": "spawn",
+        "note": "Grok Build + Terminal available \u2014 can spawn interactively."
+      },
+      "backend": "raspi"
+    }
+  },
+  "pr_url": null,
+  "source": "scheduler-agent",
+  "created_at": "2026-07-22T04:28:03.525779+00:00",
+  "updated_at": "2026-07-22T04:28:03.525782+00:00",
+  "path": "ops/backlog/reports/rpt-job-549c7cd1dc.json"
+}

@@ -273,6 +273,42 @@ class TestScheduler(unittest.TestCase):
         # auto_start cleared after launch
         self.assertFalse(bool(bl.get_item(self.bid).get("auto_start")))
 
+    def test_kickoff_tick_creates_job_and_report_for_ready_item(self) -> None:
+        """Backlog kickoff: tick must create a job + report for the eligible ready item."""
+        sch.set_auto_start(self.bid, True)
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        cfg["require_auto_start"] = True
+        sch.save_config(cfg)
+        with mock.patch.object(sch, "initiate_item") as init:
+            init.return_value = {
+                "ok": True,
+                "seed_path": "ops/backlog/seeds/today-focus.md",
+                "prompt_path": "ops/backlog/seeds/today-focus.prompt.txt",
+                "launch_script": "ops/backlog/seeds/today-focus.launch.sh",
+                "goal_objective": "Improve Today's Focus",
+                "spawn": {"attempted": False},
+            }
+            result = sch.tick(force=True)
+        self.assertTrue(result["ok"])
+        jobs = sch.load_jobs()["jobs"]
+        self.assertTrue(jobs)
+        job = jobs[-1]
+        self.assertEqual(job.get("backlog_id"), self.bid)
+        self.assertIn(
+            job.get("status"),
+            ("queued", "pending_terminal", "launched", "running", "agent_running", "pr_ready"),
+        )
+        self.assertTrue(job.get("id"))
+        reports = sch.list_reports(limit=5)
+        self.assertTrue(any(r.get("job_id") == job["id"] or r.get("backlog_id") == self.bid for r in reports))
+        # item no longer idle ready without job link
+        item = bl.get_item(self.bid)
+        self.assertIn(item.get("status"), ("planning", "ready", "active"))
+        if item.get("status") == "ready":
+            self.assertTrue(item.get("last_job_id") or job.get("status") == "pending_terminal")
+
     def test_autonomous_loop_grooms_and_queues(self) -> None:
         cfg = sch.load_config()
         cfg["enabled"] = True
