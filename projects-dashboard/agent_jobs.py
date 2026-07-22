@@ -185,6 +185,13 @@ def _auth_remote_url(url: str, token: str) -> str:
 
 
 def pull_latest(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
+    """Hard-sync the clone to ``origin/master`` for agent job branches.
+
+    Important: the Pi schedule branch is often ``work/holistic`` (many commits
+    ahead of master). A plain ``git pull --rebase origin master`` *from that
+    branch* tries to rebase the whole history onto master and explodes in
+    conflicts. Agent work must always start from a clean ``origin/master`` tip.
+    """
     repo = Path(repo).resolve()
     token = github_token()
     code_o, origin, _ = _run("git", "-C", str(repo), "remote", "get-url", "origin")
@@ -199,46 +206,86 @@ def pull_latest(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
             "origin",
             _auth_remote_url(clean, token),
         )
-    _run("git", "-C", str(repo), "fetch", "origin", "master", timeout=180)
-    code, _out, err = _run("git", "-C", str(repo), "checkout", "master", timeout=60)
-    code2, out2, err2 = _run(
+
+    # Clear mid-rebase / mid-merge left by a previous failed agent tick
+    if (repo / ".git" / "rebase-merge").exists() or (repo / ".git" / "rebase-apply").exists():
+        _run("git", "-C", str(repo), "rebase", "--abort")
+    if (repo / ".git" / "MERGE_HEAD").exists():
+        _run("git", "-C", str(repo), "merge", "--abort")
+
+    fetch_code, fetch_out, fetch_err = _run(
+        "git", "-C", str(repo), "fetch", "origin", "master", timeout=180
+    )
+    # Force master to match remote tip (no rebase of schedule-branch history)
+    code, out, err = _run(
         "git",
         "-C",
         str(repo),
-        "pull",
-        "--rebase",
-        "--autostash",
-        "origin",
+        "checkout",
+        "-B",
         "master",
-        timeout=180,
+        "origin/master",
+        timeout=60,
     )
+    if code != 0:
+        # dirty tree blocking checkout — throw away local junk for unattended agent
+        _run("git", "-C", str(repo), "reset", "--hard")
+        _run("git", "-C", str(repo), "clean", "-fd")
+        code, out, err = _run(
+            "git",
+            "-C",
+            str(repo),
+            "checkout",
+            "-B",
+            "master",
+            "origin/master",
+            timeout=60,
+        )
+
     _run("git", "-C", str(repo), "remote", "set-url", "origin", clean)
     return {
-        "ok": code2 == 0,
-        "checkout": {"code": code, "err": err},
-        "pull": {"code": code2, "out": (out2 or "")[:300], "err": (err2 or "")[:300]},
+        "ok": code == 0 and fetch_code == 0,
+        "checkout": {"code": code, "out": (out or "")[:200], "err": (err or "")[:300]},
+        "fetch": {
+            "code": fetch_code,
+            "out": (fetch_out or "")[:200],
+            "err": (fetch_err or "")[:200],
+        },
+        "pull": {
+            "code": code,
+            "out": "hard-sync origin/master (no rebase of schedule branch)",
+            "err": (err or "")[:300],
+        },
     }
 
 
 def create_job_branch(item: dict[str, Any], job_id: str, repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
-    """Create work/auto/<slug>-<id> from master."""
+    """Create work/auto/<slug>-<id> from a clean origin/master tip."""
     area = (item.get("area") or "auto").strip() or "auto"
     short = (job_id or "job").replace("job-", "")[:8]
     slug = _slug(item.get("title") or "task")
     branch = f"work/auto/{slug}-{short}"
-    # start from master tip
-    pull_latest(repo)
-    # if area-based start_work is cleaner for known areas:
-    code, _, err = _run("git", "-C", str(repo), "checkout", "-B", branch, "master")
+    # start from master tip (hard-sync — never rebase schedule-branch history)
+    pl = pull_latest(repo)
+    if not pl.get("ok"):
+        return {
+            "ok": False,
+            "error": (pl.get("checkout") or {}).get("err")
+            or (pl.get("pull") or {}).get("err")
+            or "pull_latest failed",
+            "branch": branch,
+            "pull": pl,
+        }
+    code, _, err = _run(
+        "git", "-C", str(repo), "checkout", "-B", branch, "origin/master"
+    )
     if code != 0:
-        # try start_work fallback
         sw = start_work(area if area != "auto" else "misc", repo=repo, from_branch="master")
         if not sw.get("ok"):
             return {"ok": False, "error": err or sw.get("error"), "branch": branch}
-        # rename? keep work/<area> if start_work succeeded
         branch = sw.get("branch") or branch
         return {"ok": True, "branch": branch, "created": sw.get("created"), "via": "start_work"}
-    return {"ok": True, "branch": branch, "created": True, "via": "checkout -B"}
+    return {"ok": True, "branch": branch, "created": True, "via": "checkout -B origin/master"}
 
 
 def build_agent_prompt(item: dict[str, Any], *, seed_path: str = "", job_id: str = "") -> str:
@@ -632,6 +679,16 @@ def execute_agent_job(
 
     pl = pull_latest(repo)
     steps.append({"step": "pull", "ok": pl.get("ok"), "detail": pl.get("pull")})
+    if not pl.get("ok"):
+        _restore_branch(repo, home_branch)
+        return {
+            "ok": False,
+            "error": (pl.get("checkout") or {}).get("err")
+            or (pl.get("pull") or {}).get("err")
+            or "pull_latest failed",
+            "steps": steps,
+            "home_branch": home_branch,
+        }
 
     # 2) branch
     br = create_job_branch(item, job_id, repo=repo)
