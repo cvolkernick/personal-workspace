@@ -43,6 +43,13 @@ class TestFundPolicy(unittest.TestCase):
         self.assertTrue(p["rationale"]["required_on_every_decision"])
         self.assertTrue(p["team"]["roles"]["executor"]["writes_orders"])
         self.assertFalse(p["team"]["roles"]["critic"]["writes_orders"])
+        # Uniform research/rotate — size-invariant deploys
+        proc = p.get("process") or {}
+        self.assertTrue(proc.get("uniform_for_all_nav"))
+        self.assertTrue(proc.get("size_invariant"))
+        self.assertTrue((proc.get("research_rotate") or {}).get("required"))
+        self.assertTrue((proc.get("research_rotate") or {}).get("forbid_held_only_default"))
+        self.assertEqual(p["rationale"].get("owner_feedback_timing"), "after_pass")
 
     def test_sleeve_tags(self):
         p = load_fund_policy()

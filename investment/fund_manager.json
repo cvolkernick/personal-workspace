@@ -5,7 +5,7 @@
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
-  "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management.",
+  "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
     "scheduled_reviews_per_day": 1,
     "reviews_per_day": 1,
@@ -15,7 +15,50 @@
     "preferred_window": "mid_session",
     "preferred_local_time": "12:30",
     "avoid": ["market_open_first_30m", "market_close_last_30m", "intraday_momentum"],
-    "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap — a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false→true. Avoid open/close noise; no day-trading mandate."
+    "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap — a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false→true. Avoid open/close noise; no day-trading mandate. Every deploy/review that deploys capital MUST run the uniform research_rotate process (not top-up-held-only)."
+  },
+  "process": {
+    "uniform_for_all_nav": true,
+    "size_invariant": true,
+    "size_invariant_notes": "Do not skip thematic research or default to topping existing names merely because NAV is small. Strategy, themes, and decision quality are the same at $10 or $10k; only order notionals scale.",
+    "on_every_review_or_deploy": [
+      "scout_book",
+      "research_rotate",
+      "thesis_propose",
+      "risk_size",
+      "critic_challenge",
+      "executor_if_quorum",
+      "log_full_rationale"
+    ],
+    "research_rotate": {
+      "required": true,
+      "required_when": ["scheduled_review", "capital_deposit", "manual_kickoff", "need_llm"],
+      "forbid_held_only_default": true,
+      "forbid_held_only_notes": "Never default to 'add only to existing positions' without an explicit research/rotate case that other allowlist/theme names were considered and rejected with reasons.",
+      "workflow": "fund-manager-research",
+      "deep_dive_workflow": "position-deep-dive",
+      "consider": [
+        "held_positions",
+        "core_allowlist_unheld",
+        "sleeve_gaps_vs_40_60",
+        "themes_btc_digital_credit_ai_energy",
+        "watchlist_ready_or_monitor",
+        "relative_value_and_concentration"
+      ],
+      "deploy_where": "best_fit_at_time_per_themes_and_40_60",
+      "output_required": [
+        "names_considered",
+        "names_chosen",
+        "names_rejected_with_reasons",
+        "theme_mapping",
+        "team_votes_with_notes"
+      ]
+    },
+    "owner_feedback": {
+      "during_pass": false,
+      "after_pass": "optional",
+      "notes": "Owner may chime in after a pass with adjustments. Do not block for feedback. Apply post-pass feedback on the next review unless owner sets live:false."
+    }
   },
   "team": {
     "enabled": true,
@@ -28,32 +71,33 @@
     "roles": {
       "scout": {
         "writes_orders": false,
-        "job": "Snapshot agentic book, quotes, sleeve weights, optional market context"
+        "job": "Snapshot agentic book, quotes, sleeve weights, cash to deploy; load allowlist + watchlist + latest research; list held vs unheld theme coverage"
       },
       "thesis": {
         "writes_orders": false,
-        "job": "Check 40/60 + allowlist/themes; propose target trades aligned to investment thesis"
+        "job": "Research/rotate: map themes to best capital allocation now across held + unheld allowlist (not held-only). Propose buys/holds/trims with theme fit. May propose watchlist adds."
       },
       "risk": {
         "writes_orders": false,
-        "job": "Capital bounds, concentration, whether to trade at all today; size guidance"
+        "job": "Capital bounds, concentration, liquidity, whether to trade; size guidance. Size may be small at low NAV but process is not simplified."
       },
       "critic": {
         "writes_orders": false,
-        "job": "Devil's advocate — challenge weak rationale; may block or demand smaller size"
+        "job": "Challenge held-only inertia, weak theme fit, missing alternatives; may block or demand different names/size"
       },
       "executor": {
         "writes_orders": true,
-        "job": "Only role that places/cancels via Robinhood MCP; must attach full rationale to decision log"
+        "job": "Only role that places/cancels via Robinhood MCP; must log full rationale including alternatives considered"
       }
     }
   },
   "rationale": {
     "required_on_every_decision": true,
     "audience": "human_optional_monitor",
-    "purpose": "Surface ongoing debate and thinking on the FCC dashboard so the owner can observe without intervening. Human feedback is optional — step in only when something looks wrong.",
+    "purpose": "Surface fleet debate so the owner can review after each pass and give optional feedback. Do not wait for feedback mid-pass.",
     "owner_intervention": "optional",
     "owner_must_respond": false,
+    "owner_feedback_timing": "after_pass",
     "primary_surface": "financial-command dashboard (fund manager decision log)",
     "min_fields": [
       "summary",
@@ -62,7 +106,10 @@
       "actions",
       "team_votes",
       "why_now",
-      "why_not_alternatives"
+      "why_not_alternatives",
+      "names_considered",
+      "names_rejected",
+      "theme_allocation"
     ],
     "log_path": "treasury/snapshots/fund_manager_decisions.jsonl",
     "fcc_panel": true

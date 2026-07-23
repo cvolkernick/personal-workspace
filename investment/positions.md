@@ -63,12 +63,14 @@ Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis 
 Source of truth for automation: [`fund_manager.json`](./fund_manager.json).
 
 1. **Active management** — no required weekly DCA; rebalance and rotate when thesis + risk/reward justify it.
-2. Prefer **core allowlist** names; energy/AI opportunistic names from **watchlist** only after consideration / deep-dive (`allowlist.strict: false`).
-3. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using agentic NAV + live quotes only.
-4. **No per-trade user approval** — capital deposited to agentic is the risk budget and is fair game.
-5. **No max single-order notional** — size at manager discretion.
-6. FCC card/loan stress does **not** block agentic trades in v1 (separate capital).
-7. MCP orders **only** on the agentic account.
+2. **Uniform research/rotate on every deploy** — size-invariant ($10 or $10k). Consider held **and** unheld allowlist/theme names; do **not** default to topping existing positions without rejecting alternatives with reasons.
+3. Prefer **core allowlist** for liquidity/fit; energy/AI from **watchlist** only after consideration / deep-dive (`allowlist.strict: false`).
+4. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using agentic NAV + live quotes only.
+5. **No per-trade user approval** mid-pass — capital in agentic is fair game. Owner may give **after-pass** feedback for the next cycle.
+6. **No max single-order notional** — size at manager discretion (notional scales with NAV; process does not).
+7. FCC card/loan stress does **not** block agentic trades in v1 (separate capital).
+8. MCP orders **only** on the agentic account.
+9. Log full fleet rationale (considered / chosen / rejected / votes) for owner review.
 
 ## Tracking
 

@@ -118,11 +118,12 @@ Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~
 ### v1 rules (confirmed)
 
 - **Weights:** agentic account only  
-- **Approval:** none — if capital is in agentic, it is fair game  
+- **Approval:** none mid-pass — if capital is in agentic, it is fair game; owner may give **after-pass** feedback  
 - **Max order notional:** none — manager discretion  
-- **Risk control:** size of deposits to agentic only  
+- **Risk control:** size of deposits to agentic only (cash account today)  
+- **Uniform process:** every deploy runs research/rotate across themes + allowlist (held and unheld); size-invariant  
 
-See [positions.md](./positions.md); run `python3 treasury/fund_manager.py --write`.
+See [positions.md](./positions.md) and [FUND_MANAGER_RUNBOOK.md](./FUND_MANAGER_RUNBOOK.md); run `python3 treasury/fund_manager.py --write`.
 
 ## Related
 

@@ -3,37 +3,67 @@
 **Status:** `live_autopilot`  
 **Schedule:** ~**1 automated review per trading day** (mid-session preferred)  
 **Trade cap:** **none** — a review may hold or place many orders  
-**Owner role:** **optional observer** via FCC (not required to kick off or reply)
+**Owner role:** **optional observer** — feedback **after** each pass when useful (not blocking)
 
 ## Design intent
 
 | You want | How we handle it |
 |----------|------------------|
-| See agent thinking / debate | Decision log on **FCC dashboard** + JSONL + journal |
-| Step in only when needed | No required feedback; intervene via policy/`live`/capital when you choose |
-| Automated as possible | Scheduled runner (Pi/cron) — **not** “open dashboard to run” |
-| Not day-trading | Prefer mid-session; avoid open/close noise; no HFT mandate |
-| Multiple trades if justified | **No max trades/day** — only schedule is ~daily attention |
+| See agent thinking / debate | Decision log on **FCC** + JSONL + journal — full fleet rationale |
+| Same process at any NAV | **Size-invariant:** research/rotate every deploy; only ticket size scales |
+| Deploy where themes say | Not “top up held only” by default |
+| Step in when needed | Optional **after-pass** feedback; `live:false` / withdraw capital to kill |
+| Automated as possible | Scheduled runner (Pi/cron) + manual kickoffs use the **same** process |
+| Not day-trading | Prefer mid-session; avoid open/close noise |
 
-## Where to watch (no action required)
+## Uniform process (every capital deploy / full review)
+
+```text
+Scout → Research/rotate → Thesis → Risk → Critic → Executor (if quorum) → Log brief
+```
+
+1. **Scout** — book, cash, held vs allowlist coverage, watchlist/research  
+2. **Research/rotate** — required; consider held **and** unheld theme names; reject with reasons  
+3. **Thesis** — best allocation *now* for 40/60 + themes  
+4. **Risk** — size/concentration (small NAV = small tickets, not skipped process)  
+5. **Critic** — block held-only inertia / weak cases  
+6. **Executor** — agentic MCP only; log alternatives + votes  
+
+**Forbidden shortcut:** deploy idle cash only into existing positions without documenting alternatives considered.
+
+Workflows (preferred when available):
+
+```text
+/fund-manager-research
+/position-deep-dive symbol=TICKER
+```
+
+## Owner feedback loop
+
+| Timing | Expectation |
+|--------|-------------|
+| During pass | None — do not block |
+| After pass | Optional; owner may request adjustments |
+| Next pass | Apply prior feedback unless superseded |
+
+## Where to watch
 
 FCC → **Brokerage** → **Decision log / rationale**
-
-Shows team votes, why now, actions. Refresh the page anytime; it does **not** start a review.
 
 Also:
 - `treasury/snapshots/fund_manager_decisions.jsonl`
 - `investment/fund_manager_journal.md`
+- `investment/research/fund_manager_research_latest.md` (when research pass wrote one)
 
-## Team (debate → single executor)
+## Team
 
 | Role | Orders? | Job |
 |------|---------|-----|
-| Scout | No | Book, weights, light context |
-| Thesis | No | 40/60 + thesis fit |
-| Risk | No | Trade or not; size |
-| Critic | No | Challenge / block / cut size |
-| **Executor** | **Yes** | Only place/cancel on RH MCP; must log rationale |
+| Scout | No | Book + coverage gaps |
+| Thesis | No | Themes + rotate/allocate |
+| Risk | No | Size / trade-or-not |
+| Critic | No | Challenge / block |
+| **Executor** | **Yes** | Place/cancel + full log |
 
 Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 
@@ -41,28 +71,16 @@ Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 
 ```text
 rh_refresh → rules review
-  ├─ HOLD (in band, low cash) → log, quiet (no ntfy, no LLM)
-  └─ need_llm (drift / deploy) → Grok team → Executor → ntfy
+  ├─ HOLD (in band, no cash, no drift) → log, quiet
+  └─ need_llm / capital / full review → research_rotate + team → Executor → ntfy
 ```
 
 ```bash
-# Rules only (cheap)
 python3 -m treasury.fund_manager --rules-review --notify
-
-# Full daily script
 ./treasury/fund_manager_daily.sh
 ```
 
-**Pi / always-on (preferred):** see `treasury/deploy/PI_SETUP.md`
-
-1. Clone/sync `personal-workspace` on the Pi  
-2. `grok` CLI + Robinhood MCP auth headless  
-3. Enable `rh-refresh.timer` (~3h) + `fund-manager.timer` (weekdays ~12:30 ET)  
-4. Logs: `treasury/snapshots/fund_manager_daily_*.log`
-
-**Notifications:** ntfy topic in `config.json` → `notifications.ntfy_topic`. Alerts on need_llm / error / stale RH only.
-
-Dashboard is **observe-only** — never the scheduler.
+**Pi:** `treasury/deploy/PI_SETUP.md`
 
 ## Kill switches
 
@@ -70,27 +88,16 @@ Dashboard is **observe-only** — never the scheduler.
 - Withdraw agentic capital  
 - Disable timer / disconnect MCP  
 
-## Watchlist & multi-agent research
+## Watchlist & research
 
 | Artifact | Role |
 |----------|------|
-| [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. **BE** energy) — monitor, not holdings |
-| [`research/`](./research/) | Verbose deep-dives + portfolio research reports |
+| [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. BE) — not auto-buy |
+| [`research/`](./research/) | Deep-dives + portfolio research |
 | `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive |
-| `.grok/workflows/fund-manager-research.rhai` | Book + strategy + watchlist + **candidate discovery** |
-
-```text
-/fund-manager-research
-/fund-manager-research focus=energy max_candidates=5
-/position-deep-dive symbol=BE
-```
-
-**Native workflows:** these are real Grok Build `.rhai` workflows (same as `/workflows` in the TUI). Fund-manager sessions with slash commands / host `workflow` should use them. If a session only has coding tools (no `workflow` host API), emulate phases and still write under `research/`.
-
-**Discovery:** research may propose **new** watchlist symbols (not only owner-added). Merge as `monitor` only; never auto-buy.
-
-Scout/Thesis scan watchlist + latest research each review. Prefer **core allowlist** for rebalance; non-core needs deep-dive when required before size-in.
+| `.grok/workflows/fund-manager-research.rhai` | Book + themes + candidates |
 
 ## Strategy reminder
 
-Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**. Risk = deposits into that account.
+Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**.  
+Cash risk budget = deposits (cash account today). Full allowlist is the menu each deploy; held names are not privileged without a thesis case.
