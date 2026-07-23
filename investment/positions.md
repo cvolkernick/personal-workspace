@@ -43,7 +43,7 @@ Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis 
 
 | Symbol | Theme | Status | Notes |
 |--------|-------|--------|-------|
-| **BE** | Energy (Bloom Energy) | monitor | Fuel cells / distributed gen; AI-power narrative. Deep-dive before size-in |
+| **BE** | Energy (Bloom Energy) | monitor | Deep-dive 2026-07-23: thesis OK, **no buy** now (val + capital). See `research/BE_deep_dive.md` |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60.

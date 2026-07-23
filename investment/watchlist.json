@@ -23,8 +23,10 @@
       "added": "2026-07-22",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
-      "notes": "Owner-suggested energy theme candidate. Monitor for entry; do not treat as core allowlist until promoted."
+      "last_deep_dive": "2026-07-23",
+      "last_deep_dive_path": "investment/research/BE_deep_dive.md",
+      "last_verdict": "monitor_no_buy",
+      "notes": "Deep-dive 2026-07-23: thesis fit strong; critic blocks size-in (valuation + tiny agentic NAV). Revisit on pullback or larger book. Not core allowlist."
     }
   ]
 }
