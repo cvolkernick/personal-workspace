@@ -48,8 +48,9 @@ Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60.
 2. Scout/Thesis scan the watchlist each review; may propose size only if status is `ready` (or after a fresh deep-dive).
-3. Run **`/position-deep-dive symbol=TICKER`** (workflow) before first buy when `deep_dive_required_before_buy` is true.
-4. Reports land in [`research/`](./research/). Promote to core only deliberately (update `fund_manager.json` + this table).
+3. Run **`/position-deep-dive symbol=TICKER`** before first buy when `deep_dive_required_before_buy` is true.
+4. Run **`/fund-manager-research`** periodically / on need_llm to refresh book+strategy view and **propose new watchlist candidates** (not auto-added buys).
+5. Reports land in [`research/`](./research/). Promote to core only deliberately (update `fund_manager.json` + this table).
 
 ## Out of scope
 

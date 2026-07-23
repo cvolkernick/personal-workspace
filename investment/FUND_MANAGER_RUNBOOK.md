@@ -70,19 +70,26 @@ Dashboard is **observe-only** — never the scheduler.
 - Withdraw agentic capital  
 - Disable timer / disconnect MCP  
 
-## Watchlist & deep-dives
+## Watchlist & multi-agent research
 
 | Artifact | Role |
 |----------|------|
 | [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. **BE** energy) — monitor, not holdings |
-| [`research/`](./research/) | Deep-dive reports |
-| `.grok/workflows/position-deep-dive.rhai` | Multi-agent research workflow |
+| [`research/`](./research/) | Verbose deep-dives + portfolio research reports |
+| `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive |
+| `.grok/workflows/fund-manager-research.rhai` | Book + strategy + watchlist + **candidate discovery** |
 
 ```text
+/fund-manager-research
+/fund-manager-research focus=energy max_candidates=5
 /position-deep-dive symbol=BE
 ```
 
-Scout/Thesis scan the watchlist each review. Prefer **core allowlist** for rebalance; watchlist names need consideration (and deep-dive when required) before size-in.
+**Native workflows:** these are real Grok Build `.rhai` workflows (same as `/workflows` in the TUI). Fund-manager sessions with slash commands / host `workflow` should use them. If a session only has coding tools (no `workflow` host API), emulate phases and still write under `research/`.
+
+**Discovery:** research may propose **new** watchlist symbols (not only owner-added). Merge as `monitor` only; never auto-buy.
+
+Scout/Thesis scan watchlist + latest research each review. Prefer **core allowlist** for rebalance; non-core needs deep-dive when required before size-in.
 
 ## Strategy reminder
 

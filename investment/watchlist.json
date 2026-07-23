@@ -8,7 +8,9 @@
     "deep_dive_before_first_buy": true,
     "deep_dive_workflow": "position-deep-dive",
     "deep_dive_report_dir": "investment/research",
-    "notes": "Watchlist names may enter the book only after Thesis+Risk+Critic and (when deep_dive_required) a position-deep-dive report. Energy/AI opportunistic sleeve."
+    "agent_may_propose_additions": true,
+    "portfolio_research_workflow": "fund-manager-research",
+    "notes": "Watchlist names may enter the book only after Thesis+Risk+Critic and (when deep_dive_required) a position-deep-dive report. Energy/AI opportunistic sleeve. Agents may propose NEW monitors via fund-manager-research; never auto-buy."
   },
   "entries": [
     {
