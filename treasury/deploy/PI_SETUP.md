@@ -43,6 +43,14 @@ python3 -c "import json;from pathlib import Path;d=json.loads(Path('treasury/sna
 |-------|----------|--------|
 | `rh-refresh` | ~3h | MCP snapshot so FCC RH trade stays green |
 | `fund-manager` | weekdays ~12:30 | Rules HOLD if 40/60 ok; else Grok team review |
+| `fund-manager-bp-poll` | ~15m | If agentic cash>0 or BP>0 → full team deploy (market hours) |
+
+```bash
+sudo cp treasury/deploy/fund-manager-bp-poll.service treasury/deploy/fund-manager-bp-poll.timer /etc/systemd/system/
+# fix WorkingDirectory paths
+sudo systemctl daemon-reload
+sudo systemctl enable --now fund-manager-bp-poll.timer
+```
 
 ## Notifications
 `config.json` → `notifications.ntfy_topic` (default matches Grok ntfy). Alerts on need_llm / error / stale RH — quiet on routine HOLD.

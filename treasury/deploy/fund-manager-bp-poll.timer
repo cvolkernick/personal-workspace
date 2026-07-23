@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll agentic BP/cash every 15m for fund-manager deploy
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=15min
+Persistent=true
+Unit=fund-manager-bp-poll.service
+
+[Install]
+WantedBy=timers.target

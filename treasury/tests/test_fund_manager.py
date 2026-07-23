@@ -98,13 +98,13 @@ class TestDecisionLog(unittest.TestCase):
 
 
 class TestRulesReview(unittest.TestCase):
-    def test_hold_when_in_band(self):
+    def test_hold_when_in_band_zero_cash(self):
         rh = {
             "agentic": {
                 "account_number_last4": "1752",
                 "agentic_allowed": True,
-                "cash": 0.17,
-                "buying_power": 0.17,
+                "cash": 0,
+                "buying_power": 0,
                 "total_value": 100,
                 "positions": [
                     {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
@@ -116,6 +116,25 @@ class TestRulesReview(unittest.TestCase):
         rr = fm["rules_review"]
         self.assertFalse(rr["need_llm"])
         self.assertEqual(rr["outcome"], "hold")
+
+    def test_need_llm_when_any_cash_or_bp(self):
+        # Any cash > 0 triggers (no 5% NAV gate)
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 0.50,
+                "buying_power": 0.50,
+                "total_value": 100,
+                "positions": [
+                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60},
+                ],
+            }
+        }
+        fm = rules_based_review(rh_snapshot=rh, log=False)
+        self.assertTrue(fm["rules_review"]["need_llm"])
+        self.assertEqual(fm["rules_review"]["kind"], "deploy")
 
     def test_need_llm_when_cash_idle(self):
         rh = {

@@ -116,12 +116,15 @@
   },
   "automation": {
     "unattended": true,
-    "kickoff": "scheduled",
+    "kickoff": "scheduled_and_bp_poll",
     "runner": "treasury/fund_manager_daily.sh",
+    "bp_poll_runner": "treasury/fund_manager_bp_poll.sh",
+    "bp_poll_interval_seconds": 900,
+    "bp_poll_trigger": "any_cash_or_bp_gt_zero",
     "rh_refresh_runner": "treasury/rh_refresh.sh",
     "rh_refresh_interval_hours": 3,
     "rh_stale_warn_hours": 6,
-    "notes": "Do not require manual session start or dashboard load. RH snapshot: every ~3h via rh_refresh.sh (launchd/cron/Pi) so FCC 'RH trade' stays green (<6h). Fund review: once/day mid-session. Dashboard is observe-only glass box."
+    "notes": "Daily mid-session review + BP poll every ~15m (market hours). Any agentic cash>0 or BP>0 triggers full research/rotate team (no %NAV floor). RH snapshot ~3h via rh_refresh. launchd: com.personalworkspace.fund-manager-bp-poll + rh-refresh. Pi: fund-manager-bp-poll.timer."
   },
   "account": {
     "scope": "agentic_only",

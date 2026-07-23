@@ -70,17 +70,26 @@ Quorum: Risk + Thesis OK; Critic can force hold or size-down.
 ## Unattended automation
 
 ```text
-rh_refresh → rules review
-  ├─ HOLD (in band, no cash, no drift) → log, quiet
-  └─ need_llm / capital / full review → research_rotate + team → Executor → ntfy
+rh_refresh (~3h) → snapshot only
+
+bp_poll (~15m, market hours):
+  rh_refresh → rules review
+    ├─ HOLD (cash=0 and BP=0, in band) → quiet
+    └─ any cash>0 or BP>0 → full research_rotate + team → Executor → ntfy
+
+daily (~12:30 ET weekdays): same team path as before
 ```
+
+**Trigger rule:** free capital = **cash > 0 or BP > 0** (no %NAV floor).
 
 ```bash
 python3 -m treasury.fund_manager --rules-review --notify
 ./treasury/fund_manager_daily.sh
+./treasury/fund_manager_bp_poll.sh          # or FM_BP_POLL_FORCE=1 outside hours
 ```
 
-**Pi:** `treasury/deploy/PI_SETUP.md`
+**macOS launchd:** `com.personalworkspace.fund-manager-bp-poll` + `com.personalworkspace.rh-refresh`  
+**Pi:** `treasury/deploy/PI_SETUP.md` + `fund-manager-bp-poll.timer`
 
 ## Kill switches
 

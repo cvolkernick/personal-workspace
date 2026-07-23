@@ -553,8 +553,9 @@ def rules_based_review(
     nav = _f(analysis.get("nav_usd"))
     bp = _f(analysis.get("buying_power_usd"))
     min_trade = _f((policy.get("limits") or {}).get("min_trade_notional_usd"), 1.0)
-    # Idle cash material if >= min_trade or >= 5% NAV
-    cash_material = cash >= min_trade and (nav <= 0 or cash / max(nav, 1e-9) >= 0.05)
+    # Any positive cash or BP is material — no %NAV gate (owner: deploy whenever capital is free)
+    idle_capital = cash > 0 or bp > 0
+    deployable = max(cash, bp)
 
     in_band = (
         btc is not None
@@ -562,6 +563,7 @@ def rules_based_review(
         and abs(btc - _f(targets.get("btc_digital_credit_pct"), 0.4)) <= band
         and abs(stocks - _f(targets.get("stocks_growth_pct"), 0.6)) <= band
     )
+    no_deployed = btc is None or stocks is None or (btc == 0 and stocks == 0)
 
     if not live:
         outcome = "observe"
@@ -573,18 +575,29 @@ def rules_based_review(
         kind = "error"
         summary = analysis.get("error") or "agentic analysis failed"
         need_llm = False
-    elif in_band and not cash_material:
+    elif in_band and not idle_capital:
         outcome = "hold"
         kind = "hold"
         summary = (
             f"Rules HOLD: deployed mix in ±{band:.0%} band "
-            f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash ${cash:.2f} immaterial"
+            f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash/BP ${cash:.2f}/${bp:.2f} zero"
         )
         need_llm = False
-    elif cash_material and (btc is None or stocks is None or (btc == 0 and stocks == 0)):
+    elif idle_capital and no_deployed:
         outcome = "need_llm"
         kind = "deploy"
-        summary = f"Rules → need team/LLM: idle cash ${cash:.2f} to deploy toward 40/60"
+        summary = (
+            f"Rules → need team/LLM: idle capital cash ${cash:.2f} BP ${bp:.2f} "
+            f"(deployable ${deployable:.2f}) toward 40/60"
+        )
+        need_llm = True
+    elif idle_capital:
+        outcome = "need_llm"
+        kind = "deploy"
+        summary = (
+            f"Rules → need team/LLM: free capital cash ${cash:.2f} BP ${bp:.2f} "
+            f"(any >$0 triggers; min_trade ${min_trade:.2f} for dust tickets)"
+        )
         need_llm = True
     elif not in_band and btc is not None:
         outcome = "need_llm"
@@ -672,10 +685,12 @@ def rules_based_review(
 
     fm["rules_review"] = {
         "outcome": outcome,
+        "kind": kind,
         "need_llm": need_llm,
         "summary": summary,
         "in_band": in_band,
-        "cash_material": cash_material,
+        "idle_capital": idle_capital,
+        "deployable_usd": round(deployable, 4),
         "logged": logged,
     }
     write_fund_manager_snapshot(fm)

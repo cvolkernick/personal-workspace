@@ -1,0 +1,13 @@
+[Unit]
+Description=Agentic fund manager BP/cash poll (deploy when free capital)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/pi/personal-workspace
+ExecStart=/home/pi/personal-workspace/treasury/fund_manager_bp_poll.sh
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

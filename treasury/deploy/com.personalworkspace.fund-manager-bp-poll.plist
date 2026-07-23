@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Poll agentic BP/cash every 15 minutes during market hours (script self-gates).
+  When cash>0 or BP>0, runs full fund-manager team deploy.
+
+  Install:
+    cp treasury/deploy/com.personalworkspace.fund-manager-bp-poll.plist ~/Library/LaunchAgents/
+    # Edit WorkingDirectory + script path if your clone path differs
+    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist 2>/dev/null || true
+    launchctl load ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+
+  Unload:
+    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.fund-manager-bp-poll</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/fund_manager_bp_poll.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>StartInterval</key>
+  <integer>900</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fund_manager_bp_poll_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fund_manager_bp_poll_launchd.err.log</string>
+</dict>
+</plist>
