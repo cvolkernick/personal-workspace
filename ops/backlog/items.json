@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-23T17:12:32.971781+00:00",
+  "updated_at": "2026-07-23T17:28:33.032335+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -29,7 +29,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-23T17:12:32.971571+00:00",
+      "last_groomed_at": "2026-07-23T17:28:33.032125+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt",
       "auto_start": false,
@@ -68,7 +68,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-23T17:12:32.971644+00:00",
+      "last_groomed_at": "2026-07-23T17:28:33.032197+00:00",
       "objective_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.goal.txt",
       "prompt_path": "ops/backlog/seeds/improve-command-center-daily-action-planner-toda-0cb116db.prompt.txt",
       "auto_start": false,
@@ -108,7 +108,7 @@
       "priority_color": "#ff6b6b",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-23T17:12:32.971659+00:00",
+      "last_groomed_at": "2026-07-23T17:28:33.032213+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -136,7 +136,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-23T17:12:32.971672+00:00",
+      "last_groomed_at": "2026-07-23T17:28:33.032226+00:00",
       "auto_start": false,
       "last_auto_started_at": "2026-07-22T04:41:47.649057+00:00",
       "last_job_id": "job-56a031d880",
@@ -171,7 +171,7 @@
       "priority_color": "#8aa0b5",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-23T17:12:32.971685+00:00",
+      "last_groomed_at": "2026-07-23T17:28:33.032238+00:00",
       "auto_start": false,
       "last_job_id": "job-manual-portfolio-mvp",
       "completed_at": "2026-07-22T04:42:15.112966+00:00",
@@ -182,10 +182,10 @@
       ]
     }
   ],
-  "last_groomed_at": "2026-07-23T17:12:32.971695+00:00",
+  "last_groomed_at": "2026-07-23T17:28:33.032248+00:00",
   "groom_meta": {
     "wip_count": 0,
     "changes_count": 0,
-    "groomed_at": "2026-07-23T17:12:32.971695+00:00"
+    "groomed_at": "2026-07-23T17:28:33.032248+00:00"
   }
 }
