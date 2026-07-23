@@ -1,28 +1,31 @@
 # BE deep dive (Bloom Energy)
 
-**As of:** 2026-07-23 (expanded report)  
-**Workflow / process:** fund-manager multi-agent research (frame → market / thesis / risk → critic → synthesize)  
-**Status:** `monitor` — **thesis fit strong; conclusion is do not size-in now**  
-**Sleeve if owned:** `stocks_growth` (energy opportunistic, not core allowlist)  
+**Report run:** 2026-07-23 (re-run, full verbose template)  
+**Prior run:** 2026-07-23 (initial); this file supersedes with refreshed findings  
+**Process:** Multi-agent style research (frame → market / thesis / risk → critic → synthesize)  
+**Status:** `monitor` — **thesis fit strong; conclusion remains do not size-in now**  
+**Sleeve if owned:** `stocks_growth` (energy opportunistic; **not** core allowlist)  
 **On watchlist:** yes · **Held in agentic book:** no  
-**Agentic NAV context:** ~$8.23 · positions MSTR, MARA, TSLA, SPCX · deployed weights ~40.3% / 59.8% (near 40/60 band)  
-**Scope:** Agentic Robinhood account only. **This document is research and policy guidance — not an order and not Executor authority.**
+**Agentic NAV (live snapshot frame):** ~**$8.23** · BP/cash ~**$0.17** · held **MSTR, MARA, TSLA, SPCX** · deployed ~**40.3% / 59.8%** (in 40/60 band)  
+**Scope:** Agentic Robinhood account only. **Research ≠ order. Not Executor authority.**
 
 ---
 
 ## Executive findings (read this first)
 
-### What we found
+1. **The AI-power demand story is substantiated by company prints and mega-partner frameworks.** FY2025 revenue ~**$2.02B** (record, AI data center + C&I cited). Q1’26 revenue **$751.1M** (**+130% YoY**), product revenue **+208% YoY**. After Q1, FY2026 revenue guide raised to **$3.4–3.8B** with non-GAAP OI **$600–750M** and non-GAAP EPS **$1.85–2.25**. That is a genuine operating inflection, not a one-slide narrative.
 
-1. **Business quality of the story is real, not pure meme.** Bloom is a pure-play on-site solid-oxide fuel cell (SOFC) power vendor. FY2025 printed **~$2.02B** revenue with explicit AI data-center contribution; Q1’26 printed **$751.1M** revenue (**+130% YoY**), product revenue **+208% YoY**, with raised full-year 2026 guidance to **$3.4–3.8B** revenue and non-GAAP operating income **$600–750M**. That is a step-change growth profile versus historical “always almost profitable” fuel-cell narratives.
+2. **Backlog and hyperscaler frameworks are unusually large for a fuel-cell name.** Company (FY2025 results) cited total current backlog ~**$20B** and product backlog ~**$6B** (~**2.5×** YoY). Partner stack in public domain includes **Oracle** master services for up to **2.8 GW** (initial **1.2 GW** contracted/deploying — Apr 2026 IR), **Brookfield** AI infrastructure financing frameworks (**$5B** then reported expansion toward a **$25B** framework in mid-2026 coverage), plus historical **AEP / Equinix / Quanta** relationships. Industry commentary (e.g. Rystad) notes Bloom’s concentration in visible primary-load SOFC order books — a moat *and* a single-vendor supply-chain risk.
 
-2. **The equity already prices a large part of that success.** Approximate last close ~**$218** (2026-07-22), 52-week range roughly **$26–$351**, market cap on the order of **$60B+**. Secondary fair-value narratives and multiple commentary (revenue/EBITDA multiples) cluster around “expensive / execution must stay perfect.” High beta (~3–4 in quote aggregates) means drawdowns can be large even if the long-term thesis is intact.
+3. **Near-term event risk is elevated: Q2’26 earnings are scheduled for 2026-07-28 AMC.** Consensus color (aggregators) clusters around ~**$0.39–0.40** EPS / high-hundreds-of-$M revenue. Guide reaffirmation vs cut / beat vs miss will dominate the next multi-week tape. Buying *into* that event with no edge and tiny capital is poor process.
 
-3. **Balance sheet is large on both sides.** Cash & equivalents ~**$2.49B** (Mar 31, 2026) is a strength for scaling manufacturing and working capital. Recourse debt ~**$2.60B** is a real fixed claim; net leverage and interest / refinancing optics still matter if growth or margins disappoint.
+4. **The equity already prices a large success case.** Approximate close **~$218** (2026-07-22), 52-week range roughly **$25–$351**, market cap ~**$62–65B**, beta ~**3.7**. Yahoo/other aggregators show forward P/E still rich (~**100×** order of magnitude on some pages) and TTM EPS near flat/negative depending on series. 30-day returns have been violent in both directions (momentum + mean-reversion risk).
 
-4. **Customer and partner concentration risk is visible in disclosures.** Q1 notes show material **related-party revenue** in recent periods (partner/JV ecosystem including Brookfield-related structures in commentary). That can accelerate growth *and* create correlated disappointment if one hyperscaler or partner program slips.
+5. **Balance sheet is large on both sides.** Mar 31, 2026: cash & equivalents ~**$2.49B**; recourse debt ~**$2.60B**; inventories ~**$0.73B**. Q1 generated **+$73.6M** operating cash flow — improvement vs prior-year drain — but growth WC and leverage still matter if AI DC delivery slips.
 
-5. **Theme fit with *this* book is excellent; position sizing fit is currently terrible.** Energy / AI power is an explicit open sleeve. BE is a cleaner “sell power equipment into AI” expression than miners (which *consume* power). But agentic NAV ~**$8** cannot express a meaningful view: a $1–2 starter is portfolio noise and still competes with filling core 40/60 names if cash appears.
+6. **Portfolio construction kills the trade for *this* book right now.** Agentic NAV ~**$8** with ~**$0.17** BP. A $1–2 BE ticket is economically meaningless, adds high-beta noise next to MARA/TSLA, and competes with any future core top-up. Prefer **$0** until capital scale and/or better risk-reward.
+
+7. **Theme fit with stated strategy is excellent.** Energy / electrification / AI power is an open sleeve under stocks/growth. BE is a cleaner “sell generation gear into AI” expression than miners (load). Watchlist membership remains justified; **size-in does not**.
 
 ### Conclusions (actionable)
 
@@ -30,160 +33,181 @@
 |----------|------------|
 | Stay on watchlist? | **Yes** |
 | Promote to core allowlist? | **No** |
-| Status after deep-dive | **`monitor`** (not `ready`) |
-| Buy / starter size now? | **No — $0** |
-| Why not “pass” forever? | Fundamentals and theme still warrant monitoring; a future entry may make sense after capital scale-up and/or better risk-reward |
-| Auto-buy from automation? | **Never** (watchlist policy `auto_buy: false`) |
-| What would flip to `ready`? | See “Promotion criteria” below |
+| Status | **`monitor`** (not `ready`) |
+| Buy / starter size now? | **No — max size $0** |
+| Trade into Q2 print (7/28)? | **No** |
+| Auto-buy from automation? | **Never** |
+| Re-run deep-dive after | Q2’26 results (on/after **2026-07-28**), or material drawdown, or NAV step-change |
 
 **One-line conclusion for the fund manager team:**  
-*BE belongs on the energy watchlist as a high-quality thematic candidate; it does **not** belong in the agentic book at current valuation, volatility, and capital scale.*
+*BE is a high-quality energy/AI-power **watchlist** name with mega-partner optionality; it is a **bad entry** for the current ~$8 agentic book, especially into the 7/28 earnings window.*
 
 ---
 
-## Frame (policy context)
+## Frame / policy context
 
 | Field | Value |
 |-------|--------|
-| Symbol | BE |
+| Symbol | **BE** |
 | Name | Bloom Energy Corporation |
-| Theme | energy · electrification · distributed generation · ai_power |
-| Sleeve if owned | stocks_growth |
+| Theme | energy · electrification · distributed_generation · ai_power |
+| Sleeve if owned | `stocks_growth` |
 | Core allowlist | **No** |
-| Deep-dive required before buy | **Yes** (satisfied as research artifact; does **not** authorize buy) |
+| Deep-dive required before buy | **Yes** (this report satisfies *research*; **does not** authorize buy) |
 | Owner interest | Explicit energy-theme candidate |
-| Portfolio state | Small agentic bootstrap book; 40/60 roughly in band; limited idle cash historically |
+| Policy | `auto_buy: false`; prefer core for rebalance; quorum for any future order |
+| Workflow path | `/position-deep-dive symbol=BE` (native); this re-run executed inline with same verbose template |
 
-**Policy reminders**
+**Open questions carried into research**
 
-- Prefer **core allowlist** for routine rebalance toward 40/60.  
-- Watchlist = monitor / consider only.  
-- Quorum (Thesis + Risk; Critic can block) still required for any future BE order.  
-- Risk budget = deposits into agentic account only.
+- How much of backlog/frameworks converts to 2026–27 revenue on schedule?  
+- Partner concentration / related-party revenue durability?  
+- Manufacturing capacity (company has discussed stepping toward multi-GW annual capacity) vs multi-GW demand?  
+- What does the market price after Q2’26 — multiple expansion or compression?
 
 ---
 
-## Company & product findings
+## Company and product findings
 
 ### What Bloom sells
 
-Bloom’s Energy Servers convert fuel (typically natural gas / directed biogas pathways depending on install) into electricity via **solid oxide fuel cells**, marketed as resilient, scalable **on-site generation**. Target customers: data centers, semiconductor manufacturing, large C&I, utilities, and mission-critical sites (hospitals, campuses, retail). Positioning is “bring your own power” when grid interconnection lag and AI rack power density make utility timelines unacceptable.
+Solid-oxide fuel cell (**SOFC**) **Energy Servers** providing on-site, always-on electricity for data centers, semis, C&I, utilities, and mission-critical sites. Positioning: **bring-your-own-power** when grid interconnection lags AI rack density and time-to-power.
 
-### Why that matters for our thesis map
+### Why it maps to our thesis
 
-| Theme in `investment/README` | BE linkage |
-|------------------------------|------------|
-| Energy (overarching) | Direct pure-play |
-| AI stack | Indirect via **power bottleneck** for training/inference facilities |
-| BTC infra / miners | Orthogonal-to-complementary: miners are load; BE is generation gear |
-| Digital credit / MSTR | Unrelated; no substitution |
+| Strategy theme (`investment/README`) | Linkage |
+|--------------------------------------|---------|
+| Energy (overarching) | **Direct pure-play** |
+| AI stack | Indirect via **power bottleneck** for AI factories / cloud |
+| BTC infra / miners | Complementary: miners = load; BE = generation equipment |
+| Digital credit / MSTR | Unrelated |
 
-**Finding:** Among open energy names, BE is unusually **direct** as an AI-power equipment story versus “energy-adjacent equity” like TSLA.
+**Finding:** Among opportunistic energy names, BE is unusually **direct** as AI-power *equipment* versus “energy-adjacent” equity like TSLA (already held).
 
----
+### Competitive / industry structure findings
 
-## Market & trading findings
-
-| Metric (approx., public quotes ~2026-07-22) | Observation | Implication for us |
-|---------------------------------------------|-------------|--------------------|
-| Price ~$218 | Far above 52w lows (~$26); well below spike highs (~$351) | Regime = post-run consolidation / volatility, not accumulation base |
-| Mkt cap ~$60B+ | Large-cap growth / momentum hybrid | Tiny agentic tickets won’t move anything; no liquidity issue |
-| High beta | Equity behaves like a levered AI-power proxy | Position sizing must assume 30–50%+ swings |
-| Volume | Generally high | Fine for RH fractional if we ever trade |
-
-**Finding:** Liquidity is not the constraint. **Valuation + capital scale + opportunity cost** are.
+- Third-party industry notes argue SOFC share of stationary primary-load data-center fuel-cell books is rising, with Bloom concentrated in visible contracts — leadership **and** single-supplier execution risk if demand outruns factories.  
+- Competitors / substitutes: gas turbines, grid + storage, other fuel cells, eventual nuclear SMRs, efficiency gains.  
+- Fuel mix (often natural gas pathways) can create ESG/policy debate even when customers prioritize **time-to-power**.
 
 ---
 
-## Fundamental findings (company-reported)
+## Market and trading findings
 
-### Growth & profitability trajectory
+| Metric (public quotes ~2026-07-22) | Observation | Implication |
+|------------------------------------|-------------|-------------|
+| Price ~**$218** close | Far above 52w lows; below spike highs ~**$351** | Post-run, high-vol regime — not a quiet accumulation base |
+| Market cap ~**$62–65B** | Large-cap growth/momentum hybrid | Tiny agentic tickets irrelevant to market; fine liquidity |
+| Beta ~**3.7** | Levered AI-power proxy behavior | Size must assume 30–50%+ swings |
+| Avg volume | High (multi-million share days common) | No liquidity barrier on RH fractional |
+| Next catalyst | **Q2’26 earnings 2026-07-28 AMC** | Event risk; do not size for “guess the print” |
+
+**Finding:** Liquidity is not the constraint. **Valuation + event timing + capital scale + opportunity cost** are.
+
+---
+
+## Fundamental findings (company-reported & IR)
+
+### Growth trajectory
 
 | Period | Revenue | Notes |
 |--------|---------|--------|
-| FY2025 | ~$2.02B | Record; AI data center + C&I called out |
-| Q1’25 | $326.0M | Base for YoY comps |
-| Q1’26 | **$751.1M** | **+130.4% YoY**; product $653.3M (**+208.4%**) |
-| FY2026 guide (raised post-Q1) | **$3.4–3.8B** | ~80% growth midpoint vs prior ~60% narrative |
+| FY2025 | ~**$2.02B** | Record; AI DC + C&I; product backlog ~$6B; total backlog ~$20B (company) |
+| Q4’25 | ~**$778M** | Strong exit rate into 2026 |
+| Q1’25 | **$326.0M** | YoY base |
+| Q1’26 | **$751.1M** | **+130.4% YoY**; product **$653.3M** (**+208.4%**) |
+| FY2026 guide (post-Q1 raise) | **$3.4–3.8B** | ~**80%** growth midpoint vs earlier ~60% / prior $3.1–3.3B band |
 
-| Profitability (Q1’26) | GAAP | Non-GAAP (company) |
-|-----------------------|------|---------------------|
+### Profitability & cash (Q1’26)
+
+| Metric | GAAP | Non-GAAP (company) |
+|--------|------|---------------------|
 | Gross margin | 30.0% | 31.5% |
-| Operating income | $72.2M | $129.7M |
-| Diluted EPS | $0.23 | $0.44 (non-GAAP diluted) |
-| Adj. EBITDA | — | $143.0M |
-| Operating cash flow | **+$73.6M** | Improvement vs large YoY swing |
+| Operating income | **$72.2M** | **$129.7M** |
+| Diluted EPS | **$0.23** | **$0.44** |
+| Adjusted EBITDA | — | **$143.0M** |
+| Operating cash flow | **+$73.6M** | Large positive swing YoY |
 
-**FY2026 non-GAAP guide (company):** GM ~34%; OI $600–750M; EPS $1.85–$2.25.
+**FY2026 non-GAAP guide (raised):** GM ~**34%**; OI **$600–750M**; EPS **$1.85–2.25**.
 
-**Finding:** This is no longer a pure “story stock with zero profits” print set. The market is underwriting **continued hypergrowth + margin expansion**. That raises the bar for *new capital* at today’s price: you are paying for success that is already partially realized in the multiple.
+**Finding:** Fundamentals have moved from “story” to “hypergrowth with operating leverage.” The stock multiple is underwriting **continued** delivery — which raises the bar for *new* capital at ~$218.
 
-### Balance sheet findings (Mar 31, 2026)
+### Balance sheet (Mar 31, 2026)
 
 | Item | Approx. | Interpretation |
 |------|---------|----------------|
-| Cash & cash equivalents | $2.49B | Strong liquidity for scale |
-| Total assets | $4.66B | Manufacturing + WC heavy |
-| Recourse debt | $2.60B | Material leverage / fixed claims |
-| Stockholders’ equity | ~$0.95B | Still thin vs enterprise value implied by equity market |
-| Inventories | $0.73B | Growth working capital; execution risk if demand slips |
-
-**Finding:** Cash is a positive, but **gross debt and growth WC** mean a growth miss can pressure both equity multiple *and* credit optics simultaneously.
+| Cash & cash equivalents | **$2.49B** | Supports scale, WC, capacity |
+| Recourse debt | **$2.60B** | Material fixed claims |
+| Inventories | **$0.73B** | Growth WC; painful if demand slips |
+| Stockholders’ equity | ~**$0.95B** | Thin vs equity market cap |
+| Total assets | ~**$4.66B** | Manufacturing + contract-asset heavy |
 
 ### Partner / concentration findings
 
-- Public narrative: multi-GW data-center fuel-cell agreements (e.g. Oracle expansion discussion in secondary coverage); Brookfield-linked AI infrastructure relationships and JV accounting in company disclosures.  
-- Q1 related-party revenue lines were large in recent comparative periods (see company notes) — growth is partly ecosystem-mediated.
+| Partner / framework | Public color | Research take |
+|---------------------|--------------|---------------|
+| **Oracle** | Up to **2.8 GW** MSA; **1.2 GW** initial contracted/deploying (IR Apr 2026) | Hyperscaler validation; concentration + conversion risk |
+| **Brookfield** | **$5B** AI infra partnership (2025); mid-2026 coverage of expansion toward **$25B** framework | Capital + deployment engine; JV/related-party accounting complexity |
+| **AEP / Equinix / Quanta** | Prior MW-to-GW scale relationships | Breadth beyond one hyperscaler |
+| Related-party revenue | Material in recent Q notes | Growth partly ecosystem-mediated |
 
-**Finding:** Partner-driven growth is a feature (speed, capital) and a bug (correlation, negotiation power, backlog conversion timing).
-
----
-
-## Bull case (expanded Thesis findings)
-
-1. **Structural AI power deficit.** Hyperscalers and AI data centers face multi-year grid interconnection queues. On-site generation that deploys faster than transmission upgrades has economic value even if LCOE is not always cheapest.
-2. **Demonstrated demand inflection.** Triple-digit product revenue growth and raised guide are hard evidence, not just slideware.
-3. **Operating leverage evidence.** Positive GAAP OI and strong non-GAAP OI / FCF swing in Q1’26 support a path to more “normal” growth-company economics if volumes hold.
-4. **Category leadership narrative.** Management claims “go-to choice” for on-site power; if true, BE captures a scarce skill stack (install, service, SOFC manufacturing).
-5. **Thematic diversification for our book.** Adds energy *supply* exposure without adding more miner beta or pure BTC credit beta.
-
-**Bull confidence on fundamentals:** ~0.65  
-**Bull confidence that those fundamentals are still underpriced at ~$218:** ~0.30
+**Finding:** Partner frameworks are a **core bull pillar** and a **core bear pillar** (correlation, negotiation power, backlog → revenue timing).
 
 ---
 
-## Bear case (expanded Risk findings)
+## Bull case (Thesis) — expanded
 
-1. **Multiple compression is the main risk for new buyers.** If AI-power enthusiasm cools, BE can re-rate faster than fundamentals deteriorate (high beta).
-2. **AI demand path is explicit in company risk factors.** A perceived AI capex pause is a direct thesis hit.
-3. **Technology / competitive substitution.** Gas turbines, utility power, batteries, nuclear SMRs, other fuel cells, and efficiency improvements all compete. SOFC fuel mix optics may face ESG or policy headwinds depending on jurisdiction.
-4. **Execution: manufacturing, install cycle, backlog.** Long sales/install cycles and capacity ramps are classic places where “guide up” stories stumble.
-5. **Financial: debt, dilution history, SBC.** Growth companies often refinance or dilute; equity holders at peak multiples absorb that pain.
-6. **Portfolio construction failure mode.** Buying BE with $8 NAV does not diversify the book in any meaningful way; it mostly adds tracking noise and decision complexity for the agent team.
+1. **Structural time-to-power shortage for AI.** Grid queues can run years; on-site generation that stands up in months has real economic value even if not always LCOE-cheapest.  
+2. **Printed demand inflection.** Triple-digit product growth + raised multi-billion guide is hard evidence.  
+3. **Operating leverage evidence.** Positive GAAP OI, strong non-GAAP OI, positive OCF in Q1’26.  
+4. **Category leadership / order-book concentration.** If industry notes are right that Bloom holds most visible primary-load SOFC books, share gains can compound.  
+5. **Thematic diversification for our book.** Adds energy *supply* exposure without adding pure miner or pure BTC-credit beta.  
+6. **Path to “normal” growth company** if multi-year frameworks convert and capacity scales (company has discussed manufacturing step-ups).
 
-**Risk confidence that *buying now* is wrong for this book:** ~0.75
+**Bull confidence — fundamentals path:** ~**0.65**  
+**Bull confidence — still underpriced at ~$218 into 7/28:** ~**0.25**
 
 ---
 
-## Critic synthesis (fail-closed)
+## Bear case (Risk) — expanded
+
+1. **Multiple compression is the main risk for *new* buyers.** High beta + rich forward multiples mean sentiment can re-rate the equity faster than fundamentals break.  
+2. **AI demand path is in company risk factors.** Perceived AI capex pause → direct thesis hit.  
+3. **Event risk (Q2 7/28).** Guide cut, margin miss, or soft backlog commentary could gap the stock; we have no informational edge.  
+4. **Execution: capacity, install cycle, backlog conversion.** Multi-GW frameworks ≠ next-quarter revenue.  
+5. **Concentration.** Oracle/Brookfield/AEP-type concentration cuts both ways.  
+6. **Financial structure.** ~$2.6B recourse debt, SBC, possible dilution/refi over a multi-year build.  
+7. **Competitive / policy substitution.** Turbines, storage, nuclear, other vendors, fuel-mix politics.  
+8. **Portfolio construction failure.** With ~$8 NAV, BE cannot express a meaningful view; it only adds process risk.
+
+**Risk confidence that *buying now* is wrong for this book:** ~**0.80**
+
+---
+
+## Critic (fail-closed)
 
 | Checkpoint | Result |
 |------------|--------|
-| Is the theme legitimate? | **Yes** |
-| Is the company executing? | **Yes, on recent prints** |
-| Is the equity a good *entry* for us? | **No** |
+| Theme legitimate? | **Yes** |
+| Company executing recently? | **Yes (on Q1 + guide raise)** |
+| Good *entry* for agentic book now? | **No** |
 | Blocks buy now? | **Yes** |
-| Blocks ever owning BE? | **No** — only now / current capital |
+| Blocks ever owning BE? | **No** — only now / current capital / into print |
 | Max size now | **$0** |
-| Max size later (illustrative only) | Only after capital scale; still prefer **small satellite** (e.g. low single-digit % of agentic NAV) until multiple cycle normalizes |
+| Trade earnings? | **No** |
 
-**What would change the critic’s mind (promotion criteria toward `ready`):**
+### Promotion criteria toward `ready` (all preferred)
 
-1. Agentic NAV large enough that a 1–3% satellite is economically meaningful **and** does not starve core 40/60, **and**  
-2. Either (a) a substantial drawdown from the post-run regime without broken fundamentals, or (b) multi-quarter evidence of durable FCF + backlog conversion that compresses multiple risk, **and**  
-3. Fresh deep-dive dated after those conditions, with Thesis + Risk OK and Critic not blocking.
+1. Agentic NAV large enough that a **1–3%** satellite is meaningful **and** does not starve core 40/60, **and**  
+2. Either (a) substantial drawdown from post-run regime **without** broken fundamentals, or (b) multi-quarter FCF + clean backlog conversion that reduces multiple fragility, **and**  
+3. Fresh deep-dive **after** those conditions (and ideally after Q2’26 is digested), with Thesis + Risk OK and Critic not blocking.
 
-**Missing evidence today:** durable FCF series, clearer independent (non-partner) demand mix, and a valuation that does not require near-perfect AI DC delivery.
+### Missing evidence today
+
+- Multi-quarter durable FCF series beyond one strong OCF quarter  
+- Transparent conversion schedule of 2.8 GW / multi-$B frameworks into recognized revenue  
+- Valuation that does not require near-perfect AI DC delivery  
+- Book capital that can absorb high-beta satellite risk
 
 ---
 
@@ -191,13 +215,13 @@ Bloom’s Energy Servers convert fuel (typically natural gas / directed biogas p
 
 | Name / sleeve | Role | vs BE |
 |---------------|------|-------|
-| MSTR / digital credit | BTC credit complex (40%) | Different risk; core |
-| MARA (miners) | BTC infra load | Related energy *theme*, different business |
-| TSLA | Growth / energy-adjacent core | Broader franchise; already held |
-| SPCX | Growth core | Already held |
-| **BE** | Energy power equipment | Best pure AI-power gear story; **not held; not core** |
+| MSTR | BTC digital credit (40%) | Different risk; **core** |
+| MARA | BTC infra / power *load* | Related energy *theme*, different business; **held** |
+| TSLA | Growth / energy-adjacent **core** | Broader franchise; **held** |
+| SPCX | Growth **core** | **Held** |
+| **BE** | Energy power *equipment* | Best pure AI-power gear story; **not held; not core** |
 
-**Finding:** If any agentic cash appears while NAV is tiny, **rebalance/core top-up dominates BE**. If NAV grows and energy satellite is desired, BE is a shortlist name *after* valuation discipline.
+**Finding:** Any deployable agentic cash while NAV is tiny should go to **core 40/60 hygiene**, not a BE lottery ticket into earnings.
 
 ---
 
@@ -207,38 +231,40 @@ Bloom’s Energy Servers convert fuel (typically natural gas / directed biogas p
 
 **`monitor`**
 
-Not `ready` (would allow Thesis to propose size).  
-Not `pass` (would mean drop interest).  
-Not `promoted` (would mean core allowlist).  
-Not `held`.
+| Not this | Why |
+|----------|-----|
+| `ready` | Would allow Thesis to propose size — critic still blocks |
+| `pass` | Would imply drop interest — theme still worth monitoring |
+| `promoted` | Core allowlist — not earned |
+| `held` | Not in book |
 
 ### Why monitor (not pass)
 
-- Theme alignment with stated strategy is high.  
-- Company results validate the AI-power demand narrative.  
-- Owner explicitly cares about energy sleeve development.  
-- Future entry conditions are definable.
+- Theme alignment with stated energy/AI-power strategy is high.  
+- Company results and partner frameworks validate the demand narrative.  
+- Owner explicitly wants energy sleeve development.  
+- Post-Q2 and/or better price/capital may reopen the case with a **new** report.
 
 ### Why not ready / not buy
 
 - Equity price and multiples already discount aggressive success.  
-- Volatility can destroy small-book timing edge.  
-- Agentic capital is too small for a meaningful satellite.  
-- Core 40/60 still the primary job of the fund manager.  
-- Critic fail-closed on thin risk-reward for *new* risk capital.
+- **Q2 print in days** adds uncompensated event risk.  
+- Agentic capital (~$8 / ~$0.17 BP) cannot express a real satellite.  
+- Core 40/60 remains the fund manager’s primary job.  
+- Critic fail-closed on risk-reward for *new* risk capital.
 
-### Confidence
+### Confidence table
 
 | Claim | Confidence |
 |-------|------------|
-| Thesis fit with energy/AI power | 0.85 |
-| Near-term fundamentals growth trajectory (company guide path) | 0.65 |
-| Attractive entry *now* for agentic book | 0.20 |
-| Correct action = monitor, no buy | **0.80** |
+| Thesis fit with energy/AI power | **0.88** |
+| Near-term fundamentals growth path (guide-level) | **0.65** |
+| Attractive entry *now* for agentic book | **0.15** |
+| Correct action = monitor, no buy | **0.85** |
 
 ### Summary paragraph
 
-Bloom Energy is a **high-conviction *theme* candidate** and a **low-conviction *entry* candidate** for the current agentic portfolio. The multi-agent review agrees the company is executing into a real AI power bottleneck, but also agrees that the stock’s re-rating, leverage profile, partner concentration, and our sub-$10 risk budget make a purchase today an unforced error. The correct process outcome is to **keep BE on the watchlist**, document this deep-dive, **forbid auto-buy**, and re-open sizing only when capital and/or price offer a better skew—then re-run research.
+Bloom Energy remains a **high-conviction theme candidate** and a **low-conviction entry candidate** for the current agentic portfolio. The re-run strengthens the bull case on **partner scale** (Oracle multi-GW, Brookfield financing frameworks, large backlog) and **operating leverage** (Q1 prints + raised guide), while also strengthening the process case against buying: **rich valuation, high beta, imminent earnings, and a sub-$10 risk budget**. Correct outcome: **keep BE on the watchlist**, mark `last_deep_dive` to this re-run, **forbid auto-buy**, **do not trade the 7/28 print**, and re-open sizing only after capital and/or price offer a better skew—with a fresh report.
 
 ---
 
@@ -246,37 +272,41 @@ Bloom Energy is a **high-conviction *theme* candidate** and a **low-conviction *
 
 | Role | Action |
 |------|--------|
-| **Scout** | Leave BE quoted only during thematic scans; no standing trade intent. Surface watchlist + this report path in daily context. |
-| **Thesis** | Do not propose BE buys while status is `monitor` and critic blocks. Prefer core allowlist for any deployable cash. May propose *adding other energy candidates* to watchlist for research. |
-| **Risk** | Enforce $0 BE size until promotion criteria met. If NAV jumps, re-run deep-dive before any satellite. |
-| **Critic** | Default block on BE until new report + better skew. |
+| **Scout** | Leave BE on watchlist; no standing order. Note **Q2 2026-07-28 AMC** on calendar for post-print re-scan. |
+| **Thesis** | Do **not** propose BE buys while `monitor` + critic block. Prefer core allowlist if any cash appears. May propose *other* energy monitors via `/fund-manager-research`. |
+| **Risk** | Enforce **$0** BE size. After Q2, reassess only if NAV/pricing criteria improve. |
+| **Critic** | Default block until new post-event deep-dive + better skew. |
 | **Executor** | **No BE orders** from this document. |
-| **Automation** | Daily review should *read* this report; may spawn `position-deep-dive` / `fund-manager-research` workflows when capital or market regime changes—not every hold day. |
+| **Automation** | Daily review should *read* this path; schedule **re-deep-dive after 2026-07-28** results land (or on ≥30% drawdown / NAV step-change). |
 
 **Re-trigger deep-dive when any of:**
 
-- Agentic NAV meaningfully higher (order-of-magnitude: hundreds+ USD invested risk budget, not ~$8)  
-- BE draws down ~30–50% from the post-run regime without fundamental break  
+- Q2’26 results released (on/after **2026-07-28**)  
+- BE draws down ~**30–50%** from post-run regime without fundamental break  
 - Major contract win/loss, guide cut, or credit event  
+- Agentic NAV step-change (order-of-magnitude more risk capital than ~$8)  
 - Owner requests energy sleeve activation with explicit capital
 
 ---
 
 ## Sources
 
-**Primary**
+**Primary (company IR)**
 
-- Bloom Energy — *Reports Record First Quarter 2026 Results and Raises Full Year 2026 Guidance* (2026-04-28), investor.bloomenergy.com  
-- Bloom Energy — FY2025 / Q4’25 results commentary on AI data-center-driven revenue (2026-02-05), investor.bloomenergy.com  
+- Bloom Energy — Q1’26 results & raised FY2026 guidance (2026-04-28)  
+- Bloom Energy — FY2025 / Q4’25 results; backlog commentary (2026-02-05)  
+- Bloom Energy — Oracle expansion up to 2.8 GW MSA (2026-04-13)  
+- Bloom Energy — Q2’26 earnings date announcement (2026-07-06; results **2026-07-28** AMC)  
+- Bloom Energy / Brookfield — $5B strategic AI infrastructure partnership (2025-10-13); mid-2026 secondary coverage of expanded financing framework  
 
-**Secondary (price / valuation color only)**
+**Secondary (price / industry color)**
 
-- Public quote aggregators for approximate price, range, market cap (~2026-07-22)  
-- Third-party valuation / multiple commentary (treat as risk color, not ground truth)
+- Public quote aggregators for approximate price, range, market cap, beta (~2026-07-22)  
+- Industry / trade coverage on data-center fuel-cell order books (e.g. Rystad summary coverage) — treat as color, not ground truth  
 
 ---
 
-## Watchlist update (applied)
+## Watchlist update (applied this re-run)
 
 ```json
 {
@@ -285,6 +315,7 @@ Bloom Energy is a **high-conviction *theme* candidate** and a **low-conviction *
   "last_deep_dive": "2026-07-23",
   "last_deep_dive_path": "investment/research/BE_deep_dive.md",
   "last_verdict": "monitor_no_buy",
-  "note": "Expanded findings: strong AI-power thesis fit; critic blocks size-in (valuation + vol + ~$8 agentic NAV). Revisit on pullback or larger book."
+  "next_catalyst": "Q2 2026 earnings 2026-07-28 AMC",
+  "note": "Re-run verbose: strong AI-power thesis + mega-partner frameworks; critic blocks size-in (valuation, beta, ~$8 NAV, into earnings). Revisit post-print or on capital/price change."
 }
 ```
