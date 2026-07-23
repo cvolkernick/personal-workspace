@@ -26,6 +26,7 @@ from treasury.adapters import (  # noqa: E402
 )
 
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
+WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
 FM_SNAPSHOT = SNAPSHOTS_DIR / "fund_manager_latest.json"
 DECISIONS_PATH = SNAPSHOTS_DIR / "fund_manager_decisions.jsonl"
 JOURNAL_PATH = ROOT / "investment" / "fund_manager_journal.md"
@@ -52,6 +53,82 @@ def load_fund_policy(path: Optional[Path] = None) -> Dict[str, Any]:
     return data
 
 
+def load_watchlist(path: Optional[Path] = None) -> Dict[str, Any]:
+    """Load thematic monitor/consider list (not holdings / not auto-buy)."""
+    p = path or WATCHLIST_PATH
+    data = load_json(p)
+    if not data:
+        return {
+            "version": 0,
+            "entries": [],
+            "policy": {"auto_buy": False},
+            "error": f"watchlist missing or empty: {p}",
+        }
+    return data
+
+
+def watchlist_entries(watchlist: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    wl = watchlist if watchlist is not None else load_watchlist()
+    entries = wl.get("entries") or []
+    out: List[Dict[str, Any]] = []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        sym = (e.get("symbol") or "").strip().upper()
+        if not sym:
+            continue
+        row = dict(e)
+        row["symbol"] = sym
+        out.append(row)
+    return out
+
+
+def watchlist_summary(
+    policy: Optional[Dict[str, Any]] = None,
+    watchlist: Optional[Dict[str, Any]] = None,
+    *,
+    held_symbols: Optional[List[str]] = None,
+) -> Dict[str, Any]:
+    """Compact watchlist for FCC / analysis — candidates only, not orders."""
+    policy = policy or load_fund_policy()
+    wl = watchlist if watchlist is not None else load_watchlist()
+    held = {s.strip().upper() for s in (held_symbols or []) if s}
+    entries = watchlist_entries(wl)
+    compact = []
+    for e in entries:
+        sym = e["symbol"]
+        compact.append(
+            {
+                "symbol": sym,
+                "name": e.get("name"),
+                "theme": e.get("theme"),
+                "status": e.get("status") or "monitor",
+                "priority": e.get("priority"),
+                "sleeve_if_owned": e.get("sleeve_if_owned") or "stocks_growth",
+                "deep_dive_required_before_buy": bool(
+                    e.get("deep_dive_required_before_buy", True)
+                ),
+                "last_deep_dive": e.get("last_deep_dive"),
+                "held": sym in held,
+                "thesis_fit": e.get("thesis_fit"),
+            }
+        )
+    wl_pol = wl.get("policy") or {}
+    fm_wl = policy.get("watchlist") or {}
+    return {
+        "path": str((policy.get("docs") or {}).get("watchlist") or "investment/watchlist.json"),
+        "auto_buy": bool(wl_pol.get("auto_buy", False)),
+        "deep_dive_workflow": fm_wl.get("deep_dive_workflow")
+        or wl_pol.get("deep_dive_workflow")
+        or "position-deep-dive",
+        "count": len(compact),
+        "symbols": [c["symbol"] for c in compact],
+        "entries": compact,
+        "on_review": fm_wl.get("on_review")
+        or "Scan watchlist each review; deep-dive before first buy when required.",
+    }
+
+
 def sleeve_for_symbol(symbol: str, policy: Dict[str, Any]) -> str:
     sym = (symbol or "").strip().upper()
     sleeves = policy.get("sleeves") or {}
@@ -62,6 +139,20 @@ def sleeve_for_symbol(symbol: str, policy: Dict[str, Any]) -> str:
     if sym in btc_set:
         return "btc_digital_credit"
     if sym in stocks_set:
+        return "stocks_growth"
+    # Watchlist sleeve mapping (if held without being core)
+    for e in watchlist_entries():
+        if e.get("symbol") == sym:
+            sleeve = (e.get("sleeve_if_owned") or "stocks_growth").strip()
+            if sleeve in ("btc_digital_credit", "stocks_growth"):
+                return sleeve
+            return "stocks_growth"
+    energy = sleeves.get("energy_opportunistic") or {}
+    energy_set = {
+        s.upper()
+        for s in (energy.get("symbols") or []) + (energy.get("watchlist_symbols") or [])
+    }
+    if sym in energy_set:
         return "stocks_growth"
     return "other"
 
@@ -206,6 +297,23 @@ def analyze_agentic_book(
         if dep_btc is not None and dep_stocks is not None and in_band_btc and in_band_stocks:
             hints.append("Deployed mix within target bands — discretionary alpha only.")
 
+    held_syms = [
+        (r.get("symbol") or "").upper() for r in rows if (r.get("symbol") or "").strip()
+    ]
+    wl = watchlist_summary(policy, held_symbols=held_syms)
+    if wl.get("count"):
+        mon = [
+            e["symbol"]
+            for e in (wl.get("entries") or [])
+            if (e.get("status") or "monitor") in ("monitor", "ready") and not e.get("held")
+        ]
+        if mon:
+            hints.append(
+                "Watchlist candidates (not auto-buy): "
+                + ", ".join(mon)
+                + " — deep-dive via /position-deep-dive before first buy when required."
+            )
+
     return {
         "ok": True,
         "as_of": _now(),
@@ -247,6 +355,7 @@ def analyze_agentic_book(
         "positions": rows,
         "sleeve_market_value": {k: round(v, 4) for k, v in by_sleeve.items()},
         "allowlist_core": (policy.get("allowlist") or {}).get("core") or [],
+        "watchlist": wl,
         "approval": {
             "require_user_confirm": bool(approval.get("require_user_confirm")),
             "max_single_order_notional_usd": limits.get("max_single_order_notional_usd"),
@@ -255,7 +364,8 @@ def analyze_agentic_book(
         "fair_game": bool(bp > 0 or cash > 0 or deployed > 0),
         "notes": (
             "Agentic-only weights. No trade approval in v1. "
-            "Downside capped by agentic deposits. Order size at manager discretion."
+            "Downside capped by agentic deposits. Order size at manager discretion. "
+            "Watchlist is monitor/consider only — not auto-buy."
         ),
     }
 

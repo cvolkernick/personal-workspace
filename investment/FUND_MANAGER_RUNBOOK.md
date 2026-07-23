@@ -70,6 +70,20 @@ Dashboard is **observe-only** — never the scheduler.
 - Withdraw agentic capital  
 - Disable timer / disconnect MCP  
 
+## Watchlist & deep-dives
+
+| Artifact | Role |
+|----------|------|
+| [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. **BE** energy) — monitor, not holdings |
+| [`research/`](./research/) | Deep-dive reports |
+| `.grok/workflows/position-deep-dive.rhai` | Multi-agent research workflow |
+
+```text
+/position-deep-dive symbol=BE
+```
+
+Scout/Thesis scan the watchlist each review. Prefer **core allowlist** for rebalance; watchlist names need consideration (and deep-dive when required) before size-in.
+
 ## Strategy reminder
 
 Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**. Risk = deposits into that account.

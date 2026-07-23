@@ -127,9 +127,18 @@
     "energy_opportunistic": {
       "target_pct": null,
       "symbols": [],
+      "watchlist_symbols": ["BE"],
       "open": true,
-      "notes": "No fixed tickers. Manager may add energy names within agentic capital at discretion; prefer thesis fit."
+      "notes": "No core mandate. Candidates live in investment/watchlist.json (e.g. BE). Monitor/consider only — deep-dive before first buy."
     }
+  },
+  "watchlist": {
+    "path": "investment/watchlist.json",
+    "auto_buy": false,
+    "deep_dive_workflow": "position-deep-dive",
+    "deep_dive_report_dir": "investment/research",
+    "on_review": "Scout/Thesis should scan watchlist each review; float ready names only after deep-dive when required. Prefer core allowlist for routine rebalance.",
+    "notes": "Thematic monitor list (not holdings). Owner may add themes (energy, AI, etc.). BE = Bloom Energy (energy)."
   },
   "allowlist": {
     "strict": false,
@@ -148,7 +157,7 @@
       "TSLA",
       "SPCX"
     ],
-    "notes": "strict=false: core preferred; manager may use energy/AI names at discretion within agentic capital. Prefer core for default rebalances."
+    "notes": "strict=false: core preferred; watchlist/energy/AI names only after consideration (and deep-dive when required). Prefer core for default rebalances."
   },
   "guardrails": {
     "block_if_agentic_bp_zero": true,
@@ -181,6 +190,9 @@
   "docs": {
     "thesis": "investment/README.md",
     "positions": "investment/positions.md",
-    "runbook": "investment/FUND_MANAGER_RUNBOOK.md"
+    "watchlist": "investment/watchlist.json",
+    "research": "investment/research/README.md",
+    "runbook": "investment/FUND_MANAGER_RUNBOOK.md",
+    "deep_dive_workflow": ".grok/workflows/position-deep-dive.rhai"
   }
 }

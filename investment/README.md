@@ -46,7 +46,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Bitcoin infrastructure** | Mining / energy-intensive BTC infra | MARA, RIOT, CLSK, WULF, IREN |
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
 | **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX |
-| **Energy** | Overarches BTC mining, AI infra, and hard-money macro | **No fixed tickers today**; agentic manager may add options with user approval |
+| **Energy** | Overarches BTC mining, AI infra, and hard-money macro | Watchlist (e.g. **BE** Bloom Energy); deep-dive before first buy |
 
 ### Macro framing
 
@@ -62,6 +62,8 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX); room for energy or AI names the agent proposes |
 
 Weights are **targets for the investable equity book** (not cash buffers, CB Morpho collateral, RH USDG Earn sleeve, or One Card float). The agentic manager steers equity toward 40/60; **USDG Earn is a separate RH yield sleeve**, parallel to CB High Yield vault.
+
+**Watchlist:** thematic monitor/consider list in [`watchlist.json`](./watchlist.json) (not the same as core allowlist). Deep-dives via workflow `position-deep-dive` → reports in [`research/`](./research/).
 
 ## Data source
 

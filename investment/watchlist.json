@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "as_of": "2026-07-22",
+  "purpose": "Thematic equities the agentic fund manager should monitor and consider — not auto-buy. Core allowlist remains preferred for default rebalances.",
+  "policy": {
+    "auto_buy": false,
+    "prefer_core_allowlist_for_rebalance": true,
+    "deep_dive_before_first_buy": true,
+    "deep_dive_workflow": "position-deep-dive",
+    "deep_dive_report_dir": "investment/research",
+    "notes": "Watchlist names may enter the book only after Thesis+Risk+Critic and (when deep_dive_required) a position-deep-dive report. Energy/AI opportunistic sleeve."
+  },
+  "entries": [
+    {
+      "symbol": "BE",
+      "name": "Bloom Energy",
+      "theme": "energy",
+      "themes": ["energy", "electrification", "distributed_generation", "ai_power"],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "high",
+      "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification — fits open energy theme under stocks/growth.",
+      "added": "2026-07-22",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "notes": "Owner-suggested energy theme candidate. Monitor for entry; do not treat as core allowlist until promoted."
+    }
+  ]
+}

@@ -15,8 +15,10 @@ from treasury.fund_manager import (  # noqa: E402
     append_decision,
     load_decision_log,
     load_fund_policy,
+    load_watchlist,
     rules_based_review,
     sleeve_for_symbol,
+    watchlist_summary,
 )
 
 
@@ -48,6 +50,21 @@ class TestFundPolicy(unittest.TestCase):
         self.assertEqual(sleeve_for_symbol("mstr", p), "btc_digital_credit")
         self.assertEqual(sleeve_for_symbol("TSLA", p), "stocks_growth")
         self.assertEqual(sleeve_for_symbol("XYZ", p), "other")
+        # Watchlist energy candidate maps to stocks sleeve if sized
+        self.assertEqual(sleeve_for_symbol("BE", p), "stocks_growth")
+
+    def test_watchlist_be_energy(self):
+        wl = load_watchlist()
+        symbols = {
+            (e.get("symbol") or "").upper() for e in (wl.get("entries") or [])
+        }
+        self.assertIn("BE", symbols)
+        self.assertFalse((wl.get("policy") or {}).get("auto_buy", True))
+        p = load_fund_policy()
+        self.assertEqual((p.get("watchlist") or {}).get("path"), "investment/watchlist.json")
+        summary = watchlist_summary(p)
+        self.assertIn("BE", summary["symbols"])
+        self.assertGreaterEqual(summary["count"], 1)
 
 
 class TestDecisionLog(unittest.TestCase):

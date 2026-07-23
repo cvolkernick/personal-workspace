@@ -34,8 +34,22 @@
 | Sleeve | Policy |
 |--------|--------|
 | **Hard money metals** | Gold/silver (e.g. PAXG, GLDM or similar) allowed under the ~40% hard-money umbrella if sized deliberately |
-| **Energy** | Overarching theme (mining power, AI electricity, electrification). **No mandated positions.** Agentic manager may propose equities/options with **explicit user approval** before orders |
+| **Energy** | Overarching theme (mining power, AI electricity, electrification). **No mandated core tickers.** Candidates on **watchlist** (below); deep-dive before first buy |
 | **AI stack (broad)** | Infra (hardware), foundation models, application software—additions should still fit modernized 60/40 and FCC floors |
+
+## Thematic watchlist (monitor / consider — not holdings)
+
+Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis surfaces these as **candidates**, not auto-buys.
+
+| Symbol | Theme | Status | Notes |
+|--------|-------|--------|-------|
+| **BE** | Energy (Bloom Energy) | monitor | Fuel cells / distributed gen; AI-power narrative. Deep-dive before size-in |
+
+**Rules**
+1. Prefer **core allowlist** for routine rebalances toward 40/60.
+2. Scout/Thesis scan the watchlist each review; may propose size only if status is `ready` (or after a fresh deep-dive).
+3. Run **`/position-deep-dive symbol=TICKER`** (workflow) before first buy when `deep_dive_required_before_buy` is true.
+4. Reports land in [`research/`](./research/). Promote to core only deliberately (update `fund_manager.json` + this table).
 
 ## Out of scope
 
@@ -48,7 +62,7 @@
 Source of truth for automation: [`fund_manager.json`](./fund_manager.json).
 
 1. **Active management** — no required weekly DCA; rebalance and rotate when thesis + risk/reward justify it.
-2. Prefer **core allowlist** names; energy/AI opportunistic names allowed at manager discretion (`allowlist.strict: false`).
+2. Prefer **core allowlist** names; energy/AI opportunistic names from **watchlist** only after consideration / deep-dive (`allowlist.strict: false`).
 3. Steer the **agentic** book toward **~40% BTC-complex / ~60% stocks** using agentic NAV + live quotes only.
 4. **No per-trade user approval** — capital deposited to agentic is the risk budget and is fair game.
 5. **No max single-order notional** — size at manager discretion.
