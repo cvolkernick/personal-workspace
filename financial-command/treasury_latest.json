@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-22T21:02:50.553054+00:00",
+    "as_of": "2026-07-23T01:01:16.403429+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-22T03:48:48.063449+00:00",
@@ -464,7 +464,8 @@
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-04-22"
+      "since": "2026-04-22",
+      "apy_est": 0.06
     },
     "expenses": {
       "source": "google_sheets",
@@ -1384,7 +1385,7 @@
         "high_yield_vault": "app-only",
         "one_card": "ynab/plaid (balance + txs)",
         "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
-        "x_money": "ynab/plaid (X Money cash; may show as Checking \u2013 ####)",
+        "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking \u2013 ####)",
         "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
         "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
@@ -1442,6 +1443,7 @@
       "x_money_cash": 80.19,
       "x_money_account": "Checking \u2013 2201",
       "x_money_spend_30d": 13.84,
+      "x_money_apy_est": 0.06,
       "bank_cash": 82.62,
       "bill_pay_cash": 2.43,
       "rh_equity": 151.0800327736,
@@ -1538,21 +1540,21 @@
         "expenses_as_of": "2026-07-22T03:48:49.496335+00:00"
       },
       "stale": [
-        "coinbase data 17.2h old (>6.0h)",
-        "robinhood data 23.5h old (>6.0h)",
-        "one_card data 17.2h old (>6.0h)",
-        "rh_checking data 17.2h old (>6.0h)",
-        "x_money data 17.2h old (>6.0h)",
-        "expenses data 17.2h old (>6.0h)"
+        "coinbase data 21.2h old (>6.0h)",
+        "robinhood data 27.5h old (>6.0h)",
+        "one_card data 21.2h old (>6.0h)",
+        "rh_checking data 21.2h old (>6.0h)",
+        "x_money data 21.2h old (>6.0h)",
+        "expenses data 21.2h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: loan_principal_usdc, collateral_btc_usd, ltv",
-        "coinbase data 17.2h old (>6.0h)",
-        "robinhood data 23.5h old (>6.0h)",
-        "one_card data 17.2h old (>6.0h)",
-        "rh_checking data 17.2h old (>6.0h)",
-        "x_money data 17.2h old (>6.0h)",
-        "expenses data 17.2h old (>6.0h)"
+        "coinbase data 21.2h old (>6.0h)",
+        "robinhood data 27.5h old (>6.0h)",
+        "one_card data 21.2h old (>6.0h)",
+        "rh_checking data 21.2h old (>6.0h)",
+        "x_money data 21.2h old (>6.0h)",
+        "expenses data 21.2h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -1733,33 +1735,36 @@
     },
     "strategy_context": {
       "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
-      "usdc_model": "BTC \u2192 Morpho collateral \u2192 borrow USDC \u2192 pay One Card + High Yield vault. Idle Advanced Trade USDC often ~$0 by design (lower yield than vault).",
+      "usdc_model": "CB: BTC \u2192 Morpho collateral \u2192 borrow USDC \u2192 One Card + High Yield vault. RH: equity/margin \u2192 cash \u2192 USDG \u2192 Robinhood Earn (Morpho ~7% est.). X Money: spend/float cash at ~6% APY (product rate). Idle broker cash intentionally low vs Morpho yield sleeves + X Money.",
       "priority_order": [
-        "Protect Morpho LTV (<50% target)",
+        "Protect CB Morpho LTV (<50% target)",
         "Card / buffers from working USDC (vault + spot)",
+        "RH margin heat if funding USDG Earn from equity collateral",
         "RH Checking float for ACH bills",
-        "RH margin heat / DCA throttle",
-        "Pull vault when paying card or topping collateral",
+        "X Money cash (~6% APY) as spend/float sleeve",
+        "USDG Earn (manual track) as RH yield sleeve",
+        "Agentic equity 40/60 (separate from yield sleeves)",
         "Bridge recommend CB\u2194RH",
-        "Excess \u2192 vault / capital targets / DCA"
+        "Excess \u2192 vault / USDG Earn / capital targets"
       ],
-      "double_leverage_warning": "Do not fund RH margin-driven DCA with freshly borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities often dump together.",
+      "double_leverage_warning": "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities often dump together \u2014 dual Morpho loops stack liquidation risk.",
       "in_app_only": [
         "loan protection",
-        "Morpho repay/add collateral",
-        "High Yield vault deposit/withdraw",
+        "Morpho repay/add collateral (CB)",
+        "High Yield vault deposit/withdraw (CB)",
+        "Robinhood Earn USDG lend/withdraw (Morpho self-custody wallet)",
         "One Card pay / autopay",
         "external USDC send (bridge)"
       ]
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-22T21:02:50.553589+00:00",
+      "as_of": "2026-07-23T01:01:16.403946+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-22T21:02:50.553450+00:00",
+        "as_of": "2026-07-23T01:01:16.403811+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -2074,12 +2079,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-22T21:02:50.553589+00:00",
+    "as_of": "2026-07-23T01:01:16.403946+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-22T21:02:50.553450+00:00",
+      "as_of": "2026-07-23T01:01:16.403811+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",

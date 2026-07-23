@@ -15,14 +15,17 @@ Tracking for crypto, equities, and related sleeves. **Canonical live balances, b
 
 ### Dual-venue Morpho yield loops (cash float)
 
-Parallel “borrow against risk assets → park stablecoin in Morpho yield” on **both** brokers:
+Parallel “borrow against risk assets → park stablecoin in Morpho yield” on **both** brokers, plus **X Money** cash yield:
 
-| Venue | Collateral / funding | Stablecoin parked for yield | Product |
-|-------|----------------------|----------------------------|---------|
+| Venue | Collateral / funding | Stablecoin / cash parked for yield | Product |
+|-------|----------------------|-------------------------------------|---------|
 | **Coinbase** | BTC as Morpho **loan collateral** → borrow **USDC** | High Yield USDC Morpho vault (working float) | Coinbase Lend / Morpho High Yield |
 | **Robinhood** | **Equity book** (margin / buying power against stocks) → free cash → buy **USDG** | **Robinhood Earn**: lend USDG onchain via self-custody wallet into a **Morpho** vault (~**7%** estimated APY, variable; promo + protocol) | [Robinhood Earn](https://robinhood.com/us/en/support/articles/crypto-earn/) |
+| **X Money** | Spend / float cash (YNAB “Checking – ####”) | Account cash balance | **X Money** ~**6% APY** on cash (product rate; confirm in app) |
 
 **Confirmed naming:** product is **Robinhood Earn** on **USDG** (Paxos dollar stablecoin), powered by **Morpho** (Steakhouse-curated vault). Not FDIC/SIPC deposit insurance; rate is an estimate (protocol APR + incentives), can change; not “bank cash yield.”
+
+**X Money:** separate cash sleeve from RH Checking ACH float. Balance via YNAB/Plaid; APY tracked in config as `ynab.x_money_apy_est` (default **0.06**). Prefer parking idle spend float here vs 0% checking when rates hold.
 
 **How RH Earn shows in balances:** Official docs say active principal + lifetime rewards are **rolled into overall portfolio / crypto holdings** for convenience; lent USDG sits in a **self-custody wallet** + Morpho contracts—not a separate brokerage “cash” line. **MCP `get_portfolio` is unlikely to expose a clean Earn field** → track **manually in FCC Settings** (`robinhood.usdg_earn_usdg`).
 

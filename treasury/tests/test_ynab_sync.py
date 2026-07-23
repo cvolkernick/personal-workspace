@@ -183,6 +183,7 @@ class TestPolicyUsesOneCard(unittest.TestCase):
                 "source": "ynab",
                 "cash": 22.76,
                 "account_name": "Checking – 2201",
+                "apy_est": 0.06,
             },
             "robinhood": {
                 "buying_power": 2000,
@@ -196,6 +197,7 @@ class TestPolicyUsesOneCard(unittest.TestCase):
         self.assertEqual(ev["inputs"]["card_source"], "ynab")
         self.assertAlmostEqual(ev["inputs"]["rh_checking_cash"], 2.43)
         self.assertAlmostEqual(ev["inputs"]["x_money_cash"], 22.76)
+        self.assertAlmostEqual(ev["inputs"]["x_money_apy_est"], 0.06)
         self.assertAlmostEqual(ev["inputs"]["bank_cash"], 25.19)
         self.assertAlmostEqual(ev["inputs"]["bill_pay_cash"], 2.43)
         self.assertNotIn("card_balance", ev["data_quality"]["missing_manual_fields"])

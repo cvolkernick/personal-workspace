@@ -38,7 +38,8 @@
     "account_name": null,
     "checking_account_name": null,
     "x_money_account_name": "Checking – 2201",
-    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking – ####)."
+    "x_money_apy_est": 0.06,
+    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking – ####). X Money cash pays ~6% APY (product rate; confirm in app)."
   },
   "notifications": {
     "enabled": true,

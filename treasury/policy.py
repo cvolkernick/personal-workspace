@@ -901,6 +901,9 @@ def evaluate_treasury(
             "x_money_cash": x_money_cash,
             "x_money_account": x_money.get("account_name"),
             "x_money_spend_30d": x_money.get("spend_30d"),
+            "x_money_apy_est": _f(x_money.get("apy_est"))
+            if not _is_missing(x_money.get("apy_est"))
+            else None,
             "bank_cash": bank_cash if bank_cash_known else None,
             "bill_pay_cash": bill_pay_cash,
             "rh_equity": equity,
@@ -979,13 +982,15 @@ def evaluate_treasury(
             "usdc_model": (
                 "CB: BTC → Morpho collateral → borrow USDC → One Card + High Yield vault. "
                 "RH: equity/margin → cash → USDG → Robinhood Earn (Morpho ~7% est.). "
-                "Idle broker cash intentionally low vs Morpho yield sleeves."
+                "X Money: spend/float cash at ~6% APY (product rate). "
+                "Idle broker cash intentionally low vs Morpho yield sleeves + X Money."
             ),
             "priority_order": [
                 "Protect CB Morpho LTV (<50% target)",
                 "Card / buffers from working USDC (vault + spot)",
                 "RH margin heat if funding USDG Earn from equity collateral",
                 "RH Checking float for ACH bills",
+                "X Money cash (~6% APY) as spend/float sleeve",
                 "USDG Earn (manual track) as RH yield sleeve",
                 "Agentic equity 40/60 (separate from yield sleeves)",
                 "Bridge recommend CB↔RH",

@@ -476,6 +476,10 @@ def build_snapshot(
     rh["margin_loan_usd"] = rh_cfg.get("margin_loan_usd")
     rh["equity_collateral_usd"] = rh_cfg.get("equity_collateral_usd")
     ynab_cfg = cfg.get("ynab") or {}
+    # X Money cash yield (~6% product APY) — balance from YNAB; rate from config
+    x_money = dict(x_money)
+    if ynab_cfg.get("x_money_apy_est") is not None:
+        x_money["apy_est"] = ynab_cfg.get("x_money_apy_est")
     exp_cfg = cfg.get("expenses_sheet") or {}
     return {
         "as_of": _now(),
@@ -517,7 +521,7 @@ def build_snapshot(
                 "high_yield_vault": "app-only",
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
-                "x_money": "ynab/plaid (X Money cash; may show as Checking – ####)",
+                "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking – ####)",
                 "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",

@@ -1333,7 +1333,15 @@
         {
           k: "X Money",
           v: money(inp.x_money_cash ?? xm.cash),
-          s: (inp.x_money_account || xm.account_name || "YNAB").toString().slice(0, 28),
+          s: (() => {
+            const name = (inp.x_money_account || xm.account_name || "YNAB")
+              .toString()
+              .slice(0, 18);
+            const apy = inp.x_money_apy_est ?? xm.apy_est;
+            return apy != null
+              ? `${name} · ~${(Number(apy) * 100).toFixed(0)}% APY`
+              : name;
+          })(),
           target: "cash-credit",
         },
         {
@@ -1439,7 +1447,10 @@
           "X Money",
           money(inp.x_money_cash ?? xm.cash) +
             (inp.x_money_account || xm.account_name
-              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 24)}`
+              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 20)}`
+              : "") +
+            ((inp.x_money_apy_est ?? xm.apy_est) != null
+              ? ` · ~${(Number(inp.x_money_apy_est ?? xm.apy_est) * 100).toFixed(0)}% APY`
               : "")
         ),
         metric("Bank cash (RH+X)", money(inp.bank_cash)),

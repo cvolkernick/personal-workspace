@@ -387,7 +387,8 @@ def normalize_x_money(
         "transactions": txs_out[:50],
         "notes": (
             "X Money via YNAB/Plaid. Plaid may label the account as 'Checking – ####'. "
-            "Cash sleeve separate from RH Checking ACH float."
+            "Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash "
+            "(see config ynab.x_money_apy_est)."
         ),
     }
 
