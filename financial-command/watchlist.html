@@ -50,7 +50,7 @@
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
     .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
-    button {
+    button, .btn, a.btn {
       cursor: pointer;
       border: 1px solid var(--border);
       background: #1a2836;
@@ -59,9 +59,12 @@
       padding: 0.4rem 0.75rem;
       font-weight: 600;
       font-size: 0.85rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
     }
-    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
-    button:hover { filter: brightness(1.08); }
+    button.primary, a.btn.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
     main {
       max-width: 960px;
       margin: 0 auto;
@@ -179,7 +182,7 @@
         <div class="sub" id="subtitle">Loading…</div>
       </div>
       <div class="controls">
-        <a class="btn" href="index.html" style="border:1px solid var(--border);background:#1a2836;color:var(--text);border-radius:8px;padding:0.4rem 0.75rem;font-weight:600;font-size:0.85rem">← FCC</a>
+        <a class="btn" href="index.html">← FCC</a>
         <button type="button" class="primary" id="btn-refresh">Refresh</button>
       </div>
     </div>

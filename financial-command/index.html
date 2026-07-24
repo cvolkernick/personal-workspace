@@ -66,7 +66,7 @@
     .pill.green { color: var(--green); border-color: #245c42; }
     .pill.yellow { color: var(--yellow); border-color: #6b5a1e; }
     .pill.red { color: var(--red); border-color: #6b2e2e; }
-    button, .btn {
+    button, .btn, a.btn {
       cursor: pointer;
       border: 1px solid var(--border);
       background: #1a2836;
@@ -75,9 +75,12 @@
       padding: 0.4rem 0.75rem;
       font-weight: 600;
       font-size: 0.85rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
     }
-    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
-    button:hover { filter: brightness(1.08); }
+    button.primary, a.btn.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
     button:disabled { opacity: 0.55; cursor: wait; }
     main {
       max-width: 1000px;
@@ -690,9 +693,11 @@
         <span class="live-dot" id="fm-live-dot">Autopilot</span>
       </div>
       <p class="hint" style="margin-top:0">
-        Agentic RH only · ~daily team review · optional watch — no action required ·
-        <a href="watchlist.html" id="link-watchlist-dash">Watchlist research dashboard →</a>
+        Agentic RH only · ~daily team review · optional watch — no action required
       </p>
+      <div class="controls" style="margin:0.45rem 0 0.15rem">
+        <a class="btn" href="watchlist.html" id="link-watchlist-dash">Watchlist research →</a>
+      </div>
       <div class="fm-hero">
         <div>
           <div class="hint">Allocation vs 40 / 60 targets</div>
@@ -711,7 +716,7 @@
     <section class="card" id="watchlist-preview-card">
       <div class="card-head">
         <h2>Watchlist research</h2>
-        <a href="watchlist.html" class="live-dot" style="text-decoration:none">Full dashboard →</a>
+        <a class="btn" href="watchlist.html" id="link-watchlist-full">Watchlist research →</a>
       </div>
       <p class="hint" style="margin-top:0">
         Thematic candidates (monitor / consider — not holdings). Deep dives, conclusions, and sleeve fit.
