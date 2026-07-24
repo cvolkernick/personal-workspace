@@ -129,18 +129,89 @@
     .kv b { color: var(--muted); font-weight: 600; display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.15rem; }
     .md-block {
       font-size: 0.88rem;
-      white-space: pre-wrap;
       background: #0d141c;
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 0.65rem 0.75rem;
+      padding: 0.75rem 0.9rem 0.9rem;
       max-height: 280px;
       overflow: auto;
       color: #cfe0f0;
+      line-height: 1.5;
     }
     .md-full {
       max-height: 70vh;
-      font-size: 0.86rem;
+      font-size: 0.9rem;
+    }
+    .md-block h1, .md-block h2, .md-block h3, .md-block h4 {
+      margin: 1rem 0 0.45rem;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .md-block h1 { font-size: 1.25rem; margin-top: 0; }
+    .md-block h2 { font-size: 1.08rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+    .md-block h3 { font-size: 0.98rem; color: #d7e6f5; }
+    .md-block h4 { font-size: 0.92rem; color: var(--muted); }
+    .md-block p { margin: 0.45rem 0; }
+    .md-block ul, .md-block ol { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+    .md-block li { margin: 0.2rem 0; }
+    .md-block hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.85rem 0;
+    }
+    .md-block strong { color: var(--text); font-weight: 700; }
+    .md-block em { color: #d0dceb; }
+    .md-block code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.84em;
+      background: #15202c;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.3rem;
+    }
+    .md-block pre {
+      background: #101820;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      overflow: auto;
+      margin: 0.5rem 0;
+    }
+    .md-block pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.82rem;
+    }
+    .md-block table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.55rem 0 0.75rem;
+      font-size: 0.84rem;
+    }
+    .md-block th, .md-block td {
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .md-block th {
+      background: #15202c;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .md-block tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .md-block blockquote {
+      margin: 0.5rem 0;
+      padding: 0.35rem 0.75rem;
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      background: #0e1620;
     }
     .error {
       background: #1a1010;
@@ -225,6 +296,186 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+    }
+
+    /** Lightweight GFM-ish markdown → HTML for deep-dive reports. */
+    function mdToHtml(src) {
+      if (!src) return "";
+      let text = String(src).replace(/\r\n/g, "\n");
+
+      // Extract fenced code blocks first
+      const fences = [];
+      text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const i = fences.length;
+        fences.push(
+          `<pre><code class="lang-${esc(lang || "text")}">${esc(code.replace(/\n$/, ""))}</code></pre>`
+        );
+        return `\n%%FENCE${i}%%\n`;
+      });
+
+      const lines = text.split("\n");
+      const out = [];
+      let i = 0;
+      let para = [];
+      let listType = null; // ul | ol
+      let listItems = [];
+
+      function flushPara() {
+        if (!para.length) return;
+        const joined = para.join(" ").trim();
+        if (joined) out.push(`<p>${inlineMd(joined)}</p>`);
+        para = [];
+      }
+      function flushList() {
+        if (!listType) return;
+        const tag = listType;
+        out.push(
+          `<${tag}>` +
+            listItems.map((li) => `<li>${inlineMd(li)}</li>`).join("") +
+            `</${tag}>`
+        );
+        listType = null;
+        listItems = [];
+      }
+      function flush() {
+        flushPara();
+        flushList();
+      }
+
+      function isTableSep(line) {
+        return /^\s*\|?[\s:-]+\|[\s|:-]*\|?\s*$/.test(line) && line.includes("-");
+      }
+      function splitRow(line) {
+        let s = line.trim();
+        if (s.startsWith("|")) s = s.slice(1);
+        if (s.endsWith("|")) s = s.slice(0, -1);
+        return s.split("|").map((c) => c.trim());
+      }
+
+      while (i < lines.length) {
+        const line = lines[i];
+        const t = line.trim();
+
+        // fence placeholder
+        const fm = t.match(/^%%FENCE(\d+)%%$/);
+        if (fm) {
+          flush();
+          out.push(fences[Number(fm[1])] || "");
+          i++;
+          continue;
+        }
+
+        if (!t) {
+          flush();
+          i++;
+          continue;
+        }
+
+        if (/^---+$/.test(t) || /^\*\*\*+$/.test(t)) {
+          flush();
+          out.push("<hr/>");
+          i++;
+          continue;
+        }
+
+        const hm = t.match(/^(#{1,4})\s+(.+)$/);
+        if (hm) {
+          flush();
+          const lvl = hm[1].length;
+          out.push(`<h${lvl}>${inlineMd(hm[2])}</h${lvl}>`);
+          i++;
+          continue;
+        }
+
+        // Table: header | sep | rows
+        if (t.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+          flush();
+          const header = splitRow(lines[i]);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+            if (isTableSep(lines[i])) {
+              i++;
+              continue;
+            }
+            rows.push(splitRow(lines[i]));
+            i++;
+          }
+          let html = "<table><thead><tr>";
+          header.forEach((c) => {
+            html += `<th>${inlineMd(c)}</th>`;
+          });
+          html += "</tr></thead><tbody>";
+          rows.forEach((row) => {
+            html += "<tr>";
+            header.forEach((_, idx) => {
+              html += `<td>${inlineMd(row[idx] != null ? row[idx] : "")}</td>`;
+            });
+            html += "</tr>";
+          });
+          html += "</tbody></table>";
+          out.push(html);
+          continue;
+        }
+
+        const ul = t.match(/^[-*+]\s+(.+)$/);
+        if (ul) {
+          flushPara();
+          if (listType && listType !== "ul") flushList();
+          listType = "ul";
+          listItems.push(ul[1]);
+          i++;
+          continue;
+        }
+        const ol = t.match(/^\d+\.\s+(.+)$/);
+        if (ol) {
+          flushPara();
+          if (listType && listType !== "ol") flushList();
+          listType = "ol";
+          listItems.push(ol[1]);
+          i++;
+          continue;
+        }
+
+        const bq = t.match(/^>\s?(.*)$/);
+        if (bq) {
+          flush();
+          const chunks = [bq[1]];
+          i++;
+          while (i < lines.length) {
+            const m2 = lines[i].trim().match(/^>\s?(.*)$/);
+            if (!m2) break;
+            chunks.push(m2[1]);
+            i++;
+          }
+          out.push(`<blockquote><p>${inlineMd(chunks.join(" "))}</p></blockquote>`);
+          continue;
+        }
+
+        if (listType) flushList();
+        para.push(t);
+        i++;
+      }
+      flush();
+      return out.join("\n");
+    }
+
+    function inlineMd(s) {
+      let t = esc(s);
+      // code
+      t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+      // bold ** or __
+      t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      // italic * or _
+      t = t.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      t = t.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      // links [text](url)
+      t = t.replace(
+        /\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener">$1</a>'
+      );
+      return t;
     }
 
     function statusPill(st) {
@@ -334,7 +585,7 @@
     <div class="kv"><b>Current conclusion</b>${esc(conclusion)}</div>
     <div class="kv"><b>Notes</b>${esc(e.notes || "—")}</div>
     <div class="hint" style="margin-top:0.65rem">Deep-dive excerpt</div>
-    <div class="md-block">${esc(exec)}</div>
+    <div class="md-block">${mdToHtml(exec)}</div>
     <div class="controls" style="margin-top:0.65rem">
       <button type="button" class="primary btn-full-dive" data-symbol="${esc(e.symbol)}">Open full deep dive</button>
       ${
@@ -364,7 +615,7 @@
       const body = document.getElementById("full-dive-body");
       title.textContent = symbol + " · deep dive";
       pathEl.textContent = "Loading…";
-      body.textContent = "";
+      body.innerHTML = "";
       card.classList.remove("hidden");
       card.scrollIntoView({ behavior: "smooth", block: "start" });
       try {
@@ -372,10 +623,10 @@
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "not found");
         pathEl.textContent = data.path || "";
-        body.textContent = data.markdown || "";
+        body.innerHTML = mdToHtml(data.markdown || "");
       } catch (e) {
         pathEl.textContent = "";
-        body.textContent = "Failed: " + e.message;
+        body.innerHTML = `<p class="error" style="margin:0">Failed: ${esc(e.message)}</p>`;
       }
     }
 
