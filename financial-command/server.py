@@ -4,6 +4,8 @@
 Serves static UI + APIs:
   GET  /api/treasury   — latest evaluation JSON
   GET  /api/config     — treasury/config.json
+  GET  /api/watchlist  — watchlist + deep-dive summaries
+  GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
 
@@ -22,7 +24,7 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -30,6 +32,10 @@ if str(ROOT) not in sys.path:
 
 from treasury.adapters import load_config, save_config  # noqa: E402
 from treasury.run_treasury import main as run_treasury_main  # noqa: E402
+from treasury.watchlist_dashboard import (  # noqa: E402
+    build_watchlist_dashboard,
+    get_deep_dive_markdown,
+)
 
 
 class FCCHandler(SimpleHTTPRequestHandler):
@@ -59,7 +65,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return {}
 
     def do_GET(self) -> None:  # noqa: N802
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/treasury":
             p = ROOT / "financial-command" / "treasury_latest.json"
             if not p.is_file():
@@ -75,8 +82,26 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/config":
             self._json(200, {"ok": True, "config": load_config()})
             return
+        if path == "/api/watchlist":
+            try:
+                self._json(200, build_watchlist_dashboard())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/watchlist/deep-dive":
+            qs = parse_qs(parsed.query or "")
+            sym = (qs.get("symbol") or [""])[0]
+            try:
+                payload = get_deep_dive_markdown(sym)
+                code = 200 if payload.get("ok") else 404
+                self._json(code, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
+        elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
+            self.path = "/financial-command/watchlist.html"
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
@@ -183,7 +208,9 @@ def main(argv: list[str] | None = None) -> int:
         print(f"initial treasury refresh warning: {e}", file=sys.stderr)
 
     url = f"http://127.0.0.1:{args.port}/financial-command/index.html"
+    wl = f"http://127.0.0.1:{args.port}/financial-command/watchlist.html"
     print(f"Financial Command Center → {url}")
+    print(f"Watchlist research        → {wl}")
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), FCCHandler)
     if not args.no_browser:
         try:

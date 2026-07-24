@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Watchlist · Fund research</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --agent: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    button {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1a2836;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover { filter: brightness(1.08); }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-weight: 650;
+      font-size: 0.7rem;
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill.monitor { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.ready { color: var(--green); border-color: #245c42; }
+    .pill.pass { color: var(--muted); }
+    .pill.held { color: var(--agent); border-color: #3a4a7a; }
+    .pill.high { color: var(--red); border-color: #6b2e2e; }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+    }
+    .entry-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .entry-title span { color: var(--muted); font-weight: 500; font-size: 0.9rem; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .kv {
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 0;
+    }
+    .kv b { color: var(--muted); font-weight: 600; display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.15rem; }
+    .md-block {
+      font-size: 0.88rem;
+      white-space: pre-wrap;
+      background: #0d141c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      max-height: 280px;
+      overflow: auto;
+      color: #cfe0f0;
+    }
+    .md-full {
+      max-height: 70vh;
+      font-size: 0.86rem;
+    }
+    .error {
+      background: #1a1010;
+      border: 1px solid #5a2a2a;
+      color: var(--red);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    details.entry-card { margin: 0; }
+    details.entry-card > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 0.15rem 0;
+    }
+    details.entry-card > summary::-webkit-details-marker { display: none; }
+    .strategy-box {
+      background: #0e1620;
+      border-left: 3px solid var(--accent);
+      padding: 0.55rem 0.75rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      margin: 0.5rem 0;
+    }
+    footer {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1.25rem 2rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Watchlist · Fund research</h1>
+        <div class="sub" id="subtitle">Loading…</div>
+      </div>
+      <div class="controls">
+        <a class="btn" href="index.html" style="border:1px solid var(--border);background:#1a2836;color:var(--text);border-radius:8px;padding:0.4rem 0.75rem;font-weight:600;font-size:0.85rem">← FCC</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card" id="policy-card">
+      <h2>Strategy &amp; rules</h2>
+      <p class="hint" id="purpose">—</p>
+      <div class="grid-2" id="policy-grid"></div>
+    </section>
+
+    <section class="card">
+      <h2>Agentic book context</h2>
+      <p class="hint">Held symbols are live from RH snapshot (agentic only). Watchlist names are <b>not</b> auto-bought.</p>
+      <div id="held-ctx" class="meta-row"></div>
+    </section>
+
+    <div id="entries"></div>
+
+    <section class="card hidden" id="full-dive-card">
+      <h2 id="full-dive-title">Deep dive</h2>
+      <p class="hint" id="full-dive-path"></p>
+      <div class="md-block md-full" id="full-dive-body"></div>
+      <button type="button" id="btn-close-dive" style="margin-top:0.6rem">Close full report</button>
+    </section>
+  </main>
+
+  <footer>
+    Data: <code>investment/watchlist.json</code> · deep dives in <code>investment/research/</code> ·
+    workflows <code>/position-deep-dive</code> · <code>/fund-manager-research</code>
+  </footer>
+
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function statusPill(st) {
+      const s = (st || "monitor").toLowerCase();
+      const cls = ["monitor", "ready", "pass", "held", "promoted"].includes(s) ? s : "monitor";
+      return `<span class="pill ${cls}">${esc(s)}</span>`;
+    }
+
+    async function loadWatchlist() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        let data;
+        try {
+          const res = await fetch("/api/watchlist?ts=" + Date.now());
+          if (res.ok) data = await res.json();
+        } catch (_) {}
+        if (!data || !data.ok) throw new Error((data && data.error) || "API unavailable — start financial-command/server.py");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent = "Could not load watchlist: " + e.message;
+      }
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        (data.count || 0) + " candidates · as of " + (data.as_of || "—").slice(0, 19).replace("T", " ") + " UTC";
+
+      document.getElementById("purpose").textContent = data.purpose || "—";
+
+      const pol = data.policy || {};
+      const fp = data.fund_policy || {};
+      const targets = (fp.targets || {});
+      document.getElementById("policy-grid").innerHTML = [
+        kv("Auto-buy", pol.auto_buy === false ? "No" : String(pol.auto_buy)),
+        kv("Deep-dive before first buy", pol.deep_dive_before_first_buy ? "Required" : "Optional"),
+        kv("Prefer core allowlist", pol.prefer_core_allowlist_for_rebalance ? "Yes" : "No"),
+        kv(
+          "Book targets",
+          targets.btc_digital_credit_pct != null
+            ? `${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex / ${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks`
+            : "40 / 60 modernized"
+        ),
+        kv("Deep-dive workflow", pol.deep_dive_workflow || "position-deep-dive"),
+        kv("Portfolio research", pol.portfolio_research_workflow || "fund-manager-research"),
+      ].join("");
+
+      const held = data.agentic_held || {};
+      const syms = held.symbols || [];
+      document.getElementById("held-ctx").innerHTML =
+        `<span class="pill held">Agentic held: ${syms.length ? esc(syms.join(" · ")) : "none"}</span>` +
+        (held.as_of ? `<span class="hint" style="margin:0">RH as of ${esc(String(held.as_of).slice(0, 19))}</span>` : "");
+
+      const root = document.getElementById("entries");
+      const entries = data.entries || [];
+      if (!entries.length) {
+        root.innerHTML = `<section class="card"><p class="hint">No watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.</p></section>`;
+        return;
+      }
+
+      root.innerHTML = entries
+        .map((e) => {
+          const d = e.deep_dive || {};
+          const sf = e.strategy_fit || {};
+          const open = e.priority === "high" ? " open" : "";
+          const heldBadge = e.held_in_agentic ? statusPill("held") : "";
+          const pri = e.priority
+            ? `<span class="pill ${e.priority === "high" ? "high" : ""}">${esc(e.priority)} priority</span>`
+            : "";
+          const conclusion =
+            d.one_line_conclusion ||
+            e.notes ||
+            e.thesis_fit ||
+            "No deep-dive conclusion yet.";
+          const exec =
+            d.executive_findings ||
+            d.conclusions ||
+            "_No deep-dive report on disk. Run_ `/position-deep-dive symbol=" +
+              (e.symbol || "") +
+              "`";
+          return `
+<details class="card entry-card"${open}>
+  <summary>
+    <div class="meta-row">
+      <span class="entry-title">${esc(e.symbol)} <span>${esc(e.name || "")}</span></span>
+      ${statusPill(e.status)}
+      ${heldBadge}
+      ${pri}
+    </div>
+    <div class="hint" style="margin:0">${esc((e.themes || []).join(" · ") || e.theme || "—")}</div>
+  </summary>
+  <div style="margin-top:0.65rem">
+    <div class="strategy-box">
+      <b>Where it fits</b><br/>
+      Sleeve if owned: <code>${esc(sf.sleeve || e.sleeve_if_owned)}</code> ·
+      ${esc(sf.role || "")}<br/>
+      Book: ${esc(sf.modernized_60_40 || "40/60")} ·
+      Auto-buy: <strong>no</strong> · Core allowlist: <strong>no</strong>
+    </div>
+    <div class="grid-2">
+      <div class="kv"><b>Thesis fit</b>${esc(e.thesis_fit || "—")}</div>
+      <div class="kv"><b>Last verdict</b>${esc(e.last_verdict || d.status_line || "—")}</div>
+      <div class="kv"><b>Last deep-dive</b>${esc(e.last_deep_dive || d.as_of_report || "never")}</div>
+      <div class="kv"><b>Next catalyst</b>${esc(e.next_catalyst || "—")}</div>
+    </div>
+    <div class="kv"><b>Current conclusion</b>${esc(conclusion)}</div>
+    <div class="kv"><b>Notes</b>${esc(e.notes || "—")}</div>
+    <div class="hint" style="margin-top:0.65rem">Deep-dive excerpt</div>
+    <div class="md-block">${esc(exec)}</div>
+    <div class="controls" style="margin-top:0.65rem">
+      <button type="button" class="primary btn-full-dive" data-symbol="${esc(e.symbol)}">Open full deep dive</button>
+      ${
+        d.path
+          ? `<a href="/${esc(d.path)}" target="_blank" rel="noopener">Raw markdown</a>`
+          : ""
+      }
+    </div>
+  </div>
+</details>`;
+        })
+        .join("");
+
+      root.querySelectorAll(".btn-full-dive").forEach((btn) => {
+        btn.addEventListener("click", () => openFullDive(btn.getAttribute("data-symbol")));
+      });
+    }
+
+    function kv(k, v) {
+      return `<div class="kv"><b>${esc(k)}</b>${esc(v)}</div>`;
+    }
+
+    async function openFullDive(symbol) {
+      const card = document.getElementById("full-dive-card");
+      const title = document.getElementById("full-dive-title");
+      const pathEl = document.getElementById("full-dive-path");
+      const body = document.getElementById("full-dive-body");
+      title.textContent = symbol + " · deep dive";
+      pathEl.textContent = "Loading…";
+      body.textContent = "";
+      card.classList.remove("hidden");
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      try {
+        const res = await fetch("/api/watchlist/deep-dive?symbol=" + encodeURIComponent(symbol) + "&ts=" + Date.now());
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "not found");
+        pathEl.textContent = data.path || "";
+        body.textContent = data.markdown || "";
+      } catch (e) {
+        pathEl.textContent = "";
+        body.textContent = "Failed: " + e.message;
+      }
+    }
+
+    document.getElementById("btn-close-dive").addEventListener("click", () => {
+      document.getElementById("full-dive-card").classList.add("hidden");
+    });
+    document.getElementById("btn-refresh").addEventListener("click", loadWatchlist);
+    loadWatchlist();
+  </script>
+</body>
+</html>

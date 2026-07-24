@@ -35,7 +35,25 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("/api/refresh", html)
         self.assertIn("show-all-actions", html)
         self.assertIn("actorLabel", html)
+        self.assertIn("watchlist.html", html)
+        self.assertIn("watchlist-preview-card", html)
         self.assertGreater(len(html), 8000)
+
+    def test_watchlist_dashboard_page(self):
+        html = (ROOT / "financial-command" / "watchlist.html").read_text(encoding="utf-8")
+        self.assertIn("Watchlist", html)
+        self.assertIn("/api/watchlist", html)
+        self.assertIn("Deep dive", html)
+        from treasury.watchlist_dashboard import build_watchlist_dashboard, get_deep_dive_markdown
+
+        dash = build_watchlist_dashboard()
+        self.assertTrue(dash.get("ok"))
+        self.assertGreaterEqual(dash.get("count", 0), 1)
+        syms = [e["symbol"] for e in dash.get("entries") or []]
+        self.assertIn("BE", syms)
+        dive = get_deep_dive_markdown("BE")
+        self.assertTrue(dive.get("ok"), dive.get("error"))
+        self.assertIn("Bloom", (dive.get("markdown") or "")[:500] or "x")
 
     def test_action_items_doc(self):
         p = ROOT / "investment" / "treasury-action-items.md"

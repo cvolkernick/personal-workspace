@@ -2,6 +2,8 @@
 
 Multi-agent research artifacts for the **agentic** book: holdings, strategy fit, **watchlist**, and **candidate discovery**.
 
+**UI:** [Watchlist research dashboard](../financial-command/watchlist.html) (from FCC → Fund manager → Watchlist research).
+
 ## Native Grok workflows (how invocation works)
 
 These are **first-class Grok Build workflows**: Rhai scripts under `.grok/workflows/*.rhai`. They use the host APIs `agent()`, `parallel()`, `phase()`, `complete()` — the same system as `/workflows` in the TUI.

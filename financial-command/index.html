@@ -690,7 +690,8 @@
         <span class="live-dot" id="fm-live-dot">Autopilot</span>
       </div>
       <p class="hint" style="margin-top:0">
-        Agentic RH only · ~daily team review · optional watch — no action required
+        Agentic RH only · ~daily team review · optional watch — no action required ·
+        <a href="watchlist.html" id="link-watchlist-dash">Watchlist research dashboard →</a>
       </p>
       <div class="fm-hero">
         <div>
@@ -705,6 +706,17 @@
       </div>
       <div class="hint" style="margin-top:0.85rem">Decision log — team debate &amp; rationale</div>
       <div id="fund-manager-decisions"></div>
+    </section>
+
+    <section class="card" id="watchlist-preview-card">
+      <div class="card-head">
+        <h2>Watchlist research</h2>
+        <a href="watchlist.html" class="live-dot" style="text-decoration:none">Full dashboard →</a>
+      </div>
+      <p class="hint" style="margin-top:0">
+        Thematic candidates (monitor / consider — not holdings). Deep dives, conclusions, and sleeve fit.
+      </p>
+      <div id="watchlist-preview">Loading…</div>
     </section>
 
     <section class="card" id="actions-card">
@@ -858,6 +870,7 @@
 
   <footer>
     Financial Command Center ·
+    <a href="watchlist.html">watchlist research</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
   </footer>
@@ -1655,6 +1668,8 @@
           `</tbody></table>`
         : `<p class="hint">No agentic positions</p>`;
 
+      const wl = fma.watchlist || {};
+      const wlSyms = wl.symbols || (wl.entries || []).map((e) => e.symbol).filter(Boolean);
       document.getElementById("fund-manager-metrics").innerHTML = fma.ok
         ? [
             metric("NAV / BP / cash", `${money(fma.nav_usd)} · ${money(fma.buying_power_usd)} · ${money(fma.cash_usd)}`),
@@ -1663,6 +1678,12 @@
               `Complex ${pctLabel(wNav.btc_digital_credit)} · Stocks ${pctLabel(
                 wNav.stocks_growth
               )} · Cash ${pctLabel(wNav.cash)}`
+            ),
+            metric(
+              "Watchlist",
+              wlSyms.length
+                ? `${wlSyms.slice(0, 6).join(" · ")}${wlSyms.length > 6 ? "…" : ""} · <a href="watchlist.html">open dashboard</a>`
+                : `<a href="watchlist.html">open research dashboard</a>`
             ),
             metric(
               "Hints",
@@ -1901,6 +1922,57 @@
       };
     }
 
+    async function loadWatchlistPreview() {
+      const el = document.getElementById("watchlist-preview");
+      if (!el) return;
+      try {
+        const res = await fetch("/api/watchlist?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        const entries = data.entries || [];
+        if (!entries.length) {
+          el.innerHTML =
+            `<p class="hint">No watchlist entries. <a href="watchlist.html">Open dashboard</a></p>`;
+          return;
+        }
+        el.innerHTML =
+          entries
+            .slice(0, 5)
+            .map((e) => {
+              const d = e.deep_dive || {};
+              const concl =
+                d.one_line_conclusion ||
+                e.last_verdict ||
+                e.notes ||
+                e.thesis_fit ||
+                "—";
+              const st = e.status || "monitor";
+              return (
+                `<div class="metric" style="margin-bottom:0.45rem">` +
+                `<div class="k"><a href="watchlist.html">${escapeHtml(e.symbol)}</a>` +
+                ` · ${escapeHtml(st)}` +
+                (e.held_in_agentic ? " · held" : "") +
+                `</div>` +
+                `<div class="v" style="font-size:0.85rem;font-weight:500">${escapeHtml(
+                  String(concl).slice(0, 160)
+                )}${String(concl).length > 160 ? "…" : ""}</div>` +
+                `<div class="s">${escapeHtml(
+                  (e.themes || []).join(" · ") || e.theme || e.sleeve_if_owned || ""
+                )}</div></div>`
+              );
+            })
+            .join("") +
+          (entries.length > 5
+            ? `<p class="hint">+${entries.length - 5} more · <a href="watchlist.html">full dashboard</a></p>`
+            : `<p class="hint"><a href="watchlist.html">Open full watchlist research →</a></p>`);
+      } catch (e) {
+        el.innerHTML =
+          `<p class="hint">Watchlist preview unavailable (${escapeHtml(e.message)}). ` +
+          `<a href="watchlist.html">Try dashboard</a></p>`;
+      }
+    }
+
     async function loadTreasury() {
       const errEl = document.getElementById("load-error");
       errEl.classList.add("hidden");
@@ -1918,6 +1990,7 @@
         if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury payload");
         window.__treasury = data;
         render(data);
+        loadWatchlistPreview();
       } catch (e) {
         errEl.classList.remove("hidden");
         errEl.textContent =
