@@ -758,7 +758,21 @@ def notify_if_needed(
     if not should:
         return {"ok": True, "notified": False, "reason": "quiet hold"}
 
+    import os
+    import socket
+
+    host = (
+        ncfg.get("host_tag")
+        or os.environ.get("FCC_HOST_TAG")
+        or socket.gethostname()
+        or "unknown-host"
+    )
+    # Short hostname for mobile titles
+    host_short = host.split(".")[0] if host else "unknown"
+
     text = "\n".join(body_parts) or summary or "FCC alert"
+    text = f"[{host_short}] {text}"
+    title = f"{title} · {host_short}"
     url = f"https://ntfy.sh/{topic}"
     try:
         req = urllib.request.Request(
@@ -768,6 +782,7 @@ def notify_if_needed(
                 "Title": title,
                 "Priority": "3",
                 "Tags": "chart_with_upwards_trend,robot",
+                "X-Tags": f"chart_with_upwards_trend,robot,{host_short}",
             },
             method="POST",
         )
@@ -777,6 +792,7 @@ def notify_if_needed(
                 "notified": True,
                 "status": resp.status,
                 "title": title,
+                "host": host_short,
             }
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         return {"ok": False, "notified": False, "error": str(e)}

@@ -1,7 +1,9 @@
 # Pi setup — unattended fund manager + RH refresh
 
+Run automation on the **Pi** so ntfy alerts and deploys do not depend on the Mac being awake/reauthed in launchd.
+
 ## Prerequisites
-- `personal-workspace` cloned/synced on the Pi
+- `personal-workspace` cloned/synced on the Pi (prefer `work/treasury` until merged)
 - `python3` available
 - `grok` CLI installed with `~/.grok/config.toml` including:
   ```toml
@@ -9,34 +11,72 @@
   url = "https://agent.robinhood.com/mcp/trading"
   enabled = true
   ```
-- Robinhood MCP authenticated for headless use (complete OAuth once on that host)
+- Robinhood MCP authenticated for **headless** use on the Pi
 - Host timezone `America/New_York` (or adjust OnCalendar)
+- Optional: Mac → Pi auth sync (`com.personalworkspace.sync-pi-grok-auth` / `projects-dashboard/sync_pi_grok_auth.sh`) after laptop reauths
 
-## Install timers (systemd user or system)
+## Mac → Pi cutover checklist
 
+### 1) Sync code on Pi
 ```bash
-# Edit WorkingDirectory / paths in unit files first
+# on Pi
+cd /home/pi/personal-workspace   # or your clone path
+git fetch origin
+git checkout work/treasury       # or master when merged
+git pull --ff-only
+```
+
+### 2) Fix unit paths
+Edit if your clone is not `/home/pi/personal-workspace`:
+- `treasury/deploy/fund-manager*.service`
+- `treasury/deploy/rh-refresh.service`
+- `treasury/deploy/fund-manager-bp-poll.service`
+
+Ensure systemd can find `grok`:
+```ini
+# optional in [Service]
+Environment=PATH=/home/pi/.grok/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/pi
+Environment=FCC_HOST_TAG=pi
+```
+
+### 3) Install timers on Pi
+```bash
 sudo cp treasury/deploy/fund-manager.service treasury/deploy/fund-manager.timer /etc/systemd/system/
 sudo cp treasury/deploy/rh-refresh.service treasury/deploy/rh-refresh.timer /etc/systemd/system/
-# Fix paths in those files to your clone
+sudo cp treasury/deploy/fund-manager-bp-poll.service treasury/deploy/fund-manager-bp-poll.timer /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rh-refresh.timer
 sudo systemctl enable --now fund-manager.timer
+sudo systemctl enable --now fund-manager-bp-poll.timer
 systemctl list-timers | grep -E 'fund|rh-refresh'
 ```
 
-## Verify
+### 4) Disable Mac launchd (avoid double ntfy / double trades)
+On Mac:
 ```bash
-# Dry rules path (no LLM if in band)
-python3 -m treasury.fund_manager --rules-review --notify
-
-# Manual daily script
-./treasury/fund_manager_daily.sh
-tail -50 treasury/snapshots/fund_manager_daily_latest.log
-
-# RH age
-python3 -c "import json;from pathlib import Path;d=json.loads(Path('treasury/snapshots/robinhood_latest.json').read_text());print(d.get('as_of'))"
+launchctl bootout gui/$(id -u)/com.personalworkspace.fund-manager-bp-poll 2>/dev/null \
+  || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.fund-manager-bp-poll.plist 2>/dev/null || true
+launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null \
+  || launchctl unload ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist 2>/dev/null || true
+# Keep sync-pi-grok-auth loaded so Pi receives Mac reauths
 ```
+
+### 5) Verify on Pi
+```bash
+which grok
+python3 -m treasury.fund_manager --rules-review --notify
+./treasury/fund_manager_bp_poll.sh
+# force outside hours:
+FM_BP_POLL_FORCE=1 ./treasury/fund_manager_bp_poll.sh
+tail -50 treasury/snapshots/fund_manager_bp_poll_latest.log
+```
+
+### 6) ntfy host tags
+Alerts include hostname in **title** and **body** (`[hostname] …`) so you can tell Pi vs Mac.
+Override with env `FCC_HOST_TAG=pi` or `config.json` → `notifications.host_tag`.
+
+**ntfy reply is not a CLI prompt** — inbound replies are not wired to Grok. Alerts only.
 
 ## Behavior
 | Timer | Interval | Action |
@@ -45,12 +85,12 @@ python3 -c "import json;from pathlib import Path;d=json.loads(Path('treasury/sna
 | `fund-manager` | weekdays ~12:30 | Rules HOLD if 40/60 ok; else Grok team review |
 | `fund-manager-bp-poll` | ~15m | If agentic cash>0 or BP>0 → full team deploy (market hours) |
 
-```bash
-sudo cp treasury/deploy/fund-manager-bp-poll.service treasury/deploy/fund-manager-bp-poll.timer /etc/systemd/system/
-# fix WorkingDirectory paths
-sudo systemctl daemon-reload
-sudo systemctl enable --now fund-manager-bp-poll.timer
-```
-
 ## Notifications
-`config.json` → `notifications.ntfy_topic` (default matches Grok ntfy). Alerts on need_llm / error / stale RH — quiet on routine HOLD.
+`config.json` → `notifications.ntfy_topic` (or default topic).  
+Alerts on need_llm / error / stale RH — quiet on routine HOLD.  
+Host tag identifies which machine posted.
+
+## Auth after Mac reauth
+1. Complete Robinhood MCP auth on Mac (or Pi)
+2. Run / wait for `sync_pi_grok_auth` so Pi gets tokens
+3. Confirm on Pi: `./treasury/rh_refresh.sh` succeeds without “grok not available”

@@ -61,10 +61,23 @@
 
 ## Next actions
 
-1. **When BP ≈ cash** (typically after settlement on cash account): execute dollar market buys per table.  
+1. ~~When BP ≈ cash: execute dollar market buys per table.~~ **Done 2026-07-24** (manual team run after reauth; all 6 filled).  
 2. Do **not** re-enter old 4-name-only mix without re-review.  
 3. Owner feedback welcome after this brief.
 
-## Settlement note
+## Execution (2026-07-24)
 
-Agentic account is **cash** (`type: cash`). Market sells filled equity→cash, but **buying_power** did not equal cash (unsettled proceeds). Redeploy requires wait or margin-enabled account (future).
+| Symbol | Notional | Status |
+|--------|----------|--------|
+| MSTR | $22.35 | filled |
+| BITA | $14.90 | filled |
+| MARA | $11.92 | filled |
+| IREN | $10.43 | filled |
+| TSLA | $52.15 | filled |
+| SPCX | $37.25 | filled |
+
+Post: NAV ~$149.45 · equity ~$148.91 · cash ~$0.54.
+
+## Settlement note (historical)
+
+Agentic account is **cash** (`type: cash`). On 2026-07-23, market sells filled but same-day BP stayed ~$1 until settlement. By 2026-07-24 BP matched cash and deploy completed.

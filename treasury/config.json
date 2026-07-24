@@ -11,16 +11,16 @@
     "excess_split_rh": 0.4,
     "bridge_max_recommend_usdc": 5000,
     "count_vault_toward_buffers": true,
-    "one_card_security_deposit_usdc": 500
+    "one_card_security_deposit_usdc": "500"
   },
   "coinbase_manual": {
-    "loan_principal_usdc": null,
+    "loan_principal_usdc": "0",
     "collateral_btc_usd": null,
     "ltv": null,
-    "vault_usdc": "147.43",
-    "card_balance": null,
+    "vault_usdc": "50.01",
+    "card_balance": "310.75",
     "card_available_credit": null,
-    "one_card_security_deposit_usdc": 500,
+    "one_card_security_deposit_usdc": "500",
     "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
   },
   "robinhood": {
@@ -28,23 +28,18 @@
     "agentic_account_number": "674601752",
     "mcp_url": "https://agent.robinhood.com/mcp/trading",
     "usdg_earn_usdg": null,
-    "usdg_earn_apy_est": 0.07,
+    "usdg_earn_apy_est": "0.07",
     "margin_loan_usd": null,
     "equity_collateral_usd": null,
-    "notes": "Primary ••••9737 = equity book + optional margin to fund USDG. Agentic ••••1752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto→Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
+    "notes": "Primary \u2022\u2022\u2022\u20229737 = equity book + optional margin to fund USDG. Agentic \u2022\u2022\u2022\u20221752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto\u2192Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
   },
   "ynab": {
     "budget_name": null,
     "account_name": null,
     "checking_account_name": null,
-    "x_money_account_name": "Checking – 2201",
+    "x_money_account_name": "Checking \u2013 2201",
     "x_money_apy_est": 0.06,
-    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking – ####). X Money cash pays ~6% APY (product rate; confirm in app)."
-  },
-  "notifications": {
-    "enabled": true,
-    "ntfy_topic": "cvolk-grok-7f3k9x",
-    "notes": "ntfy.sh push on fund need_llm / error / stale RH. Quiet on routine HOLD. Override with FCC_NTFY_TOPIC env."
+    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking + X Money (Plaid often names X Money as Checking \u2013 ####). X Money cash pays ~6% APY (product rate; confirm in app)."
   },
   "expenses_sheet": {
     "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
@@ -53,5 +48,11 @@
       "Personal",
       "Discretionary"
     ]
+  },
+  "notifications": {
+    "enabled": true,
+    "ntfy_topic": "cvolk-grok-7f3k9x",
+    "host_tag": null,
+    "notes": "ntfy one-way only. Title/body include hostname. Replies in ntfy app are NOT CLI prompts. Set host_tag or FCC_HOST_TAG=pi on Pi."
   }
 }

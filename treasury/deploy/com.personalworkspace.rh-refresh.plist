@@ -20,13 +20,23 @@
   </array>
   <key>WorkingDirectory</key>
   <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/cvolkernick/.grok/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/cvolkernick</string>
+    <key>FCC_HOST_TAG</key>
+    <string>mac</string>
+  </dict>
   <key>StartInterval</key>
   <integer>10800</integer>
   <key>RunAtLoad</key>
-  <true/>
+  <false/>
   <key>StandardOutPath</key>
   <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/rh_refresh_launchd.out.log</string>
   <key>StandardErrorPath</key>
   <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/rh_refresh_launchd.err.log</string>
 </dict>
 </plist>
+
