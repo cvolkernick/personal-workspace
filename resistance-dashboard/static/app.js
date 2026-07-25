@@ -1648,13 +1648,18 @@
     </div>`;
   }
 
-  function fillMacroSplit(el, todayVal, targetVal, unit) {
+  function fillMacroSplit(el, todayVal, targetVal, unit, todayPct, targetPct) {
     if (!el) return;
     const hasToday = todayVal != null && !Number.isNaN(Number(todayVal));
     const hasTarget = targetVal != null && !Number.isNaN(Number(targetVal));
     const t = hasToday ? Number(todayVal) : null;
     const g = hasTarget ? Number(targetVal) : null;
     const unitSuf = unit ? ` ${unit}` : "";
+    // % of total calories from this macro (P×4 / C×4 / F×9 basis)
+    const pctBit = (pct) =>
+      pct != null && !Number.isNaN(Number(pct))
+        ? `<span class="macro-split-pct"> · ${pct}%</span>`
+        : "";
     let deltaHtml = "";
     if (t != null && g != null && g > 0) {
       const left = g - t;
@@ -1669,12 +1674,16 @@
     el.innerHTML = `
       <div class="macro-split-half">
         <div class="macro-split-k">Today</div>
-        <div class="macro-split-v">${hasToday ? fmtNum(t) + unitSuf : "—"}</div>
+        <div class="macro-split-v">${
+          hasToday ? fmtNum(t) + unitSuf + pctBit(todayPct) : "—"
+        }</div>
       </div>
       <div class="macro-split-rule" aria-hidden="true"></div>
       <div class="macro-split-half">
         <div class="macro-split-k">Target</div>
-        <div class="macro-split-v">${hasTarget ? fmtNum(g) + unitSuf : "—"}</div>
+        <div class="macro-split-v">${
+          hasTarget ? fmtNum(g) + unitSuf + pctBit(targetPct) : "—"
+        }</div>
         ${deltaHtml}
       </div>`;
   }
@@ -1682,10 +1691,29 @@
   function renderNutritionStatTiles(store) {
     const t = (store && store.targets) || {};
     const c = (store && store.today_consumed) || {};
-    fillMacroSplit($("stat-calories"), c.calories, t.calories, "");
-    fillMacroSplit($("stat-protein"), c.protein_g, t.protein_g, "g");
-    fillMacroSplit($("stat-carbs"), c.carbs_g, t.carbs_g, "g");
-    fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g");
+    // Calorie share % of total macro kcal (same basis as macro chips / chart)
+    const soFarPct = macroCalPct(c.protein_g, c.carbs_g, c.fat_g);
+    const tgtPct = macroCalPct(t.protein_g, t.carbs_g, t.fat_g);
+    // Calories tile: show % of daily calorie target on Today side
+    const calHit = targetPct(c.calories, t.calories);
+    fillMacroSplit($("stat-calories"), c.calories, t.calories, "", calHit, null);
+    fillMacroSplit(
+      $("stat-protein"),
+      c.protein_g,
+      t.protein_g,
+      "g",
+      soFarPct.p,
+      tgtPct.p
+    );
+    fillMacroSplit(
+      $("stat-carbs"),
+      c.carbs_g,
+      t.carbs_g,
+      "g",
+      soFarPct.c,
+      tgtPct.c
+    );
+    fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g", soFarPct.f, tgtPct.f);
   }
 
   function renderTargetsAndRemaining(store) {

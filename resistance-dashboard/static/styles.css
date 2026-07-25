@@ -204,11 +204,17 @@ button:disabled {
 }
 
 #nutrition-stats .macro-split-v {
-  font-size: 1.15rem;
+  font-size: 1.05rem;
   font-weight: 700;
   line-height: 1.25;
   margin-top: 0.1rem;
   word-break: break-word;
+}
+
+#nutrition-stats .macro-split-pct {
+  font-size: 0.82em;
+  font-weight: 650;
+  opacity: 0.88;
 }
 
 #nutrition-stats .macro-split-delta {
