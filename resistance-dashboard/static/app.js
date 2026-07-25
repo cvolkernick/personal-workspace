@@ -2690,6 +2690,15 @@
       if (data.usage && data.usage.total_tokens != null) {
         bits.push(`${data.usage.total_tokens} tokens`);
       }
+      // Local coach actions mutate targets/inventory/plans — refresh UI.
+      if (data.action && data.action.ok) {
+        bits.push("dashboard reloaded");
+        try {
+          await loadDashboard(false);
+        } catch (_) {
+          /* non-fatal */
+        }
+      }
       if (status) status.textContent = "Done · " + bits.join(" · ");
     } catch (e) {
       askHistory.push({
