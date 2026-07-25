@@ -986,7 +986,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 history = body.get("history") if isinstance(body.get("history"), list) else []
                 model = body.get("model")
                 # Local coach actions (stock / targets / refresh plans) — no model call.
-                action = try_parse_coach_action(question)
+                # Pass chat history so "apply those recommendations" can reuse numbers.
+                action = try_parse_coach_action(question, history=history)
                 if action:
                     act_result = _execute_coach_action(action)
                     self._send_json(

@@ -41,6 +41,9 @@
           Your question and Grok’s reply show in the chat box below. Answers use a
           compact snapshot of this dashboard (lifts, recovery, nutrition, plans).
           Expect <strong>about 15–60 seconds</strong>; stay on this page until it finishes.
+          You can also <strong>change config in plain English</strong> (instant, no model call):
+          e.g. “set protein to 220”, “update calories to 2000”, “apply those recommendations”,
+          “mark chicken out of stock”, “refresh meal plan”.
         </p>
         <p class="muted" id="ask-auth-status" style="margin: 0.35rem 0 0.5rem; font-size: 0.85rem"></p>
         <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
@@ -52,7 +55,7 @@
               rows="2"
               required
               maxlength="4000"
-              placeholder="e.g. Am I recovering enough for legs this week? What's left for protein today?"
+              placeholder="e.g. What's left for protein today?  ·  set protein to 220  ·  apply those recommendations"
             ></textarea>
           </label>
           <div class="actions">

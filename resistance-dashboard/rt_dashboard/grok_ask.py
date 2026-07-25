@@ -30,7 +30,11 @@ Rules:
 - When discussing progress, cite specific numbers and dates from the data.
 - Do not claim access to Google Health settings/goals unless they appear in the data.
 - Do not discuss secrets, tokens, or how to hack systems.
-- Note: the user can also run local commands (handled outside the model): set stock <id> on|off, set targets cal=.. protein=.., refresh meal plan, refresh workout plan.
+- Note: the user can also run local commands (handled outside the model, no need to invent syntax):
+  natural language like "set protein to 220", "update calories to 2000", "change macros to 220p 150c 55f",
+  "apply those recommendations", "mark chicken out of stock", "refresh meal plan".
+  If they ask you to change targets, suggest concrete numbers they can confirm, or tell them to say
+  "apply those" / "set protein to X" so the dashboard can write the config.
 """
 
 
