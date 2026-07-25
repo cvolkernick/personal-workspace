@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -443,6 +444,17 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     sessions = merge_sessions(local_sessions, remote_sessions, prefer_first=True)
     source = "+".join(source_parts) if source_parts else "none"
     gh = build_github_client(for_write=False)
+
+    # Stale cache often keeps "token refresh HTTP 400" after a successful re-auth.
+    # If OAuth works now, drop that error so the UI stops alarming every load.
+    if health.error and re.search(
+        r"token|refresh|invalid_grant|oauth", str(health.error), re.I
+    ):
+        try:
+            health_client.ensure_access_token()
+            health.error = None
+        except Exception:
+            pass
 
     # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
     from rt_dashboard.sleep_series import expand_sleep_calendar

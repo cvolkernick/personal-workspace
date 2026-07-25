@@ -2059,16 +2059,40 @@
     }
 
     if (data.health && data.health.error) {
-      showAlert(`Google Health: ${data.health.error}`, "warn");
       const err = String(data.health.error || "");
       const needsAuth =
         /token|refresh|oauth|credentials|invalid_grant|401|403/i.test(err);
-      $("health-note").textContent = needsAuth
-        ? "Google Health auth needs attention — use Refresh Google auth in the header, then Refresh remotes."
-        : "Some Google Health streams failed or need extra OAuth scopes (nutrition / activity). Recovery still uses available data.";
+      // Auth toasts once per browser session — sticky toast every load was noisy
+      // while cache still held an old HTTP 400 after a successful re-auth.
+      const authKey = "fitdash_gh_auth_toast";
+      if (needsAuth) {
+        if (!sessionStorage.getItem(authKey)) {
+          sessionStorage.setItem(authKey, "1");
+          showAlert(
+            "Google Health sign-in expired — use Refresh Google auth, then Refresh remotes.",
+            "warn"
+          );
+        }
+        $("health-note").textContent =
+          "Google Health auth needs attention — use Refresh Google auth, then Refresh remotes. Cached health still shown.";
+      } else {
+        showAlert(`Google Health: ${err}`, "warn");
+        $("health-note").textContent =
+          "Some Google Health streams failed or need extra OAuth scopes (nutrition / activity). Recovery still uses available data.";
+      }
     } else if (!(data.health && data.health.weight && data.health.weight.length)) {
+      try {
+        sessionStorage.removeItem("fitdash_gh_auth_toast");
+      } catch (_) {
+        /* ignore */
+      }
       $("health-note").textContent = "No weight samples returned for the recent window.";
     } else {
+      try {
+        sessionStorage.removeItem("fitdash_gh_auth_toast");
+      } catch (_) {
+        /* ignore */
+      }
       $("health-note").textContent = `Google Health connected · ${data.health.weight.length} weight pts, ${(data.health.sleep || []).length} sleep nights.`;
     }
     if ($("nutrition-note")) {

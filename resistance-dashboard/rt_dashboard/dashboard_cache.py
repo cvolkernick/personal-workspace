@@ -286,6 +286,22 @@ def merge_health_snapshots(
         )
         fl_by[key] = d
     fl = [fl_by[k] for k in sorted(fl_by.keys())]
+    # Latest pull's error wins. A successful update with data clears stale
+    # auth errors left on the cached base (e.g. old HTTP 400 after re-auth).
+    has_update = bool(
+        update.weight
+        or update.sleep
+        or update.nutrition
+        or update.food_logs
+        or update.hydration
+        or update.calories_burned
+    )
+    if update.error:
+        err = update.error
+    elif has_update:
+        err = None
+    else:
+        err = base.error
     # Rebuild typed snapshot
     return health_from_dict(
         {
@@ -295,7 +311,7 @@ def merge_health_snapshots(
             "food_logs": fl,
             "hydration": h,
             "calories_burned": b,
-            "error": update.error or base.error,
+            "error": err,
         }
     )
 

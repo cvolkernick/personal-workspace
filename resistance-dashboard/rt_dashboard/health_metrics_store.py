@@ -213,10 +213,10 @@ def resolve_health_snapshot(
             for s in snap.sleep:
                 if not s.source or s.source == "health_metrics_store":
                     s.source = label
-            # Preserve Google error as note if present
+            # Preserve Google error as note if present (clearer product name)
             if google_snapshot.error:
                 snap.error = (
-                    f"Google Fit: {google_snapshot.error}; "
+                    f"Google Health: {google_snapshot.error}; "
                     f"using {label} weight/sleep for recovery"
                 )
             return snap
