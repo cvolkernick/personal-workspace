@@ -44,6 +44,7 @@ Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis 
 | Symbol | Theme | Status | Notes |
 |--------|-------|--------|-------|
 | **BE** | Energy (Bloom Energy) | monitor | Verbose re-dive 2026-07-23: thesis OK, **no buy** (val + ~$8 NAV + Q2 7/28). `research/BE_deep_dive.md` |
+| **GOOGL** | AI stack (Alphabet / Google) | monitor | Owner-added 2026-07-24. Cloud + models + ads. Deep-dive before size-in. Class A preferred. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60.

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-07-22",
+  "as_of": "2026-07-24",
   "purpose": "Thematic equities the agentic fund manager should monitor and consider — not auto-buy. Core allowlist remains preferred for default rebalances.",
   "policy": {
     "auto_buy": false,
@@ -30,6 +30,24 @@
       "last_verdict": "monitor_no_buy",
       "next_catalyst": "Q2 2026 earnings 2026-07-28 AMC",
       "notes": "Re-run verbose 2026-07-23: strong AI-power thesis + Oracle/Brookfield frameworks; critic blocks size-in (valuation, beta, ~$8 NAV, into 7/28 print). Revisit post-print or capital/price change. Not core."
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet (Google)",
+      "theme": "ai_stack",
+      "themes": ["ai_stack", "growth_equity", "cloud", "foundation_models", "advertising"],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "high",
+      "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap core candidate — not yet on agentic core allowlist.",
+      "added": "2026-07-24",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
+      "last_verdict": null,
+      "next_catalyst": null,
+      "notes": "Owner-added. Prefer Class A (GOOGL) for watchlist tracking; GOOG is economic equivalent. Run position-deep-dive before first agentic size-in. Not auto-buy."
     }
   ]
 }
