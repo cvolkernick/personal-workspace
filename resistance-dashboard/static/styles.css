@@ -155,15 +155,77 @@ button:disabled {
   word-break: break-word;
 }
 
-/* Macro boxes often show "218 g · 40%" — slightly smaller so it fits cleanly */
-#nutrition-stats .stat .value {
-  font-size: 1.2rem;
-}
-
 /* Color-coded nutrition summary tiles (match Cal/P/C/F theme elsewhere) */
 #nutrition-stats .macro-stat {
   border-left-width: 4px;
   border-left-style: solid;
+}
+
+/* Today | Target split inside each macro tile */
+#nutrition-stats .macro-split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 0.35rem;
+  min-height: 2.6rem;
+}
+
+#nutrition-stats .macro-split-half {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#nutrition-stats .macro-split-half:first-child {
+  padding-right: 0.55rem;
+}
+
+#nutrition-stats .macro-split-half:last-child {
+  padding-left: 0.55rem;
+  text-align: right;
+}
+
+#nutrition-stats .macro-split-rule {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.14);
+  flex: 0 0 1px;
+}
+
+#nutrition-stats .macro-split-k {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  line-height: 1.2;
+}
+
+#nutrition-stats .macro-split-v {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 0.1rem;
+  word-break: break-word;
+}
+
+#nutrition-stats .macro-split-delta {
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+  opacity: 0.85;
+  letter-spacing: 0.01em;
+}
+
+#nutrition-stats .macro-split-delta.under {
+  opacity: 0.75;
+}
+
+#nutrition-stats .macro-split-delta.over {
+  color: #f0a0a0;
+  opacity: 1;
 }
 
 #nutrition-stats .macro-stat.macro-cals {
@@ -177,7 +239,7 @@ button:disabled {
 #nutrition-stats .macro-stat.macro-cals .label {
   color: #9deed0;
 }
-#nutrition-stats .macro-stat.macro-cals .value {
+#nutrition-stats .macro-stat.macro-cals .macro-split-v {
   color: #5ce1a8;
 }
 
@@ -192,7 +254,7 @@ button:disabled {
 #nutrition-stats .macro-stat.macro-protein .label {
   color: #8fc4f5;
 }
-#nutrition-stats .macro-stat.macro-protein .value {
+#nutrition-stats .macro-stat.macro-protein .macro-split-v {
   color: #6db7f5;
 }
 
@@ -207,7 +269,7 @@ button:disabled {
 #nutrition-stats .macro-stat.macro-carbs .label {
   color: #f0d080;
 }
-#nutrition-stats .macro-stat.macro-carbs .value {
+#nutrition-stats .macro-stat.macro-carbs .macro-split-v {
   color: #f0c14d;
 }
 
@@ -222,8 +284,20 @@ button:disabled {
 #nutrition-stats .macro-stat.macro-fat .label {
   color: #d8b4fe;
 }
-#nutrition-stats .macro-stat.macro-fat .value {
+#nutrition-stats .macro-stat.macro-fat .macro-split-v {
   color: #d0a4ff;
+}
+
+@media (max-width: 520px) {
+  #nutrition-stats .macro-split-v {
+    font-size: 1rem;
+  }
+  #nutrition-stats .macro-split-half:first-child {
+    padding-right: 0.4rem;
+  }
+  #nutrition-stats .macro-split-half:last-child {
+    padding-left: 0.4rem;
+  }
 }
 
 .badge {

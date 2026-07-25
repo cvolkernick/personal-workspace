@@ -1648,6 +1648,46 @@
     </div>`;
   }
 
+  function fillMacroSplit(el, todayVal, targetVal, unit) {
+    if (!el) return;
+    const hasToday = todayVal != null && !Number.isNaN(Number(todayVal));
+    const hasTarget = targetVal != null && !Number.isNaN(Number(targetVal));
+    const t = hasToday ? Number(todayVal) : null;
+    const g = hasTarget ? Number(targetVal) : null;
+    const unitSuf = unit ? ` ${unit}` : "";
+    let deltaHtml = "";
+    if (t != null && g != null && g > 0) {
+      const left = g - t;
+      if (Math.abs(left) < 0.05) {
+        deltaHtml = `<div class="macro-split-delta">on target</div>`;
+      } else if (left > 0) {
+        deltaHtml = `<div class="macro-split-delta under">${fmtNum(left)}${unitSuf} left</div>`;
+      } else {
+        deltaHtml = `<div class="macro-split-delta over">+${fmtNum(-left)}${unitSuf} over</div>`;
+      }
+    }
+    el.innerHTML = `
+      <div class="macro-split-half">
+        <div class="macro-split-k">Today</div>
+        <div class="macro-split-v">${hasToday ? fmtNum(t) + unitSuf : "—"}</div>
+      </div>
+      <div class="macro-split-rule" aria-hidden="true"></div>
+      <div class="macro-split-half">
+        <div class="macro-split-k">Target</div>
+        <div class="macro-split-v">${hasTarget ? fmtNum(g) + unitSuf : "—"}</div>
+        ${deltaHtml}
+      </div>`;
+  }
+
+  function renderNutritionStatTiles(store) {
+    const t = (store && store.targets) || {};
+    const c = (store && store.today_consumed) || {};
+    fillMacroSplit($("stat-calories"), c.calories, t.calories, "");
+    fillMacroSplit($("stat-protein"), c.protein_g, t.protein_g, "g");
+    fillMacroSplit($("stat-carbs"), c.carbs_g, t.carbs_g, "g");
+    fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g");
+  }
+
   function renderTargetsAndRemaining(store) {
     const t = (store && store.targets) || {};
     const c = (store && store.today_consumed) || {};
@@ -2022,41 +2062,8 @@
     $("meta-line").textContent =
       `source=${meta.source || "?"} · generated ${meta.generated_at || ""}${loadMs}${cacheNote}${todayBit}${tzBit}`;
 
-    const nutrition = (data.health && data.health.nutrition) || [];
-    const latestN = nutrition.length
-      ? [...nutrition].sort((a, b) => String(a.date).localeCompare(String(b.date))).slice(-1)[0]
-      : null;
-    if ($("stat-calories")) {
-      // Calorie share: P×4 + C×4 + F×9 (same basis as macro split chart).
-      let pPct = null;
-      let cPct = null;
-      let fPct = null;
-      if (latestN) {
-        const p = Number(latestN.protein_g) || 0;
-        const c = Number(latestN.carbs_g) || 0;
-        const f = Number(latestN.fat_g) || 0;
-        const totK = p * 4 + c * 4 + f * 9;
-        if (totK > 0) {
-          pPct = Math.round((p * 4 * 1000) / totK) / 10;
-          cPct = Math.round((c * 4 * 1000) / totK) / 10;
-          fPct = Math.round((f * 9 * 1000) / totK) / 10;
-        }
-      }
-      $("stat-calories").textContent =
-        latestN && latestN.calories != null ? fmtNum(latestN.calories) : "—";
-      $("stat-protein").textContent =
-        latestN && latestN.protein_g != null
-          ? `${fmtNum(latestN.protein_g)} g${pPct != null ? ` · ${pPct}%` : ""}`
-          : "—";
-      $("stat-carbs").textContent =
-        latestN && latestN.carbs_g != null
-          ? `${fmtNum(latestN.carbs_g)} g${cPct != null ? ` · ${cPct}%` : ""}`
-          : "—";
-      $("stat-fat").textContent =
-        latestN && latestN.fat_g != null
-          ? `${fmtNum(latestN.fat_g)} g${fPct != null ? ` · ${fPct}%` : ""}`
-          : "—";
-    }
+    // Colored macro tiles: left = today so far, right = daily target
+    renderNutritionStatTiles(data.nutrition_store);
 
     if (data.health && data.health.error) {
       const err = String(data.health.error || "");
