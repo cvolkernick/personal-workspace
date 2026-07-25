@@ -38,6 +38,7 @@ if str(ROOT) not in sys.path:
 
 from collectors import build_today_focus  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
+from public_base import public_hostname, rewrite_payload_urls  # noqa: E402
 
 # Safe relative paths under the workspace that the UI may fetch as raw markdown.
 _STRATEGY_RAW = {
@@ -56,6 +57,11 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
         sys.stderr.write("[orchestra] " + (fmt % args) + "\n")
 
     def _json(self, code: int, payload: dict) -> None:
+        # When opened from a Mac via Pi LAN/Tailscale, rewrite 127.0.0.1 deep-links.
+        if isinstance(payload, dict) and payload.get("ok") is not False:
+            host = public_hostname(request_host_header=self.headers.get("Host"))
+            if host:
+                payload = rewrite_payload_urls(payload, host)
         body = json.dumps(payload, default=str).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -237,26 +243,42 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Orchestra top-level dashboard")
+    parser = argparse.ArgumentParser(description="Orchestrator top-level dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
-    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address. Use 0.0.0.0 on the Pi so LAN/Tailscale clients can connect.",
+    )
     parser.add_argument("--no-browser", action="store_true")
+    # Accepted by Pi systemd unit; local API is the default for this process.
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force local API (used by Pi unit; no-op when no --backend is configured).",
+    )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help="Reserved for terminal frontend proxy mode (see deploy/README.md).",
+    )
     args = parser.parse_args(argv)
 
     server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
     url = f"http://{args.host}:{args.port}/"
-    print(f"Orchestra Command Center: {url}")
+    print(f"Orchestrator: {url}")
     print(f"API: {url}api/orchestra")
     print("Press Ctrl+C to stop.")
     if not args.no_browser:
+        open_url = url.replace("0.0.0.0", "127.0.0.1")
         try:
-            webbrowser.open(url)
+            webbrowser.open(open_url)
         except Exception:
             pass
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping orchestra…")
+        print("\nStopping Orchestrator…")
     finally:
         server.server_close()
     return 0

@@ -1,4 +1,25 @@
-# Orchestra — top-level command center
+# Orchestrator
+
+## Access (Pi-hosted, Mac terminals)
+
+Always-on backend on the Raspberry Pi:
+
+```bash
+# From this Mac (opens browser to Pi when reachable)
+python3 launch.py
+# or double-click open-command-center.command
+
+# Direct URL (LAN)
+open http://192.168.100.98:8790/
+
+# Off-home-network (Tailscale)
+ORCHESTRATOR_URL=http://<tailscale-host>:8790/ python3 launch.py
+```
+
+Pi unit: `orchestra-dashboard.service` (port **8790**, bind `0.0.0.0`).  
+Redeploy: `bash deploy/install_remote.sh prism-agent@192.168.100.98 --only orchestra` (when deploy/ is present).
+
+---
 
 Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/health**, **time-allocation**, and **IoT/home** into one orchestration interface.
 
