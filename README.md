@@ -31,6 +31,23 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | iot (Wiz lights) | 8780 | `python3 iot/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
 
+### Pi backends 24/7 + terminal UI (on- and off-network)
+
+**Pi hosts backends 24/7** via systemd (`deploy/install_remote.sh` → units bind `0.0.0.0`, restart always).  
+**Terminal hosts the UI** and sets a remote backend base URL so `/api/*` is proxied to the Pi.  
+**Off-network access uses a private mesh (Tailscale or equivalent)** — not public port-forward of bare dashboards.
+
+```bash
+# On Pi (once): install all six always-on backends
+bash deploy/install_remote.sh user@PI_HOST
+
+# On laptop (LAN or Tailscale): UI local, API on Pi
+python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790
+# or write orchestra/backend.json: {"url":"http://…:8790","label":"pi"}
+```
+
+Full operator guide: [`deploy/README.md`](deploy/README.md). Shared helper: `remote_backend.py`.
+
 ## Top-level directories (TLDs)
 
 Grouped by domain. Git work branches follow the same groups (see `Agents.md`).

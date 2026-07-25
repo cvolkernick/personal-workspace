@@ -17,7 +17,10 @@ from urllib.parse import parse_qs, urlparse
 T = TypeVar("T")
 
 ROOT = Path(__file__).resolve().parent
+WORKSPACE = ROOT.parent
 sys.path.insert(0, str(ROOT))
+if str(WORKSPACE) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE))
 
 
 def _load_env_file(path: Path) -> None:
@@ -118,6 +121,17 @@ from rt_dashboard.workout_store import (  # noqa: E402
 
 STATIC_DIR = ROOT / "static"
 DEFAULT_PORT = int(os.environ.get("PORT", "8787"))
+DEFAULT_BACKEND_CONFIG = ROOT / "backend.json"
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+_FRONTEND: str = ""
+
+try:
+    from remote_backend import add_backend_args, resolve_backend, try_proxy_api
+except ImportError:  # pragma: no cover — monorepo root must be on path
+    add_backend_args = None  # type: ignore
+    resolve_backend = None  # type: ignore
+    try_proxy_api = None  # type: ignore
 
 
 def _default_local_workspace() -> str:
@@ -712,9 +726,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def do_GET(self) -> None:  # noqa: N802
+        if try_proxy_api is not None and try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="GET",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+            health_paths=("/api/health", "/api/healthz"),
+        ):
+            return
         parsed = urlparse(self.path)
-        if parsed.path == "/api/healthz":
-            self._send_json({"ok": True, "service": "resistance-dashboard"})
+        if parsed.path in ("/api/healthz", "/api/health"):
+            self._send_json(
+                {
+                    "ok": True,
+                    "service": "resistance-dashboard",
+                    "proxy": False,
+                    "backend": None,
+                }
+            )
             return
         if parsed.path == "/api/dashboard":
             try:
@@ -764,6 +794,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        if try_proxy_api is not None and try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="POST",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+            health_paths=("/api/health", "/api/healthz"),
+        ):
+            return
         parsed = urlparse(self.path)
         if parsed.path == "/api/workouts":
             try:
@@ -1052,15 +1091,50 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=404)
 
 
-def main() -> None:
-    port = DEFAULT_PORT
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
+def main(argv: Optional[list] = None) -> None:
+    global _BACKEND_URL, _BACKEND_LABEL, _FRONTEND
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Resistance training dashboard")
+    parser.add_argument(
+        "port_pos",
+        nargs="?",
+        type=int,
+        default=None,
+        help="Optional positional port (legacy)",
+    )
+    parser.add_argument("--port", type=int, default=None)
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--no-browser", action="store_true")
+    if add_backend_args is not None:
+        add_backend_args(parser)
+    else:
+        parser.add_argument("--backend", default=None)
+        parser.add_argument("--local", action="store_true")
+    args = parser.parse_args(argv)
+
+    port = args.port or args.port_pos or DEFAULT_PORT
+    if resolve_backend is not None:
+        _BACKEND_URL, _BACKEND_LABEL = resolve_backend(
+            local=bool(args.local),
+            backend=args.backend,
+            config_path=DEFAULT_BACKEND_CONFIG,
+        )
+    else:
+        _BACKEND_URL, _BACKEND_LABEL = None, ""
+
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
-    print(f"Resistance dashboard listening on http://127.0.0.1:{port}/", flush=True)
-    print(f"API: http://127.0.0.1:{port}/api/dashboard", flush=True)
+    url = f"http://{args.host}:{port}/"
+    _FRONTEND = url
+    server = ThreadingHTTPServer((args.host, port), DashboardHandler)
+    print(f"Resistance dashboard listening on {url}", flush=True)
+    if _BACKEND_URL:
+        print(
+            f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]",
+            flush=True,
+        )
+    print(f"API: {url}api/dashboard", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

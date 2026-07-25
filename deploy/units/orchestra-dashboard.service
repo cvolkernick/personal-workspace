@@ -1,0 +1,17 @@
+[Unit]
+Description=Orchestra command center backend (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace:%h/personal-workspace/orchestra
+# Bind all interfaces so LAN / Tailscale clients can reach http://<host>:8790/
+ExecStart=/usr/bin/python3 %h/personal-workspace/orchestra/server.py --host 0.0.0.0 --port 8790 --no-browser --local
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
