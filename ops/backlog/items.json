@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-25T06:32:34.108155+00:00",
+  "updated_at": "2026-07-25T06:48:33.967704+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -35,7 +35,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T06:32:34.107932+00:00",
+      "last_groomed_at": "2026-07-25T06:48:33.967499+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt"
     },
@@ -72,7 +72,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-25T06:32:34.107991+00:00",
+      "last_groomed_at": "2026-07-25T06:48:33.967555+00:00",
       "auto_start": true,
       "auto_start_set_at": "2026-07-25T06:16:33.709661+00:00",
       "auto_start_source": "auto-queue"
@@ -101,7 +101,7 @@
       "priority_color": "#ff6b6b",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-25T06:32:34.108017+00:00",
+      "last_groomed_at": "2026-07-25T06:48:33.967574+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -134,7 +134,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T06:32:34.108031+00:00",
+      "last_groomed_at": "2026-07-25T06:48:33.967587+00:00",
       "objective_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
       "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
       "auto_start": false,
@@ -170,16 +170,16 @@
       "priority_color": "#8aa0b5",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-25T06:32:34.108052+00:00",
+      "last_groomed_at": "2026-07-25T06:48:33.967601+00:00",
       "auto_start": true,
       "auto_start_set_at": "2026-07-25T06:16:33.709696+00:00",
       "auto_start_source": "auto-queue"
     }
   ],
-  "last_groomed_at": "2026-07-25T06:32:34.108066+00:00",
+  "last_groomed_at": "2026-07-25T06:48:33.967614+00:00",
   "groom_meta": {
     "wip_count": 2,
-    "changes_count": 2,
-    "groomed_at": "2026-07-25T06:32:34.108066+00:00"
+    "changes_count": 0,
+    "groomed_at": "2026-07-25T06:48:33.967614+00:00"
   }
 }
