@@ -1,32 +1,37 @@
 #!/bin/bash
-# One-click launcher for the Orchestra top-level command center
-# Prefers the Orchestra worktree when present (multi-dashboard safe).
-
+# Open Orchestrator from this Mac terminal.
+# Prefers the always-on Raspberry Pi backend; falls back to a local server if Pi is down.
 set -euo pipefail
-WT_BASE="${PERSONAL_WORKSPACE_WORKTREES:-$HOME/personal-workspace-worktrees}"
-WT_ROOT="$WT_BASE/orchestra"
-if [ -d "$WT_ROOT/orchestra" ]; then
-  ROOT="$WT_ROOT"
-  echo "Using Orchestra worktree: $ROOT (work/orchestra)"
-else
-  ROOT="$(cd "$(dirname "$0")" && pwd)"
-fi
-cd "$ROOT"
 
-echo "Starting Orchestra Command Center..."
-echo ""
-echo "UI:  http://localhost:8790/"
-echo "API: http://localhost:8790/api/orchestra"
-echo "     domains · synergies · priorities / action plan"
-echo ""
-echo "Subordinates (start separately if needed):"
-echo "  financial-command    :8000"
-echo "  projects-dashboard   :8765"
-echo "  holistic             :8770"
-echo "  iot                  :8780"
-echo "  resistance-dashboard :8787"
-echo ""
-echo "Worktrees: python3 projects-dashboard/worktrees.py ensure"
-echo "Press Ctrl+C to stop."
-echo ""
-python3 orchestra/server.py --port 8790
+ROOT="$(cd "$(dirname "$0")" && pwd)"
+# Override: ORCHESTRATOR_URL=http://prism-gateway:8790/ bash open-command-center.command
+PI_URL="${ORCHESTRATOR_URL:-http://192.168.100.98:8790/}"
+LOCAL_PORT="${PORT:-8790}"
+
+open_url() {
+  local url="$1"
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  else
+    echo "Open in browser: $url"
+  fi
+}
+
+echo "Orchestrator"
+echo "Checking Pi backend: $PI_URL"
+if curl -sf --connect-timeout 3 --max-time 5 "${PI_URL%/}/api/health" >/dev/null; then
+  echo "OK — opening Pi-hosted Orchestrator"
+  open_url "$PI_URL"
+  echo "$PI_URL"
+  echo ""
+  echo "Domain deep-links on the page point at the Pi LAN host."
+  echo "Off-network: set ORCHESTRATOR_URL=http://<tailscale-host>:8790/"
+  exit 0
+fi
+
+echo "Pi not reachable — starting local Orchestrator on 127.0.0.1:$LOCAL_PORT"
+cd "$ROOT"
+(sleep 0.8 && open_url "http://127.0.0.1:${LOCAL_PORT}/") &
+exec python3 orchestra/server.py --host 127.0.0.1 --port "$LOCAL_PORT" --local --no-browser
