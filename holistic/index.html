@@ -507,25 +507,28 @@
     </section>
 
     <section class="card" id="sleep-battery-card">
-      <h2>Sleep battery · last 24 hours</h2>
+      <h2>Sleep battery</h2>
+      <p class="path" style="margin:-0.35rem 0 0.65rem">
+        Full at wake · drains over your 16h awake budget · empty = time to sleep &amp; recharge (supports ~8h / day)
+      </p>
       <div class="battery-card">
-        <div class="battery-shell" title="Hours asleep in the trailing 24h window">
+        <div class="battery-shell" title="100% when you wake; 0% after ~16h awake — go sleep and recharge">
           <div class="battery-fill-wrap">
             <div class="battery-fill ok" id="battery-fill" style="width:0%"></div>
             <div class="battery-label">
               <span class="big" id="battery-hours">—</span>
-              <span class="sub" id="battery-target">/ 8h</span>
+              <span class="sub" id="battery-target">remaining</span>
             </div>
           </div>
         </div>
         <div>
           <div class="stats" id="battery-stats"></div>
-          <div class="sleep-timeline" id="sleep-timeline" title="Dark = awake/unknown · blue = asleep"></div>
+          <div class="sleep-timeline" id="sleep-timeline" title="Awake window: last wake → bedtime (battery empty)"></div>
           <div class="row" style="justify-content:space-between;margin-top:0.25rem">
-            <span class="path" id="timeline-start">−24h</span>
-            <span class="path">now</span>
+            <span class="path" id="timeline-start">wake</span>
+            <span class="path" id="timeline-end">bedtime</span>
           </div>
-          <p class="sleep-meta" id="battery-summary">Loading sleep window…</p>
+          <p class="sleep-meta" id="battery-summary">Loading sleep battery…</p>
           <p class="path" id="battery-source"></p>
         </div>
       </div>
@@ -756,38 +759,57 @@
     function renderSleepBattery(b) {
       if (!b) {
         $("battery-hours").textContent = "—";
+        $("battery-target").textContent = "remaining";
         $("battery-summary").textContent = "No sleep battery data — Sync sleep from Google Health.";
         $("battery-fill").style.width = "0%";
         $("sleep-timeline").innerHTML = "";
         return;
       }
-      const h = Number(b.asleep_hours) || 0;
-      const tgt = Number(b.target_hours) || 8;
-      const pct = Math.min(100, Math.max(0, Number(b.pct_of_target) || 0));
+      const pct = Math.min(100, Math.max(0, Number(b.pct_charged ?? b.pct_of_target) || 0));
       const level = b.level || "ok";
-      $("battery-hours").textContent = `${h.toFixed(1)}h`;
-      $("battery-target").textContent = `/ ${tgt}h`;
+      const mode = b.mode || "awake";
+      const awakeBudget = Number(b.awake_budget_hours) || 16;
+      const hoursAwake = Number(b.hours_awake) || 0;
+      const untilEmpty = Number(b.hours_until_empty) || 0;
+      const sleepTgt = Number(b.sleep_target_hours || b.target_hours) || 8;
+      const bedtimeLabel = b.empty_at ? fmtWhen(b.empty_at) : "—";
+
+      $("battery-hours").textContent = `${pct.toFixed(0)}%`;
+      if (mode === "sleeping") {
+        $("battery-target").textContent = "charging";
+      } else if (pct <= 0) {
+        $("battery-target").textContent = "empty · sleep";
+      } else {
+        $("battery-target").textContent = "remaining";
+      }
       const fill = $("battery-fill");
       fill.style.width = `${pct}%`;
       fill.style.height = "100%";
       fill.className = `battery-fill ${escapeAttr(level)}`;
+
       $("battery-stats").innerHTML = `
-        <div class="stat"><div class="label">In window</div><div class="value">${h.toFixed(1)}h</div></div>
-        <div class="stat"><div class="label">Target</div><div class="value">${tgt}h</div></div>
-        <div class="stat"><div class="label">Charge</div><div class="value">${pct.toFixed(0)}%</div></div>
-        <div class="stat" title="How much current sleep will exit the trailing 24h window during the next hour if you stay awake">
-          <div class="label">Leaving next hour</div>
-          <div class="value">${Number(b.discharge_next_hour_hours || 0).toFixed(1)}h</div>
+        <div class="stat" title="Remaining charge (100% at wake, 0% after ${awakeBudget}h awake)">
+          <div class="label">Charge</div><div class="value">${pct.toFixed(0)}%</div>
+        </div>
+        <div class="stat" title="Hours since last wake">
+          <div class="label">Awake</div><div class="value">${hoursAwake.toFixed(1)}h / ${awakeBudget}h</div>
+        </div>
+        <div class="stat" title="Wake budget left before battery hits 0% — go sleep then">
+          <div class="label">Until bedtime</div><div class="value">${untilEmpty.toFixed(1)}h</div>
+        </div>
+        <div class="stat" title="When the battery hits 0% (wake + ${awakeBudget}h)">
+          <div class="label">Bedtime</div><div class="value">${bedtimeLabel}</div>
         </div>
       `;
       $("battery-summary").textContent = b.summary || "";
       $("battery-source").textContent =
-        `source: ${b.data_source || "—"} · intervals stored: ${b.interval_count_stored ?? "—"}` +
-        (b.discharge_next_hour_hours > 0
-          ? ` · ~${Number(b.discharge_next_hour_hours).toFixed(1)}h of past sleep ages out of the 24h window in the next hour (battery discharges that much if you stay awake)`
-          : " · no sleep aging out of the window in the next hour");
+        `source: ${b.data_source || "—"} · full at wake → empty after ${awakeBudget}h awake (${sleepTgt}h sleep target)` +
+        (b.last_wake_at ? ` · woke ${fmtWhen(b.last_wake_at)}` : "") +
+        (b.last_sleep_hours != null ? ` · last cycle ${Number(b.last_sleep_hours).toFixed(1)}h` : "") +
+        (b.asleep_hours != null ? ` · ${Number(b.asleep_hours).toFixed(1)}h asleep last 24h` : "") +
+        ` · intervals: ${b.interval_count_stored ?? "—"}`;
 
-      // 24h timeline with sleep segments
+      // Timeline: awake window from last wake → empty_at (bedtime)
       const tl = $("sleep-timeline");
       tl.innerHTML = "";
       for (let i = 0; i <= 4; i++) {
@@ -796,24 +818,40 @@
         tick.style.left = `${(i / 4) * 100}%`;
         tl.appendChild(tick);
       }
-      const wStart = b.window_start ? new Date(b.window_start).getTime() : 0;
-      const wEnd = b.window_end ? new Date(b.window_end).getTime() : 1;
-      const span = Math.max(1, wEnd - wStart);
-      (b.segments_in_window || []).forEach((seg) => {
-        const s = new Date(seg.start).getTime();
-        const e = new Date(seg.end).getTime();
-        const left = ((s - wStart) / span) * 100;
-        const width = Math.max(0.4, ((e - s) / span) * 100);
-        const el = document.createElement("div");
-        el.className = "seg";
-        el.style.left = `${left}%`;
-        el.style.width = `${width}%`;
-        el.title = `${seg.hours}h asleep`;
-        tl.appendChild(el);
-      });
-      $("timeline-start").textContent = b.window_start
-        ? fmtWhen(b.window_start)
-        : "−24h";
+      const wakeMs = b.last_wake_at ? new Date(b.last_wake_at).getTime() : 0;
+      const emptyMs = b.empty_at
+        ? new Date(b.empty_at).getTime()
+        : (wakeMs ? wakeMs + awakeBudget * 3600000 : 1);
+      const nowMs = Date.now();
+      const span = Math.max(1, emptyMs - wakeMs);
+      // Remaining charge as a bar from left (drains left→right toward bedtime)
+      const remEl = document.createElement("div");
+      remEl.className = "seg";
+      remEl.style.left = "0%";
+      remEl.style.width = `${pct}%`;
+      remEl.style.opacity = "0.85";
+      remEl.title = `${pct.toFixed(0)}% remaining · ${untilEmpty.toFixed(1)}h until bedtime`;
+      tl.appendChild(remEl);
+      // Now marker
+      if (wakeMs && nowMs >= wakeMs && nowMs <= emptyMs + 3600000) {
+        const nowLeft = Math.min(100, Math.max(0, ((nowMs - wakeMs) / span) * 100));
+        const nowMark = document.createElement("div");
+        nowMark.className = "tick";
+        nowMark.style.left = `${nowLeft}%`;
+        nowMark.style.background = "var(--red)";
+        nowMark.style.width = "2px";
+        nowMark.title = "now";
+        tl.appendChild(nowMark);
+      }
+      $("timeline-start").textContent = b.last_wake_at
+        ? `wake ${fmtWhen(b.last_wake_at)}`
+        : "wake";
+      const endEl = $("timeline-end");
+      if (endEl) {
+        endEl.textContent = b.empty_at
+          ? `bedtime ${fmtWhen(b.empty_at)}`
+          : `bedtime (+${awakeBudget}h)`;
+      }
     }
 
     /** Progress toward planned total: actual / planned (0–100+, over if actual > planned). */

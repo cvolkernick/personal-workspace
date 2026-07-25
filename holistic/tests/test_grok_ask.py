@@ -22,7 +22,14 @@ class GrokAskContextTests(unittest.TestCase):
     def test_build_time_context_includes_core_slices(self) -> None:
         payload = {
             "path": "/tmp/tasks.json",
-            "sleep_battery": {"asleep_hours": 7.5, "target_hours": 8, "summary": "ok"},
+            "sleep_battery": {
+                "asleep_hours": 7.5,
+                "target_hours": 8,
+                "pct_charged": 62.5,
+                "hours_until_empty": 10.0,
+                "model": "wake_full_drain_awake",
+                "summary": "ok",
+            },
             "lyft_duty": {"driven_minutes": 120, "remaining_drive_minutes": 600},
             "plan": {"blocks": [{"id": "lyft", "title": "Lyft", "minutes": 600, "role": "fill"}]},
             "plan_recommended": {"blocks": [{"id": "sleep", "minutes": 480, "role": "reserve"}]},
@@ -36,7 +43,9 @@ class GrokAskContextTests(unittest.TestCase):
             "logs": [{"date": "2026-07-20", "target_id": "duchess-walk", "value": 30}],
         }
         ctx = build_time_context(payload)
-        self.assertEqual(ctx["sleep_battery"]["asleep_hours"], 7.5)
+        self.assertEqual(ctx["sleep_battery"]["asleep_hours_24h"], 7.5)
+        self.assertEqual(ctx["sleep_battery"]["pct_charged"], 62.5)
+        self.assertEqual(ctx["sleep_battery"]["model"], "wake_full_drain_awake")
         self.assertEqual(ctx["lyft_duty"]["driven_minutes"], 120)
         self.assertEqual(ctx["plan_remaining"]["blocks"][0]["id"], "lyft")
         self.assertEqual(ctx["recent_logs"][0]["value"], 30)

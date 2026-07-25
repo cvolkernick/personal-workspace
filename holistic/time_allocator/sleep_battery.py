@@ -1,22 +1,19 @@
-"""Rolling 24h sleep battery: hours asleep in [now − 24h, now].
+"""Sleep battery: full at wake, drains over awake period until next sleep.
 
-Unlike a calendar-day total (binary-ish “did I sleep last night?”), this
-intersects real sleep intervals with a moving window so:
+Concept (aligned with 8h sleep / 16h wake for a 24h day):
+  - Battery is **100% full** at the *end* of the last logged sleep cycle (wake).
+  - It **drains linearly** over ``awake_hours`` (default 16h = 24 − 8 sleep target).
+  - At 0% you are due to sleep and recharge.
+  - Helps maintain a rhythm consistent with a rolling 7-day ~8h sleep average.
 
-  - new sleep *charges* the battery while (and after) you sleep
-  - as the window’s trailing edge advances past old sleep, those hours
-    *discharge* one continuous second at a time (practically: recompute at now)
-
-Example: slept 22:00→06:00. At 18:00 the same day the full 8h is still inside
-the window. After 22:00 the next evening, hours start falling off (by 23:00
-only 7h remain from that night).
+Still reports hours-asleep-in-last-24h as a secondary metric for KPIs/context.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 
 def _parse_dt(value: str | datetime | None) -> datetime | None:
@@ -57,7 +54,6 @@ def normalize_intervals(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]
         en = _parse_dt(row.get("end") or row.get("endTime"))
         if not st or not en or en <= st:
             continue
-        # Cap absurd intervals (>24h single segment)
         if (en - st).total_seconds() > 36 * 3600:
             continue
         out.append(
@@ -67,7 +63,6 @@ def normalize_intervals(raw: list[dict[str, Any]] | None) -> list[dict[str, Any]
                 "source": str(row.get("source") or "unknown"),
             }
         )
-    # Merge duplicates by start/end
     seen: set[tuple[str, str]] = set()
     uniq: list[dict[str, Any]] = []
     for r in sorted(out, key=lambda x: x["start"]):
@@ -88,7 +83,7 @@ def intervals_from_daily_logs(
 ) -> list[dict[str, Any]]:
     """Approximate intervals when only per-day hour totals exist.
 
-    Places each night ending at `assume_wake_local_hour` local and extending
+    Places each night ending at ``assume_wake_local_hour`` local and extending
     backward by the logged hours. Prefer real Google intervals when available.
     """
     tz = tz or datetime.now().astimezone().tzinfo or timezone.utc
@@ -106,7 +101,6 @@ def intervals_from_daily_logs(
             y, m, d = int(day[0:4]), int(day[5:7]), int(day[8:10])
         except ValueError:
             continue
-        # Wake at assume_wake on that calendar date (local)
         wake = datetime(y, m, d, assume_wake_local_hour, 0, 0, tzinfo=tz)
         start = wake - timedelta(hours=hours)
         out.append(
@@ -119,24 +113,69 @@ def intervals_from_daily_logs(
     return normalize_intervals(out)
 
 
-def compute_sleep_battery(
+def _latest_completed_sleep(
+    intervals: list[dict[str, Any]],
+    now: datetime,
+) -> dict[str, Any] | None:
+    """Most recent sleep segment that has already ended (wake time ≤ now)."""
+    best = None
+    best_end: datetime | None = None
+    for row in normalize_intervals(intervals):
+        st = _parse_dt(row["start"])
+        en = _parse_dt(row["end"])
+        if not st or not en:
+            continue
+        en_local = en.astimezone(now.tzinfo) if en.tzinfo else en
+        if en_local > now:
+            # Still asleep — treat "now" as provisional end only if started already
+            if st.astimezone(now.tzinfo) <= now:
+                # actively sleeping: charge toward full; wake not yet
+                continue
+            continue
+        if best_end is None or en_local > best_end:
+            best_end = en_local
+            best = {
+                "start": st,
+                "end": en_local,
+                "hours": (en_local - st.astimezone(now.tzinfo)).total_seconds() / 3600.0,
+                "source": row.get("source"),
+            }
+    return best
+
+
+def _active_sleep(
+    intervals: list[dict[str, Any]],
+    now: datetime,
+) -> dict[str, Any] | None:
+    """Sleep interval containing now (currently asleep)."""
+    for row in normalize_intervals(intervals):
+        st = _parse_dt(row["start"])
+        en = _parse_dt(row["end"])
+        if not st or not en:
+            continue
+        st_l = st.astimezone(now.tzinfo)
+        en_l = en.astimezone(now.tzinfo)
+        if st_l <= now <= en_l:
+            return {
+                "start": st_l,
+                "end": en_l,
+                "hours_so_far": (now - st_l).total_seconds() / 3600.0,
+                "planned_hours": (en_l - st_l).total_seconds() / 3600.0,
+                "source": row.get("source"),
+            }
+    return None
+
+
+def hours_asleep_in_window(
     intervals: list[dict[str, Any]] | None,
     *,
-    now: datetime | None = None,
+    now: datetime,
     window_hours: float = 24.0,
-    target_hours: float = 8.0,
-) -> dict[str, Any]:
-    """Hours asleep inside the trailing window [now − window, now]."""
-    if now is None:
-        now = datetime.now(timezone.utc).astimezone()
-    elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc).astimezone()
-
+) -> tuple[float, list[dict[str, Any]]]:
+    """Secondary metric: hours asleep in trailing window."""
     window = max(0.1, float(window_hours))
-    target = max(0.1, float(target_hours))
     win_start = now - timedelta(hours=window)
     win_end = now
-
     segs: list[dict[str, Any]] = []
     total_sec = 0.0
     for row in normalize_intervals(intervals):
@@ -144,7 +183,6 @@ def compute_sleep_battery(
         en = _parse_dt(row["end"])
         if not st or not en:
             continue
-        # Clip open-ended future sleep at "now" (still asleep)
         if en > win_end:
             en = win_end
         if st >= win_end or en <= win_start:
@@ -161,43 +199,153 @@ def compute_sleep_battery(
                 "source": row.get("source"),
             }
         )
+    return total_sec / 3600.0, segs
 
-    hours = total_sec / 3600.0
-    pct = min(100.0, (hours / target) * 100.0)
-    # Discharge rate if no more sleep: hours leave as window moves (max 1h/h)
-    # Estimate hours that will leave in the next hour (overlap of intervals with
-    # [win_start, win_start+1h)).
-    leave_sec = 0.0
-    leave_end = win_start + timedelta(hours=1)
-    for row in normalize_intervals(intervals):
-        st = _parse_dt(row["start"])
-        en = _parse_dt(row["end"])
-        if not st or not en:
-            continue
-        leave_sec += _overlap_seconds(st, en, win_start, leave_end)
-    discharge_next_hour = leave_sec / 3600.0
 
-    level = "critical" if hours < target * 0.5 else (
-        "low" if hours < target * 0.75 else (
-            "ok" if hours < target else "full"
-        )
+def compute_sleep_battery(
+    intervals: list[dict[str, Any]] | None,
+    *,
+    now: datetime | None = None,
+    sleep_target_hours: float = 8.0,
+    awake_hours: float | None = None,
+    window_hours: float = 24.0,
+    target_hours: float | None = None,  # alias for sleep_target_hours (compat)
+) -> dict[str, Any]:
+    """Wake-full / drain-over-awake battery.
+
+    pct_charged: 100% at last wake, 0% after ``awake_hours`` (default 16 =
+    24 − sleep_target).
+    """
+    if now is None:
+        now = datetime.now(timezone.utc).astimezone()
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc).astimezone()
+
+    if target_hours is not None:
+        sleep_target_hours = float(target_hours)
+    sleep_target = max(0.5, float(sleep_target_hours))
+    # Default awake budget = rest of the day for 24h rhythm
+    if awake_hours is None:
+        awake_hours = max(1.0, 24.0 - sleep_target)
+    else:
+        awake_hours = max(1.0, float(awake_hours))
+
+    intervals_n = normalize_intervals(intervals)
+    asleep_24h, segs = hours_asleep_in_window(
+        intervals_n, now=now, window_hours=window_hours
     )
 
+    active = _active_sleep(intervals_n, now)
+    last = _latest_completed_sleep(intervals_n, now)
+
+    # Timeline for UI: from last wake (or now-awake) across awake period
+    mode = "no_data"
+    last_wake_at: datetime | None = None
+    last_sleep_hours: float | None = None
+    hours_awake = 0.0
+    hours_until_empty = awake_hours
+    pct = 0.0
+    level = "critical"
+    summary = "No sleep intervals — sync Google Health or log sleep"
+
+    if active is not None:
+        # Currently asleep: battery recharging toward full at planned wake
+        mode = "sleeping"
+        so_far = float(active["hours_so_far"])
+        planned = max(0.1, float(active["planned_hours"]))
+        # Charge: 0% at sleep start → 100% at wake (or high if oversleeping)
+        charge = min(100.0, (so_far / planned) * 100.0)
+        # While sleeping show charge progress (inverse of drain metaphor for UI fill)
+        pct = charge
+        level = "full" if charge >= 90 else ("ok" if charge >= 50 else "low")
+        last_wake_at = active["end"]  # expected wake
+        last_sleep_hours = so_far
+        hours_awake = 0.0
+        hours_until_empty = awake_hours
+        summary = (
+            f"Sleeping — recharging ({so_far:.1f}h so far). "
+            f"Battery full at wake (~{active['end'].strftime('%H:%M')})."
+        )
+    elif last is not None:
+        mode = "awake"
+        last_wake_at = last["end"]
+        last_sleep_hours = float(last["hours"])
+        hours_awake = max(0.0, (now - last_wake_at).total_seconds() / 3600.0)
+        # Linear drain: full at wake, empty after awake_hours
+        remaining_frac = 1.0 - (hours_awake / awake_hours)
+        pct = max(0.0, min(100.0, remaining_frac * 100.0))
+        hours_until_empty = max(0.0, awake_hours - hours_awake)
+        if pct <= 0:
+            level = "critical"
+            summary = (
+                f"Battery empty — {hours_awake:.1f}h awake since wake "
+                f"({last_wake_at.strftime('%a %H:%M')}). Time to sleep and recharge "
+                f"(~{sleep_target:g}h target for 7d avg)."
+            )
+        elif pct < 25:
+            level = "critical"
+            summary = (
+                f"Battery low ({pct:.0f}%) — {hours_until_empty:.1f}h until empty. "
+                f"Plan bedtime soon (woke {last_wake_at.strftime('%H:%M')}, "
+                f"last sleep {last_sleep_hours:.1f}h)."
+            )
+        elif pct < 50:
+            level = "low"
+            summary = (
+                f"Battery {pct:.0f}% — {hours_awake:.1f}h awake, "
+                f"{hours_until_empty:.1f}h of wake budget left "
+                f"(16h awake for 8h sleep rhythm)."
+            )
+        elif pct < 85:
+            level = "ok"
+            summary = (
+                f"Battery {pct:.0f}% — {hours_awake:.1f}h since wake "
+                f"({last_wake_at.strftime('%H:%M')}). "
+                f"~{hours_until_empty:.1f}h until drained."
+            )
+        else:
+            level = "full"
+            summary = (
+                f"Battery full ({pct:.0f}%) — recently woke "
+                f"({last_wake_at.strftime('%H:%M')}, slept {last_sleep_hours:.1f}h). "
+                f"Drains over the next {awake_hours:g}h awake."
+            )
+    # else no_data defaults above
+
+    # Drain rate for UI: % lost per hour while awake
+    drain_pct_per_hour = 100.0 / awake_hours if awake_hours else 0.0
+
+    win_start = now - timedelta(hours=window_hours)
     return {
-        "window_hours": window,
-        "window_start": win_start.isoformat(timespec="seconds"),
-        "window_end": win_end.isoformat(timespec="seconds"),
-        "asleep_hours": round(hours, 2),
-        "asleep_minutes": int(round(total_sec / 60.0)),
-        "target_hours": target,
-        "pct_of_target": round(pct, 1),
+        "model": "wake_full_drain_awake",
+        "mode": mode,
+        "awake_budget_hours": round(awake_hours, 2),
+        "sleep_target_hours": round(sleep_target, 2),
+        # Primary battery charge (what the fill bar shows)
+        "pct_charged": round(pct, 1),
+        "pct_of_target": round(pct, 1),  # UI compat: fill uses this field
         "level": level,
-        "segments_in_window": segs,
-        "discharge_next_hour_hours": round(discharge_next_hour, 2),
-        "summary": (
-            f"{hours:.1f}h asleep in last {window:g}h "
-            f"(target {target:g}h · {pct:.0f}%)"
+        "hours_awake": round(hours_awake, 2),
+        "hours_until_empty": round(hours_until_empty, 2),
+        "drain_pct_per_hour": round(drain_pct_per_hour, 2),
+        "last_wake_at": last_wake_at.isoformat(timespec="seconds") if last_wake_at else None,
+        "last_sleep_hours": round(last_sleep_hours, 2) if last_sleep_hours is not None else None,
+        "empty_at": (
+            (last_wake_at + timedelta(hours=awake_hours)).isoformat(timespec="seconds")
+            if last_wake_at and mode == "awake"
+            else None
         ),
+        # Secondary: trailing window sleep (for context / 7d alignment messaging)
+        "asleep_hours": round(asleep_24h, 2),
+        "asleep_minutes": int(round(asleep_24h * 60)),
+        "target_hours": round(sleep_target, 2),
+        "window_hours": window_hours,
+        "window_start": win_start.isoformat(timespec="seconds"),
+        "window_end": now.isoformat(timespec="seconds"),
+        "segments_in_window": segs,
+        # Compat: hours of awake budget consumed per clock hour while awake
+        "discharge_next_hour_hours": 1.0 if mode == "awake" else 0.0,
+        "summary": summary,
     }
 
 
@@ -215,7 +363,6 @@ def sleep_battery_for_state(
         intervals = intervals_from_daily_logs(list(state.get("logs") or []))
         source = "daily_log_approx" if intervals else "none"
 
-    # Target from sleep rolling_avg target if present
     if target_hours is None:
         target_hours = 8.0
         for t in state.get("targets") or []:
@@ -226,8 +373,21 @@ def sleep_battery_for_state(
                     pass
                 break
 
+    # Allow target-level override for awake budget
+    awake = None
+    for t in state.get("targets") or []:
+        if str(t.get("id")) == "sleep" and t.get("awake_hours") is not None:
+            try:
+                awake = float(t["awake_hours"])
+            except (TypeError, ValueError):
+                pass
+            break
+
     battery = compute_sleep_battery(
-        intervals, now=now, window_hours=24.0, target_hours=float(target_hours)
+        intervals,
+        now=now,
+        sleep_target_hours=float(target_hours),
+        awake_hours=awake,
     )
     battery["data_source"] = source
     battery["interval_count_stored"] = len(state.get("sleep_intervals") or [])

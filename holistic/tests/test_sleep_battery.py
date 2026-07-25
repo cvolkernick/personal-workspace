@@ -1,4 +1,4 @@
-"""Rolling 24h sleep battery tests."""
+"""Wake-full / 16h-drain sleep battery tests."""
 
 from __future__ import annotations
 
@@ -18,47 +18,59 @@ from holistic.time_allocator.sleep_battery import (  # noqa: E402
 
 
 class SleepBatteryTests(unittest.TestCase):
-    def test_full_night_still_in_window_at_evening(self) -> None:
-        # Slept 22:00 day0 → 06:00 day1. At 18:00 day1, full 8h still in last 24h.
+    def test_full_at_wake(self) -> None:
         tz = timezone(timedelta(hours=-4))
-        day0 = datetime(2026, 7, 17, 22, 0, tzinfo=tz)
-        day1_wake = datetime(2026, 7, 18, 6, 0, tzinfo=tz)
-        now = datetime(2026, 7, 18, 18, 0, tzinfo=tz)
+        wake = datetime(2026, 7, 18, 6, 0, tzinfo=tz)
         intervals = [
-            {"start": day0.isoformat(), "end": day1_wake.isoformat(), "source": "test"}
+            {
+                "start": datetime(2026, 7, 17, 22, 0, tzinfo=tz).isoformat(),
+                "end": wake.isoformat(),
+                "source": "test",
+            }
         ]
-        bat = compute_sleep_battery(intervals, now=now, target_hours=8.0)
-        self.assertAlmostEqual(bat["asleep_hours"], 8.0, places=2)
+        # Just after wake
+        bat = compute_sleep_battery(
+            intervals, now=wake + timedelta(minutes=5), sleep_target_hours=8.0
+        )
+        self.assertEqual(bat["model"], "wake_full_drain_awake")
+        self.assertEqual(bat["mode"], "awake")
+        self.assertGreaterEqual(bat["pct_charged"], 99.0)
         self.assertEqual(bat["level"], "full")
+        self.assertAlmostEqual(bat["awake_budget_hours"], 16.0)
 
-    def test_hours_discharge_after_trailing_edge_passes_onset(self) -> None:
-        # Same night; at 23:00 day1 (1h after 22:00), 1h has left the window → 7h left.
+    def test_half_after_eight_hours_awake(self) -> None:
         tz = timezone(timedelta(hours=-4))
+        wake = datetime(2026, 7, 18, 6, 0, tzinfo=tz)
         intervals = [
             {
-                "start": datetime(2026, 7, 17, 22, 0, tzinfo=tz).isoformat(),
-                "end": datetime(2026, 7, 18, 6, 0, tzinfo=tz).isoformat(),
+                "start": (wake - timedelta(hours=8)).isoformat(),
+                "end": wake.isoformat(),
                 "source": "test",
             }
         ]
-        now = datetime(2026, 7, 18, 23, 0, tzinfo=tz)
-        bat = compute_sleep_battery(intervals, now=now, target_hours=8.0)
-        self.assertAlmostEqual(bat["asleep_hours"], 7.0, places=2)
-        self.assertGreater(bat["discharge_next_hour_hours"], 0.9)
+        bat = compute_sleep_battery(
+            intervals, now=wake + timedelta(hours=8), sleep_target_hours=8.0
+        )
+        self.assertAlmostEqual(bat["hours_awake"], 8.0, places=2)
+        self.assertAlmostEqual(bat["pct_charged"], 50.0, places=0)
+        self.assertAlmostEqual(bat["hours_until_empty"], 8.0, places=1)
 
-    def test_mid_window_partial(self) -> None:
-        # At 02:00 during sleep 22:00–06:00 → 4h so far in window
+    def test_empty_after_sixteen_hours_awake(self) -> None:
         tz = timezone(timedelta(hours=-4))
+        wake = datetime(2026, 7, 18, 6, 0, tzinfo=tz)
         intervals = [
             {
-                "start": datetime(2026, 7, 17, 22, 0, tzinfo=tz).isoformat(),
-                "end": datetime(2026, 7, 18, 6, 0, tzinfo=tz).isoformat(),
+                "start": (wake - timedelta(hours=8)).isoformat(),
+                "end": wake.isoformat(),
                 "source": "test",
             }
         ]
-        now = datetime(2026, 7, 18, 2, 0, tzinfo=tz)
-        bat = compute_sleep_battery(intervals, now=now, target_hours=8.0)
-        self.assertAlmostEqual(bat["asleep_hours"], 4.0, places=2)
+        bat = compute_sleep_battery(
+            intervals, now=wake + timedelta(hours=16), sleep_target_hours=8.0
+        )
+        self.assertAlmostEqual(bat["pct_charged"], 0.0, places=1)
+        self.assertEqual(bat["level"], "critical")
+        self.assertAlmostEqual(bat["hours_until_empty"], 0.0, places=1)
 
     def test_state_fallback_daily_logs(self) -> None:
         state = {
@@ -70,7 +82,8 @@ class SleepBatteryTests(unittest.TestCase):
             state, now=datetime(2026, 7, 18, 12, 0, tzinfo=timezone(timedelta(hours=-4)))
         )
         self.assertEqual(bat["data_source"], "daily_log_approx")
-        self.assertGreater(bat["asleep_hours"], 0)
+        self.assertEqual(bat["mode"], "awake")
+        self.assertGreater(bat["pct_charged"], 0)
 
 
 if __name__ == "__main__":

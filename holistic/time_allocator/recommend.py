@@ -193,18 +193,20 @@ def recommend_next(
             if not any(s.get("id") == "lyft-update" for s in suggestions):
                 suggestions.insert(0, stale_item)
 
-    # 2) Sleep battery (rolling 24h hours asleep) + 7d KPI
+    # 2) Sleep battery (full at wake, drains over ~16h awake) + 7d KPI
     battery = sleep_battery_for_state(state, now=now)
-    asleep = float(battery.get("asleep_hours") or 0)
-    target_h = float(battery.get("target_hours") or 8)
+    pct = float(battery.get("pct_charged") or battery.get("pct_of_target") or 0)
+    until_empty = float(battery.get("hours_until_empty") or 0)
+    target_h = float(battery.get("sleep_target_hours") or battery.get("target_hours") or 8)
     if battery.get("data_source") == "none" or (
-        battery.get("interval_count_stored", 0) == 0 and battery.get("data_source") != "daily_log_approx"
+        battery.get("interval_count_stored", 0) == 0
+        and battery.get("data_source") != "daily_log_approx"
     ):
         suggestions.append(
             {
                 "id": "sleep-log",
                 "title": "Sync sleep intervals (Google Health)",
-                "reason": "No timed sleep data for the rolling 24h battery",
+                "reason": "No sleep cycle data for the wake/drain battery",
                 "priority": 10,
                 "minutes": 2,
                 "role": "meta",
@@ -212,17 +214,18 @@ def recommend_next(
                 "urgency": "high",
             }
         )
-    elif asleep < target_h * 0.75:
+    elif battery.get("mode") == "awake" and (pct <= 25 or until_empty <= 3):
         suggestions.append(
             {
                 "id": "sleep-protect",
                 "title": "Protect sleep — battery low",
                 "reason": (
-                    f"Only {asleep:.1f}h asleep in the last 24h "
-                    f"(target {target_h:g}h). Older sleep falls off the window as time passes."
+                    f"Sleep battery at {pct:.0f}% "
+                    f"({until_empty:.1f}h of wake budget left). "
+                    f"Plan ~{target_h:g}h sleep to recharge and support the 7d average."
                 ),
                 "priority": 10,
-                "minutes": int(max(0, (target_h - asleep) * 60)),
+                "minutes": int(target_h * 60),
                 "role": "reserve",
                 "source": "sleep_battery",
                 "urgency": "high",
@@ -230,7 +233,7 @@ def recommend_next(
         )
 
     sleep = kpis.get("sleep")
-    if sleep is not None and sleep.get("on_track") is False and asleep >= target_h * 0.75:
+    if sleep is not None and sleep.get("on_track") is False and pct > 25:
         suggestions.append(
             {
                 "id": "sleep-7d",
