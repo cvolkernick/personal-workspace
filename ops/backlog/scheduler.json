@@ -2,6 +2,7 @@
   "version": 1,
   "enabled": true,
   "backend": "local",
+  "execution_mode": "auto",
   "cron_expression": "*/15 * * * *",
   "max_per_tick": 1,
   "max_concurrent": 1,
@@ -14,14 +15,20 @@
   ],
   "require_auto_start": true,
   "auto_queue_scheduled": true,
+  "auto_claim_on_load": true,
+  "auto_claim_max": 1,
+  "prefer_agent_on_server": true,
   "spawn_grok": true,
   "install_marker": "projects-dashboard-scheduler",
+  "raspi_ssh": "",
+  "raspi_dir": "",
   "last_tick_at": "2026-07-20T02:45:00.662033+00:00",
   "last_tick_result": {
     "launched_count": 0,
     "errors": 0,
     "reconciled": 1
   },
-  "updated_at": "2026-07-20T02:45:00.664313+00:00",
+  "last_dashboard_load_at": "2026-07-25T06:25:00.971427+00:00",
+  "updated_at": "2026-07-25T06:25:00.971439+00:00",
   "cron_installed_at": "2026-07-19T21:07:04.507269+00:00"
 }

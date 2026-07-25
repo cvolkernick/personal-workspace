@@ -2,100 +2,100 @@
 
 - **Backlog id:** `6b74d2ca-d0ca-4c87-8c6c-60777e099a88`
 - **Priority:** medium
-- **Status:** done (MVP usable)
+- **Status:** done (MVP shipped)
 - **Area:** business
 - **Created:** 2026-07-17T06:18:43.331881+00:00
-- **Initiated:** 2026-07-20T01:38:46.252801+00:00
+- **Initiated:** 2026-07-25T06:00:34.245301+00:00
+- **Completed (MVP):** 2026-07-25
 
 ## Problem / intent
 
-Panamerica Auto (automotive sales, service, and import business) lacks a professional public web presence. A clean, fast-loading site is needed to:
-
-- Present high-level services to potential customers and partners.
-- Establish credibility with clear value props and contact info.
-- Serve as the foundation for future expansion into a full platform (inventory, scheduling).
-
-**MVP intent:** deliver a self-contained, professional static website under `business/` that highlights core services and is immediately viewable via simple local server or file:// .
-
-Long-term vision (post-MVP): inventory browser, online booking, lead capture, real backend.
+Panamerica Auto needs a public-facing web presence that introduces the brand and its core automotive offerings. Prospects (retail buyers, small businesses, fleet operators) currently have no single place to scan services and start an inquiry. The longer-term “platform” idea (inventory, accounts, ops tooling) is out of scope for this pass; the goal is a credible, runnable **marketing site** that presents high-level services and a local contact path.
 
 ## Users
 
-- Primary: prospective customers (retail buyers, small fleets) researching vehicle purchases, maintenance, or imports.
-- Secondary: business partners, suppliers, and the owner/staff who share the site for quick capability overviews.
-- Tertiary (future): web visitors arriving via search or referrals.
+| Persona | Need from MVP |
+|---------|----------------|
+| Retail vehicle buyer | Understand sales / inspection / financing options; send an inquiry |
+| Service customer | See maintenance/repair positioning; contact for service |
+| Small business / fleet contact | See fleet support & parts; request a quote |
+| Site owner (operator) | Local preview + clear next steps to productionize |
 
 ## Success criteria
 
-- [x] Spec written (this file refined with problem, users, success criteria, non-goals, MVP scope, file layout, risks)
-- [x] MVP implemented and runnable: self-contained `business/index.html` + README
-- [x] Primary sections (hero + services) render correctly; site name + service descriptions present
-- [x] Documented launch entry point runs cleanly (twice); HTTP fetches confirm content
-- [x] Minimal tests read the real shipped HTML from disk and assert key content
-- [x] All durable changes (seed + site) performed on `work/business` via git_workflow start + protect/sync; pushed
-- [x] Seed updated to mark MVP usable + explicit next-iteration steps
+- [x] Spec written (this file refined — problem, users, success, non-goals, MVP, layout, risks)
+- [x] MVP implemented under `business/panamerica-auto/`: brand **Panamerica Auto** + multi-service section
+- [x] In-repo structural tests pass against real shipped HTML/assets
+- [x] Local server serves home page with brand + services content
+- [x] Changes on `work/business`, committed and pushed via git_workflow
+- [x] Next-iteration steps documented (seed + README)
 
 ## Non-goals
 
-- Backend, database, auth, contact form processing/submission, booking, inventory system, or e-commerce.
-- Multi-page SPA/router, external build tooling (webpack/vite), heavy frameworks, or external asset fetches.
-- Hosting, custom domain, SEO, analytics, deployment pipelines, or production optimization.
-- Worktree setup or changes to workspace.py / launch.py maps.
-- Responsive design polish beyond basic mobile-friendly, or rich visuals (keep to inline styles + minimal).
-- Full interactive demos or live user testing.
+- Full multi-user platform, auth, CMS, inventory DB, or live payments
+- Real email/CRM contact delivery (client-side validation + local confirmation only)
+- Multi-language SEO suite, multi-location pages, production deploy/hosting pipeline
+- Premature design-system polish or custom brand photography beyond a clean readable page
+- Work outside `business/` and backlog seed/status paths
 
 ## MVP scope
 
-1. Self-contained `business/index.html` (inline CSS, no external script/module src, works from file:// and any static server).
-2. Professional header/hero introducing Panamerica Auto.
-3. High-level services section featuring 4+ offerings (e.g. New & Pre-owned Sales, Maintenance & Repair, Import & Logistics, Parts & Accessories).
-4. Short about blurb + contact stub (phone/email/location placeholder).
-5. `business/README.md` documenting launch, structure, and services.
-6. Minimal `business/start.command` (or documented `python -m http.server`).
-7. One or more tests (business/tests/) that directly read the committed index.html and assert name + service text presence (drive real artifact).
-8. Git workflow: start business, protect/sync after units; commits land on work/business.
+**In:**
+
+- Single-page static site for **Panamerica Auto**
+- High-level services (assumed auto-business offerings for MVP when none were specified):
+  1. Vehicle sales  
+  2. Service & maintenance  
+  3. Parts supply  
+  4. Fleet support  
+  5. Financing guidance  
+  6. Inspections & prep  
+- Nav + sections: Services, Why us, How it works, Contact
+- Contact form with client-side validation (no backend)
+- Tiny local HTTP server (`server.py`) + README run/verify docs
+- Unittest structural checks on real files
+
+**Out:** inventory listings, booking calendar, payments, CMS, multi-page SEO.
 
 ## File layout
 
 ```
-business/
-  index.html            # self-contained static site (hero, services, about, contact)
-  README.md             # how to run, services list, next steps
-  start.command         # convenience launcher (optional thin wrapper)
+business/panamerica-auto/
+  index.html          # Single-page site (brand + services + contact)
+  server.py           # Local static file server (stdlib)
+  static/
+    styles.css
+    app.js            # Nav toggle + contact form validation
   tests/
-    test_site.py        # reads ../index.html from disk, asserts content
-```
+    __init__.py
+    test_site.py      # Structural content checks (real files)
+  README.md           # Run / verify / next iteration
 
-(Seed plan lives at `ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md`; no other files.)
+ops/backlog/seeds/
+  panamerica-auto-website-6b74d2ca.md   # This seed/spec
+```
 
 ## Risks
 
 | Risk | Mitigation |
 |------|------------|
-| Scope creep into "platform" features | Hard non-goals; only static HTML + thin launcher + tests. |
-| Mixed paths (seed in ops/, site in business/) cause git_workflow to switch branches | Start on work/business; use protect(ensure_work_branch=False) for the change commit so it lands on instructed branch; run CLI sync + restore branch if needed; capture outputs. |
-| Site looks empty or broken on launch | Self-contained; verification does direct file read + repeated server fetch + body contains checks. |
-| No real images / visual assets | Use text + CSS; inline SVGs or simple hero if needed. Avoid external URLs. |
-| Branch tracking after push | Always `git branch --show-current` + `git status -sb` before/after; assert work/business. |
-
-## Notes
-
-MVP is intentionally tiny: a professional one-page marketing site that can be opened instantly. All service descriptions are plain content testable by string presence in the shipped file.
-
-**MVP usable** — basic website is live under business/, launchable, tested, committed & pushed on work/business. Next iteration items below. Update backlog item status accordingly.
+| “Platform” wording vs basic-site MVP | Treat platform as aspirational; ship marketing MVP only |
+| No real business details (address, phone, inventory) | Use clear placeholders; list next-iteration capture items |
+| Agents.md TLD map omits `business/` → branch | Use OBJECTIVE branch `work/business` + git_workflow |
+| Contact form looks “live” but does not deliver | Copy states local-only; wire email/CRM later |
 
 ## Next iteration (post-MVP)
 
-Concrete follow-ups (pick in priority order):
-1. Add a visible "Request a Quote" or contact form that is at least a mailto: or static HTML form (no backend processing yet).
-2. Expand one service into a short detail section or modal with 3-4 bullet benefits (still static).
-3. Hard-code a "Featured Vehicles" teaser grid (3 sample listings with year/make/model/price).
-4. Add 1-2 inline SVG icons or a simple hero image (data URI) for visual interest without external files.
-5. Document + test a one-line deploy (e.g. GitHub Pages from /business or copy to docs/).
-6. Optional: make start.command also support --port and --no-browser like peers.
-7. Backlog grooming: move this card to "done" or create follow-up cards for inventory platform phase.
+1. Capture real contact info (phone, email, hours, location map)
+2. Wire contact form to email or CRM
+3. Sample inventory or featured vehicles page
+4. Hosting/deploy (static host + custom domain)
+5. Brand assets (logo, photos) and light SEO (OG tags, sitemap)
+6. Optional: Spanish/English if market needs multi-language
 
-Leave the site as the source of truth for the basic high-level services marketing site.
+## Notes
+
+- Prior disk state already had a usable MVP under `business/panamerica-auto/`; this goal re-verified, refined the seed, confirmed tests/server, and closed progress on `work/business`.
 
 ## Grok `/goal` objective
 

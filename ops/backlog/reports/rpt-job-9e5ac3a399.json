@@ -3,26 +3,15 @@
   "job_id": "job-9e5ac3a399",
   "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
   "title": "Panamerica Auto Website",
-  "status": "launched",
-  "summary": "Auto-started goal for \u201cPanamerica Auto Website\u201d. Backlog status \u2192 planning. Spawn: open -a Terminal \u2192 grok --cwd \u2026 \"$(cat prompt)\".",
+  "status": "completed",
+  "summary": "Job completed: backlog item marked done. Title: Panamerica Auto Website",
   "actions": [
-    "Selected by scheduler tick (auto_start + schedule/status filters)",
-    "Ran initiate_item (seed + /goal prompt + optional Terminal launch)",
-    "Seed: ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md",
-    "Prompt: ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt"
+    "Auto-started at 2026-07-20T01:38:46.261361+00:00",
+    "Completed at 2026-07-25T06:24:59.934245+00:00",
+    "Backlog status now: done"
   ],
-  "details": {
-    "objective_preview": "Backlog project: Panamerica Auto Website\n\nContext:\nCreate a business website / platform for Panamerica Auto\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: basic website",
-    "spawn": {
-      "attempted": true,
-      "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
-      "ok": true,
-      "method": "open -a Terminal \u2192 grok --cwd \u2026 \"$(cat prompt)\"",
-      "note": "New Terminal starts Grok with the backlog objective as /goal initial prompt"
-    }
-  },
-  "source": "scheduler-tick",
-  "created_at": "2026-07-20T01:38:46.261626+00:00",
-  "updated_at": "2026-07-20T01:38:46.261633+00:00",
+  "source": "scheduler-reconcile",
+  "created_at": "2026-07-25T06:24:59.934387+00:00",
+  "updated_at": "2026-07-25T06:24:59.934393+00:00",
   "path": "ops/backlog/reports/rpt-job-9e5ac3a399.json"
 }
