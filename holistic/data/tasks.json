@@ -196,8 +196,8 @@
     }
   ],
   "plan": {
-    "window_start": "2026-07-25T02:10:10-04:00",
-    "window_end": "2026-07-26T02:10:10-04:00",
+    "window_start": "2026-07-25T03:56:26-04:00",
+    "window_end": "2026-07-26T03:56:26-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -262,30 +262,51 @@
         "title": "Sleep (rolling 7-day avg \u2265 8h)",
         "kind": "rolling_avg",
         "priority": 10,
-        "on_track": true,
-        "summary": "9.47 hours avg over 4 day(s) (target \u2265 8)",
+        "on_track": false,
+        "summary": "5.41 hours avg over 7d (4 logged, 3 missing\u21920; target \u2265 8)",
         "detail": {
           "window_days": 7,
           "target": 8.0,
           "unit": "hours",
-          "samples": 4,
-          "average": 9.47,
+          "samples": 7,
+          "days_logged": 4,
+          "days_missing_as_zero": 3,
+          "average": 5.41,
           "days": [
             {
               "date": "2026-07-19",
-              "value": 4.32
+              "value": 4.32,
+              "logged": true
             },
             {
               "date": "2026-07-20",
-              "value": 9.5
+              "value": 9.5,
+              "logged": true
+            },
+            {
+              "date": "2026-07-21",
+              "value": 0.0,
+              "logged": false
             },
             {
               "date": "2026-07-22",
-              "value": 12.42
+              "value": 12.42,
+              "logged": true
+            },
+            {
+              "date": "2026-07-23",
+              "value": 0.0,
+              "logged": false
             },
             {
               "date": "2026-07-24",
-              "value": 11.65
+              "value": 11.65,
+              "logged": true
+            },
+            {
+              "date": "2026-07-25",
+              "value": 0.0,
+              "logged": false
             }
           ]
         }
