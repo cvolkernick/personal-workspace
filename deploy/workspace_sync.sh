@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Pull origin/master into the Pi monorepo clone and restart dashboard units when HEAD moves.
-# Intended for systemd timer on the always-on host.
+# Deploy clone: force worktree to match origin/master (local edits on Pi are not preserved).
 set -euo pipefail
 
 DIR="${WORKSPACE_DIR:-$HOME/personal-workspace}"
@@ -8,9 +8,8 @@ BRANCH="${SYNC_BRANCH:-master}"
 REMOTE="${SYNC_REMOTE:-origin}"
 LOG_TAG="workspace-sync"
 
-# Load GITHUB_TOKEN etc. for private HTTPS remotes
+# Load GITHUB_TOKEN etc. for private HTTPS remotes (never echo token)
 if [[ -f "${HOME}/.config/workflow-scheduler.env" ]]; then
-  # shellcheck disable=SC1091
   set -a
   # shellcheck disable=SC1090
   source "${HOME}/.config/workflow-scheduler.env"
@@ -26,37 +25,48 @@ if [[ ! -d .git ]]; then
   exit 1
 fi
 
-# Prefer authenticated remote when token present
-if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  AUTH_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/cvolkernick/personal-workspace.git"
-  git remote set-url "$REMOTE" "$AUTH_URL" 2>/dev/null || true
-fi
+# Keep origin URL free of credentials (token only via header)
+git remote set-url "$REMOTE" "https://github.com/cvolkernick/personal-workspace.git" 2>/dev/null || true
+
+git_auth() {
+  # Usage: git_auth fetch/reset/… — inject Authorization when token present
+  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+    git -c "http.extraHeader=Authorization: Bearer ${GITHUB_TOKEN}" "$@"
+  else
+    git "$@"
+  fi
+}
 
 BEFORE="$(git rev-parse HEAD 2>/dev/null || echo none)"
-
-# Drop local modifications that block pull (Pi is deploy target, not edit host)
-# Keep untracked data (iot/data etc.) — only stash tracked dirty.
-if ! git diff --quiet || ! git diff --cached --quiet; then
-  log "stashing local tracked changes before pull"
-  git stash push -m "workspace-sync auto $(date -u +%Y%m%dT%H%M%SZ)" --quiet || true
-fi
-
-# Detach from feature branches; track master
 CURRENT="$(git branch --show-current 2>/dev/null || true)"
-if [[ "$CURRENT" != "$BRANCH" ]]; then
-  log "checking out $BRANCH (was: ${CURRENT:-detached})"
-  git fetch "$REMOTE" "$BRANCH"
-  git checkout -B "$BRANCH" "$REMOTE/$BRANCH"
-else
-  git fetch "$REMOTE" "$BRANCH"
-  git merge --ff-only "$REMOTE/$BRANCH" || {
-    log "ff-only failed — hard reset to $REMOTE/$BRANCH (deploy clone)"
-    git reset --hard "$REMOTE/$BRANCH"
-  }
+log "sync start branch=${CURRENT:-detached} HEAD=${BEFORE:0:8}"
+
+# Fetch master
+if ! git_auth fetch --prune "$REMOTE" "$BRANCH"; then
+  log "ERROR: git fetch failed (check network / GITHUB_TOKEN in ~/.config/workflow-scheduler.env)"
+  exit 1
 fi
+
+# Force deploy worktree onto origin/master (handles dirty + untracked rsync leftovers)
+# Preserve runtime data that must not be wiped.
+git clean -fd \
+  -e 'iot/data/' \
+  -e '**/data/schedule_state.json' \
+  -e '.env' \
+  -e '*.env' \
+  -e 'ops/backlog/dashboard.log' \
+  -e 'ops/backlog/scheduler.log' \
+  >/dev/null 2>&1 || true
+
+if ! git_auth checkout -f -B "$BRANCH" "$REMOTE/$BRANCH"; then
+  log "checkout failed — hard reset path"
+  git_auth symbolic-ref HEAD "refs/heads/$BRANCH" 2>/dev/null || true
+  git_auth reset --hard "$REMOTE/$BRANCH"
+fi
+git_auth reset --hard "$REMOTE/$BRANCH"
 
 AFTER="$(git rev-parse HEAD)"
-log "HEAD $BEFORE → $AFTER"
+log "HEAD ${BEFORE:0:8} → ${AFTER:0:8} on $(git branch --show-current 2>/dev/null || echo '?')"
 
 if [[ "$BEFORE" == "$AFTER" ]]; then
   log "no code change — skip restart"
@@ -75,5 +85,11 @@ UNITS=(
 for u in "${UNITS[@]}"; do
   systemctl --user try-restart "$u" 2>/dev/null || true
 done
-log "restart requested"
+# Brief settle then show who is active
+sleep 1
+for u in "${UNITS[@]}"; do
+  st="$(systemctl --user is-active "$u" 2>/dev/null || echo unknown)"
+  log "unit $u → $st"
+done
+log "restart done"
 exit 0
