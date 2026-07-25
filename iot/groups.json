@@ -9,7 +9,7 @@
   },
   "masterbedroom": {
     "label": "Master Bedroom",
-    "members": ["masterbedroom1"]
+    "members": ["masterbedroom1", "plantlight", "smallplantlight"]
   },
   "masterbathroom": {
     "label": "Master Bathroom",
@@ -21,6 +21,19 @@
   },
   "plugs": {
     "label": "Plugs",
-    "members": ["plantlight", "smallplantlight", "officelights", "vesync_ac", "vesync_heat"]
+    "members": ["plantlight", "smallplantlight", "officelights"]
+  },
+  "lights": {
+    "label": "All lights",
+    "members": [
+      "entryway1",
+      "entryway2",
+      "entryway3",
+      "entryway4",
+      "livingroom1",
+      "livingroom2",
+      "masterbathroom1",
+      "masterbedroom1"
+    ]
   }
 }

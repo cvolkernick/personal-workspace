@@ -52,6 +52,9 @@ _TARGET_ALIASES: dict[str, str] = {
     "plug": "plugs",
     "outlets": "plugs",
     "outlet": "plugs",
+    "lights": "lights",
+    "all lights": "lights",
+
     "plantlight": "plantlight",
     "plant light": "plantlight",
     "kasa": "plantlight",
@@ -64,10 +67,6 @@ _TARGET_ALIASES: dict[str, str] = {
     "office light": "officelights",
     "office": "office",
     "vesync": "plugs",
-    "ac": "vesync_ac",
-    "air conditioner": "vesync_ac",
-    "heat": "vesync_heat",
-    "heater": "vesync_heat",
 }
 
 _COLOR_ALIASES: dict[str, str] = {
