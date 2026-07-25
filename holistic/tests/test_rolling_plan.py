@@ -70,9 +70,23 @@ class RollingPlanTests(unittest.TestCase):
 
     def test_sleep_kpi_rolling_avg(self) -> None:
         state = seed_starter(empty_state(), personal=True)
+        # Only 3 of 7 days logged — missing days count as 0h
+        # Window 2026-07-11..17: 0,0,0,0,7,8,9 → avg 24/7 ≈ 3.43
         state = add_log(state, "sleep", 7.0, on=date(2026, 7, 15))
         state = add_log(state, "sleep", 8.0, on=date(2026, 7, 16))
         state = add_log(state, "sleep", 9.0, on=date(2026, 7, 17))
+        kpis = {k["id"]: k for k in kpi_status(state, as_of=date(2026, 7, 17))}
+        detail = kpis["sleep"]["detail"]
+        self.assertEqual(detail["samples"], 7)
+        self.assertEqual(detail["days_logged"], 3)
+        self.assertEqual(detail["days_missing_as_zero"], 4)
+        self.assertAlmostEqual(detail["average"], 24.0 / 7.0, places=2)
+        self.assertFalse(kpis["sleep"]["on_track"])
+
+    def test_sleep_kpi_full_window_on_track(self) -> None:
+        state = seed_starter(empty_state(), personal=True)
+        for i in range(7):
+            state = add_log(state, "sleep", 8.0, on=date(2026, 7, 11 + i))
         kpis = {k["id"]: k for k in kpi_status(state, as_of=date(2026, 7, 17))}
         self.assertAlmostEqual(kpis["sleep"]["detail"]["average"], 8.0)
         self.assertTrue(kpis["sleep"]["on_track"])

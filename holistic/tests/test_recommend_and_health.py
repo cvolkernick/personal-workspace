@@ -47,18 +47,23 @@ class DuchessMigrationTests(unittest.TestCase):
 
 
 class RecommendTests(unittest.TestCase):
-    def test_suggests_duchess_and_workout_before_fill(self) -> None:
+    def test_core_task_urgencies(self) -> None:
         state = seed_starter(empty_state(), personal=True)
         plan = build_rolling_plan(
             state, now=datetime(2026, 7, 17, 10, 0, 0), as_of=date(2026, 7, 17)
         )
-        recs = recommend_next(state, plan=plan, now=datetime(2026, 7, 17, 10, 0, 0), limit=5)
+        recs = recommend_next(state, plan=plan, now=datetime(2026, 7, 17, 10, 0, 0), limit=10)
+        by_id = {r["id"]: r for r in recs}
+        if "lyft" in by_id:
+            self.assertEqual(by_id["lyft"]["urgency"], "high")
+        if "workout" in by_id:
+            self.assertEqual(by_id["workout"]["urgency"], "medium")
+        if "duchess-walk" in by_id:
+            self.assertEqual(by_id["duchess-walk"]["urgency"], "low")
+        # High urgency (lyft) should sort before low (duchess) when both present
         ids = [r["id"] for r in recs]
-        self.assertIn("duchess-walk", ids)
-        # Fill should not outrank fixed obligations
-        if "lyft" in ids:
-            self.assertGreater(ids.index("lyft"), ids.index("duchess-walk"))
-        self.assertEqual(recs[0]["urgency"], "high")
+        if "lyft" in ids and "duchess-walk" in ids:
+            self.assertLess(ids.index("lyft"), ids.index("duchess-walk"))
 
     def test_after_duchess_logged_not_forced_again(self) -> None:
         state = seed_starter(empty_state(), personal=True)

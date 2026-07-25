@@ -42,8 +42,16 @@ def recommend_next(
     ]
     actionable.sort(key=lambda b: (-int(b.get("priority") or 0), str(b.get("role")), str(b.get("id"))))
 
+    # Explicit urgency for core personal tasks (overrides role defaults)
+    ID_URGENCY = {
+        "lyft": "high",
+        "workout": "medium",
+        "duchess-walk": "low",
+    }
+
     for b in actionable:
         role = str(b.get("role"))
+        bid = str(b.get("id") or "")
         loggable = True
         log_mode = "minutes"  # or "session"
         if role == "fixed":
@@ -81,10 +89,12 @@ def recommend_next(
                 reason += " (soft 30m estimate — set real minutes if needed)"
             if b.get("done_minutes"):
                 reason += f" ({b.get('done_minutes')}m already logged)"
+        if bid in ID_URGENCY:
+            urgency = ID_URGENCY[bid]
         suggestions.append(
             {
-                "id": str(b.get("id")),
-                "title": str(b.get("title") or b.get("id")),
+                "id": bid,
+                "title": str(b.get("title") or bid),
                 "reason": reason,
                 "priority": int(b.get("priority") or 0),
                 "minutes": int(b.get("minutes") or 0),

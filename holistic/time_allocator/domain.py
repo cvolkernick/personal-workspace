@@ -718,26 +718,54 @@ def kpi_status(state: dict[str, Any], *, as_of: date | None = None) -> list[dict
             target_val = float(t.get("target") or 0)
             since = today - timedelta(days=window - 1)
             logs = logs_for_target(state, tid, since=since, until=today)
-            values = [float(lg.get("value") or 0) for lg in logs]
+            by_date: dict[str, float] = {}
+            for lg in logs:
+                day = str(lg.get("date") or "")[:10]
+                if not day:
+                    continue
+                # Multiple logs same day: take sum (accumulate sleep entries)
+                by_date[day] = by_date.get(day, 0.0) + float(lg.get("value") or 0)
+            # Full window including missing days as 0 hours
+            day_rows: list[dict[str, Any]] = []
+            values: list[float] = []
+            cur = since
+            while cur <= today:
+                key = cur.isoformat()
+                val = float(by_date.get(key, 0.0))
+                values.append(val)
+                day_rows.append(
+                    {
+                        "date": key,
+                        "value": val,
+                        "logged": key in by_date,
+                    }
+                )
+                cur += timedelta(days=1)
             avg = (sum(values) / len(values)) if values else None
+            days_logged = sum(1 for d in day_rows if d.get("logged"))
+            days_zero = len(values) - days_logged
             row["detail"] = {
                 "window_days": window,
                 "target": target_val,
                 "unit": t.get("unit") or "hours",
-                "samples": len(values),
+                "samples": len(values),  # always full window
+                "days_logged": days_logged,
+                "days_missing_as_zero": days_zero,
                 "average": round(avg, 2) if avg is not None else None,
-                "days": [
-                    {"date": lg.get("date"), "value": lg.get("value")} for lg in logs
-                ],
+                "days": day_rows,
             }
             if avg is None:
                 row["on_track"] = None
-                row["summary"] = f"No logs in last {window}d — target {target_val} {t.get('unit') or 'hours'}"
+                row["summary"] = (
+                    f"No data for last {window}d — target {target_val} "
+                    f"{t.get('unit') or 'hours'}"
+                )
             else:
                 row["on_track"] = avg >= target_val
                 row["summary"] = (
-                    f"{avg:.2f} {t.get('unit') or 'h'} avg over {len(values)} day(s) "
-                    f"(target ≥ {target_val:g})"
+                    f"{avg:.2f} {t.get('unit') or 'h'} avg over {window}d "
+                    f"({days_logged} logged, {days_zero} missing→0; "
+                    f"target ≥ {target_val:g})"
                 )
         elif kind == "daily_duration":
             plan_m = int(t.get("minutes") or 0)

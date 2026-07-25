@@ -175,11 +175,29 @@
       "target_id": "duchess-walk",
       "value": 26.0,
       "note": "confirmed Google walk 2026-07-21T06:54:57+00:00"
+    },
+    {
+      "date": "2026-07-22",
+      "target_id": "sleep",
+      "value": 12.42,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-24",
+      "target_id": "sleep",
+      "value": 11.65,
+      "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-25",
+      "target_id": "duchess-walk",
+      "value": 24.0,
+      "note": "confirmed Google walk 2026-07-25T04:17:55+00:00"
     }
   ],
   "plan": {
-    "window_start": "2026-07-21T05:06:28-04:00",
-    "window_end": "2026-07-22T05:06:28-04:00",
+    "window_start": "2026-07-25T02:10:10-04:00",
+    "window_end": "2026-07-26T02:10:10-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -197,15 +215,15 @@
         "source": "target",
         "id": "duchess-walk",
         "title": "Walk Duchess",
-        "minutes": 19,
+        "minutes": 21,
         "role": "fixed",
         "kind": "daily_duration",
         "priority": 9,
         "sessions_hint": 1,
         "minutes_min": 30,
         "minutes_max": 60,
-        "done_today": 26,
-        "done_calendar_today": 26
+        "done_today": 24,
+        "done_calendar_today": 24
       },
       {
         "source": "target",
@@ -221,22 +239,22 @@
         "source": "target",
         "id": "lyft",
         "title": "Lyft driving",
-        "minutes": 300,
+        "minutes": 570,
         "role": "fill",
         "kind": "fill_remainder",
         "priority": 3,
-        "done_today": 420,
+        "done_today": 150,
         "drive_cap_minutes": 720,
         "break_minutes": 360,
-        "remaining_drive_minutes": 300,
-        "reason": "300m left in current 12h driver-mode block",
-        "lyft_duty_summary": "7h 0m of 12h driver-mode used (5h 0m left this cycle)"
+        "remaining_drive_minutes": 570,
+        "reason": "570m left in current 12h driver-mode block",
+        "lyft_duty_summary": "2h 30m of 12h driver-mode used (9h 30m left this cycle)"
       }
     ],
-    "total_block_minutes": 859,
+    "total_block_minutes": 1131,
     "unallocated_active_minutes": 0,
     "notes": [
-      "Lyft: only 300m left in current 12h duty (driven 420m of 720m) \u2014 update duty as you drive; 6h offline required after the 12h cap"
+      "Lyft: only 570m left in current 12h duty (driven 150m of 720m) \u2014 update duty as you drive; 6h offline required after the 12h cap"
     ],
     "kpi_status": [
       {
@@ -244,31 +262,15 @@
         "title": "Sleep (rolling 7-day avg \u2265 8h)",
         "kind": "rolling_avg",
         "priority": 10,
-        "on_track": false,
-        "summary": "6.94 hours avg over 6 day(s) (target \u2265 8)",
+        "on_track": true,
+        "summary": "9.47 hours avg over 4 day(s) (target \u2265 8)",
         "detail": {
           "window_days": 7,
           "target": 8.0,
           "unit": "hours",
-          "samples": 6,
-          "average": 6.94,
+          "samples": 4,
+          "average": 9.47,
           "days": [
-            {
-              "date": "2026-07-15",
-              "value": 5.32
-            },
-            {
-              "date": "2026-07-16",
-              "value": 5.83
-            },
-            {
-              "date": "2026-07-17",
-              "value": 6.03
-            },
-            {
-              "date": "2026-07-18",
-              "value": 10.62
-            },
             {
               "date": "2026-07-19",
               "value": 4.32
@@ -276,6 +278,14 @@
             {
               "date": "2026-07-20",
               "value": 9.5
+            },
+            {
+              "date": "2026-07-22",
+              "value": 12.42
+            },
+            {
+              "date": "2026-07-24",
+              "value": 11.65
             }
           ]
         }
@@ -286,12 +296,12 @@
         "kind": "daily_duration",
         "priority": 9,
         "on_track": false,
-        "summary": "Today 26 min (target 30\u201360)",
+        "summary": "Today 24 min (target 30\u201360)",
         "detail": {
           "target_minutes": 45,
           "minutes_min": 30,
           "minutes_max": 60,
-          "done_minutes": 26
+          "done_minutes": 24
         }
       },
       {
@@ -413,9 +423,62 @@
       "start": "2026-07-20T08:17:00+00:00",
       "end": "2026-07-20T17:47:00+00:00",
       "source": "google_health"
+    },
+    {
+      "start": "2026-07-22T04:41:00+00:00",
+      "end": "2026-07-22T17:06:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-24T04:38:00+00:00",
+      "end": "2026-07-24T16:17:00+00:00",
+      "source": "google_health"
     }
   ],
   "activity_reviews": [
+    {
+      "id": "ex-2183305533398610454",
+      "start": "2026-07-25T04:17:55+00:00",
+      "end": "2026-07-25T04:42:20+00:00",
+      "minutes": 24,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "ACTIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-25",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/2183305533398610454",
+      "status": "confirmed_duchess",
+      "target_hint": "duchess-walk",
+      "reviewed_at": "2026-07-25T02:05:58-04:00"
+    },
+    {
+      "id": "ex-4473590816707905704",
+      "start": "2026-07-23T12:05:33+00:00",
+      "end": "2026-07-23T12:16:39+00:00",
+      "minutes": 11,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "PASSIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-23",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/4473590816707905704",
+      "status": "pending",
+      "target_hint": "duchess-walk"
+    },
+    {
+      "id": "ex-8388268329036493680",
+      "start": "2026-07-22T23:53:24+00:00",
+      "end": "2026-07-23T00:08:45+00:00",
+      "minutes": 15,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "PASSIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-22",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/8388268329036493680",
+      "status": "pending",
+      "target_hint": "duchess-walk"
+    },
     {
       "id": "ex-3621877860006146088",
       "start": "2026-07-21T06:54:57+00:00",
@@ -506,8 +569,8 @@
     }
   ],
   "lyft_duty": {
-    "driven_minutes": 420,
-    "updated_at": "2026-07-21T02:20:31-04:00",
+    "driven_minutes": 150,
+    "updated_at": "2026-07-25T02:10:10-04:00",
     "cap_reached_at": null,
     "note": "",
     "drive_cap_minutes": 720,
