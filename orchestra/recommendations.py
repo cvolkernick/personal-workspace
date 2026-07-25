@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+try:
+    from .links import attach_links_to_recommendation, build_link_indexes
+except ImportError:
+    from links import attach_links_to_recommendation, build_link_indexes
+
 
 _URGENCY_SCORE = {
     "critical": 100,
@@ -104,6 +109,54 @@ def _attention_action(att: dict[str, Any]) -> str:
     return f"Address: {title[:160]}"
 
 
+def select_next_action(items: list[dict[str, Any]], *, mode: str = "") -> dict[str, Any] | None:
+    """Pick the single next action the operator should do now.
+
+    Rule: ranked list is already ordered; the #1 item is next, with an
+    explicit selection_reason. Prefer critical/high hygiene over abstract
+    work when present at rank 1 (already enforced by scoring).
+    """
+    if not items:
+        return None
+    primary = dict(items[0])
+    kind = (primary.get("kind") or "").lower()
+    urgency = (primary.get("urgency") or "").lower()
+    if kind == "hygiene" and urgency in ("critical", "high"):
+        reason = (
+            "Selected as the single next action because a high-severity hygiene "
+            "blocker must be cleared before domain work is trustworthy."
+        )
+    elif kind == "synergy":
+        reason = (
+            "Selected as the single next action: highest-scoring high-strength "
+            "cross-domain coordination opportunity."
+        )
+    elif kind == "focus":
+        reason = (
+            "Selected as the single next action: top scored work item from "
+            "today/initiatives/backlog/treasury after synergy boosts."
+        )
+    elif kind == "bridge":
+        reason = (
+            "Selected as the single next action: allocate this backlog item into "
+            "the day plan (Workflow → Time allocator bridge)."
+        )
+    elif kind == "fallback":
+        reason = (
+            "Selected as the single next action under fallback mode (no high-strength "
+            "synergies); best available medium synergy or priority."
+        )
+    else:
+        reason = "Selected as rank #1 after automated multi-stream scoring."
+    if mode:
+        reason += f" Synthesis mode={mode}."
+    primary["is_next"] = True
+    primary["selection_reason"] = reason
+    # Canonical id for deep links
+    primary["next_key"] = "next"
+    return primary
+
+
 def synthesize_recommendations(
     *,
     domains: list[dict[str, Any]] | None = None,
@@ -112,6 +165,8 @@ def synthesize_recommendations(
     synergies: list[dict[str, Any]] | None = None,
     bridge: dict[str, Any] | None = None,
     freshness: dict[str, Any] | None = None,
+    backlog_active: list[dict[str, Any]] | None = None,
+    holistic_linked: list[dict[str, Any]] | None = None,
     limit: int = 8,
     focus_limit: int = 3,
 ) -> dict[str, Any]:
@@ -124,6 +179,7 @@ def synthesize_recommendations(
     4. If no high synergies: fallback medium synergies + note
     5. Bridge candidates if still thin
     6. Thin-data fallback if almost nothing usable
+    Then: attach bidirectional deep links and select single next_action.
     """
     domains = domains or []
     priorities = priorities or []
@@ -131,6 +187,8 @@ def synthesize_recommendations(
     synergies = synergies or []
     bridge = bridge or {}
     freshness = freshness or {}
+    backlog_active = backlog_active or []
+    holistic_linked = holistic_linked or []
 
     high_syns = [s for s in synergies if (s.get("strength") or "") == "high"]
     medium_syns = [s for s in synergies if (s.get("strength") or "") == "medium"]
@@ -249,6 +307,20 @@ def synthesize_recommendations(
             why_bits.append(
                 f"Boosted: domains {', '.join(sorted(overlap))} also appear in high-strength synergies."
             )
+        related_pri: dict[str, Any] = {
+            "priority_id": pri.get("id"),
+            "priority_rank": pri.get("rank"),
+            "priority_kind": pri.get("kind"),
+        }
+        if pri.get("backlog_id"):
+            related_pri["backlog_id"] = pri.get("backlog_id")
+        ref = pri.get("ref") if isinstance(pri.get("ref"), dict) else {}
+        if ref.get("id") and not related_pri.get("backlog_id"):
+            related_pri["backlog_id"] = ref.get("id")
+        if ref.get("press_rank") is not None:
+            related_pri["press_rank"] = ref.get("press_rank")
+        if ref.get("schedule_slot"):
+            related_pri["schedule_slot"] = ref.get("schedule_slot")
         add(
             title=pri.get("title") or "Priority",
             action=_priority_action(pri),
@@ -258,11 +330,7 @@ def synthesize_recommendations(
             domains_involved=pdoms,
             sources=["priority", str(pri.get("kind") or "action")],
             score_boost=boost,
-            related={
-                "priority_id": pri.get("id"),
-                "priority_rank": pri.get("rank"),
-                "priority_kind": pri.get("kind"),
-            },
+            related=related_pri,
         )
 
     # --- 4) Fallback when no high synergies ---
@@ -313,7 +381,11 @@ def synthesize_recommendations(
                 domains_involved=["workflow", "holistic"],
                 sources=["bridge"],
                 score_boost=6,
-                related={"backlog_id": c.get("backlog_id")},
+                related={
+                    "backlog_id": c.get("backlog_id"),
+                    "press_rank": c.get("press_rank"),
+                    "schedule_slot": c.get("schedule_slot") or c.get("schedule_label"),
+                },
             )
 
     # --- 6) Thin data / empty workspace ---
@@ -340,10 +412,24 @@ def synthesize_recommendations(
 
     # Hygiene-first mode if top item is hygiene and high urgency
     items.sort(key=lambda x: (-int(x.get("score") or 0), x.get("id") or ""))
+
+    # Bidirectional link indexes (Workflow ↔ Holistic ↔ Orchestra)
+    bl_by_id, hol_by_bl, title_to_bl = build_link_indexes(
+        backlog_active=backlog_active,
+        holistic_linked=holistic_linked,
+        bridge_candidates=list(bridge.get("candidates") or []),
+    )
+
     out_items: list[dict[str, Any]] = []
     for i, it in enumerate(items[:limit]):
         row = dict(it)
         row["rank"] = i + 1
+        row = attach_links_to_recommendation(
+            row,
+            backlog_by_id=bl_by_id,
+            holistic_by_backlog=hol_by_bl,
+            title_to_backlog=title_to_bl,
+        )
         out_items.append(row)
 
     if out_items and out_items[0].get("kind") == "hygiene" and (
@@ -352,6 +438,21 @@ def synthesize_recommendations(
         mode = "hygiene_first"
 
     focus = out_items[:focus_limit]
+    next_action = select_next_action(out_items, mode=mode)
+    if next_action:
+        # Re-attach links (copy already has them) and mark in list
+        next_action = attach_links_to_recommendation(
+            next_action,
+            backlog_by_id=bl_by_id,
+            holistic_by_backlog=hol_by_bl,
+            title_to_backlog=title_to_bl,
+        )
+        if out_items:
+            out_items[0] = dict(out_items[0])
+            out_items[0]["is_next"] = True
+            out_items[0]["selection_reason"] = next_action.get("selection_reason")
+            focus = out_items[:focus_limit]
+
     summary = _build_summary(
         mode=mode,
         focus=focus,
@@ -360,6 +461,7 @@ def synthesize_recommendations(
         hygiene_n=sum(1 for x in out_items if x.get("kind") == "hygiene"),
         stale_n=int(freshness.get("stale_count") or 0),
         deferred_note=deferred_note,
+        next_action=next_action,
     )
 
     return {
@@ -368,6 +470,7 @@ def synthesize_recommendations(
         "deferred_note": deferred_note or None,
         "high_synergy_count": len(high_syns),
         "medium_synergy_count": len(medium_syns),
+        "next_action": next_action,
         "items": out_items,
         "focus": focus,
         "counts": {
@@ -377,6 +480,7 @@ def synthesize_recommendations(
             "synergy": sum(1 for x in out_items if x.get("kind") == "synergy"),
             "focus_work": sum(1 for x in out_items if x.get("kind") == "focus"),
             "fallback": sum(1 for x in out_items if x.get("kind") == "fallback"),
+            "has_next": bool(next_action),
         },
     }
 
@@ -390,6 +494,7 @@ def _build_summary(
     hygiene_n: int,
     stale_n: int,
     deferred_note: str,
+    next_action: dict[str, Any] | None = None,
 ) -> str:
     """One-paragraph automated briefing for the operator."""
     parts: list[str] = []
@@ -416,7 +521,11 @@ def _build_summary(
         parts.append(f"{stale_n} stale source(s) need refresh before finance/workflow decisions.")
     if hygiene_n and mode != "hygiene_first":
         parts.append(f"{hygiene_n} hygiene item(s) mixed into the list.")
-    if focus:
+    if next_action:
+        parts.append(
+            f"Single next action: {next_action.get('action') or next_action.get('title')}."
+        )
+    elif focus:
         top = focus[0]
         parts.append(f"Top recommended action: {top.get('action') or top.get('title')}.")
     if deferred_note and mode == "fallback_medium":
