@@ -15,8 +15,12 @@
     "label": "Master Bathroom",
     "members": ["masterbathroom1"]
   },
+  "office": {
+    "label": "Office",
+    "members": ["officelights"]
+  },
   "plugs": {
     "label": "Plugs",
-    "members": ["plantlight", "vesync_plug"]
+    "members": ["plantlight", "smallplantlight", "officelights"]
   }
 }

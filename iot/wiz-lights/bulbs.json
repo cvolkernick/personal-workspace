@@ -11,13 +11,19 @@
     "type": "kasa",
     "ip": "192.168.100.116",
     "mac": "d807b6a69ec2",
-    "label": "Plant Light",
+    "label": "Plant Light (Kasa)",
     "model": "HS103"
   },
-  "vesync_plug": {
+  "smallplantlight": {
     "type": "vesync",
-    "device_name": "",
-    "label": "VeSync Plug",
+    "device_name": "Small Plant Light",
+    "label": "Small Plant Light",
+    "cid": null
+  },
+  "officelights": {
+    "type": "vesync",
+    "device_name": "Office Lights",
+    "label": "Office Lights",
     "cid": null
   }
 }
