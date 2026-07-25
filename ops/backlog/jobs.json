@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-25T07:20:33.025625+00:00",
+  "updated_at": "2026-07-25T08:01:17.051636+00:00",
   "jobs": [
     {
       "id": "job-9e5ac3a399",
@@ -698,7 +698,7 @@
       "id": "job-9edf8296e6",
       "backlog_id": "6b74d2ca-d0ca-4c87-8c6c-60777e099a88",
       "title": "Panamerica Auto Website",
-      "status": "pending_terminal",
+      "status": "cancelled",
       "created_at": "2026-07-25T06:00:33.374524+00:00",
       "backend": "raspi",
       "execution_mode": "agent",
@@ -791,7 +791,13 @@
       "pending_at": "2026-07-25T06:01:06.937256+00:00",
       "claim_hint": "bash ops/backlog/seeds/panamerica-auto-website-6b74d2ca.launch.sh",
       "error": "agent finished without implementation files (only seed/scaffold or no changes) \u2014 refusing empty/scaffold PR",
-      "latest_report_id": "rpt-job-9edf8296e6"
+      "latest_report_id": "rpt-job-9edf8296e6-claim",
+      "launched_at": "2026-07-25T07:57:16.572234+00:00",
+      "claimed_at": "2026-07-25T07:57:16.572291+00:00",
+      "claim_method": "open -a Terminal \u2192 launch.sh",
+      "updated_at": "2026-07-25T07:57:16.572301+00:00",
+      "result": "duplicate re-run blocked; prior job completed with PR #4",
+      "completed_at": "2026-07-25T12:00:00+00:00"
     }
   ]
 }

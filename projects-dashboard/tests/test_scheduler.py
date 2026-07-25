@@ -147,6 +147,82 @@ class TestScheduler(unittest.TestCase):
         self.assertTrue(plan.get("use_agent"))
         self.assertFalse(plan.get("should_spawn"))
 
+    def test_auto_queue_skips_already_kicked_off(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        # Simulate prior kickoff
+        data = bl.load_backlog()
+        for it in data["items"]:
+            if it["id"] == self.bid:
+                it["status"] = "ready"
+                it["last_job_id"] = "job-prior"
+                it["last_auto_started_at"] = "2026-07-20T00:00:00+00:00"
+                it["auto_start"] = False
+                it["schedule_slot"] = "now"
+                it["press_rank"] = 1
+        bl.save_backlog(data)
+        r = sch.auto_queue_scheduled(force=True)
+        self.assertEqual(r.get("count"), 0)
+        self.assertGreaterEqual(r.get("skipped_prior_runs") or 0, 1)
+        self.assertFalse(bl.get_item(self.bid).get("auto_start"))
+
+    def test_auto_queue_skips_completed_jobs(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["auto_queue_scheduled"] = True
+        sch.save_config(cfg)
+        sch.save_jobs(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": "job-done1",
+                        "backlog_id": self.bid,
+                        "title": "Auto job",
+                        "status": "completed",
+                        "created_at": "2026-07-20T00:00:00+00:00",
+                    }
+                ],
+            }
+        )
+        data = bl.load_backlog()
+        for it in data["items"]:
+            if it["id"] == self.bid:
+                it["status"] = "ready"
+                it["auto_start"] = False
+                it["schedule_slot"] = "now"
+                it["press_rank"] = 1
+        bl.save_backlog(data)
+        r = sch.auto_queue_scheduled(force=True)
+        self.assertEqual(r.get("count"), 0)
+
+    def test_manual_requeue_allows_second_run(self) -> None:
+        cfg = sch.load_config()
+        cfg["enabled"] = True
+        cfg["execution_mode"] = "queue"
+        sch.save_config(cfg)
+        sch.save_jobs(
+            {
+                "version": 1,
+                "jobs": [
+                    {
+                        "id": "job-done1",
+                        "backlog_id": self.bid,
+                        "title": "Auto job",
+                        "status": "completed",
+                        "created_at": "2026-07-20T00:00:00+00:00",
+                    }
+                ],
+            }
+        )
+        sch.set_auto_start(self.bid, True)  # manual re-queue
+        item = bl.get_item(self.bid)
+        self.assertEqual(item.get("auto_start_source"), "manual")
+        eligible = sch._eligible_items(sch.load_config(), sch.load_jobs()["jobs"])
+        self.assertTrue(any(i.get("id") == self.bid for i in eligible))
+
     def test_orphan_running_cleared_when_backlog_ready(self) -> None:
         """Stale Terminal launch must not stay 'running' forever."""
         sch.set_auto_start(self.bid, True)

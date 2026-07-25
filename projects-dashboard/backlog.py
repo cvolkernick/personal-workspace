@@ -190,6 +190,11 @@ def update_item(item_id: str, patch: dict[str, Any]) -> dict[str, Any]:
         "mvp_scope",
         "notes",
         "auto_start",
+        "auto_start_source",
+        "last_pr_url",
+        "last_job_id",
+        "last_auto_started_at",
+        "completed_via",
     }
     for k, v in patch.items():
         if k in allowed:

@@ -169,7 +169,10 @@ def write_report(report: dict[str, Any]) -> Path:
 
 
 def set_auto_start(backlog_id: str, enabled: bool = True) -> dict[str, Any]:
-    """Approve item for automatic initiate-goal on the next eligible tick."""
+    """Approve item for automatic initiate-goal on the next eligible tick.
+
+    Manual enable is the only way to re-run an item that already kicked off.
+    """
     data = load_backlog()
     found = None
     for it in data.get("items") or []:
@@ -183,20 +186,81 @@ def set_auto_start(backlog_id: str, enabled: bool = True) -> dict[str, Any]:
     found["updated_at"] = _now()
     if enabled:
         found["auto_start_source"] = "manual"
-        if (found.get("status") or "") == "idea":
-            # Auto-start implies approved for kickoff; keep idea→ready signal for ranking
+        # Explicit re-queue: if item was done, reopen as ready for another pass
+        if (found.get("status") or "") in ("idea", "done"):
             found["status"] = "ready"
+        found.pop("auto_start_cleared_reason", None)
     else:
         found.pop("auto_start_source", None)
     save_backlog(data)
     return {"ok": True, "item": found, "auto_start": bool(enabled)}
 
 
-def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
-    """Queue ready + now/this_week items for the next scheduler tick.
+def _jobs_for_backlog(backlog_id: str, jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [j for j in jobs if j.get("backlog_id") == backlog_id]
 
-    Part of the autonomous loop: after groom schedules work, mark it
-    auto_start so cron (or Run tick) can initiate without a manual click.
+
+def _kickoff_block_reason(
+    item: dict[str, Any],
+    jobs: list[dict[str, Any]],
+    *,
+    for_auto_queue: bool = False,
+) -> Optional[str]:
+    """Why this item must not be auto-started again (None = ok to kick off).
+
+    Policy:
+    - Never re-auto-queue after a prior kickoff unless the user manually queues.
+    - Never kick off while another job is active/PR-ready for this item.
+    - Never kick off if a prior job completed successfully (merged/done).
+    - Manual auto_start (Queue for agent) allows a deliberate re-run after prior work.
+    """
+    bid = item.get("id")
+    if not bid:
+        return "missing_id"
+    hist = _jobs_for_backlog(str(bid), jobs)
+    active = {
+        "queued",
+        "pending_terminal",
+        "agent_running",
+        "launched",
+        "running",
+        "pr_ready",
+    }
+    for j in hist:
+        st = j.get("status")
+        if st in active:
+            return f"job_{st}"
+        if st == "completed":
+            # Completed once = done for auto loop; manual queue can override
+            if for_auto_queue:
+                return "already_completed"
+            if (item.get("auto_start_source") or "") != "manual":
+                return "already_completed"
+    # One-shot: after any kickoff, do not auto-queue again
+    if item.get("last_job_id") or item.get("last_auto_started_at") or item.get("last_pr_url"):
+        if for_auto_queue:
+            return "already_kicked_off"
+        # Eligible tick path: only allow if user explicitly re-queued
+        if item.get("auto_start") and (item.get("auto_start_source") or "") == "manual":
+            return None
+        if item.get("auto_start") and not for_auto_queue:
+            # stale auto_start from auto-queue after a prior run — block
+            if (item.get("auto_start_source") or "") == "auto-queue":
+                return "stale_auto_queue_after_kickoff"
+            # unknown source with prior kickoff: block unless manual
+            if item.get("last_job_id") or item.get("last_auto_started_at"):
+                if (item.get("auto_start_source") or "") != "manual":
+                    return "already_kicked_off"
+    if (item.get("status") or "").lower() == "done":
+        return "done"
+    return None
+
+
+def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
+    """Queue *new* ready + now/this_week items for the next scheduler tick.
+
+    Does **not** re-queue items that already kicked off or completed. Re-runs
+    require an explicit dashboard “Queue for agent” (manual auto_start).
     """
     cfg = load_config()
     if not cfg.get("enabled") and not force:
@@ -218,7 +282,9 @@ def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
 
     slots = {str(s).lower() for s in (cfg.get("eligible_slots") or ["now", "this_week"])}
     statuses = {str(s).lower() for s in (cfg.get("eligible_statuses") or ["ready"])}
+    jobs = list((load_jobs().get("jobs") or []))
     queued: list[dict[str, Any]] = []
+    skipped_prior = 0
     data = load_backlog()
     dirty = False
     for it in data.get("items") or []:
@@ -237,6 +303,15 @@ def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
             continue
         if it.get("auto_start"):
             continue
+        block = _kickoff_block_reason(it, jobs, for_auto_queue=True)
+        if block:
+            skipped_prior += 1
+            # Clear sticky auto_start left over from older auto-queue loops
+            if it.get("auto_start") and (it.get("auto_start_source") or "") == "auto-queue":
+                it["auto_start"] = False
+                it["updated_at"] = _now()
+                dirty = True
+            continue
         it["auto_start"] = True
         it["auto_start_set_at"] = _now()
         it["auto_start_source"] = "auto-queue"
@@ -251,16 +326,31 @@ def auto_queue_scheduled(*, force: bool = False) -> dict[str, Any]:
                 "press_rank": it.get("press_rank"),
             }
         )
+    # Also clear stale auto-queue flags on items that already ran
+    for it in data.get("items") or []:
+        if not it.get("auto_start"):
+            continue
+        if (it.get("auto_start_source") or "") != "auto-queue":
+            continue
+        block = _kickoff_block_reason(it, jobs, for_auto_queue=True)
+        if block:
+            it["auto_start"] = False
+            it["auto_start_cleared_reason"] = block
+            it["updated_at"] = _now()
+            dirty = True
+            skipped_prior += 1
     if dirty:
         save_backlog(data)
     return {
         "ok": True,
         "queued": queued,
         "count": len(queued),
+        "skipped_prior_runs": skipped_prior,
         "skipped": False,
         "message": (
-            f"Auto-queued {len(queued)} scheduled item(s) for kickoff"
-            if queued
+            f"Auto-queued {len(queued)} new item(s)"
+            + (f" · skipped {skipped_prior} already-run" if skipped_prior else "")
+            if queued or skipped_prior
             else "No new items to auto-queue"
         ),
     }
@@ -369,28 +459,16 @@ def _eligible_items(cfg: dict[str, Any], jobs: list[dict[str, Any]]) -> list[dic
     statuses = set(cfg.get("eligible_statuses") or ["ready"])
     slots = set(cfg.get("eligible_slots") or ["now", "this_week"])
     require_auto = bool(cfg.get("require_auto_start", True))
-    in_flight_ids = {
-        j.get("backlog_id")
-        for j in jobs
-        if j.get("status")
-        in (
-            "queued",
-            "pending_terminal",
-            "agent_running",
-            "pr_ready",
-            "launched",
-            "running",
-        )
-    }
     out = []
     for it in list_items(include_done=False, ranked=True):
         bid = it.get("id")
-        if not bid or bid in in_flight_ids:
+        if not bid:
             continue
         if (it.get("status") or "") in ("planning", "active", "done", "parked"):
-            # planning/active already started manually or previously
-            if (it.get("status") or "") in ("planning", "active"):
-                continue
+            # planning/active already started; done/parked finished
+            continue
+        block = _kickoff_block_reason(it, jobs, for_auto_queue=False)
+        if block:
             continue
         if require_auto and not it.get("auto_start"):
             continue
@@ -652,6 +730,7 @@ def _reconcile_merged_prs(jobs_data: dict[str, Any]) -> list[dict[str, Any]]:
                         "status": "done",
                         "last_pr_url": pr.get("url"),
                         "auto_start": False,
+                        "completed_via": "pr_merge",
                     },
                 )
             report = {

@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-25T07:20:32.940177+00:00",
+  "updated_at": "2026-07-25T08:01:35.995073+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -35,7 +35,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T07:20:32.939976+00:00",
+      "last_groomed_at": "2026-07-25T07:57:16.407714+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt"
     },
@@ -54,7 +54,7 @@
       "mvp_scope": "",
       "notes": "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)",
       "created_at": "2026-07-17T06:14:42.157807+00:00",
-      "updated_at": "2026-07-25T06:16:33.709679+00:00",
+      "updated_at": "2026-07-25T08:01:17.054373+00:00",
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
@@ -72,10 +72,11 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-25T07:20:32.940034+00:00",
-      "auto_start": true,
+      "last_groomed_at": "2026-07-25T07:57:16.407805+00:00",
+      "auto_start": false,
       "auto_start_set_at": "2026-07-25T06:16:33.709661+00:00",
-      "auto_start_source": "auto-queue"
+      "auto_start_source": "auto-queue",
+      "auto_start_cleared_reason": "already_completed"
     },
     {
       "id": "bfdc9db1-82f9-4100-8829-87e0883f39ae",
@@ -101,7 +102,7 @@
       "priority_color": "#ff6b6b",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-25T07:20:32.940053+00:00",
+      "last_groomed_at": "2026-07-25T07:57:16.407817+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -111,13 +112,13 @@
       "title": "Panamerica Auto Website",
       "description": "Create a business website / platform for Panamerica Auto",
       "priority": "medium",
-      "status": "planning",
+      "status": "done",
       "tags": [],
       "area": "business",
       "mvp_scope": "basic website featuring high level services",
       "notes": "",
       "created_at": "2026-07-17T06:18:43.331881+00:00",
-      "updated_at": "2026-07-25T06:01:06.938957+00:00",
+      "updated_at": "2026-07-25T08:01:35.994892+00:00",
       "seed_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.md",
       "goal_objective": "Backlog project: Panamerica Auto Website\n\nContext:\nCreate a business website / platform for Panamerica Auto\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: basic website featuring high level services\n Prefer living under personal-workspace/business/.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-25T06:00:34.246707+00:00",
@@ -134,12 +135,14 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T07:20:32.940065+00:00",
+      "last_groomed_at": "2026-07-25T07:57:16.407824+00:00",
       "objective_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
       "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
       "auto_start": false,
       "last_auto_started_at": "2026-07-25T06:01:06.938928+00:00",
-      "last_job_id": "job-9edf8296e6"
+      "last_job_id": "job-9edf8296e6",
+      "last_pr_url": "https://github.com/cvolkernick/personal-workspace/pull/4",
+      "completed_via": "pr_merge"
     },
     {
       "id": "0158a2cc-f5cf-4b68-998c-f80133b85cfc",
@@ -153,7 +156,7 @@
       "mvp_scope": "core personal info / outline",
       "notes": "",
       "created_at": "2026-07-17T06:20:14.392120+00:00",
-      "updated_at": "2026-07-25T06:16:33.709705+00:00",
+      "updated_at": "2026-07-25T08:01:17.054378+00:00",
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
@@ -170,16 +173,17 @@
       "priority_color": "#8aa0b5",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-25T07:20:32.940079+00:00",
-      "auto_start": true,
+      "last_groomed_at": "2026-07-25T07:57:16.407883+00:00",
+      "auto_start": false,
       "auto_start_set_at": "2026-07-25T06:16:33.709696+00:00",
-      "auto_start_source": "auto-queue"
+      "auto_start_source": "auto-queue",
+      "auto_start_cleared_reason": "already_completed"
     }
   ],
-  "last_groomed_at": "2026-07-25T07:20:32.940091+00:00",
+  "last_groomed_at": "2026-07-25T07:57:16.407891+00:00",
   "groom_meta": {
     "wip_count": 2,
     "changes_count": 0,
-    "groomed_at": "2026-07-25T07:20:32.940091+00:00"
+    "groomed_at": "2026-07-25T07:57:16.407891+00:00"
   }
 }
