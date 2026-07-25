@@ -2,8 +2,10 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>IoT Control</title>
+  <meta name="iot-ui" content="v3-assistant" />
   <style>
     :root {
       --bg: #0b0f14;
@@ -17,6 +19,7 @@
       --accent: #5b9fd4;
       --fill: #7c9cff;
       --magenta: #e033e0;
+      --grok: #8b7cff;
     }
     * { box-sizing: border-box; }
     body {
@@ -69,6 +72,66 @@
       gap: 0.5rem;
     }
     .card h2 .hint { font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 0.8rem; }
+    .card.assistant {
+      border-color: #2a2650;
+      background: linear-gradient(135deg, #14182a 0%, #121a22 55%, #152033 100%);
+      box-shadow: 0 0 0 1px rgba(139, 124, 255, 0.08);
+    }
+    .card.assistant h2 { color: #c8c0ff; }
+    .assistant-form {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.35rem;
+    }
+    .assistant-form input[type="text"] {
+      flex: 1 1 16rem;
+      min-width: 12rem;
+      padding: 0.65rem 0.8rem;
+      border-color: #35306a;
+      background: #0d111c;
+    }
+    .assistant-form input[type="text"]:focus {
+      outline: none;
+      border-color: var(--grok);
+      box-shadow: 0 0 0 2px rgba(139, 124, 255, 0.2);
+    }
+    .assistant-form button.primary {
+      background: #2a2460;
+      border-color: #4a40a0;
+      color: #e8e4ff;
+      min-width: 5.5rem;
+    }
+    .assistant-log {
+      max-height: 9rem;
+      overflow-y: auto;
+      margin: 0 0 0.65rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 8px;
+      background: rgba(0,0,0,0.28);
+      border: 1px solid var(--border);
+      font-size: 0.88rem;
+      color: var(--muted);
+      white-space: pre-wrap;
+      min-height: 2.4rem;
+    }
+    .assistant-log .line { margin: 0.2rem 0; }
+    .assistant-log .user { color: #b8d4f0; }
+    .assistant-log .bot { color: #d4d0ff; }
+    .assistant-log .err { color: var(--red); }
+    .assistant-examples {
+      margin: 0.55rem 0 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .assistant-examples code {
+      font-size: 0.76rem;
+      background: #1a2030;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      color: #c5c0f0;
+      margin-right: 0.25rem;
+    }
     .row { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
     button, select, input {
       font: inherit;
@@ -270,6 +333,33 @@
     </div>
   </header>
   <main>
+    <section class="card assistant" id="assistant-card">
+      <h2>Grok Assistant <span class="hint">natural-language IoT control</span></h2>
+      <div class="assistant-log" id="assistant-log" aria-live="polite">
+        <div class="line bot">Tell me what to do — rooms, colors, brightness, or routines.</div>
+      </div>
+      <form class="assistant-form" id="assistant-form" autocomplete="off">
+        <input
+          type="text"
+          id="assistant-input"
+          name="assistant"
+          placeholder="e.g. turn entryway magenta · all off · living room warm 50% · run sunset"
+          maxlength="400"
+          enterkeyhint="send"
+        />
+        <button type="submit" class="primary" id="btn-assistant">Run</button>
+      </form>
+      <p class="assistant-examples">
+        Examples:
+        <code>all off</code>
+        <code>entryway magenta</code>
+        <code>master bedroom on</code>
+        <code>living room warm 40%</code>
+        <code>run sunset</code>
+        <code>status</code>
+      </p>
+    </section>
+
     <section class="card">
       <h2>Overview</h2>
       <div class="stats">
@@ -704,6 +794,75 @@
       }
     }
 
+    function assistantAppend(role, text) {
+      const el = document.getElementById("assistant-log");
+      if (!el) return;
+      const line = document.createElement("div");
+      line.className = "line " + role;
+      const t = new Date().toLocaleTimeString();
+      line.textContent = `[${t}] ${text}`;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    function formatAssistantReply(data) {
+      let msg = (data && data.reply) || (data && data.error) || "No response";
+      msg = String(msg).replace(/\*\*([^*]+)\*\*/g, "$1");
+      const acts = (data && data.actions) || [];
+      if (acts.length) {
+        const bits = acts.map(a => {
+          if (a.op === "control") return `${a.target}→${a.color}`;
+          if (a.op === "run_routine") return `routine:${a.id}`;
+          return a.op;
+        });
+        msg += `  (${bits.join(", ")})`;
+      }
+      const eng = data && data.engine;
+      if (eng) msg += `  [${eng}]`;
+      return msg;
+    }
+
+    async function runAssistant(text) {
+      const msg = (text || "").trim();
+      if (!msg) return;
+      if (controlBusy) {
+        toast("Busy — try again in a moment", false);
+        return;
+      }
+      const input = document.getElementById("assistant-input");
+      const btn = document.getElementById("btn-assistant");
+      assistantAppend("user", msg);
+      if (input) input.value = "";
+      controlBusy = true;
+      if (btn) { btn.disabled = true; btn.textContent = "…"; }
+      document.getElementById("stat-last").textContent = `assistant: ${msg.slice(0, 40)}`;
+      try {
+        const { status, data } = await api("POST", "/api/assistant", {
+          message: msg,
+          brightness: bri(),
+        }, 60000);
+        const reply = formatAssistantReply(data || {});
+        const ok = !!(data && data.ok);
+        assistantAppend(ok ? "bot" : "err", reply);
+        toast(reply.slice(0, 80), ok);
+        log(`assistant [${status}]: ${reply}`);
+
+        const acts = (data && data.actions) || [];
+        const needsRefresh = acts.some(a =>
+          a.op === "control" || a.op === "run_routine" || a.op === "status"
+        );
+        if (needsRefresh) await refresh(true);
+      } catch (e) {
+        assistantAppend("err", String(e));
+        toast(String(e), false);
+        log("assistant error: " + e);
+      } finally {
+        controlBusy = false;
+        if (btn) { btn.disabled = false; btn.textContent = "Run"; }
+        if (input) input.focus();
+      }
+    }
+
     async function refresh(withStatus) {
       const hint = document.getElementById("devices-hint");
       const prev = hint.textContent;
@@ -780,6 +939,14 @@
     }
 
     async function init() {
+      const aform = document.getElementById("assistant-form");
+      if (aform) {
+        aform.addEventListener("submit", (ev) => {
+          ev.preventDefault();
+          const v = document.getElementById("assistant-input");
+          runAssistant(v ? v.value : "");
+        });
+      }
       renderGlobalPresets();
       document.getElementById("global-bri").addEventListener("input", (e) => {
         document.getElementById("bri-val").textContent = e.target.value;

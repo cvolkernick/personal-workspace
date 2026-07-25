@@ -8,6 +8,7 @@
   GET  /api/discover
   GET  /api/schedule         — routines + today's sunrise/sunset
   POST /api/control          — {target, color, brightness?}  target may be group id
+  POST /api/assistant        — {message, brightness?, dry_run?} natural-language control
   POST /api/status
   POST /api/schedule/location — {latitude, longitude, timezone?}
   POST /api/schedule/routine  — patch a routine {id, enabled?, ...}
@@ -35,6 +36,7 @@ ROOT = IOT_DIR.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from iot.assistant import execute_plan, plan_command  # noqa: E402
 from iot.control import (  # noqa: E402
     DEFAULT_BRIGHTNESS,
     DEFAULT_BULBS_PATH,
@@ -318,6 +320,62 @@ class IoTHandler(SimpleHTTPRequestHandler):
                 self._json(code, result)
                 return
 
+            if path == "/api/assistant":
+                message = str(
+                    body.get("message") or body.get("text") or body.get("q") or ""
+                ).strip()
+                dry_run = bool(body.get("dry_run") or body.get("plan_only"))
+                brightness = body.get("brightness")
+                if brightness is None:
+                    brightness = DEFAULT_BRIGHTNESS
+                else:
+                    brightness = int(brightness)
+                reg = _registry()
+                gmap = _groups()
+                use_grok = body.get("use_grok")
+                if use_grok is not None:
+                    use_grok = bool(use_grok)
+                plan = plan_command(
+                    message,
+                    groups=gmap,
+                    devices=list(reg.keys()),
+                    default_brightness=brightness,
+                    use_grok=use_grok,
+                )
+
+                def _ctrl(target: str, color: str, bri: int) -> dict[str, Any]:
+                    return run_async(
+                        execute_control(
+                            target,
+                            color,
+                            bri,
+                            registry=reg,
+                            groups=gmap,
+                            transport=_TRANSPORT,
+                        )
+                    )
+
+                def _run_routine(rid: str) -> dict[str, Any]:
+                    return run_routine_now(
+                        rid,
+                        control=_control_sync,
+                        schedule_path=_sched_path(),
+                        state_path=_state_path(),
+                        mark=False,
+                    )
+
+                result = execute_plan(
+                    plan,
+                    control_fn=_ctrl,
+                    run_routine_fn=_run_routine,
+                    dry_run=dry_run,
+                )
+                code = 200 if result.get("ok") or result.get("dry_run") else 400
+                if not message:
+                    code = 400
+                self._json(code, result)
+                return
+
             if path == "/api/status":
                 target = str(body.get("target") or body.get("name") or "").strip()
                 devices = run_async(
@@ -464,7 +522,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"IoT dashboard → {url}")
     print(f"bulbs → {_BULBS_PATH or DEFAULT_BULBS_PATH}")
-    print("API: /api/health /api/devices /api/groups /api/schedule /api/control")
+    print(
+        "API: /api/health /api/devices /api/groups /api/schedule "
+        "/api/control /api/assistant"
+    )
 
     stop = threading.Event()
     _SCHEDULER_STOP = stop
