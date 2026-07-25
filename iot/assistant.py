@@ -64,6 +64,10 @@ _TARGET_ALIASES: dict[str, str] = {
     "office light": "officelights",
     "office": "office",
     "vesync": "plugs",
+    "ac": "vesync_ac",
+    "air conditioner": "vesync_ac",
+    "heat": "vesync_heat",
+    "heater": "vesync_heat",
 }
 
 _COLOR_ALIASES: dict[str, str] = {

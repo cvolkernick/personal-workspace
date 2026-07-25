@@ -21,6 +21,6 @@
   },
   "plugs": {
     "label": "Plugs",
-    "members": ["plantlight", "smallplantlight", "officelights"]
+    "members": ["plantlight", "smallplantlight", "officelights", "vesync_ac", "vesync_heat"]
   }
 }
