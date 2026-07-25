@@ -2,20 +2,21 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 try:
     from .attention import compute_freshness, synthesize_attention
-    from .collectors import build_today_focus, collect_all_domains
+    from .collectors import build_strategy_section, collect_all_domains
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
     from attention import compute_freshness, synthesize_attention
-    from collectors import build_today_focus, collect_all_domains
+    from collectors import build_strategy_section, collect_all_domains
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
     from recommendations import synthesize_recommendations
@@ -79,12 +80,20 @@ def build_orchestra_payload(
     s_sig = strategy.get("signals") or {}
     initiatives = list(s_sig.get("initiatives") or [])
     today_items = list(s_sig.get("today_open") or [])
-    # Prefer structured focus already built in collect_strategy; rebuild if missing
-    today_focus = s_sig.get("today_focus")
-    if not isinstance(today_focus, dict) or not today_focus.get("ok", True):
-        today_focus = build_today_focus(ws)
-    elif not today_focus.get("path") and not today_focus.get("open_items"):
-        today_focus = build_today_focus(ws)
+    today_focus_items = list(s_sig.get("today_focus_items") or [])
+    # If collector only provided raw strings (older shape), synthesize cards
+    if not today_focus_items and today_items:
+        today_focus_items = [
+            {
+                "id": f"today-{i + 1}",
+                "rank": i + 1,
+                "title": re.sub(r"\*\*", "", str(line)).strip()[:200],
+                "why": "",
+                "raw": str(line),
+                "source": "strategy/today.md",
+            }
+            for i, line in enumerate(today_items)
+        ]
 
     workflow = by_id.get("workflow") or {}
     backlog = (workflow.get("signals") or {}).get("backlog") or {}
@@ -189,9 +198,12 @@ def build_orchestra_payload(
         synergies=synergies,
         bridge=bridge,
         freshness=freshness,
+        backlog_active=backlog_active,
+        holistic_linked=backlog_linked,
     )
     # Primary operator-facing action list (recommendations.items)
     recommended_actions = list(recommendations.get("items") or [])
+    next_action = recommendations.get("next_action")
 
     links = []
     for spec in DOMAIN_SPECS:
@@ -212,6 +224,40 @@ def build_orchestra_payload(
     high_synergies = sum(
         1 for s in synergies if (s.get("strength") or "") == "high"
     )
+    strategy_section = build_strategy_section(strategy)
+
+    today_path = s_sig.get("today_path") or "strategy/today.md"
+    bets_path = s_sig.get("bets_path") or "strategy/bets.md"
+    initiatives_dir = s_sig.get("initiatives_dir") or "initiatives/"
+    today_focus = {
+        "title": "Today's Focus",
+        "items": today_focus_items,
+        "count": len(today_focus_items),
+        "today_path": today_path,
+        "bets_path": bets_path,
+        "initiatives_dir": initiatives_dir,
+        "initiatives": [
+            {
+                "id": i.get("id"),
+                "title": i.get("title"),
+                "status": i.get("status"),
+                "path": i.get("path"),
+                "next_action": i.get("next_action"),
+                "linked_bets": i.get("linked_bets") or [],
+            }
+            for i in initiatives[:12]
+        ],
+        "edit_hint": (
+            f"Edit {today_path} in any editor (open checklist lines = cards here). "
+            "Refresh Orchestra after saving."
+        ),
+        "add_initiative_guidance": (
+            "Add a new initiative as a structured Markdown file under initiatives/ "
+            "with YAML frontmatter: title, status, linked_bets, priority_impact, "
+            "next_action, energy (see initiatives/improve-command-center-daily-planner.md)."
+        ),
+        "source": today_path,
+    }
     return {
         "ok": True,
         "service": "orchestra",
@@ -226,9 +272,13 @@ def build_orchestra_payload(
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
-        # Human-maintained daily plan (strategy/today.md) — primary visual for operators
+        # North-star strategy brief (top-level UI; not a domain card)
+        "strategy": strategy_section,
+        # Daily action plan slice (source: strategy/today.md)
         "today_focus": today_focus,
+        "today_items": today_focus_items,  # alias for UI / agents
         # Primary synthesized output for operators / agents
+        "next_action": next_action,  # single decided next step
         "recommendations": recommendations,
         "recommended_actions": recommended_actions,
         # Intermediate streams (detail / debug; UI demotes vs recommendations)
@@ -245,6 +295,7 @@ def build_orchestra_payload(
             "synergies_high": high_synergies,
             "priorities": len(priorities),
             "recommendations": len(recommended_actions),
+            "has_next_action": bool(next_action),
             "initiatives": len(initiatives),
             "today_items": len(today_items),
             "bridge_candidates": len(bridge_candidates),
@@ -257,13 +308,18 @@ def build_orchestra_payload(
             "url": ORCHESTRA_URL,
             "probe_ports": probe_ports,
             "stale_hours": stale_hours,
-            "primary_output": "recommendations",
+            "primary_output": "next_action",
             "streams": {
-                "today_focus": "Human-maintained strategy/today.md focus cards",
-                "recommendations": "Merged automated next actions (primary)",
+                "next_action": "Single decided next step (top of recommendations)",
+                "recommendations": "Merged automated next actions",
                 "priorities": "Raw priority synthesis (input to recommendations)",
                 "attention": "Hygiene/attention digest (input to recommendations)",
                 "synergies": "Cross-domain links (input; high preferred, medium fallback)",
+            },
+            "deep_links": {
+                "orchestra": "http://127.0.0.1:8790/?rec=<id>&backlog=<id>&next=1",
+                "workflow": "http://127.0.0.1:8765/?item=<backlog_id>&orchestra_rec=<id>",
+                "holistic": "http://127.0.0.1:8770/?backlog=<backlog_id>&item=<holistic_id>&orchestra_rec=<id>",
             },
             "subordinate_ports": {
                 "financial-command": 8000,

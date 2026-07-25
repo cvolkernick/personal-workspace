@@ -35,234 +35,75 @@ def _read_json(path: Path) -> Optional[dict[str, Any]]:
 
 
 def _checklist_open(md: str) -> list[str]:
-    out: list[str] = []
+    """Open checklist body strings (legacy consumers: synergies, priorities)."""
+    return [item["raw"] for item in parse_today_focus_items(md)]
+
+
+def parse_today_focus_items(md: str) -> list[dict[str, Any]]:
+    """Parse open markdown checkboxes into structured Today's Focus cards.
+
+    Supports common strategy/today.md patterns:
+      - [ ] **Title** (context). *Why this moves the bet: …*
+      - [ ] Plain title without markup
+
+    Returns list of dicts with: id, rank, title, why, raw, source.
+    Pure function — no I/O.
+    """
+    items: list[dict[str, Any]] = []
     for line in md.splitlines():
         m = re.match(r"^\s*[-*]\s*\[\s*\]\s*(.+)$", line)
-        if m:
-            out.append(m.group(1).strip())
-    return out
-
-
-def _strip_md_emphasis(s: str) -> str:
-    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
-    s = re.sub(r"\*(.+?)\*", r"\1", s)
-    s = re.sub(r"`([^`]+)`", r"\1", s)
-    return s.strip()
-
-
-def _split_title_detail(raw: str) -> tuple[str, str]:
-    """Split a checklist line into short title + why/detail (bet/initiative link)."""
-    raw = (raw or "").strip()
-    if not raw:
-        return "", ""
-    # Prefer explicit *Why…* / *Link…* italic tail
-    m = re.search(
-        r"\s+\*((?:Why|Link|Link to bets?|Why this moves)[^*]+)\*\s*$",
-        raw,
-        re.I,
-    )
-    if m:
-        detail = m.group(1).strip()
-        title = raw[: m.start()].strip().rstrip(".").rstrip()
-        return _strip_md_emphasis(title), detail
-    # Parenthetical tail as secondary detail
-    m2 = re.match(r"^(.+?)\s+\(([^)]{8,})\)\s*\.?\s*$", raw)
-    if m2 and not m2.group(1).count("("):
-        title = _strip_md_emphasis(m2.group(1).strip())
-        detail = m2.group(2).strip()
-        return title, detail
-    # Bold lead as title, remainder as detail
-    m3 = re.match(r"^\*\*(.+?)\*\*\s*(.*)$", raw)
-    if m3:
-        title = m3.group(1).strip()
-        rest = m3.group(2).strip().strip("—–-").strip()
-        rest = _strip_md_emphasis(rest)
-        return title, rest
-    return _strip_md_emphasis(raw), ""
-
-
-def _parse_checklist_items(md: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Parse open and done checklist items into structured cards."""
-    open_items: list[dict[str, Any]] = []
-    done_items: list[dict[str, Any]] = []
-    for line in md.splitlines():
-        m_open = re.match(r"^\s*[-*]\s*\[\s*\]\s*(.+)$", line)
-        m_done = re.match(r"^\s*[-*]\s*\[[xX]\]\s*(.+)$", line)
-        if m_open:
-            raw = m_open.group(1).strip()
-            title, detail = _split_title_detail(raw)
-            open_items.append(
-                {
-                    "raw": raw,
-                    "title": title or raw,
-                    "detail": detail,
-                    "done": False,
-                }
-            )
-        elif m_done:
-            raw = m_done.group(1).strip()
-            title, detail = _split_title_detail(raw)
-            done_items.append(
-                {
-                    "raw": raw,
-                    "title": title or raw,
-                    "detail": detail,
-                    "done": True,
-                }
-            )
-    for i, item in enumerate(open_items, start=1):
-        item["rank"] = i
-    for i, item in enumerate(done_items, start=1):
-        item["rank"] = i
-    return open_items, done_items
-
-
-def _extract_today_meta(md: str) -> dict[str, str]:
-    """Pull Date / Context lines from strategy/today.md body."""
-    date = ""
-    context = ""
-    for line in md.splitlines():
-        s = line.strip()
-        m_date = re.match(r"^\*?\*?Date:?\*?\*?\s*(.+)$", s, re.I)
-        if m_date and not date:
-            date = _strip_md_emphasis(m_date.group(1))
+        if not m:
             continue
-        m_ctx = re.match(r"^\*?\*?Context:?\*?\*?\s*(.+)$", s, re.I)
-        if m_ctx and not context:
-            context = _strip_md_emphasis(m_ctx.group(1))
-            continue
-    return {"date": date, "context": context}
+        raw = m.group(1).strip()
+        why = ""
+        title_src = raw
 
+        # Trailing single-asterisk italic (not **bold**): space/*text*/
+        italic = re.search(r"(?<!\*)\*([^*]+)\*(?!\*)\s*$", raw)
+        if italic:
+            why = italic.group(1).strip()
+            title_src = raw[: italic.start()].strip().rstrip(" .")
 
-def _bets_blurb(bets_text: str) -> str:
-    """First useful blurb from strategy/bets.md for the Today panel."""
-    lines = [ln.strip() for ln in bets_text.splitlines() if ln.strip()]
-    for ln in lines[1:10]:
-        if ln.startswith("#"):
-            break
-        if ln.startswith("**") or ln.startswith("-"):
-            return _strip_md_emphasis(ln.strip("*").strip())
-        if not ln.startswith("["):
-            return ln
-    return ""
+        # Prefer **bold** span as title
+        bold = re.search(r"\*\*(.+?)\*\*", title_src)
+        if bold:
+            title = bold.group(1).strip()
+            rest = title_src[bold.end() :].strip().strip(" .;—-")
+            if rest and not why:
+                why = rest
+            elif rest and why and rest not in why:
+                why = f"{rest} {why}".strip()
+        else:
+            title = re.sub(r"\*+", "", title_src).strip()
+            if ":" in title and len(title) > 80:
+                head, _, tail = title.partition(":")
+                if len(head) >= 8:
+                    title = head.strip()
+                    why = (tail.strip() + (" " + why if why else "")).strip()
 
+        title = re.sub(r"\s+", " ", title).strip(" .")
+        if not title:
+            title = re.sub(r"\*\*", "", raw).strip()[:200]
+        why = re.sub(r"\s+", " ", why).strip()
+        why_disp = re.sub(
+            r"^(Why this moves the bet|Link to bets|Link)\s*:\s*",
+            "",
+            why,
+            flags=re.I,
+        ).strip() or why
 
-def _match_item_links(
-    item: dict[str, Any],
-    *,
-    bets: list[str],
-    initiatives: list[dict[str, Any]],
-) -> dict[str, Any]:
-    """Attach matching thematic bets + initiative ids for UI deep-links."""
-    blob = f"{item.get('title', '')} {item.get('detail', '')} {item.get('raw', '')}".lower()
-    matched_bets = [b for b in bets if b.lower() in blob]
-    # Soft keyword → bet aliases
-    aliases = {
-        "bitcoin": "Bitcoin",
-        "btc": "Bitcoin",
-        "energy": "Energy",
-        "nuclear": "Energy",
-        "ai": "AI",
-        "agent": "AI",
-        "autonomy": "Autonomy",
-        "automation": "Autonomy",
-        "robot": "Robotics",
-        "command center": "AI",
-        "orchestra": "AI",
-    }
-    for key, bet in aliases.items():
-        if key in blob and bet in bets and bet not in matched_bets:
-            matched_bets.append(bet)
-    matched_inits: list[dict[str, str]] = []
-    for init in initiatives:
-        title = str(init.get("title") or "")
-        iid = str(init.get("id") or "")
-        path = str(init.get("path") or f"initiatives/{iid}.md")
-        tokens = [
-            t
-            for t in re.split(r"[^a-z0-9]+", f"{title} {iid}".lower())
-            if len(t) >= 4
-        ]
-        if iid and iid.replace("-", " ") in blob:
-            matched_inits.append({"id": iid, "title": title, "path": path})
-            continue
-        hits = sum(1 for t in tokens if t in blob)
-        if hits >= 2 or (iid and any(t in blob for t in iid.split("-") if len(t) >= 5)):
-            matched_inits.append({"id": iid, "title": title, "path": path})
-    # Dedupe initiatives
-    seen: set[str] = set()
-    uniq_inits: list[dict[str, str]] = []
-    for mi in matched_inits:
-        if mi["id"] in seen:
-            continue
-        seen.add(mi["id"])
-        uniq_inits.append(mi)
-    out = dict(item)
-    out["linked_bets"] = matched_bets[:5]
-    out["linked_initiatives"] = uniq_inits[:3]
-    return out
-
-
-def build_today_focus(workspace: Path) -> dict[str, Any]:
-    """Structured Today's Focus for the command-center UI (from strategy MD)."""
-    ws = Path(workspace)
-    bets_path = ws / "strategy" / "bets.md"
-    today_path = ws / "strategy" / "today.md"
-    bets_text = _read_text(bets_path)
-    today_text = _read_text(today_path)
-    thematic: list[str] = []
-    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
-        if re.search(rf"\b{name}\b", bets_text, re.I):
-            thematic.append(name)
-    meta = _extract_today_meta(today_text)
-    open_raw, done_raw = _parse_checklist_items(today_text)
-    initiatives = collect_initiatives(ws)
-    open_items = [
-        _match_item_links(it, bets=thematic, initiatives=initiatives) for it in open_raw
-    ]
-    done_items = [
-        _match_item_links(it, bets=thematic, initiatives=initiatives) for it in done_raw
-    ]
-    active_inits = [
-        i
-        for i in initiatives
-        if (i.get("status") or "").lower()
-        in ("active", "todo", "in_progress", "planning", "ready")
-    ]
-    return {
-        "ok": bool(today_text or bets_text or initiatives),
-        "path": "strategy/today.md" if today_path.is_file() else None,
-        "bets_path": "strategy/bets.md" if bets_path.is_file() else None,
-        "initiatives_dir": "initiatives/",
-        "date": meta.get("date") or "",
-        "context": meta.get("context") or "",
-        "bets_blurb": _bets_blurb(bets_text),
-        "thematic_bets": thematic,
-        "open_items": open_items,
-        "done_items": done_items,
-        "open_count": len(open_items),
-        "done_count": len(done_items),
-        "initiatives": initiatives,
-        "active_initiatives": active_inits,
-        "edit_hint": "Edit strategy/today.md in any editor (or ask Grok to refresh it from initiatives).",
-        "new_initiative_guide": {
-            "summary": (
-                "Add a new initiative as a structured Markdown file under initiatives/ "
-                "(YAML frontmatter + Description / Current Next Action / Progress)."
-            ),
-            "template_path": "initiatives/_template.md",
-            "example_path": "initiatives/improve-command-center-daily-planner.md",
-            "fields": [
-                "title",
-                "status",
-                "linked_bets",
-                "priority_impact",
-                "next_action",
-                "energy",
-                "domain_weighting_context",
-            ],
-        },
-    }
+        rank = len(items) + 1
+        items.append(
+            {
+                "id": f"today-{rank}",
+                "rank": rank,
+                "title": title[:200],
+                "why": why_disp[:400],
+                "raw": raw,
+                "source": "strategy/today.md",
+            }
+        )
+    return items
 
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -364,8 +205,23 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
                 "area": it.get("area") or "",
                 "notes": (it.get("notes") or "")[:300],
                 "tags": it.get("tags") or [],
+                "press_rank": it.get("press_rank"),
+                "schedule_slot": it.get("schedule_slot"),
+                "schedule_label": it.get("schedule_label"),
             }
         )
+
+    def _sort_key(x: dict[str, Any]) -> tuple:
+        rank = x.get("press_rank")
+        try:
+            r = int(rank) if rank is not None else 99
+        except (TypeError, ValueError):
+            r = 99
+        slot = (x.get("schedule_slot") or "").lower()
+        slot_w = 0 if slot == "now" else 1 if slot == "this_week" else 2
+        return (slot_w, r, str(x.get("title") or ""))
+
+    active.sort(key=_sort_key)
     return {
         "ok": True,
         "count": len(active),
@@ -376,27 +232,151 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
     }
 
 
+def _parse_strategy_brief(bets_text: str, today_text: str) -> dict[str, Any]:
+    """Extract guiding principle, themes, weightings, directives from strategy MDs."""
+    guiding = ""
+    m = re.search(
+        r"(?im)^\*\*Guiding Principle:\*\*\s*(.+?)(?:\n\n|\n\*\*|\Z)",
+        bets_text,
+    )
+    if m:
+        guiding = m.group(1).strip()
+    if not guiding:
+        m2 = re.search(r"(?im)^Guiding Principle[:\s]+(.+)$", bets_text)
+        if m2:
+            guiding = m2.group(1).strip()
+
+    thematic: list[str] = []
+    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
+        if re.search(rf"\b{name}\b", bets_text, re.I):
+            thematic.append(name)
+
+    # Bullet themes under thematic bets (optional detail lines)
+    theme_details: list[str] = []
+    for line in bets_text.splitlines():
+        bm = re.match(r"^\s*[-*]\s+\*\*([^*]+)\*\*\s*(.*)$", line)
+        if bm and bm.group(1).strip() in (
+            "Energy",
+            "Bitcoin",
+            "AI",
+            "Autonomy",
+            "Robotics",
+        ):
+            detail = (bm.group(1).strip() + " " + bm.group(2).strip()).strip()
+            theme_details.append(detail[:200])
+
+    weightings: list[dict[str, str]] = []
+    in_weights = False
+    for line in bets_text.splitlines():
+        if re.search(r"(?i)domain weightings", line):
+            in_weights = True
+            continue
+        if in_weights and line.startswith("##"):
+            break
+        if in_weights:
+            wm = re.match(r"^\s*[-*]\s+(.+?)(?::\s*| — | – | - )(.+)$", line)
+            if wm:
+                weightings.append(
+                    {
+                        "domain": wm.group(1).strip(),
+                        "weight": wm.group(2).strip()[:120],
+                    }
+                )
+
+    directives: list[str] = []
+    # Balanced life principle block
+    bl = re.search(
+        r"(?is)\*\*Balanced Life Principle:\*\*\s*(.+?)(?:\n\n\*\*|\n---|\n##|\Z)",
+        bets_text,
+    )
+    if bl:
+        text = re.sub(r"\s+", " ", bl.group(1)).strip()
+        if text:
+            directives.append(text[:400])
+    # How to use bullets from bets
+    how = re.search(
+        r"(?is)\*\*How to use this file:\*\*\s*(.+?)(?:\n\n\*Last|\n---|\n##|\Z)",
+        bets_text,
+    )
+    if how:
+        for line in how.group(1).splitlines():
+            lm = re.match(r"^\s*[-*]\s+(.+)$", line)
+            if lm:
+                directives.append(lm.group(1).strip()[:240])
+
+    # Today context line
+    today_context = ""
+    cm = re.search(r"(?im)^\*\*Context:\*\*\s*(.+)$", today_text)
+    if cm:
+        today_context = cm.group(1).strip()[:400]
+
+    goals: list[str] = []
+    if thematic:
+        goals.append(
+            "Advance high-conviction thematic bets: " + ", ".join(thematic) + "."
+        )
+    if weightings:
+        goals.append(
+            "Maintain balanced life domains with dynamic weightings "
+            f"({len(weightings)} domains tracked)."
+        )
+    if today_context:
+        goals.append(today_context)
+
+    summary_parts = []
+    if guiding:
+        summary_parts.append(guiding[:180])
+    if thematic:
+        summary_parts.append("Bets: " + ", ".join(thematic))
+    if weightings:
+        summary_parts.append(f"{len(weightings)} domain weightings")
+    summary = " · ".join(summary_parts) if summary_parts else "Strategy sources present"
+
+    return {
+        "guiding_principle": guiding,
+        "thematic_bets": thematic,
+        "theme_details": theme_details[:8],
+        "domain_weightings": weightings[:16],
+        "directives": directives[:8],
+        "goals": goals[:8],
+        "today_context": today_context,
+        "summary": summary,
+    }
+
+
 def collect_strategy(workspace: Path) -> dict[str, Any]:
     ws = Path(workspace)
-    focus = build_today_focus(ws)
-    thematic = list(focus.get("thematic_bets") or [])
-    open_items = [it.get("raw") or it.get("title") or "" for it in (focus.get("open_items") or [])]
-    # Keep plain strings for priorities/synergies (backward compatible)
-    open_items = [s for s in open_items if s]
-    if not open_items:
-        open_items = _checklist_open(_read_text(ws / "strategy" / "today.md"))
-    initiatives = list(focus.get("initiatives") or [])
-    bets_ok = bool(focus.get("bets_path"))
-    today_ok = bool(focus.get("path"))
-    status = "ok" if bets_ok or today_ok or initiatives else "missing"
+    bets_path = ws / "strategy" / "bets.md"
+    today_path = ws / "strategy" / "today.md"
+    bets_text = _read_text(bets_path)
+    today_text = _read_text(today_path)
+    brief = _parse_strategy_brief(bets_text, today_text)
+    thematic = brief.get("thematic_bets") or []
+    focus_items = parse_today_focus_items(today_text)
+    open_items = [it["raw"] for it in focus_items]
+    initiatives = collect_initiatives(ws)
+    status = "ok" if bets_text or today_text else "missing"
     summary_bits = []
     if thematic:
         summary_bits.append("bets: " + ", ".join(thematic[:5]))
     if open_items:
         summary_bits.append(f"{len(open_items)} open today item(s)")
     if initiatives:
-        active_n = len(focus.get("active_initiatives") or [])
+        active_n = sum(
+            1
+            for i in initiatives
+            if (i.get("status") or "").lower() in ("active", "todo", "in_progress", "planning")
+        )
         summary_bits.append(f"{active_n} initiative(s)")
+    bets_rel = "strategy/bets.md" if bets_path.is_file() else None
+    today_rel = "strategy/today.md" if today_path.is_file() else None
+    init_dir = "initiatives/" if (ws / "initiatives").is_dir() else None
+    active_inits = [
+        i
+        for i in initiatives
+        if (i.get("status") or "").lower()
+        in ("active", "todo", "in_progress", "planning", "ready")
+    ]
     return {
         "id": "strategy",
         "label": "Strategy",
@@ -405,17 +385,72 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
         "signals": {
             "thematic_bets": thematic,
             "today_open": open_items,
+            "today_focus_items": focus_items,
             "today_count": len(open_items),
-            "today_focus": focus,
             "initiatives": initiatives,
-            "bets_path": focus.get("bets_path"),
-            "today_path": focus.get("path"),
+            "bets_path": bets_rel,
+            "today_path": today_rel,
+            "initiatives_dir": init_dir,
+            "guiding_principle": brief.get("guiding_principle") or "",
+            "domain_weightings": brief.get("domain_weightings") or [],
+            "directives": brief.get("directives") or [],
+            "goals": brief.get("goals") or [],
+            "theme_details": brief.get("theme_details") or [],
+            "today_context": brief.get("today_context") or "",
+            "strategy_summary": brief.get("summary") or "",
+            "active_initiative_count": len(active_inits),
         },
-        "available": bool(bets_ok or today_ok or initiatives),
+        "available": bool(bets_text or today_text or initiatives),
         "live": None,
         "url": None,
         "launch": None,
         "sources": ["strategy/bets.md", "strategy/today.md", "initiatives/"],
+    }
+
+
+def build_strategy_section(
+    strategy_domain: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Top-level strategy block for Orchestra UI (not a domain card)."""
+    d = strategy_domain or {}
+    sig = d.get("signals") or {}
+    initiatives = list(sig.get("initiatives") or [])
+    active = [
+        {
+            "id": i.get("id"),
+            "title": i.get("title"),
+            "status": i.get("status"),
+            "next_action": i.get("next_action"),
+            "linked_bets": i.get("linked_bets") or [],
+        }
+        for i in initiatives
+        if (i.get("status") or "").lower()
+        not in ("done", "cancelled", "archived")
+    ][:8]
+    return {
+        "title": "Strategy",
+        "available": bool(d.get("available")),
+        "status": d.get("status") or "missing",
+        "summary": sig.get("strategy_summary") or d.get("summary") or "",
+        "guiding_principle": sig.get("guiding_principle") or "",
+        "thematic_bets": list(sig.get("thematic_bets") or []),
+        "theme_details": list(sig.get("theme_details") or []),
+        "goals": list(sig.get("goals") or []),
+        "directives": list(sig.get("directives") or []),
+        "domain_weightings": list(sig.get("domain_weightings") or []),
+        "today_context": sig.get("today_context") or "",
+        "today_count": sig.get("today_count") or 0,
+        "initiatives": active,
+        "paths": {
+            "bets": sig.get("bets_path") or "strategy/bets.md",
+            "today": sig.get("today_path") or "strategy/today.md",
+            "initiatives": sig.get("initiatives_dir") or "initiatives/",
+        },
+        "sources": d.get("sources") or [
+            "strategy/bets.md",
+            "strategy/today.md",
+            "initiatives/",
+        ],
     }
 
 

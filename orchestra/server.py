@@ -8,9 +8,11 @@
   GET  /api/priorities
   GET  /api/attention   — attention digest + freshness
   GET  /api/recommendations — automated recommended next actions (primary)
-  GET  /api/today       — structured Today's Focus from strategy/today.md
-  GET  /api/strategy/today.md — raw markdown (easy to preview / copy)
-  GET  /api/strategy/bets.md  — raw bets markdown
+  GET  /api/strategy        — strategy brief (themes, goals, directives)
+  GET  /api/conductor/status — Grok auth ready for Conductor
+  POST /api/conductor       — {question} ask Grok about orchestration
+  GET  /api/launch/status   — which domain servers are live
+  POST /api/launch          — {domain} start server if down, return url
   GET  /                — unified UI
 
 Usage:
@@ -36,17 +38,15 @@ if str(ORCHESTRA_DIR) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from collectors import build_today_focus  # noqa: E402
+from conductor import (  # noqa: E402
+    CONDUCTOR_SUGGESTIONS,
+    ConductorError,
+    ask_conductor,
+    auth_status,
+)
+from launcher import ensure_domain, status_all  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
 from public_base import public_hostname, rewrite_payload_urls  # noqa: E402
-
-# Safe relative paths under the workspace that the UI may fetch as raw markdown.
-_STRATEGY_RAW = {
-    "/api/strategy/today.md": "strategy/today.md",
-    "/api/strategy/today": "strategy/today.md",
-    "/api/strategy/bets.md": "strategy/bets.md",
-    "/api/strategy/bets": "strategy/bets.md",
-}
 
 
 class OrchestraHandler(SimpleHTTPRequestHandler):
@@ -57,7 +57,7 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
         sys.stderr.write("[orchestra] " + (fmt % args) + "\n")
 
     def _json(self, code: int, payload: dict) -> None:
-        # When opened from a Mac via Pi LAN/Tailscale, rewrite 127.0.0.1 deep-links.
+        # Mac → Pi: rewrite 127.0.0.1 domain deep-links to the public host
         if isinstance(payload, dict) and payload.get("ok") is not False:
             host = public_hostname(request_host_header=self.headers.get("Host"))
             if host:
@@ -71,15 +71,23 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def _text(self, code: int, body: str, content_type: str = "text/plain; charset=utf-8") -> None:
-        data = body.encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", content_type)
-        self.send_header("Content-Length", str(len(data)))
-        self.send_header("Cache-Control", "no-store")
+    def _read_json_body(self) -> dict:
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            return {}
+        raw = self.rfile.read(length)
+        try:
+            data = json.loads(raw.decode("utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return {}
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
-        self.wfile.write(data)
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -98,6 +106,39 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        if path in ("/api/conductor/status", "/api/ask/status"):
+            st = auth_status()
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "conductor": st,
+                    "suggestions": CONDUCTOR_SUGGESTIONS,
+                },
+            )
+            return
+
+        if path == "/api/strategy":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {"ok": True, "strategy": payload.get("strategy") or {}},
+            )
+            return
+
+        if path in ("/api/launch/status", "/api/servers"):
+            try:
+                self._json(200, status_all(workspace=WORKSPACE_ROOT))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
         if path in (
             "/api/orchestra",
             "/api/status",
@@ -111,34 +152,6 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, payload)
-            return
-
-        if path in ("/api/today", "/api/today-focus", "/api/focus"):
-            try:
-                focus = build_today_focus(WORKSPACE_ROOT)
-            except Exception as e:
-                self._json(500, {"ok": False, "error": str(e)})
-                return
-            self._json(200, focus)
-            return
-
-        if path in _STRATEGY_RAW:
-            rel = _STRATEGY_RAW[path]
-            target = (WORKSPACE_ROOT / rel).resolve()
-            try:
-                target.relative_to(WORKSPACE_ROOT.resolve())
-            except ValueError:
-                self._json(403, {"ok": False, "error": "path outside workspace"})
-                return
-            if not target.is_file():
-                self._json(404, {"ok": False, "error": f"missing {rel}"})
-                return
-            try:
-                text = target.read_text(encoding="utf-8")
-            except OSError as e:
-                self._json(500, {"ok": False, "error": str(e)})
-                return
-            self._text(200, text, "text/markdown; charset=utf-8")
             return
 
         if path == "/api/domains":
@@ -228,6 +241,7 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                 200,
                 {
                     "ok": True,
+                    "next_action": payload.get("next_action") or rec.get("next_action"),
                     "recommendations": rec,
                     "recommended_actions": payload.get("recommended_actions") or [],
                     "summary": rec.get("summary"),
@@ -237,9 +251,94 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        if path in ("/api/next-action", "/api/next_action"):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            nxt = payload.get("next_action")
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "next_action": nxt,
+                    "mode": (payload.get("recommendations") or {}).get("mode"),
+                    "summary": (payload.get("recommendations") or {}).get("summary"),
+                },
+            )
+            return
+
         if path in ("/", "/index.html", "/orchestra", "/orchestra/"):
             self.path = "/index.html"
         return super().do_GET()
+
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path in ("/api/conductor", "/api/ask", "/api/conductor/ask"):
+            body = self._read_json_body()
+            question = (body.get("question") or body.get("prompt") or "").strip()
+            if not question:
+                self._json(400, {"ok": False, "error": "question is required"})
+                return
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+                result = ask_conductor(question, payload)
+            except ConductorError as e:
+                code = e.status if e.status in (400, 401, 403, 429) else 502
+                if e.status and 400 <= e.status < 600:
+                    code = e.status
+                self._json(
+                    code if code >= 400 else 502,
+                    {
+                        "ok": False,
+                        "error": str(e),
+                        "detail": (e.body or "")[:800],
+                    },
+                )
+                return
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, result)
+            return
+
+        if path in ("/api/launch", "/api/start", "/api/servers/start"):
+            body = self._read_json_body()
+            domain = (
+                body.get("domain")
+                or body.get("id")
+                or body.get("service")
+                or ""
+            ).strip()
+            if not domain:
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": "domain is required (workflow|finance|fitness|holistic|iot)",
+                    },
+                )
+                return
+            try:
+                result = ensure_domain(
+                    domain,
+                    workspace=WORKSPACE_ROOT,
+                    force_restart=bool(body.get("force")),
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            code = 200 if result.get("ok") else 400
+            self._json(code, result)
+            return
+
+        self._json(404, {"ok": False, "error": f"unknown path {path}"})
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -248,31 +347,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--host",
         default="127.0.0.1",
-        help="Bind address. Use 0.0.0.0 on the Pi so LAN/Tailscale clients can connect.",
+        help="Bind address. Use 0.0.0.0 on the Pi for LAN/Tailscale access.",
     )
     parser.add_argument("--no-browser", action="store_true")
-    # Accepted by Pi systemd unit; local API is the default for this process.
     parser.add_argument(
         "--local",
         action="store_true",
-        help="Force local API (used by Pi unit; no-op when no --backend is configured).",
+        help="Force local API (Pi systemd unit flag).",
     )
-    parser.add_argument(
-        "--backend",
-        default=None,
-        help="Reserved for terminal frontend proxy mode (see deploy/README.md).",
-    )
+    parser.add_argument("--backend", default=None, help="Reserved for frontend proxy mode.")
     args = parser.parse_args(argv)
 
     server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
     url = f"http://{args.host}:{args.port}/"
     print(f"Orchestrator: {url}")
-    print(f"API: {url}api/orchestra")
+    print(f"API: {url}api/orchestra · Conductor: {url}api/conductor")
     print("Press Ctrl+C to stop.")
     if not args.no_browser:
-        open_url = url.replace("0.0.0.0", "127.0.0.1")
         try:
-            webbrowser.open(open_url)
+            webbrowser.open(url.replace("0.0.0.0", "127.0.0.1"))
         except Exception:
             pass
     try:
