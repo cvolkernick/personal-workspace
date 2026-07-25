@@ -73,8 +73,23 @@
     return "needs-rest";
   }
 
+  function fmtBatteryWhen(iso) {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 16);
+      return d.toLocaleString(undefined, {
+        weekday: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (_) {
+      return "—";
+    }
+  }
+
   function renderSleepBatteryMini(battery) {
-    const el = $("sleep-battery-mini");
+    const el = $("sleep-battery-panel");
     if (!el) return;
     const b = battery || {};
     const pct = Math.min(
@@ -83,20 +98,84 @@
     );
     const level = String(b.level || "critical").toLowerCase();
     const mode = b.mode || "no_data";
-    let sub = "sleep";
-    if (mode === "sleeping") sub = "chg";
-    else if (mode === "awake" && pct <= 0) sub = "empty";
-    else if (mode === "awake") sub = `${Math.round(Number(b.hours_until_empty) || 0)}h`;
-    else sub = "—";
-    const tip = b.summary || "Sleep battery (100% at wake, drains over ~16h awake)";
+    const awakeBudget = Number(b.awake_budget_hours) || 16;
+    const hoursAwake = Number(b.hours_awake) || 0;
+    const untilEmpty = Number(b.hours_until_empty) || 0;
+    const sleepTgt = Number(b.sleep_target_hours || b.target_hours) || 8;
+
+    let subLabel = "remaining";
+    if (mode === "sleeping") subLabel = "charging";
+    else if (mode === "no_data") subLabel = "no data";
+    else if (pct <= 0) subLabel = "empty · sleep";
+
+    const tip =
+      b.summary ||
+      "Full at wake · drains over awake budget · empty = time to sleep & recharge";
     el.title = tip;
+
+    // Compact awake-window timeline (wake → bedtime empty)
+    let timelineHtml = "";
+    if (mode === "awake" && awakeBudget > 0) {
+      const usedPct = Math.min(100, (hoursAwake / awakeBudget) * 100);
+      timelineHtml = `
+        <div class="sb-timeline" aria-hidden="true">
+          <div class="sb-timeline-used" style="width:${usedPct.toFixed(1)}%"></div>
+        </div>
+        <div class="sb-timeline-labels">
+          <span>wake</span>
+          <span>bedtime</span>
+        </div>`;
+    }
+
     el.innerHTML = `
-      <div class="sb-mini-label">Sleep</div>
-      <div class="sb-mini-shell" aria-label="Sleep battery ${pct.toFixed(0)} percent">
-        <div class="sb-mini-fill ${level}" style="width:${pct.toFixed(0)}%"></div>
-        <div class="sb-mini-text">${pct.toFixed(0)}%</div>
+      <div class="sb-panel-head">
+        <span class="sb-panel-title">Sleep battery</span>
+        <span class="sb-panel-hint muted">full at wake · ${awakeBudget}h awake</span>
       </div>
-      <div class="sb-mini-sub">${sub}</div>`;
+      <div class="sb-panel-body">
+        <div class="sb-shell" aria-label="Sleep battery ${pct.toFixed(0)} percent">
+          <div class="sb-fill-wrap">
+            <div class="sb-fill ${level}" style="width:${pct.toFixed(0)}%"></div>
+            <div class="sb-label">
+              <span class="sb-big">${mode === "no_data" ? "—" : `${pct.toFixed(0)}%`}</span>
+              <span class="sb-sub">${subLabel}</span>
+            </div>
+          </div>
+        </div>
+        <div class="sb-side">
+          <div class="sb-stats">
+            <div class="sb-stat">
+              <div class="sb-stat-label">Charge</div>
+              <div class="sb-stat-value">${mode === "no_data" ? "—" : `${pct.toFixed(0)}%`}</div>
+            </div>
+            <div class="sb-stat">
+              <div class="sb-stat-label">Awake</div>
+              <div class="sb-stat-value">${hoursAwake.toFixed(1)}h / ${awakeBudget}h</div>
+            </div>
+            <div class="sb-stat">
+              <div class="sb-stat-label">Until empty</div>
+              <div class="sb-stat-value">${untilEmpty.toFixed(1)}h</div>
+            </div>
+            <div class="sb-stat">
+              <div class="sb-stat-label">Bedtime</div>
+              <div class="sb-stat-value">${fmtBatteryWhen(b.empty_at)}</div>
+            </div>
+          </div>
+          ${timelineHtml}
+        </div>
+      </div>
+      <p class="sb-summary muted">${b.summary || "Sync Google Health sleep to charge the battery."}</p>
+      <p class="sb-meta muted">${
+        mode === "no_data"
+          ? "No sleep cycle yet"
+          : `~${sleepTgt}h sleep target${
+              b.last_wake_at ? ` · woke ${fmtBatteryWhen(b.last_wake_at)}` : ""
+            }${
+              b.last_sleep_hours != null
+                ? ` · last cycle ${Number(b.last_sleep_hours).toFixed(1)}h`
+                : ""
+            }`
+      }</p>`;
   }
 
   /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
@@ -1906,7 +1985,7 @@
     $("recovery-badge").innerHTML = `<span class="badge ${recoveryClass(rec.label)}">${rec.label || "—"} · ${rec.score ?? "—"}</span>`;
     renderSleepBatteryMini(
       (rec && rec.sleep_battery) || data.sleep_battery || null
-    );
+    ); // bottom of recovery card
     const reasons = $("recovery-reasons");
     reasons.innerHTML = "";
     // Cap reasons so the mini battery does not force the card taller

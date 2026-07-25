@@ -122,16 +122,14 @@
       <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row">
         <article class="card card-fill" id="recovery-card">
           <h2>Recovery status</h2>
-          <div class="recovery-head">
-            <div id="recovery-badge"></div>
-            <div
-              id="sleep-battery-mini"
-              class="sleep-battery-mini"
-              title="Sleep battery: 100% at wake, drains over ~16h awake"
-            ></div>
-          </div>
+          <div id="recovery-badge"></div>
           <ul class="reasons" id="recovery-reasons"></ul>
-          <p class="muted" id="health-note" style="margin-top: 0.75rem; font-size: 0.85rem"></p>
+          <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
+          <div
+            id="sleep-battery-panel"
+            class="sleep-battery-panel"
+            title="100% at wake · drains over ~16h awake · empty = time to sleep"
+          ></div>
         </article>
         <article class="card card-fill">
           <h2>Sleep (hours) · 7d rolling avg</h2>
