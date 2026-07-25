@@ -9,6 +9,10 @@
   },
   "masterbedroom": {
     "label": "Master Bedroom",
-    "members": ["masterbedroom1", "masterbedroom2"]
+    "members": ["masterbedroom1"]
+  },
+  "masterbathroom": {
+    "label": "Master Bathroom",
+    "members": ["masterbathroom1"]
   }
 }
