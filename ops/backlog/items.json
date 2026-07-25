@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-25T06:01:06.939074+00:00",
+  "updated_at": "2026-07-25T06:16:33.709777+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -22,20 +22,20 @@
       "goal_objective": "Backlog project: Build one small but real automation that multiplies output on creative or wealth-building work\n\nContext:\n## Description\nOne of the highest-leverage things that advances the AI/Autonomy/Robotics bet is actually *using* and *shipping* small agentic automations that multiply the user's own output on the other bets (creative work, wealth research, command center maintenance itself, etc.).\n\nThis is a standing \"template\" style initiative: pick a real, painful, repeatable task and remove friction with a small tool, prompt, or structured workflow. The act of shipping these compounds.\n\n## Current Next Action (example)\nPick one concrete manual step that currently contributes to the \"scattered capture \u2192 overwhelming synthesis\" problem and make a tiny improvement (could be a better prompt template, a small script that parses something into the right MD format, an improved section in the command center, etc.). Document it here or in a related note.\n\n## Progress / Wins\n- (To be filled as small automations are shipped.)\n\n## Notes\n- Keep scope tiny and shippable in hours, not days.\n- Each win can be logged and can feed the \"wins\" part of reviews or the Today plan.\n- Over time these small wins become evidence of progress on the AI/Autonomy/Robotics bet.\n\nSee `strategy/command-center-requirements.md` and `strategy/bets.md` for the broader context. This is the kind of initiative that should appear in the Actionable Plans / Today's Focus when it has a defined next action.\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: A minimal working slice we can use and iterate on, with tests or verification for the happy path, committed in personal-workspace.\n Place durable work under personal-workspace on an appropriate work/<area> branch.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-17T17:30:32.588931+00:00",
       "launch_script": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.launch.sh",
-      "score": 68,
-      "press_rank": 4,
-      "rank_label": "Queued",
+      "score": 114,
+      "press_rank": 1,
+      "rank_label": "Do first",
       "rank_reasons": [
         "medium priority (+50)",
-        "status idea (+8)",
-        "missing MVP scope (\u22126)",
+        "status planning (+30)",
         "has next-step notes (+6)",
-        "leverage/initiative tag (+10)"
+        "leverage/initiative tag (+10)",
+        "planning stall 8d (+18)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "this_week",
-      "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:10.731188+00:00",
+      "schedule_slot": "now",
+      "schedule_label": "Do now",
+      "last_groomed_at": "2026-07-25T06:16:33.707840+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt"
     },
@@ -54,25 +54,29 @@
       "mvp_scope": "",
       "notes": "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)",
       "created_at": "2026-07-17T06:14:42.157807+00:00",
-      "updated_at": "2026-07-17T06:14:42.157809+00:00",
+      "updated_at": "2026-07-25T06:16:33.709679+00:00",
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
       "launch_script": null,
-      "score": 82,
-      "press_rank": 3,
-      "rank_label": "Then",
+      "score": 96,
+      "press_rank": 2,
+      "rank_label": "Do next",
       "rank_reasons": [
         "medium priority (+50)",
         "status ready (+22)",
         "missing MVP scope (\u22126)",
         "has next-step notes (+6)",
-        "leverage/initiative tag (+10)"
+        "leverage/initiative tag (+10)",
+        "ready but stale 8d (+14)"
       ],
       "priority_color": "#5b9fd4",
-      "schedule_slot": "this_week",
-      "schedule_label": "This week",
-      "last_groomed_at": "2026-07-17T14:19:10.731200+00:00"
+      "schedule_slot": "now",
+      "schedule_label": "Do now",
+      "last_groomed_at": "2026-07-25T06:16:33.707901+00:00",
+      "auto_start": true,
+      "auto_start_set_at": "2026-07-25T06:16:33.709661+00:00",
+      "auto_start_source": "auto-queue"
     },
     {
       "id": "bfdc9db1-82f9-4100-8829-87e0883f39ae",
@@ -91,21 +95,14 @@
       "goal_objective": "Backlog project: Time allocator\n\nContext:\nAgentic assistant to allocate time across tasks and intelligently advise/recommend next action items during an average day. I would like to be able to make an ongoing / looping process that allows goals to be set and then uses agentic coaching to identify and recommend steps to progress toward various goals and allocate time according to priority/precedence etc.\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: core list of tasks to allocate time to as a starting point, optionality to add or remove tasks / goals\n Prefer living under personal-workspace/holistic/.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-17T17:37:15.655254+00:00",
       "launch_script": "ops/backlog/seeds/time-allocator-bfdc9db1.launch.sh",
-      "score": 156,
-      "press_rank": 1,
-      "rank_label": "Do first",
-      "rank_reasons": [
-        "critical priority (+100)",
-        "status ready (+22)",
-        "has MVP scope (+12)",
-        "has next-step notes (+6)",
-        "area=holistic (+4)",
-        "critical urgency (+12)"
-      ],
+      "score": 0,
+      "press_rank": null,
+      "rank_label": "Done",
+      "rank_reasons": [],
       "priority_color": "#ff6b6b",
-      "schedule_slot": "now",
-      "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:10.731209+00:00",
+      "schedule_slot": "done",
+      "schedule_label": "Done",
+      "last_groomed_at": "2026-07-25T06:16:33.707926+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -126,19 +123,19 @@
       "goal_objective": "Backlog project: Panamerica Auto Website\n\nContext:\nCreate a business website / platform for Panamerica Auto\n\nDo this in two phases without asking me to re-specify basics:\n1) Planning \u2014 write a short design/spec (problem, users, success criteria, non-goals, MVP scope, file layout, risks) into the seed plan under ops/backlog/seeds/ and refine it as needed.\n2) Build \u2014 implement the MVP: basic website featuring high level services\n Prefer living under personal-workspace/business/.\nUse git_workflow (work branch + sync/protect) so changes are committed and pushed. When MVP is usable, mark progress and leave clear next iteration steps.",
       "initiated_at": "2026-07-25T06:00:34.246707+00:00",
       "launch_script": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.launch.sh",
-      "score": 88,
-      "press_rank": 2,
-      "rank_label": "Do next",
+      "score": 96,
+      "press_rank": 3,
+      "rank_label": "Then",
       "rank_reasons": [
         "medium priority (+50)",
-        "status ready (+22)",
+        "status planning (+30)",
         "has MVP scope (+12)",
         "area=business (+4)"
       ],
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-17T14:19:10.731214+00:00",
+      "last_groomed_at": "2026-07-25T06:16:33.707946+00:00",
       "objective_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
       "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
       "auto_start": false,
@@ -157,30 +154,34 @@
       "mvp_scope": "core personal info / outline",
       "notes": "",
       "created_at": "2026-07-17T06:20:14.392120+00:00",
-      "updated_at": "2026-07-17T06:20:14.393521+00:00",
+      "updated_at": "2026-07-25T06:16:33.709705+00:00",
       "seed_path": null,
       "goal_objective": null,
       "initiated_at": null,
       "launch_script": null,
-      "score": 63,
-      "press_rank": 5,
+      "score": 77,
+      "press_rank": 4,
       "rank_label": "Queued",
       "rank_reasons": [
         "low priority (+25)",
         "status ready (+22)",
         "has MVP scope (+12)",
-        "area=personal (+4)"
+        "area=personal (+4)",
+        "ready but stale 8d (+14)"
       ],
       "priority_color": "#8aa0b5",
-      "schedule_slot": "next_week",
-      "schedule_label": "Next week",
-      "last_groomed_at": "2026-07-17T14:19:10.731221+00:00"
+      "schedule_slot": "this_week",
+      "schedule_label": "This week",
+      "last_groomed_at": "2026-07-25T06:16:33.707966+00:00",
+      "auto_start": true,
+      "auto_start_set_at": "2026-07-25T06:16:33.709696+00:00",
+      "auto_start_source": "auto-queue"
     }
   ],
-  "last_groomed_at": "2026-07-17T14:19:10.731224+00:00",
+  "last_groomed_at": "2026-07-25T06:16:33.707983+00:00",
   "groom_meta": {
-    "wip_count": 0,
-    "changes_count": 2,
-    "groomed_at": "2026-07-17T14:19:10.731224+00:00"
+    "wip_count": 2,
+    "changes_count": 5,
+    "groomed_at": "2026-07-25T06:16:33.707983+00:00"
   }
 }
