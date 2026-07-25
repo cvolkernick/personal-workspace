@@ -25,13 +25,14 @@ if [[ ! -d .git ]]; then
   exit 1
 fi
 
-# Keep origin URL free of credentials (token only via header)
+# Keep origin URL free of embedded credentials
 git remote set-url "$REMOTE" "https://github.com/cvolkernick/personal-workspace.git" 2>/dev/null || true
 
 git_auth() {
-  # Usage: git_auth fetch/reset/… — inject Authorization when token present
+  # Usage: git_auth <git-args…> — use token via insteadOf (never print token)
   if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    git -c "http.extraHeader=Authorization: Bearer ${GITHUB_TOKEN}" "$@"
+    # PAT as x-access-token over HTTPS (works for classic + fine-grained with Contents)
+    git -c "url.https://x-access-token:${GITHUB_TOKEN}@github.com/.insteadOf=https://github.com/" "$@"
   else
     git "$@"
   fi
