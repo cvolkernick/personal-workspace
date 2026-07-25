@@ -9,7 +9,7 @@
     {
       "id": "sunset_lights_on",
       "enabled": true,
-      "name": "Sunset — lights magenta",
+      "name": "Sunset — house lights magenta",
       "trigger": "sunset",
       "offset_minutes": 0,
       "target": "lights",
@@ -17,19 +17,29 @@
       "brightness": 180
     },
     {
-      "id": "sunset_plugs_on",
+      "id": "sunset_office_on",
       "enabled": true,
-      "name": "Sunset — plugs on",
+      "name": "Sunset — office plug on",
       "trigger": "sunset",
       "offset_minutes": 0,
-      "target": "plugs",
+      "target": "office",
       "color": "warm",
       "brightness": 200
     },
     {
+      "id": "sunset_plants_off",
+      "enabled": true,
+      "name": "Sunset — plant lights off",
+      "trigger": "sunset",
+      "offset_minutes": 0,
+      "target": "plantlights",
+      "color": "off",
+      "brightness": null
+    },
+    {
       "id": "sunrise_lights_off",
       "enabled": true,
-      "name": "Sunrise — lights off",
+      "name": "Sunrise — house lights off",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "lights",
@@ -37,14 +47,24 @@
       "brightness": null
     },
     {
-      "id": "sunrise_plugs_off",
+      "id": "sunrise_office_off",
       "enabled": true,
-      "name": "Sunrise — plugs off",
+      "name": "Sunrise — office plug off",
       "trigger": "sunrise",
       "offset_minutes": 0,
-      "target": "plugs",
+      "target": "office",
       "color": "off",
       "brightness": null
+    },
+    {
+      "id": "sunrise_plants_on",
+      "enabled": true,
+      "name": "Sunrise — plant lights on",
+      "trigger": "sunrise",
+      "offset_minutes": 0,
+      "target": "plantlights",
+      "color": "warm",
+      "brightness": 200
     }
   ]
 }

@@ -19,6 +19,10 @@
     "label": "Office",
     "members": ["officelights"]
   },
+  "plantlights": {
+    "label": "Plant lights",
+    "members": ["plantlight", "smallplantlight"]
+  },
   "plugs": {
     "label": "Plugs",
     "members": ["plantlight", "smallplantlight", "officelights"]

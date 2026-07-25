@@ -59,9 +59,13 @@ _TARGET_ALIASES: dict[str, str] = {
     "plant light": "plantlight",
     "kasa": "plantlight",
     "kasa plant": "plantlight",
+    "plantlights": "plantlights",
+    "plant lights": "plantlights",
+    "plants": "plantlights",
     "smallplantlight": "smallplantlight",
     "small plant light": "smallplantlight",
     "small plant": "smallplantlight",
+
     "officelights": "officelights",
     "office lights": "officelights",
     "office light": "officelights",
