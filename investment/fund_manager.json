@@ -172,9 +172,9 @@
     "stocks_growth": {
       "target_pct": 0.6,
       "symbols": ["TSLA", "SPCX"],
-      "watchlist_symbols": ["GOOGL"],
+      "watchlist_symbols": ["GOOGL", "AAPL"],
       "themes": ["growth_equity", "ai_stack", "energy_adjacent"],
-      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (e.g. GOOGL) via investment/watchlist.json — deep-dive before first buy."
+      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (e.g. GOOGL, AAPL) via investment/watchlist.json — deep-dive before first buy."
     },
     "energy_opportunistic": {
       "target_pct": null,
@@ -192,7 +192,7 @@
     "deep_dive_report_dir": "investment/research",
     "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance.",
     "agent_may_propose_additions": true,
-    "notes": "Thematic monitor list (not holdings). Owner or research workflow may add candidates (e.g. BE energy, GOOGL AI stack). Discovery does not equal order authority."
+    "notes": "Thematic monitor list (not holdings). Owner or research workflow may add candidates (e.g. BE energy; GOOGL/AAPL AI stack). Discovery does not equal order authority."
   },
   "research": {
     "enabled": true,

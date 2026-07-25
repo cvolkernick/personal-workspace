@@ -48,6 +48,24 @@
       "last_verdict": null,
       "next_catalyst": null,
       "notes": "Owner-added. Prefer Class A (GOOGL) for watchlist tracking; GOOG is economic equivalent. Run position-deep-dive before first agentic size-in. Not auto-buy."
+    },
+    {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "theme": "ai_stack",
+      "themes": ["ai_stack", "growth_equity", "consumer_hardware", "services", "devices"],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "high",
+      "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth — liquid candidate, not yet on agentic core allowlist.",
+      "added": "2026-07-24",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": "investment/research/AAPL_deep_dive.md",
+      "last_verdict": null,
+      "next_catalyst": null,
+      "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy."
     }
   ]
 }
