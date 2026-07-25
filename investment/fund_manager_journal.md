@@ -59,3 +59,139 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-07-23T13:00:43 — deploy
+**Summary:** Capital add ~$44.65 BP on agentic ••••1752; deploy toward 40/60 core (MSTR/MARA + TSLA/SPCX). BE watchlist monitor only, no buy. Orders queued regular_hours open.
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Owner added capital; idle cash violates deploy-toward-targets; live_autopilot deploy.
+**Why not alternatives:** BE blocked by deep-dive (monitor/no buy into earnings). Prefer core allowlist over new names. No max-notional limit; size full deployable BP minus small residual.
+**Team:**
+- **scout:** ok — NAV~$52.24 equity~$7.59 cash/BP~$44.65; held MSTR MARA TSLA SPCX
+- **thesis:** ok — 40/60 via core: ~$8.80 MSTR + $8.80 MARA (~40% sleeve of deploy) and ~$13.20 TSLA + $13.20 SPCX (~60%)
+- **risk:** ok — Agentic-only risk; full deploy of new cash fair game; leave small residual cash
+- **critic:** ok — No BE; no non-core; market $ queued for open acceptable
+- **executor:** ok — Placed 4 market dollar buys regular_hours; all queued
+**Actions:**
+- BUY MSTR $? [queued] 6a621064-557c-46b5-85fc-a7535c18d9ce
+- BUY MARA $? [queued] 6a621065-8f72-4429-b249-495098a03127
+- BUY TSLA $? [queued] 6a621066-df25-43da-8b20-64e686a85dbf
+- BUY SPCX $? [queued] 6a621066-c71e-4074-934d-95988c6fde2a
+
+
+## 2026-07-23T14:42:22 — deploy
+**Summary:** Second capital add on agentic ••••1752: NAV~$152, equity~$51, cash/BP~$101. Deploy ~$100 toward 40/60 core (MSTR/MARA $19.60 each; TSLA/SPCX $30.40 each). BE still monitor/no buy. Margin switch deferred (settlement + $2k rule noted by owner).
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Owner added more capital; idle cash to deploy under live_autopilot.
+**Why not alternatives:** Prefer core allowlist; BE deep-dive still blocks buy; no new names; leave ~$1 residual cash.
+**Team:**
+- **scout:** ok — NAV~$151.88 equity~$50.82 cash~$101.06; prior deploy filled; no open queues
+- **thesis:** ok — Top up same 40/60 core sleeves to post-deploy targets
+- **risk:** ok — Cash agentic only; fair game deposits
+- **critic:** ok — No BE; market hours regular; no leverage
+- **executor:** ok — 4 market dollar buys placed agentic regular_hours
+**Actions:**
+- BUY MSTR $? [unconfirmed] 6a622800-2f6d-4b18-aa12-8ce082d60960
+- BUY MARA $? [unconfirmed] 6a622801-cb18-4382-bfbf-68525937a8f6
+- BUY TSLA $? [unconfirmed] 6a622801-0a69-4044-9d18-676a737245fd
+- BUY SPCX $? [unconfirmed] 6a622802-fced-4f20-8df0-ef185591ddfb
+
+
+## 2026-07-23T15:23:52 — rotate
+**Summary:** Clean-slate research/rotate: sold all MSTR/MARA/TSLA/SPCX (~$149.54 cash). Target redeploy 40/60 into MSTR+BITA+MARA+IREN / TSLA+SPCX. BUYS BLOCKED same-day: cash account unsettled BP (~$1.06 vs ~$149 cash). Resume buys when BP settles.
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Owner requested full pass treating entire fund as cash under uniform research/rotate process.
+**Why not alternatives:** Rejected held-only top-up. Rejected BE (deep-dive). Rejected extra miners (RIOT/CLSK/WULF) for concentration. Rejected STRC/SATA/ASST for small-book overcrowding vs MSTR+BITA. Same-day rebuy impossible on cash BP.
+**Team:**
+- **scout:** ok — Pre: NAV~$150 equity 4 names. Post-sell: cash~$149.54 equity$0 BP~$1.06 unsettled.
+- **thesis:** ok — Clean slate 6-name theme book: add BITA yield + IREN infra; keep MSTR/MARA/TSLA/SPCX roles with reweights.
+- **risk:** ok — Sells OK. Buys deferred until BP; residual $1 not worth micro-tickets.
+- **critic:** ok — Blocked forced same-day rebuy (BP alert). Plan documented for settlement open.
+- **executor:** ok — 4 sells filled; 0 buys (EQUITY_NOT_ENOUGH_BP_DOLLAR_BASED).
+**Actions:**
+- SELL MSTR $? [filled] 6a6231ca-a1d4-49a6-851c-6587d7b075e0
+- SELL MARA $? [filled] 6a6231cb-a01a-41fe-b973-93490ee75c28
+- SELL TSLA $? [filled] 6a6231cb-088d-4e75-8465-155bb1333f33
+- SELL SPCX $? [filled] 6a6231cb-e1c8-41c2-9ed2-e26fc96e0eda
+- BUY MSTR $? [deferred_settlement] 
+- BUY BITA $? [deferred_settlement] 
+- BUY MARA $? [deferred_settlement] 
+- BUY IREN $? [deferred_settlement] 
+- BUY TSLA $? [deferred_settlement] 
+- BUY SPCX $? [deferred_settlement] 
+
+
+## 2026-07-23T15:36:33 — deploy
+**Summary:** Rules → need team/LLM: idle capital cash $149.54 BP $1.06 (deployable $149.54) toward 40/60
+**Book:** NAV $149.54 · BP $1.06
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $149.54 BP $1.06 cash $149.54
+- **thesis:** rebalance — deployed BTC None stocks None
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-24T14:19:52 — deploy
+**Summary:** Rules → need team/LLM: idle capital cash $149.54 BP $1.06 (deployable $149.54) toward 40/60
+**Book:** NAV $149.54 · BP $1.06
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $149.54 BP $1.06 cash $149.54
+- **thesis:** rebalance — deployed BTC None stocks None
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-24T18:09:31 — deploy
+**Summary:** Rules → need team/LLM: idle capital cash $149.54 BP $1.06 (deployable $149.54) toward 40/60
+**Book:** NAV $149.54 · BP $1.06
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $149.54 BP $1.06 cash $149.54
+- **thesis:** rebalance — deployed BTC None stocks None
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-24T18:26:54 — deploy
+**Summary:** Rules → need team/LLM: idle capital cash $149.54 BP $1.06 (deployable $149.54) toward 40/60
+**Book:** NAV $149.54 · BP $1.06
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $149.54 BP $1.06 cash $149.54
+- **thesis:** rebalance — deployed BTC None stocks None
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-24T18:28:22 — deploy
+**Summary:** Manual team run after reauth: deploy ~$149 BP into 6-name theme book (MSTR/BITA/MARA/IREN + TSLA/SPCX). All 6 buys filled. Cash residual ~$0.54.
+**Weights before (deployed):** BTC-complex None · Stocks None
+**Why now:** Settled BP available; owner requested manual pass; prior clean-slate research still valid.
+**Why not alternatives:** BE blocked (watchlist). Extra miners overcrowding. STRC/SATA/ASST covered by MSTR+BITA for this NAV.
+**Team:**
+- **scout:** ok — All cash $149.54 BP=$149.54 settled; positions empty pre-deploy
+- **thesis:** ok — 6-name theme book from research_rotate
+- **risk:** ok — Full deploy minus ~$0.5 residual
+- **critic:** ok — No BE; process not held-only
+- **executor:** ok — 6 market buys filled agentic
+**Actions:**
+- BUY MSTR $? [filled] 6a63ae97-2213-4d15-a59d-da49f3cb95ba
+- BUY BITA $? [filled] 6a63ae98-3b53-4233-83c3-b970851c6391
+- BUY MARA $? [filled] 6a63ae98-0e19-4a1d-bd03-4a28e47fa7e2
+- BUY IREN $? [filled] 6a63ae99-e06e-4b05-8367-4b716b25d06c
+- BUY TSLA $? [filled] 6a63ae99-a77c-4fae-b450-8e5364682bde
+- BUY SPCX $? [filled] 6a63ae9a-10e1-40dd-96fd-212f7d5f34ff
+

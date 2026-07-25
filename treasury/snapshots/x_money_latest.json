@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-21T21:28:53.585117+00:00",
+  "as_of": "2026-07-23T01:03:03.356769+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,21 +9,54 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 23.07,
-  "cash": 23.07,
-  "available": 23.07,
-  "cleared_balance": 23.07,
+  "balance_raw": 72.42,
+  "cash": 72.42,
+  "available": 72.42,
+  "cleared_balance": 72.42,
   "uncleared_balance": 0.0,
-  "spend_30d": 2.24,
-  "inflow_30d": 25.31,
-  "transaction_count": 4,
+  "spend_30d": 21.61,
+  "inflow_30d": 94.03,
+  "transaction_count": 9,
   "transactions": [
+    {
+      "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
+      "date": "2026-07-21",
+      "payee": "Tesla Supercharger",
+      "amount": -10.97,
+      "amount_display": -10.97,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "151af4f7-8504-42ea-9598-3348f6439958",
+      "date": "2026-07-21",
+      "payee": "Tesla",
+      "amount": -7.77,
+      "amount_display": -7.77,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
     {
       "id": "783fcba3-df65-4470-9b1b-c85f11ea85ff",
       "date": "2026-07-21",
       "payee": "Coinbase",
       "amount": -2.24,
       "amount_display": -2.24,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "3698b6e8-7b4f-4690-b3cc-b6b5b8508172",
+      "date": "2026-07-21",
+      "payee": "7-Eleven",
+      "amount": -0.63,
+      "amount_display": -0.63,
       "memo": null,
       "cleared": "cleared",
       "approved": false,
@@ -52,6 +85,17 @@
       "category_name": "Inflow: Ready to Assign"
     },
     {
+      "id": "b55fe759-a250-46e7-9b9d-dddfb1ef1ec1",
+      "date": "2026-07-21",
+      "payee": "Transfer from @atj721",
+      "amount": 1.0,
+      "amount_display": 1.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
       "id": "87b2dbb2-a65b-4096-b879-0a97ee341eb0",
       "date": "2026-07-21",
       "payee": "X Money Promotional Bonus Payment",
@@ -61,9 +105,20 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "78dbbff9-64c9-47ac-aedc-7ca1db03a42e",
+      "date": "2026-07-21",
+      "payee": "Lyft",
+      "amount": 67.72,
+      "amount_display": 67.72,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
     }
   ],
-  "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float.",
+  "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-04-22"
+  "since": "2026-04-23"
 }

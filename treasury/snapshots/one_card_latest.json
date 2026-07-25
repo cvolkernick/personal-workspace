@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-21T21:28:47.942359+00:00",
+  "as_of": "2026-07-23T01:03:01.303903+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -304.58,
-  "balance_owed": 304.58,
-  "card_balance": 304.58,
+  "balance_raw": -310.75,
+  "balance_owed": 310.75,
+  "card_balance": 310.75,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -304.58,
+  "cleared_balance": -310.75,
   "uncleared_balance": 0.0,
-  "spend_30d": 179.13,
+  "spend_30d": 185.3,
   "payments_30d": 340.42,
-  "transaction_count": 20,
+  "transaction_count": 24,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -208,6 +208,50 @@
       "category_name": "Uncategorized"
     },
     {
+      "id": "7c6a34a3-054f-4e6f-b0dd-d618e4646354",
+      "date": "2026-07-19",
+      "payee": "Wawa",
+      "amount": -3.0,
+      "amount_display": -3.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "fee817f7-1a56-4839-829c-6890addb1406",
+      "date": "2026-07-19",
+      "payee": "RaceTrac",
+      "amount": -1.07,
+      "amount_display": -1.07,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "date": "2026-07-19",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "date": "2026-07-19",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
       "id": "d126b3d6-b995-46fc-8c41-aa33a0666dae",
       "date": "2026-07-19",
       "payee": "Payment",
@@ -243,5 +287,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-04-22"
+  "since": "2026-04-23"
 }

@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-07-21T21:29:02.622889+00:00",
+  "as_of": "2026-07-23T01:04:07.670191+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -71,7 +71,7 @@
           "item": "Fleet Insurance",
           "monthly": 562.0,
           "from": "RH Checking",
-          "date": "7/21/2026",
+          "date": "8/21/2026",
           "budget_allocation": 0.0345
         },
         {
@@ -138,13 +138,6 @@
           "from": "RH Checking",
           "monthly": 1296.61,
           "weekly": 302.54
-        },
-        {
-          "date": "7/21/2026",
-          "item": "Fleet Insurance",
-          "from": "RH Checking",
-          "monthly": 562.0,
-          "weekly": 129.34
         },
         {
           "date": "7/23/2026",
@@ -250,6 +243,13 @@
           "from": "Coinbase",
           "monthly": 159.48,
           "weekly": 36.7
+        },
+        {
+          "date": "8/21/2026",
+          "item": "Fleet Insurance",
+          "from": "RH Checking",
+          "monthly": 562.0,
+          "weekly": 129.34
         }
       ],
       "items": [
@@ -298,7 +298,7 @@
           "budget_allocation": 0.0806
         },
         {
-          "date": "7/21/2026",
+          "date": "8/21/2026",
           "from": "RH Checking",
           "item": "Fleet Insurance",
           "daily": 18.48,
