@@ -1,10 +1,23 @@
 {
-  "entryway1": {"ip": "192.168.100.106", "mac": "6c2990089296"},
-  "entryway2": {"ip": "192.168.100.118", "mac": "6c2990d5075a"},
-  "entryway3": {"ip": "192.168.100.184", "mac": "6c29904e244e"},
-  "entryway4": {"ip": "192.168.100.207", "mac": "6c29903d3195"},
-  "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c"},
-  "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6"},
-  "masterbathroom1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6"},
-  "masterbedroom1": {"ip": "192.168.100.203", "mac": "6c2990fe26e4"}
+  "entryway1": {"ip": "192.168.100.106", "mac": "6c2990089296", "type": "wiz"},
+  "entryway2": {"ip": "192.168.100.118", "mac": "6c2990d5075a", "type": "wiz"},
+  "entryway3": {"ip": "192.168.100.184", "mac": "6c29904e244e", "type": "wiz"},
+  "entryway4": {"ip": "192.168.100.207", "mac": "6c29903d3195", "type": "wiz"},
+  "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c", "type": "wiz"},
+  "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6", "type": "wiz"},
+  "masterbathroom1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6", "type": "wiz"},
+  "masterbedroom1": {"ip": "192.168.100.203", "mac": "6c2990fe26e4", "type": "wiz"},
+  "plantlight": {
+    "type": "kasa",
+    "ip": "192.168.100.116",
+    "mac": "d807b6a69ec2",
+    "label": "Plant Light",
+    "model": "HS103"
+  },
+  "vesync_plug": {
+    "type": "vesync",
+    "device_name": "",
+    "label": "VeSync Plug",
+    "cid": null
+  }
 }

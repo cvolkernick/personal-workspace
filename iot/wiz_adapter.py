@@ -201,7 +201,9 @@ async def execute_control(
     groups: Optional[dict] = None,
     transport: Optional[LightTransport] = None,
 ) -> dict[str, Any]:
-    """Build intent and run network control via transport."""
+    """Build intent and run network control via transport (Wiz) or plug adapters."""
+    from iot.plugs import control_plug_device, is_plug_type
+
     reg = registry if registry is not None else load_bulbs()
     gmap = groups if groups is not None else load_groups()
     intent = build_control_intent(
@@ -216,14 +218,23 @@ async def execute_control(
         ip = dev.get("ip")
         mac = dev.get("mac")
         name = dev.get("name")
-        if not ip:
-            results.append({"ok": False, "name": name, "error": "missing ip"})
-            continue
+        dtype = str(dev.get("type") or "wiz").lower()
         try:
+            if is_plug_type(dtype):
+                r = await control_plug_device(dev, action=intent["action"])
+                r = dict(r)
+                r.setdefault("name", name)
+                results.append(r)
+                continue
+            if not ip:
+                results.append({"ok": False, "name": name, "error": "missing ip"})
+                continue
             if intent["action"] == "off":
                 r = await t.turn_off(ip, mac)
             else:
-                r = await t.turn_on(ip, mac, intent["rgb"], intent["brightness"] or DEFAULT_BRIGHTNESS)
+                r = await t.turn_on(
+                    ip, mac, intent["rgb"], intent["brightness"] or DEFAULT_BRIGHTNESS
+                )
             r = dict(r)
             r.setdefault("name", name)
             results.append(r)
@@ -241,18 +252,43 @@ async def fetch_device_statuses(
     timeout_each: float = 4.0,
 ) -> list[dict[str, Any]]:
     """List configured devices with live status when possible."""
+    from iot.plugs import is_plug_type, status_plug_device
+
     reg = registry if registry is not None else load_bulbs()
     devices = list_configured_devices(reg)
     t = transport or get_default_transport()
 
     async def one(dev: dict[str, Any]) -> dict[str, Any]:
         out = dict(dev)
+        dtype = str(dev.get("type") or "wiz").lower()
+        if is_plug_type(dtype):
+            try:
+                to = 12.0 if dtype == "vesync" else timeout_each
+                info = dict(reg.get(dev.get("id") or dev.get("name") or "", {}) or {})
+                info.setdefault("name", dev.get("id") or dev.get("name"))
+                info.setdefault("type", dtype)
+                if dev.get("ip"):
+                    info.setdefault("ip", dev.get("ip"))
+                for k in ("device_name", "cid", "mac", "label"):
+                    if dev.get(k) is not None:
+                        info.setdefault(k, dev.get(k))
+                st = await asyncio.wait_for(status_plug_device(info), timeout=to)
+                out["status"] = st
+            except Exception as e:  # noqa: BLE001
+                out["status"] = {
+                    "ok": False,
+                    "ip": dev.get("ip"),
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            return out
         ip = dev.get("ip")
         if not ip:
             out["status"] = {"ok": False, "error": "missing ip"}
             return out
         try:
-            st = await asyncio.wait_for(t.get_state(ip, dev.get("mac")), timeout=timeout_each)
+            st = await asyncio.wait_for(
+                t.get_state(ip, dev.get("mac")), timeout=timeout_each
+            )
             out["status"] = st
         except Exception as e:  # noqa: BLE001
             out["status"] = {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}

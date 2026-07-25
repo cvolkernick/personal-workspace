@@ -250,18 +250,29 @@ def build_control_intent(
 def list_configured_devices(
     registry: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> list[dict[str, Any]]:
-    """Normalize configured bulbs into a device list for the API/UI."""
+    """Normalize configured bulbs/plugs into a device list for the API/UI."""
     reg = dict(registry) if registry is not None else load_bulbs()
     devices: list[dict[str, Any]] = []
     for name, info in reg.items():
+        dtype = str(info.get("type") or "wiz").lower()
+        label = info.get("label") or name
+        port_default = DEFAULT_PORT
+        if dtype == "kasa":
+            port_default = 9999
+        elif dtype == "vesync":
+            port_default = 0
         devices.append(
             {
                 "id": name,
                 "name": name,
+                "label": label,
                 "ip": info.get("ip"),
                 "mac": _norm_mac(info.get("mac")),
-                "port": int(info.get("port") or DEFAULT_PORT),
-                "type": info.get("type") or "wiz",
+                "port": int(info.get("port") or port_default or 0),
+                "type": dtype,
+                "device_name": info.get("device_name"),
+                "cid": info.get("cid"),
+                "kind": "plug" if dtype in ("kasa", "vesync", "plug", "outlet") else "light",
                 "source": "config",
                 "controllable": True,
             }

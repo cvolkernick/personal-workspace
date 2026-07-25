@@ -42,6 +42,11 @@ dashboard/branches.txt
 resistance-dashboard/.env
 resistance-dashboard/.env.local
 
+# IoT cloud credentials (VeSync etc.) — never commit
+iot/secrets.json
+iot/.env
+
+
 # Full Grok session archives must never land in this repo (use ~/Backups/)
 Backups/
 **/grok-sessions-*.tar.gz

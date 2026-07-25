@@ -14,5 +14,9 @@
   "masterbathroom": {
     "label": "Master Bathroom",
     "members": ["masterbathroom1"]
+  },
+  "plugs": {
+    "label": "Plugs",
+    "members": ["plantlight", "vesync_plug"]
   }
 }
