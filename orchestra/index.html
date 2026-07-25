@@ -784,39 +784,91 @@
     }
 
     /**
-     * Ensure domain server is up (POST /api/launch), then open its URL.
-     * Falls back to opening the given href if domain is unknown.
+     * Open a domain dashboard.
+     * IMPORTANT: open the tab synchronously from the click handler (user gesture)
+     * so the browser does not block window.open after await fetch().
+     * /api/launch is fire-and-forget (or used only to update a pre-opened tab).
      */
-    async function openDomain(domainId, fallbackUrl) {
+    function publicizeUrl(url) {
+      if (!url || url === "#") return "";
+      try {
+        // If page is served from Pi LAN/Tailscale, rewrite loopback deep-links
+        const pageHost = location.hostname;
+        if (
+          pageHost &&
+          pageHost !== "127.0.0.1" &&
+          pageHost !== "localhost" &&
+          (url.includes("://127.0.0.1") || url.includes("://localhost"))
+        ) {
+          return url
+            .replace("://127.0.0.1", "://" + pageHost)
+            .replace("://localhost", "://" + pageHost);
+        }
+      } catch (e) { /* ignore */ }
+      return url;
+    }
+
+    async function openDomain(domainId, fallbackUrl, preOpenedWin) {
       const id = (domainId || "").trim();
+      let url = publicizeUrl(fallbackUrl || "");
+
+      // Prefer immediate navigation; ensure backend is up in background
+      if (!preOpenedWin && url) {
+        try {
+          preOpenedWin = window.open(url, "_blank", "noopener");
+        } catch (e) { /* popup blocked */ }
+      }
+
       if (!id) {
-        if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener");
+        if (!preOpenedWin && url) window.open(url, "_blank", "noopener");
         return;
       }
-      showLaunchToast(`Starting ${id}…`, false);
+
+      showLaunchToast(url ? `Opening ${id}…` : `Starting ${id}…`, false);
       try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
         const res = await fetch("/api/launch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ domain: id }),
+          signal: controller.signal,
         });
-        const data = await res.json();
+        clearTimeout(timer);
+        const data = await res.json().catch(() => ({}));
         if (!data.ok) {
-          showLaunchToast(data.error || `Failed to start ${id}`, true);
-          if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener");
+          // Still try fallback URL if we have one
+          if (!preOpenedWin && url) {
+            window.open(url, "_blank", "noopener");
+          }
+          showLaunchToast(
+            data.error || `Could not confirm ${id} is up — opened link if available`,
+            !url
+          );
           return;
         }
-        const url = data.url || fallbackUrl;
+        const launchUrl = publicizeUrl(data.url || url);
         const note = data.already_running
-          ? `${data.label || id} already running — opening…`
-          : `${data.label || id} started — opening…`;
+          ? `${data.label || id} is live`
+          : `${data.label || id} started`;
         showLaunchToast(note, false);
-        if (url) window.open(url, "_blank", "noopener");
-        // Refresh live badges after a short delay
+        if (launchUrl) {
+          if (preOpenedWin && !preOpenedWin.closed) {
+            try {
+              preOpenedWin.location.href = launchUrl;
+            } catch (e) {
+              window.open(launchUrl, "_blank", "noopener");
+            }
+          } else if (!preOpenedWin) {
+            window.open(launchUrl, "_blank", "noopener");
+          }
+        }
         setTimeout(() => load(true), 600);
       } catch (e) {
-        showLaunchToast("Launch error: " + e.message, true);
-        if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener");
+        const msg = e.name === "AbortError" ? "Launch timed out" : ("Launch error: " + e.message);
+        // Tab may already be open with the public URL — that is success enough
+        showLaunchToast(url ? `${msg} — used direct link` : msg, !url);
+        if (!preOpenedWin && url) window.open(url, "_blank", "noopener");
       }
     }
 
@@ -1229,14 +1281,26 @@
       }
     }
 
-    // Delegate domain open (start server if needed)
+    // Delegate domain open — open tab in the click gesture (avoids popup blockers)
     document.body.addEventListener("click", (ev) => {
       const btn = ev.target.closest(".domain-open");
       if (!btn) return;
       ev.preventDefault();
-      const domain = btn.getAttribute("data-domain") || domainIdFromHref(btn.getAttribute("data-url"));
-      const url = btn.getAttribute("data-url") || "";
-      openDomain(domain, url);
+      const domain =
+        btn.getAttribute("data-domain") ||
+        domainIdFromHref(btn.getAttribute("data-url") || btn.getAttribute("href"));
+      const rawUrl = btn.getAttribute("data-url") || btn.getAttribute("href") || "";
+      const url = publicizeUrl(rawUrl === "#" ? "" : rawUrl);
+      // Synchronous open while still in user-gesture stack
+      let win = null;
+      if (url) {
+        try {
+          win = window.open(url, "_blank", "noopener");
+        } catch (e) {
+          win = null;
+        }
+      }
+      openDomain(domain, url, win);
     });
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));

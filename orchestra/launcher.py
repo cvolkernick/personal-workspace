@@ -40,6 +40,41 @@ def probe_port(port: int, host: str = "127.0.0.1", timeout: float = PROBE_TIMEOU
         return False
 
 
+def _public_host() -> str:
+    """Hostname for client-facing deep-links (Pi LAN / Tailscale)."""
+    for key in (
+        "ORCHESTRATOR_PUBLIC_HOST",
+        "ORCHESTRA_PUBLIC_HOST",
+        "DASHBOARD_PUBLIC_HOST",
+    ):
+        raw = (os.environ.get(key) or "").strip()
+        if not raw:
+            continue
+        if "://" in raw:
+            from urllib.parse import urlparse
+
+            host = urlparse(raw).hostname or ""
+        else:
+            host = raw.split("/")[0].split(":")[0]
+        if host and host not in ("0.0.0.0", "127.0.0.1", "localhost"):
+            return host
+    return ""
+
+
+def _public_url(url: str, port: int) -> str:
+    """Rewrite loopback URLs to the public host when configured."""
+    host = _public_host()
+    if not host:
+        return url or f"http://127.0.0.1:{port}/"
+    if not url:
+        return f"http://{host}:{port}/"
+    return (
+        url.replace("://127.0.0.1", f"://{host}")
+        .replace("://localhost", f"://{host}")
+        .replace("://[::1]", f"://{host}")
+    )
+
+
 def domain_spec(domain_id: str) -> Optional[dict[str, Any]]:
     did = (domain_id or "").strip().lower()
     # aliases
@@ -144,8 +179,11 @@ def ensure_domain(
 
     root = Path(workspace or _workspace_root()).resolve()
     port = int(spec["port"])
-    url = spec.get("url") or f"http://127.0.0.1:{port}/"
+    url = _public_url(spec.get("url") or f"http://127.0.0.1:{port}/", port)
     did = spec["id"]
+
+    # Short probe — never block the HTTP request for long
+    ready_timeout = min(float(ready_timeout), 8.0)
 
     if not force_restart and probe_port(port):
         return {
@@ -187,19 +225,17 @@ def ensure_domain(
             "error": f"Cannot open launch log: {e}",
         }
 
+    # Bind all interfaces when a public host is configured (Pi → Mac clients)
+    bind_host = "0.0.0.0" if _public_host() else "127.0.0.1"
     cmd = [
         sys.executable,
         str(script),
+        "--host",
+        bind_host,
         "--port",
         str(port),
         "--no-browser",
-        "--host",
-        "127.0.0.1",
     ]
-    # Some servers may not accept --host; try with it first, fallback without on failure is heavy —
-    # check if resistance/financial accept --host
-    # Safer: only pass --port and --no-browser (all support those)
-    cmd = [sys.executable, str(script), "--port", str(port), "--no-browser"]
 
     try:
         proc = subprocess.Popen(
