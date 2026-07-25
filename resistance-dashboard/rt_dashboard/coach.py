@@ -120,14 +120,17 @@ def compute_adherence_7d(
                     cal_hits += 1
                 row["calories"] = c
                 row["calories_ok"] = ok_c
+        # Unlogged nights = 0h (sleep debt), always scored in the 7d window
         sh = by_s.get(d)
-        if sh is not None:
-            sleep_days += 1
-            ok_s = sh >= sleep_goal_h
-            if ok_s:
-                sleep_hits += 1
-            row["sleep_h"] = round(sh, 2)
-            row["sleep_ok"] = ok_s
+        if sh is None:
+            sh = 0.0
+            row["sleep_implied_zero"] = True
+        sleep_days += 1
+        ok_s = float(sh) >= sleep_goal_h
+        if ok_s:
+            sleep_hits += 1
+        row["sleep_h"] = round(float(sh), 2)
+        row["sleep_ok"] = ok_s
         wh = by_h.get(d)
         if wh is not None:
             water_days += 1
@@ -206,11 +209,14 @@ def compute_weekly_review(
             if ex.is_pr:
                 prs.append(f"{ex.name} ({s.date})")
 
-    sleep_vals = []
-    for s in sleep:
-        d = _parse(s.date)
-        if d and start <= d <= end:
-            sleep_vals.append(float(s.sleep_hours))
+    # Calendar mean over the week (missing nights = 0 via expand when present;
+    # also fill gaps here so weekly review is debt-aware).
+    from .sleep_series import expand_sleep_calendar
+
+    week_filled = expand_sleep_calendar(
+        sleep, as_of=day, window_days=7
+    )
+    sleep_vals = [float(s.sleep_hours) for s in week_filled]
     avg_sleep = round(mean(sleep_vals), 2) if sleep_vals else None
 
     w_sorted = sorted(weight, key=lambda w: w.date)

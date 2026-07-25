@@ -444,6 +444,17 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     source = "+".join(source_parts) if source_parts else "none"
     gh = build_github_client(for_write=False)
 
+    # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
+    from rt_dashboard.sleep_series import expand_sleep_calendar
+
+    health.sleep = expand_sleep_calendar(
+        health.sleep or [],
+        as_of=local_today,
+        window_days=90,
+        fill_hours=0.0,
+        fill_source="implied_zero",
+    )
+
     recovery = compute_recovery_status(
         weight=health.weight,
         sleep=health.sleep,

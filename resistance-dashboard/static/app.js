@@ -19,6 +19,33 @@
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
   }
 
+  /** Fill missing civil days with 0h sleep (sleep debt). End = latest sample or today. */
+  function fillSleepCalendarDays(points, windowDays = 90) {
+    const by = {};
+    (points || []).forEach((s) => {
+      if (!s || !s.date) return;
+      const d = String(s.date).slice(0, 10);
+      by[d] = (by[d] || 0) + (Number(s.sleep_hours) || 0);
+    });
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const z = (n) => String(n).padStart(2, "0");
+    const iso = (dt) =>
+      `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;
+    const out = [];
+    for (let i = windowDays - 1; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(d.getDate() - i);
+      const key = iso(d);
+      out.push({
+        date: key,
+        sleep_hours: by[key] != null ? by[key] : 0,
+        source: by[key] != null ? "logged" : "implied_zero",
+      });
+    }
+    return out;
+  }
+
   /** Keep charts snappy on long series (e.g. 90d). */
   function downsamplePoints(points, maxPoints = 45) {
     if (!Array.isArray(points) || points.length <= maxPoints) return points || [];
@@ -414,19 +441,21 @@
       }
     }
 
-    const sleep = downsamplePoints(
-      [...((data.health && data.health.sleep) || [])].sort((a, b) =>
-        String(a.date).localeCompare(String(b.date))
-      ),
-      45
+    // Prefer server-expanded calendar series (unlogged nights = 0h).
+    // Fall back: fill gaps client-side so the chart never skips dates.
+    const sleepRaw = [...((data.health && data.health.sleep) || [])].sort((a, b) =>
+      String(a.date).localeCompare(String(b.date))
     );
-    const sleepVals = sleep.map((s) => s.sleep_hours);
+    const sleepFilled = fillSleepCalendarDays(sleepRaw, 90);
+    const sleep = downsamplePoints(sleepFilled, 90);
+    const sleepVals = sleep.map((s) => Number(s.sleep_hours) || 0);
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
     const sleepTarget = sleepVals.map(() => 8);
     const sSlope = trendSlopePerDay(sleepVals);
     const lastRoll =
       [...sleepRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
+    const zeroNights = sleepVals.filter((v) => v <= 0).length;
     destroyChart(sleepChart);
     sleepChart = new Chart($("chart-sleep"), {
       type: "bar",
@@ -437,7 +466,9 @@
             type: "bar",
             label: "Sleep (h)",
             data: sleepVals,
-            backgroundColor: "rgba(240,180,41,0.45)",
+            backgroundColor: sleepVals.map((v) =>
+              v <= 0 ? "rgba(240,113,120,0.55)" : "rgba(240,180,41,0.45)"
+            ),
             borderRadius: 4,
             order: 3,
           },
@@ -482,7 +513,7 @@
           ...chartDefaults().scales,
           y: {
             ...chartDefaults().scales.y,
-            suggestedMin: 4,
+            suggestedMin: 0,
             suggestedMax: 10,
           },
         },
@@ -497,7 +528,11 @@
           sSlope == null
             ? ""
             : ` · trend ${sSlope >= 0 ? "+" : ""}${(sSlope * 7).toFixed(2)} h/week`;
-        $("sleep-trend-note").textContent = `Latest 7d avg: ${lastRoll.toFixed(2)} h (${vsGoal})${slopeTxt} · ${sleep.length} nights`;
+        const zeroTxt =
+          zeroNights > 0
+            ? ` · ${zeroNights} night(s) with no log counted as 0h`
+            : "";
+        $("sleep-trend-note").textContent = `Latest 7d avg: ${lastRoll.toFixed(2)} h (${vsGoal})${slopeTxt}${zeroTxt} · ${sleep.length} calendar days`;
       }
     }
 
