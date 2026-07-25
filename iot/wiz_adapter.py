@@ -328,6 +328,49 @@ async def discover_and_merge(
     }
 
 
-def run_async(coro):
-    """Run coroutine from sync code (CLI / HTTP handlers)."""
-    return asyncio.run(coro)
+# Persistent loop for HTTP handlers — pyvesync/aiohttp break if asyncio.run()
+# creates a new loop every request while sessions are still referenced.
+_BG_LOOP: Optional[asyncio.AbstractEventLoop] = None
+_BG_THREAD = None  # type: ignore
+_BG_LOCK = None  # type: ignore
+
+
+def _ensure_bg_loop() -> asyncio.AbstractEventLoop:
+    """Start (once) a background event loop used by run_async."""
+    global _BG_LOOP, _BG_THREAD, _BG_LOCK
+    import threading
+
+    if _BG_LOCK is None:
+        _BG_LOCK = threading.Lock()
+    with _BG_LOCK:
+        if _BG_LOOP is not None and _BG_LOOP.is_running():
+            return _BG_LOOP
+        loop = asyncio.new_event_loop()
+
+        def _runner() -> None:
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        t = threading.Thread(target=_runner, name="iot-asyncio", daemon=True)
+        t.start()
+        _BG_LOOP = loop
+        _BG_THREAD = t
+        return loop
+
+
+def run_async(coro, timeout: float = 120.0):
+    """Run coroutine from sync code (CLI / HTTP handlers).
+
+    Uses a process-wide background loop so cloud clients (VeSync) keep a
+    stable event loop across requests.
+    """
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is not None:
+        # Already inside async — caller should await; fallback blocks badly.
+        raise RuntimeError("run_async called from within a running event loop")
+    loop = _ensure_bg_loop()
+    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+    return fut.result(timeout=timeout)

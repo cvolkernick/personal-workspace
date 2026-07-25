@@ -23,6 +23,7 @@ VeSync credentials (never commit):
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -31,9 +32,10 @@ from typing import Any, Mapping, Optional
 IOT_DIR = Path(__file__).resolve().parent
 DEFAULT_SECRETS_PATH = IOT_DIR / "secrets.json"
 
-# Module-level VeSync session cache (email → manager)
-_VESYNC_MANAGER: Any = None
-_VESYNC_EMAIL: Optional[str] = None
+# Cache VeSync managers per event loop (asyncio.run closes loops each request
+# if a persistent loop isn't used — never reuse a manager across loops).
+_VESYNC_BY_LOOP: dict[int, tuple[Any, str]] = {}
+_VESYNC_LOCKS: dict[int, asyncio.Lock] = {}
 
 
 def is_plug_type(dtype: Optional[str]) -> bool:
@@ -148,34 +150,41 @@ async def kasa_set_power(ip: str, on: bool, mac: Optional[str] = None) -> dict[s
 
 
 async def _vesync_manager() -> tuple[Any, Optional[str]]:
-    """Return (manager, error). Caches successful login."""
-    global _VESYNC_MANAGER, _VESYNC_EMAIL
+    """Return (manager, error). Caches successful login per event loop."""
     email, password = vesync_credentials()
     if not email or not password:
         return None, (
             "VeSync credentials missing — set VESYNC_EMAIL/VESYNC_PASSWORD "
             "or iot/secrets.json {\"vesync\":{\"email\":\"…\",\"password\":\"…\"}}"
         )
-    if _VESYNC_MANAGER is not None and _VESYNC_EMAIL == email:
-        return _VESYNC_MANAGER, None
     try:
         from pyvesync import VeSync
     except ImportError:
         return None, "pyvesync not installed (pip install pyvesync)"
 
-    try:
-        manager = VeSync(email, password)
-        ok = await manager.login()
-        if not ok:
-            return None, "VeSync login failed (check email/password / 2FA off)"
-        await manager.get_devices()
-        _VESYNC_MANAGER = manager
-        _VESYNC_EMAIL = email
-        return manager, None
-    except Exception as e:  # noqa: BLE001
-        _VESYNC_MANAGER = None
-        _VESYNC_EMAIL = None
-        return None, f"{type(e).__name__}: {e}"
+    loop = asyncio.get_running_loop()
+    key = id(loop)
+    lock = _VESYNC_LOCKS.setdefault(key, asyncio.Lock())
+    async with lock:
+        cached = _VESYNC_BY_LOOP.get(key)
+        if cached is not None and cached[1] == email:
+            return cached[0], None
+        # Drop caches for other (likely closed) loops
+        for old_key in list(_VESYNC_BY_LOOP):
+            if old_key != key:
+                _VESYNC_BY_LOOP.pop(old_key, None)
+                _VESYNC_LOCKS.pop(old_key, None)
+        try:
+            manager = VeSync(email, password)
+            ok = await manager.login()
+            if not ok:
+                return None, "VeSync login failed (check email/password / 2FA off)"
+            await manager.get_devices()
+            _VESYNC_BY_LOOP[key] = (manager, email)
+            return manager, None
+        except Exception as e:  # noqa: BLE001
+            _VESYNC_BY_LOOP.pop(key, None)
+            return None, f"{type(e).__name__}: {e}"
 
 
 def _match_vesync_outlet(
