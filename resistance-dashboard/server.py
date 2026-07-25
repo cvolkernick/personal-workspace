@@ -461,9 +461,19 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         sessions=sessions,
         as_of=local_today,
     )
+    from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+
+    # Battery uses real logs only (0h/implied nights skipped inside helper)
+    sleep_battery = sleep_battery_from_fitdash_sleep(
+        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        sleep_target_hours=8.0,
+    )
+    recovery_dict = recovery.to_dict()
+    recovery_dict["sleep_battery"] = sleep_battery
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
-    payload["recovery"] = recovery.to_dict()
+    payload["recovery"] = recovery_dict
+    payload["sleep_battery"] = sleep_battery
 
     today_logs = food_logs_for_day(health.food_logs or [], as_of=local_today)
     consumed = today_consumed_from_nutrition(

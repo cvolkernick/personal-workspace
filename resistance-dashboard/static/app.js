@@ -73,6 +73,32 @@
     return "needs-rest";
   }
 
+  function renderSleepBatteryMini(battery) {
+    const el = $("sleep-battery-mini");
+    if (!el) return;
+    const b = battery || {};
+    const pct = Math.min(
+      100,
+      Math.max(0, Number(b.pct_charged ?? b.pct_of_target) || 0)
+    );
+    const level = String(b.level || "critical").toLowerCase();
+    const mode = b.mode || "no_data";
+    let sub = "sleep";
+    if (mode === "sleeping") sub = "chg";
+    else if (mode === "awake" && pct <= 0) sub = "empty";
+    else if (mode === "awake") sub = `${Math.round(Number(b.hours_until_empty) || 0)}h`;
+    else sub = "—";
+    const tip = b.summary || "Sleep battery (100% at wake, drains over ~16h awake)";
+    el.title = tip;
+    el.innerHTML = `
+      <div class="sb-mini-label">Sleep</div>
+      <div class="sb-mini-shell" aria-label="Sleep battery ${pct.toFixed(0)} percent">
+        <div class="sb-mini-fill ${level}" style="width:${pct.toFixed(0)}%"></div>
+        <div class="sb-mini-text">${pct.toFixed(0)}%</div>
+      </div>
+      <div class="sb-mini-sub">${sub}</div>`;
+  }
+
   /** Auto-dismiss delays (ms). Errors stay longer; 0 = until dismissed. */
   const ALERT_TTL = { ok: 5000, warn: 8000, err: 12000 };
 
@@ -1878,9 +1904,13 @@
     const rec = data.recovery || {};
     $("stat-recovery").textContent = rec.label || "—";
     $("recovery-badge").innerHTML = `<span class="badge ${recoveryClass(rec.label)}">${rec.label || "—"} · ${rec.score ?? "—"}</span>`;
+    renderSleepBatteryMini(
+      (rec && rec.sleep_battery) || data.sleep_battery || null
+    );
     const reasons = $("recovery-reasons");
     reasons.innerHTML = "";
-    (rec.reasons || []).forEach((r) => {
+    // Cap reasons so the mini battery does not force the card taller
+    (rec.reasons || []).slice(0, 4).forEach((r) => {
       const li = document.createElement("li");
       li.textContent = r;
       reasons.appendChild(li);

@@ -260,6 +260,117 @@ button:disabled {
   font-size: 0.9rem;
 }
 
+/* Recovery card: badge + compact sleep battery on one row */
+.recovery-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  flex-wrap: nowrap;
+  min-height: 2rem;
+}
+
+.recovery-head #recovery-badge {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+#recovery-card .reasons {
+  max-height: 5.5rem;
+  overflow: hidden;
+}
+
+#recovery-card #health-note {
+  margin-top: 0.5rem !important;
+  font-size: 0.8rem !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sleep-battery-mini {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex: 0 0 auto;
+  max-width: 46%;
+}
+
+.sb-mini-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sb-mini-shell {
+  position: relative;
+  width: 72px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.sb-mini-shell::after {
+  content: "";
+  position: absolute;
+  right: -4px;
+  top: 4px;
+  width: 3px;
+  height: 8px;
+  border-radius: 0 2px 2px 0;
+  background: var(--border);
+}
+
+.sb-mini-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  max-width: 100%;
+  border-radius: 2px;
+  transition: width 0.25s ease;
+}
+
+.sb-mini-fill.critical {
+  background: linear-gradient(90deg, #f07178, #f5a3a8);
+}
+.sb-mini-fill.low {
+  background: linear-gradient(90deg, #f0b429, #f5d76e);
+}
+.sb-mini-fill.ok {
+  background: linear-gradient(90deg, #5ce1a8, #6ecf9a);
+}
+.sb-mini-fill.full {
+  background: linear-gradient(90deg, #3d9cf0, #7c9cff);
+}
+
+.sb-mini-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.62rem;
+  font-weight: 750;
+  color: var(--text);
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.85);
+  pointer-events: none;
+}
+
+.sb-mini-sub {
+  font-size: 0.65rem;
+  font-weight: 650;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 2rem;
+}
+
 .chart-box {
   position: relative;
   width: 100%;
