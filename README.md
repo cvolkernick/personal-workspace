@@ -31,22 +31,36 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | iot (Wiz lights) | 8780 | `python3 iot/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
 
-### Pi backends 24/7 + terminal UI (on- and off-network)
+### Pi backends 24/7 (open in browser — no local server)
 
-**Pi hosts backends 24/7** via systemd (`deploy/install_remote.sh` → units bind `0.0.0.0`, restart always).  
-**Terminal hosts the UI** and sets a remote backend base URL so `/api/*` is proxied to the Pi.  
-**Off-network access uses a private mesh (Tailscale or equivalent)** — not public port-forward of bare dashboards.
+**Pi hosts backends 24/7** via systemd (`deploy/install_remote.sh` → bind `0.0.0.0`, restart always).  
+**Double-click / open launchers open the Pi URL** (not localhost). Default host: `192.168.100.98` (`deploy/endpoints.json`; override with `PI_HOST`).  
+**Pi auto-pulls `origin/master` every 5 minutes** (`workspace-sync.timer`) and restarts units when code changes.  
+**Off-network:** Tailscale (or equivalent) + `PI_HOST=<mesh>` — not public port-forward.
 
 ```bash
-# On Pi (once): install all six always-on backends
-bash deploy/install_remote.sh user@PI_HOST
+# On Pi (once): install all six always-on backends + auto-sync
+bash deploy/install_remote.sh prism-agent@192.168.100.98
 
-# On laptop (LAN or Tailscale): UI local, API on Pi
-python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790
-# or write orchestra/backend.json: {"url":"http://…:8790","label":"pi"}
+# On Mac — open always-on UIs (no server process):
+open-command-center.command          # Orchestra :8790
+# or:
+bash deploy/open_dashboard.sh orchestra
+bash deploy/open_dashboard.sh iot
+# Off-LAN:
+PI_HOST=100.x.y.z bash deploy/open_dashboard.sh orchestra
 ```
 
-Full operator guide: [`deploy/README.md`](deploy/README.md). Shared helper: `remote_backend.py`.
+| Service | Always-on URL (LAN) |
+|---------|---------------------|
+| Orchestra | http://192.168.100.98:8790/ |
+| financial-command | http://192.168.100.98:8000/financial-command/index.html |
+| projects-dashboard | http://192.168.100.98:8765/ |
+| holistic | http://192.168.100.98:8770/ |
+| iot | http://192.168.100.98:8780/ |
+| resistance-dashboard | http://192.168.100.98:8787/ |
+
+Full guide: [`deploy/README.md`](deploy/README.md). Helpers: `dashboard_endpoints.py`, `remote_backend.py`.
 
 ## Top-level directories (TLDs)
 

@@ -1,4 +1,5 @@
 #!/bin/bash
-# Double-click or: bash holistic/start.command
-cd "$(dirname "$0")/.." || exit 1
-exec python3 holistic/server.py --port 8770
+# Open always-on Time allocator dashboard on the Pi (no local server).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec bash "$ROOT/deploy/open_dashboard.sh" holistic

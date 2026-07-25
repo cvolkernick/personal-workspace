@@ -1,20 +1,15 @@
 #!/usr/bin/env bash
+# Open always-on Resistance / Fitness dashboard on the Pi (no local server).
 set -euo pipefail
-cd "$(dirname "$0")"
-
-# Load persistent secrets (created for you at ~/.config/resistance-dashboard/env)
-if [ -f "$HOME/.config/resistance-dashboard/env" ]; then
-  # shellcheck disable=SC1090
-  source "$HOME/.config/resistance-dashboard/env"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# Prefer monorepo root that contains deploy/open_dashboard.sh
+if [[ ! -f "$ROOT/deploy/open_dashboard.sh" ]]; then
+  # worktree layout: resistance-dashboard/resistance-dashboard/start.sh
+  if [[ -f "$SCRIPT_DIR/../deploy/open_dashboard.sh" ]]; then
+    ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+  elif [[ -f "$HOME/personal-workspace/deploy/open_dashboard.sh" ]]; then
+    ROOT="$HOME/personal-workspace"
+  fi
 fi
-
-export LOCAL_WORKSPACE_DIR="${LOCAL_WORKSPACE_DIR:-$(cd .. && pwd)}"
-export PORT="${PORT:-8787}"
-
-# Free port if a previous instance is still up
-if command -v lsof >/dev/null 2>&1; then
-  lsof -ti:"$PORT" | xargs kill -9 2>/dev/null || true
-fi
-
-echo "Resistance dashboard → http://127.0.0.1:${PORT}/"
-exec python3 server.py "$PORT"
+exec bash "$ROOT/deploy/open_dashboard.sh" resistance-dashboard

@@ -1,0 +1,11 @@
+[Unit]
+Description=Pull personal-workspace master and restart dashboard units if changed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=WORKSPACE_DIR=%h/personal-workspace
+Environment=SYNC_BRANCH=master
+ExecStart=/bin/bash %h/personal-workspace/deploy/workspace_sync.sh

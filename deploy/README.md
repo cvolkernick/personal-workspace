@@ -5,8 +5,11 @@
 | Layer | Role |
 |--------|------|
 | **Pi (systemd user units)** | Always-on backends on `0.0.0.0` for all six dashboards |
-| **Terminal / laptop** | Local frontend: serves UI; `--backend` / `backend.json` proxies `/api/*` to Pi |
+| **Terminal / laptop** | Browser only: open Pi URLs via `deploy/open_dashboard.sh` / `*.command` (no local server) |
+| **workspace-sync.timer** | Every 5m: `git pull` `origin/master` on the Pi; restart units when HEAD moves |
 | **Private mesh (Tailscale)** | Off-home-network reachability — **not** public port-forward of bare HTTP |
+
+Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with env `PI_HOST` / `DASHBOARD_HOST`.
 
 ### Ports (authoritative with monorepo README)
 
@@ -43,33 +46,40 @@ curl -sS http://PI_LAN_IP:8790/api/health
 
 Keep a **git-synced clone** on the Pi so on-disk sources (strategy, fitness logs, treasury snapshots, ops) stay meaningful. Stale Pi data vs Mac edits is operational — pull regularly.
 
-## Terminal frontends (UI local, API remote)
-
-On a laptop (same LAN **or** over Tailscale):
+## Open dashboards (always-on Pi — preferred)
 
 ```bash
-# One-shot CLI:
+bash deploy/open_dashboard.sh orchestra
+bash deploy/open_dashboard.sh financial-command
+bash deploy/open_dashboard.sh projects-dashboard
+bash deploy/open_dashboard.sh holistic
+bash deploy/open_dashboard.sh iot
+bash deploy/open_dashboard.sh resistance-dashboard
+
+# Double-click on Mac: open-command-center.command, */start.command, resistance-dashboard/start.sh
+```
+
+These **only open the browser** to the Pi. They do not start a laptop process.
+
+### Optional: local UI proxying to Pi
+
+For development you can still run a local server that proxies `/api/*`:
+
+```bash
 python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790 --no-browser
-python3 projects-dashboard/server.py --backend http://PI_OR_TAILSCALE:8765
-python3 holistic/server.py --backend http://PI_OR_TAILSCALE:8770
-python3 iot/server.py --backend http://PI_OR_TAILSCALE:8780
-python3 financial-command/server.py --backend http://PI_OR_TAILSCALE:8000 --offline
-python3 resistance-dashboard/server.py --backend http://PI_OR_TAILSCALE:8787
 ```
 
-Or per-dashboard `backend.json` next to `server.py`:
+(`remote_backend.py` + per-package `backend.json` / `--backend` / `--local`.)
 
-```json
-{
-  "url": "http://prism-gateway:8780",
-  "label": "pi-tailscale"
-}
-```
+## Autonomous git sync on the Pi
 
-- **`--local`** forces local API (ignore config / CLI backend).
-- Empty / missing `backend.json` + no `--backend` → classic single-process local mode.
+`workspace-sync.timer` runs `deploy/workspace_sync.sh` every 5 minutes:
 
-IoT already used this pattern; all six dashboards share `remote_backend.py`.
+1. Uses `GITHUB_TOKEN` from `~/.config/workflow-scheduler.env` when present  
+2. Checks out / fast-forwards **`master`** (stashes dirty tracked files if needed)  
+3. If `HEAD` moved → `systemctl --user try-restart` all six dashboard units  
+
+Manual: `systemctl --user start workspace-sync.service`
 
 ## Off-network access (Tailscale or equivalent)
 

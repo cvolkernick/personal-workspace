@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 5 minutes: sync personal-workspace from origin/master
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Persistent=true
+Unit=workspace-sync.service
+
+[Install]
+WantedBy=timers.target

@@ -23,7 +23,17 @@ except ImportError:
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PORT = 8790
-ORCHESTRA_URL = f"http://127.0.0.1:{DEFAULT_PORT}/"
+
+try:
+    import sys
+
+    if str(WORKSPACE_ROOT) not in sys.path:
+        sys.path.insert(0, str(WORKSPACE_ROOT))
+    from dashboard_endpoints import service_url as _service_url
+
+    ORCHESTRA_URL = _service_url("orchestra")
+except Exception:  # noqa: BLE001
+    ORCHESTRA_URL = f"http://192.168.100.98:{DEFAULT_PORT}/"
 
 
 def _annotate_domains_freshness(

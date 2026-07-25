@@ -64,6 +64,11 @@ ALL_UNITS=(
   iot-dashboard.service
   resistance-dashboard.service
 )
+# Always install git auto-sync timer (pull master + restart on change)
+SYNC_UNITS=(
+  workspace-sync.service
+  workspace-sync.timer
+)
 
 select_units() {
   if [[ -z "$ONLY" ]]; then
@@ -127,14 +132,16 @@ rsync "${RSYNC_ARGS[@]}" \
 echo "→ Patch unit paths for $REMOTE_DIR …"
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
-for f in "${UNITS[@]}"; do
-  sed "s|%h/personal-workspace|${REMOTE_DIR}|g" "$UNITS_SRC/$f" > "$TMP/$f"
+for f in "${UNITS[@]}" "${SYNC_UNITS[@]}"; do
+  if [[ -f "$UNITS_SRC/$f" ]]; then
+    sed "s|%h/personal-workspace|${REMOTE_DIR}|g" "$UNITS_SRC/$f" > "$TMP/$f"
+  fi
 done
 
 echo "→ Installing systemd user units…"
 ssh "$REMOTE" "mkdir -p ~/.config/systemd/user"
-for f in "${UNITS[@]}"; do
-  scp "$TMP/$f" "$REMOTE:~/.config/systemd/user/"
+for f in "${UNITS[@]}" "${SYNC_UNITS[@]}"; do
+  [[ -f "$TMP/$f" ]] && scp "$TMP/$f" "$REMOTE:~/.config/systemd/user/"
 done
 
 # shellcheck disable=SC2087
@@ -145,6 +152,7 @@ shift
 UNITS="$*"
 
 loginctl enable-linger "$USER" 2>/dev/null || true
+chmod +x "$DIR/deploy/workspace_sync.sh" "$DIR/deploy/open_dashboard.sh" 2>/dev/null || true
 systemctl --user daemon-reload
 
 # Optional IoT dep
@@ -164,6 +172,11 @@ for u in $UNITS; do
   systemctl --user status "$u" --no-pager | head -12 || true
 done
 
+# Autonomous git pull + restart (master)
+systemctl --user enable --now workspace-sync.timer 2>/dev/null || true
+systemctl --user start workspace-sync.service 2>/dev/null || true
+systemctl --user list-timers --all 2>/dev/null | grep -i workspace || true
+
 echo ""
 echo "Listening (ss/netstat if available):"
 ss -lntp 2>/dev/null | grep -E ':(8000|8765|8770|8780|8787|8790)\b' || true
@@ -171,8 +184,9 @@ REMOTE
 
 echo ""
 echo "Deploy complete."
+echo "  Open dashboards (no local server):  bash deploy/open_dashboard.sh orchestra"
 echo "  Backends (LAN):  http://$RHOST:8790  :8000  :8765  :8770  :8780  :8787"
-echo "  Off-network:     install Tailscale on Pi + client; use MagicDNS/IP instead of LAN IP"
-echo "  Terminal UI:     python3 orchestra/server.py --backend http://<pi-or-tailscale>:8790"
+echo "  Off-network:     PI_HOST=<tailscale> bash deploy/open_dashboard.sh orchestra"
+echo "  Auto-sync:       workspace-sync.timer pulls origin/master every 5m + restarts units"
 echo "  Docs:            deploy/README.md"
 echo "  Logs:            ssh $REMOTE 'journalctl --user -u orchestra-dashboard -f'"
