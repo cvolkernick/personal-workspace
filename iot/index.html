@@ -478,13 +478,13 @@
 
     function renderDevices() {
       document.getElementById("stat-count").textContent = String(devices.length);
-      let online = 0, offline = 0;
+      let online = 0, onCount = 0;
       for (const d of devices) {
-        if (d.status && d.status.ok) { online++; if (d.status.on) onn++; }
+        if (d.status && d.status.ok) { online++; if (d.status.on) onCount++; }
       }
       document.getElementById("stat-online").textContent = `${online}/${devices.length}`;
       document.getElementById("devices-hint").textContent =
-        onn ? `${onn} on` : "grouped by room";
+        onCount ? `${onCount} on` : "grouped by room";
 
       const root = document.getElementById("devices-by-room");
       if (!devices.length) {
