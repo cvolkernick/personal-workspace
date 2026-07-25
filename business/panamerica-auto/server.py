@@ -12,7 +12,9 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_PORT = 8765
+# 8795 — free of monorepo dashboard ports (8000/8765/8770/8780/8787/8790)
+DEFAULT_PORT = 8795
+DEFAULT_BIND = "127.0.0.1"
 
 
 class QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -30,8 +32,15 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--bind",
-        default="127.0.0.1",
-        help="Address to bind (default 127.0.0.1)",
+        "--host",
+        dest="bind",
+        default=os.environ.get("BIND", DEFAULT_BIND),
+        help=f"Address to bind (default {DEFAULT_BIND}; use 0.0.0.0 on Pi)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Accepted for deploy-script parity (no-op; this server never opens a browser)",
     )
     args = parser.parse_args(argv)
 
@@ -41,8 +50,11 @@ def main(argv: list[str] | None = None) -> int:
     socketserver.TCPServer.allow_reuse_address = True
 
     with socketserver.TCPServer((args.bind, args.port), handler) as httpd:
-        url = f"http://{args.bind}:{args.port}/"
+        display_host = "127.0.0.1" if args.bind in ("0.0.0.0", "") else args.bind
+        url = f"http://{display_host}:{args.port}/"
         print(f"Panamerica Auto site: {url}", flush=True)
+        if args.bind == "0.0.0.0":
+            print(f"LAN bind: 0.0.0.0:{args.port}", flush=True)
         print("Press Ctrl+C to stop.", flush=True)
         try:
             httpd.serve_forever()

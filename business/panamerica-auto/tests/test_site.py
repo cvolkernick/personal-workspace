@@ -83,6 +83,8 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         text = SERVER.read_text(encoding="utf-8")
         self.assertIn("def main", text)
         self.assertIn("SimpleHTTPRequestHandler", text)
+        # Port 8795 avoids clash with workflow dashboard (8765)
+        self.assertRegex(text, r"DEFAULT_PORT\s*=\s*8795")
 
     def test_readme_has_verify_steps(self) -> None:
         readme = README.read_text(encoding="utf-8")
@@ -90,6 +92,20 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         self.assertIn("## Verify", readme)
         self.assertIn("server.py", readme)
         self.assertIn("Next iteration", readme)
+        self.assertIn("8795", readme)
+        self.assertIn("Deploy", readme)
+
+    def test_deploy_unit_and_install_exist(self) -> None:
+        unit = ROOT / "deploy" / "panamerica-auto.service"
+        install = ROOT / "deploy" / "install_remote.sh"
+        start = ROOT / "start.command"
+        self.assertTrue(unit.is_file(), "missing deploy unit")
+        self.assertTrue(install.is_file(), "missing install_remote.sh")
+        self.assertTrue(start.is_file(), "missing start.command")
+        unit_text = unit.read_text(encoding="utf-8")
+        self.assertIn("--port 8795", unit_text)
+        self.assertIn("0.0.0.0", unit_text)
+        self.assertIn("panamerica-auto/server.py", unit_text)
 
     def test_live_server_serves_home_with_brand_and_services(self) -> None:
         """Launch real server.py twice; GET / must include brand + services."""

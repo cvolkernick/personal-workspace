@@ -1,0 +1,16 @@
+[Unit]
+Description=Panamerica Auto business website (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace/business/panamerica-auto
+Environment=PYTHONUNBUFFERED=1
+# Bind all interfaces so LAN / Tailscale clients can reach http://<host>:8795/
+ExecStart=/usr/bin/python3 %h/personal-workspace/business/panamerica-auto/server.py --host 0.0.0.0 --port 8795 --no-browser
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

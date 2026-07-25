@@ -1,0 +1,16 @@
+[Unit]
+Description=Financial Command Center backend (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace
+ExecStart=/usr/bin/python3 %h/personal-workspace/financial-command/server.py --host 0.0.0.0 --port 8000 --no-browser --local --offline
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
