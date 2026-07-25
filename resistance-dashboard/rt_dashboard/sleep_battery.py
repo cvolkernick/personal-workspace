@@ -237,11 +237,25 @@ def sleep_battery_from_fitdash_sleep(
     *,
     now: Optional[datetime] = None,
     sleep_target_hours: float = 8.0,
+    sleep_intervals: Optional[List[dict]] = None,
 ) -> Dict[str, Any]:
-    """Build battery from FitDash daily SleepSample list."""
-    intervals = intervals_from_daily_sleep(sleep)
+    """Build battery preferring timed Google intervals (Time Allocator style).
+
+    Falls back to daily-hour approximation (fixed 7am wake) only when no
+    timed intervals are available — that approximation is known to skew
+    hours_awake / % when real wake is much later than 7am.
+    """
+    intervals = normalize_intervals(list(sleep_intervals or []))
+    source = "sleep_intervals"
+    if not intervals:
+        intervals = intervals_from_daily_sleep(sleep)
+        source = "daily_sleep_approx" if intervals else "none"
     bat = compute_sleep_battery(
         intervals, now=now, sleep_target_hours=sleep_target_hours
     )
-    bat["data_source"] = "daily_sleep_approx" if intervals else "none"
+    bat["data_source"] = source
+    bat["interval_count"] = len(intervals)
+    # Align field name with Time Allocator UI/meta
+    bat["interval_count_stored"] = len(intervals)
+    bat["pct_of_target"] = bat.get("pct_charged")
     return bat

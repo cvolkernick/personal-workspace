@@ -168,6 +168,8 @@ class CaloriesBurnedDay:
 class HealthSnapshot:
     weight: List[WeightSample] = field(default_factory=list)
     sleep: List[SleepSample] = field(default_factory=list)
+    # Timed sleep sessions [{start, end, source}] for sleep battery (Time Allocator style)
+    sleep_intervals: List[Dict[str, Any]] = field(default_factory=list)
     nutrition: List[NutritionDay] = field(default_factory=list)
     food_logs: List[FoodLogEntry] = field(default_factory=list)
     hydration: List[HydrationDay] = field(default_factory=list)
@@ -178,6 +180,7 @@ class HealthSnapshot:
         return {
             "weight": [w.to_dict() for w in self.weight],
             "sleep": [s.to_dict() for s in self.sleep],
+            "sleep_intervals": list(self.sleep_intervals or []),
             "nutrition": [n.to_dict() for n in self.nutrition],
             "food_logs": [f.to_dict() for f in self.food_logs],
             "hydration": [h.to_dict() for h in self.hydration],

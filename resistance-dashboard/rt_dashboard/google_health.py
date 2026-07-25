@@ -191,12 +191,26 @@ class GoogleHealthClient:
 
     def fetch_sleep_health_api(self, days: int = 14) -> List[SleepSample]:
         """Google Health API: GET .../dataTypes/sleep/dataPoints"""
+        samples, _intervals = self.fetch_sleep_health_bundle(days=days)
+        return samples
+
+    def fetch_sleep_health_bundle(
+        self, days: int = 14
+    ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+        """Daily sleep totals + timed intervals (for sleep battery).
+
+        Same dataPoints as Time Allocator: real start/end times, not a fixed 7am wake.
+        """
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        # Sleep segments can be denser than weight; still bound pages tightly.
         max_pages = 4 if days >= 60 else 2
         data = self._paginate_data_points("sleep", max_pages=max_pages)
-        return parse_health_api_sleep(data, start=start)
+        intervals = parse_sleep_intervals(data, start=start)
+        # Prefer daily totals derived from timed intervals (local wake date)
+        samples = sleep_samples_from_intervals(intervals)
+        if not samples:
+            samples = parse_health_api_sleep(data, start=start)
+        return samples, intervals
 
     def fetch_weight_fit(self, days: int = 30) -> List[WeightSample]:
         end = datetime.now(timezone.utc)
@@ -246,13 +260,20 @@ class GoogleHealthClient:
         return self.fetch_weight_fit(days=days)
 
     def fetch_sleep(self, days: int = 14) -> List[SleepSample]:
+        samples, _ = self.fetch_sleep_bundle(days=days)
+        return samples
+
+    def fetch_sleep_bundle(
+        self, days: int = 14
+    ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+        """Return (daily samples, timed intervals) for charts + battery."""
         try:
-            samples = self.fetch_sleep_health_api(days=days)
-            if samples:
-                return samples
+            samples, intervals = self.fetch_sleep_health_bundle(days=days)
+            if samples or intervals:
+                return samples, intervals
         except GoogleHealthError:
             pass
-        return self.fetch_sleep_fit(days=days)
+        return self.fetch_sleep_fit(days=days), []
 
     def _civil_range_body(
         self,
@@ -426,6 +447,7 @@ class GoogleHealthClient:
         errors: List[str] = []
         weight: List[WeightSample] = []
         sleep: List[SleepSample] = []
+        sleep_intervals: List[Dict[str, Any]] = []
         nutrition: List[NutritionDay] = []
         food_logs: List[FoodLogEntry] = []
         hydration: List[HydrationDay] = []
@@ -434,8 +456,8 @@ class GoogleHealthClient:
         def _weight() -> List[WeightSample]:
             return self.fetch_weight(days=days)
 
-        def _sleep() -> List[SleepSample]:
-            return self.fetch_sleep(days=days)
+        def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+            return self.fetch_sleep_bundle(days=days)
 
         def _nutrition() -> List[NutritionDay]:
             return self.fetch_nutrition(days=days)
@@ -475,7 +497,7 @@ class GoogleHealthClient:
                 if name == "weight":
                     weight = result  # type: ignore[assignment]
                 elif name == "sleep":
-                    sleep = result  # type: ignore[assignment]
+                    sleep, sleep_intervals = result  # type: ignore[misc]
                 elif name == "nutrition":
                     nutrition = result  # type: ignore[assignment]
                 elif name == "food_logs":
@@ -499,6 +521,7 @@ class GoogleHealthClient:
         return HealthSnapshot(
             weight=weight,
             sleep=sleep,
+            sleep_intervals=sleep_intervals,
             nutrition=nutrition,
             food_logs=food_logs,
             hydration=hydration,
@@ -575,35 +598,119 @@ def parse_health_api_weight(
     return [by_date[k] for k in sorted(by_date.keys())]
 
 
+def _parse_interval_times(pt: dict) -> Optional[Tuple[datetime, datetime]]:
+    sleep = pt.get("sleep") or pt.get("data") or pt
+    interval = (
+        (sleep.get("interval") if isinstance(sleep, dict) else None)
+        or pt.get("interval")
+        or {}
+    )
+    st = interval.get("startTime") or pt.get("startTime")
+    en = interval.get("endTime") or pt.get("endTime")
+    if not st or not en:
+        return None
+    try:
+        st_s, en_s = str(st), str(en)
+        if st_s.endswith("Z"):
+            st_s = st_s[:-1] + "+00:00"
+        if en_s.endswith("Z"):
+            en_s = en_s[:-1] + "+00:00"
+        start_dt = datetime.fromisoformat(st_s)
+        end_dt = datetime.fromisoformat(en_s)
+    except ValueError:
+        return None
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    if end_dt <= start_dt:
+        return None
+    return start_dt, end_dt
+
+
+def parse_sleep_intervals(
+    payload: dict, start: Optional[datetime] = None
+) -> List[Dict[str, Any]]:
+    """Timed sleep sessions [{start, end, source}] — same shape as Time Allocator."""
+    cutoff = start or datetime.now(timezone.utc) - timedelta(days=14)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    rows: List[Dict[str, Any]] = []
+    for pt in payload.get("dataPoints") or []:
+        parsed = _parse_interval_times(pt if isinstance(pt, dict) else {})
+        if not parsed:
+            continue
+        start_dt, end_dt = parsed
+        if end_dt < cutoff:
+            continue
+        if (end_dt - start_dt).total_seconds() > 36 * 3600:
+            continue
+        rows.append(
+            {
+                "start": start_dt.isoformat(timespec="seconds"),
+                "end": end_dt.isoformat(timespec="seconds"),
+                "source": "google_health",
+            }
+        )
+    # Dedupe
+    seen: set = set()
+    out: List[Dict[str, Any]] = []
+    for r in sorted(rows, key=lambda x: x["start"]):
+        key = (r["start"], r["end"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def sleep_samples_from_intervals(
+    intervals: List[Dict[str, Any]],
+) -> List[SleepSample]:
+    """Aggregate timed intervals to daily totals by local wake (end) date."""
+    by_date: Dict[str, float] = {}
+    for iv in intervals or []:
+        try:
+            en = datetime.fromisoformat(str(iv.get("end") or "").replace("Z", "+00:00"))
+            st = datetime.fromisoformat(str(iv.get("start") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if en.tzinfo is None:
+            en = en.replace(tzinfo=timezone.utc)
+        if st.tzinfo is None:
+            st = st.replace(tzinfo=timezone.utc)
+        hours = max(0.0, (en - st).total_seconds() / 3600.0)
+        if hours <= 0:
+            continue
+        day = en.astimezone().date().isoformat()  # local civil wake date
+        by_date[day] = by_date.get(day, 0.0) + hours
+    return [
+        SleepSample(date=d, sleep_hours=round(h, 2), source="google_health")
+        for d, h in sorted(by_date.items())
+    ]
+
+
 def parse_health_api_sleep(
     payload: dict, start: Optional[datetime] = None
 ) -> List[SleepSample]:
-    """Parse Google Health API sleep dataPoints list."""
+    """Parse Google Health API sleep dataPoints into daily totals.
+
+    Prefer ``sleep_samples_from_intervals(parse_sleep_intervals(...))`` when
+    timed intervals are available (local wake date). This fallback attributes
+    hours to the local end date of each session.
+    """
     by_date: Dict[str, float] = {}
     start = start or datetime.now(timezone.utc) - timedelta(days=14)
     for pt in payload.get("dataPoints") or []:
-        sleep = pt.get("sleep") or pt.get("data") or pt
-        interval = (
-            (sleep.get("interval") if isinstance(sleep, dict) else None)
-            or pt.get("interval")
-            or {}
-        )
-        st = interval.get("startTime") or pt.get("startTime")
-        en = interval.get("endTime") or pt.get("endTime")
-        if not st or not en:
+        if not isinstance(pt, dict):
             continue
-        try:
-            if str(st).endswith("Z"):
-                start_dt = datetime.fromisoformat(str(st).replace("Z", "+00:00"))
-                end_dt = datetime.fromisoformat(str(en).replace("Z", "+00:00"))
-            else:
-                start_dt = datetime.fromisoformat(str(st))
-                end_dt = datetime.fromisoformat(str(en))
-        except ValueError:
+        parsed = _parse_interval_times(pt)
+        if not parsed:
             continue
+        start_dt, end_dt = parsed
         hours = (end_dt - start_dt).total_seconds() / 3600.0
         if hours <= 0:
-            # total sleep minutes field if present
+            sleep = pt.get("sleep") or pt.get("data") or pt
             mins = None
             if isinstance(sleep, dict):
                 mins = sleep.get("durationMinutes") or sleep.get("totalSleepMinutes")
@@ -611,7 +718,8 @@ def parse_health_api_sleep(
                 hours = float(mins) / 60.0
             else:
                 continue
-        date = start_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        # Local wake date (matches Time Allocator daily attribution)
+        date = end_dt.astimezone().strftime("%Y-%m-%d")
         by_date[date] = by_date.get(date, 0.0) + hours
     start_date = start.strftime("%Y-%m-%d")
     return [

@@ -475,10 +475,12 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     )
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
 
-    # Battery uses real logs only (0h/implied nights skipped inside helper)
+    # Prefer timed Google sleep intervals (same as Time Allocator); daily
+    # totals alone assume a fixed 7am wake and skew the battery badly.
     sleep_battery = sleep_battery_from_fitdash_sleep(
         [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
         sleep_target_hours=8.0,
+        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery

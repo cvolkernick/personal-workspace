@@ -58,6 +58,26 @@ class TestSleepBattery(unittest.TestCase):
         bat = sleep_battery_from_fitdash_sleep(sleep)
         self.assertIn(bat["data_source"], ("daily_sleep_approx", "none"))
 
+    def test_prefers_timed_intervals_over_daily_approx(self):
+        tz = timezone.utc
+        wake = datetime(2026, 7, 25, 16, 26, 0, tzinfo=tz)  # 12:26 EDT
+        intervals = [
+            {
+                "start": (wake - timedelta(hours=8.23)).isoformat(),
+                "end": wake.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        # Misleading daily approx would assume 07:00 wake
+        sleep = [SleepSample(date="2026-07-25", sleep_hours=8.23)]
+        now = wake + timedelta(hours=1.24)
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep, now=now, sleep_intervals=intervals
+        )
+        self.assertEqual(bat["data_source"], "sleep_intervals")
+        self.assertGreaterEqual(bat["pct_charged"], 85)
+        self.assertLess(bat["hours_awake"], 2.0)
+
 
 if __name__ == "__main__":
     unittest.main()

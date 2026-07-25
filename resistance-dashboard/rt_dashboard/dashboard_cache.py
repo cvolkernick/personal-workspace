@@ -138,6 +138,19 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         for s in (data.get("sleep") or [])
         if isinstance(s, dict) and s.get("date")
     ]
+    sleep_intervals: List[dict] = []
+    for iv in data.get("sleep_intervals") or []:
+        if not isinstance(iv, dict):
+            continue
+        st, en = iv.get("start"), iv.get("end")
+        if st and en:
+            sleep_intervals.append(
+                {
+                    "start": str(st),
+                    "end": str(en),
+                    "source": str(iv.get("source") or "cache"),
+                }
+            )
     nutrition = [
         NutritionDay(
             date=str(n.get("date") or ""),
@@ -194,6 +207,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
     return HealthSnapshot(
         weight=weights,
         sleep=sleep,
+        sleep_intervals=sleep_intervals,
         nutrition=nutrition,
         food_logs=food_logs,
         hydration=hydration,
@@ -286,6 +300,8 @@ def merge_health_snapshots(
         )
         fl_by[key] = d
     fl = [fl_by[k] for k in sorted(fl_by.keys())]
+    # Prefer newer intervals; fall back to base history
+    siv = list(update.sleep_intervals or []) or list(base.sleep_intervals or [])
     # Latest pull's error wins. A successful update with data clears stale
     # auth errors left on the cached base (e.g. old HTTP 400 after re-auth).
     has_update = bool(
@@ -295,6 +311,7 @@ def merge_health_snapshots(
         or update.food_logs
         or update.hydration
         or update.calories_burned
+        or update.sleep_intervals
     )
     if update.error:
         err = update.error
@@ -307,6 +324,7 @@ def merge_health_snapshots(
         {
             "weight": w,
             "sleep": s,
+            "sleep_intervals": siv,
             "nutrition": n,
             "food_logs": fl,
             "hydration": h,
