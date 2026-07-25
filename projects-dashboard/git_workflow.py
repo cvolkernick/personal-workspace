@@ -10,6 +10,10 @@ Conventions
 ``protect_work`` commits dirty durable files and pushes the current branch.
 Agents should call this (or the dashboard button) when a unit of work completes
 instead of relying on memory.
+
+Push always does ``fetch + pull --rebase`` first so concurrent writers (e.g. the
+Pi scheduler on ``work/holistic`` and the Mac dashboard) do not fail with
+"rejected (fetch first)".
 """
 
 from __future__ import annotations
@@ -574,12 +578,119 @@ def protect_work(
     return result
 
 
+def pull_rebase_current(
+    repo: Path = WORKSPACE_ROOT,
+    *,
+    remote: str = "origin",
+    branch: Optional[str] = None,
+) -> dict[str, Any]:
+    """Fetch and rebase the current branch onto its remote tracking branch.
+
+    Used before every push so Mac protect/sync and Pi ticks on the same branch
+    integrate cleanly instead of non-fast-forward rejects.
+    """
+    repo = Path(repo).resolve()
+    if not branch:
+        code, branch, err = _run(repo, "branch", "--show-current")
+        if code != 0 or not branch:
+            return {
+                "ok": False,
+                "skipped": True,
+                "error": err or "detached HEAD — cannot pull --rebase",
+            }
+    # Discover upstream (origin/work/holistic, etc.)
+    code_u, upstream, _ = _run(
+        repo, "rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"
+    )
+    if code_u != 0 or not upstream:
+        # No upstream yet — first push will set it; nothing to rebase onto
+        return {
+            "ok": True,
+            "skipped": True,
+            "reason": "no upstream tracking branch",
+            "branch": branch,
+        }
+
+    # fetch remote (best-effort full fetch of this branch)
+    remote_name = remote
+    if "/" in upstream:
+        remote_name = upstream.split("/", 1)[0] or remote
+    code_f, out_f, err_f = _run(
+        repo, "fetch", remote_name, branch, timeout=120.0
+    )
+    # Some remotes need bare fetch
+    if code_f != 0:
+        code_f2, out_f2, err_f2 = _run(repo, "fetch", remote_name, timeout=120.0)
+        if code_f2 != 0:
+            return {
+                "ok": False,
+                "branch": branch,
+                "upstream": upstream,
+                "error": err_f2 or err_f or out_f2 or out_f or "git fetch failed",
+                "fetch": {"code": code_f2, "err": err_f2},
+            }
+
+    code_r, out_r, err_r = _run(
+        repo, "pull", "--rebase", "--autostash", remote_name, branch, timeout=180.0
+    )
+    if code_r != 0:
+        # Leave the user in a recoverable state if rebase mid-conflict
+        conflicted = False
+        code_c, conf, _ = _run(repo, "diff", "--name-only", "--diff-filter=U")
+        if code_c == 0 and (conf or "").strip():
+            conflicted = True
+            _run(repo, "rebase", "--abort")
+        return {
+            "ok": False,
+            "branch": branch,
+            "upstream": upstream,
+            "error": (
+                (err_r or out_r or "git pull --rebase failed")
+                + (
+                    " — rebase aborted due to conflicts; resolve by hand then "
+                    "protect/sync again"
+                    if conflicted
+                    else ""
+                )
+            ),
+            "conflicted": conflicted,
+            "pull": {"code": code_r, "out": (out_r or "")[:400], "err": (err_r or "")[:400]},
+        }
+
+    return {
+        "ok": True,
+        "skipped": False,
+        "branch": branch,
+        "upstream": upstream,
+        "remote": remote_name,
+        "pull": {"code": code_r, "out": (out_r or "")[:300], "err": (err_r or "")[:200]},
+        "message": f"Rebased {branch} onto {upstream}",
+    }
+
+
 def _push_current(
     repo: Path, br: dict[str, Any], extra: Optional[dict] = None
 ) -> dict[str, Any]:
     current = br.get("current")
     if not current:
         return {"ok": False, "error": "detached HEAD — cannot push", "pushed": False}
+
+    # Integrate remote commits first (Pi ticks, other machines)
+    pull = pull_rebase_current(repo, branch=current)
+    if not pull.get("ok"):
+        result = {
+            "ok": False,
+            "pushed": False,
+            "branch": current,
+            "pull_rebase": pull,
+            "error": pull.get("error") or "pull --rebase before push failed",
+            "stdout": "",
+            "stderr": pull.get("error") or "",
+        }
+        if extra:
+            result.update(extra)
+        return result
+
     # set upstream if missing
     local = next((b for b in br.get("branches") or [] if b["name"] == current), None)
     if local and not local.get("upstream"):
@@ -593,6 +704,7 @@ def _push_current(
         "stdout": out,
         "stderr": err,
         "error": None if code == 0 else (err or out or "push failed"),
+        "pull_rebase": pull,
     }
     if extra:
         result.update(extra)
@@ -606,6 +718,8 @@ def sync_after_work(
     snapshot_sessions: bool = True,
 ) -> dict[str, Any]:
     """Full post-work automation: session index snapshot + protect_work + push.
+
+    Push path always pull --rebases first (see ``pull_rebase_current``).
 
     Intended CLI for agents when a task unit completes.
     """

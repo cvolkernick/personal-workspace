@@ -21,6 +21,7 @@ from git_workflow import (  # noqa: E402
     list_worktrees,
     parse_porcelain_path,
     protect_work,
+    pull_rebase_current,
     start_work,
 )
 from session_backup import build_session_index, write_session_index  # noqa: E402
@@ -140,6 +141,52 @@ class TestGitWorkflow(unittest.TestCase):
                 for a in (r.get("branch_actions") or [])),
             r.get("branch_actions"),
         )
+
+    def test_protect_pull_rebases_before_push_when_remote_ahead(self) -> None:
+        """Mac protect must integrate remote commits (e.g. Pi ticks) before push."""
+        # Branch with upstream
+        _git(self.repo, "checkout", "-b", "work/holistic")
+        (self.repo / "ops").mkdir(exist_ok=True)
+        (self.repo / "ops" / "local.txt").write_text("base\n", encoding="utf-8")
+        _git(self.repo, "add", ".")
+        _git(self.repo, "commit", "-m", "holistic base")
+        _git(self.repo, "push", "-u", "origin", "work/holistic")
+
+        # Simulate Pi: another clone advances the remote branch
+        other = Path(self._td.name) / "pi-clone"
+        _git(Path(self._td.name), "clone", str(self.bare), str(other))
+        _git(other, "checkout", "work/holistic")
+        (other / "ops" / "pi-tick.txt").write_text("tick\n", encoding="utf-8")
+        _git(other, "add", ".")
+        _git(other, "commit", "-m", "scheduler: tick results (raspi)")
+        _git(other, "push", "origin", "work/holistic")
+
+        # Local Mac commit without pulling first
+        (self.repo / "ops" / "mac-protect.txt").write_text("mac\n", encoding="utf-8")
+        r = protect_work(
+            self.repo,
+            message="protect: mac session index",
+            push=True,
+            ensure_work_branch=False,
+        )
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["committed"], r)
+        self.assertTrue(r["pushed"], r)
+        push = r.get("push") or {}
+        self.assertTrue((push.get("pull_rebase") or {}).get("ok"), push)
+        # Remote tip has both lines of history
+        log = _git(self.bare, "log", "--oneline", "work/holistic")
+        self.assertIn("scheduler: tick results", log)
+        self.assertIn("protect: mac session index", log)
+        # Working tree includes remote file after rebase
+        self.assertTrue((self.repo / "ops" / "pi-tick.txt").is_file())
+        self.assertTrue((self.repo / "ops" / "mac-protect.txt").is_file())
+
+    def test_pull_rebase_skips_without_upstream(self) -> None:
+        _git(self.repo, "checkout", "-b", "work/orphan-no-upstream")
+        r = pull_rebase_current(self.repo)
+        self.assertTrue(r["ok"])
+        self.assertTrue(r.get("skipped"))
 
 
 class TestSessionIndex(unittest.TestCase):

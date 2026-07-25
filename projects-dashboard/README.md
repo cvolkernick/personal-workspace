@@ -26,7 +26,11 @@ python3 projects-dashboard/git_workflow.py sync
 # Or API: POST /api/sync
 ```
 
-`sync` = refresh session index → commit on `work/<area>` if needed → push.
+`sync` = refresh session index → commit on `work/<area>` if needed → **pull --rebase** → push.
+
+Protect/push always rebases onto the remote branch first so concurrent writers
+(Pi scheduler ticks on `work/holistic` + Mac dashboard) do not fail with
+`rejected (fetch first)`.
 
 ## Branches
 
