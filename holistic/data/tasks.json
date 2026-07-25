@@ -193,11 +193,17 @@
       "target_id": "duchess-walk",
       "value": 24.0,
       "note": "confirmed Google walk 2026-07-25T04:17:55+00:00"
+    },
+    {
+      "date": "2026-07-25",
+      "target_id": "sleep",
+      "value": 8.23,
+      "note": "synced from google_health"
     }
   ],
   "plan": {
-    "window_start": "2026-07-25T03:56:26-04:00",
-    "window_end": "2026-07-26T03:56:26-04:00",
+    "window_start": "2026-07-25T13:48:39-04:00",
+    "window_end": "2026-07-26T13:48:39-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
@@ -248,7 +254,7 @@
         "break_minutes": 360,
         "remaining_drive_minutes": 570,
         "reason": "570m left in current 12h driver-mode block",
-        "lyft_duty_summary": "2h 30m of 12h driver-mode used (9h 30m left this cycle)"
+        "lyft_duty_summary": "2h 30m of 12h driver-mode used (9h 30m left this cycle) \u00b7 duty last updated 11h 38m ago \u2014 please refresh hours driven"
       }
     ],
     "total_block_minutes": 1131,
@@ -263,15 +269,15 @@
         "kind": "rolling_avg",
         "priority": 10,
         "on_track": false,
-        "summary": "5.41 hours avg over 7d (4 logged, 3 missing\u21920; target \u2265 8)",
+        "summary": "6.59 hours avg over 7d (5 logged, 2 missing\u21920; target \u2265 8)",
         "detail": {
           "window_days": 7,
           "target": 8.0,
           "unit": "hours",
           "samples": 7,
-          "days_logged": 4,
-          "days_missing_as_zero": 3,
-          "average": 5.41,
+          "days_logged": 5,
+          "days_missing_as_zero": 2,
+          "average": 6.59,
           "days": [
             {
               "date": "2026-07-19",
@@ -305,8 +311,8 @@
             },
             {
               "date": "2026-07-25",
-              "value": 0.0,
-              "logged": false
+              "value": 8.23,
+              "logged": true
             }
           ]
         }
@@ -453,6 +459,11 @@
     {
       "start": "2026-07-24T04:38:00+00:00",
       "end": "2026-07-24T16:17:00+00:00",
+      "source": "google_health"
+    },
+    {
+      "start": "2026-07-25T08:12:00+00:00",
+      "end": "2026-07-25T16:26:00+00:00",
       "source": "google_health"
     }
   ],
