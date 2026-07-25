@@ -1184,15 +1184,29 @@
           : (d.port ? '<span class="pill down">unknown</span>' : "");
         const stalePill = d.stale
           ? `<span class="pill stale">stale</span>` : "";
-        const openBtn = d.url || d.launch
-          ? `<button type="button" class="btn-link domain-open" data-domain="${esc(d.id)}" data-url="${esc(d.url || "")}">Open →</button>`
+        const canOpen = !!(d.url || d.launch);
+        const openHint = canOpen
+          ? `<span class="link">Open →</span>`
           : "";
-        return `<article class="card clickable">
+        // Whole card is the hit target (domain-open) so clicks anywhere work
+        if (canOpen) {
+          return `<article class="card clickable domain-open" role="link" tabindex="0"
+            data-domain="${esc(d.id)}" data-url="${esc(d.url || "")}"
+            title="Open ${esc(d.label || d.id)}">
+            <h3>${esc(d.label || d.id)}</h3>
+            <div class="sum">${esc(d.summary || "")}</div>
+            <div class="meta">
+              <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
+              ${live}${stalePill}${openHint}
+            </div>
+          </article>`;
+        }
+        return `<article class="card">
           <h3>${esc(d.label || d.id)}</h3>
           <div class="sum">${esc(d.summary || "")}</div>
           <div class="meta">
             <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
-            ${live}${stalePill}${openBtn}
+            ${live}${stalePill}
           </div>
         </article>`;
       }).join("") || '<div class="row detail">No domains loaded.</div>';
@@ -1282,14 +1296,12 @@
     }
 
     // Delegate domain open — open tab in the click gesture (avoids popup blockers)
-    document.body.addEventListener("click", (ev) => {
-      const btn = ev.target.closest(".domain-open");
-      if (!btn) return;
-      ev.preventDefault();
+    function handleDomainOpen(el) {
+      if (!el) return;
       const domain =
-        btn.getAttribute("data-domain") ||
-        domainIdFromHref(btn.getAttribute("data-url") || btn.getAttribute("href"));
-      const rawUrl = btn.getAttribute("data-url") || btn.getAttribute("href") || "";
+        el.getAttribute("data-domain") ||
+        domainIdFromHref(el.getAttribute("data-url") || el.getAttribute("href"));
+      const rawUrl = el.getAttribute("data-url") || el.getAttribute("href") || "";
       const url = publicizeUrl(rawUrl === "#" ? "" : rawUrl);
       // Synchronous open while still in user-gesture stack
       let win = null;
@@ -1300,7 +1312,27 @@
           win = null;
         }
       }
+      // If popup blocked, navigate same tab as last resort
+      if (url && !win) {
+        showLaunchToast("Popup blocked — opening in this tab", true);
+        window.location.href = url;
+        return;
+      }
       openDomain(domain, url, win);
+    }
+
+    document.body.addEventListener("click", (ev) => {
+      const btn = ev.target.closest(".domain-open");
+      if (!btn) return;
+      ev.preventDefault();
+      handleDomainOpen(btn);
+    });
+    document.body.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Enter" && ev.key !== " ") return;
+      const el = ev.target.closest && ev.target.closest(".domain-open");
+      if (!el || el.tagName === "A" || el.tagName === "BUTTON" || el.tagName === "TEXTAREA") return;
+      ev.preventDefault();
+      handleDomainOpen(el);
     });
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));
