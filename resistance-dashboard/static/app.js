@@ -2103,7 +2103,7 @@
       $("health-note").textContent = `Google Health connected · ${data.health.weight.length} weight pts, ${(data.health.sleep || []).length} sleep nights.`;
     }
     if ($("nutrition-note")) {
-      const n = nutrition.length;
+      const n = ((data.health && data.health.nutrition) || []).length;
       const h = ((data.health && data.health.hydration) || []).length;
       const b = ((data.health && data.health.calories_burned) || []).length;
       if (!n && !h && !b) {
