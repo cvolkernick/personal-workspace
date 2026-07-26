@@ -165,3 +165,28 @@ class TestFixtureVault(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDocumentedLaunchPaths(unittest.TestCase):
+    """Seed/HOWTO must document the real on-disk package path (regression: b2-ux-ux)."""
+
+    def test_howto_and_readmes_point_at_b2_ux(self):
+        workspace = Path(__file__).resolve().parents[2]  # personal-workspace
+        pkg = workspace / "b2-ux"
+        self.assertTrue((pkg / "start.sh").is_file(), f"missing entry {pkg}/start.sh")
+        docs = [
+            workspace / "brain2" / "HOWTO - Using B2.md",
+            workspace / "brain2" / "00 Home - B2 Hub.md",
+            workspace / "brain2" / "README.md",
+            workspace / "brain2" / "map" / "Personal Workspace Map.md",
+            pkg / "README.md",
+        ]
+        for doc in docs:
+            text = doc.read_text(encoding="utf-8")
+            self.assertNotIn("b2-ux-ux", text, f"bad path in {doc}")
+            # At least one launch-related doc mentions the real package
+        howto = docs[0].read_text(encoding="utf-8")
+        self.assertIn("personal-workspace/b2-ux", howto)
+        pkg_readme = (pkg / "README.md").read_text(encoding="utf-8")
+        self.assertIn("b2-ux/", pkg_readme)
+        self.assertNotRegex(pkg_readme, r"(?m)^b2/$")
