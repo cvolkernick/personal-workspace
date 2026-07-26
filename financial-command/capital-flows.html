@@ -274,9 +274,10 @@
     </section>
 
     <section class="card">
-      <h2>Open questions (need your input)</h2>
-      <p class="hint">These gaps block precise $ amounts and a few landing accounts.</p>
+      <h2>Open questions / next integrations</h2>
+      <p class="hint">Cadences are set; $ sizing and Braiins live read still open.</p>
       <ol class="q-list" id="questions"></ol>
+      <div id="integrations" class="hint" style="margin-top:0.75rem"></div>
     </section>
   </main>
 
@@ -328,7 +329,7 @@
             "cb_vault",
           ],
         },
-        cash: { x: 500, ids: ["x_money", "rh_checking", "one_card", "rh_agentic"] },
+        cash: { x: 500, ids: ["x_money", "one_card", "rh_agentic"] },
         uses: {
           x: 750,
           ids: ["bills_cb", "bills_xm", "asic_opex", "asic_capex"],
@@ -406,10 +407,21 @@
       // nodes
       Object.values(positions).forEach((n) => {
         const kind = n.kind || "venue";
+        const cadence =
+          n.cadence === "intermittent"
+            ? "Intermittent"
+            : n.cadence === "weekly"
+              ? "Weekly"
+              : n.cadence === "approx_monthly"
+                ? "~Monthly"
+                : "";
+        const sub = cadence
+          ? cadence + (n.pool ? " · " + n.pool : "")
+          : (n.subtitle || n.evidence || "").slice(0, 42);
         html += `<g transform="translate(${n.x},${n.y})">
           <rect class="node-box ${esc(kind)}" width="${n.w}" height="${n.h}" />
           <text class="node-title" x="10" y="20">${esc(n.label)}</text>
-          <text class="node-sub" x="10" y="38">${esc((n.subtitle || n.evidence || "").slice(0, 42))}</text>
+          <text class="node-sub" x="10" y="38">${esc(sub)}</text>
         </g>`;
       });
 
@@ -476,6 +488,20 @@
       document.getElementById("questions").innerHTML = (data.open_questions || [])
         .map((q) => `<li>${esc(q)}</li>`)
         .join("");
+
+      const integ = data.integrations || {};
+      const brai = integ.braiins_pool;
+      const integEl = document.getElementById("integrations");
+      if (integEl && brai) {
+        integEl.innerHTML =
+          `<strong>Braiins Pool</strong> (${esc(brai.status || "planned")}): ` +
+          esc(brai.notes || "") +
+          (brai.cadence_hint
+            ? `<br/>Hint: ${esc(brai.cadence_hint)}`
+            : "");
+      } else if (integEl) {
+        integEl.innerHTML = "";
+      }
     }
 
     document.getElementById("btn-refresh").addEventListener("click", load);

@@ -1,13 +1,13 @@
 {
-  "version": 2,
-  "as_of": "2026-07-24",
+  "version": 3,
+  "as_of": "2026-07-26",
   "title": "Capital flows — income to channels",
-  "notes": "Owner-confirmed 2026-07-24: Turo / Lyft (default) / ASIC revenue → Coinbase → BTC → Morpho collateral → USDC. Lyft express pay → X Money. ASIC fleet OpEx from X Money (expense sheet). Monthly $ variable — diagram is structural (relative weights), not dollar-accurate yet.",
+  "notes": "Streamlined 2026-07-26: Turo, Lyft, and ASIC revenue all land on Coinbase, then cash → BTC → Morpho collateral → USDC. Cadences: Turo intermittent, Lyft weekly, ASICs ~monthly. Lyft express→X Money is exceptional only (not primary). ASIC fleet OpEx remains an expense from X Money; ASIC hardware buys are capex. Monthly $ still variable — diagram is structural.",
   "legend": {
-    "observed": "Seen in YNAB/Plaid or updated expense sheet",
-    "owner_stated": "Confirmed by owner (may not yet be fully tagged in ledger)",
-    "inferred": "Implied by strategy; not fully verified in every txn",
-    "planned": "Capital target / reinvestment intent"
+    "observed": "Seen in YNAB/Plaid or expense sheet",
+    "owner_stated": "Confirmed by owner",
+    "inferred": "Implied by strategy",
+    "planned": "Target / future integration"
   },
   "income_sources": [
     {
@@ -15,35 +15,44 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts deposit to Coinbase; model = cash → auto BTC → Morpho BTC collateral for USDC borrow. Cadence follows rental activity (not fixed schedule).",
+      "evidence": "Payouts deposit to Coinbase. Cadence intermittent / irregular (rental activity).",
       "typical_landing": "coinbase",
-      "cadence": "variable_by_rentals"
+      "cadence": "intermittent"
     },
     {
       "id": "lyft",
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Default: weekly payout to Coinbase (same Morpho/BTC path as Turo). Express pay (manual): lands on X Money — observed as Lyft inflows on Checking – 2201 in YNAB.",
+      "evidence": "Default weekly payout to Coinbase (same Morpho/BTC path). Express pay to X Money is manual exception only.",
       "typical_landing": "coinbase",
-      "cadence": "weekly_default_or_express"
+      "cadence": "weekly"
     },
     {
       "id": "asics",
       "label": "ASICs (mining revenue)",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts set to Coinbase; same path as Turo (cash → BTC → Morpho collateral for USDC). Distinct from fleet OpEx (expense) and ASIC hardware purchases (capex).",
+      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins (wire-up candidate for direct reads — see integrations).",
       "typical_landing": "coinbase",
-      "cadence": "pool_variable"
+      "cadence": "approx_monthly",
+      "pool": "braiins"
     }
   ],
+  "integrations": {
+    "braiins_pool": {
+      "status": "planned",
+      "purpose": "Read ASIC hashrate / payout stats directly instead of inferring from Coinbase deposits",
+      "notes": "Braiins Pool (Slush) exposes account APIs for mining stats and rewards for authenticated accounts. Next step: confirm account access (API token / read-only key), map payout destination to Coinbase, and add a small sync into treasury/snapshots (e.g. braiins_latest.json) for FCC capital-flows live strip.",
+      "cadence_hint": "Poll daily or after expected payout window; surface last_payout_btc and estimated monthly"
+    }
+  },
   "channels": [
     {
       "id": "coinbase",
       "label": "Coinbase",
       "kind": "venue",
-      "subtitle": "Primary income landing · convert / BTC",
+      "subtitle": "All primary income lands here",
       "confidence": "owner_stated"
     },
     {
@@ -78,14 +87,7 @@
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
-      "subtitle": "~6% APY · Lyft express + OpEx",
-      "confidence": "observed"
-    },
-    {
-      "id": "rh_checking",
-      "label": "RH Checking",
-      "kind": "cash",
-      "subtitle": "ACH float (auto loans etc.)",
+      "subtitle": "~6% APY · OpEx + express exception",
       "confidence": "observed"
     },
     {
@@ -106,14 +108,14 @@
       "id": "bills_cb",
       "label": "Bills (Coinbase-funded)",
       "kind": "expense",
-      "subtitle": "Sheet: large share of Personal",
+      "subtitle": "Sheet: majority Personal",
       "confidence": "observed"
     },
     {
       "id": "bills_xm",
       "label": "Bills (X Money)",
       "kind": "expense",
-      "subtitle": "Fleet ins, ASIC OpEx, etc.",
+      "subtitle": "Fleet, OpEx, auto loans…",
       "confidence": "observed"
     },
     {
@@ -127,7 +129,7 @@
       "id": "asic_capex",
       "label": "ASIC hardware (capex)",
       "kind": "capex",
-      "subtitle": "Buy more miners · discretionary",
+      "subtitle": "Buy more miners",
       "confidence": "planned"
     }
   ],
@@ -135,39 +137,40 @@
     {
       "from": "turo",
       "to": "coinbase",
-      "label": "Payouts (rental cadence)",
+      "label": "Intermittent",
       "confidence": "owner_stated",
       "weight": 4
     },
     {
       "from": "lyft",
       "to": "coinbase",
-      "label": "Weekly default",
+      "label": "Weekly",
       "confidence": "owner_stated",
       "weight": 4
-    },
-    {
-      "from": "lyft",
-      "to": "x_money",
-      "label": "Express pay",
-      "confidence": "observed",
-      "weight": 2,
-      "notes": "Manual express pay; YNAB shows Lyft credits on X Money"
     },
     {
       "from": "asics",
       "to": "coinbase",
-      "label": "Mining revenue",
+      "label": "~Monthly",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Braiins pool → Coinbase (integration planned)"
+    },
+    {
+      "from": "lyft",
+      "to": "x_money",
+      "label": "Express only",
+      "confidence": "observed",
+      "weight": 1,
+      "dashed": true,
+      "notes": "Exception path, not the default model"
     },
     {
       "from": "coinbase",
       "to": "cb_btc",
       "label": "Auto → BTC",
       "confidence": "owner_stated",
-      "weight": 5,
-      "notes": "Income model: cash allocated into BTC"
+      "weight": 5
     },
     {
       "from": "cb_btc",
@@ -186,22 +189,21 @@
     {
       "from": "cb_usdc_borrow",
       "to": "cb_vault",
-      "label": "Park working float",
+      "label": "Park float",
       "confidence": "inferred",
-      "weight": 3,
-      "notes": "Treasury: High Yield vault as USDC home"
+      "weight": 3
     },
     {
       "from": "cb_usdc_borrow",
       "to": "bills_cb",
-      "label": "Fund CB bills",
+      "label": "Fund bills",
       "confidence": "inferred",
       "weight": 3
     },
     {
       "from": "cb_usdc_borrow",
       "to": "one_card",
-      "label": "Card float / pay",
+      "label": "Card / deposit",
       "confidence": "inferred",
       "weight": 2
     },
@@ -217,65 +219,35 @@
       "to": "asic_opex",
       "label": "Fleet OpEx",
       "confidence": "owner_stated",
-      "weight": 3,
-      "notes": "Expense sheet Personal: ASIC Fleet OpEx from X Money (~$437/mo)"
+      "weight": 3
     },
     {
       "from": "x_money",
       "to": "bills_xm",
-      "label": "Fleet / other bills",
+      "label": "Fleet / loans / spend",
       "confidence": "observed",
-      "weight": 3,
-      "notes": "e.g. Fleet Insurance from X Money after sheet update"
-    },
-    {
-      "from": "x_money",
-      "to": "coinbase",
-      "label": "Optional top-up",
-      "confidence": "observed",
-      "weight": 1,
-      "notes": "YNAB has Coinbase debits from X Money (not primary income path)"
+      "weight": 3
     },
     {
       "from": "coinbase",
       "to": "rh_agentic",
-      "label": "Fund agentic (optional)",
+      "label": "Fund agentic",
       "confidence": "inferred",
       "weight": 1,
       "dashed": true
     },
     {
-      "from": "rh_checking",
-      "to": "bills_xm",
-      "label": "Legacy ACH? (TBD)",
-      "confidence": "inferred",
-      "weight": 1,
-      "dashed": true,
-      "notes": "Sheet rebalance moved fleet/ASIC OpEx off RH Checking; auto loans may still use RH Checking if present"
-    },
-    {
       "from": "coinbase",
       "to": "asic_capex",
-      "label": "Buy more ASICs",
+      "label": "Buy miners",
       "confidence": "planned",
-      "weight": 2,
-      "notes": "Capex = additional hardware (not OpEx)"
-    },
-    {
-      "from": "asics",
-      "to": "asic_opex",
-      "label": "Revenue vs OpEx (link)",
-      "confidence": "inferred",
-      "weight": 1,
-      "dashed": true,
-      "notes": "Conceptual: mining income should cover fleet OpEx over time; OpEx paid from X Money"
+      "weight": 2
     }
   ],
   "open_questions": [
-    "When Lyft uses default weekly Coinbase path, will YNAB/Plaid show Coinbase credits or only on-chain/CB app history?",
-    "Turo/ASIC auto-BTC: is this CB Recurring Buy, manual, or a bot — any % kept as USDC?",
-    "Morpho LTV targets for new collateral from income (same <50% policy?)",
-    "Monthly $ once income stabilizes — for weighted Sankey thickness",
-    "ASIC hardware capex: funded only from CB excess, or also RH / X Money?"
+    "Braiins: obtain read-only API token and confirm payout address/account mapping to Coinbase",
+    "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
+    "Morpho LTV targets when income adds collateral",
+    "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights"
   ]
 }
