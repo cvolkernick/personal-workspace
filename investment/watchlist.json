@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-07-24",
+  "as_of": "2026-07-26",
   "purpose": "Thematic equities the agentic fund manager should monitor and consider — not auto-buy. Core allowlist remains preferred for default rebalances.",
   "policy": {
     "auto_buy": false,
@@ -66,6 +66,24 @@
       "last_verdict": null,
       "next_catalyst": null,
       "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy."
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "theme": "ai_stack",
+      "themes": ["ai_stack", "semiconductors", "data_center", "gpus", "ai_infra"],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "high",
+      "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default.",
+      "added": "2026-07-26",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
+      "last_verdict": null,
+      "next_catalyst": null,
+      "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy. Concentration / valuation risk is the main critic gate."
     }
   ]
 }
