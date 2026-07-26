@@ -276,8 +276,8 @@ def compute_weekly_review(
 
     bullets.append(
         "Volume model: ≈4–8 hard sets per major muscle/week (compound overlap counts); "
-        "10–20+/muscle is usually unnecessary. "
-        "Ask: “auto focus” to prioritize lagging muscles from your logs."
+        "10–20+/muscle is usually unnecessary. Focus muscles are auto-set from weekly "
+        "volume gaps when generating today’s workout plan."
     )
 
     return {
@@ -342,6 +342,8 @@ def build_today_board(
             "is_rest_day": bool(wp.get("is_rest_day")),
             "message": wp.get("message"),
             "exercises": exercises,
+            "focus": (wp.get("volume") or {}).get("focus")
+            or (wp.get("context") or {}).get("focus"),
         },
         "nutrition": {
             "consumed": consumed,

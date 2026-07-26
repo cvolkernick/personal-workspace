@@ -538,9 +538,20 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             recovery_score=(recovery.score if recovery else None),
             as_of=local_today,
         )
+        # Effective goals include autonomous focus_muscles from plan gen
+        effective_goals = dict(wo["goals"] or {})
+        if isinstance(workout_plan.get("goals"), dict):
+            effective_goals = {
+                **effective_goals,
+                **{
+                    k: v
+                    for k, v in workout_plan["goals"].items()
+                    if not str(k).startswith("_")
+                },
+            }
         payload["workout_store"] = {
             "catalog": wo["catalog"],
-            "goals": wo["goals"],
+            "goals": effective_goals,
             "sources": wo["sources"],
             "plan": workout_plan,
         }
@@ -692,8 +703,11 @@ def _execute_coach_action(action: dict) -> dict:
             reason = ""
             if action.get("clear"):
                 muscles: list = []
-                reason = "Cleared priority list."
+                # Re-enable autonomous focus after clear
+                goals["auto_focus_muscles"] = True
+                reason = "Cleared pin — coach will auto-pick lagging muscles again."
             elif action.get("auto"):
+                goals["auto_focus_muscles"] = True
                 data = load_dashboard_data(force_refresh=False)
                 sessions = sessions_from_dicts(data.get("sessions") or [])
                 catalog = store.get("catalog") or {"exercises": []}
@@ -708,7 +722,9 @@ def _execute_coach_action(action: dict) -> dict:
                 muscles = list(sug.get("muscles") or [])
                 reason = str(sug.get("reason") or "")
             else:
+                # Manual pin disables auto until user re-enables
                 muscles = list(action.get("muscles") or [])
+                goals["auto_focus_muscles"] = False
             goals["focus_muscles"] = muscles
             updated = update_goals(goals)
             write = write_goals(

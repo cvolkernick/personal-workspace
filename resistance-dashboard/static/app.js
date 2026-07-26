@@ -1954,21 +1954,24 @@
         </span>`;
       })
       .join("");
-    const sug = volume.suggested_focus || {};
-    const sugMuscles = Array.isArray(sug.muscles) ? sug.muscles : [];
-    const sugLine = sugMuscles.length
-      ? `<p class="muted volume-balance-note">Suggested focus: <strong>${sugMuscles
+    const focus = volume.focus || {};
+    const focusMuscles = Array.isArray(focus.muscles) ? focus.muscles : [];
+    const src = focus.source || "auto";
+    const focusLine = focusMuscles.length
+      ? `<p class="muted volume-balance-note"><strong>${
+          src === "auto" ? "Auto focus" : "Focus"
+        }:</strong> ${focusMuscles
           .map((m) => String(m).replace(/_/g, " "))
-          .join(", ")}</strong>${
-          sug.reason ? ` — ${sug.reason}` : ""
-        }. Ask: “auto focus” or “focus on …”.</p>`
-      : `<p class="muted volume-balance-note">Primary sets count fully; secondary muscles get partial credit. Framework avoids 10–20+/muscle.</p>`;
+          .join(", ")}${
+          focus.reason ? ` — ${focus.reason}` : ""
+        }. Priority volume; others near maintenance.</p>`
+      : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial. Avoids 10–20+/muscle.</p>`;
     return `<div class="volume-balance">
       <div class="volume-balance-title">Weekly hard sets · ${
         fw.label || "≈4–8 / muscle (w/ overlap)"
       }</div>
       <div class="volume-balance-chips">${chips}</div>
-      ${sugLine}
+      ${focusLine}
     </div>`;
   }
 

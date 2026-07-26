@@ -11,6 +11,7 @@ from rt_dashboard.workout_planner import (
     last_performance,
     next_session_type,
     prescribe,
+    resolve_focus_for_plan,
     weekly_set_tally,
     volume_balance_report,
 )
@@ -181,6 +182,45 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertIn(statuses["chest"], ("under", "low"))
         self.assertEqual(statuses["delts"], "ok")
         self.assertIn(statuses["triceps"], ("high", "over"))
+
+    def test_auto_focus_applied_during_plan(self):
+        """Coach logic picks focus from volume gaps without an Ask command."""
+        sessions = [
+            # Heavy pull/legs history, almost no push → chest/delts lag
+            _session("2026-07-18", "pull", "Seated Cable Row", 100, 3, 10),
+            _session("2026-07-19", "pull", "Seated Cable Row", 100, 3, 10),
+            _session("2026-07-20", "legs", "Leg Press", 200, 3, 10),
+        ]
+        goals = {
+            **self.goals,
+            "auto_focus_muscles": True,
+            "focus_muscles": [],
+        }
+        plan = generate_workout_plan(
+            self.catalog,
+            goals,
+            sessions,
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-07-22",
+        )
+        focus = (plan.get("volume") or {}).get("focus") or {}
+        self.assertEqual(focus.get("source"), "auto")
+        # Chest should be among auto-focus (zero credits this week)
+        self.assertIn("chest", focus.get("muscles") or [])
+        self.assertIn("chest", plan.get("goals", {}).get("focus_muscles") or [])
+
+    def test_manual_focus_pin_when_auto_off(self):
+        tally = {
+            "by_muscle": {"chest": 0, "glutes": 0, "delts": 8},
+            "window_days": 7,
+        }
+        res = resolve_focus_for_plan(
+            {"auto_focus_muscles": False, "focus_muscles": ["glutes"]},
+            tally,
+        )
+        self.assertEqual(res["source"], "manual")
+        self.assertEqual(res["muscles"], ["glutes"])
 
 
 if __name__ == "__main__":

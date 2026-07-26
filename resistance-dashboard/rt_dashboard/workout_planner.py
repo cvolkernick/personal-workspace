@@ -108,9 +108,10 @@ DEFAULT_GOALS = {
     "progression": "double_progression",
     "notes": "",
     "focus_muscles": [],
-    # When true, each plan gen suggests lagging muscles as focus (in-memory);
-    # use Ask "auto focus" / "apply suggested focus" to persist.
-    "auto_focus_muscles": False,
+    # When true (default), each plan gen picks lagging muscles from logs and
+    # applies them as focus for volume bands + exercise selection — no Ask needed.
+    # Set false + explicit focus_muscles for a manual pin.
+    "auto_focus_muscles": True,
     "rest_if_recovery_below": 40,
     # DeanT volume framework
     "volume_framework": VOLUME_FRAMEWORK["id"],
@@ -422,39 +423,39 @@ def suggest_focus_muscles(
     """Pick 1–2 lagging major muscles for priority volume (DeanT style).
 
     Uses trailing-week hard-set credits vs the balanced 4–8 band. Prefers muscles
-    that are furthest under the weekly min and that actually appear in training
-    logs (or session pool) rather than rarely trained isolation groups.
+    that are furthest under the weekly min among core program groups.
     """
     goals = normalize_goals(goals or {})
     bands = muscle_targets({**goals, "focus_muscles": []})  # balanced bands
     by = dict(tally.get("by_muscle") or {})
-    # Core physique groups we actively program in the catalog
+    # Prefer big drivers when gaps are equal (DeanT: prioritize 1–2 groups, not calves/arms first)
     candidates = [
-        "chest",
-        "mid_upper_back",
-        "lats",
-        "delts",
-        "biceps",
-        "triceps",
-        "quads",
-        "hamstrings",
-        "glutes",
-        "calves",
-        "traps",
+        # rank 0 = highest priority for focus selection
+        ("chest", 0),
+        ("lats", 0),
+        ("mid_upper_back", 0),
+        ("quads", 0),
+        ("hamstrings", 0),
+        ("glutes", 0),
+        ("delts", 1),
+        ("triceps", 2),
+        ("biceps", 2),
+        ("traps", 3),
+        ("calves", 3),
     ]
-    scored: List[Tuple[float, str, float, float]] = []
-    for m in candidates:
+    scored: List[Tuple[float, int, str, float, float]] = []
+    for m, rank in candidates:
         done = float(by.get(m) or 0)
         lo = float((bands.get(m) or {}).get("min") or 4)
         gap = lo - done
         if gap <= 0:
             continue
-        # Require some signal that the muscle is part of the program (done>0 or gap large)
-        scored.append((gap, m, done, lo))
-    scored.sort(key=lambda x: (-x[0], x[1]))
-    picks = [m for _, m, _, _ in scored[: max(1, min(3, max_focus))]]
+        scored.append((gap, rank, m, done, lo))
+    # Largest gap first, then more important muscle groups
+    scored.sort(key=lambda x: (-x[0], x[1], x[2]))
+    picks = [m for _, _, m, _, _ in scored[: max(1, min(3, max_focus))]]
     reason_bits = []
-    for gap, m, done, lo in scored[: len(picks)]:
+    for gap, _rank, m, done, lo in scored[: len(picks)]:
         reason_bits.append(f"{m.replace('_', ' ')} {done:g}/{lo:g} sets")
     return {
         "muscles": picks,
@@ -465,8 +466,60 @@ def suggest_focus_muscles(
         ),
         "candidates": [
             {"muscle": m, "done": d, "min": lo, "gap": round(g, 2)}
-            for g, m, d, lo in scored[:6]
+            for g, _r, m, d, lo in scored[:6]
         ],
+    }
+
+
+def resolve_focus_for_plan(
+    goals: dict,
+    tally: Dict[str, Any],
+    *,
+    max_focus: int = 2,
+) -> Dict[str, Any]:
+    """Decide effective focus muscles for this plan generation.
+
+    Default: autonomous — derive lagging groups from weekly logs.
+    Manual pin: ``auto_focus_muscles=false`` and non-empty ``focus_muscles``.
+    """
+    goals = normalize_goals(goals)
+    suggested = suggest_focus_muscles(tally, goals, max_focus=max_focus)
+    manual = [normalize_muscle(m) for m in (goals.get("focus_muscles") or [])]
+    manual = [m for m in manual if m in MAJOR_MUSCLES]
+    auto = bool(goals.get("auto_focus_muscles", True))
+
+    if not auto and manual:
+        return {
+            "muscles": manual,
+            "source": "manual",
+            "auto": False,
+            "suggested": suggested,
+            "reason": "Pinned focus (auto focus off).",
+        }
+    if suggested.get("muscles"):
+        return {
+            "muscles": list(suggested["muscles"]),
+            "source": "auto",
+            "auto": True,
+            "suggested": suggested,
+            "reason": suggested.get("reason") or "Auto from weekly volume gaps.",
+        }
+    # Nothing lagging — keep empty (balanced) or fall back to manual if any
+    if manual:
+        return {
+            "muscles": manual,
+            "source": "manual_fallback",
+            "auto": auto,
+            "suggested": suggested,
+            "reason": "No lagging gaps; keeping stored focus.",
+        }
+    return {
+        "muscles": [],
+        "source": "balanced",
+        "auto": auto,
+        "suggested": suggested,
+        "reason": suggested.get("reason")
+        or "Balanced volume — no priority muscles this week.",
     }
 
 
@@ -821,15 +874,33 @@ def generate_workout_plan(
     by_id = {ex["id"]: ex for ex in available}
 
     rest_threshold = int(goals.get("rest_if_recovery_below") or 40)
+    sec_frac = float(goals.get("secondary_set_fraction") or 0.5)
+    tally = weekly_set_tally(
+        sessions,
+        catalog,
+        as_of=day,
+        window_days=7,
+        secondary_fraction=sec_frac,
+    )
+    # Autonomous coach: pick focus from logs before volume bands / selection
+    focus_res = resolve_focus_for_plan(goals, tally, max_focus=2)
+    goals = {**goals, "focus_muscles": list(focus_res.get("muscles") or [])}
+    goals["_focus_resolution"] = {
+        "source": focus_res.get("source"),
+        "auto": focus_res.get("auto"),
+        "reason": focus_res.get("reason"),
+    }
+
     if recovery_score is not None and recovery_score < rest_threshold:
-        tally = weekly_set_tally(
-            sessions,
-            catalog,
-            as_of=day,
-            window_days=7,
-            secondary_fraction=float(goals.get("secondary_set_fraction") or 0.5),
-        )
         balance = volume_balance_report(tally, goals)
+        balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+            tally, goals
+        )
+        balance["focus"] = {
+            "muscles": goals.get("focus_muscles") or [],
+            "source": focus_res.get("source"),
+            "reason": focus_res.get("reason"),
+        }
         return {
             "date": day,
             "session_type": "rest",
@@ -848,6 +919,7 @@ def generate_workout_plan(
                 "days_since_last": days_since_last_session(sessions, as_of=day),
                 "volume_framework": VOLUME_FRAMEWORK,
                 "weekly_sets": tally,
+                "focus": balance["focus"],
             },
         }
 
@@ -856,16 +928,8 @@ def generate_workout_plan(
     if not pool:
         pool = list(available)
 
-    sec_frac = float(goals.get("secondary_set_fraction") or 0.5)
     bands = muscle_targets(goals)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
-    tally = weekly_set_tally(
-        sessions,
-        catalog,
-        as_of=day,
-        window_days=7,
-        secondary_fraction=sec_frac,
-    )
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
 
     # Rank pool by volume need (under-target muscles) + compound efficiency
@@ -969,16 +1033,14 @@ def generate_workout_plan(
         )
 
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
-    suggested_focus = suggest_focus_muscles(tally, goals, max_focus=2)
-    balance["suggested_focus"] = suggested_focus
-
-    # Optional auto-focus: rewrite goals in-memory for this plan only when enabled
-    # (persistent write happens via coach action / goals API).
-    if goals.get("auto_focus_muscles") and suggested_focus.get("muscles"):
-        goals = {
-            **goals,
-            "focus_muscles": list(suggested_focus["muscles"]),
-        }
+    balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+        tally, goals
+    )
+    balance["focus"] = {
+        "muscles": list(goals.get("focus_muscles") or []),
+        "source": focus_res.get("source"),
+        "reason": focus_res.get("reason"),
+    }
 
     last_st = last_session_type(sessions)
     days = days_since_last_session(sessions, as_of=day)
@@ -991,6 +1053,12 @@ def generate_workout_plan(
         msg_parts.append(f"{days}d since last log")
     if recovery_label:
         msg_parts.append(f"Recovery: {recovery_label}")
+    focus_list = list(goals.get("focus_muscles") or [])
+    if focus_list:
+        src = focus_res.get("source") or "auto"
+        pretty = ", ".join(m.replace("_", " ") for m in focus_list)
+        label = "Auto focus" if src == "auto" else "Focus"
+        msg_parts.append(f"{label}: {pretty}")
     under = balance.get("under_target") or []
     if under:
         msg_parts.append(
@@ -1017,6 +1085,7 @@ def generate_workout_plan(
             "session_hard_sets": session_sets,
             "session_working_set_cap": session_cap,
             "volume_framework": VOLUME_FRAMEWORK,
+            "focus": balance["focus"],
             "weekly_sets": tally,
         },
     }
