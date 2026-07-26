@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-26T07:31:30.312160+00:00",
+  "as_of": "2026-07-26T22:03:06.602847+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 40.45,
-  "cash": 40.45,
-  "available": 40.45,
-  "cleared_balance": 40.45,
+  "balance_raw": 10.71,
+  "cash": 10.71,
+  "available": 10.71,
+  "cleared_balance": 10.71,
   "uncleared_balance": 0.0,
-  "spend_30d": 240.99,
+  "spend_30d": 270.73,
   "inflow_30d": 281.44,
-  "transaction_count": 35,
+  "transaction_count": 41,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -217,7 +217,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -393,11 +393,77 @@
       "category_name": "Inflow: Ready to Assign"
     },
     {
+      "id": "b632f1db-7c87-474f-b1d9-3b8775bd03d0",
+      "date": "2026-07-26",
+      "payee": "Chipotle Mexican Grill",
+      "amount": -10.6,
+      "amount_display": -10.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "87df89b6-6358-44cc-909b-2f1d5c924f3e",
+      "date": "2026-07-26",
+      "payee": "SunPass",
+      "amount": -10.0,
+      "amount_display": -10.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "dba76795-7177-4ef8-bb22-ebf9b8bcbba2",
+      "date": "2026-07-26",
+      "payee": "Tesla Supercharger",
+      "amount": -5.86,
+      "amount_display": -5.86,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "67ddb3b9-516b-467c-ab57-be7e86918b09",
+      "date": "2026-07-26",
+      "payee": "RaceTrac",
+      "amount": -1.6,
+      "amount_display": -1.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
+      "date": "2026-07-26",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
       "id": "e7632ab7-da11-406c-bb00-9033dc999914",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
       "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "ce09598b-e19c-4589-920e-f886921c327a",
+      "date": "2026-07-26",
+      "payee": "7-Eleven",
+      "amount": -0.63,
+      "amount_display": -0.63,
       "memo": null,
       "cleared": "cleared",
       "approved": false,

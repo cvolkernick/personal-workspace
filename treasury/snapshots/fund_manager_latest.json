@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-07-26T07:31:31.017414+00:00",
+  "as_of": "2026-07-26T22:03:08.552274+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-07-26T07:31:31.016701+00:00",
+    "as_of": "2026-07-26T22:03:08.551468+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
@@ -101,11 +101,12 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 3,
+      "count": 4,
       "symbols": [
         "BE",
         "GOOGL",
-        "AAPL"
+        "AAPL",
+        "NVDA"
       ],
       "entries": [
         {
@@ -143,6 +144,18 @@
           "last_deep_dive": null,
           "held": false,
           "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not yet on agentic core allowlist."
+        },
+        {
+          "symbol": "NVDA",
+          "name": "NVIDIA",
+          "theme": "ai_stack",
+          "status": "monitor",
+          "priority": "high",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": null,
+          "held": false,
+          "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default."
         }
       ],
       "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance."
@@ -153,7 +166,7 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL \u2014 deep-dive via /position-deep-dive before first buy when required."
+      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA \u2014 deep-dive via /position-deep-dive before first buy when required."
     ],
     "fair_game": true,
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
