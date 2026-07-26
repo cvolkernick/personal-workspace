@@ -61,6 +61,20 @@ def normalize_targets(raw: Optional[dict]) -> dict:
             t["notes"] = str(raw["notes"])
         if raw.get("updated_at"):
             t["updated_at"] = str(raw["updated_at"])
+    # Heal obvious corruption: calorie target looks like a gram value (e.g. fat 45
+    # was also written into calories). Recompute from macros when plausible.
+    p, c, f = float(t.get("protein_g") or 0), float(t.get("carbs_g") or 0), float(t.get("fat_g") or 0)
+    macro_kcal = p * 4 + c * 4 + f * 9
+    cal = float(t.get("calories") or 0)
+    if cal < 800 and macro_kcal >= 800:
+        t["calories"] = round(macro_kcal)
+    elif cal < 800:
+        t["calories"] = float(DEFAULT_TARGETS["calories"])
+    # Clamp absurd ranges rather than displaying nonsense chips
+    t["calories"] = max(800.0, min(6000.0, float(t["calories"])))
+    t["protein_g"] = max(0.0, min(500.0, float(t["protein_g"])))
+    t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
+    t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
     return t
 
 

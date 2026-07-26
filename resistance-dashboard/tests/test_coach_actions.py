@@ -84,6 +84,35 @@ class TestCoachActions(unittest.TestCase):
         a = try_parse_coach_action("please regenerate my meal plan")
         self.assertEqual(a["action"], "refresh_meal_plan")
 
+    def test_fat_does_not_set_calories(self):
+        a = try_parse_coach_action("set fat to 45")
+        self.assertEqual(a["action"], "set_targets")
+        self.assertEqual(a["targets"]["fat_g"], 45)
+        self.assertNotIn("calories", a["targets"])
+
+    def test_low_calories_rejected(self):
+        a = try_parse_coach_action("set calories to 45")
+        # Too small to be a real kcal target — should not become an action
+        # (or if parsed as targets, must not include calories=45)
+        if a and a.get("action") == "set_targets":
+            self.assertNotIn("calories", a.get("targets") or {})
+
+    def test_focus_muscles_natural(self):
+        a = try_parse_coach_action("focus on chest and glutes")
+        self.assertEqual(a["action"], "set_focus_muscles")
+        self.assertIn("chest", a["muscles"])
+        self.assertIn("glutes", a["muscles"])
+
+    def test_auto_focus(self):
+        a = try_parse_coach_action("auto focus")
+        self.assertEqual(a["action"], "set_focus_muscles")
+        self.assertTrue(a.get("auto"))
+
+    def test_clear_focus(self):
+        a = try_parse_coach_action("clear focus muscles")
+        self.assertEqual(a["action"], "set_focus_muscles")
+        self.assertTrue(a.get("clear"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -276,7 +276,8 @@ def compute_weekly_review(
 
     bullets.append(
         "Volume model: ≈4–8 hard sets per major muscle/week (compound overlap counts); "
-        "10–20+/muscle is usually unnecessary."
+        "10–20+/muscle is usually unnecessary. "
+        "Ask: “auto focus” to prioritize lagging muscles from your logs."
     )
 
     return {

@@ -33,6 +33,9 @@ Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTra
 - Prefer compounds for multi-muscle efficiency when the user is short on time or under-recovered.
 - When discussing the planned workout or weekly volume, use `workout_store.plan.volume` / weekly set
   tallies from the data when present.
+- Focus muscles (`goals.focus_muscles`) raise weekly volume for 1–2 lagging groups and hold others
+  near maintenance. Suggest concrete focus from volume gaps; the user can persist with local
+  commands: "focus on chest and glutes", "auto focus", "clear focus".
 
 Rules:
 - Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review.

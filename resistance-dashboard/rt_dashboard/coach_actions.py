@@ -122,25 +122,28 @@ def _extract_target_vals(text: str) -> Dict[str, float]:
     ):
         _assign_target_key(vals, m.group(2), m.group(1))
 
-    # Compact: P220 C150 F55 or 220p 150c 55f
-    for m in re.finditer(r"\bp\s*(\d+(?:\.\d+)?)\b", low):
+    # Compact: P220 C150 F55 or 220p 150c 55f (letter+number glued or spaced)
+    for m in re.finditer(r"\bp(\d+(?:\.\d+)?)\b", low):
         vals.setdefault("protein_g", float(m.group(1)))
-    for m in re.finditer(r"\bc\s*(\d+(?:\.\d+)?)\b", low):
-        # Avoid matching "cal" partially — require word boundary after single c
-        # already have \b after number via pattern end; "c150" ok, "cal" no match
+    for m in re.finditer(r"\bc(\d+(?:\.\d+)?)\b", low):
         vals.setdefault("carbs_g", float(m.group(1)))
-    for m in re.finditer(r"\bf\s*(\d+(?:\.\d+)?)\b", low):
+    for m in re.finditer(r"\bf(\d+(?:\.\d+)?)\b", low):
         vals.setdefault("fat_g", float(m.group(1)))
-    for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*p\b", low):
+    for m in re.finditer(r"\b(\d+(?:\.\d+)?)p\b", low):
         vals.setdefault("protein_g", float(m.group(1)))
-    for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*c\b", low):
+    for m in re.finditer(r"\b(\d+(?:\.\d+)?)c\b", low):
         vals.setdefault("carbs_g", float(m.group(1)))
-    for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*f\b", low):
+    for m in re.finditer(r"\b(\d+(?:\.\d+)?)f\b", low):
         vals.setdefault("fat_g", float(m.group(1)))
 
-    # "2100 cal" without word calories (kcal handled above)
-    for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*(?:kcal|cals?)\b", low):
+    # "2100 cal" / "2100 kcal" — require cal/kcal token (not bare "c")
+    for m in re.finditer(r"\b(\d+(?:\.\d+)?)\s*(?:kcal|cals|calories)\b", low):
         vals.setdefault("calories", float(m.group(1)))
+
+    # Drop absurd calorie values that are clearly gram targets mis-assigned
+    if "calories" in vals and vals["calories"] < 800:
+        # Keep only if it was the only field and user said calories explicitly — still reject
+        vals.pop("calories", None)
 
     return vals
 
@@ -151,6 +154,9 @@ def _assign_target_key(vals: Dict[str, float], key: str, raw_num: str) -> None:
         return
     k = key.lower().strip()
     if k in ("cal", "cals", "calorie", "calories", "kcal"):
+        # Refuse gram-sized numbers as calorie targets
+        if n < 800:
+            return
         vals["calories"] = n
     elif k in ("p", "protein", "protein_g"):
         vals["protein_g"] = n
@@ -260,6 +266,41 @@ def try_parse_coach_action(
     if m:
         return {"action": "refresh_workout_plan", "session_type": m.group(1)}
 
+    # --- training focus muscles (DeanT priority / maintenance split) --------
+    # "clear focus" / "clear focus muscles"
+    if re.match(
+        r"^(?:please\s+)?(?:clear|reset|remove)\s+(?:my\s+)?(?:muscle\s+)?focus(?:\s+muscles?)?\s*$",
+        low,
+    ):
+        return {"action": "set_focus_muscles", "muscles": [], "clear": True}
+
+    # "auto focus" / "set focus from volume" / "apply suggested focus"
+    if re.match(
+        r"^(?:please\s+)?(?:"
+        r"auto(?:\s*-?\s*set)?\s+focus(?:\s+muscles?)?|"
+        r"set\s+focus(?:\s+muscles?)?\s+from\s+(?:volume|data|logs|analysis)|"
+        r"apply\s+(?:suggested\s+)?focus(?:\s+muscles?)?|"
+        r"update\s+focus(?:\s+muscles?)?\s+from\s+(?:volume|data|logs|analysis)"
+        r")\s*$",
+        low,
+    ):
+        return {"action": "set_focus_muscles", "auto": True}
+
+    # "focus on chest and glutes" / "set focus muscles to chest, lats"
+    m = re.match(
+        r"^(?:please\s+)?(?:"
+        r"(?:set\s+)?focus(?:\s+muscles?)?\s+(?:on|to|as)\s+(.+)|"
+        r"prioritize\s+(?:my\s+)?(.+?)(?:\s+muscles?)?|"
+        r"make\s+(.+?)\s+(?:a\s+)?(?:priority|focus)"
+        r")\s*$",
+        low,
+    )
+    if m:
+        raw_list = next((g for g in m.groups() if g), "")
+        muscles = _parse_muscle_list(raw_list)
+        if muscles:
+            return {"action": "set_focus_muscles", "muscles": muscles}
+
     # --- targets: apply last recommendation ---------------------------------
     if _APPLY_FROM_CONTEXT.match(low):
         vals = _targets_from_history(history)
@@ -307,6 +348,31 @@ def try_parse_coach_action(
     return None
 
 
+def _parse_muscle_list(text: str) -> List[str]:
+    """Split 'chest and glutes, lats' → normalized major muscle names."""
+    from rt_dashboard.workout_planner import MAJOR_MUSCLES, normalize_muscle
+
+    raw = re.sub(r"[/|;]+", ",", text or "")
+    raw = re.sub(r"\s+and\s+", ",", raw, flags=re.I)
+    parts = [p.strip() for p in re.split(r"[,]+", raw) if p.strip()]
+    out: List[str] = []
+    major = set(MAJOR_MUSCLES)
+    for p in parts:
+        # strip trailing words like "muscles" / "more"
+        p = re.sub(r"\b(?:muscles?|groups?|more|please)\b", "", p, flags=re.I).strip()
+        if not p:
+            continue
+        m = normalize_muscle(p)
+        if m in major and m not in out:
+            out.append(m)
+        else:
+            # try multi-word aliases already handled by normalize_muscle
+            m2 = normalize_muscle(p.replace(" ", "_"))
+            if m2 in major and m2 not in out:
+                out.append(m2)
+    return out[:4]  # at most a couple priority muscles
+
+
 def format_action_reply(result: Dict[str, Any]) -> str:
     if not result.get("ok"):
         return f"**Action failed:** {result.get('error') or 'unknown error'}"
@@ -327,6 +393,17 @@ def format_action_reply(result: Dict[str, Any]) -> str:
             bits.append(f"F{t.get('fat_g')}")
         detail = " · ".join(bits) if bits else str(t)
         return f"**Targets updated:** {detail}."
+    if action == "set_focus_muscles":
+        muscles = result.get("muscles") or []
+        if not muscles:
+            return "**Focus cleared.** All major muscles use the balanced ≈4–8 sets/week band."
+        pretty = ", ".join(str(m).replace("_", " ") for m in muscles)
+        why = result.get("reason") or ""
+        extra = f" {why}" if why else ""
+        return (
+            f"**Focus muscles updated:** **{pretty}** "
+            f"(priority volume; others near maintenance).{extra}"
+        )
     if action == "refresh_meal_plan":
         msg = (result.get("plan") or {}).get("message") or "Meal plan refreshed."
         return f"**Meal plan refreshed.** {msg}"

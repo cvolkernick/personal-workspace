@@ -657,6 +657,21 @@ def _execute_coach_action(action: dict) -> dict:
             store = load_inventory_and_targets(client)
             base = dict(store.get("targets") or {})
             base.update(raw)
+            # Guard: refuse absurd calorie targets that look like gram values
+            try:
+                cal = float(base.get("calories") or 0)
+            except (TypeError, ValueError):
+                cal = 0
+            if cal and cal < 800:
+                # If only fat/protein/carbs were meant to change, drop bad calories
+                if "calories" in raw and float(raw.get("calories") or 0) < 800:
+                    base.pop("calories", None)
+                    # re-merge without bad cal so normalize can heal from macros
+                    base = dict(store.get("targets") or {})
+                    for k, v in raw.items():
+                        if k == "calories":
+                            continue
+                        base[k] = v
             updated = update_targets(base)
             write = write_nutrition_file(
                 client,
@@ -665,6 +680,48 @@ def _execute_coach_action(action: dict) -> dict:
                 message="nutrition: targets via coach",
             )
             return {"ok": True, "action": kind, "targets": updated, "write": write}
+        if kind == "set_focus_muscles":
+            from rt_dashboard.workout_planner import (
+                suggest_focus_muscles,
+                weekly_set_tally,
+            )
+            from rt_dashboard.dashboard_cache import sessions_from_dicts
+
+            store = load_catalog_and_goals(client)
+            goals = dict(store.get("goals") or {})
+            reason = ""
+            if action.get("clear"):
+                muscles: list = []
+                reason = "Cleared priority list."
+            elif action.get("auto"):
+                data = load_dashboard_data(force_refresh=False)
+                sessions = sessions_from_dicts(data.get("sessions") or [])
+                catalog = store.get("catalog") or {"exercises": []}
+                tally = weekly_set_tally(
+                    sessions,
+                    catalog,
+                    secondary_fraction=float(
+                        goals.get("secondary_set_fraction") or 0.5
+                    ),
+                )
+                sug = suggest_focus_muscles(tally, goals, max_focus=2)
+                muscles = list(sug.get("muscles") or [])
+                reason = str(sug.get("reason") or "")
+            else:
+                muscles = list(action.get("muscles") or [])
+            goals["focus_muscles"] = muscles
+            updated = update_goals(goals)
+            write = write_goals(
+                client, updated, message="workout: focus muscles via coach"
+            )
+            return {
+                "ok": True,
+                "action": kind,
+                "muscles": updated.get("focus_muscles") or [],
+                "goals": updated,
+                "reason": reason,
+                "write": write,
+            }
         if kind == "refresh_meal_plan":
             data = load_dashboard_data(force_refresh=False)
             store = data.get("nutrition_store") or {}

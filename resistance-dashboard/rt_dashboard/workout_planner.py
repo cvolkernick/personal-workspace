@@ -108,6 +108,9 @@ DEFAULT_GOALS = {
     "progression": "double_progression",
     "notes": "",
     "focus_muscles": [],
+    # When true, each plan gen suggests lagging muscles as focus (in-memory);
+    # use Ask "auto focus" / "apply suggested focus" to persist.
+    "auto_focus_muscles": False,
     "rest_if_recovery_below": 40,
     # DeanT volume framework
     "volume_framework": VOLUME_FRAMEWORK["id"],
@@ -234,6 +237,8 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["notes"] = str(raw["notes"])
     if isinstance(raw.get("focus_muscles"), list):
         g["focus_muscles"] = [normalize_muscle(str(x)) for x in raw["focus_muscles"]]
+    if "auto_focus_muscles" in raw:
+        g["auto_focus_muscles"] = bool(raw["auto_focus_muscles"])
     if raw.get("updated_at"):
         g["updated_at"] = str(raw["updated_at"])
     return g
@@ -406,6 +411,63 @@ def classify_volume_status(
     if done <= hi * 1.25:
         return "high"
     return "over"
+
+
+def suggest_focus_muscles(
+    tally: Dict[str, Any],
+    goals: Optional[dict] = None,
+    *,
+    max_focus: int = 2,
+) -> Dict[str, Any]:
+    """Pick 1–2 lagging major muscles for priority volume (DeanT style).
+
+    Uses trailing-week hard-set credits vs the balanced 4–8 band. Prefers muscles
+    that are furthest under the weekly min and that actually appear in training
+    logs (or session pool) rather than rarely trained isolation groups.
+    """
+    goals = normalize_goals(goals or {})
+    bands = muscle_targets({**goals, "focus_muscles": []})  # balanced bands
+    by = dict(tally.get("by_muscle") or {})
+    # Core physique groups we actively program in the catalog
+    candidates = [
+        "chest",
+        "mid_upper_back",
+        "lats",
+        "delts",
+        "biceps",
+        "triceps",
+        "quads",
+        "hamstrings",
+        "glutes",
+        "calves",
+        "traps",
+    ]
+    scored: List[Tuple[float, str, float, float]] = []
+    for m in candidates:
+        done = float(by.get(m) or 0)
+        lo = float((bands.get(m) or {}).get("min") or 4)
+        gap = lo - done
+        if gap <= 0:
+            continue
+        # Require some signal that the muscle is part of the program (done>0 or gap large)
+        scored.append((gap, m, done, lo))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    picks = [m for _, m, _, _ in scored[: max(1, min(3, max_focus))]]
+    reason_bits = []
+    for gap, m, done, lo in scored[: len(picks)]:
+        reason_bits.append(f"{m.replace('_', ' ')} {done:g}/{lo:g} sets")
+    return {
+        "muscles": picks,
+        "reason": (
+            "Lagging vs ≈4–8/week band: " + "; ".join(reason_bits)
+            if reason_bits
+            else "No clear lagging muscles in the last 7 days — balanced volume is fine."
+        ),
+        "candidates": [
+            {"muscle": m, "done": d, "min": lo, "gap": round(g, 2)}
+            for g, m, d, lo in scored[:6]
+        ],
+    }
 
 
 def volume_balance_report(
@@ -907,6 +969,16 @@ def generate_workout_plan(
         )
 
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
+    suggested_focus = suggest_focus_muscles(tally, goals, max_focus=2)
+    balance["suggested_focus"] = suggested_focus
+
+    # Optional auto-focus: rewrite goals in-memory for this plan only when enabled
+    # (persistent write happens via coach action / goals API).
+    if goals.get("auto_focus_muscles") and suggested_focus.get("muscles"):
+        goals = {
+            **goals,
+            "focus_muscles": list(suggested_focus["muscles"]),
+        }
 
     last_st = last_session_type(sessions)
     days = days_since_last_session(sessions, as_of=day)

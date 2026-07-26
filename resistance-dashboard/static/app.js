@@ -1954,12 +1954,21 @@
         </span>`;
       })
       .join("");
+    const sug = volume.suggested_focus || {};
+    const sugMuscles = Array.isArray(sug.muscles) ? sug.muscles : [];
+    const sugLine = sugMuscles.length
+      ? `<p class="muted volume-balance-note">Suggested focus: <strong>${sugMuscles
+          .map((m) => String(m).replace(/_/g, " "))
+          .join(", ")}</strong>${
+          sug.reason ? ` — ${sug.reason}` : ""
+        }. Ask: “auto focus” or “focus on …”.</p>`
+      : `<p class="muted volume-balance-note">Primary sets count fully; secondary muscles get partial credit. Framework avoids 10–20+/muscle.</p>`;
     return `<div class="volume-balance">
       <div class="volume-balance-title">Weekly hard sets · ${
         fw.label || "≈4–8 / muscle (w/ overlap)"
       }</div>
       <div class="volume-balance-chips">${chips}</div>
-      <p class="muted volume-balance-note">Primary sets count fully; secondary muscles get partial credit. Framework avoids 10–20+/muscle.</p>
+      ${sugLine}
     </div>`;
   }
 
