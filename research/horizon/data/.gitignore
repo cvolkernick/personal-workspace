@@ -1,0 +1,6 @@
+# Keep latest pointers in git for demos; ignore intermediate versioned runs
+history/*
+!history/.gitkeep
+briefs/brief_20*
+!briefs/brief_latest.json
+!briefs/brief_latest.md
