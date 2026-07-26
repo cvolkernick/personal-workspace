@@ -1,6 +1,7 @@
 """Start subordinate dashboard servers from Orchestra when they are offline.
 
 Only launches commands registered in domains.DOMAIN_SPECS — never arbitrary shells.
+Each domain server has slightly different CLI flags; we build argv per server.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Any, Optional
+from urllib.parse import urlparse
 
 try:
     from .domains import DOMAIN_SPECS
@@ -22,7 +24,7 @@ except ImportError:
 _STARTED: dict[str, int] = {}
 
 # How long to wait for a just-started server to accept TCP
-DEFAULT_READY_TIMEOUT = 15.0
+DEFAULT_READY_TIMEOUT = 20.0
 PROBE_TIMEOUT = 0.35
 
 
@@ -51,8 +53,6 @@ def _public_host() -> str:
         if not raw:
             continue
         if "://" in raw:
-            from urllib.parse import urlparse
-
             host = urlparse(raw).hostname or ""
         else:
             host = raw.split("/")[0].split(":")[0]
@@ -77,7 +77,6 @@ def _public_url(url: str, port: int) -> str:
 
 def domain_spec(domain_id: str) -> Optional[dict[str, Any]]:
     did = (domain_id or "").strip().lower()
-    # aliases
     aliases = {
         "projects": "workflow",
         "projects-dashboard": "workflow",
@@ -110,7 +109,7 @@ def launchable_domains() -> list[dict[str, Any]]:
                 "id": spec["id"],
                 "label": spec.get("label"),
                 "port": port,
-                "url": spec.get("url"),
+                "url": _public_url(spec.get("url") or f"http://127.0.0.1:{port}/", port),
                 "launch": spec.get("launch"),
                 "live": probe_port(port),
             }
@@ -136,6 +135,50 @@ def _server_script_path(launch: str, root: Path) -> Optional[Path]:
     if not path.is_file():
         return None
     return path
+
+
+def build_launch_argv(
+    domain_id: str,
+    script: Path,
+    port: int,
+    *,
+    bind_host: str = "127.0.0.1",
+) -> list[str]:
+    """Build the correct argv for each dashboard server (CLI flags differ)."""
+    did = (domain_id or "").strip().lower()
+    script_s = str(script).replace("\\", "/")
+    py = sys.executable
+
+    # resistance-dashboard: positional port only
+    if did == "fitness" or "resistance-dashboard" in script_s:
+        return [py, str(script), str(port)]
+
+    # financial-command: --port --no-browser [--offline]; NO --host
+    if did == "finance" or "financial-command" in script_s:
+        return [py, str(script), "--port", str(port), "--no-browser"]
+
+    # projects-dashboard: --port --no-browser [--bind HOST]
+    if did == "workflow" or "projects-dashboard" in script_s:
+        return [
+            py,
+            str(script),
+            "--port",
+            str(port),
+            "--bind",
+            bind_host,
+            "--no-browser",
+        ]
+
+    # holistic / iot / default: --host --port --no-browser
+    return [
+        py,
+        str(script),
+        "--host",
+        bind_host,
+        "--port",
+        str(port),
+        "--no-browser",
+    ]
 
 
 def _log_dir(root: Path) -> Path:
@@ -181,9 +224,7 @@ def ensure_domain(
     port = int(spec["port"])
     url = _public_url(spec.get("url") or f"http://127.0.0.1:{port}/", port)
     did = spec["id"]
-
-    # Short probe — never block the HTTP request for long
-    ready_timeout = min(float(ready_timeout), 8.0)
+    ready_timeout = max(3.0, min(float(ready_timeout), 30.0))
 
     if not force_restart and probe_port(port):
         return {
@@ -227,15 +268,9 @@ def ensure_domain(
 
     # Bind all interfaces when a public host is configured (Pi → Mac clients)
     bind_host = "0.0.0.0" if _public_host() else "127.0.0.1"
-    cmd = [
-        sys.executable,
-        str(script),
-        "--host",
-        bind_host,
-        "--port",
-        str(port),
-        "--no-browser",
-    ]
+    cmd = build_launch_argv(did, script, port, bind_host=bind_host)
+    log_f.write(f"cmd: {' '.join(cmd)}\n")
+    log_f.flush()
 
     try:
         proc = subprocess.Popen(
@@ -261,7 +296,7 @@ def ensure_domain(
         }
 
     _STARTED[did] = proc.pid
-    deadline = time.time() + max(1.0, ready_timeout)
+    deadline = time.time() + ready_timeout
     while time.time() < deadline:
         if probe_port(port):
             try:
@@ -281,10 +316,16 @@ def ensure_domain(
                 "log": _rel_log(log_path, root),
                 "message": f"Started {spec.get('label') or did} on port {port}",
             }
-        # Early exit if process died
         if proc.poll() is not None:
             try:
                 log_f.close()
+            except OSError:
+                pass
+            # Read last lines of log for error detail
+            detail = ""
+            try:
+                tail = log_path.read_text(encoding="utf-8", errors="replace")[-800:]
+                detail = " " + tail.strip().splitlines()[-1] if tail.strip() else ""
             except OSError:
                 pass
             return {
@@ -294,7 +335,10 @@ def ensure_domain(
                 "live": False,
                 "started": False,
                 "pid": proc.pid,
-                "error": f"Process exited early (code {proc.returncode}). See {log_path.name}",
+                "error": (
+                    f"Process exited early (code {proc.returncode})."
+                    f"{detail} See {log_path.name}"
+                ),
                 "log": str(log_path),
             }
         time.sleep(0.2)
@@ -303,7 +347,6 @@ def ensure_domain(
         log_f.close()
     except OSError:
         pass
-    # Still might come up; report partial
     live = probe_port(port)
     return {
         "ok": live,

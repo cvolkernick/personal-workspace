@@ -784,15 +784,14 @@
     }
 
     /**
-     * Open a domain dashboard.
-     * IMPORTANT: open the tab synchronously from the click handler (user gesture)
-     * so the browser does not block window.open after await fetch().
-     * /api/launch is fire-and-forget (or used only to update a pre-opened tab).
+     * Open a domain dashboard:
+     *  1) Open a placeholder tab immediately (user gesture → avoids popup block)
+     *  2) POST /api/launch — checks if server is live; starts it if not; waits until ready
+     *  3) Navigate the placeholder to the live URL (or show error)
      */
     function publicizeUrl(url) {
       if (!url || url === "#") return "";
       try {
-        // If page is served from Pi LAN/Tailscale, rewrite loopback deep-links
         const pageHost = location.hostname;
         if (
           pageHost &&
@@ -808,26 +807,63 @@
       return url;
     }
 
+    function writeLaunchPlaceholder(win, title, message, isError) {
+      if (!win || win.closed) return;
+      try {
+        const bg = isError ? "#1a1010" : "#0b0f14";
+        const color = isError ? "#ff6b6b" : "#e7eef5";
+        win.document.open();
+        win.document.write(`<!doctype html><html><head><meta charset="utf-8">
+<title>${esc(title)}</title>
+<style>
+  body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:${bg};
+  color:${color};min-height:100vh;display:flex;align-items:center;justify-content:center;
+  padding:2rem;line-height:1.45}
+  .box{max-width:28rem}
+  h1{font-size:1.15rem;margin:0 0 0.5rem}
+  p{margin:0;color:#8aa0b5;font-size:0.95rem}
+  .spin{display:inline-block;width:1rem;height:1rem;border:2px solid #3a4a6a;
+    border-top-color:#5b9fd4;border-radius:50%;animation:s .7s linear infinite;
+    margin-right:.5rem;vertical-align:middle}
+  @keyframes s{to{transform:rotate(360deg)}}
+</style></head><body><div class="box">
+  <h1>${isError ? "" : '<span class="spin"></span>'}${esc(title)}</h1>
+  <p>${esc(message)}</p>
+</div></body></html>`);
+        win.document.close();
+      } catch (e) { /* cross-origin after navigation */ }
+    }
+
     async function openDomain(domainId, fallbackUrl, preOpenedWin) {
       const id = (domainId || "").trim();
-      let url = publicizeUrl(fallbackUrl || "");
+      const fallback = publicizeUrl(fallbackUrl || "");
 
-      // Prefer immediate navigation; ensure backend is up in background
-      if (!preOpenedWin && url) {
+      if (!preOpenedWin) {
         try {
-          preOpenedWin = window.open(url, "_blank", "noopener");
-        } catch (e) { /* popup blocked */ }
+          preOpenedWin = window.open("about:blank", "_blank");
+        } catch (e) {
+          preOpenedWin = null;
+        }
       }
 
       if (!id) {
-        if (!preOpenedWin && url) window.open(url, "_blank", "noopener");
+        if (fallback) {
+          if (preOpenedWin && !preOpenedWin.closed) preOpenedWin.location.href = fallback;
+          else window.open(fallback, "_blank", "noopener");
+        }
         return;
       }
 
-      showLaunchToast(url ? `Opening ${id}…` : `Starting ${id}…`, false);
+      writeLaunchPlaceholder(
+        preOpenedWin,
+        `Starting ${id}…`,
+        "Checking if the dashboard server is running. Starting it if needed…"
+      );
+      showLaunchToast(`Ensuring ${id} is running…`, false);
+
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 8000);
+        const timer = setTimeout(() => controller.abort(), 25000);
         const res = await fetch("/api/launch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -836,22 +872,27 @@
         });
         clearTimeout(timer);
         const data = await res.json().catch(() => ({}));
-        if (!data.ok) {
-          // Still try fallback URL if we have one
-          if (!preOpenedWin && url) {
-            window.open(url, "_blank", "noopener");
+        const launchUrl = publicizeUrl(data.url || fallback);
+
+        if (!data.ok || !data.live) {
+          const err = data.error || `Could not start ${id}`;
+          writeLaunchPlaceholder(preOpenedWin, `Could not start ${id}`, err, true);
+          showLaunchToast(err, true);
+          // Last resort: try opening the URL anyway (server might still be coming up)
+          if (launchUrl && preOpenedWin && !preOpenedWin.closed) {
+            setTimeout(() => {
+              try { preOpenedWin.location.href = launchUrl; } catch (e) {}
+            }, 1500);
           }
-          showLaunchToast(
-            data.error || `Could not confirm ${id} is up — opened link if available`,
-            !url
-          );
           return;
         }
-        const launchUrl = publicizeUrl(data.url || url);
+
         const note = data.already_running
-          ? `${data.label || id} is live`
-          : `${data.label || id} started`;
+          ? `${data.label || id} is already running — opening…`
+          : `${data.label || id} started — opening…`;
         showLaunchToast(note, false);
+        writeLaunchPlaceholder(preOpenedWin, data.label || id, note, false);
+
         if (launchUrl) {
           if (preOpenedWin && !preOpenedWin.closed) {
             try {
@@ -859,16 +900,23 @@
             } catch (e) {
               window.open(launchUrl, "_blank", "noopener");
             }
-          } else if (!preOpenedWin) {
-            window.open(launchUrl, "_blank", "noopener");
+          } else {
+            // Popup was blocked — same-tab fallback
+            showLaunchToast("Popup blocked — opening here", true);
+            window.location.href = launchUrl;
           }
         }
-        setTimeout(() => load(true), 600);
+        setTimeout(() => load(true), 800);
       } catch (e) {
-        const msg = e.name === "AbortError" ? "Launch timed out" : ("Launch error: " + e.message);
-        // Tab may already be open with the public URL — that is success enough
-        showLaunchToast(url ? `${msg} — used direct link` : msg, !url);
-        if (!preOpenedWin && url) window.open(url, "_blank", "noopener");
+        const msg =
+          e.name === "AbortError"
+            ? "Timed out waiting for the dashboard to start (25s)."
+            : "Launch error: " + e.message;
+        writeLaunchPlaceholder(preOpenedWin, `Failed: ${id}`, msg, true);
+        showLaunchToast(msg, true);
+        if (fallback && preOpenedWin && !preOpenedWin.closed) {
+          try { preOpenedWin.location.href = fallback; } catch (err) {}
+        }
       }
     }
 
@@ -1295,7 +1343,7 @@
       }
     }
 
-    // Delegate domain open — open tab in the click gesture (avoids popup blockers)
+    // Delegate domain open — open placeholder tab in the click gesture (avoids popup blockers)
     function handleDomainOpen(el) {
       if (!el) return;
       const domain =
@@ -1303,20 +1351,21 @@
         domainIdFromHref(el.getAttribute("data-url") || el.getAttribute("href"));
       const rawUrl = el.getAttribute("data-url") || el.getAttribute("href") || "";
       const url = publicizeUrl(rawUrl === "#" ? "" : rawUrl);
-      // Synchronous open while still in user-gesture stack
+      // Always open a blank tab first (user gesture), then ensure server + navigate
       let win = null;
-      if (url) {
-        try {
-          win = window.open(url, "_blank", "noopener");
-        } catch (e) {
-          win = null;
-        }
+      try {
+        win = window.open("about:blank", "_blank");
+      } catch (e) {
+        win = null;
       }
-      // If popup blocked, navigate same tab as last resort
-      if (url && !win) {
-        showLaunchToast("Popup blocked — opening in this tab", true);
-        window.location.href = url;
-        return;
+      if (!win) {
+        showLaunchToast("Popup blocked — allow popups for this site, or open will use this tab", true);
+      } else {
+        writeLaunchPlaceholder(
+          win,
+          domain ? `Starting ${domain}…` : "Opening…",
+          "Checking server status…"
+        );
       }
       openDomain(domain, url, win);
     }
