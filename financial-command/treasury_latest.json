@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-26T06:51:16.877164+00:00",
+    "as_of": "2026-07-26T06:55:59.481333+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-22T03:48:48.063449+00:00",
@@ -479,7 +479,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-26T06:49:33.161405+00:00",
+      "as_of": "2026-07-26T06:55:59.384915+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1502,22 +1502,22 @@
         "one_card_as_of": "2026-07-23T01:03:01.303903+00:00",
         "rh_checking_as_of": "2026-07-23T01:03:02.469633+00:00",
         "x_money_as_of": "2026-07-23T01:03:03.356769+00:00",
-        "expenses_as_of": "2026-07-26T06:49:33.161405+00:00"
+        "expenses_as_of": "2026-07-26T06:55:59.384915+00:00"
       },
       "stale": [
-        "coinbase data 99.0h old (>6.0h)",
-        "robinhood data 36.4h old (>6.0h)",
-        "one_card data 77.8h old (>6.0h)",
-        "rh_checking data 77.8h old (>6.0h)",
-        "x_money data 77.8h old (>6.0h)"
+        "coinbase data 99.1h old (>6.0h)",
+        "robinhood data 36.5h old (>6.0h)",
+        "one_card data 77.9h old (>6.0h)",
+        "rh_checking data 77.9h old (>6.0h)",
+        "x_money data 77.9h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: collateral_btc_usd, ltv",
-        "coinbase data 99.0h old (>6.0h)",
-        "robinhood data 36.4h old (>6.0h)",
-        "one_card data 77.8h old (>6.0h)",
-        "rh_checking data 77.8h old (>6.0h)",
-        "x_money data 77.8h old (>6.0h)"
+        "coinbase data 99.1h old (>6.0h)",
+        "robinhood data 36.5h old (>6.0h)",
+        "one_card data 77.9h old (>6.0h)",
+        "rh_checking data 77.9h old (>6.0h)",
+        "x_money data 77.9h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -1706,12 +1706,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-26T06:51:16.878677+00:00",
+      "as_of": "2026-07-26T06:55:59.482895+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-26T06:51:16.878221+00:00",
+        "as_of": "2026-07-26T06:55:59.482452+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -2740,12 +2740,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-26T06:51:16.878677+00:00",
+    "as_of": "2026-07-26T06:55:59.482895+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-26T06:51:16.878221+00:00",
+      "as_of": "2026-07-26T06:55:59.482452+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
