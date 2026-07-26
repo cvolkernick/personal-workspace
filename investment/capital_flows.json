@@ -1,13 +1,12 @@
 {
-  "version": 4,
+  "version": 5,
   "as_of": "2026-07-26",
   "title": "Capital flows — income to channels",
-  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. No direct vault/USDC → Coinbase-funded bills; spend/ops run through X Money + One Card. Lyft express→X Money is exceptional only. ASIC OpEx from X Money; hardware buys are capex.",
+  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (includes fleet, ASIC OpEx, ASIC hardware/capex, auto loans, etc.). Lyft express→X Money is exceptional only.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
-    "inferred": "Implied by strategy",
-    "planned": "Target / future integration"
+    "inferred": "Implied by strategy"
   },
   "income_sources": [
     {
@@ -33,7 +32,7 @@
       "label": "ASICs (mining revenue)",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins (wire-up candidate for direct reads — see integrations).",
+      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins.",
       "typical_landing": "coinbase",
       "cadence": "approx_monthly",
       "pool": "braiins"
@@ -107,24 +106,11 @@
     },
     {
       "id": "bills_xm",
-      "label": "Bills (X Money)",
+      "label": "Bills",
       "kind": "expense",
-      "subtitle": "Fleet, OpEx, auto loans…",
-      "confidence": "observed"
-    },
-    {
-      "id": "asic_opex",
-      "label": "ASIC fleet OpEx",
-      "kind": "expense",
-      "subtitle": "Running cost · from X Money",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "asic_capex",
-      "label": "ASIC hardware (capex)",
-      "kind": "capex",
-      "subtitle": "Buy more miners",
-      "confidence": "planned"
+      "subtitle": "Fleet · ASIC OpEx/capex · loans…",
+      "confidence": "observed",
+      "notes": "Includes ASIC fleet OpEx and hardware (capex) — both treated as bills funded via X Money"
     }
   ],
   "edges": [
@@ -203,17 +189,11 @@
     },
     {
       "from": "x_money",
-      "to": "asic_opex",
-      "label": "Fleet OpEx",
-      "confidence": "owner_stated",
-      "weight": 3
-    },
-    {
-      "from": "x_money",
       "to": "bills_xm",
-      "label": "Fleet / loans / spend",
+      "label": "Bills · fleet · ASICs",
       "confidence": "observed",
-      "weight": 3
+      "weight": 4,
+      "notes": "ASIC OpEx and hardware/capex roll into Bills"
     },
     {
       "from": "coinbase",
@@ -222,17 +202,9 @@
       "confidence": "inferred",
       "weight": 1,
       "dashed": true
-    },
-    {
-      "from": "coinbase",
-      "to": "asic_capex",
-      "label": "Buy miners",
-      "confidence": "planned",
-      "weight": 2
     }
   ],
   "open_questions": [
-    "Braiins: drop API token at ~/.config/braiins/token and run python3 treasury/braiins_sync.py; confirm payout destination maps to Coinbase",
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights"

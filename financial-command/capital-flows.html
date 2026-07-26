@@ -255,7 +255,6 @@
             <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
             <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you (not yet in YNAB/sheet)</span></div></div>
             <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
-            <div class="leg-item"><span class="swatch-line planned"></span><div><strong>Planned</strong><br/><span class="desc">Dotted blue — target / intent</span></div></div>
             <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker line</strong><br/><span class="desc">Higher relative importance (not $)</span></div></div>
             <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner line</strong><br/><span class="desc">Secondary / optional path</span></div></div>
           </div>
@@ -270,8 +269,7 @@
             <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — High Yield USDC vault</span></div></div>
             <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money, RH Checking</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills, ASIC OpEx</span></div></div>
-            <div class="leg-item"><span class="swatch-node capex"></span><div><strong>Capex</strong><span class="desc"> — ASIC hardware buys</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (incl. ASIC OpEx/capex)</span></div></div>
           </div>
         </div>
         <div>
@@ -350,7 +348,7 @@
         cash: { x: 500, ids: ["x_money", "one_card", "rh_agentic"] },
         uses: {
           x: 750,
-          ids: ["bills_xm", "asic_opex", "asic_capex"],
+          ids: ["bills_xm"],
         },
       };
       const byId = {};
@@ -505,7 +503,7 @@
       document.getElementById("notes").textContent = data.notes || "";
 
       const legend = data.legend || {};
-      const order = ["observed", "owner_stated", "inferred", "planned"];
+      const order = ["observed", "owner_stated", "inferred"];
       const keys = [
         ...order.filter((k) => legend[k]),
         ...Object.keys(legend).filter((k) => !order.includes(k)),
