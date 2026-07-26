@@ -146,8 +146,22 @@ def _scheduler_loop(stop: threading.Event) -> None:
                 )
                 for r in results:
                     rid = (r.get("routine") or {}).get("id")
-                    ok = (r.get("control") or {}).get("ok")
-                    sys.stderr.write(f"[iot] routine fired {rid} ok={ok}\n")
+                    cr = r.get("control") or {}
+                    ok = cr.get("ok")
+                    err = cr.get("error")
+                    n = len(cr.get("results") or [])
+                    sys.stderr.write(
+                        f"[iot] routine fired {rid} ok={ok} results={n}"
+                        + (f" error={err}" if err else "")
+                        + "\n"
+                    )
+                    # compact per-device outcomes for postmortems
+                    for one in cr.get("results") or []:
+                        sys.stderr.write(
+                            f"[iot]   device {one.get('name') or one.get('label') or one.get('ip')}"
+                            f" ok={one.get('ok')} on={one.get('on')}"
+                            f" err={one.get('error')}\n"
+                        )
         except Exception as e:  # noqa: BLE001
             sys.stderr.write(f"[iot] schedule error: {e}\n")
         stop.wait(SCHEDULE_POLL_SECONDS)

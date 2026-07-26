@@ -17,7 +17,11 @@ DEFAULT_STATE_PATH = IOT_DIR / "data" / "schedule_state.json"
 
 # Fire window: if we're within this many minutes after the event and haven't
 # fired yet today, run it (covers server restarts / poll interval).
-FIRE_WINDOW_MINUTES = 15
+# Also used as the retry window when a fire failed (we only mark fired on ok).
+FIRE_WINDOW_MINUTES = 30
+
+# Append-only log of schedule fire attempts (for postmortems).
+DEFAULT_FIRE_LOG_PATH = IOT_DIR / "data" / "schedule_fire_log.jsonl"
 
 
 def load_schedule(path: Optional[Path | str] = None) -> dict[str, Any]:
@@ -306,6 +310,18 @@ def _invoke_control(control: ControlFn, item: Mapping[str, Any]) -> dict[str, An
         return {"ok": False, "error": f"{type(e).__name__}: {e}"}
 
 
+def _append_fire_log(
+    entry: Mapping[str, Any], path: Optional[Path] = None
+) -> None:
+    p = path or DEFAULT_FIRE_LOG_PATH
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, default=str) + "\n")
+    except OSError:
+        pass
+
+
 def run_due(
     *,
     control: ControlFn,
@@ -313,15 +329,32 @@ def run_due(
     state_path: Optional[Path] = None,
     now: Optional[datetime] = None,
 ) -> list[dict[str, Any]]:
-    """Evaluate due routines and invoke control(target, color, brightness)."""
+    """Evaluate due routines and invoke control(target, color, brightness).
+
+    Only marks a routine as fired when control reports ok — failures stay
+    eligible for retry until the fire window ends.
+    """
     sched = load_schedule(schedule_path)
     state = load_state(state_path)
     due = due_routines(sched, state, now=now)
     results = []
     for item in due:
         cr = _invoke_control(control, item)
-        state = mark_fired(state, item["fire_key"], now=now)
-        save_state(state, state_path)
+        ok = bool(cr.get("ok"))
+        entry = {
+            "ts": (now or datetime.now(timezone.utc)).isoformat(),
+            "routine_id": item.get("id"),
+            "fire_key": item.get("fire_key"),
+            "target": item.get("target"),
+            "color": item.get("color"),
+            "ok": ok,
+            "control": cr,
+        }
+        _append_fire_log(entry)
+        # Only suppress retries when the action succeeded
+        if ok:
+            state = mark_fired(state, item["fire_key"], now=now)
+            save_state(state, state_path)
         results.append({"routine": item, "control": cr})
     return results
 
