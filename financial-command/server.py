@@ -84,10 +84,21 @@ def _capital_flows_payload() -> dict:
             live["rh_checking_funded_monthly_est"] = sm.get(
                 "rh_checking_funded_monthly"
             ) or sm.get("rh_funded_monthly")
+            # Sheet pay-from breakdown (Personal tab)
+            by_src = (
+                ((ed.get("tabs") or {}).get("Personal") or {}).get("by_source_monthly")
+                or {}
+            )
+            if by_src.get("X Money") is not None:
+                live["x_money_funded_monthly_est"] = by_src.get("X Money")
+            if by_src.get("Coinbase") is not None:
+                live["coinbase_funded_monthly_est"] = by_src.get(
+                    "Coinbase", live.get("coinbase_funded_monthly_est")
+                )
         except (OSError, json.JSONDecodeError, TypeError):
             pass
     data["live"] = live
-    # Prefer simpler key for SVG caption
+    # Prefer simpler key for SVG caption (express-pay Lyft on X Money)
     if live.get("lyft_inflow_from_x_money_txs") is not None:
         data["live"]["lyft_inflow_30d"] = live["lyft_inflow_from_x_money_txs"]
     return data

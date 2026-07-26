@@ -223,12 +223,24 @@
     }
 
     function layoutNodes(data) {
-      // Fixed columns for readable structure
+      // Fixed columns: income → Coinbase stack → cash/credit → uses
       const cols = {
-        income: { x: 40, ids: ["lyft", "turo", "asics"] },
-        cash: { x: 280, ids: ["x_money", "rh_checking", "one_card"] },
-        venues: { x: 520, ids: ["coinbase", "cb_vault", "cb_morpho_loan", "rh_brokerage", "rh_agentic"] },
-        uses: { x: 780, ids: ["bills_cb", "bills_rh", "asic_opex", "asic_capex"] },
+        income: { x: 30, ids: ["turo", "lyft", "asics"] },
+        cb_stack: {
+          x: 250,
+          ids: [
+            "coinbase",
+            "cb_btc",
+            "cb_morpho_collateral",
+            "cb_usdc_borrow",
+            "cb_vault",
+          ],
+        },
+        cash: { x: 500, ids: ["x_money", "rh_checking", "one_card", "rh_agentic"] },
+        uses: {
+          x: 750,
+          ids: ["bills_cb", "bills_xm", "asic_opex", "asic_capex"],
+        },
       };
       const byId = {};
       (data.income_sources || []).forEach((n) => {
@@ -239,7 +251,7 @@
       });
 
       const positions = {};
-      const colH = 560;
+      const colH = 580;
       const top = 48;
       Object.entries(cols).forEach(([key, col]) => {
         const ids = col.ids.filter((id) => byId[id]);
@@ -248,9 +260,9 @@
           positions[id] = {
             ...byId[id],
             x: col.x,
-            y: top + gap * i + gap * 0.15,
-            w: 168,
-            h: 52,
+            y: top + gap * i + gap * 0.12,
+            w: key === "cb_stack" ? 190 : 175,
+            h: 50,
           };
         });
       });
@@ -271,10 +283,10 @@
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#8aa0b5"/>
           </marker>
         </defs>
-        <text class="col-label" x="40" y="28">Income</text>
-        <text class="col-label" x="280" y="28">Cash / credit</text>
-        <text class="col-label" x="520" y="28">Venues / sleeves</text>
-        <text class="col-label" x="780" y="28">Uses</text>
+        <text class="col-label" x="30" y="28">Income</text>
+        <text class="col-label" x="250" y="28">Coinbase · Morpho path</text>
+        <text class="col-label" x="500" y="28">Cash / credit / invest</text>
+        <text class="col-label" x="750" y="28">Uses</text>
       `;
 
       // edges under nodes
@@ -310,8 +322,24 @@
       });
 
       // live enrichment strip
+      const liveBits = [];
       if (data.live && data.live.lyft_inflow_30d != null) {
-        html += `<text class="edge-label" x="40" y="${H - 16}">Live: Lyft inflows (YNAB ~30d window in poll) ≈ $${Number(data.live.lyft_inflow_30d).toFixed(2)} → X Money</text>`;
+        liveBits.push(
+          `Lyft on X Money (recent txs / express) ≈ $${Number(data.live.lyft_inflow_30d).toFixed(2)}`
+        );
+      }
+      if (data.live && data.live.coinbase_funded_monthly_est != null) {
+        liveBits.push(
+          `CB-funded bills est $${Number(data.live.coinbase_funded_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.x_money_funded_monthly_est != null) {
+        liveBits.push(
+          `X Money bills est $${Number(data.live.x_money_funded_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (liveBits.length) {
+        html += `<text class="edge-label" x="30" y="${H - 16}">Live: ${esc(liveBits.join(" · "))}</text>`;
       }
 
       svg.innerHTML = html;
