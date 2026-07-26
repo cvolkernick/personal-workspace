@@ -661,6 +661,102 @@
     .live-dot.off { color: var(--muted); }
     .live-dot.off::before { background: var(--muted); box-shadow: none; }
     .poll-note { font-size: 0.7rem; color: var(--muted); }
+    .dec-carousel {
+      margin-top: 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0d141c;
+      overflow: hidden;
+    }
+    .dec-carousel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .dec-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .dec-nav button {
+      min-width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #15202c;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .dec-nav button:hover { border-color: #3a5066; }
+    .dec-nav button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .dec-pos {
+      font-variant-numeric: tabular-nums;
+      min-width: 3.2rem;
+      text-align: center;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .dec-slide {
+      padding: 0.55rem 0.65rem 0.7rem;
+      min-height: 5.5rem;
+    }
+    .dec-slide .action { margin-bottom: 0 !important; }
+    .dec-dots {
+      display: flex;
+      justify-content: center;
+      gap: 0.3rem;
+      padding: 0 0.65rem 0.5rem;
+    }
+    .dec-dots button {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      border: none;
+      padding: 0;
+      background: #3a4a5a;
+      cursor: pointer;
+    }
+    .dec-dots button.on { background: var(--accent, #5b9fd4); }
+    .payout-bar-wrap {
+      margin: 0.45rem 0 0.15rem;
+    }
+    .payout-bar {
+      height: 8px;
+      border-radius: 99px;
+      background: #1a2430;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .payout-bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #5b9fd4, #3dd68c);
+      border-radius: 99px;
+      min-width: 0;
+    }
+    .payout-bar-lab {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
   </style>
 </head>
 <body>
@@ -1772,70 +1868,8 @@
             (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
           )}</p>`;
 
-      // Decision log — glass box
-      const decs = fm.recent_decisions || [];
-      document.getElementById("fund-manager-decisions").innerHTML = decs.length
-        ? decs
-            .slice(0, 12)
-            .map((d) => {
-              const rat = d.rationale || {};
-              const why =
-                (typeof rat === "string" ? rat : rat.why_now || rat.summary || d.summary) || "—";
-              const whyNot =
-                typeof rat === "object" && rat.why_not_alternatives
-                  ? rat.why_not_alternatives
-                  : "";
-              const votes = d.team_votes || {};
-              const voteBits = ["scout", "thesis", "risk", "critic", "executor"]
-                .filter((r) => votes[r])
-                .map((r) => {
-                  const v = votes[r];
-                  const label = typeof v === "object" ? v.vote || v.stance || "—" : v;
-                  return `${r}:${label}`;
-                })
-                .join(" · ");
-              const voteNotes = ["thesis", "risk", "critic"]
-                .filter((r) => votes[r] && typeof votes[r] === "object" && votes[r].note)
-                .map((r) => `${r}: ${votes[r].note}`)
-                .join(" · ");
-              const acts = (d.actions || [])
-                .map((a) =>
-                  typeof a === "object"
-                    ? `${(a.side || "?").toUpperCase()} ${a.symbol || "?"} $${
-                        a.notional_usd ?? a.dollar_amount ?? "?"
-                      }`
-                    : String(a)
-                )
-                .join(", ");
-              const when = (d.as_of || "").toString().replace("T", " ").slice(0, 16);
-              return (
-                `<div class="action sev-info" style="margin-bottom:0.45rem">` +
-                `<div class="top"><span class="tag p">${escapeHtml(
-                  d.kind || "decision"
-                )}</span>` +
-                `<span class="title">${escapeHtml(when)} · ${escapeHtml(
-                  (d.summary || "").toString().slice(0, 90)
-                )}</span></div>` +
-                `<div class="why"><strong>Why:</strong> ${escapeHtml(
-                  String(why).slice(0, 320)
-                )}</div>` +
-                (whyNot
-                  ? `<div class="why"><strong>Not:</strong> ${escapeHtml(
-                      String(whyNot).slice(0, 200)
-                    )}</div>`
-                  : "") +
-                (voteBits
-                  ? `<div class="do">Votes: ${escapeHtml(voteBits)}</div>`
-                  : "") +
-                (voteNotes
-                  ? `<div class="why">${escapeHtml(voteNotes.slice(0, 280))}</div>`
-                  : "") +
-                (acts ? `<div class="do">Actions: ${escapeHtml(acts)}</div>` : "") +
-                `</div>`
-              );
-            })
-            .join("")
-        : `<p class="hint">No decisions yet. Scheduled daily reviews will appear here for optional monitoring.</p>`;
+      // Decision log — single-card carousel (saves vertical space)
+      renderDecisionCarousel(fm.recent_decisions || []);
 
       // YNAB txs collapsed
       const octx = oc.transactions || [];
@@ -1963,6 +1997,150 @@
       window.__treasury = data;
     }
 
+    function decisionCardHtml(d) {
+      const rat = d.rationale || {};
+      const why =
+        (typeof rat === "string" ? rat : rat.why_now || rat.summary || d.summary) || "—";
+      const whyNot =
+        typeof rat === "object" && rat.why_not_alternatives
+          ? rat.why_not_alternatives
+          : "";
+      const votes = d.team_votes || {};
+      const voteBits = ["scout", "thesis", "risk", "critic", "executor"]
+        .filter((r) => votes[r])
+        .map((r) => {
+          const v = votes[r];
+          const label = typeof v === "object" ? v.vote || v.stance || "—" : v;
+          return `${r}:${label}`;
+        })
+        .join(" · ");
+      const voteNotes = ["thesis", "risk", "critic"]
+        .filter((r) => votes[r] && typeof votes[r] === "object" && votes[r].note)
+        .map((r) => `${r}: ${votes[r].note}`)
+        .join(" · ");
+      const acts = (d.actions || [])
+        .map((a) =>
+          typeof a === "object"
+            ? `${(a.side || "?").toUpperCase()} ${a.symbol || "?"} $${
+                a.notional_usd ?? a.dollar_amount ?? "?"
+              }`
+            : String(a)
+        )
+        .join(", ");
+      const when = (d.as_of || "").toString().replace("T", " ").slice(0, 16);
+      return (
+        `<div class="action sev-info">` +
+        `<div class="top"><span class="tag p">${escapeHtml(
+          d.kind || "decision"
+        )}</span>` +
+        `<span class="title">${escapeHtml(when)} · ${escapeHtml(
+          (d.summary || "").toString().slice(0, 90)
+        )}</span></div>` +
+        `<div class="why"><strong>Why:</strong> ${escapeHtml(
+          String(why).slice(0, 320)
+        )}</div>` +
+        (whyNot
+          ? `<div class="why"><strong>Not:</strong> ${escapeHtml(
+              String(whyNot).slice(0, 200)
+            )}</div>`
+          : "") +
+        (voteBits ? `<div class="do">Votes: ${escapeHtml(voteBits)}</div>` : "") +
+        (voteNotes
+          ? `<div class="why">${escapeHtml(voteNotes.slice(0, 280))}</div>`
+          : "") +
+        (acts ? `<div class="do">Actions: ${escapeHtml(acts)}</div>` : "") +
+        `</div>`
+      );
+    }
+
+    function renderDecisionCarousel(decs) {
+      const host = document.getElementById("fund-manager-decisions");
+      if (!host) return;
+      const items = (decs || []).slice(0, 12);
+      if (!items.length) {
+        host.innerHTML =
+          `<p class="hint">No decisions yet. Scheduled daily reviews will appear here for optional monitoring.</p>`;
+        return;
+      }
+      // Preserve index across soft re-renders when list length unchanged
+      let idx = window.__decCarouselIdx || 0;
+      if (idx >= items.length) idx = 0;
+      window.__decCarouselItems = items;
+
+      const paint = () => {
+        const n = items.length;
+        idx = Math.max(0, Math.min(idx, n - 1));
+        window.__decCarouselIdx = idx;
+        host.innerHTML =
+          `<div class="dec-carousel">` +
+          `<div class="dec-carousel-head">` +
+          `<span>Log</span>` +
+          `<div class="dec-nav">` +
+          `<button type="button" id="dec-prev" aria-label="Previous decision">‹</button>` +
+          `<span class="dec-pos" id="dec-pos">${idx + 1} / ${n}</span>` +
+          `<button type="button" id="dec-next" aria-label="Next decision">›</button>` +
+          `</div></div>` +
+          `<div class="dec-slide" id="dec-slide">${decisionCardHtml(items[idx])}</div>` +
+          `<div class="dec-dots" id="dec-dots">` +
+          items
+            .map(
+              (_, i) =>
+                `<button type="button" class="${i === idx ? "on" : ""}" data-i="${i}" aria-label="Decision ${i + 1}"></button>`
+            )
+            .join("") +
+          `</div></div>`;
+
+        const prev = document.getElementById("dec-prev");
+        const next = document.getElementById("dec-next");
+        if (prev) {
+          prev.disabled = n <= 1;
+          prev.onclick = () => {
+            idx = (idx - 1 + n) % n;
+            paint();
+          };
+        }
+        if (next) {
+          next.disabled = n <= 1;
+          next.onclick = () => {
+            idx = (idx + 1) % n;
+            paint();
+          };
+        }
+        host.querySelectorAll("#dec-dots button").forEach((btn) => {
+          btn.onclick = () => {
+            idx = Number(btn.getAttribute("data-i")) || 0;
+            paint();
+          };
+        });
+      };
+      paint();
+    }
+
+    function formatPayoutEta(iso, days) {
+      if (iso) {
+        const t = Date.parse(iso);
+        if (Number.isFinite(t)) {
+          const d = new Date(t);
+          const when = d.toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "UTC",
+            timeZoneName: "short",
+          });
+          if (days != null && Number.isFinite(Number(days))) {
+            return `${when} · ~${Number(days).toFixed(1)}d`;
+          }
+          return when;
+        }
+      }
+      if (days != null && Number.isFinite(Number(days))) {
+        return `~${Number(days).toFixed(1)} days`;
+      }
+      return "—";
+    }
+
     function renderBraiins(br) {
       const metricsEl = document.getElementById("braiins-metrics");
       const workersEl = document.getElementById("braiins-workers");
@@ -1997,31 +2175,74 @@
           dot.textContent = "Live · " + (ageLabel(br.as_of) || "ok");
         }
       }
-      metricsEl.innerHTML = [
-        metric("User", escapeHtml(br.username || "—")),
-        metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
-        metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
-        metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
-        metric(
-          "Workers",
-          `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
-            (br.low_workers ? ` · ${br.low_workers} low` : "") +
-            (br.off_workers ? ` · ${br.off_workers} off` : "")
-        ),
-        metric("Today reward", btcAmt(br.today_reward_btc)),
-        metric("Est. reward (block)", btcAmt(br.estimated_reward_btc)),
-        metric("Pool balance", btcAmt(br.current_balance_btc)),
-        metric("Last payout", btcAmt(br.last_payout_btc)),
-        metric(
-          "Last payout at",
-          br.last_payout_at
-            ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
-                " UTC"
-            : "—"
-        ),
-        metric("All-time reward", btcAmt(br.all_time_reward_btc)),
-        metric("Synced", ageLabel(br.as_of) || "—"),
-      ].join("");
+      const thr = br.next_payout_threshold_btc;
+      const prog = br.next_payout_progress_pct;
+      const outlook = br.payout_outlook || {};
+      const barPct =
+        prog != null && Number.isFinite(Number(prog))
+          ? Math.max(0, Math.min(100, Number(prog)))
+          : null;
+      const progressBlock =
+        barPct != null
+          ? `<div class="payout-bar-wrap">` +
+            `<div class="hint" style="margin:0 0 0.25rem">Toward next payout (threshold ${btcAmt(
+              thr,
+              4
+            )})</div>` +
+            `<div class="payout-bar" title="${barPct}% of threshold">` +
+            `<i style="width:${barPct}%"></i></div>` +
+            `<div class="payout-bar-lab">` +
+            `<span>${btcAmt(br.current_balance_btc)} / ${btcAmt(thr, 4)}</span>` +
+            `<span>${barPct.toFixed(1)}%</span></div></div>`
+          : "";
+
+      metricsEl.innerHTML =
+        progressBlock +
+        [
+          metric(
+            "Next payout (est.)",
+            formatPayoutEta(br.next_payout_est_at, br.days_to_next_payout_est)
+          ),
+          metric(
+            "Avg daily reward",
+            btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)
+          ),
+          metric("User", escapeHtml(br.username || "—")),
+          metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
+          metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
+          metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
+          metric(
+            "Workers",
+            `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
+              (br.low_workers ? ` · ${br.low_workers} low` : "") +
+              (br.off_workers ? ` · ${br.off_workers} off` : "")
+          ),
+          metric("Today reward", btcAmt(br.today_reward_btc)),
+          metric("Pool balance", btcAmt(br.current_balance_btc)),
+          metric("Last payout", btcAmt(br.last_payout_btc)),
+          metric(
+            "Last payout at",
+            br.last_payout_at
+              ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
+                  " UTC"
+              : "—"
+          ),
+          metric(
+            "Hist. interval",
+            outlook.median_payout_interval_days != null
+              ? `~${outlook.median_payout_interval_days}d between pays`
+              : "—"
+          ),
+          metric("All-time reward", btcAmt(br.all_time_reward_btc)),
+          metric("Synced", ageLabel(br.as_of) || "—"),
+        ].join("") +
+        `<p class="hint" style="margin:0.45rem 0 0">` +
+        `Inferred from payout history (API has no payout-rule field). ` +
+        `Braiins fires at 09:00 UTC once the rule is met.` +
+        (outlook.threshold_source
+          ? ` Threshold source: ${escapeHtml(outlook.threshold_source)}.`
+          : "") +
+        `</p>`;
       const workers = br.workers || [];
       if (workersEl) {
         if (!workers.length) {

@@ -87,6 +87,7 @@ def _braiins_live() -> dict:
                 "hash_rate_unit": w.get("hash_rate_unit") or bd.get("hash_rate_unit"),
             }
         )
+    outlook = bd.get("payout_outlook") if isinstance(bd.get("payout_outlook"), dict) else {}
     return {
         "ok": True,
         "status": "live",
@@ -107,6 +108,15 @@ def _braiins_live() -> dict:
         "last_payout_at": bd.get("last_payout_at"),
         "worker_count": bd.get("worker_count"),
         "workers": worker_rows,
+        "daily_reward_avg_btc": bd.get("daily_reward_avg_btc") or outlook.get("daily_reward_avg_btc"),
+        "payout_outlook": outlook or None,
+        "next_payout_est_at": bd.get("next_payout_est_at") or outlook.get("next_payout_est_at"),
+        "next_payout_threshold_btc": bd.get("next_payout_threshold_btc")
+        or outlook.get("threshold_btc"),
+        "next_payout_progress_pct": bd.get("next_payout_progress_pct")
+        or outlook.get("progress_pct"),
+        "days_to_next_payout_est": bd.get("days_to_next_payout_est")
+        or outlook.get("days_to_threshold_est"),
         "as_of": bd.get("as_of"),
         "source": "braiins_pool_api",
     }

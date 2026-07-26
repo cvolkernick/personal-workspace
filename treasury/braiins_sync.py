@@ -26,8 +26,9 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from statistics import median
 from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -119,8 +120,7 @@ def _f(v: Any) -> Optional[float]:
         return None
 
 
-def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
-    """Pick most recent confirmed/queued payout from onchain + lightning lists."""
+def _payout_rows(payouts: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for kind in ("onchain", "lightning"):
         for row in payouts.get(kind) or []:
@@ -129,9 +129,18 @@ def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
             r = dict(row)
             r["_kind"] = kind
             rows.append(r)
+    rows.sort(
+        key=lambda r: int(r.get("resolved_at_ts") or r.get("requested_at_ts") or 0),
+        reverse=True,
+    )
+    return rows
+
+
+def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
+    """Pick most recent confirmed/queued payout from onchain + lightning lists."""
+    rows = _payout_rows(payouts)
     if not rows:
         return {}
-    rows.sort(key=lambda r: int(r.get("resolved_at_ts") or r.get("requested_at_ts") or 0), reverse=True)
     best = rows[0]
     btc = _sats_to_btc(best.get("amount_sats"))
     ts = best.get("resolved_at_ts") or best.get("requested_at_ts")
@@ -158,18 +167,141 @@ def _latest_payout(payouts: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _daily_rewards_avg(rewards_payload: Dict[str, Any], coin: str = COIN, days: int = 14) -> Optional[float]:
+    """Average total_reward over recent complete days (skip incomplete today if tiny)."""
+    block = rewards_payload.get(coin) or rewards_payload.get(coin.upper()) or {}
+    daily = block.get("daily_rewards") if isinstance(block, dict) else None
+    if not isinstance(daily, list) or not daily:
+        return None
+    vals: List[float] = []
+    for row in daily:
+        if not isinstance(row, dict):
+            continue
+        v = _f(row.get("total_reward"))
+        if v is None or v <= 0:
+            continue
+        vals.append(v)
+        if len(vals) >= days:
+            break
+    if not vals:
+        return None
+    return sum(vals) / len(vals)
+
+
+def _next_0900_utc_after(dt: datetime) -> datetime:
+    """Braiins evaluates payout rules once daily at 09:00 UTC."""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    day = dt.astimezone(timezone.utc).date()
+    candidate = datetime(day.year, day.month, day.day, 9, 0, tzinfo=timezone.utc)
+    if dt <= candidate:
+        return candidate
+    nxt = day + timedelta(days=1)
+    return datetime(nxt.year, nxt.month, nxt.day, 9, 0, tzinfo=timezone.utc)
+
+
+def _infer_payout_outlook(
+    payouts: Dict[str, Any],
+    *,
+    balance_btc: Optional[float],
+    daily_reward_avg_btc: Optional[float],
+    threshold_override: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Infer next payout from history + balance.
+
+    Braiins does not expose payout-rule settings via public API. The web UI shows
+    progress toward threshold / schedule; we reconstruct from:
+      - confirmed payout amounts (threshold ≈ median amount, often 0.005 free onchain)
+      - intervals between payouts
+      - current balance + avg daily rewards
+    Actual send runs at the next 09:00 UTC evaluation after the rule is met.
+    """
+    rows = _payout_rows(payouts)
+    confirmed = [r for r in rows if (r.get("status") or "").lower() == "confirmed"]
+    amounts = [_sats_to_btc(r.get("amount_sats")) for r in confirmed]
+    amounts = [a for a in amounts if a is not None and a > 0]
+    timestamps: List[int] = []
+    for r in confirmed:
+        ts = r.get("resolved_at_ts") or r.get("requested_at_ts")
+        try:
+            timestamps.append(int(ts))
+        except (TypeError, ValueError):
+            pass
+    timestamps.sort()
+    intervals_d: List[float] = []
+    for a, b in zip(timestamps, timestamps[1:]):
+        intervals_d.append((b - a) / 86400.0)
+
+    # Free on-chain payout starts at 0.005 BTC (Braiins docs); history often clusters there.
+    FREE_ONCHAIN = 0.005
+    thr: Optional[float] = threshold_override
+    if thr is None and amounts:
+        med = float(median(amounts))
+        # Snap to free threshold when history is clearly ~0.005
+        if 0.0045 <= med <= 0.0055:
+            thr = FREE_ONCHAIN
+        else:
+            thr = round(med, 8)
+    if thr is None:
+        thr = FREE_ONCHAIN
+
+    bal = balance_btc if balance_btc is not None else 0.0
+    remaining = max(0.0, thr - bal)
+    progress = min(1.0, bal / thr) if thr > 0 else None
+    days_to: Optional[float] = None
+    next_est: Optional[str] = None
+    next_eval: Optional[str] = None
+    rate = daily_reward_avg_btc
+    if rate and rate > 0 and remaining > 0:
+        days_to = remaining / rate
+        hit = datetime.now(timezone.utc) + timedelta(days=days_to)
+        fire = _next_0900_utc_after(hit)
+        next_est = fire.isoformat()
+        next_eval = fire.isoformat()
+    elif remaining <= 0:
+        # Already at/over threshold — next daily evaluation
+        fire = _next_0900_utc_after(datetime.now(timezone.utc))
+        days_to = max(0.0, (fire - datetime.now(timezone.utc)).total_seconds() / 86400.0)
+        next_est = fire.isoformat()
+        next_eval = fire.isoformat()
+
+    interval_med = float(median(intervals_d)) if intervals_d else None
+    return {
+        "rule_inferred": "threshold",
+        "threshold_btc": thr,
+        "threshold_source": (
+            "config" if threshold_override is not None
+            else "payout_history_median" if amounts else "braiins_free_onchain_default"
+        ),
+        "balance_btc": bal,
+        "remaining_btc": round(remaining, 8),
+        "progress_pct": round(progress * 100, 1) if progress is not None else None,
+        "daily_reward_avg_btc": round(rate, 8) if rate else None,
+        "days_to_threshold_est": round(days_to, 1) if days_to is not None else None,
+        "next_payout_est_at": next_est,
+        "next_payout_eval_note": "Braiins evaluates payout rules daily at 09:00 UTC",
+        "median_payout_interval_days": round(interval_med, 1) if interval_med is not None else None,
+        "confirmed_payout_count": len(confirmed),
+        "median_payout_btc": round(float(median(amounts)), 8) if amounts else None,
+    }
+
+
 def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP_S) -> Dict[str, Any]:
-    """Pull profile + workers + recent payouts (with rate-limit gaps)."""
+    """Pull profile + workers + payouts + recent rewards (with rate-limit gaps)."""
     out: Dict[str, Any] = {
         "ok": False,
         "as_of": _now(),
         "source": "braiins_pool_api",
         "coin": coin,
     }
+    today = date.today()
+    from_d = (today - timedelta(days=45)).isoformat()
+    to_d = today.isoformat()
     endpoints = {
         "profile": f"{BASE}/accounts/profile/json/{coin}/",
         "workers": f"{BASE}/accounts/workers/json/{coin}",
         "payouts": f"{BASE}/accounts/payouts/json/{coin}",
+        "rewards": f"{BASE}/accounts/rewards/json/{coin}?from={from_d}&to={to_d}",
     }
     raw: Dict[str, Any] = {}
     errors: Dict[str, str] = {}
@@ -216,6 +348,19 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
 
     payouts = raw.get("payouts") or {}
     last_pay = _latest_payout(payouts if isinstance(payouts, dict) else {})
+    balance = _f(coin_block.get("current_balance"))
+    daily_avg = _daily_rewards_avg(raw.get("rewards") or {}, coin=coin, days=14)
+    cfg = load_config()
+    thr_override = None
+    brai_cfg = cfg.get("braiins") or {}
+    if brai_cfg.get("payout_threshold_btc") is not None:
+        thr_override = _f(brai_cfg.get("payout_threshold_btc"))
+    outlook = _infer_payout_outlook(
+        payouts if isinstance(payouts, dict) else {},
+        balance_btc=balance,
+        daily_reward_avg_btc=daily_avg,
+        threshold_override=thr_override,
+    )
 
     out.update(
         {
@@ -230,7 +375,7 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
             "low_workers": coin_block.get("low_workers"),
             "off_workers": coin_block.get("off_workers"),
             "dis_workers": coin_block.get("dis_workers"),
-            "current_balance_btc": _f(coin_block.get("current_balance")),
+            "current_balance_btc": balance,
             "today_reward_btc": _f(coin_block.get("today_reward")),
             "estimated_reward_btc": _f(coin_block.get("estimated_reward")),
             "all_time_reward_btc": _f(coin_block.get("all_time_reward")),
@@ -239,6 +384,12 @@ def fetch_snapshot(token: str, *, coin: str = COIN, sleep_s: float = REQUEST_GAP
             "last_payout": last_pay or None,
             "last_payout_btc": last_pay.get("amount_btc") if last_pay else None,
             "last_payout_at": last_pay.get("at") if last_pay else None,
+            "daily_reward_avg_btc": daily_avg,
+            "payout_outlook": outlook,
+            "next_payout_est_at": outlook.get("next_payout_est_at"),
+            "next_payout_threshold_btc": outlook.get("threshold_btc"),
+            "next_payout_progress_pct": outlook.get("progress_pct"),
+            "days_to_next_payout_est": outlook.get("days_to_threshold_est"),
         }
     )
     if errors:
