@@ -7,6 +7,7 @@ Serves static UI + APIs:
   GET  /api/watchlist  — watchlist + deep-dive summaries
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
+  GET  /api/braiins       — Braiins Pool mining snapshot summary
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
 
@@ -37,6 +38,78 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     build_watchlist_dashboard,
     get_deep_dive_markdown,
 )
+
+BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
+
+
+def _braiins_live() -> dict:
+    """Public Braiins summary for FCC main dash + capital-flows (no secrets)."""
+    if not BRAIINS_SNAPSHOT.is_file():
+        return {
+            "ok": False,
+            "status": "missing",
+            "error": (
+                "no braiins_latest.json — run: python3 treasury/braiins_sync.py "
+                "(token at ~/.config/braiins/token)"
+            ),
+        }
+    try:
+        bd = json.loads(BRAIINS_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        return {"ok": False, "status": "error", "error": str(e)}
+    if not isinstance(bd, dict):
+        return {"ok": False, "status": "error", "error": "invalid braiins snapshot"}
+    if not bd.get("ok"):
+        err = bd.get("error") or "sync failed"
+        if err == "token_missing":
+            err = (
+                "token missing — ~/.config/braiins/token or BRAIINS_POOL_TOKEN, "
+                "then python3 treasury/braiins_sync.py"
+            )
+        return {
+            "ok": False,
+            "status": "token_missing" if bd.get("error") == "token_missing" else "error",
+            "error": err,
+            "as_of": bd.get("as_of"),
+        }
+    workers = bd.get("workers") or []
+    # Compact worker list for UI
+    worker_rows = []
+    for w in workers[:20]:
+        if not isinstance(w, dict):
+            continue
+        worker_rows.append(
+            {
+                "name": w.get("name"),
+                "state": w.get("state"),
+                "hash_rate_24h": w.get("hash_rate_24h"),
+                "hash_rate_5m": w.get("hash_rate_5m"),
+                "hash_rate_unit": w.get("hash_rate_unit") or bd.get("hash_rate_unit"),
+            }
+        )
+    return {
+        "ok": True,
+        "status": "live",
+        "username": bd.get("username"),
+        "hash_rate_5m": bd.get("hash_rate_5m"),
+        "hash_rate_60m": bd.get("hash_rate_60m"),
+        "hash_rate_24h": bd.get("hash_rate_24h"),
+        "hash_rate_unit": bd.get("hash_rate_unit") or "Gh/s",
+        "ok_workers": bd.get("ok_workers"),
+        "low_workers": bd.get("low_workers"),
+        "off_workers": bd.get("off_workers"),
+        "dis_workers": bd.get("dis_workers"),
+        "today_reward_btc": bd.get("today_reward_btc"),
+        "estimated_reward_btc": bd.get("estimated_reward_btc"),
+        "current_balance_btc": bd.get("current_balance_btc"),
+        "all_time_reward_btc": bd.get("all_time_reward_btc"),
+        "last_payout_btc": bd.get("last_payout_btc"),
+        "last_payout_at": bd.get("last_payout_at"),
+        "worker_count": bd.get("worker_count"),
+        "workers": worker_rows,
+        "as_of": bd.get("as_of"),
+        "source": "braiins_pool_api",
+    }
 
 
 def _capital_flows_payload() -> dict:
@@ -98,54 +171,15 @@ def _capital_flows_payload() -> dict:
         except (OSError, json.JSONDecodeError, TypeError):
             pass
     # Braiins Pool mining snapshot (treasury/braiins_sync.py)
-    brai_path = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
-    if brai_path.is_file():
-        try:
-            bd = json.loads(brai_path.read_text(encoding="utf-8"))
-            if not bd.get("ok"):
-                err = bd.get("error") or "sync failed"
-                if err == "token_missing":
-                    err = (
-                        "token missing — ~/.config/braiins/token or BRAIINS_POOL_TOKEN, "
-                        "then python3 treasury/braiins_sync.py"
-                    )
-                live["braiins"] = {
-                    "status": "error",
-                    "error": err,
-                    "as_of": bd.get("as_of"),
-                }
-            else:
-                live["braiins"] = {
-                    "status": "live",
-                    "username": bd.get("username"),
-                    "hash_rate_5m": bd.get("hash_rate_5m"),
-                    "hash_rate_60m": bd.get("hash_rate_60m"),
-                    "hash_rate_24h": bd.get("hash_rate_24h"),
-                    "hash_rate_unit": bd.get("hash_rate_unit") or "Gh/s",
-                    "ok_workers": bd.get("ok_workers"),
-                    "low_workers": bd.get("low_workers"),
-                    "off_workers": bd.get("off_workers"),
-                    "today_reward_btc": bd.get("today_reward_btc"),
-                    "estimated_reward_btc": bd.get("estimated_reward_btc"),
-                    "current_balance_btc": bd.get("current_balance_btc"),
-                    "all_time_reward_btc": bd.get("all_time_reward_btc"),
-                    "last_payout_btc": bd.get("last_payout_btc"),
-                    "last_payout_at": bd.get("last_payout_at"),
-                    "worker_count": bd.get("worker_count"),
-                    "as_of": bd.get("as_of"),
-                }
-            # Surface status on integrations block for UI
-            integ = data.get("integrations")
-            if isinstance(integ, dict) and isinstance(integ.get("braiins_pool"), dict):
-                bp = dict(integ["braiins_pool"])
-                if bd.get("ok"):
-                    bp["status"] = "live"
-                    bp["last_sync"] = bd.get("as_of")
-                else:
-                    bp["status"] = "token_missing" if bd.get("error") == "token_missing" else "error"
-                data["integrations"] = {**integ, "braiins_pool": bp}
-        except (OSError, json.JSONDecodeError, TypeError):
-            pass
+    br = _braiins_live()
+    live["braiins"] = br
+    integ = data.get("integrations")
+    if isinstance(integ, dict) and isinstance(integ.get("braiins_pool"), dict):
+        bp = dict(integ["braiins_pool"])
+        bp["status"] = br.get("status") or ("live" if br.get("ok") else "error")
+        if br.get("as_of"):
+            bp["last_sync"] = br.get("as_of")
+        data["integrations"] = {**integ, "braiins_pool": bp}
     data["live"] = live
     # Prefer simpler key for SVG caption (express-pay Lyft on X Money)
     if live.get("lyft_inflow_from_x_money_txs") is not None:
@@ -192,7 +226,13 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except json.JSONDecodeError as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
+            if isinstance(data, dict):
+                data = dict(data)
+                data["braiins"] = _braiins_live()
             self._json(200, data)
+            return
+        if path == "/api/braiins":
+            self._json(200, _braiins_live())
             return
         if path == "/api/config":
             self._json(200, {"ok": True, "config": load_config()})

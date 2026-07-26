@@ -752,6 +752,26 @@
       </div>
     </section>
 
+    <section class="card" id="braiins-card">
+      <div class="card-head">
+        <h2>ASIC mining · Braiins Pool</h2>
+        <span class="live-dot off" id="braiins-live-dot">—</span>
+      </div>
+      <p class="hint" style="margin-top:0">
+        Income → Coinbase (~monthly). Sync: <code>python3 treasury/braiins_sync.py</code>
+      </p>
+      <div class="grid-2" style="margin-top:0.55rem">
+        <div id="braiins-metrics">Loading…</div>
+        <div>
+          <div class="hint">Workers</div>
+          <div id="braiins-workers"></div>
+          <p class="hint" style="margin-top:0.55rem">
+            <a href="capital-flows.html">Capital flows map →</a>
+          </p>
+        </div>
+      </div>
+    </section>
+
     <section class="card" id="upcoming-card">
       <div class="bill-section-head">
         <h2 style="margin:0">Upcoming bills (estimates)</h2>
@@ -916,6 +936,28 @@
     }
     function metric(label, val) {
       return `<div class="metric"><span class="label">${label}</span><span class="val">${val}</span></div>`;
+    }
+    function btcAmt(n, digits = 8) {
+      if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
+      return Number(n).toFixed(digits) + " BTC";
+    }
+    /** Prefer TH/s when Braiins reports large Gh/s figures. */
+    function formatHashrate(v, unit) {
+      if (v == null || v === "" || !Number.isFinite(Number(v))) return "—";
+      const n = Number(v);
+      const u = String(unit || "Gh/s");
+      const low = u.toLowerCase();
+      if ((low.startsWith("gh") || low === "ghs" || low === "gh/s") && n >= 1000) {
+        return (
+          (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) +
+          " TH/s"
+        );
+      }
+      return (
+        n.toLocaleString(undefined, { maximumFractionDigits: n >= 100 ? 0 : 1 }) +
+        " " +
+        u
+      );
     }
     function actorLabel(a) {
       if (a === "human") return "You";
@@ -1262,6 +1304,7 @@
       // Feeds line (hover for age)
       const meta = snap.meta || {};
       const src = (ev.data_quality && ev.data_quality.sources) || {};
+      const brFeed = data.braiins || {};
       const feeds = [
         ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of],
         ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of],
@@ -1269,6 +1312,11 @@
         ["X Money", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of],
         ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of],
         ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of],
+        [
+          "Braiins",
+          brFeed.ok ? brFeed.source || "live" : brFeed.status || "empty",
+          brFeed.as_of,
+        ],
       ];
       const ages = feeds.map(([, , asOf]) => ageLabel(asOf)).filter(Boolean);
       const newest = ages[0] || "—";
@@ -1400,6 +1448,22 @@
           v: pct(inp.ltv),
           s: stress.coinbase_ltv || "set in Settings",
           target: "panel-settings",
+        },
+        {
+          k: "ASICs 24h",
+          v: (() => {
+            const br = data.braiins || {};
+            if (!br.ok) return "—";
+            return formatHashrate(br.hash_rate_24h, br.hash_rate_unit);
+          })(),
+          s: (() => {
+            const br = data.braiins || {};
+            if (!br.ok) return br.error ? "sync needed" : "Braiins";
+            const ok = br.ok_workers != null ? br.ok_workers : "?";
+            const off = br.off_workers || 0;
+            return `${ok} ok` + (off ? ` · ${off} off` : "") + " · Braiins";
+          })(),
+          target: "braiins-card",
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
@@ -1895,7 +1959,90 @@
       set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
       set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
 
+      renderBraiins(data.braiins);
       window.__treasury = data;
+    }
+
+    function renderBraiins(br) {
+      const metricsEl = document.getElementById("braiins-metrics");
+      const workersEl = document.getElementById("braiins-workers");
+      const dot = document.getElementById("braiins-live-dot");
+      if (!metricsEl) return;
+      br = br || {};
+      if (!br.ok) {
+        if (dot) {
+          dot.className = "live-dot off";
+          dot.textContent = br.status === "missing" ? "No snapshot" : "Offline";
+        }
+        metricsEl.innerHTML =
+          `<p class="hint" style="margin:0">${escapeHtml(
+            br.error || "Braiins not synced"
+          )}</p>` +
+          `<p class="hint">Token at <code>~/.config/braiins/token</code> then ` +
+          `<code>python3 treasury/braiins_sync.py</code></p>`;
+        if (workersEl) workersEl.innerHTML = "";
+        return;
+      }
+      if (dot) {
+        const off = Number(br.off_workers || 0);
+        const low = Number(br.low_workers || 0);
+        if (off > 0) {
+          dot.className = "live-dot off";
+          dot.textContent = off + " offline";
+        } else if (low > 0) {
+          dot.className = "live-dot off";
+          dot.textContent = low + " low";
+        } else {
+          dot.className = "live-dot";
+          dot.textContent = "Live · " + (ageLabel(br.as_of) || "ok");
+        }
+      }
+      metricsEl.innerHTML = [
+        metric("User", escapeHtml(br.username || "—")),
+        metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
+        metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
+        metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
+        metric(
+          "Workers",
+          `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
+            (br.low_workers ? ` · ${br.low_workers} low` : "") +
+            (br.off_workers ? ` · ${br.off_workers} off` : "")
+        ),
+        metric("Today reward", btcAmt(br.today_reward_btc)),
+        metric("Est. reward (block)", btcAmt(br.estimated_reward_btc)),
+        metric("Pool balance", btcAmt(br.current_balance_btc)),
+        metric("Last payout", btcAmt(br.last_payout_btc)),
+        metric(
+          "Last payout at",
+          br.last_payout_at
+            ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
+                " UTC"
+            : "—"
+        ),
+        metric("All-time reward", btcAmt(br.all_time_reward_btc)),
+        metric("Synced", ageLabel(br.as_of) || "—"),
+      ].join("");
+      const workers = br.workers || [];
+      if (workersEl) {
+        if (!workers.length) {
+          workersEl.innerHTML = `<p class="hint">No worker detail</p>`;
+        } else {
+          workersEl.innerHTML = workers
+            .map((w) => {
+              const name = String(w.name || "?").split(".").pop() || w.name;
+              const st = w.state || "?";
+              return (
+                `<div class="metric" style="margin-bottom:0.35rem">` +
+                `<span class="label">${escapeHtml(name)} · ${escapeHtml(st)}</span>` +
+                `<span class="val" style="font-size:0.9rem">${formatHashrate(
+                  w.hash_rate_24h != null ? w.hash_rate_24h : w.hash_rate_5m,
+                  w.hash_rate_unit || br.hash_rate_unit
+                )} 24h</span></div>`
+              );
+            })
+            .join("");
+        }
+      }
     }
 
     function readManualForm() {
@@ -1995,6 +2142,12 @@
           data = await res.json();
         }
         if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury payload");
+        if (!data.braiins) {
+          try {
+            const brRes = await fetch("/api/braiins?ts=" + Date.now());
+            if (brRes.ok) data.braiins = await brRes.json();
+          } catch (_) {}
+        }
         window.__treasury = data;
         render(data);
         loadWatchlistPreview();
@@ -2017,8 +2170,17 @@
         });
         const body = await res.json();
         if (!res.ok || !body.ok) throw new Error(body.error || res.status);
-        if (body.treasury) render(body.treasury);
-        else await loadTreasury();
+        if (body.treasury) {
+          const t = body.treasury;
+          if (!t.braiins) {
+            try {
+              const brRes = await fetch("/api/braiins?ts=" + Date.now());
+              if (brRes.ok) t.braiins = await brRes.json();
+            } catch (_) {}
+          }
+          window.__treasury = t;
+          render(t);
+        } else await loadTreasury();
         toast("Updated all feeds");
       } catch (e) {
         toast("Refresh failed — is the server running?");
