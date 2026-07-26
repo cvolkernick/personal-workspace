@@ -547,12 +547,125 @@
       background: linear-gradient(145deg, #141a28 0%, var(--panel) 60%);
       border: 1px solid #2a3a55;
       border-radius: 14px;
-      padding: 0.75rem 1rem;
+      padding: 0.75rem 1rem 1rem;
       margin-bottom: 1rem;
     }
     details.ikigai-panel > summary {
       font-weight: 700; cursor: pointer; color: var(--cyan);
     }
+    /* Classic 4-circle Ikigai Venn */
+    .ikigai-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 1.15fr) minmax(240px, 0.95fr);
+      gap: 1rem 1.25rem;
+      margin-top: 0.75rem;
+      align-items: start;
+    }
+    @media (max-width: 820px) {
+      .ikigai-layout { grid-template-columns: 1fr; }
+    }
+    .ikigai-venn-wrap {
+      position: relative;
+      width: 100%;
+      max-width: 420px;
+      margin: 0 auto;
+      aspect-ratio: 1;
+    }
+    .ikigai-venn-wrap svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+    .ikigai-venn-wrap .venn-circle {
+      fill-opacity: 0.38;
+      stroke-width: 1.6;
+      cursor: pointer;
+      transition: fill-opacity 0.15s, stroke-width 0.15s;
+    }
+    .ikigai-venn-wrap .venn-circle:hover,
+    .ikigai-venn-wrap .venn-circle.active {
+      fill-opacity: 0.55;
+      stroke-width: 2.4;
+    }
+    .ikigai-venn-wrap .venn-circle.c-love { fill: #c084fc; stroke: #e9d5ff; }
+    .ikigai-venn-wrap .venn-circle.c-good { fill: #5b9fd4; stroke: #93c5fd; }
+    .ikigai-venn-wrap .venn-circle.c-world { fill: #3dd68c; stroke: #86efac; }
+    .ikigai-venn-wrap .venn-circle.c-paid { fill: #f0a060; stroke: #fdba74; }
+    .ikigai-venn-wrap .venn-label {
+      font-size: 11px; font-weight: 700; fill: var(--text);
+      text-anchor: middle; pointer-events: none;
+      text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .ikigai-venn-wrap .venn-sublabel {
+      font-size: 9px; font-weight: 600; fill: var(--muted);
+      text-anchor: middle; pointer-events: none;
+    }
+    .ikigai-venn-wrap .venn-center-label {
+      font-size: 13px; font-weight: 800; fill: #f8fafc;
+      text-anchor: middle; pointer-events: none;
+      letter-spacing: 0.08em;
+    }
+    .ikigai-venn-wrap .venn-hit {
+      fill: transparent; cursor: pointer;
+    }
+    .ikigai-detail {
+      background: #0a1018;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      min-height: 220px;
+    }
+    .ikigai-detail .region-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cyan); margin: 0 0 0.35rem;
+    }
+    .ikigai-detail .region-summary {
+      font-size: 0.92rem; font-weight: 600; margin: 0 0 0.55rem;
+      line-height: 1.4; color: var(--text);
+    }
+    .ikigai-detail ul {
+      margin: 0; padding-left: 1.1rem; color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .ikigai-detail li { margin: 0.2rem 0; }
+    .ikigai-detail .empty-hint {
+      color: var(--muted); font-size: 0.85rem; margin: 0;
+    }
+    .ikigai-center-card {
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 10px;
+      border: 1px solid #3a4a6a;
+      background: rgba(20, 30, 48, 0.85);
+    }
+    .ikigai-center-card .label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--purple); margin-bottom: 0.3rem;
+    }
+    .ikigai-center-card .statement {
+      font-size: 0.9rem; line-height: 1.45; font-weight: 600; margin: 0;
+    }
+    .ikigai-legend {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.65rem;
+      justify-content: center;
+    }
+    .ikigai-legend button {
+      font-size: 0.72rem; font-weight: 650; padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+    }
+    .ikigai-legend button.active {
+      border-color: var(--accent); color: var(--accent);
+    }
+    .ikigai-edit details {
+      margin-top: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding-top: 0.65rem;
+    }
+    .ikigai-edit summary {
+      cursor: pointer; font-size: 0.85rem; font-weight: 650; color: var(--muted);
+    }
+    .ikigai-edit summary:hover { color: var(--accent); }
     .strategy-panel .paths {
       margin-top: 0.65rem; font-size: 0.78rem; color: var(--muted);
       display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
@@ -577,36 +690,89 @@
   <main>
     <div class="error-banner" id="error"></div>
 
-    <details class="secondary ikigai-panel" id="sec-ikigai" open>
+    <details class="ikigai-panel" id="sec-ikigai" open>
       <summary>Identity / Ikigai (Layer 0) <span class="badge" id="ikigai-badge">—</span></summary>
-      <p class="hint" style="margin:0.45rem 0;color:var(--muted);font-size:0.82rem">
-        North star. Edit here or in <code>strategy/ikigai/</code>. Bets nest under this — not co-equal.
+      <p class="hint" style="margin:0.45rem 0 0;color:var(--muted);font-size:0.82rem">
+        Classic four-circle map. Click a circle or petal to inspect · edit under the diagram · source <code>strategy/ikigai/</code>
       </p>
-      <div class="guiding" id="ikigai-center" style="margin:0.35rem 0 0.65rem;font-weight:600"></div>
-      <div class="bet-chips" id="ikigai-themes" style="margin-bottom:0.65rem"></div>
-      <div class="intent-row">
-        <div class="intent-half">
-          <label class="field-label" for="ikigai-statement">Center statement</label>
-          <textarea id="ikigai-statement" rows="3" placeholder="Who you are at the intersection…"></textarea>
+
+      <div class="ikigai-layout">
+        <div>
+          <div class="ikigai-venn-wrap" id="ikigai-venn" aria-label="Ikigai four-circle diagram">
+            <!-- SVG: 4 overlapping circles (love / good_at / world_needs / paid_for) -->
+            <svg viewBox="0 0 400 400" role="img" aria-labelledby="ikigai-svg-title">
+              <title id="ikigai-svg-title">Ikigai Venn: love, good at, world needs, paid for</title>
+              <!-- Circles: top-left love, top-right good, bottom-left world, bottom-right paid -->
+              <circle class="venn-circle c-love" data-region="love" cx="155" cy="155" r="112" />
+              <circle class="venn-circle c-good" data-region="good_at" cx="245" cy="155" r="112" />
+              <circle class="venn-circle c-world" data-region="world_needs" cx="155" cy="245" r="112" />
+              <circle class="venn-circle c-paid" data-region="paid_for" cx="245" cy="245" r="112" />
+              <!-- Outer pillar labels -->
+              <text class="venn-label" x="95" y="72">What you love</text>
+              <text class="venn-label" x="305" y="72">What you're good at</text>
+              <text class="venn-label" x="90" y="340">What the world needs</text>
+              <text class="venn-label" x="310" y="340">What you can be paid for</text>
+              <!-- Intersection petal labels -->
+              <text class="venn-sublabel" x="200" y="108" data-region="passion">Passion</text>
+              <text class="venn-sublabel" x="100" y="200" data-region="mission">Mission</text>
+              <text class="venn-sublabel" x="300" y="200" data-region="profession">Profession</text>
+              <text class="venn-sublabel" x="200" y="298" data-region="vocation">Vocation</text>
+              <!-- Center -->
+              <text class="venn-center-label" x="200" y="196" data-region="center">IKIGAI</text>
+              <text class="venn-sublabel" x="200" y="214" data-region="center" id="ikigai-venn-center-hint">center</text>
+              <!-- Invisible hit targets for intersections (approx petals) -->
+              <circle class="venn-hit" data-region="passion" cx="200" cy="120" r="28" />
+              <circle class="venn-hit" data-region="mission" cx="112" cy="200" r="28" />
+              <circle class="venn-hit" data-region="profession" cx="288" cy="200" r="28" />
+              <circle class="venn-hit" data-region="vocation" cx="200" cy="280" r="28" />
+              <circle class="venn-hit" data-region="center" cx="200" cy="200" r="32" />
+            </svg>
+          </div>
+          <div class="ikigai-legend" id="ikigai-legend"></div>
         </div>
-        <div class="intent-half">
-          <label class="field-label" for="ikigai-themes-edit">Themes (one per line)</label>
-          <textarea id="ikigai-themes-edit" rows="3" placeholder="AI leverage…"></textarea>
+
+        <div class="ikigai-detail" id="ikigai-detail">
+          <div class="region-title" id="ikigai-detail-title">Ikigai center</div>
+          <p class="region-summary" id="ikigai-detail-summary">Loading…</p>
+          <ul id="ikigai-detail-items"></ul>
+          <p class="empty-hint" id="ikigai-detail-empty" hidden>No items for this region yet.</p>
         </div>
       </div>
-      <label class="field-label" for="ikigai-love">Love (one per line)</label>
-      <textarea id="ikigai-love" rows="2"></textarea>
-      <label class="field-label" for="ikigai-good-at">Good at (one per line)</label>
-      <textarea id="ikigai-good-at" rows="2"></textarea>
-      <label class="field-label" for="ikigai-world">World needs (one per line)</label>
-      <textarea id="ikigai-world" rows="2"></textarea>
-      <label class="field-label" for="ikigai-paid">Paid for (one per line)</label>
-      <textarea id="ikigai-paid" rows="2"></textarea>
-      <label class="field-label" for="ikigai-oob">Out of bounds (one per line)</label>
-      <textarea id="ikigai-oob" rows="2"></textarea>
-      <div class="intent-actions">
-        <button type="button" class="primary" id="btn-ikigai-save">Save Ikigai</button>
-        <span class="hint" id="ikigai-meta" style="color:var(--muted);font-size:0.8rem"></span>
+
+      <div class="ikigai-center-card">
+        <div class="label">Center statement</div>
+        <p class="statement" id="ikigai-center">—</p>
+        <div class="bet-chips" id="ikigai-themes" style="margin-top:0.5rem"></div>
+      </div>
+
+      <div class="ikigai-edit">
+        <details id="ikigai-edit-details">
+          <summary>Edit pillars &amp; save</summary>
+          <div class="intent-row" style="margin-top:0.65rem">
+            <div class="intent-half">
+              <label class="field-label" for="ikigai-statement">Center statement</label>
+              <textarea id="ikigai-statement" rows="3" placeholder="Who you are at the intersection…"></textarea>
+            </div>
+            <div class="intent-half">
+              <label class="field-label" for="ikigai-themes-edit">Themes (one per line)</label>
+              <textarea id="ikigai-themes-edit" rows="3" placeholder="AI leverage…"></textarea>
+            </div>
+          </div>
+          <label class="field-label" for="ikigai-love">Love (one per line)</label>
+          <textarea id="ikigai-love" rows="2"></textarea>
+          <label class="field-label" for="ikigai-good-at">Good at (one per line)</label>
+          <textarea id="ikigai-good-at" rows="2"></textarea>
+          <label class="field-label" for="ikigai-world">World needs (one per line)</label>
+          <textarea id="ikigai-world" rows="2"></textarea>
+          <label class="field-label" for="ikigai-paid">Paid for (one per line)</label>
+          <textarea id="ikigai-paid" rows="2"></textarea>
+          <label class="field-label" for="ikigai-oob">Out of bounds (one per line)</label>
+          <textarea id="ikigai-oob" rows="2"></textarea>
+          <div class="intent-actions">
+            <button type="button" class="primary" id="btn-ikigai-save">Save Ikigai</button>
+            <span class="hint" id="ikigai-meta" style="color:var(--muted);font-size:0.8rem"></span>
+          </div>
+        </details>
       </div>
     </details>
 
@@ -1237,9 +1403,101 @@
       }
     }
 
+    const IKIGAI_REGIONS = {
+      love: { title: "What you love", kind: "pillar", key: "love" },
+      good_at: { title: "What you're good at", kind: "pillar", key: "good_at" },
+      world_needs: { title: "What the world needs", kind: "pillar", key: "world_needs" },
+      paid_for: { title: "What you can be paid for", kind: "pillar", key: "paid_for" },
+      passion: { title: "Passion", kind: "intersection", key: "passion", blurb: "Love ∩ Good at" },
+      mission: { title: "Mission", kind: "intersection", key: "mission", blurb: "Love ∩ World needs" },
+      profession: { title: "Profession", kind: "intersection", key: "profession", blurb: "Good at ∩ Paid for" },
+      vocation: { title: "Vocation", kind: "intersection", key: "vocation", blurb: "World needs ∩ Paid for" },
+      center: { title: "Ikigai center", kind: "center", blurb: "All four pillars" },
+      out_of_bounds: { title: "Out of bounds", kind: "oob" },
+    };
+
+    let lastIkigai = null;
+    let ikigaiActiveRegion = "center";
+
+    function selectIkigaiRegion(regionId) {
+      ikigaiActiveRegion = regionId || "center";
+      const wrap = $("ikigai-venn");
+      if (wrap) {
+        wrap.querySelectorAll(".venn-circle").forEach((c) => {
+          c.classList.toggle("active", c.getAttribute("data-region") === regionId);
+        });
+      }
+      const legend = $("ikigai-legend");
+      if (legend) {
+        legend.querySelectorAll("button").forEach((b) => {
+          b.classList.toggle("active", b.getAttribute("data-region") === regionId);
+        });
+      }
+      renderIkigaiDetail(lastIkigai, ikigaiActiveRegion);
+    }
+
+    function renderIkigaiDetail(ik, regionId) {
+      const reg = IKIGAI_REGIONS[regionId] || IKIGAI_REGIONS.center;
+      const titleEl = $("ikigai-detail-title");
+      const sumEl = $("ikigai-detail-summary");
+      const listEl = $("ikigai-detail-items");
+      const emptyEl = $("ikigai-detail-empty");
+      if (!titleEl || !ik) return;
+
+      titleEl.textContent = reg.title + (reg.blurb ? " · " + reg.blurb : "");
+      let summary = "";
+      let items = [];
+
+      if (reg.kind === "center") {
+        summary = (ik.center && ik.center.statement) || "No center statement yet.";
+        items = (ik.center && ik.center.themes) || [];
+      } else if (reg.kind === "pillar") {
+        const p = (ik.pillars || {})[reg.key] || {};
+        items = p.items || [];
+        summary = items.length
+          ? items.length + " item" + (items.length === 1 ? "" : "s") + " in this pillar"
+          : "No items yet — add under Edit pillars.";
+      } else if (reg.kind === "intersection") {
+        const inter = (ik.intersections || {})[reg.key] || {};
+        summary = inter.summary || ("Intersection: " + (reg.blurb || reg.key));
+        items = inter.items || [];
+      } else if (reg.kind === "oob") {
+        summary = "Hard no's — soft-downranked by Focus Coach";
+        items = ik.out_of_bounds || [];
+      }
+
+      sumEl.textContent = summary;
+      if (items && items.length) {
+        listEl.innerHTML = items.map((x) => `<li>${esc(x)}</li>`).join("");
+        listEl.hidden = false;
+        if (emptyEl) emptyEl.hidden = true;
+      } else {
+        listEl.innerHTML = "";
+        listEl.hidden = true;
+        if (emptyEl) {
+          emptyEl.hidden = false;
+          emptyEl.textContent = reg.kind === "center"
+            ? "Add themes under Edit pillars."
+            : "No items for this region yet.";
+        }
+      }
+    }
+
+    function wireIkigaiVennOnce() {
+      const wrap = $("ikigai-venn");
+      if (!wrap || wrap.dataset.wired) return;
+      wrap.dataset.wired = "1";
+      wrap.addEventListener("click", (ev) => {
+        const t = ev.target.closest("[data-region]");
+        if (!t) return;
+        selectIkigaiRegion(t.getAttribute("data-region"));
+      });
+    }
+
     function fillIkigaiForm(data) {
       const ik = data.ikigai || data.identity || {};
       const meta = data.ikigai_meta || {};
+      lastIkigai = ik;
       const stmt = $("ikigai-statement");
       if (!stmt) return;
       const center = ik.center || {};
@@ -1255,7 +1513,7 @@
       }
       $("ikigai-center").textContent = center.statement
         ? center.statement
-        : "No center statement yet — fill and save.";
+        : "No center statement yet — fill and save under Edit pillars.";
       const themes = center.themes || [];
       $("ikigai-themes").innerHTML = themes
         .map((t) => `<span class="bet-chip">${esc(t)}</span>`)
@@ -1268,6 +1526,37 @@
           ? "Updated " + meta.updated_at + " · " + (meta.path || "strategy/ikigai/pillars.json")
           : "Source: " + (meta.path || "strategy/ikigai/pillars.json");
       }
+
+      // Legend chips
+      const legend = $("ikigai-legend");
+      if (legend) {
+        const order = [
+          "love", "good_at", "world_needs", "paid_for",
+          "passion", "mission", "profession", "vocation",
+          "center", "out_of_bounds",
+        ];
+        legend.innerHTML = order.map((id) => {
+          const r = IKIGAI_REGIONS[id];
+          const short = id === "good_at" ? "Good at"
+            : id === "world_needs" ? "World needs"
+            : id === "paid_for" ? "Paid for"
+            : id === "out_of_bounds" ? "Out of bounds"
+            : id === "center" ? "Center"
+            : r.title;
+          return `<button type="button" data-region="${esc(id)}">${esc(short)}</button>`;
+        }).join("");
+        if (!legend.dataset.wired) {
+          legend.dataset.wired = "1";
+          legend.addEventListener("click", (ev) => {
+            const b = ev.target.closest("button[data-region]");
+            if (!b) return;
+            selectIkigaiRegion(b.getAttribute("data-region"));
+          });
+        }
+      }
+
+      wireIkigaiVennOnce();
+      selectIkigaiRegion(ikigaiActiveRegion || "center");
     }
 
     function render(data) {
