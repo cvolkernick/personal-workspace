@@ -30,6 +30,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | holistic (time allocator) | 8770 | `python3 holistic/server.py` |
 | iot (Wiz lights) | 8780 | `python3 iot/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
+| **B2** (Brain 2 knowledge base) | **8792** | `python3 b2-ux/server.py` · vault `~/B2` |
 
 ## Top-level directories (TLDs)
 
@@ -44,6 +45,7 @@ Grouped by domain. Git work branches follow the same groups (see `Agents.md`).
 | **Time** | `holistic/` | `work/holistic` |
 | **IoT** | `iot/` | `work/iot` |
 | **Planning** | `strategy/`, `initiatives/` | meta (not a work area card) |
+| **Knowledge (B2)** | `brain2/` (vault), `b2-ux/` (UX) | meta · open vault via `~/B2` |
 
 ### What each folder is
 - **orchestra/** — Top-level Orchestra UI + collectors (synergies, priorities, multi-domain status).

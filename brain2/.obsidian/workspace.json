@@ -1,0 +1,35 @@
+{
+  "main": {
+    "id": "b2-main",
+    "type": "split",
+    "children": [
+      {
+        "id": "b2-leaf",
+        "type": "leaf",
+        "state": {
+          "type": "markdown",
+          "state": {
+            "file": "00 Home - B2 Hub.md",
+            "mode": "source"
+          }
+        }
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "b2-left",
+    "type": "split",
+    "children": [
+      {
+        "id": "b2-file-explorer",
+        "type": "leaf",
+        "state": { "type": "file-explorer" }
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "active": "b2-leaf",
+  "lastOpenFiles": ["00 Home - B2 Hub.md", "HOWTO - Using B2.md"]
+}
