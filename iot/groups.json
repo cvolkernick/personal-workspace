@@ -9,7 +9,7 @@
   },
   "masterbedroom": {
     "label": "Master Bedroom",
-    "members": ["masterbedroom1", "plantlight", "smallplantlight"]
+    "members": ["masterbedroom1"]
   },
   "masterbathroom": {
     "label": "Master Bathroom",
