@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from b2_kb.vault import (  # noqa: E402
     DEFAULT_VAULT_PATH,
+    build_graph,
     extract_wikilinks,
     index_vault,
     list_notes,
@@ -165,6 +166,44 @@ class TestFixtureVault(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBuildGraph(unittest.TestCase):
+    def test_real_vault_graph_has_edges_from_wikilinks(self):
+        if not REAL_VAULT.is_dir():
+            self.skipTest("no real vault")
+        g = build_graph(REAL_VAULT)
+        self.assertGreaterEqual(g["stats"]["note_count"], 5)
+        self.assertGreaterEqual(
+            g["stats"]["edge_count"],
+            1,
+            "seed vault should have at least one wikilink edge",
+        )
+        node_ids = {n["id"] for n in g["nodes"]}
+        for e in g["edges"]:
+            self.assertIn(e["source"], node_ids)
+            self.assertIn(e["target"], node_ids)
+            self.assertEqual(e["kind"], "wikilink")
+        # Hub should be a high-degree or connected node
+        titles = {n["title"] for n in g["nodes"]}
+        self.assertTrue(any("Hub" in t or "B2" in t for t in titles))
+
+    def test_fixture_graph_links_alpha_beta(self):
+        notes = index_vault(FIXTURE)
+        g = build_graph(FIXTURE, notes=notes)
+        self.assertEqual(g["stats"]["note_count"], 2)
+        self.assertGreaterEqual(g["stats"]["edge_count"], 1)
+        pairs = {(e["source"], e["target"]) for e in g["edges"]}
+        # undirected storage uses source/target from first encounter
+        linked = any(
+            ("Alpha.md" in a and "Beta.md" in b) or ("Beta.md" in a and "Alpha.md" in b)
+            for a, b in pairs
+        ) or any(
+            Path(e["source"]).stem in ("Alpha", "Beta")
+            and Path(e["target"]).stem in ("Alpha", "Beta")
+            for e in g["edges"]
+        )
+        self.assertTrue(linked, g["edges"])
 
 
 class TestDocumentedLaunchPaths(unittest.TestCase):

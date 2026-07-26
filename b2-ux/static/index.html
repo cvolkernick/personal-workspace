@@ -40,10 +40,34 @@
             <p class="muted" id="note-path"></p>
           </div>
           <div class="topbar-actions">
+            <button type="button" class="pill-btn" id="btn-graph" title="Knowledge graph">
+              Graph
+            </button>
             <span id="auth-pill" class="pill" title="Ask Grok auth status">auth…</span>
             <span id="note-count-pill" class="pill">0 notes</span>
           </div>
         </header>
+
+        <section class="card graph-card" id="graph-card">
+          <div class="graph-header">
+            <div>
+              <h3>Knowledge graph</h3>
+              <p class="muted graph-blurb">
+                Obsidian-style map of notes linked by <code>[[wikilinks]]</code>.
+                Drag nodes · scroll to zoom · click to open.
+              </p>
+            </div>
+            <div class="graph-controls">
+              <span id="graph-stats" class="muted"></span>
+              <button type="button" id="btn-graph-reset" title="Reset view">Reset</button>
+              <button type="button" id="btn-graph-toggle" title="Collapse graph">Hide</button>
+            </div>
+          </div>
+          <div class="graph-canvas-wrap" id="graph-wrap">
+            <canvas id="graph-canvas" aria-label="Vault knowledge graph"></canvas>
+            <div id="graph-tooltip" class="graph-tooltip" hidden></div>
+          </div>
+        </section>
 
         <section class="card ask-card" id="ask-card">
           <h3>Ask Grok</h3>

@@ -180,6 +180,113 @@ body {
   white-space: nowrap;
 }
 
+.pill-btn {
+  border: 1px solid rgba(110, 168, 255, 0.45);
+  background: linear-gradient(135deg, rgba(110, 168, 255, 0.18), rgba(139, 124, 255, 0.15));
+  border-radius: 999px;
+  padding: 0.3rem 0.85rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pill-btn:hover,
+.pill-btn.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #0b1020;
+  border-color: transparent;
+}
+
+.graph-card {
+  padding: 0.85rem 1rem 1rem;
+}
+
+.graph-card.collapsed .graph-canvas-wrap {
+  display: none;
+}
+
+.graph-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  margin-bottom: 0.65rem;
+}
+
+.graph-header h3 {
+  margin: 0 0 0.2rem;
+}
+
+.graph-blurb {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+.graph-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.graph-controls button {
+  font-size: 0.8rem;
+  padding: 0.35rem 0.7rem;
+}
+
+.graph-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: min(420px, 55vh);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(40, 55, 95, 0.45) 0%, transparent 65%),
+    #080d18;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.graph-canvas-wrap:active {
+  cursor: grabbing;
+}
+
+.graph-canvas-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  background: rgba(12, 18, 34, 0.94);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.8rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 8px;
+  max-width: 240px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  transform: translate(12px, 12px);
+}
+
+.graph-tooltip .tt-title {
+  font-weight: 600;
+}
+
+.graph-tooltip .tt-path {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  margin-top: 0.15rem;
+}
+
 .pill.ok {
   color: var(--good);
   border-color: rgba(61, 214, 140, 0.35);

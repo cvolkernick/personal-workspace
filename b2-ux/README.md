@@ -35,8 +35,15 @@ Env:
 | GET | `/api/notes` | list notes |
 | GET | `/api/note?path=` | note body |
 | GET | `/api/search?q=` | search |
+| GET | `/api/graph` | knowledge graph (nodes + wikilink edges) |
 | POST | `/api/ask` | Ask Grok `{ "question": "..." }` |
 | GET | `/api/auth` | credential status |
+
+### Knowledge graph
+
+The UI includes an Obsidian-style force-directed graph of notes connected by
+`[[wikilinks]]`. Drag nodes, scroll to zoom, click a node to open the note.
+Color groups: root / domains / map.
 
 ## Tests
 

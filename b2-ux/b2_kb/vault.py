@@ -277,3 +277,109 @@ def retrieve(
             }
         )
     return out
+
+
+def _resolve_wikilink_target(
+    target: str,
+    notes: Sequence[Note],
+    by_title: dict,
+    by_stem: dict,
+) -> Optional[Note]:
+    """Match a [[wikilink]] target to a vault note (title, stem, or path)."""
+    t = (target or "").strip()
+    if not t:
+        return None
+    if t in by_title:
+        return by_title[t]
+    # case-insensitive title
+    tl = t.lower()
+    for title, note in by_title.items():
+        if title.lower() == tl:
+            return note
+    stem = Path(t).stem if t.endswith(".md") else t
+    stem = stem.split("/")[-1]
+    if stem in by_stem:
+        return by_stem[stem]
+    for s, note in by_stem.items():
+        if s.lower() == stem.lower():
+            return note
+    # path suffix match
+    for n in notes:
+        if n.path == t or n.path.endswith("/" + t) or n.path == t + ".md":
+            return n
+        if Path(n.path).stem.lower() == stem.lower():
+            return n
+    return None
+
+
+def build_graph(
+    vault_path: Optional[os.PathLike | str] = None,
+    *,
+    notes: Optional[Sequence[Note]] = None,
+    include_orphans: bool = True,
+) -> dict:
+    """
+    Build an Obsidian-style knowledge graph from wikilinks.
+
+    Returns:
+      {
+        "nodes": [{id, path, title, group, degree}, ...],
+        "edges": [{source, target, kind}, ...],  # source/target are node ids (paths)
+        "stats": {note_count, edge_count, orphan_count}
+      }
+    """
+    corpus = list(notes) if notes is not None else index_vault(vault_path)
+    by_title = {n.title: n for n in corpus}
+    by_stem = {Path(n.path).stem: n for n in corpus}
+
+    edge_set = set()  # frozenset of {a,b} for undirected uniqueness, store directed too
+    edges: List[dict] = []
+    degree: dict = {n.path: 0 for n in corpus}
+
+    for n in corpus:
+        for target in n.wikilinks:
+            dest = _resolve_wikilink_target(target, corpus, by_title, by_stem)
+            if not dest or dest.path == n.path:
+                continue
+            key = tuple(sorted((n.path, dest.path)))
+            if key in edge_set:
+                continue
+            edge_set.add(key)
+            edges.append(
+                {
+                    "source": n.path,
+                    "target": dest.path,
+                    "kind": "wikilink",
+                }
+            )
+            degree[n.path] = degree.get(n.path, 0) + 1
+            degree[dest.path] = degree.get(dest.path, 0) + 1
+
+    nodes: List[dict] = []
+    for n in corpus:
+        deg = degree.get(n.path, 0)
+        if not include_orphans and deg == 0:
+            continue
+        # group by top-level folder (domains, map, root)
+        parts = n.path.split("/")
+        group = parts[0] if len(parts) > 1 else "root"
+        nodes.append(
+            {
+                "id": n.path,
+                "path": n.path,
+                "title": n.title,
+                "group": group,
+                "degree": deg,
+            }
+        )
+
+    orphan_count = sum(1 for n in nodes if n["degree"] == 0)
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "note_count": len(nodes),
+            "edge_count": len(edges),
+            "orphan_count": orphan_count,
+        },
+    }

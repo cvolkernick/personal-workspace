@@ -19,6 +19,7 @@ sys.path.insert(0, str(ROOT))
 from b2_kb.ask import B2AskError, ask_grok, auth_status  # noqa: E402
 from b2_kb.vault import (  # noqa: E402
     DEFAULT_VAULT_PATH,
+    build_graph,
     list_notes,
     read_note,
     resolve_vault_path,
@@ -129,6 +130,17 @@ class B2Handler(SimpleHTTPRequestHandler):
                 {"query": q, "count": len(results), "results": results},
             )
 
+        if path == "/api/graph":
+            graph = build_graph(self.vault_path)
+            return _json_response(
+                self,
+                200,
+                {
+                    "vault_path": str(self.vault_path),
+                    **graph,
+                },
+            )
+
         if path == "/api/auth":
             return _json_response(self, 200, auth_status())
 
@@ -209,7 +221,10 @@ def main(argv: Optional[list] = None) -> int:
     print(f"B2 vault:  {vault}")
     print(f"Notes:     {len(notes)}")
     print(f"Listening: http://{args.host}:{args.port}/")
-    print(f"API:       /api/notes  /api/note?path=  /api/search?q=  /api/ask  /api/health")
+    print(
+        f"API:       /api/notes  /api/note?path=  /api/search?q=  "
+        f"/api/graph  /api/ask  /api/health"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

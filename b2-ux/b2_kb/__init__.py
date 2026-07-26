@@ -3,6 +3,7 @@
 from .vault import (
     DEFAULT_VAULT_PATH,
     Note,
+    build_graph,
     extract_wikilinks,
     index_vault,
     list_notes,
@@ -17,6 +18,7 @@ __all__ = [
     "Note",
     "ask_grok",
     "build_ask_context",
+    "build_graph",
     "extract_wikilinks",
     "index_vault",
     "list_notes",
