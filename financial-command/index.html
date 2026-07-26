@@ -1561,6 +1561,38 @@
           })(),
           target: "braiins-card",
         },
+        {
+          k: "Next ASIC pay",
+          v: (() => {
+            const br = data.braiins || {};
+            if (!br.ok) return "—";
+            if (br.days_to_next_payout_est != null) {
+              return "~" + Number(br.days_to_next_payout_est).toFixed(0) + "d";
+            }
+            return "—";
+          })(),
+          s: (() => {
+            const br = data.braiins || {};
+            if (!br.ok) return "Braiins";
+            const bits = [];
+            if (br.next_payout_progress_pct != null) {
+              bits.push(Number(br.next_payout_progress_pct).toFixed(0) + "% of thr");
+            }
+            if (br.next_payout_est_at) {
+              const t = Date.parse(br.next_payout_est_at);
+              if (Number.isFinite(t)) {
+                bits.push(
+                  new Date(t).toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                  })
+                );
+              }
+            }
+            return bits.join(" · ") || "est. from threshold";
+          })(),
+          target: "braiins-card",
+        },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
         .map(
@@ -2182,27 +2214,32 @@
         prog != null && Number.isFinite(Number(prog))
           ? Math.max(0, Math.min(100, Number(prog)))
           : null;
+      const eta = formatPayoutEta(br.next_payout_est_at, br.days_to_next_payout_est);
+      // Hero block mirrors Braiins dashboard "progress to threshold → next pay"
       const progressBlock =
         barPct != null
-          ? `<div class="payout-bar-wrap">` +
-            `<div class="hint" style="margin:0 0 0.25rem">Toward next payout (threshold ${btcAmt(
-              thr,
-              4
-            )})</div>` +
-            `<div class="payout-bar" title="${barPct}% of threshold">` +
+          ? `<div class="payout-bar-wrap" style="margin-bottom:0.55rem">` +
+            `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem">` +
+            `<div><div class="hint" style="margin:0">Next payout (est.)</div>` +
+            `<div style="font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums">${escapeHtml(
+              eta
+            )}</div></div>` +
+            `<div style="text-align:right"><div class="hint" style="margin:0">Threshold</div>` +
+            `<div style="font-weight:650">${btcAmt(thr, 4)}</div></div></div>` +
+            `<div class="payout-bar" title="${barPct}% of ${btcAmt(thr, 4)} threshold">` +
             `<i style="width:${barPct}%"></i></div>` +
             `<div class="payout-bar-lab">` +
-            `<span>${btcAmt(br.current_balance_btc)} / ${btcAmt(thr, 4)}</span>` +
+            `<span>Balance ${btcAmt(br.current_balance_btc)} · remaining ${btcAmt(
+              outlook.remaining_btc
+            )}</span>` +
             `<span>${barPct.toFixed(1)}%</span></div></div>`
-          : "";
+          : `<div class="metric"><span class="label">Next payout (est.)</span><span class="val">${escapeHtml(
+              eta
+            )}</span></div>`;
 
       metricsEl.innerHTML =
         progressBlock +
         [
-          metric(
-            "Next payout (est.)",
-            formatPayoutEta(br.next_payout_est_at, br.days_to_next_payout_est)
-          ),
           metric(
             "Avg daily reward",
             btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)
@@ -2237,11 +2274,10 @@
           metric("Synced", ageLabel(br.as_of) || "—"),
         ].join("") +
         `<p class="hint" style="margin:0.45rem 0 0">` +
-        `Inferred from payout history (API has no payout-rule field). ` +
-        `Braiins fires at 09:00 UTC once the rule is met.` +
-        (outlook.threshold_source
-          ? ` Threshold source: ${escapeHtml(outlook.threshold_source)}.`
-          : "") +
+        `Same idea as Braiins UI progress-to-threshold (API has no explicit next-payout field). ` +
+        `Threshold inferred from payout history (~${btcAmt(thr, 4)}); ~${btcAmt(
+          br.daily_reward_avg_btc || outlook.daily_reward_avg_btc
+        )}/day → ETA. Fires at next 09:00 UTC after threshold is met.` +
         `</p>`;
       const workers = br.workers || [];
       if (workersEl) {
