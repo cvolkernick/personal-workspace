@@ -14,6 +14,8 @@
   POST /api/recommend         — optional body {limit}
   GET  /api/ask/status        — Grok auth ready?
   POST /api/ask               — {question} about current time allocations
+  GET  /api/calendar/status   — Google Calendar OAuth + last sync
+  POST /api/calendar/sync     — pull busy events into plan
 
 Usage:
   python3 holistic/server.py
@@ -77,6 +79,11 @@ from holistic.time_allocator.grok_ask import (  # noqa: E402
 )
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
+from holistic.time_allocator.calendar_sync import (  # noqa: E402
+    calendar_credentials_status,
+    calendar_summary_for_state,
+    sync_calendar,
+)
 from holistic.time_allocator.store import (  # noqa: E402
     load_state,
     resolve_data_path,
@@ -117,6 +124,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     walk_candidates = pending_walk_candidates(state, days=2)
     lyft_tgt = next((t for t in targets if str(t.get("id")) == "lyft"), None)
     lyft_duty = lyft_duty_status(state, target=lyft_tgt)
+    calendar = calendar_summary_for_state(state)
     payload = {
         "ok": True,
         "path": str(path),
@@ -125,6 +133,8 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "logs": list(state.get("logs") or []),
         "sleep_intervals": list(state.get("sleep_intervals") or []),
         "activity_reviews": list(state.get("activity_reviews") or []),
+        "calendar_events": list(state.get("calendar_events") or []),
+        "calendar": calendar,
         "walk_candidates": walk_candidates,
         "lyft_duty": lyft_duty,
         "count": len(items),
@@ -196,6 +206,15 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
         if path == "/api/ask/status":
             try:
                 self._json(200, {"ok": True, **grok_auth_status()})
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/calendar/status":
+            try:
+                auth = calendar_credentials_status()
+                state = load_state(_data())
+                summary = calendar_summary_for_state(state)
+                self._json(200, {"ok": True, **summary, "auth": auth})
             except Exception as e:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -409,7 +428,15 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 # Also refresh walk candidates when syncing health
                 state, walk_meta = sync_walk_candidates(state, days=3)
                 meta["walks"] = walk_meta
-                if meta.get("imported") or walk_meta.get("new_pending"):
+                # Best-effort calendar pull so allocation stays current
+                try:
+                    state, cal_meta = sync_calendar(state, days_ahead=2, days_back=0)
+                    meta["calendar"] = cal_meta
+                except Exception as e:  # noqa: BLE001
+                    meta["calendar"] = {"ok": False, "error": str(e)}
+                if meta.get("imported") or walk_meta.get("new_pending") or (
+                    (meta.get("calendar") or {}).get("ok")
+                ):
                     state = apply_plan(state)
                 save_state(state, _data())
                 payload = state_payload()
@@ -417,6 +444,32 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 if not meta.get("ok") and not meta.get("imported") and not walk_meta.get("fetched"):
                     self._json(200, payload)
                     return
+                self._json(200, payload)
+                return
+
+            if path == "/api/calendar/sync":
+                days_ahead = int(body.get("days") if body.get("days") is not None else 2)
+                days_back = int(body.get("days_back") if body.get("days_back") is not None else 0)
+                cals = body.get("calendar_ids")
+                if isinstance(cals, str) and cals.strip():
+                    cals = [c.strip() for c in cals.split(",") if c.strip()]
+                elif not isinstance(cals, list):
+                    cals = None
+                state, meta = sync_calendar(
+                    load_state(_data()),
+                    days_ahead=days_ahead,
+                    days_back=days_back,
+                    calendar_ids=cals,
+                )
+                if meta.get("ok") or state.get("calendar_events"):
+                    state = apply_plan(state)
+                save_state(state, _data())
+                payload = state_payload()
+                payload["calendar_sync"] = meta
+                if not meta.get("ok"):
+                    # Still return state so UI can show cached events + error
+                    payload["ok"] = True
+                    payload["error"] = meta.get("error")
                 self._json(200, payload)
                 return
 

@@ -247,6 +247,56 @@ def recommend_next(
             }
         )
 
+    # Calendar: surface next commitment / heavy day
+    cal_busy = int(plan.get("calendar_busy_minutes") or 0)
+    cal_block = next(
+        (b for b in plan_blocks if str(b.get("id")) == "calendar"),
+        None,
+    )
+    if cal_block and cal_busy > 0:
+        next_ev = None
+        for ev in cal_block.get("events") or []:
+            next_ev = ev
+            break
+        reason = cal_block.get("reason") or f"{cal_busy}m of calendar commitments ahead"
+        if next_ev:
+            reason = (
+                f"Next: {next_ev.get('title')} ({next_ev.get('minutes')}m) · "
+                f"{cal_busy}m total calendar busy in window"
+            )
+        suggestions.append(
+            {
+                "id": "calendar-commitments",
+                "title": "Honor calendar commitments",
+                "reason": reason,
+                "priority": 8,
+                "minutes": min(cal_busy, int((cal_block.get("events") or [{}])[0].get("minutes") or cal_busy)),
+                "role": "calendar",
+                "source": "calendar",
+                "urgency": "high" if cal_busy >= 180 else "medium",
+                "loggable": False,
+            }
+        )
+    else:
+        meta = state.get("calendar_meta") or {}
+        if not (state.get("calendar_events") or []) and not meta.get("synced_at"):
+            suggestions.append(
+                {
+                    "id": "calendar-sync",
+                    "title": "Sync Google Calendar",
+                    "reason": (
+                        "Calendar not loaded yet — sync so busy events reduce free "
+                        "Lyft/fill time in the 24h plan"
+                    ),
+                    "priority": 6,
+                    "minutes": 1,
+                    "role": "meta",
+                    "source": "calendar",
+                    "urgency": "low",
+                    "loggable": False,
+                }
+            )
+
     # De-dupe by id keeping first (highest urgency path)
     seen: set[str] = set()
     ordered: list[dict[str, Any]] = []

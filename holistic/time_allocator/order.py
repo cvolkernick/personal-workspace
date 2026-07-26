@@ -7,15 +7,17 @@ from typing import Any
 # Preferred visual order for comparison charts
 CANONICAL_IDS: dict[str, int] = {
     "sleep": 0,
-    "duchess-walk": 1,
-    "workout": 2,
-    "lyft": 3,
-    "lyft-break": 4,
+    "calendar": 1,
+    "duchess-walk": 2,
+    "workout": 3,
+    "lyft": 4,
+    "lyft-break": 5,
     "_unaccounted": 900,
 }
 
 ROLE_RANK: dict[str, int] = {
     "reserve": 10,
+    "calendar": 15,
     "fixed": 20,
     "session": 30,
     "fill": 40,

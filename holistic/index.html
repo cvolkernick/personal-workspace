@@ -130,6 +130,7 @@
       color: var(--muted);
     }
     .role.reserve { color: var(--reserve); }
+    .role.calendar { color: #c4a5e8; border-color: #4a3a66; }
     .role.fixed, .role.session { color: var(--yellow); border-color: #6b5a1e; }
     .role.adhoc { color: var(--accent); border-color: #2a4a66; }
     .role.fill { color: var(--fill); border-color: #3d4a80; }
@@ -537,6 +538,7 @@
       <button type="button" id="btn-refresh">Refresh</button>
       <button type="button" class="primary" id="btn-plan">Rebuild 24h plan</button>
       <button type="button" id="btn-sync">Sync sleep (Google Health)</button>
+      <button type="button" id="btn-calendar">Sync calendar</button>
       <button type="button" id="btn-walks">Check for walks</button>
       <button type="button" class="ghost" id="btn-seed">Reset personal targets</button>
     </div>
@@ -567,6 +569,17 @@
       </div>
       <div class="ask-answer" id="ask-answer" aria-live="polite"></div>
       <div class="ask-meta" id="ask-meta"></div>
+    </section>
+
+    <section class="card" id="calendar-card">
+      <h2>Google Calendar · busy time</h2>
+      <p class="path" style="margin:-0.35rem 0 0.65rem">
+        Timed events reduce free active time in the 24h plan (before Lyft fill and ad-hoc).
+        All-day / free (transparent) events are ignored.
+      </p>
+      <div class="stats" id="calendar-stats"></div>
+      <div id="calendar-upcoming"><p class="empty">Loading…</p></div>
+      <p class="path" id="calendar-status" style="margin-top:0.5rem"></p>
     </section>
 
     <section class="card" id="sleep-battery-card">
@@ -678,6 +691,7 @@
     const $ = (id) => document.getElementById(id);
     const ROLE_COLORS = {
       reserve: "#6b7c8f",
+      calendar: "#9b7ed9",
       fixed: "#c9a227",
       session: "#e0b84a",
       adhoc: "#5b9fd4",
@@ -730,14 +744,15 @@
     // Keep Recommended / Actual pies & legends in the same category order
     const CANONICAL_PIE_IDS = {
       sleep: 0,
-      "duchess-walk": 1,
-      workout: 2,
-      lyft: 3,
-      "lyft-break": 4,
+      calendar: 1,
+      "duchess-walk": 2,
+      workout: 3,
+      lyft: 4,
+      "lyft-break": 5,
       _unaccounted: 900,
     };
     const ROLE_PIE_RANK = {
-      reserve: 10, fixed: 20, session: 30, fill: 40, break: 50, adhoc: 60, unaccounted: 80,
+      reserve: 10, calendar: 15, fixed: 20, session: 30, fill: 40, break: 50, adhoc: 60, unaccounted: 80,
     };
     function pieRank(b) {
       const id = String(b.id || "");
@@ -1335,6 +1350,8 @@
       $("plan-stats").innerHTML = `
         <div class="stat"><div class="label">Window</div><div class="value">${hours(planned.window_minutes)}</div></div>
         <div class="stat"><div class="label">Sleep reserve</div><div class="value">${hours(planned.sleep_reserve_minutes)}</div></div>
+        <div class="stat" title="Timed Google Calendar events in the window"><div class="label">Calendar busy</div><div class="value">${hours(planned.calendar_busy_minutes || 0)}</div></div>
+        <div class="stat" title="Active time after sleep + calendar"><div class="label">Free active</div><div class="value">${hours(planned.free_active_minutes != null ? planned.free_active_minutes : Math.max(0, (planned.active_minutes || 0) - (planned.calendar_busy_minutes || 0)))}</div></div>
         <div class="stat"><div class="label">Logged (actual)</div><div class="value">${hours(logged)}</div></div>
         <div class="stat"><div class="label">Unaccounted</div><div class="value">${hours((actual && actual.unaccounted_minutes) || 0)}</div></div>
       `;
@@ -1594,6 +1611,47 @@
       }
     }
 
+    function renderCalendar(cal) {
+      const stats = $("calendar-stats");
+      const list = $("calendar-upcoming");
+      const st = $("calendar-status");
+      if (!stats || !list) return;
+      const c = cal || {};
+      const busy = Number(c.busy_minutes_24h) || 0;
+      const auth = c.auth || {};
+      stats.innerHTML = `
+        <div class="stat"><div class="label">Busy (next 24h)</div><div class="value">${hours(busy)}</div></div>
+        <div class="stat"><div class="label">Events stored</div><div class="value">${c.stored_events ?? 0}</div></div>
+        <div class="stat"><div class="label">Synced</div><div class="value" style="font-size:0.85rem">${c.synced_at ? fmtWhen(c.synced_at) : "never"}</div></div>
+        <div class="stat"><div class="label">Auth</div><div class="value" style="font-size:0.85rem">${auth.ok ? "ready" : "needs scope"}</div></div>
+      `;
+      const upcoming = c.upcoming || [];
+      if (!upcoming.length) {
+        list.innerHTML = `<p class="empty">${
+          auth.ok === false
+            ? "Calendar OAuth needs calendar.readonly — run: python3 holistic/scripts/google_calendar_auth.py"
+            : "No timed busy events in the next 24h (or not synced yet)."
+        }</p>`;
+      } else {
+        list.innerHTML = `<ul class="notes" style="margin:0">${upcoming
+          .map(
+            (ev) =>
+              `<li><strong>${escapeHtml(ev.title || "(event)")}</strong> · ${hours(ev.minutes)} · ${fmtWhen(ev.start)} → ${fmtWhen(ev.end)}${
+                ev.target_hint ? ` · hint: ${escapeHtml(ev.target_hint)}` : ""
+              }</li>`
+          )
+          .join("")}</ul>`;
+      }
+      if (st) {
+        const parts = [];
+        if (c.error) parts.push(String(c.error));
+        else if (auth.detail) parts.push(String(auth.detail));
+        if (c.calendar_ids) parts.push(`calendars: ${(c.calendar_ids || []).join(", ")}`);
+        st.textContent = parts.join(" · ");
+        st.style.color = c.error || auth.ok === false ? "var(--yellow)" : "var(--muted)";
+      }
+    }
+
     function render(state) {
       $("data-path").textContent = state.path ? `data: ${state.path}` : "";
       const h = state.health || {};
@@ -1601,6 +1659,7 @@
         `health: oauth=${h.google_oauth ? "yes" : "no"} · local_metrics=${h.local_metrics_file ? "yes" : "no"}` +
         (h.detail ? ` · ${h.detail}` : "");
       window.__lastLyftDuty = state.lyft_duty || {};
+      renderCalendar(state.calendar);
       renderSleepBattery(state.sleep_battery);
       renderSuggestions(
         state.suggestions || [],
@@ -1824,6 +1883,35 @@
     }
 
     $("btn-refresh").addEventListener("click", () => refresh());
+    const btnCal = $("btn-calendar");
+    if (btnCal) {
+      btnCal.addEventListener("click", async () => {
+        try {
+          msg("Syncing Google Calendar…");
+          const state = await api("/api/calendar/sync", {
+            method: "POST",
+            body: JSON.stringify({ days: 2, days_back: 0 }),
+          });
+          render(state);
+          const cs = state.calendar_sync || {};
+          if (cs.ok) {
+            msg(
+              `Calendar: ${cs.event_count || 0} event(s) · ${hours((state.calendar || {}).busy_minutes_24h || 0)} busy next 24h`,
+              "ok"
+            );
+          } else {
+            msg(
+              cs.error ||
+                (state.calendar && state.calendar.error) ||
+                "Calendar sync failed — grant calendar.readonly via google_calendar_auth.py",
+              "error"
+            );
+          }
+        } catch (e) {
+          msg(String(e.message || e), "error");
+        }
+      });
+    }
     $("btn-walks").addEventListener("click", async () => {
       try {
         const state = await api("/api/activity/sync", {

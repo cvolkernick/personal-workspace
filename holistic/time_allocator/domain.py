@@ -186,6 +186,9 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
     out.setdefault("plan", None)
     out.setdefault("sleep_intervals", [])
     out.setdefault("activity_reviews", [])
+    out.setdefault("calendar_events", [])
+    out.setdefault("calendar_meta", {})
+    out.setdefault("calendar_config", {"calendar_ids": ["primary"]})
     out.setdefault(
         "lyft_duty",
         {"driven_minutes": 0, "updated_at": None, "cap_reached_at": None, "note": ""},
@@ -200,6 +203,14 @@ def normalize_state(raw: dict[str, Any] | None) -> dict[str, Any]:
         out["sleep_intervals"] = []
     if not isinstance(out["activity_reviews"], list):
         out["activity_reviews"] = []
+    if not isinstance(out.get("calendar_events"), list):
+        out["calendar_events"] = []
+    if not isinstance(out.get("calendar_meta"), dict):
+        out["calendar_meta"] = {}
+    if not isinstance(out.get("calendar_config"), dict):
+        out["calendar_config"] = {"calendar_ids": ["primary"]}
+    else:
+        out["calendar_config"].setdefault("calendar_ids", ["primary"])
     if not isinstance(out.get("lyft_duty"), dict):
         out["lyft_duty"] = {
             "driven_minutes": 0,
@@ -834,10 +845,12 @@ def build_rolling_plan(
 
     Order of claims on the window:
       1. Sleep / reserve (rolling_avg reserve_minutes or fixed)
-      2. daily_duration targets (by priority)
-      3. weekly_frequency sessions if behind min_days (by priority)
-      4. ad-hoc items with minutes > 0 (by priority); else estimate 30 if priority high
-      5. fill_remainder gets everything left in *active* time (window − sleep reserve)
+      2. Google Calendar busy events (timed commitments) — reduce free active time
+      3. daily_duration targets (by priority)
+      4. weekly_frequency sessions if behind min_days (by priority)
+      5. ad-hoc items with minutes > 0 (by priority); else estimate 30 if priority high
+      6. fill_remainder gets everything left in *active* time
+         (window − sleep reserve − calendar busy)
 
     ignore_progress=True builds the *recommended* full split (no reductions for
     minutes already logged). Default False = remaining work still open.
@@ -866,6 +879,7 @@ def build_rolling_plan(
     sleep_reserve = min(sleep_reserve, window)
     active_budget = window - sleep_reserve
     remaining_active = active_budget
+    calendar_busy = 0
 
     # 1) Sleep / reserve blocks
     for t in targets:
@@ -900,7 +914,26 @@ def build_rolling_plan(
                     }
                 )
 
-    # 2) Daily duration — reduced by logs in the rolling window (not only calendar "today")
+    # 2) Calendar commitments (busy timed events reduce free active time)
+    from .calendar_sync import calendar_blocks_for_plan
+
+    cal_blocks, calendar_busy, cal_notes = calendar_blocks_for_plan(
+        state, now=now, window_minutes=window, ignore_progress=ignore_progress
+    )
+    notes.extend(cal_notes)
+    if calendar_busy > remaining_active:
+        notes.append(
+            f"Calendar busy ({calendar_busy}m) exceeds free active time "
+            f"({remaining_active}m) — clamping; targets/fill will be shorted"
+        )
+        calendar_busy = remaining_active
+        if cal_blocks:
+            cal_blocks = [{**cal_blocks[0], "minutes": calendar_busy}]
+    if cal_blocks and calendar_busy > 0:
+        blocks.extend(cal_blocks)
+        remaining_active -= calendar_busy
+
+    # 3) Daily duration — reduced by logs in the rolling window (not only calendar "today")
     daily = [t for t in targets if str(t.get("kind")) == "daily_duration"]
     daily.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     for t in daily:
@@ -960,7 +993,7 @@ def build_rolling_plan(
         )
         remaining_active -= take
 
-    # 3) Weekly frequency — schedule a session if behind minimum
+    # 4) Weekly frequency — schedule a session if behind minimum
     weekly = [t for t in targets if str(t.get("kind")) == "weekly_frequency"]
     weekly.sort(key=lambda t: (-int(t.get("priority") or 0), str(t.get("id"))))
     for t in weekly:
@@ -1004,7 +1037,7 @@ def build_rolling_plan(
         )
         remaining_active -= take
 
-    # 4) Ad-hoc items by priority
+    # 5) Ad-hoc items by priority
     for it in list_items(state):
         mins = max(0, int(it.get("minutes") or 0))
         done_m = int(it.get("done_minutes") or 0)
@@ -1043,7 +1076,7 @@ def build_rolling_plan(
         )
         remaining_active -= take
 
-    # 5) Fill remainder (Lyft): free active time, capped by 12h/6h duty cycle
+    # 6) Fill remainder (Lyft): free active time, capped by 12h/6h duty cycle
     from .lyft_duty import (  # local import avoids cycles at module load
         get_lyft_duty,
         lyft_duty_status,
@@ -1166,6 +1199,8 @@ def build_rolling_plan(
         "window_minutes": window,
         "sleep_reserve_minutes": sleep_reserve,
         "active_minutes": active_budget,
+        "calendar_busy_minutes": int(calendar_busy),
+        "free_active_minutes": max(0, int(active_budget) - int(calendar_busy)),
         "blocks": blocks,
         "total_block_minutes": total_block,
         "unallocated_active_minutes": remaining_active,

@@ -122,6 +122,27 @@ def build_actual_allocation(
             )
             timed_by_target["lyft"] = timed_by_target.get("lyft", 0) + min(driven, window)
 
+    # --- Calendar busy time already elapsed in the trailing window ---
+    cal_events = list(state.get("calendar_events") or [])
+    if cal_events:
+        from .calendar_sync import merge_busy_intervals
+
+        merged = merge_busy_intervals(cal_events, win_start=win_start, win_end=win_end)
+        cal_min = int(
+            round(sum((en - st).total_seconds() / 60.0 for st, en in merged))
+        )
+        if cal_min > 0:
+            blocks.append(
+                {
+                    "id": "calendar",
+                    "title": "Calendar (elapsed)",
+                    "minutes": cal_min,
+                    "role": "calendar",
+                    "kind": "calendar_busy",
+                    "source": "calendar_events",
+                }
+            )
+
     # --- Daily logs for targets (dates overlapping window), net of timed ---
     for t in list_targets(state):
         tid = str(t.get("id"))

@@ -24,7 +24,8 @@ productivity/scheduling knowledge that does not invent facts about THIS user).
 Rules:
 - Ground answers in the provided data: rolling 24h recommended vs actual allocations,
   delta gaps, next actions, sleep battery, Lyft duty cycle (12h drive / 6h break),
-  targets/KPIs, logs, walk candidates, and ad-hoc items.
+  Google Calendar busy/commitments, targets/KPIs, logs, walk candidates, and ad-hoc items.
+- Treat calendar events as hard commitments that reduce free active time (especially Lyft fill).
 - If something is missing from the data, say so clearly. Do not invent times or logs.
 - Prefer concise, practical advice. Use short bullet lists when helpful.
 - Cite specific numbers (minutes, hours, %) from the data when discussing progress.
@@ -139,6 +140,7 @@ def build_time_context(payload: dict[str, Any]) -> dict[str, Any]:
     actual = payload.get("actual") or {}
     sleep = payload.get("sleep_battery") or {}
     lyft = payload.get("lyft_duty") or {}
+    cal = payload.get("calendar") or {}
 
     def slim_blocks(blocks: Any, n: int = 12) -> list:
         out = []
@@ -192,9 +194,20 @@ def build_time_context(payload: dict[str, Any]) -> dict[str, Any]:
             "summary": lyft.get("summary"),
             "policy": lyft.get("policy"),
         },
+        "calendar": {
+            "busy_minutes_24h": cal.get("busy_minutes_24h"),
+            "busy_hours_24h": cal.get("busy_hours_24h"),
+            "synced_at": cal.get("synced_at"),
+            "stored_events": cal.get("stored_events"),
+            "ok": cal.get("ok"),
+            "error": cal.get("error"),
+            "upcoming": (cal.get("upcoming") or [])[:10],
+        },
         "plan_remaining": {
             "window_start": plan.get("window_start"),
             "window_end": plan.get("window_end"),
+            "calendar_busy_minutes": plan.get("calendar_busy_minutes"),
+            "free_active_minutes": plan.get("free_active_minutes"),
             "blocks": slim_blocks(plan.get("blocks")),
             "notes": (plan.get("notes") or [])[:12],
         },
@@ -202,6 +215,8 @@ def build_time_context(payload: dict[str, Any]) -> dict[str, Any]:
             "blocks": slim_blocks(rec.get("blocks")),
             "sleep_reserve_minutes": rec.get("sleep_reserve_minutes"),
             "active_minutes": rec.get("active_minutes"),
+            "calendar_busy_minutes": rec.get("calendar_busy_minutes"),
+            "free_active_minutes": rec.get("free_active_minutes"),
         },
         "actual": {
             "total_logged_minutes": actual.get("total_logged_minutes"),
