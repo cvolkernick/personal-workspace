@@ -1,6 +1,6 @@
 # Panamerica Auto Website
 
-Business website MVP for **Panamerica Auto** — a high-level overview of automotive services (sales, service, parts, fleet, financing, inspections).
+Business website MVP for **Panamerica Auto** — Turo & private auto rentals plus fleet management (rental ops, maintenance and service coordination). Not a dealership / vehicle sales site.
 
 ## Run (local)
 
@@ -63,11 +63,12 @@ python3 -m unittest discover -s tests -v
 
 Manual checklist:
 
-1. Home hero loads with brand **Panamerica Auto**.
-2. Six service cards under **High-level services**.
-3. Nav links jump to Services / Why us / Process / Contact.
-4. Contact form shows an error if fields are empty; success message when filled.
-5. Pi URL responds with brand + services after deploy.
+1. Home hero loads with brand **Panamerica Auto** and rental/fleet positioning.
+2. Six service cards: Turo rentals, Private rentals, Fleet management, Rental management, Maintenance coordination, Service coordination.
+3. Site does **not** present vehicle sales as a primary offering.
+4. Nav links jump to Services / Why us / Process / Contact.
+5. Contact form shows an error if fields are empty; success message when filled.
+6. Pi URL responds with brand + services after deploy.
 
 ## Layout
 

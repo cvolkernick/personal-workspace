@@ -26,12 +26,19 @@ README = ROOT / "README.md"
 
 # High-level services expected on the MVP page (HTML may escape &)
 REQUIRED_SERVICES = [
+    "Turo rentals",
+    "Private rentals",
+    "Fleet management",
+    "Rental management",
+    "Maintenance coordination",
+    "Service coordination",
+]
+
+# Positioning: rentals/fleet — not dealership sales
+FORBIDDEN_PRIMARY_OFFERS = [
     "Vehicle sales",
-    "Service &amp; maintenance",
-    "Parts supply",
-    "Fleet support",
     "Financing guidance",
-    "Inspections &amp; prep",
+    "Parts supply",
 ]
 
 REQUIRED_SECTIONS = ["#services", "#why", "#process", "#contact"]
@@ -61,6 +68,29 @@ class PanamericaAutoSiteTests(unittest.TestCase):
         # data-service markers for the six cards
         markers = re.findall(r'data-service="([^"]+)"', self.html)
         self.assertEqual(len(markers), 6, f"expected 6 service cards, got {markers}")
+        self.assertIn('data-service="turo"', self.html)
+        self.assertIn('data-service="private"', self.html)
+        self.assertIn('data-service="fleet"', self.html)
+
+    def test_rental_positioning_not_dealership_sales(self) -> None:
+        """Site must present rentals/fleet ops — not auto sales as a primary offer."""
+        self.assertIn("Turo", self.html)
+        self.assertIn("private", self.html.lower())
+        self.assertIn("fleet management", self.html.lower())
+        # Hero/title should not market sales as the brand line
+        self.assertNotRegex(
+            self.html,
+            r"<title>[^<]*Sales",
+            "title should not lead with Sales",
+        )
+        self.assertNotIn("Sales · Service · Parts", self.html)
+        for phrase in FORBIDDEN_PRIMARY_OFFERS:
+            # Must not appear as a service card heading
+            self.assertNotRegex(
+                self.html,
+                rf"<h3>\s*{re.escape(phrase)}\s*</h3>",
+                f"primary service card should not be: {phrase}",
+            )
 
     def test_nav_and_section_anchors(self) -> None:
         for href in REQUIRED_SECTIONS:

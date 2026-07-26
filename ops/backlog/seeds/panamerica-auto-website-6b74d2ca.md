@@ -10,16 +10,16 @@
 
 ## Problem / intent
 
-Panamerica Auto needs a public-facing web presence that introduces the brand and its core automotive offerings. Prospects (retail buyers, small businesses, fleet operators) currently have no single place to scan services and start an inquiry. The longer-term “platform” idea (inventory, accounts, ops tooling) is out of scope for this pass; the goal is a credible, runnable **marketing site** that presents high-level services and a local contact path.
+Panamerica Auto needs a public-facing web presence that introduces the brand as a **rental and fleet operations** business — not a dealership. Core work: auto rentals via **Turo** and **private rentals**, plus **fleet management** (rental management, maintenance and service coordination). Prospects (renters, vehicle owners, partner fleets) need a single place to scan services and inquire. Reference peer: [SafeWheels Rentals SWFL](https://safewheelsrentalsswfl.com/) (Turo host + co-hosting; Panamerica has co-hosted with them). Longer-term “platform” remains out of scope; MVP is a marketing site with correct positioning.
 
 ## Users
 
 | Persona | Need from MVP |
 |---------|----------------|
-| Retail vehicle buyer | Understand sales / inspection / financing options; send an inquiry |
-| Service customer | See maintenance/repair positioning; contact for service |
-| Small business / fleet contact | See fleet support & parts; request a quote |
-| Site owner (operator) | Local preview + clear next steps to productionize |
+| Turo / private renter | Understand rental options; send an inquiry |
+| Vehicle owner / partner | See fleet / rental management and maintenance coordination |
+| Co-host / peer operator | See partnership posture (e.g. past SafeWheels co-host work) |
+| Site owner (operator) | Local preview, Pi deploy, clear next steps |
 
 ## Success criteria
 
@@ -43,19 +43,20 @@ Panamerica Auto needs a public-facing web presence that introduces the brand and
 **In:**
 
 - Single-page static site for **Panamerica Auto**
-- High-level services (assumed auto-business offerings for MVP when none were specified):
-  1. Vehicle sales  
-  2. Service & maintenance  
-  3. Parts supply  
-  4. Fleet support  
-  5. Financing guidance  
-  6. Inspections & prep  
+- High-level services (corrected 2026-07-25 — rentals/fleet, not sales):
+  1. Turo rentals  
+  2. Private rentals  
+  3. Fleet management  
+  4. Rental management  
+  5. Maintenance coordination  
+  6. Service coordination  
+- Explicit non-offer: vehicle sales / dealership positioning
 - Nav + sections: Services, Why us, How it works, Contact
 - Contact form with client-side validation (no backend)
-- Tiny local HTTP server (`server.py`) + README run/verify docs
-- Unittest structural checks on real files
+- Tiny local HTTP server (`server.py`) + Pi deploy (`:8795`) + README
+- Unittest structural checks on real files (incl. anti-sales positioning)
 
-**Out:** inventory listings, booking calendar, payments, CMS, multi-page SEO.
+**Out:** inventory listings, live Turo embed, booking calendar, payments, CMS, multi-page SEO.
 
 ## File layout
 
@@ -86,12 +87,12 @@ ops/backlog/seeds/
 
 ## Next iteration (post-MVP)
 
-1. Capture real contact info (phone, email, hours, location map)
+1. Capture real contact info (phone, email, hours, service area)
 2. Wire contact form to email or CRM
-3. Sample inventory or featured vehicles page
-4. Hosting/deploy (static host + custom domain)
-5. Brand assets (logo, photos) and light SEO (OG tags, sitemap)
-6. Optional: Spanish/English if market needs multi-language
+3. Link or embed live Turo profile / featured rental vehicles
+4. Co-host / owner intake page (earnings estimate form) inspired by SafeWheels-style co-hosting
+5. Custom domain + HTTPS reverse proxy
+6. Brand assets (logo, fleet photos) and light SEO
 
 ## Notes
 
