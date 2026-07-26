@@ -22,7 +22,7 @@ B2 is a global, Obsidian-compatible Markdown knowledge base for use across all s
 ## Web UX (browse / search / Ask Grok)
 
 ```bash
-cd ~/personal-workspace/b2-ux-ux
+cd ~/personal-workspace/b2-ux
 ./start.sh
 # → http://localhost:8792/
 ```

@@ -3,7 +3,7 @@
 **B2** ("Brain 2") is the global knowledge base: durable notes that outlive any single Grok session, dashboard, or project checkout.
 
 **Vault path:** `~/B2` → `personal-workspace/brain2`  
-**Web UX:** [http://localhost:8792/](http://localhost:8792/) (`~/personal-workspace/b2-ux-ux/start.sh`)
+**Web UX:** [http://localhost:8792/](http://localhost:8792/) (`~/personal-workspace/b2-ux/start.sh`)
 
 ## Start here
 

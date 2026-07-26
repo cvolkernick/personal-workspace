@@ -7,7 +7,7 @@ How B2 sits relative to the on-disk personal command system.
 | Path | Role |
 |------|------|
 | `~/B2` → `~/personal-workspace/brain2` | **This vault** — global knowledge (B2) |
-| `~/personal-workspace/b2-ux-ux` | B2 web UX + Ask Grok server |
+| `~/personal-workspace/b2-ux` | B2 web UX + Ask Grok server |
 | `~/personal-workspace` | Dashboards, strategy MD, ops data |
 | `~/.grok/sessions` | Grok session transcripts (not git) |
 

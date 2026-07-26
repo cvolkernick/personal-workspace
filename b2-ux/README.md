@@ -7,7 +7,7 @@ Local visual interface for the global **B2** Obsidian vault: browse notes, searc
 | What | Path |
 |------|------|
 | **Vault** (open in Obsidian) | `~/B2` |
-| **This package** | `~/personal-workspace/b2-ux-ux` |
+| **This package** | `~/personal-workspace/b2-ux` |
 | **Default URL** | http://127.0.0.1:8792/ |
 
 > Vault is at `~/B2` (not under this package) so it stays global and does not
@@ -47,7 +47,7 @@ python3 -m unittest discover -s tests -v
 ## Layout
 
 ```
-b2/
+b2-ux/
   b2_kb/          # pure vault + ask library
   static/         # HTML/CSS/JS UI
   server.py       # entry point

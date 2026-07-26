@@ -15,7 +15,7 @@ B2 is an Obsidian vault plus a small local web app. Both read the same files und
 **Web UX:**
 
 ```bash
-cd ~/personal-workspace/b2-ux-ux && ./start.sh
+cd ~/personal-workspace/b2-ux && ./start.sh
 ```
 
 Browse notes, full-text search, and **Ask Grok** at http://localhost:8792/
