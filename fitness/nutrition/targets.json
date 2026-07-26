@@ -1,8 +1,8 @@
 {
   "calories": 45.0,
-  "protein_g": 1.1,
+  "protein_g": 200.0,
   "carbs_g": 195.0,
   "fat_g": 45.0,
   "notes": "Default cutting targets",
-  "updated_at": "2026-07-25"
+  "updated_at": "2026-07-26"
 }
