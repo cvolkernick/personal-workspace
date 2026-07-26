@@ -60,6 +60,22 @@
     .brand { display: flex; flex-direction: column; gap: 0.15rem; min-width: 200px; }
     .brand h1 {
       margin: 0; font-size: 1.35rem; font-weight: 750; letter-spacing: -0.03em;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    /* Gradient clip makes emoji invisible — keep emoji outside the clip */
+    .brand h1 .logo-emoji {
+      color: initial;
+      background: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 1;
+      font-size: 1.25em;
+      flex-shrink: 0;
+    }
+    .brand h1 .logo-text {
       background: linear-gradient(100deg, #e8eef6 0%, #a78bfa 42%, #4fd1c5 78%, #5b9fd4 100%);
       -webkit-background-clip: text; background-clip: text; color: transparent;
     }
@@ -326,7 +342,7 @@
   <header class="top">
     <div class="top-inner">
       <div class="brand">
-        <h1>🌅 Horizon</h1>
+        <h1><span class="logo-emoji" role="img" aria-label="sunrise">🌅</span><span class="logo-text">Horizon</span></h1>
         <div class="sub">Global macro &amp; geopolitical intelligence · world-state · strategy linkage</div>
       </div>
       <div class="controls">
