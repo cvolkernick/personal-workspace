@@ -131,6 +131,64 @@
       font-family: inherit;
     }
     .legend-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: center; }
+    .map-legend {
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.85rem;
+      background: #0d141c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .map-legend h3 {
+      margin: 0 0 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .map-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.45rem 0.85rem;
+    }
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .leg-item span.desc { color: var(--muted); font-size: 0.75rem; }
+    .swatch-node {
+      width: 28px; height: 18px;
+      border-radius: 5px;
+      background: #15202c;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+    }
+    .swatch-node.income { border-color: var(--income); }
+    .swatch-node.cash { border-color: var(--cash); }
+    .swatch-node.credit { border-color: var(--credit); }
+    .swatch-node.venue { border-color: var(--venue); }
+    .swatch-node.yield { border-color: var(--yield); }
+    .swatch-node.invest { border-color: var(--invest); }
+    .swatch-node.expense { border-color: var(--expense); }
+    .swatch-node.capex { border-color: var(--capex); }
+    .swatch-node.leverage { border-color: var(--leverage); }
+    .swatch-line {
+      width: 36px; height: 0;
+      border-top: 3px solid #3dd68c;
+      flex-shrink: 0;
+      border-radius: 2px;
+    }
+    .swatch-line.observed { border-top-color: #3dd68c; border-top-style: solid; }
+    .swatch-line.inferred { border-top-color: #f5c542; border-top-style: dashed; }
+    .swatch-line.planned { border-top-color: #5b9fd4; border-top-style: dotted; border-top-width: 3px; }
+    .swatch-line.owner_stated { border-top-color: #c9a0ff; border-top-style: dashed; }
+    .swatch-line.thick { border-top-width: 5px; }
+    .swatch-line.thin { border-top-width: 1.5px; }
     .edge-list { font-size: 0.82rem; }
     .edge-list li { margin: 0.35rem 0; }
     .q-list { margin: 0; padding-left: 1.15rem; font-size: 0.88rem; }
@@ -168,9 +226,43 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: income sources, cash / venues, then uses. Line style = confidence. Thickness = relative importance (not exact $).</p>
+      <p class="hint">Left → right: income → Coinbase/Morpho path → cash/credit → uses.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
+      </div>
+      <div class="map-legend" id="map-legend" aria-label="Flow map legend">
+        <div>
+          <h3>Connecting lines (confidence)</h3>
+          <div class="map-legend-grid">
+            <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
+            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
+            <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
+            <div class="leg-item"><span class="swatch-line planned"></span><div><strong>Planned</strong><br/><span class="desc">Dotted blue — target / intent</span></div></div>
+            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker line</strong><br/><span class="desc">Higher relative importance (not $)</span></div></div>
+            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner line</strong><br/><span class="desc">Secondary / optional path</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3>Node border colors (channel type)</h3>
+          <div class="map-legend-grid">
+            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase hub</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC, agentic book</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho collateral / USDC borrow</span></div></div>
+            <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — High Yield USDC vault</span></div></div>
+            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money, RH Checking</span></div></div>
+            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills, ASIC OpEx</span></div></div>
+            <div class="leg-item"><span class="swatch-node capex"></span><div><strong>Capex</strong><span class="desc"> — ASIC hardware buys</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3>Layout</h3>
+          <div class="map-legend-grid">
+            <div class="leg-item"><span class="desc">Columns left → right: <strong>Income</strong> · <strong>Coinbase / Morpho path</strong> · <strong>Cash / credit / invest</strong> · <strong>Uses</strong></span></div>
+            <div class="leg-item"><span class="desc">Arrowheads show direction of capital. Labels on lines are path names (e.g. Express pay).</span></div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -353,12 +445,19 @@
       document.getElementById("notes").textContent = data.notes || "";
 
       const legend = data.legend || {};
-      document.getElementById("legend").innerHTML = Object.entries(legend)
-        .map(
-          ([k, v]) =>
-            `${confPill(k)} <span class="hint" style="margin:0">${esc(v)}</span>`
-        )
-        .join("");
+      const order = ["observed", "owner_stated", "inferred", "planned"];
+      const keys = [
+        ...order.filter((k) => legend[k]),
+        ...Object.keys(legend).filter((k) => !order.includes(k)),
+      ];
+      document.getElementById("legend").innerHTML =
+        keys
+          .map(
+            (k) =>
+              `${confPill(k)} <span class="hint" style="margin:0">${esc(legend[k])}</span>`
+          )
+          .join("") ||
+        `<span class="hint" style="margin:0">See Flow map legend for line and node colors.</span>`;
 
       draw(data);
 
