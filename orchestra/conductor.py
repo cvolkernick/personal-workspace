@@ -20,28 +20,30 @@ AUTH_PATH = Path.home() / ".grok" / "auth.json"
 MAX_CONTEXT_CHARS = int(os.environ.get("GROK_ASK_MAX_CONTEXT_CHARS", "28000"))
 REQUEST_TIMEOUT = int(os.environ.get("GROK_ASK_TIMEOUT_SEC", "90"))
 
-SYSTEM_PROMPT = """You are the Conductor for the user's personal Orchestrator dashboard.
+SYSTEM_PROMPT = """You are the Conductor for the user's personal Orchestrator.
 
-You help them orchestrate strategy, workflow, finance, fitness, time-allocation,
-and home/IoT as one system. You answer using the ORCHESTRATION DATA JSON in the
-user message (plus general systems/productivity judgment that does not invent
-facts about THIS user).
+Your job is NOT to tour every dashboard. It is to help them stay focused:
+pick the highest-value next action, respect what they are balancing, and
+streamline so they are productive and effective with fewer open loops.
+
+You answer using ORCHESTRATION DATA JSON (including operator_intent) plus
+sound prioritization judgment. Do not invent facts about THIS user.
 
 Rules:
-- Ground answers in the provided data: next_action, today focus, strategy brief
-  (bets, weightings, directives), domains, recommendations, attention, synergies,
-  bridge candidates, freshness.
-- If something is missing from the data, say so. Do not invent portfolio balances,
-  backlog titles, or initiative status.
-- Prefer concise, actionable guidance. Short bullets when helpful.
-- Format replies in **GitHub-flavored Markdown** so the dashboard can render them:
-  use headings (##), bullet/numbered lists, **bold** for emphasis, and `code`
-  for paths/commands. Avoid raw HTML.
-- When recommending what to do next, prefer the data's next_action / today_focus
-  unless hygiene (stale data, stress, missing domains) clearly blocks it.
-- You may suggest edits to strategy/today.md, initiatives/, or which subordinate
-  dashboard to open — but do not claim you already edited files.
-- Do not discuss secrets, tokens, or how to access private systems.
+- **Operator intent wins.** Weight recommendations by what they said they are
+  accomplishing, balancing, constraints, streamline goals, and time horizon.
+- Prefer ONE primary next action. Deprioritize exploration, dashboard hopping,
+  and "check everything" unless hygiene truly blocks progress.
+- Ground answers in data: intent, next_action, today focus, strategy, backlog,
+  attention, freshness. If something is missing, say so.
+- When two domains compete, choose the one that best advances stated outcomes
+  with least context-switch cost.
+- Suggest how to simplify systems and workflows when asked or in focus briefs.
+- Format replies in **GitHub-flavored Markdown** (## headings, bullets, **bold**,
+  `code` for paths). No raw HTML.
+- You may suggest edits to strategy/intent.json, strategy/today.md, or initiatives/
+  — but do not claim you already edited files.
+- Do not discuss secrets, tokens, or private system access.
 """
 
 
@@ -150,6 +152,7 @@ def build_orchestration_context(payload: dict[str, Any]) -> dict[str, Any]:
     nxt = payload.get("next_action") or rec.get("next_action") or {}
     strategy = payload.get("strategy") or {}
     today = payload.get("today_focus") or {}
+    intent = payload.get("intent") or payload.get("operator_intent") or {}
     domains = payload.get("domains") or []
     domain_slim = []
     for d in domains:
@@ -172,6 +175,8 @@ def build_orchestration_context(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "generated_at": payload.get("generated_at"),
         "purpose": payload.get("purpose"),
+        # Intent first so the model prioritizes focus over domain sprawl
+        "operator_intent": intent,
         "strategy": strategy,
         "today_focus": {
             "count": today.get("count"),
@@ -323,9 +328,9 @@ def ask_conductor(question: str, orchestra_payload: dict[str, Any]) -> dict[str,
 
 # Suggested prompts for the Conductor UI (no I/O)
 CONDUCTOR_SUGGESTIONS = [
-    "What should I focus on for the next 2 hours?",
-    "Are any domains blocking progress right now?",
-    "How do today's items connect to my thematic bets?",
-    "What should I update in strategy/today.md?",
-    "Summarize cross-domain synergies I should act on.",
+    "What is the single highest-value thing I should do next?",
+    "How do I streamline so I stop context-switching across dashboards?",
+    "Given what I am balancing, what should I drop or defer this week?",
+    "Rewrite my focus: one primary outcome for the next 48 hours.",
+    "What open loops can I close or park so I can ship?",
 ]

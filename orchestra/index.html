@@ -69,8 +69,55 @@
     }
     .domain-nav a.live .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
     .domain-nav a.offline .dot { background: var(--yellow); }
-    #sec-domains-top { margin-bottom: 1.15rem; }
-    #sec-domains-top h2 { margin: 0 0 0.55rem; font-size: 1rem; }
+    /* Intent / focus feedback */
+    .intent-panel {
+      background: linear-gradient(145deg, #121a28 0%, var(--panel) 55%);
+      border: 1px solid #2a3a55;
+      border-radius: 14px;
+      padding: 0.95rem 1.1rem;
+      margin-bottom: 1rem;
+    }
+    .intent-panel .label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--cyan); margin-bottom: 0.45rem;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    }
+    .intent-panel .field-label {
+      display: block; font-size: 0.72rem; font-weight: 650; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin: 0.55rem 0 0.25rem;
+    }
+    .intent-panel textarea,
+    .intent-panel input[type="text"] {
+      width: 100%; box-sizing: border-box;
+      background: #0a1018; color: var(--text);
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.5rem 0.7rem; font: inherit; font-size: 0.9rem; line-height: 1.4;
+      resize: vertical;
+    }
+    .intent-panel textarea:focus,
+    .intent-panel input:focus { outline: none; border-color: var(--accent); }
+    .intent-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;
+    }
+    @media (max-width: 640px) {
+      .intent-row { grid-template-columns: 1fr; }
+    }
+    .intent-actions {
+      display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+      margin-top: 0.75rem;
+    }
+    .intent-actions button.primary {
+      background: #1a3a55; border-color: #2d6a9f;
+    }
+    .focus-brief-panel {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 0.9rem 1.05rem; margin-bottom: 1rem;
+    }
+    .focus-brief-panel .label {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--green); margin-bottom: 0.35rem;
+      display: flex; justify-content: space-between; align-items: center; gap: 0.5rem;
+    }
     a.card-link {
       text-decoration: none; color: inherit; display: flex;
       flex-direction: column; gap: 0.35rem; height: 100%;
@@ -504,78 +551,50 @@
   <header>
     <div>
       <h1>Orchestrator</h1>
-      <div class="sub" id="purpose">Conductor · Strategy · one next action · today's list</div>
+      <div class="sub" id="purpose">Focus · highest-value next action · streamline</div>
     </div>
     <div class="actions">
-      <button class="primary" id="btn-refresh" type="button">Refresh</button>
-      <button id="btn-probe" type="button" title="Probe child server ports">Probe ports</button>
+      <button class="primary" id="btn-focus-brief" type="button" title="Proactive focus brief from Grok">Focus brief</button>
+      <button id="btn-refresh" type="button">Refresh</button>
+      <button id="btn-probe" type="button" title="Probe child server ports">Probe</button>
     </div>
   </header>
   <nav class="domain-nav" id="domain-nav" aria-label="Dashboard navigation">
-    <span class="nav-label">Dashboards</span>
+    <span class="nav-label">Drill-down</span>
   </nav>
   <main>
     <div class="error-banner" id="error"></div>
 
-    <section id="sec-domains-top" aria-label="Domains">
-      <h2>Domains <span class="badge" id="dom-count">0</span></h2>
+    <section class="intent-panel" id="sec-intent" aria-label="Your focus">
+      <div class="label">Your focus <span class="auth-pill" id="intent-saved-pill">local</span></div>
       <p class="hint" style="margin:0 0 0.55rem;color:var(--muted);font-size:0.82rem">
-        Quick jump to every subordinate dashboard. Open starts the server if offline (when available).
+        Tell Orchestrator what you are trying to accomplish and balance. This steers next-action ranking and Conductor.
       </p>
-      <div class="grid" id="domains"></div>
-    </section>
-
-    <section class="conductor" id="sec-conductor" aria-label="Conductor">
-      <div class="label">
-        <span>Conductor</span>
-        <span class="auth-pill" id="conductor-auth">checking…</span>
+      <label class="field-label" for="intent-accomplishing">Trying to accomplish</label>
+      <textarea id="intent-accomplishing" rows="2" placeholder="Primary outcomes for this period…"></textarea>
+      <label class="field-label" for="intent-balancing">Balancing (one item per line)</label>
+      <textarea id="intent-balancing" rows="3" placeholder="Tradeoffs you are holding…"></textarea>
+      <label class="field-label" for="intent-constraints">Constraints (one per line)</label>
+      <textarea id="intent-constraints" rows="2" placeholder="e.g. one next action; no dashboard thrash…"></textarea>
+      <label class="field-label" for="intent-streamline">Streamline goals (one per line)</label>
+      <textarea id="intent-streamline" rows="2" placeholder="How you want to work leaner…"></textarea>
+      <div class="intent-row">
+        <div class="intent-half">
+          <label class="field-label" for="intent-horizon">Time horizon</label>
+          <input id="intent-horizon" type="text" placeholder="next 24–48 hours" />
+        </div>
+        <div class="intent-half">
+          <label class="field-label" for="intent-energy">Energy / capacity notes</label>
+          <input id="intent-energy" type="text" placeholder="optional" />
+        </div>
       </div>
-      <p class="hint" style="margin:0 0 0.5rem;color:var(--muted);font-size:0.82rem">
-        Ask Grok about orchestration — next actions, bets, domains, hygiene, or how to align the system.
-      </p>
-      <div class="conductor-row">
-        <textarea id="conductor-input" rows="2" placeholder="e.g. What should I focus on for the next 2 hours?"></textarea>
-        <button type="button" class="ask" id="btn-conductor-ask">Ask</button>
+      <div class="intent-actions">
+        <button type="button" class="primary" id="btn-intent-save">Save focus</button>
+        <span class="hint" id="intent-meta" style="color:var(--muted);font-size:0.8rem"></span>
       </div>
-      <div class="conductor-chips" id="conductor-chips"></div>
-      <div class="conductor-error" id="conductor-error"></div>
-      <div class="conductor-answer" id="conductor-answer">
-        <div class="meta" id="conductor-answer-meta"></div>
-        <div class="body" id="conductor-answer-body"></div>
-      </div>
-    </section>
-
-    <section class="strategy-panel" id="sec-strategy" aria-label="Strategy">
-      <div class="label">Strategy</div>
-      <div class="guiding" id="strategy-guiding">Loading strategy…</div>
-      <div class="summary" id="strategy-summary"></div>
-      <div id="strategy-bets-wrap" hidden>
-        <h3>Thematic bets</h3>
-        <div class="bet-chips" id="strategy-bets"></div>
-        <ul id="strategy-theme-details"></ul>
-      </div>
-      <div id="strategy-goals-wrap" hidden>
-        <h3>Goals &amp; focus</h3>
-        <ul id="strategy-goals"></ul>
-      </div>
-      <div id="strategy-directives-wrap" hidden>
-        <h3>Directives</h3>
-        <ul id="strategy-directives"></ul>
-      </div>
-      <div id="strategy-weights-wrap" hidden>
-        <h3>Domain weightings</h3>
-        <ul id="strategy-weights"></ul>
-      </div>
-      <div id="strategy-inits-wrap" hidden>
-        <h3>Active initiatives</h3>
-        <ul id="strategy-inits"></ul>
-      </div>
-      <div class="paths" id="strategy-paths"></div>
     </section>
 
     <div class="status-bar" id="status-bar" aria-label="Status"></div>
-
-    <p class="focus-path">Focus path</p>
 
     <div class="next-hero" id="next-hero" hidden>
       <div class="label">1 · Do this now</div>
@@ -585,8 +604,26 @@
       <div class="link-row" id="next-links"></div>
     </div>
 
+    <section class="focus-brief-panel" id="sec-focus-brief" aria-label="Focus guidance">
+      <div class="label">
+        <span>Focus guidance</span>
+        <button type="button" class="ask" id="btn-focus-brief-2" style="min-width:auto;padding:0.25rem 0.65rem;font-size:0.78rem">Refresh brief</button>
+      </div>
+      <p class="hint" style="margin:0 0 0.45rem;color:var(--muted);font-size:0.82rem">
+        Proactive streamline advice from Grok using your intent + live signals.
+      </p>
+      <div class="conductor-error" id="focus-brief-error"></div>
+      <div class="conductor-answer show" id="focus-brief-box" style="display:none">
+        <div class="meta" id="focus-brief-meta"></div>
+        <div class="body" id="focus-brief-body"></div>
+      </div>
+      <p class="hint" id="focus-brief-empty" style="color:var(--muted);font-size:0.85rem;margin:0.35rem 0 0">
+        Click <strong>Focus brief</strong> for a ranked next action and streamline moves.
+      </p>
+    </section>
+
     <section id="sec-today-focus">
-      <h2>2 · Today's Focus <span class="badge" id="today-count">0</span></h2>
+      <h2>Today's Focus <span class="badge" id="today-count">0</span></h2>
       <div class="today-focus-panel">
         <p class="lead" id="today-lead">
           From <code>strategy/today.md</code> — your planned day (edit the file, then Refresh).
@@ -618,7 +655,67 @@
       </div>
     </section>
 
+    <section class="conductor" id="sec-conductor" aria-label="Conductor">
+      <div class="label">
+        <span>Ask · Focus coach</span>
+        <span class="auth-pill" id="conductor-auth">checking…</span>
+      </div>
+      <p class="hint" style="margin:0 0 0.5rem;color:var(--muted);font-size:0.82rem">
+        Ask how to focus, streamline, or rebalance — answers use your intent + live orchestration data.
+      </p>
+      <div class="conductor-row">
+        <textarea id="conductor-input" rows="2" placeholder="e.g. What should I drop so I can ship one thing today?"></textarea>
+        <button type="button" class="ask" id="btn-conductor-ask">Ask</button>
+      </div>
+      <div class="conductor-chips" id="conductor-chips"></div>
+      <div class="conductor-error" id="conductor-error"></div>
+      <div class="conductor-answer" id="conductor-answer">
+        <div class="meta" id="conductor-answer-meta"></div>
+        <div class="body" id="conductor-answer-body"></div>
+      </div>
+    </section>
+
     <!-- Secondary: collapsed by default to cut noise -->
+    <details class="secondary" id="sec-domains-wrap">
+      <summary>Domain dashboards <span class="badge" id="dom-count">0</span></summary>
+      <p class="hint">Drill-down only — open a domain when the next action needs it. Sticky strip above also works.</p>
+      <div class="grid" id="domains"></div>
+      <section id="sec-links" style="margin-top:0.75rem">
+        <h2>Launch commands <span class="badge" id="link-count">0</span></h2>
+        <div class="list" id="links"></div>
+      </section>
+    </details>
+
+    <details class="secondary" id="sec-strategy-wrap">
+      <summary>Strategy north star</summary>
+      <section class="strategy-panel" id="sec-strategy" aria-label="Strategy" style="margin:0.5rem 0 0;border:none;padding:0;background:transparent">
+        <div class="guiding" id="strategy-guiding">Loading strategy…</div>
+        <div class="summary" id="strategy-summary"></div>
+        <div id="strategy-bets-wrap" hidden>
+          <h3>Thematic bets</h3>
+          <div class="bet-chips" id="strategy-bets"></div>
+          <ul id="strategy-theme-details"></ul>
+        </div>
+        <div id="strategy-goals-wrap" hidden>
+          <h3>Goals &amp; focus</h3>
+          <ul id="strategy-goals"></ul>
+        </div>
+        <div id="strategy-directives-wrap" hidden>
+          <h3>Directives</h3>
+          <ul id="strategy-directives"></ul>
+        </div>
+        <div id="strategy-weights-wrap" hidden>
+          <h3>Domain weightings</h3>
+          <ul id="strategy-weights"></ul>
+        </div>
+        <div id="strategy-inits-wrap" hidden>
+          <h3>Active initiatives</h3>
+          <ul id="strategy-inits"></ul>
+        </div>
+        <div class="paths" id="strategy-paths"></div>
+      </section>
+    </details>
+
     <details class="secondary" id="sec-recommendations-wrap">
       <summary id="rec-summary-label">System suggestions <span class="badge" id="rec-count">0</span></summary>
       <p class="hint">Automated extras if you finish the list or need a backup (not a second todo pile).</p>
@@ -628,14 +725,6 @@
       </div>
       <div class="list" id="recommendations"></div>
       <p class="more-note" id="rec-more" hidden></p>
-    </details>
-
-    <details class="secondary" id="sec-links-wrap">
-      <summary>Launch commands <span class="badge" id="link-count">0</span></summary>
-      <p class="hint">CLI launch strings for subordinate dashboards (domains are above).</p>
-      <section id="sec-links" style="margin-bottom:0">
-        <div class="list" id="links"></div>
-      </section>
     </details>
     <div class="error-banner" id="launch-toast" style="display:none;margin-top:0.5rem"></div>
 
@@ -1065,11 +1154,49 @@
       ].map(([k, p]) => `<span><strong>${esc(k)}:</strong> <code>${esc(p)}</code></span>`).join("");
     }
 
+    function linesToText(arr) {
+      if (!arr) return "";
+      if (typeof arr === "string") return arr;
+      return (arr || []).join("\n");
+    }
+
+    function fillIntentForm(data) {
+      const intent = data.intent || data.operator_intent || {};
+      const meta = data.intent_meta || {};
+      const acc = $("intent-accomplishing");
+      if (!acc) return;
+      // Don't clobber in-progress typing unless empty or after explicit load
+      if (!acc.dataset.dirty) {
+        acc.value = intent.accomplishing || "";
+        $("intent-balancing").value = linesToText(intent.balancing);
+        $("intent-constraints").value = linesToText(intent.constraints);
+        $("intent-streamline").value = linesToText(intent.streamline_goals);
+        $("intent-horizon").value = intent.time_horizon || "";
+        $("intent-energy").value = intent.energy_notes || "";
+      }
+      const pill = $("intent-saved-pill");
+      if (pill) {
+        if (meta.exists) {
+          pill.textContent = "saved";
+          pill.className = "auth-pill ok";
+        } else {
+          pill.textContent = "defaults";
+          pill.className = "auth-pill";
+        }
+      }
+      const im = $("intent-meta");
+      if (im) {
+        im.textContent = meta.updated_at
+          ? "Updated " + meta.updated_at + " · " + (meta.path || "strategy/intent.json")
+          : "Source: " + (meta.path || "strategy/intent.json") + " (save to create)";
+      }
+    }
+
     function render(data) {
       lastData = data;
       showError("");
       $("purpose").textContent =
-        data.purpose || "Conductor · Strategy · one next action · today's list";
+        data.purpose || "Focus · highest-value next action · streamline";
       const c = data.counts || {};
       const domains = data.domains || [];
       const strategyDomain = domains.find((d) => d.id === "strategy") || {};
@@ -1082,6 +1209,7 @@
       const recItems = data.recommended_actions || rec.items || data.action_plan || [];
       const recMode = rec.mode || "—";
 
+      fillIntentForm(data);
       renderStrategy(data);
       const qs = new URLSearchParams(location.search);
       const focusRec = qs.get("rec") || "";
@@ -1474,6 +1602,83 @@
       $("conductor-input").value = btn.getAttribute("data-q") || btn.textContent || "";
       $("conductor-input").focus();
     });
+
+    // Mark intent fields dirty so refresh does not wipe in-progress edits
+    ["intent-accomplishing", "intent-balancing", "intent-constraints", "intent-streamline", "intent-horizon", "intent-energy"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", () => { el.dataset.dirty = "1"; });
+    });
+
+    async function saveIntent() {
+      const body = {
+        accomplishing: $("intent-accomplishing").value,
+        balancing: $("intent-balancing").value,
+        constraints: $("intent-constraints").value,
+        streamline_goals: $("intent-streamline").value,
+        time_horizon: $("intent-horizon").value,
+        energy_notes: $("intent-energy").value,
+      };
+      try {
+        const res = await fetch("/api/intent", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "save failed");
+        ["intent-accomplishing", "intent-balancing", "intent-constraints", "intent-streamline", "intent-horizon", "intent-energy"].forEach((id) => {
+          const el = $(id);
+          if (el) delete el.dataset.dirty;
+        });
+        showLaunchToast("Focus saved · strategy/intent.json", false);
+        // Refresh payload so Conductor uses new intent
+        await load(lastProbe);
+      } catch (e) {
+        showLaunchToast("Save failed: " + e.message, true);
+      }
+    }
+
+    async function runFocusBrief() {
+      const err = $("focus-brief-error");
+      const box = $("focus-brief-box");
+      const empty = $("focus-brief-empty");
+      const btns = [$("btn-focus-brief"), $("btn-focus-brief-2")].filter(Boolean);
+      if (err) {
+        err.classList.remove("show");
+        err.textContent = "";
+      }
+      btns.forEach((b) => { b.disabled = true; b.textContent = "…"; });
+      try {
+        const res = await fetch("/api/focus-brief", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || data.detail || ("HTTP " + res.status));
+        if (empty) empty.style.display = "none";
+        if (box) {
+          box.style.display = "block";
+          box.classList.add("show");
+        }
+        $("focus-brief-meta").textContent =
+          (data.model || "grok") + (data.auth_source ? " · " + data.auth_source : "") + " · focus brief";
+        $("focus-brief-body").innerHTML = formatConductorAnswer(data.answer || "");
+        // Scroll brief into view
+        $("sec-focus-brief").scrollIntoView({ behavior: "smooth", block: "nearest" });
+      } catch (e) {
+        if (err) {
+          err.textContent = "Focus brief: " + e.message;
+          err.classList.add("show");
+        }
+      } finally {
+        btns.forEach((b) => {
+          b.disabled = false;
+          b.textContent = b.id === "btn-focus-brief" ? "Focus brief" : "Refresh brief";
+        });
+      }
+    }
+
+    $("btn-intent-save").addEventListener("click", () => saveIntent());
+    $("btn-focus-brief").addEventListener("click", () => runFocusBrief());
+    $("btn-focus-brief-2").addEventListener("click", () => runFocusBrief());
 
     loadConductorStatus();
     // Probe ports on first load so offline domains are visible

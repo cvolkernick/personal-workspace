@@ -44,6 +44,7 @@ from conductor import (  # noqa: E402
     ask_conductor,
     auth_status,
 )
+from intent import FOCUS_BRIEF_PROMPT, load_intent, save_intent  # noqa: E402
 from launcher import ensure_domain, status_all  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
 from public_base import public_hostname, rewrite_payload_urls  # noqa: E402
@@ -116,6 +117,15 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "suggestions": CONDUCTOR_SUGGESTIONS,
                 },
             )
+            return
+
+        if path in ("/api/intent", "/api/focus/intent"):
+            try:
+                data = load_intent(WORKSPACE_ROOT)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, {"ok": True, "intent": data})
             return
 
         if path == "/api/strategy":
@@ -278,6 +288,43 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path
+        if path in ("/api/intent", "/api/focus/intent"):
+            body = self._read_json_body()
+            try:
+                saved = save_intent(body, WORKSPACE_ROOT)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, {"ok": True, "intent": saved})
+            return
+
+        if path in ("/api/focus-brief", "/api/conductor/focus-brief"):
+            # Proactive focus brief grounded in intent + orchestration data
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=False
+                )
+                result = ask_conductor(FOCUS_BRIEF_PROMPT, payload)
+                result["kind"] = "focus_brief"
+            except ConductorError as e:
+                code = e.status if e.status in (400, 401, 403, 429) else 502
+                if e.status and 400 <= e.status < 600:
+                    code = e.status
+                self._json(
+                    code if code >= 400 else 502,
+                    {
+                        "ok": False,
+                        "error": str(e),
+                        "detail": (e.body or "")[:800],
+                    },
+                )
+                return
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, result)
+            return
+
         if path in ("/api/conductor", "/api/ask", "/api/conductor/ask"):
             body = self._read_json_body()
             question = (body.get("question") or body.get("prompt") or "").strip()

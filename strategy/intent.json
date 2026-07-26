@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "accomplishing": "Build wealth and optionality via Energy, Bitcoin, and AI/Autonomy leverage while keeping health and systems sustainable.",
+  "balancing": [
+    "Deep work on AI/Autonomy tooling vs reactive dashboard maintenance",
+    "Fitness/recovery as energy enabler vs shipping leverage automations",
+    "Treasury/liquidity hygiene vs research time on thematic bets"
+  ],
+  "constraints": [
+    "Prefer one primary next action at a time",
+    "Avoid opening every dashboard unless needed for that action",
+    "Keep today list to 2–5 real items, not templates"
+  ],
+  "streamline_goals": [
+    "Fewer open loops; clearer single next step",
+    "Use domain dashboards only to execute or verify, not to re-decide",
+    "Batch hygiene (git, treasury fields) so it does not interrupt deep work"
+  ],
+  "time_horizon": "next 24–48 hours",
+  "energy_notes": "",
+  "notes": "Seeded for focus-first Orchestrator. Edit in the UI or this file.",
+  "updated_at": null
+}

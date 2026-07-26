@@ -11,6 +11,7 @@ try:
     from .attention import compute_freshness, synthesize_attention
     from .collectors import build_strategy_section, collect_all_domains
     from .domains import DOMAIN_SPECS
+    from .intent import intent_for_context, load_intent
     from .priorities import synthesize_priorities
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
@@ -18,6 +19,7 @@ except ImportError:
     from attention import compute_freshness, synthesize_attention
     from collectors import build_strategy_section, collect_all_domains
     from domains import DOMAIN_SPECS
+    from intent import intent_for_context, load_intent
     from priorities import synthesize_priorities
     from recommendations import synthesize_recommendations
     from synergies import detect_synergies
@@ -225,6 +227,8 @@ def build_orchestra_payload(
         1 for s in synergies if (s.get("strength") or "") == "high"
     )
     strategy_section = build_strategy_section(strategy)
+    intent_raw = load_intent(ws)
+    intent = intent_for_context(intent_raw)
 
     today_path = s_sig.get("today_path") or "strategy/today.md"
     bets_path = s_sig.get("bets_path") or "strategy/bets.md"
@@ -263,15 +267,22 @@ def build_orchestra_payload(
         "service": "orchestra",
         "name": "Orchestrator",
         "purpose": (
-            "Automates holistic multi-domain analysis and synthesizes recommended next actions "
-            "from strategy, workflow, finance, fitness, time-allocation, and IoT — integrating "
-            "synergies, attention/hygiene, and priorities without manual triage."
+            "Focus coach: highest-value next actions given your intent, what you are balancing, "
+            "and live signals — domain dashboards are drill-downs, not the home screen."
         ),
         "generated_at": generated_at.isoformat(),
         "workspace": str(ws),
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
+        # Operator feedback — what to accomplish / balance / streamline
+        "intent": intent,
+        "operator_intent": intent,
+        "intent_meta": {
+            "path": intent_raw.get("path") or "strategy/intent.json",
+            "exists": bool(intent_raw.get("exists")),
+            "updated_at": intent_raw.get("updated_at"),
+        },
         # North-star strategy brief (top-level UI; not a domain card)
         "strategy": strategy_section,
         # Daily action plan slice (source: strategy/today.md)
