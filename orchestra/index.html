@@ -565,6 +565,26 @@
   <main>
     <div class="error-banner" id="error"></div>
 
+    <section class="conductor" id="sec-conductor" aria-label="Ask Focus Coach">
+      <div class="label">
+        <span>Ask Focus Coach</span>
+        <span class="auth-pill" id="conductor-auth">checking…</span>
+      </div>
+      <p class="hint" style="margin:0 0 0.5rem;color:var(--muted);font-size:0.82rem">
+        Ask how to focus, streamline, or rebalance — answers use your intent + live orchestration data.
+      </p>
+      <div class="conductor-row">
+        <textarea id="conductor-input" rows="2" placeholder="e.g. What should I drop so I can ship one thing today?"></textarea>
+        <button type="button" class="ask" id="btn-conductor-ask">Ask</button>
+      </div>
+      <div class="conductor-chips" id="conductor-chips"></div>
+      <div class="conductor-error" id="conductor-error"></div>
+      <div class="conductor-answer" id="conductor-answer">
+        <div class="meta" id="conductor-answer-meta"></div>
+        <div class="body" id="conductor-answer-body"></div>
+      </div>
+    </section>
+
     <section class="intent-panel" id="sec-intent" aria-label="Your focus">
       <div class="label">Your focus <span class="auth-pill" id="intent-saved-pill">local</span></div>
       <p class="hint" style="margin:0 0 0.55rem;color:var(--muted);font-size:0.82rem">
@@ -652,26 +672,6 @@
             </div>
           </details>
         </div>
-      </div>
-    </section>
-
-    <section class="conductor" id="sec-conductor" aria-label="Conductor">
-      <div class="label">
-        <span>Ask · Focus coach</span>
-        <span class="auth-pill" id="conductor-auth">checking…</span>
-      </div>
-      <p class="hint" style="margin:0 0 0.5rem;color:var(--muted);font-size:0.82rem">
-        Ask how to focus, streamline, or rebalance — answers use your intent + live orchestration data.
-      </p>
-      <div class="conductor-row">
-        <textarea id="conductor-input" rows="2" placeholder="e.g. What should I drop so I can ship one thing today?"></textarea>
-        <button type="button" class="ask" id="btn-conductor-ask">Ask</button>
-      </div>
-      <div class="conductor-chips" id="conductor-chips"></div>
-      <div class="conductor-error" id="conductor-error"></div>
-      <div class="conductor-answer" id="conductor-answer">
-        <div class="meta" id="conductor-answer-meta"></div>
-        <div class="body" id="conductor-answer-body"></div>
       </div>
     </section>
 
