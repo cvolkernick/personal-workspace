@@ -1,8 +1,8 @@
 {
-  "version": 3,
+  "version": 4,
   "as_of": "2026-07-26",
   "title": "Capital flows — income to channels",
-  "notes": "Streamlined 2026-07-26: Turo, Lyft, and ASIC revenue all land on Coinbase, then cash → BTC → Morpho collateral → USDC. Cadences: Turo intermittent, Lyft weekly, ASICs ~monthly. Lyft express→X Money is exceptional only (not primary). ASIC fleet OpEx remains an expense from X Money; ASIC hardware buys are capex. Monthly $ still variable — diagram is structural.",
+  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. No direct vault/USDC → Coinbase-funded bills; spend/ops run through X Money + One Card. Lyft express→X Money is exceptional only. ASIC OpEx from X Money; hardware buys are capex.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -81,21 +81,21 @@
       "id": "cb_vault",
       "label": "High Yield USDC vault",
       "kind": "yield",
-      "subtitle": "Working float (Morpho HY)",
+      "subtitle": "All Morpho USDC parks here",
       "confidence": "observed"
     },
     {
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
-      "subtitle": "~6% APY · OpEx + express exception",
+      "subtitle": "~6% APY · primary vault draw",
       "confidence": "observed"
     },
     {
       "id": "one_card",
       "label": "One Card",
       "kind": "credit",
-      "subtitle": "Spend · USDC security deposit",
+      "subtitle": "Secondary · from vault",
       "confidence": "observed"
     },
     {
@@ -103,13 +103,6 @@
       "label": "Agentic fund",
       "kind": "invest",
       "subtitle": "40/60 active book",
-      "confidence": "observed"
-    },
-    {
-      "id": "bills_cb",
-      "label": "Bills (Coinbase-funded)",
-      "kind": "expense",
-      "subtitle": "Sheet: majority Personal",
       "confidence": "observed"
     },
     {
@@ -190,30 +183,23 @@
     {
       "from": "cb_usdc_borrow",
       "to": "cb_vault",
-      "label": "Park float",
-      "confidence": "inferred",
-      "weight": 3
-    },
-    {
-      "from": "cb_usdc_borrow",
-      "to": "bills_cb",
-      "label": "Fund bills",
-      "confidence": "inferred",
-      "weight": 3
-    },
-    {
-      "from": "cb_usdc_borrow",
-      "to": "one_card",
-      "label": "Card / deposit",
-      "confidence": "inferred",
-      "weight": 2
+      "label": "Park all USDC",
+      "confidence": "owner_stated",
+      "weight": 5
     },
     {
       "from": "cb_vault",
-      "to": "bills_cb",
-      "label": "Pay bills",
-      "confidence": "inferred",
-      "weight": 3
+      "to": "x_money",
+      "label": "Primary draw",
+      "confidence": "owner_stated",
+      "weight": 5
+    },
+    {
+      "from": "cb_vault",
+      "to": "one_card",
+      "label": "Secondary · card/deposit",
+      "confidence": "owner_stated",
+      "weight": 2
     },
     {
       "from": "x_money",
