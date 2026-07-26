@@ -23,6 +23,17 @@ SYSTEM_PROMPT = """You are a fitness coach assistant for the user's personal res
 
 You only answer using the FITNESS DATA JSON provided in the user message (plus general exercise/nutrition knowledge that does not invent facts about THIS user).
 
+Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTraining):
+- Balanced hypertrophy does **not** require 10–20 working sets per muscle per week.
+- Target roughly **4–8 hard sets per major muscle group per week**, counting compound **overlap**
+  (e.g. RDLs credit hamstrings and glutes). Major groups: chest, mid/upper back, lats, delts,
+  biceps, triceps, quads, hamstrings, calves, glutes, adductors, abs, traps.
+- Prioritizing 1–2 muscles is fine; other muscles should sit near a **maintenance** dose.
+- There is a cap on productive work per session and per week; 10–20 sets/muscle crowds that out.
+- Prefer compounds for multi-muscle efficiency when the user is short on time or under-recovered.
+- When discussing the planned workout or weekly volume, use `workout_store.plan.volume` / weekly set
+  tallies from the data when present.
+
 Rules:
 - Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review.
 - If something is missing from the data, say so clearly. Do not invent sessions, weights, macros, or dates.
@@ -261,17 +272,46 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
 
     wo = dashboard.get("workout_store") or {}
     plan = wo.get("plan") or {}
+    volume_ctx = None
     if isinstance(plan, dict):
+        vol = plan.get("volume") or {}
+        if isinstance(vol, dict) and vol.get("muscles"):
+            volume_ctx = {
+                "framework": (vol.get("framework") or {}).get("id")
+                or (vol.get("framework") or {}).get("label"),
+                "under_target": (vol.get("under_target") or [])[:8],
+                "high_or_over": (vol.get("high_or_over") or [])[:8],
+                "muscles": [
+                    {
+                        "muscle": m.get("muscle"),
+                        "done": m.get("done"),
+                        "planned": m.get("planned"),
+                        "projected": m.get("projected"),
+                        "min": m.get("min"),
+                        "max": m.get("max"),
+                        "status": m.get("status"),
+                    }
+                    for m in (vol.get("muscles") or [])
+                    if isinstance(m, dict)
+                    and (
+                        (m.get("done") or 0) > 0
+                        or (m.get("planned") or 0) > 0
+                        or m.get("status") in ("under", "low", "high", "over")
+                    )
+                ][:13],
+            }
         plan = {
             "date": plan.get("date"),
             "session_type": plan.get("session_type"),
             "is_rest_day": plan.get("is_rest_day"),
             "message": plan.get("message"),
+            "volume": volume_ctx,
             "exercises": [
                 {
                     "name": e.get("name"),
                     "prescription": e.get("prescription"),
                     "primary_muscles": e.get("primary_muscles"),
+                    "set_credits": e.get("set_credits"),
                 }
                 for e in (plan.get("exercises") or [])[:8]
                 if isinstance(e, dict)
@@ -309,6 +349,14 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
         "workout_store": {
             "goals": wo.get("goals"),
             "plan": plan,
+            "volume_framework": {
+                "id": "dean_t_balanced_4_8",
+                "target_sets_per_muscle_week": "4-8",
+                "notes": (
+                    "Hard sets per major muscle/week with compound overlap; "
+                    "not 10-20. Priority muscles may go higher; others maintenance."
+                ),
+            },
             "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),
         },
         "coach": {

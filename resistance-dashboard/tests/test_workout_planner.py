@@ -6,10 +6,13 @@ import unittest
 
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import (
+    credit_sets_for_exercise,
     generate_workout_plan,
     last_performance,
     next_session_type,
     prescribe,
+    weekly_set_tally,
+    volume_balance_report,
 )
 
 
@@ -125,6 +128,59 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         self.assertTrue(plan["is_rest_day"])
         self.assertEqual(plan["session_type"], "rest")
+        self.assertIn("volume", plan)
+
+    def test_compound_overlap_credits(self):
+        credits = credit_sets_for_exercise(
+            ["hamstrings", "glutes"], ["back"], 2, secondary_fraction=0.5
+        )
+        self.assertAlmostEqual(credits["hamstrings"], 1.0)
+        self.assertAlmostEqual(credits["glutes"], 1.0)
+        self.assertAlmostEqual(credits["mid_upper_back"], 1.0)  # back → mid_upper_back * 0.5 * 2
+
+    def test_weekly_tally_and_plan_volume(self):
+        sessions = [
+            _session("2026-07-20", "push", "DB Flat Press", 50, 3, 10),
+            _session("2026-07-21", "push", "DB Flat Press", 50, 3, 10),
+        ]
+        tally = weekly_set_tally(
+            sessions, self.catalog, as_of="2026-07-22", window_days=7
+        )
+        self.assertGreaterEqual(tally["by_muscle"].get("chest", 0), 5.0)
+        plan = generate_workout_plan(
+            self.catalog,
+            {**self.goals, "sets_per_muscle_week_max": 8, "default_hard_sets": 2},
+            sessions,
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-07-22",
+        )
+        self.assertFalse(plan["is_rest_day"])
+        self.assertIn("volume", plan)
+        self.assertEqual(plan["volume"]["framework"]["id"], "dean_t_balanced_4_8")
+        # Plan should not explode set counts past framework
+        total_sets = sum(
+            int((e.get("prescription") or {}).get("sets") or 0)
+            for e in plan["exercises"]
+        )
+        self.assertLessEqual(total_sets, 14)
+        for e in plan["exercises"]:
+            self.assertLessEqual(int((e.get("prescription") or {}).get("sets") or 0), 4)
+
+    def test_volume_balance_status(self):
+        tally = {
+            "by_muscle": {"chest": 2, "delts": 6, "triceps": 12},
+            "window_days": 7,
+            "start": "2026-07-16",
+            "end": "2026-07-22",
+            "as_of": "2026-07-22",
+            "total_set_credits": 20,
+        }
+        rep = volume_balance_report(tally, self.goals)
+        statuses = {r["muscle"]: r["status"] for r in rep["muscles"]}
+        self.assertIn(statuses["chest"], ("under", "low"))
+        self.assertEqual(statuses["delts"], "ok")
+        self.assertIn(statuses["triceps"], ("high", "over"))
 
 
 if __name__ == "__main__":

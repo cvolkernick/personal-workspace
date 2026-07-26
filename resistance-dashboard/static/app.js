@@ -1926,6 +1926,43 @@
     if ($("wg-split")) $("wg-split").value = g.split || "ppl";
   }
 
+  function renderVolumeBalance(volume) {
+    if (!volume || !Array.isArray(volume.muscles)) return "";
+    const fw = volume.framework || {};
+    const rows = volume.muscles.filter(
+      (m) =>
+        (m.done || 0) > 0 ||
+        (m.planned || 0) > 0 ||
+        m.status === "under" ||
+        m.status === "low" ||
+        m.priority
+    );
+    // Always show majors with any signal; cap list for UI density
+    const show = (rows.length ? rows : volume.muscles).slice(0, 13);
+    let chips = show
+      .map((m) => {
+        const label = String(m.muscle || "").replace(/_/g, " ");
+        const done = m.done != null ? m.done : 0;
+        const planned = m.planned != null ? m.planned : 0;
+        const band = `${m.min}–${m.max}`;
+        const proj =
+          planned > 0 ? `${done}+${planned}→${m.projected}` : `${done}`;
+        return `<span class="vol-chip vol-${m.status || "ok"}" title="${label}: ${proj} sets this week (target ${band})">
+          <span class="vol-chip-m">${label}</span>
+          <span class="vol-chip-v">${proj}</span>
+          <span class="vol-chip-b">${band}</span>
+        </span>`;
+      })
+      .join("");
+    return `<div class="volume-balance">
+      <div class="volume-balance-title">Weekly hard sets · ${
+        fw.label || "≈4–8 / muscle (w/ overlap)"
+      }</div>
+      <div class="volume-balance-chips">${chips}</div>
+      <p class="muted volume-balance-note">Primary sets count fully; secondary muscles get partial credit. Framework avoids 10–20+/muscle.</p>
+    </div>`;
+  }
+
   function renderWorkoutPlan(plan) {
     const box = $("workout-plan-result");
     if (!box) return;
@@ -1936,11 +1973,16 @@
     let html = `<p class="muted">${plan.message || ""}</p>`;
     if (plan.is_rest_day) {
       html += `<p><strong>Rest day</strong> — recovery below threshold.</p>`;
+      html += renderVolumeBalance(plan.volume);
       box.innerHTML = html;
       return;
     }
     const st = (plan.session_type || "").toUpperCase();
-    html += `<p><strong>${st || "Session"}</strong> · ${(plan.exercises || []).length} lifts</p>`;
+    const hard = (plan.context && plan.context.session_hard_sets) || null;
+    html += `<p><strong>${st || "Session"}</strong> · ${(plan.exercises || []).length} lifts${
+      hard != null ? ` · ${hard} hard sets` : ""
+    }</p>`;
+    html += renderVolumeBalance(plan.volume);
     const items = plan.exercises || [];
     if (!items.length) {
       html += `<p class="muted">No exercises planned — expand the catalog or enable exercises.</p>`;
@@ -1956,11 +1998,18 @@
         const last = ex.last
           ? `Last ${ex.last.date}: ${ex.last.weight_lbs} lb × ${ex.last.sets}×${ex.last.reps}`
           : "No prior log";
+        const credits = ex.set_credits
+          ? Object.entries(ex.set_credits)
+              .map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`)
+              .join(", ")
+          : "";
         html += `<li>
           <div class="title">${ex.name}</div>
           <div class="meta"><strong>${w} × ${rx.sets || "?"} × ${rx.reps || "?"}</strong>
             · ${ex.movement || ""} · ${muscles}</div>
-          <div class="meta muted" style="font-size:0.85rem">${ex.rationale || last}</div>
+          <div class="meta muted" style="font-size:0.85rem">${ex.rationale || last}${
+          credits ? ` · credits: ${credits}` : ""
+        }</div>
         </li>`;
       });
       html += `</ul>`;
@@ -1970,6 +2019,7 @@
       html += `<p class="muted" style="margin-top:0.75rem;font-size:0.85rem">
         Context: last=${ctx.last_session_type || "—"} · days since log=${ctx.days_since_last ?? "—"}
         · catalog pool=${ctx.pool_for_session ?? "—"}
+        · session cap=${ctx.session_working_set_cap ?? "—"} hard sets
       </p>`;
     }
     box.innerHTML = html;

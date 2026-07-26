@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-07-12",
+  "updated_at": "2026-07-26",
   "split": "ppl",
   "rotation": ["push", "pull", "legs"],
   "goal": "strength_hypertrophy",
@@ -7,7 +7,15 @@
   "exercises_per_session": 5,
   "prefer_compounds_first": true,
   "progression": "double_progression",
-  "notes": "Push/Pull/Legs rotation. Double progression: hit top of rep range, then add weight.",
+  "notes": "Push/Pull/Legs. Double progression for load. Volume: DeanT balanced ≈4–8 hard sets per major muscle/week with compound overlap (not 10–20).",
   "focus_muscles": [],
-  "rest_if_recovery_below": 40
+  "rest_if_recovery_below": 40,
+  "volume_framework": "dean_t_balanced_4_8",
+  "sets_per_muscle_week_min": 4,
+  "sets_per_muscle_week_max": 8,
+  "sets_per_muscle_week_priority_max": 12,
+  "maintenance_sets_per_muscle_week": 3,
+  "session_working_set_cap": 14,
+  "secondary_set_fraction": 0.5,
+  "default_hard_sets": 2
 }

@@ -274,6 +274,11 @@ def compute_weekly_review(
     else:
         bullets.append("Focus: keep the streak — execute today’s plan and hit protein remaining.")
 
+    bullets.append(
+        "Volume model: ≈4–8 hard sets per major muscle/week (compound overlap counts); "
+        "10–20+/muscle is usually unnecessary."
+    )
+
     return {
         "as_of": day,
         "sessions": len(week_sess),

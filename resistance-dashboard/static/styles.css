@@ -1611,3 +1611,64 @@ footer {
 #today-hub-grid {
   margin-top: 0.5rem;
 }
+
+/* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
+.volume-balance {
+  margin: 0.65rem 0 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.volume-balance-title {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+  color: var(--text, #e8eef7);
+}
+.volume-balance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.vol-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(26, 35, 50, 0.85);
+}
+.vol-chip-m {
+  text-transform: capitalize;
+  opacity: 0.9;
+  font-weight: 600;
+}
+.vol-chip-v {
+  font-weight: 700;
+}
+.vol-chip-b {
+  opacity: 0.55;
+  font-size: 0.68em;
+}
+.vol-chip.vol-under,
+.vol-chip.vol-low {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.1);
+}
+.vol-chip.vol-ok {
+  border-color: rgba(92, 225, 168, 0.4);
+  background: rgba(92, 225, 168, 0.08);
+}
+.vol-chip.vol-high,
+.vol-chip.vol-over {
+  border-color: rgba(240, 113, 120, 0.45);
+  background: rgba(240, 113, 120, 0.1);
+}
+.volume-balance-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+}
