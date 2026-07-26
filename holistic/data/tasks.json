@@ -199,14 +199,22 @@
       "target_id": "sleep",
       "value": 8.23,
       "note": "synced from google_health"
+    },
+    {
+      "date": "2026-07-26",
+      "target_id": "duchess-walk",
+      "value": 19.0,
+      "note": "confirmed Google walk 2026-07-26T03:44:14+00:00"
     }
   ],
   "plan": {
-    "window_start": "2026-07-26T00:29:08-04:00",
-    "window_end": "2026-07-27T00:29:08-04:00",
+    "window_start": "2026-07-26T02:19:11-04:00",
+    "window_end": "2026-07-27T02:19:11-04:00",
     "window_minutes": 1440,
     "sleep_reserve_minutes": 480,
     "active_minutes": 960,
+    "calendar_busy_minutes": 60,
+    "free_active_minutes": 900,
     "blocks": [
       {
         "source": "target",
@@ -218,18 +226,45 @@
         "priority": 10
       },
       {
+        "source": "calendar",
+        "id": "calendar",
+        "title": "Calendar commitments",
+        "minutes": 60,
+        "role": "calendar",
+        "kind": "calendar_busy",
+        "priority": 15,
+        "reason": "Test Event",
+        "event_count": 1,
+        "events": [
+          {
+            "id": "4j9ccf34tqcp6r9vgn65bb89gj",
+            "title": "Test Event",
+            "calendar_id": "primary",
+            "location": null,
+            "target_hint": null,
+            "html_link": "https://www.google.com/calendar/event?eid=NGo5Y2NmMzR0cWNwNnI5dmduNjViYjg5Z2ogY3ZvbGtlcm5AbQ",
+            "source": "google_calendar",
+            "start": "2026-07-26T14:00:00-04:00",
+            "end": "2026-07-26T15:00:00-04:00",
+            "minutes": 60,
+            "full_start": "2026-07-26T14:00:00-04:00",
+            "full_end": "2026-07-26T15:00:00-04:00"
+          }
+        ]
+      },
+      {
         "source": "target",
         "id": "duchess-walk",
         "title": "Walk Duchess",
-        "minutes": 21,
+        "minutes": 2,
         "role": "fixed",
         "kind": "daily_duration",
         "priority": 9,
         "sessions_hint": 1,
         "minutes_min": 30,
         "minutes_max": 60,
-        "done_today": 24,
-        "done_calendar_today": 0
+        "done_today": 43,
+        "done_calendar_today": 19
       },
       {
         "source": "target",
@@ -257,9 +292,10 @@
         "lyft_duty_summary": "5h 30m of 12h driver-mode used (6h 30m left this cycle)"
       }
     ],
-    "total_block_minutes": 951,
+    "total_block_minutes": 992,
     "unallocated_active_minutes": 0,
     "notes": [
+      "Calendar: 60m of committed events in the next 24h (1 event slice(s)) \u2014 reduces free active time",
       "Lyft: only 390m left in current 12h duty (driven 330m of 720m) \u2014 update duty as you drive; 6h offline required after the 12h cap"
     ],
     "kpi_status": [
@@ -322,13 +358,13 @@
         "title": "Walk Duchess",
         "kind": "daily_duration",
         "priority": 9,
-        "on_track": null,
-        "summary": "Today 0 min (target 30\u201360, plan 45) \u2014 not logged",
+        "on_track": false,
+        "summary": "Today 19 min (target 30\u201360)",
         "detail": {
           "target_minutes": 45,
           "minutes_min": 30,
           "minutes_max": 60,
-          "done_minutes": 0
+          "done_minutes": 19
         }
       },
       {
@@ -469,6 +505,21 @@
   ],
   "activity_reviews": [
     {
+      "id": "ex-2632161553298898264",
+      "start": "2026-07-26T03:44:14+00:00",
+      "end": "2026-07-26T04:03:00+00:00",
+      "minutes": 19,
+      "exercise_type": "WALKING",
+      "display_name": "Walk",
+      "recording_method": "PASSIVELY_MEASURED",
+      "source": "google_health",
+      "local_date": "2026-07-26",
+      "api_name": "users/823219162779337168/dataTypes/exercise/dataPoints/2632161553298898264",
+      "status": "confirmed_duchess",
+      "target_hint": "duchess-walk",
+      "reviewed_at": "2026-07-26T01:34:03-04:00"
+    },
+    {
       "id": "ex-2183305533398610454",
       "start": "2026-07-25T04:17:55+00:00",
       "end": "2026-07-25T04:42:20+00:00",
@@ -600,6 +651,37 @@
       "target_hint": "duchess-walk"
     }
   ],
+  "calendar_events": [
+    {
+      "id": "4j9ccf34tqcp6r9vgn65bb89gj",
+      "title": "Test Event",
+      "start": "2026-07-26T14:00:00-04:00",
+      "end": "2026-07-26T15:00:00-04:00",
+      "calendar_id": "primary",
+      "location": null,
+      "all_day": false,
+      "status": "confirmed",
+      "html_link": "https://www.google.com/calendar/event?eid=NGo5Y2NmMzR0cWNwNnI5dmduNjViYjg5Z2ogY3ZvbGtlcm5AbQ",
+      "target_hint": null,
+      "source": "google_calendar"
+    }
+  ],
+  "calendar_meta": {
+    "synced_at": "2026-07-26T02:19:10-04:00",
+    "event_count": 1,
+    "time_min": "2026-07-26T02:19:10-04:00",
+    "time_max": "2026-07-28T02:19:10-04:00",
+    "calendar_ids": [
+      "primary"
+    ],
+    "ok": true,
+    "error": null
+  },
+  "calendar_config": {
+    "calendar_ids": [
+      "primary"
+    ]
+  },
   "lyft_duty": {
     "driven_minutes": 330,
     "updated_at": "2026-07-26T00:22:43-04:00",

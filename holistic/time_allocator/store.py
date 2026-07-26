@@ -47,6 +47,13 @@ def save_state(state: dict[str, Any], path: str | Path | None = None) -> Path:
         "plan": state.get("plan"),
         "sleep_intervals": list(state.get("sleep_intervals") or []),
         "activity_reviews": list(state.get("activity_reviews") or []),
+        "calendar_events": list(state.get("calendar_events") or []),
+        "calendar_meta": state.get("calendar_meta")
+        if isinstance(state.get("calendar_meta"), dict)
+        else {},
+        "calendar_config": state.get("calendar_config")
+        if isinstance(state.get("calendar_config"), dict)
+        else {"calendar_ids": ["primary"]},
         "lyft_duty": state.get("lyft_duty")
         or {"driven_minutes": 0, "updated_at": None, "note": ""},
     }

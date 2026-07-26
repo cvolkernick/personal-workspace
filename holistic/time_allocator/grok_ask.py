@@ -147,15 +147,30 @@ def build_time_context(payload: dict[str, Any]) -> dict[str, Any]:
         for b in (blocks or [])[:n]:
             if not isinstance(b, dict):
                 continue
-            out.append(
-                {
-                    "id": b.get("id"),
-                    "title": b.get("title"),
-                    "minutes": b.get("minutes"),
-                    "role": b.get("role"),
-                    "done_today": b.get("done_today"),
-                }
-            )
+            row = {
+                "id": b.get("id"),
+                "title": b.get("title"),
+                "minutes": b.get("minutes"),
+                "role": b.get("role"),
+                "done_today": b.get("done_today"),
+            }
+            if b.get("reason"):
+                row["reason"] = b.get("reason")
+            if b.get("event_count") is not None:
+                row["event_count"] = b.get("event_count")
+            # Surface nested calendar slices so Ask Grok can name events
+            if b.get("id") == "calendar" and b.get("events"):
+                row["events"] = [
+                    {
+                        "title": e.get("title"),
+                        "minutes": e.get("minutes"),
+                        "start": e.get("start"),
+                        "end": e.get("end"),
+                    }
+                    for e in (b.get("events") or [])[:8]
+                    if isinstance(e, dict)
+                ]
+            out.append(row)
         return out
 
     logs = payload.get("logs") or []

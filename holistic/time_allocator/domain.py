@@ -140,6 +140,9 @@ def empty_state() -> dict[str, Any]:
         "plan": None,
         "sleep_intervals": [],
         "activity_reviews": [],
+        "calendar_events": [],
+        "calendar_meta": {},
+        "calendar_config": {"calendar_ids": ["primary"]},
         "lyft_duty": {
             "driven_minutes": 0,
             "updated_at": None,

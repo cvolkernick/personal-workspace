@@ -18,6 +18,7 @@ from holistic.time_allocator.calendar_sync import (  # noqa: E402
     normalize_event,
 )
 from holistic.time_allocator.domain import build_rolling_plan, seed_starter  # noqa: E402
+from holistic.time_allocator.store import load_state, save_state  # noqa: E402
 
 
 class CalendarSyncTests(unittest.TestCase):
@@ -116,6 +117,30 @@ class CalendarSyncTests(unittest.TestCase):
         self.assertEqual(busy, 60)
         self.assertEqual(blocks[0]["id"], "calendar")
         self.assertTrue(any("workout" in n for n in notes))
+
+    def test_save_state_persists_calendar_events(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        tz = timezone(timedelta(hours=-4))
+        state = seed_starter(None, personal=True)
+        state["calendar_events"] = [
+            {
+                "id": "persist-1",
+                "title": "Test Event",
+                "start": datetime(2026, 7, 26, 14, 0, tzinfo=tz).isoformat(),
+                "end": datetime(2026, 7, 26, 15, 0, tzinfo=tz).isoformat(),
+                "source": "google_calendar",
+            }
+        ]
+        state["calendar_meta"] = {"ok": True, "synced_at": "2026-07-26T02:00:00-04:00"}
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "tasks.json"
+            save_state(state, path)
+            loaded = load_state(path)
+            self.assertEqual(len(loaded.get("calendar_events") or []), 1)
+            self.assertEqual(loaded["calendar_events"][0]["title"], "Test Event")
+            self.assertTrue((loaded.get("calendar_meta") or {}).get("ok"))
 
 
 if __name__ == "__main__":
