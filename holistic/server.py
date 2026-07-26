@@ -422,30 +422,27 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 return
 
             if path == "/api/health/sync":
+                # Full external bootstrap: sleep + walks + calendar (used on page load)
                 days = int(body.get("days") if body.get("days") is not None else 14)
                 overwrite = bool(body.get("overwrite", True))
                 state, meta = sync_sleep_logs(
                     load_state(_data()), days=days, overwrite=overwrite
                 )
-                # Also refresh walk candidates when syncing health
-                state, walk_meta = sync_walk_candidates(state, days=3)
+                try:
+                    state, walk_meta = sync_walk_candidates(state, days=3)
+                except Exception as e:  # noqa: BLE001
+                    walk_meta = {"ok": False, "error": str(e), "fetched": 0}
                 meta["walks"] = walk_meta
-                # Best-effort calendar pull so allocation stays current
                 try:
                     state, cal_meta = sync_calendar(state, days_ahead=2, days_back=0)
-                    meta["calendar"] = cal_meta
                 except Exception as e:  # noqa: BLE001
-                    meta["calendar"] = {"ok": False, "error": str(e)}
-                if meta.get("imported") or walk_meta.get("new_pending") or (
-                    (meta.get("calendar") or {}).get("ok")
-                ):
-                    state = apply_plan(state)
+                    cal_meta = {"ok": False, "error": str(e)}
+                meta["calendar"] = cal_meta
+                # Always rebuild plan so allocation reflects latest external data
+                state = apply_plan(state)
                 save_state(state, _data())
                 payload = state_payload()
                 payload["sync"] = meta
-                if not meta.get("ok") and not meta.get("imported") and not walk_meta.get("fetched"):
-                    self._json(200, payload)
-                    return
                 self._json(200, payload)
                 return
 

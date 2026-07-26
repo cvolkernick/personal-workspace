@@ -532,14 +532,11 @@
   <header>
     <div>
       <h1>Time Allocator</h1>
-      <div class="sub">Rolling 24h · targets, ad-hoc, next actions</div>
+      <div class="sub">Rolling 24h · sleep, calendar &amp; walks auto-sync on load</div>
     </div>
     <div class="row">
-      <button type="button" id="btn-refresh">Refresh</button>
+      <button type="button" id="btn-refresh" title="Reload saved state (no external API calls)">Refresh</button>
       <button type="button" class="primary" id="btn-plan">Rebuild 24h plan</button>
-      <button type="button" id="btn-sync">Sync sleep (Google Health)</button>
-      <button type="button" id="btn-calendar">Sync calendar</button>
-      <button type="button" id="btn-walks">Check for walks</button>
       <button type="button" class="ghost" id="btn-seed">Reset personal targets</button>
     </div>
   </header>
@@ -574,8 +571,8 @@
     <section class="card" id="calendar-card">
       <h2>Google Calendar · busy time</h2>
       <p class="path" style="margin:-0.35rem 0 0.65rem">
-        Timed events reduce free active time in the 24h plan (before Lyft fill and ad-hoc).
-        All-day / free (transparent) events are ignored.
+        Auto-synced on page load. Timed events reduce free active time in the 24h plan
+        (before Lyft fill and ad-hoc). All-day / free (transparent) events are ignored.
       </p>
       <div class="stats" id="calendar-stats"></div>
       <div id="calendar-upcoming"><p class="empty">Loading…</p></div>
@@ -1630,7 +1627,7 @@
         list.innerHTML = `<p class="empty">${
           auth.ok === false
             ? "Calendar OAuth needs calendar.readonly — run: python3 holistic/scripts/google_calendar_auth.py"
-            : "No timed busy events in the next 24h (or not synced yet)."
+            : "No timed busy events in the next 24h."
         }</p>`;
       } else {
         list.innerHTML = `<ul class="notes" style="margin:0">${upcoming
@@ -1671,56 +1668,60 @@
       renderItems(state);
     }
 
-    async function refresh(opts) {
+    async function refresh() {
       try {
-        const q = opts && opts.refreshWalks ? "?refresh_walks=1" : "";
-        const state = await api("/api/state" + q);
+        const state = await api("/api/state");
         render(state);
-        if (opts && opts.refreshWalks) {
-          const ws = state.walk_sync || {};
-          if (ws.fetched != null) {
-            msg(
-              `Walks: ${ws.fetched} fetched, ${ws.new_pending || 0} new to review`,
-              ws.ok === false ? "error" : "ok"
-            );
-          } else {
-            msg("");
-          }
-        } else {
-          msg("");
-        }
       } catch (e) {
         msg(String(e.message || e), "error");
       }
     }
 
-    /** Pull sleep (+ walks) from Google Health, then render. Used on load and Sync button. */
-    async function syncHealthFromGoogle(opts) {
-      const quiet = !!(opts && opts.quiet);
+    /**
+     * One-shot external sync on page load: sleep (Health) + walks + calendar.
+     * Not repeated every minute (would be slow / rate-limit-prone); local
+     * battery/duty refresh uses refresh() only.
+     */
+    async function syncAllOnLoad() {
       try {
-        msg(quiet ? "Syncing sleep from Google Health…" : "Syncing sleep from Google Health…");
+        msg("Syncing sleep, calendar & walks…");
         const state = await api("/api/health/sync", {
           method: "POST",
           body: JSON.stringify({ days: 14, overwrite: true }),
         });
         render(state);
         const sync = state.sync || {};
-        const walks = (sync.walks || state.walk_sync || {});
+        const walks = sync.walks || state.walk_sync || {};
+        const cal = sync.calendar || state.calendar_sync || {};
         const parts = [];
-        if (sync.imported || sync.intervals_imported) {
+        if (sync.imported != null || sync.intervals_imported != null) {
           parts.push(
-            `${sync.imported || 0} night(s), ${sync.intervals_imported || 0} sleep interval(s)`
+            `sleep ${sync.imported || 0} night(s) / ${sync.intervals_imported || 0} interval(s)`
           );
+        } else if (sync.source) {
+          parts.push(`sleep · ${sync.source}`);
         }
         if (walks.fetched != null) {
-          parts.push(`${walks.fetched} walk(s), ${walks.new_pending || 0} new to review`);
+          parts.push(
+            `walks ${walks.fetched}${walks.new_pending ? ` (${walks.new_pending} to review)` : ""}`
+          );
+        }
+        if (cal.ok) {
+          const busy = (state.calendar || {}).busy_minutes_24h;
+          parts.push(
+            `calendar ${cal.event_count || 0} event(s)` +
+              (busy != null ? ` · ${hours(busy)} busy` : "")
+          );
+        } else if (cal.error) {
+          parts.push(`calendar: ${cal.error}`);
         }
         if (parts.length) {
-          msg(`Synced from ${sync.source || "Google Health"}: ${parts.join(" · ")}`, "ok");
+          const hasHardError = !!(sync.error && !sync.imported && !sync.intervals_imported);
+          msg(`Synced · ${parts.join(" · ")}`, hasHardError ? "error" : "ok");
         } else if (sync.error) {
           msg(sync.error, "error");
         } else {
-          msg("Google Health sync finished (no new samples)", quiet ? "" : "ok");
+          msg("Synced (no new external updates)", "ok");
         }
         return state;
       } catch (e) {
@@ -1883,51 +1884,6 @@
     }
 
     $("btn-refresh").addEventListener("click", () => refresh());
-    const btnCal = $("btn-calendar");
-    if (btnCal) {
-      btnCal.addEventListener("click", async () => {
-        try {
-          msg("Syncing Google Calendar…");
-          const state = await api("/api/calendar/sync", {
-            method: "POST",
-            body: JSON.stringify({ days: 2, days_back: 0 }),
-          });
-          render(state);
-          const cs = state.calendar_sync || {};
-          if (cs.ok) {
-            msg(
-              `Calendar: ${cs.event_count || 0} event(s) · ${hours((state.calendar || {}).busy_minutes_24h || 0)} busy next 24h`,
-              "ok"
-            );
-          } else {
-            msg(
-              cs.error ||
-                (state.calendar && state.calendar.error) ||
-                "Calendar sync failed — grant calendar.readonly via google_calendar_auth.py",
-              "error"
-            );
-          }
-        } catch (e) {
-          msg(String(e.message || e), "error");
-        }
-      });
-    }
-    $("btn-walks").addEventListener("click", async () => {
-      try {
-        const state = await api("/api/activity/sync", {
-          method: "POST",
-          body: JSON.stringify({ days: 3 }),
-        });
-        const ws = state.walk_sync || {};
-        msg(
-          `Walks: ${ws.fetched || 0} from Google, ${ws.new_pending || 0} new pending`,
-          ws.ok === false ? "error" : "ok"
-        );
-        render(state);
-      } catch (e) {
-        msg(String(e.message || e), "error");
-      }
-    });
     $("btn-plan").addEventListener("click", async () => {
       try {
         const state = await api("/api/plan", { method: "POST", body: JSON.stringify({ apply: true }) });
@@ -1937,7 +1893,6 @@
         msg(String(e.message || e), "error");
       }
     });
-    $("btn-sync").addEventListener("click", () => syncHealthFromGoogle());
     $("btn-seed").addEventListener("click", async () => {
       if (!confirm("Replace targets with personal starter and clear ad-hoc items? Logs are cleared only if you re-seed from empty — this resets items/targets.")) return;
       try {
@@ -2005,10 +1960,10 @@
 
     const d = new Date();
     $("log-date").value = d.toISOString().slice(0, 10);
-    // First load: sync sleep (+ walks) from Google Health, then render
+    // Page load: one external sync (sleep + calendar + walks), then local ticks
     loadAskStatus();
-    syncHealthFromGoogle({ quiet: true });
-    // Battery + Lyft break countdown refresh every minute
+    syncAllOnLoad();
+    // Local recompute only (battery drain / Lyft countdown) — not Google APIs
     setInterval(() => refresh(), 60 * 1000);
   </script>
 </body>
