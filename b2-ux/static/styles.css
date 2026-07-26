@@ -61,11 +61,13 @@ body {
   border-radius: 12px;
   display: grid;
   place-items: center;
+  font-size: 1.45rem;
+  line-height: 1;
   font-weight: 800;
   letter-spacing: 0.02em;
-  background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  color: #0b1020;
-  box-shadow: 0 8px 24px rgba(110, 168, 255, 0.25);
+  background: linear-gradient(135deg, rgba(110, 168, 255, 0.2), rgba(139, 124, 255, 0.22));
+  border: 1px solid rgba(110, 168, 255, 0.35);
+  box-shadow: 0 8px 24px rgba(110, 168, 255, 0.18);
 }
 
 .brand h1 {
