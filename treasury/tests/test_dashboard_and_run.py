@@ -37,6 +37,7 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("actorLabel", html)
         self.assertIn("watchlist.html", html)
         self.assertIn("watchlist-preview-card", html)
+        self.assertIn("capital-flows.html", html)
         self.assertGreater(len(html), 8000)
 
     def test_watchlist_dashboard_page(self):
@@ -54,6 +55,22 @@ class TestDashboardArtifact(unittest.TestCase):
         dive = get_deep_dive_markdown("BE")
         self.assertTrue(dive.get("ok"), dive.get("error"))
         self.assertIn("Bloom", (dive.get("markdown") or "")[:500] or "x")
+
+    def test_capital_flows_model(self):
+        html = (ROOT / "financial-command" / "capital-flows.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Capital flows", html)
+        self.assertIn("/api/capital-flows", html)
+        import json
+
+        model = json.loads(
+            (ROOT / "investment" / "capital_flows.json").read_text(encoding="utf-8")
+        )
+        self.assertIn("lyft", [s["id"] for s in model["income_sources"]])
+        self.assertIn("turo", [s["id"] for s in model["income_sources"]])
+        self.assertIn("asics", [s["id"] for s in model["income_sources"]])
+        self.assertGreater(len(model.get("edges") or []), 5)
 
     def test_action_items_doc(self):
         p = ROOT / "investment" / "treasury-action-items.md"

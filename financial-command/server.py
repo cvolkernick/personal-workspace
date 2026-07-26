@@ -6,6 +6,7 @@ Serves static UI + APIs:
   GET  /api/config     — treasury/config.json
   GET  /api/watchlist  — watchlist + deep-dive summaries
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
+  GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
 
@@ -36,6 +37,60 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     build_watchlist_dashboard,
     get_deep_dive_markdown,
 )
+
+
+def _capital_flows_payload() -> dict:
+    """Load investment/capital_flows.json and lightly enrich from YNAB snapshots."""
+    path = ROOT / "investment" / "capital_flows.json"
+    if not path.is_file():
+        return {"ok": False, "error": "investment/capital_flows.json missing"}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        return {"ok": False, "error": str(e)}
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "capital_flows.json must be an object"}
+    data = dict(data)
+    data["ok"] = True
+    live: dict = {}
+    # X Money snapshot may include Lyft inflows
+    xm = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
+    if xm.is_file():
+        try:
+            xmd = json.loads(xm.read_text(encoding="utf-8"))
+            lyft = 0.0
+            for t in xmd.get("transactions") or []:
+                payee = str(t.get("payee") or "").lower()
+                amt = t.get("amount_display")
+                if amt is None:
+                    amt = t.get("amount")
+                try:
+                    amt_f = float(amt or 0)
+                except (TypeError, ValueError):
+                    amt_f = 0.0
+                if "lyft" in payee and amt_f > 0:
+                    lyft += amt_f
+            live["lyft_inflow_from_x_money_txs"] = round(lyft, 2)
+            live["x_money_inflow_30d"] = xmd.get("inflow_30d")
+            live["x_money_as_of"] = xmd.get("as_of")
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+    exp = ROOT / "treasury" / "snapshots" / "expenses_latest.json"
+    if exp.is_file():
+        try:
+            ed = json.loads(exp.read_text(encoding="utf-8"))
+            sm = ed.get("summary") or {}
+            live["coinbase_funded_monthly_est"] = sm.get("coinbase_funded_monthly")
+            live["rh_checking_funded_monthly_est"] = sm.get(
+                "rh_checking_funded_monthly"
+            ) or sm.get("rh_funded_monthly")
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
+    data["live"] = live
+    # Prefer simpler key for SVG caption
+    if live.get("lyft_inflow_from_x_money_txs") is not None:
+        data["live"]["lyft_inflow_30d"] = live["lyft_inflow_from_x_money_txs"]
+    return data
 
 
 class FCCHandler(SimpleHTTPRequestHandler):
@@ -98,10 +153,21 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
+        if path == "/api/capital-flows":
+            try:
+                self._json(200, _capital_flows_payload())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
             self.path = "/financial-command/watchlist.html"
+        elif path in (
+            "/financial-command/capital-flows",
+            "/financial-command/capital-flows/",
+        ):
+            self.path = "/financial-command/capital-flows.html"
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
@@ -211,6 +277,9 @@ def main(argv: list[str] | None = None) -> int:
     wl = f"http://127.0.0.1:{args.port}/financial-command/watchlist.html"
     print(f"Financial Command Center → {url}")
     print(f"Watchlist research        → {wl}")
+    print(
+        f"Capital flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
+    )
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), FCCHandler)
     if not args.no_browser:
         try:

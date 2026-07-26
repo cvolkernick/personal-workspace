@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Capital flows · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --income: #5b9fd4;
+      --cash: #3dd68c;
+      --credit: #f0a06a;
+      --venue: #7c9cff;
+      --yield: #b5d47a;
+      --invest: #c9a0ff;
+      --expense: #ff8e8e;
+      --capex: #f5c542;
+      --leverage: #e6a0c8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1rem;
+      align-items: center; justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    button, .btn, a.btn {
+      cursor: pointer; border: 1px solid var(--border); background: #1a2836;
+      color: var(--text); border-radius: 8px; padding: 0.4rem 0.75rem;
+      font-weight: 600; font-size: 0.85rem; text-decoration: none;
+      display: inline-flex; align-items: center;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    main {
+      max-width: 1100px; margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid; gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex; align-items: center; padding: 0.18rem 0.5rem;
+      border-radius: 999px; font-weight: 650; font-size: 0.68rem;
+      border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .pill.observed { color: var(--green); border-color: #245c42; }
+    .pill.inferred { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.planned { color: var(--accent); border-color: #2a4a6a; }
+    .pill.owner_stated { color: #c9a0ff; border-color: #5a3a7a; }
+    .error {
+      background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
+      border-radius: 10px; padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .flow-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0d141c;
+      padding: 0.5rem;
+    }
+    svg.flow-svg { display: block; min-width: 980px; width: 100%; height: auto; }
+    .node-box {
+      fill: #15202c;
+      stroke: var(--border);
+      stroke-width: 1.2;
+      rx: 10;
+    }
+    .node-box.income { stroke: var(--income); }
+    .node-box.cash { stroke: var(--cash); }
+    .node-box.credit { stroke: var(--credit); }
+    .node-box.venue { stroke: var(--venue); }
+    .node-box.yield { stroke: var(--yield); }
+    .node-box.invest { stroke: var(--invest); }
+    .node-box.expense { stroke: var(--expense); }
+    .node-box.capex { stroke: var(--capex); }
+    .node-box.leverage { stroke: var(--leverage); }
+    .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
+    .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
+    .edge-path {
+      fill: none;
+      stroke-linecap: round;
+      opacity: 0.75;
+    }
+    .edge-path.observed { stroke: #3dd68c; }
+    .edge-path.inferred { stroke: #f5c542; stroke-dasharray: 6 4; }
+    .edge-path.planned { stroke: #5b9fd4; stroke-dasharray: 2 3; }
+    .edge-path.owner_stated { stroke: #c9a0ff; stroke-dasharray: 5 3; }
+    .edge-label {
+      fill: var(--muted);
+      font-size: 9px;
+      font-family: inherit;
+    }
+    .col-label {
+      fill: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: inherit;
+    }
+    .legend-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: center; }
+    .edge-list { font-size: 0.82rem; }
+    .edge-list li { margin: 0.35rem 0; }
+    .q-list { margin: 0; padding-left: 1.15rem; font-size: 0.88rem; }
+    .q-list li { margin: 0.35rem 0; }
+    footer {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Capital flows</h1>
+        <div class="sub" id="subtitle">Income → channels (reconstructed)</div>
+      </div>
+      <div class="controls">
+        <a class="btn" href="index.html">← FCC</a>
+        <a class="btn" href="watchlist.html">Watchlist</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card">
+      <h2>How to read this</h2>
+      <p class="hint" id="notes">—</p>
+      <div class="legend-row" id="legend"></div>
+    </section>
+
+    <section class="card">
+      <h2>Flow map</h2>
+      <p class="hint">Left → right: income sources, cash / venues, then uses. Line style = confidence. Thickness = relative importance (not exact $).</p>
+      <div class="flow-wrap">
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
+      </div>
+    </section>
+
+    <section class="card grid-ish" style="display:grid;gap:0.75rem">
+      <div>
+        <h2>Edges (detail)</h2>
+        <ul class="edge-list" id="edge-list"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Open questions (need your input)</h2>
+      <p class="hint">These gaps block precise $ amounts and a few landing accounts.</p>
+      <ol class="q-list" id="questions"></ol>
+    </section>
+  </main>
+
+  <footer>
+    Model: <code>investment/capital_flows.json</code> · enriched with live YNAB Lyft totals when available via <code>/api/capital-flows</code>
+  </footer>
+
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function confPill(c) {
+      const k = (c || "inferred").toLowerCase();
+      return `<span class="pill ${esc(k)}">${esc(k.replace("_", " "))}</span>`;
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/capital-flows?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent =
+          "Could not load capital flows (" + e.message + "). Start FCC server: python3 financial-command/server.py";
+      }
+    }
+
+    function layoutNodes(data) {
+      // Fixed columns for readable structure
+      const cols = {
+        income: { x: 40, ids: ["lyft", "turo", "asics"] },
+        cash: { x: 280, ids: ["x_money", "rh_checking", "one_card"] },
+        venues: { x: 520, ids: ["coinbase", "cb_vault", "cb_morpho_loan", "rh_brokerage", "rh_agentic"] },
+        uses: { x: 780, ids: ["bills_cb", "bills_rh", "asic_opex", "asic_capex"] },
+      };
+      const byId = {};
+      (data.income_sources || []).forEach((n) => {
+        byId[n.id] = { ...n, layer: "income" };
+      });
+      (data.channels || []).forEach((n) => {
+        byId[n.id] = { ...n, layer: n.kind };
+      });
+
+      const positions = {};
+      const colH = 560;
+      const top = 48;
+      Object.entries(cols).forEach(([key, col]) => {
+        const ids = col.ids.filter((id) => byId[id]);
+        const gap = colH / Math.max(ids.length, 1);
+        ids.forEach((id, i) => {
+          positions[id] = {
+            ...byId[id],
+            x: col.x,
+            y: top + gap * i + gap * 0.15,
+            w: 168,
+            h: 52,
+          };
+        });
+      });
+      return { positions, colMeta: cols };
+    }
+
+    function draw(data) {
+      const svg = document.getElementById("flow-svg");
+      const { positions, colMeta } = layoutNodes(data);
+      const W = 1000;
+      const H = 620;
+
+      // defs for arrows
+      let html = `
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8aa0b5"/>
+          </marker>
+        </defs>
+        <text class="col-label" x="40" y="28">Income</text>
+        <text class="col-label" x="280" y="28">Cash / credit</text>
+        <text class="col-label" x="520" y="28">Venues / sleeves</text>
+        <text class="col-label" x="780" y="28">Uses</text>
+      `;
+
+      // edges under nodes
+      const edges = data.edges || [];
+      edges.forEach((e, idx) => {
+        const a = positions[e.from];
+        const b = positions[e.to];
+        if (!a || !b) return;
+        const x1 = a.x + a.w;
+        const y1 = a.y + a.h / 2;
+        const x2 = b.x;
+        const y2 = b.y + b.h / 2;
+        const mx = (x1 + x2) / 2;
+        const w = 1.2 + (e.weight || 1) * 1.1;
+        const conf = e.confidence || "inferred";
+        const path = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
+        html += `<path class="edge-path ${esc(conf)}" d="${path}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
+        const lx = mx - 20;
+        const ly = (y1 + y2) / 2 - 4;
+        if (e.label) {
+          html += `<text class="edge-label" x="${lx}" y="${ly}">${esc(e.label)}</text>`;
+        }
+      });
+
+      // nodes
+      Object.values(positions).forEach((n) => {
+        const kind = n.kind || "venue";
+        html += `<g transform="translate(${n.x},${n.y})">
+          <rect class="node-box ${esc(kind)}" width="${n.w}" height="${n.h}" />
+          <text class="node-title" x="10" y="20">${esc(n.label)}</text>
+          <text class="node-sub" x="10" y="38">${esc((n.subtitle || n.evidence || "").slice(0, 42))}</text>
+        </g>`;
+      });
+
+      // live enrichment strip
+      if (data.live && data.live.lyft_inflow_30d != null) {
+        html += `<text class="edge-label" x="40" y="${H - 16}">Live: Lyft inflows (YNAB ~30d window in poll) ≈ $${Number(data.live.lyft_inflow_30d).toFixed(2)} → X Money</text>`;
+      }
+
+      svg.innerHTML = html;
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        (data.title || "Capital flows") +
+        (data.as_of ? " · model " + String(data.as_of).slice(0, 10) : "");
+      document.getElementById("notes").textContent = data.notes || "";
+
+      const legend = data.legend || {};
+      document.getElementById("legend").innerHTML = Object.entries(legend)
+        .map(
+          ([k, v]) =>
+            `${confPill(k)} <span class="hint" style="margin:0">${esc(v)}</span>`
+        )
+        .join("");
+
+      draw(data);
+
+      const list = document.getElementById("edge-list");
+      list.innerHTML = (data.edges || [])
+        .map((e) => {
+          const a = (data.income_sources || []).concat(data.channels || []).find((n) => n.id === e.from);
+          const b = (data.income_sources || []).concat(data.channels || []).find((n) => n.id === e.to);
+          return `<li>${confPill(e.confidence)} <strong>${esc(a?.label || e.from)}</strong> → <strong>${esc(b?.label || e.to)}</strong>
+            ${e.label ? " · " + esc(e.label) : ""}
+            ${e.notes ? `<div class="hint" style="margin:0.15rem 0 0">${esc(e.notes)}</div>` : ""}
+          </li>`;
+        })
+        .join("");
+
+      document.getElementById("questions").innerHTML = (data.open_questions || [])
+        .map((q) => `<li>${esc(q)}</li>`)
+        .join("");
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

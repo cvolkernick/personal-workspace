@@ -1,0 +1,280 @@
+{
+  "version": 1,
+  "as_of": "2026-07-24",
+  "title": "Capital flows — income to channels",
+  "notes": "Reconstructed from YNAB (60–120d), expense sheet pay-from, and treasury dual-venue model. Amounts are approximate / illustrative where marked estimated. Update this file as owner clarifies.",
+  "legend": {
+    "observed": "Seen in YNAB/Plaid or sheet rows",
+    "inferred": "Implied by pay-from / strategy, not fully tagged in ledger",
+    "planned": "Discretionary capital target / policy intent"
+  },
+  "income_sources": [
+    {
+      "id": "lyft",
+      "label": "Lyft",
+      "kind": "income",
+      "confidence": "observed",
+      "evidence": "YNAB inflows to Checking – 2201 (X Money); e.g. multiple deposits Jul 21–25 2026 totaling ~$250+ in a few days",
+      "typical_landing": "x_money"
+    },
+    {
+      "id": "turo",
+      "label": "Turo",
+      "kind": "income",
+      "confidence": "owner_stated",
+      "evidence": "Owner-stated main income source; not found as named payee in recent YNAB window — landing account / payout cadence TBD",
+      "typical_landing": null
+    },
+    {
+      "id": "asics",
+      "label": "ASICs (mining)",
+      "kind": "income",
+      "confidence": "inferred",
+      "evidence": "Sheet has ASIC Fleet OpEx (RH Checking) and Discretionary capital target ASIC $2500/mo — suggests mining operation exists; pool/Coinbase payout labels not clearly present in recent YNAB",
+      "typical_landing": "coinbase"
+    }
+  ],
+  "channels": [
+    {
+      "id": "x_money",
+      "label": "X Money",
+      "kind": "cash",
+      "subtitle": "YNAB Checking – 2201 · ~6% APY",
+      "confidence": "observed"
+    },
+    {
+      "id": "rh_checking",
+      "label": "RH Checking",
+      "kind": "cash",
+      "subtitle": "ACH / bill-pay float",
+      "confidence": "observed"
+    },
+    {
+      "id": "one_card",
+      "label": "One Card",
+      "kind": "credit",
+      "subtitle": "CB One Card · spend + paydown",
+      "confidence": "observed"
+    },
+    {
+      "id": "coinbase",
+      "label": "Coinbase",
+      "kind": "venue",
+      "subtitle": "Spot · vault · Morpho · One Card deposit",
+      "confidence": "observed"
+    },
+    {
+      "id": "cb_vault",
+      "label": "CB High Yield vault",
+      "kind": "yield",
+      "subtitle": "USDC Morpho working float",
+      "confidence": "observed"
+    },
+    {
+      "id": "cb_morpho_loan",
+      "label": "Morpho / BTC collateral",
+      "kind": "leverage",
+      "subtitle": "Borrow USDC against BTC",
+      "confidence": "inferred"
+    },
+    {
+      "id": "rh_brokerage",
+      "label": "RH brokerage",
+      "kind": "invest",
+      "subtitle": "Primary margin (read) + Agentic fund",
+      "confidence": "observed"
+    },
+    {
+      "id": "rh_agentic",
+      "label": "Agentic fund",
+      "kind": "invest",
+      "subtitle": "40/60 active book",
+      "confidence": "observed"
+    },
+    {
+      "id": "bills_cb",
+      "label": "Bills (CB-funded)",
+      "kind": "expense",
+      "subtitle": "Rent, utilities, groceries… ~$11.9k/mo est",
+      "confidence": "observed"
+    },
+    {
+      "id": "bills_rh",
+      "label": "Bills (RH Checking)",
+      "kind": "expense",
+      "subtitle": "Auto loans, fleet ins, ASIC OpEx… ~$4.3k/mo est",
+      "confidence": "observed"
+    },
+    {
+      "id": "asic_opex",
+      "label": "ASIC fleet OpEx",
+      "kind": "expense",
+      "subtitle": "~$437/mo sheet · from RH Checking",
+      "confidence": "observed"
+    },
+    {
+      "id": "asic_capex",
+      "label": "ASIC capital target",
+      "kind": "capex",
+      "subtitle": "$2500/mo discretionary target",
+      "confidence": "planned"
+    }
+  ],
+  "edges": [
+    {
+      "from": "lyft",
+      "to": "x_money",
+      "label": "Payouts",
+      "confidence": "observed",
+      "weight": 3,
+      "notes": "Direct YNAB inflows labeled Lyft on X Money account"
+    },
+    {
+      "from": "turo",
+      "to": "x_money",
+      "label": "Payouts? (TBD)",
+      "confidence": "inferred",
+      "weight": 2,
+      "notes": "Assumed similar to Lyft until confirmed — may land elsewhere"
+    },
+    {
+      "from": "turo",
+      "to": "rh_checking",
+      "label": "Payouts? (TBD)",
+      "confidence": "inferred",
+      "weight": 1,
+      "notes": "Possible if fleet/auto loans funded from same stream"
+    },
+    {
+      "from": "asics",
+      "to": "coinbase",
+      "label": "Mining payouts? (TBD)",
+      "confidence": "inferred",
+      "weight": 2,
+      "notes": "Common path; not verified in recent YNAB labels"
+    },
+    {
+      "from": "x_money",
+      "to": "coinbase",
+      "label": "Top-ups / spend",
+      "confidence": "observed",
+      "weight": 2,
+      "notes": "YNAB shows Coinbase debits from X Money"
+    },
+    {
+      "from": "x_money",
+      "to": "one_card",
+      "label": "Card spend float",
+      "confidence": "inferred",
+      "weight": 1,
+      "notes": "Possible bridge; One Card payments also show as Payment credits on card"
+    },
+    {
+      "from": "coinbase",
+      "to": "cb_vault",
+      "label": "Park USDC",
+      "confidence": "observed",
+      "weight": 3,
+      "notes": "Treasury model: High Yield vault as working USDC home"
+    },
+    {
+      "from": "coinbase",
+      "to": "cb_morpho_loan",
+      "label": "BTC collateral",
+      "confidence": "inferred",
+      "weight": 2,
+      "notes": "Strategy: BTC → Morpho → borrow USDC"
+    },
+    {
+      "from": "cb_morpho_loan",
+      "to": "cb_vault",
+      "label": "Borrowed USDC",
+      "confidence": "inferred",
+      "weight": 2
+    },
+    {
+      "from": "cb_vault",
+      "to": "bills_cb",
+      "label": "Pay bills",
+      "confidence": "inferred",
+      "weight": 3,
+      "notes": "Sheet: majority Personal expenses pay-from Coinbase"
+    },
+    {
+      "from": "coinbase",
+      "to": "bills_cb",
+      "label": "Pay bills",
+      "confidence": "observed",
+      "weight": 3
+    },
+    {
+      "from": "coinbase",
+      "to": "one_card",
+      "label": "Card security / pay",
+      "confidence": "inferred",
+      "weight": 2,
+      "notes": "One Card USDC deposit; paydowns may originate from CB ecosystem"
+    },
+    {
+      "from": "rh_checking",
+      "to": "bills_rh",
+      "label": "ACH bills",
+      "confidence": "observed",
+      "weight": 3
+    },
+    {
+      "from": "rh_checking",
+      "to": "asic_opex",
+      "label": "Fleet OpEx",
+      "confidence": "observed",
+      "weight": 2,
+      "notes": "Sheet Personal: ASIC Fleet OpEx from RH Checking"
+    },
+    {
+      "from": "coinbase",
+      "to": "rh_brokerage",
+      "label": "Bridge / fund",
+      "confidence": "inferred",
+      "weight": 1
+    },
+    {
+      "from": "rh_brokerage",
+      "to": "rh_agentic",
+      "label": "Fund agentic",
+      "confidence": "observed",
+      "weight": 2,
+      "notes": "Owner deposits into agentic account for fund manager"
+    },
+    {
+      "from": "lyft",
+      "to": "rh_checking",
+      "label": "Via transfers? (TBD)",
+      "confidence": "inferred",
+      "weight": 1,
+      "dashed": true
+    },
+    {
+      "from": "asics",
+      "to": "asic_capex",
+      "label": "Reinvest target",
+      "confidence": "planned",
+      "weight": 2,
+      "notes": "Discretionary capital target $2500/mo"
+    },
+    {
+      "from": "coinbase",
+      "to": "asic_capex",
+      "label": "Capex funding? (TBD)",
+      "confidence": "inferred",
+      "weight": 1,
+      "dashed": true
+    }
+  ],
+  "open_questions": [
+    "Where does Turo land (X Money, RH Checking, bank, Coinbase)? Cadence?",
+    "How are ASIC mining rewards received (pool → Coinbase? which asset)?",
+    "Do Lyft/Turo proceeds get swept to RH Checking for auto loans / fleet insurance?",
+    "What share of CB-funded bills is pure income vs Morpho-borrowed USDC?",
+    "Preferred visual: Sankey amounts ($/mo) vs structural diagram only?"
+  ]
+}
