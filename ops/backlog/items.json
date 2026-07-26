@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-07-25T07:48:25.966249+00:00",
+  "updated_at": "2026-07-26T05:56:15.520145+00:00",
   "items": [
     {
       "id": "0b839cb9-27d0-4fe8-b48c-0e16361f6aa3",
@@ -30,12 +30,12 @@
         "status planning (+30)",
         "has next-step notes (+6)",
         "leverage/initiative tag (+10)",
-        "planning stall 8d (+18)"
+        "planning stall 9d (+18)"
       ],
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T07:48:25.966152+00:00",
+      "last_groomed_at": "2026-07-26T05:56:15.519945+00:00",
       "objective_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.goal.txt",
       "prompt_path": "ops/backlog/seeds/build-one-small-but-real-automation-that-multipl-0b839cb9.prompt.txt"
     },
@@ -72,7 +72,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "now",
       "schedule_label": "Do now",
-      "last_groomed_at": "2026-07-25T07:48:25.966174+00:00",
+      "last_groomed_at": "2026-07-26T05:56:15.519962+00:00",
       "auto_start": true,
       "auto_start_set_at": "2026-07-25T06:16:33.709661+00:00",
       "auto_start_source": "auto-queue"
@@ -101,7 +101,7 @@
       "priority_color": "#ff6b6b",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-25T07:48:25.966182+00:00",
+      "last_groomed_at": "2026-07-26T05:56:15.519971+00:00",
       "objective_path": "ops/backlog/seeds/time-allocator-bfdc9db1.goal.txt",
       "prompt_path": "ops/backlog/seeds/time-allocator-bfdc9db1.prompt.txt"
     },
@@ -129,7 +129,7 @@
       "priority_color": "#5b9fd4",
       "schedule_slot": "done",
       "schedule_label": "Done",
-      "last_groomed_at": "2026-07-25T07:48:25.966189+00:00",
+      "last_groomed_at": "2026-07-26T05:56:15.519991+00:00",
       "objective_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.goal.txt",
       "prompt_path": "ops/backlog/seeds/panamerica-auto-website-6b74d2ca.prompt.txt",
       "auto_start": false,
@@ -165,16 +165,16 @@
       "priority_color": "#8aa0b5",
       "schedule_slot": "this_week",
       "schedule_label": "This week",
-      "last_groomed_at": "2026-07-25T07:48:25.966195+00:00",
+      "last_groomed_at": "2026-07-26T05:56:15.519998+00:00",
       "auto_start": true,
       "auto_start_set_at": "2026-07-25T06:16:33.709696+00:00",
       "auto_start_source": "auto-queue"
     }
   ],
-  "last_groomed_at": "2026-07-25T07:48:25.966200+00:00",
+  "last_groomed_at": "2026-07-26T05:56:15.520031+00:00",
   "groom_meta": {
     "wip_count": 1,
     "changes_count": 0,
-    "groomed_at": "2026-07-25T07:48:25.966200+00:00"
+    "groomed_at": "2026-07-26T05:56:15.520031+00:00"
   }
 }
