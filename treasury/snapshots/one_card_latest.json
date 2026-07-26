@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-23T01:03:01.303903+00:00",
+  "as_of": "2026-07-26T07:31:29.999803+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -310.75,
-  "balance_owed": 310.75,
-  "card_balance": 310.75,
+  "balance_raw": -499.23,
+  "balance_owed": 499.23,
+  "card_balance": 499.23,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -310.75,
+  "cleared_balance": -499.23,
   "uncleared_balance": 0.0,
-  "spend_30d": 185.3,
-  "payments_30d": 340.42,
-  "transaction_count": 24,
+  "spend_30d": 403.78,
+  "payments_30d": 370.42,
+  "transaction_count": 36,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -263,6 +263,61 @@
       "category_name": "Uncategorized"
     },
     {
+      "id": "b08f8424-c167-40dd-bcd8-7a459f3614ec",
+      "date": "2026-07-20",
+      "payee": "Sud Stop Car Wash",
+      "amount": -159.48,
+      "amount_display": -159.48,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "6640d8f1-07ca-45f8-94bd-b90a58e6776d",
+      "date": "2026-07-20",
+      "payee": "Wawa",
+      "amount": -3.0,
+      "amount_display": -3.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "d39b202d-d492-4ade-8c68-e8a41b4a21be",
+      "date": "2026-07-20",
+      "payee": "Taco Bell",
+      "amount": -2.55,
+      "amount_display": -2.55,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "3471bc12-dae3-432d-9946-af5c73612594",
+      "date": "2026-07-20",
+      "payee": "RaceTrac",
+      "amount": -1.6,
+      "amount_display": -1.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "a4433bf0-bf37-47b9-924a-cd4735df296f",
+      "date": "2026-07-20",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
       "id": "7faef6a6-3b4c-48d5-a400-c99a5a6cb099",
       "date": "2026-07-20",
       "payee": "Payment",
@@ -283,9 +338,86 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "64673a18-68f4-4bbe-a675-215627fa03d7",
+      "date": "2026-07-21",
+      "payee": "Tesla",
+      "amount": -15.36,
+      "amount_display": -15.36,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "8f54acc2-5449-4f60-8ddb-24e4e8752564",
+      "date": "2026-07-21",
+      "payee": "KFC",
+      "amount": -2.68,
+      "amount_display": -2.68,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "b3a45eca-ea7e-4f7f-87d9-64dc68a79711",
+      "date": "2026-07-21",
+      "payee": "RaceTrac",
+      "amount": -1.6,
+      "amount_display": -1.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "9043398a-64df-4029-96ba-05e7f93e8fb6",
+      "date": "2026-07-21",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "32efe06e-16b1-47b3-82e6-8102b5756515",
+      "date": "2026-07-21",
+      "payee": "7-Eleven",
+      "amount": -0.12,
+      "amount_display": -0.12,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "ed157ff3-b641-43c8-af2c-98757aa7d3c2",
+      "date": "2026-07-24",
+      "payee": "Coinbase",
+      "amount": -29.99,
+      "amount_display": -29.99,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "6461d964-c096-41f9-9b43-021405cf01f8",
+      "date": "2026-07-26",
+      "payee": "Payment",
+      "amount": 30.0,
+      "amount_display": 30.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-04-23"
+  "since": "2026-04-27"
 }

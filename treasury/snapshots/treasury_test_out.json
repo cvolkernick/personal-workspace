@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-24T22:49:39.487155+00:00",
+    "as_of": "2026-07-26T06:39:27.453113+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-22T03:48:48.063449+00:00",
@@ -1484,19 +1484,21 @@
         "expenses_as_of": "2026-07-23T01:04:07.670191+00:00"
       },
       "stale": [
-        "coinbase data 67.0h old (>6.0h)",
-        "one_card data 45.8h old (>6.0h)",
-        "rh_checking data 45.8h old (>6.0h)",
-        "x_money data 45.8h old (>6.0h)",
-        "expenses data 45.8h old (>6.0h)"
+        "coinbase data 98.8h old (>6.0h)",
+        "robinhood data 36.2h old (>6.0h)",
+        "one_card data 77.6h old (>6.0h)",
+        "rh_checking data 77.6h old (>6.0h)",
+        "x_money data 77.6h old (>6.0h)",
+        "expenses data 77.6h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: collateral_btc_usd, ltv",
-        "coinbase data 67.0h old (>6.0h)",
-        "one_card data 45.8h old (>6.0h)",
-        "rh_checking data 45.8h old (>6.0h)",
-        "x_money data 45.8h old (>6.0h)",
-        "expenses data 45.8h old (>6.0h)"
+        "coinbase data 98.8h old (>6.0h)",
+        "robinhood data 36.2h old (>6.0h)",
+        "one_card data 77.6h old (>6.0h)",
+        "rh_checking data 77.6h old (>6.0h)",
+        "x_money data 77.6h old (>6.0h)",
+        "expenses data 77.6h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -1701,12 +1703,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-24T22:49:39.488003+00:00",
+      "as_of": "2026-07-26T06:39:27.453968+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-24T22:49:39.487601+00:00",
+        "as_of": "2026-07-26T06:39:27.453583+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -1802,9 +1804,11 @@
           "path": "investment/watchlist.json",
           "auto_buy": false,
           "deep_dive_workflow": "position-deep-dive",
-          "count": 1,
+          "count": 3,
           "symbols": [
-            "BE"
+            "BE",
+            "GOOGL",
+            "AAPL"
           ],
           "entries": [
             {
@@ -1818,6 +1822,30 @@
               "last_deep_dive": "2026-07-23",
               "held": false,
               "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth."
+            },
+            {
+              "symbol": "GOOGL",
+              "name": "Alphabet (Google)",
+              "theme": "ai_stack",
+              "status": "monitor",
+              "priority": "high",
+              "sleeve_if_owned": "stocks_growth",
+              "deep_dive_required_before_buy": true,
+              "last_deep_dive": null,
+              "held": false,
+              "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap core candidate \u2014 not yet on agentic core allowlist."
+            },
+            {
+              "symbol": "AAPL",
+              "name": "Apple",
+              "theme": "ai_stack",
+              "status": "monitor",
+              "priority": "high",
+              "sleeve_if_owned": "stocks_growth",
+              "deep_dive_required_before_buy": true,
+              "last_deep_dive": null,
+              "held": false,
+              "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not yet on agentic core allowlist."
             }
           ],
           "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance."
@@ -1828,7 +1856,7 @@
         },
         "manager_hints": [
           "Deployed mix within target bands \u2014 discretionary alpha only.",
-          "Watchlist candidates (not auto-buy): BE \u2014 deep-dive via /position-deep-dive before first buy when required."
+          "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL \u2014 deep-dive via /position-deep-dive before first buy when required."
         ],
         "fair_game": true,
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
@@ -2709,12 +2737,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-24T22:49:39.488003+00:00",
+    "as_of": "2026-07-26T06:39:27.453968+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-24T22:49:39.487601+00:00",
+      "as_of": "2026-07-26T06:39:27.453583+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
@@ -2810,9 +2838,11 @@
         "path": "investment/watchlist.json",
         "auto_buy": false,
         "deep_dive_workflow": "position-deep-dive",
-        "count": 1,
+        "count": 3,
         "symbols": [
-          "BE"
+          "BE",
+          "GOOGL",
+          "AAPL"
         ],
         "entries": [
           {
@@ -2826,6 +2856,30 @@
             "last_deep_dive": "2026-07-23",
             "held": false,
             "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth."
+          },
+          {
+            "symbol": "GOOGL",
+            "name": "Alphabet (Google)",
+            "theme": "ai_stack",
+            "status": "monitor",
+            "priority": "high",
+            "sleeve_if_owned": "stocks_growth",
+            "deep_dive_required_before_buy": true,
+            "last_deep_dive": null,
+            "held": false,
+            "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap core candidate \u2014 not yet on agentic core allowlist."
+          },
+          {
+            "symbol": "AAPL",
+            "name": "Apple",
+            "theme": "ai_stack",
+            "status": "monitor",
+            "priority": "high",
+            "sleeve_if_owned": "stocks_growth",
+            "deep_dive_required_before_buy": true,
+            "last_deep_dive": null,
+            "held": false,
+            "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not yet on agentic core allowlist."
           }
         ],
         "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance."
@@ -2836,7 +2890,7 @@
       },
       "manager_hints": [
         "Deployed mix within target bands \u2014 discretionary alpha only.",
-        "Watchlist candidates (not auto-buy): BE \u2014 deep-dive via /position-deep-dive before first buy when required."
+        "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL \u2014 deep-dive via /position-deep-dive before first buy when required."
       ],
       "fair_game": true,
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."

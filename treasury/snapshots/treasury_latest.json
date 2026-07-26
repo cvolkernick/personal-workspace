@@ -1,17 +1,17 @@
 {
   "snapshot": {
-    "as_of": "2026-07-26T06:55:59.481333+00:00",
+    "as_of": "2026-07-26T07:31:31.015272+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-22T03:48:48.063449+00:00",
-      "liquid_usdc": 49.9976281255614,
-      "liquid_btc": 1.8677294815e-06,
-      "btc_usd_price": 66315.88,
-      "liquid_btc_usd": 0.12386012416761623,
+      "as_of": "2026-07-26T07:31:29.533787+00:00",
+      "liquid_usdc": 0.0006861255613999999,
+      "liquid_btc": 8.77294815e-08,
+      "btc_usd_price": 64305.28,
+      "liquid_btc_usd": 0.00564146887211232,
       "by_currency": {
-        "USDC": 49.9969421904,
+        "USDC": 1.904e-07,
         "USD": 0.0006859351614,
-        "BTC": 1.8677294815e-06
+        "BTC": 8.77294815e-08
       },
       "account_count": 19
     },
@@ -27,7 +27,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-07-23T01:03:01.303903+00:00",
+      "as_of": "2026-07-26T07:31:29.999803+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -36,16 +36,16 @@
       "account_type": "creditCard",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -310.75,
-      "balance_owed": 310.75,
-      "card_balance": 310.75,
+      "balance_raw": -499.23,
+      "balance_owed": 499.23,
+      "card_balance": 499.23,
       "available_credit": null,
       "card_available_credit": null,
-      "cleared_balance": -310.75,
+      "cleared_balance": -499.23,
       "uncleared_balance": 0.0,
-      "spend_30d": 185.3,
-      "payments_30d": 340.42,
-      "transaction_count": 24,
+      "spend_30d": 403.78,
+      "payments_30d": 370.42,
+      "transaction_count": 36,
       "transactions": [
         {
           "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -290,6 +290,61 @@
           "category_name": "Uncategorized"
         },
         {
+          "id": "b08f8424-c167-40dd-bcd8-7a459f3614ec",
+          "date": "2026-07-20",
+          "payee": "Sud Stop Car Wash",
+          "amount": -159.48,
+          "amount_display": -159.48,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "6640d8f1-07ca-45f8-94bd-b90a58e6776d",
+          "date": "2026-07-20",
+          "payee": "Wawa",
+          "amount": -3.0,
+          "amount_display": -3.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "d39b202d-d492-4ade-8c68-e8a41b4a21be",
+          "date": "2026-07-20",
+          "payee": "Taco Bell",
+          "amount": -2.55,
+          "amount_display": -2.55,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "3471bc12-dae3-432d-9946-af5c73612594",
+          "date": "2026-07-20",
+          "payee": "RaceTrac",
+          "amount": -1.6,
+          "amount_display": -1.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "a4433bf0-bf37-47b9-924a-cd4735df296f",
+          "date": "2026-07-20",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
           "id": "7faef6a6-3b4c-48d5-a400-c99a5a6cb099",
           "date": "2026-07-20",
           "payee": "Payment",
@@ -310,15 +365,92 @@
           "cleared": "cleared",
           "approved": false,
           "category_name": "Uncategorized"
+        },
+        {
+          "id": "64673a18-68f4-4bbe-a675-215627fa03d7",
+          "date": "2026-07-21",
+          "payee": "Tesla",
+          "amount": -15.36,
+          "amount_display": -15.36,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "8f54acc2-5449-4f60-8ddb-24e4e8752564",
+          "date": "2026-07-21",
+          "payee": "KFC",
+          "amount": -2.68,
+          "amount_display": -2.68,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "b3a45eca-ea7e-4f7f-87d9-64dc68a79711",
+          "date": "2026-07-21",
+          "payee": "RaceTrac",
+          "amount": -1.6,
+          "amount_display": -1.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "9043398a-64df-4029-96ba-05e7f93e8fb6",
+          "date": "2026-07-21",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "32efe06e-16b1-47b3-82e6-8102b5756515",
+          "date": "2026-07-21",
+          "payee": "7-Eleven",
+          "amount": -0.12,
+          "amount_display": -0.12,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "ed157ff3-b641-43c8-af2c-98757aa7d3c2",
+          "date": "2026-07-24",
+          "payee": "Coinbase",
+          "amount": -29.99,
+          "amount_display": -29.99,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "6461d964-c096-41f9-9b43-021405cf01f8",
+          "date": "2026-07-26",
+          "payee": "Payment",
+          "amount": 30.0,
+          "amount_display": 30.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
         }
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-04-23"
+      "since": "2026-04-27"
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-07-23T01:03:02.469633+00:00",
+      "as_of": "2026-07-26T07:31:30.153331+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -350,11 +482,11 @@
       ],
       "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-04-23"
+      "since": "2026-04-27"
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-07-23T01:03:03.356769+00:00",
+      "as_of": "2026-07-26T07:31:30.312160+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -363,14 +495,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 72.42,
-      "cash": 72.42,
-      "available": 72.42,
-      "cleared_balance": 72.42,
+      "balance_raw": 40.45,
+      "cash": 40.45,
+      "available": 40.45,
+      "cleared_balance": 40.45,
       "uncleared_balance": 0.0,
-      "spend_30d": 21.61,
-      "inflow_30d": 94.03,
-      "transaction_count": 9,
+      "spend_30d": 240.99,
+      "inflow_30d": 281.44,
+      "transaction_count": 35,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -470,16 +602,302 @@
           "cleared": "cleared",
           "approved": false,
           "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "5647273e-f5ee-4d5f-9768-9e1c1012c7e2",
+          "date": "2026-07-23",
+          "payee": "Coinbase",
+          "amount": -100.0,
+          "amount_display": -100.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "d424addc-16f2-4117-80ff-c0672086be95",
+          "date": "2026-07-23",
+          "payee": "Chipotle Mexican Grill",
+          "amount": -10.6,
+          "amount_display": -10.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "b55891cb-3e20-4077-9961-e04b6705ac03",
+          "date": "2026-07-23",
+          "payee": "Tesla Supercharger",
+          "amount": -7.76,
+          "amount_display": -7.76,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "6271565f-288f-4931-a469-e7c5de38e4e9",
+          "date": "2026-07-23",
+          "payee": "Tesla Supercharger",
+          "amount": -6.88,
+          "amount_display": -6.88,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "a24a2f0c-4d15-4ace-8f93-90e1fc14f810",
+          "date": "2026-07-23",
+          "payee": "Tesla Supercharger",
+          "amount": -2.87,
+          "amount_display": -2.87,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "8185c6da-8ade-4c37-b1e1-99a2ee194d02",
+          "date": "2026-07-23",
+          "payee": "McDonald's",
+          "amount": -2.03,
+          "amount_display": -2.03,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "ee57a31b-f88b-48f7-9ccb-d0b45675ba04",
+          "date": "2026-07-23",
+          "payee": "RaceTrac",
+          "amount": -1.6,
+          "amount_display": -1.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "25342ac9-206d-4523-bca9-a3b73525dc77",
+          "date": "2026-07-23",
+          "payee": "RaceTrac",
+          "amount": -1.07,
+          "amount_display": -1.07,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "9895f94d-56f1-4088-a36b-be9fb5312748",
+          "date": "2026-07-23",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+          "date": "2026-07-23",
+          "payee": "7-Eleven",
+          "amount": -0.63,
+          "amount_display": -0.63,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+          "date": "2026-07-23",
+          "payee": "7-Eleven",
+          "amount": -0.63,
+          "amount_display": -0.63,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "9762d884-4ac3-466f-b811-82a204ba4f21",
+          "date": "2026-07-23",
+          "payee": "Lyft",
+          "amount": 113.1,
+          "amount_display": 113.1,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "0ae2c8cf-acf5-4510-928e-78a38c409935",
+          "date": "2026-07-24",
+          "payee": "7-Eleven",
+          "amount": -19.53,
+          "amount_display": -19.53,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "994e0c43-6a22-4c6c-8821-24eab638e100",
+          "date": "2026-07-24",
+          "payee": "Tesla Supercharger",
+          "amount": -6.36,
+          "amount_display": -6.36,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "42725dde-6961-4b2f-87bf-77eba40108c0",
+          "date": "2026-07-24",
+          "payee": "McDonald's",
+          "amount": -3.6,
+          "amount_display": -3.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "101c2de8-b371-408c-8719-a63fc29ce6c5",
+          "date": "2026-07-24",
+          "payee": "Taco Bell",
+          "amount": -3.2,
+          "amount_display": -3.2,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "b1cf3ed9-fefe-4b35-a9ff-f1f402f31aa5",
+          "date": "2026-07-24",
+          "payee": "Wawa",
+          "amount": -3.0,
+          "amount_display": -3.0,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "894018b5-3ed9-46fb-a42e-c327a60ba75d",
+          "date": "2026-07-24",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "38a12fa7-082c-4ba8-803e-6682fb3d1630",
+          "date": "2026-07-24",
+          "payee": "Lyft",
+          "amount": 37.97,
+          "amount_display": 37.97,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "43b8d81d-69a6-4e7c-a667-3df1beca7dd4",
+          "date": "2026-07-25",
+          "payee": "Walmart",
+          "amount": -29.52,
+          "amount_display": -29.52,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "3f0b3bfc-9806-4d99-8c34-b5d54295165f",
+          "date": "2026-07-25",
+          "payee": "Chipotle Mexican Grill",
+          "amount": -10.6,
+          "amount_display": -10.6,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "318cb199-70e7-41a7-8d64-07852fcb12ea",
+          "date": "2026-07-25",
+          "payee": "Wawa",
+          "amount": -5.29,
+          "amount_display": -5.29,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "63f71332-5586-411c-be32-7dcf32c80a4e",
+          "date": "2026-07-25",
+          "payee": "RaceTrac",
+          "amount": -1.06,
+          "amount_display": -1.06,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
+        },
+        {
+          "id": "5ba89a13-521e-4186-b096-50c08e4abd54",
+          "date": "2026-07-25",
+          "payee": "X Money Transfer",
+          "amount": 2.43,
+          "amount_display": 2.43,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "5d8dc733-505f-4093-b286-a3cc0c00dd0a",
+          "date": "2026-07-25",
+          "payee": "Lyft",
+          "amount": 33.91,
+          "amount_display": 33.91,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Inflow: Ready to Assign"
+        },
+        {
+          "id": "e7632ab7-da11-406c-bb00-9033dc999914",
+          "date": "2026-07-26",
+          "payee": "McDonald's",
+          "amount": -1.05,
+          "amount_display": -1.05,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
         }
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-04-23",
+      "since": "2026-04-27",
       "apy_est": 0.06
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-26T06:55:59.384915+00:00",
+      "as_of": "2026-07-26T07:31:31.013150+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1376,13 +1794,13 @@
       "one_card_security_deposit_usdc": "500"
     },
     "inputs": {
-      "liquid_usdc": 49.9976281255614,
-      "working_usdc": 100.0076281255614,
+      "liquid_usdc": 0.0006861255613999999,
+      "working_usdc": 50.0106861255614,
       "vault_known": true,
       "count_vault_toward_buffers": true,
-      "liquid_btc": 1.8677294815e-06,
-      "liquid_btc_usd": 0.12386012416761623,
-      "btc_usd_price": 66315.88,
+      "liquid_btc": 8.77294815e-08,
+      "liquid_btc_usd": 0.00564146887211232,
+      "btc_usd_price": 64305.28,
       "ltv": null,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
@@ -1392,7 +1810,7 @@
       "card_security_deposit_usdc": 500.0,
       "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
-      "one_card_spend_30d": 185.3,
+      "one_card_spend_30d": 403.78,
       "one_card_account": "Coinbase One Card \u2013 5361",
       "expenses_upcoming_monthly": 16639.88,
       "expenses_personal_monthly": 16639.88,
@@ -1406,11 +1824,11 @@
       "rh_checking_cash": 2.43,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 0.0,
-      "x_money_cash": 72.42,
+      "x_money_cash": 40.45,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 21.61,
+      "x_money_spend_30d": 240.99,
       "x_money_apy_est": 0.06,
-      "bank_cash": 74.85000000000001,
+      "bank_cash": 42.88,
       "bill_pay_cash": 2.43,
       "rh_equity": 0.0,
       "rh_total_value": 0.004046,
@@ -1430,9 +1848,9 @@
       "rh_equity_collateral_usd": null
     },
     "buckets": {
-      "liquid_usdc": 100.0076281255614,
+      "liquid_usdc": 50.0106861255614,
       "required_total": 1700.0,
-      "shortfall": 1599.9923718744385,
+      "shortfall": 1649.9893138744385,
       "excess": 0.0,
       "floors": {
         "card_float": 500.0,
@@ -1440,22 +1858,22 @@
         "bridge_dry_powder": 200.0
       },
       "filled": {
-        "card_float": 100.0076281255614,
+        "card_float": 50.0106861255614,
         "loan_buffer": 0.0,
         "bridge_dry_powder": 0.0
       },
       "gaps": {
-        "card_float": 399.9923718744386,
+        "card_float": 449.9893138744386,
         "loan_buffer": 1000.0,
         "bridge_dry_powder": 200.0
       },
       "status": "red",
-      "liquid_spot_usdc": 49.9976281255614,
+      "liquid_spot_usdc": 0.0006861255613999999,
       "vault_usdc": 50.01,
-      "working_usdc": 100.0076281255614,
+      "working_usdc": 50.0106861255614,
       "count_vault_toward_buffers": true,
       "spot_only_status": "red",
-      "spot_only_shortfall": 1650.0023718744385
+      "spot_only_shortfall": 1699.9993138744387
     },
     "dca": {
       "allow_dca": false,
@@ -1497,27 +1915,19 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-07-22T03:48:48.063449+00:00",
+        "coinbase_as_of": "2026-07-26T07:31:29.533787+00:00",
         "robinhood_as_of": "2026-07-24T18:28:22.372511+00:00",
-        "one_card_as_of": "2026-07-23T01:03:01.303903+00:00",
-        "rh_checking_as_of": "2026-07-23T01:03:02.469633+00:00",
-        "x_money_as_of": "2026-07-23T01:03:03.356769+00:00",
-        "expenses_as_of": "2026-07-26T06:55:59.384915+00:00"
+        "one_card_as_of": "2026-07-26T07:31:29.999803+00:00",
+        "rh_checking_as_of": "2026-07-26T07:31:30.153331+00:00",
+        "x_money_as_of": "2026-07-26T07:31:30.312160+00:00",
+        "expenses_as_of": "2026-07-26T07:31:31.013150+00:00"
       },
       "stale": [
-        "coinbase data 99.1h old (>6.0h)",
-        "robinhood data 36.5h old (>6.0h)",
-        "one_card data 77.9h old (>6.0h)",
-        "rh_checking data 77.9h old (>6.0h)",
-        "x_money data 77.9h old (>6.0h)"
+        "robinhood data 37.1h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: collateral_btc_usd, ltv",
-        "coinbase data 99.1h old (>6.0h)",
-        "robinhood data 36.5h old (>6.0h)",
-        "one_card data 77.9h old (>6.0h)",
-        "rh_checking data 77.9h old (>6.0h)",
-        "x_money data 77.9h old (>6.0h)"
+        "robinhood data 37.1h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -1543,7 +1953,7 @@
       {
         "priority": 2,
         "kind": "card_float",
-        "title": "USDC float short $399.99 (spot + High Yield vault)",
+        "title": "USDC float short $449.99 (spot + High Yield vault)",
         "actor": "either",
         "detail": "Buffers use working USDC: Advanced Trade spot + Morpho High Yield vault. Idle spot may be ~$0 by design if vault holds the float.",
         "api_reachable": false
@@ -1567,7 +1977,7 @@
       {
         "priority": 3,
         "kind": "expense_burn",
-        "title": "Est. Coinbase-funded bills ~$10834/mo vs working USDC $100.01 (spot+vault)",
+        "title": "Est. Coinbase-funded bills ~$10834/mo vs working USDC $50.01 (spot+vault)",
         "actor": "either",
         "detail": "Working USDC = idle spot + High Yield vault. Spot often ~$0 by design. Ensure vault (or borrow capacity) covers Coinbase-paid obligations.",
         "api_reachable": false
@@ -1607,7 +2017,7 @@
       {
         "n": 2,
         "actor": "either",
-        "title": "USDC float short $399.99 (spot + High Yield vault)",
+        "title": "USDC float short $449.99 (spot + High Yield vault)",
         "api_reachable": false
       },
       {
@@ -1625,7 +2035,7 @@
       {
         "n": 5,
         "actor": "either",
-        "title": "Est. Coinbase-funded bills ~$10834/mo vs working USDC $100.01 (spot+vault)",
+        "title": "Est. Coinbase-funded bills ~$10834/mo vs working USDC $50.01 (spot+vault)",
         "api_reachable": false
       },
       {
@@ -1647,12 +2057,12 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $100.01 (spot $50.00 + vault $50.01) | BTC liquid: 0.00000187 (~$0.12)\nOne Card owed: $310.75 (source=ynab) | 30d spend $185.3\nUpcoming expense estimates (sheet Personal): $16639.88/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | X Money: $72.42 (Checking \u2013 2201) | RH brokerage BP: $0.00 cash: $0.00 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.00 below floor 500.00\nData quality: yellow score=0.833\nTop actions:\n  P1 [human|manual] Enter Morpho loan principal / collateral / LTV (Settings)\n  P2 [either|manual] USDC float short $399.99 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $310.75 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.00 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $100.01 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: UNKNOWN\nUSDC working: $50.01 (spot $0.00 + vault $50.01) | BTC liquid: 0.00000009 (~$0.01)\nOne Card owed: $310.75 (source=ynab) | 30d spend $403.78\nUpcoming expense estimates (sheet Personal): $16639.88/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $2.43 | 30d spend $0.0 | X Money: $40.45 (Checking \u2013 2201) | RH brokerage BP: $0.00 cash: $0.00 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.00 below floor 500.00\nData quality: yellow score=0.833\nTop actions:\n  P1 [human|manual] Enter Morpho loan principal / collateral / LTV (Settings)\n  P2 [either|manual] USDC float short $449.99 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $310.75 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.00 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $50.01 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
-        "filled": 100.0076281255614,
-        "gap": 399.9923718744386
+        "filled": 50.0106861255614,
+        "gap": 449.9893138744386
       },
       "loan_buffer": {
         "target": 1000.0,
@@ -1664,9 +2074,9 @@
         "note": "High Yield Morpho vault = primary USDC home (not idle spot)"
       },
       "working_usdc": {
-        "spot": 49.9976281255614,
+        "spot": 0.0006861255613999999,
         "vault": 50.01,
-        "total": 100.0076281255614
+        "total": 50.0106861255614
       },
       "rh_cash_bp": {
         "buying_power": 0.0,
@@ -1706,12 +2116,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-26T06:55:59.482895+00:00",
+      "as_of": "2026-07-26T07:31:31.017414+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-26T06:55:59.482452+00:00",
+        "as_of": "2026-07-26T07:31:31.016701+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -2740,12 +3150,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-26T06:55:59.482895+00:00",
+    "as_of": "2026-07-26T07:31:31.017414+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-26T06:55:59.482452+00:00",
+      "as_of": "2026-07-26T07:31:31.016701+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
