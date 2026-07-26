@@ -1,8 +1,8 @@
 {
-  "version": 6,
+  "version": 7,
   "as_of": "2026-07-26",
   "title": "Capital flows — income to channels",
-  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays). Lyft express→X Money is exceptional only.",
+  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -23,7 +23,7 @@
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Default weekly payout to Coinbase (same Morpho/BTC path). Express pay to X Money is manual exception only.",
+      "evidence": "Default weekly payout to Coinbase (same Morpho/BTC path).",
       "typical_landing": "coinbase",
       "cadence": "weekly"
     },
@@ -135,15 +135,6 @@
       "confidence": "owner_stated",
       "weight": 4,
       "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py)"
-    },
-    {
-      "from": "lyft",
-      "to": "x_money",
-      "label": "Express only",
-      "confidence": "observed",
-      "weight": 1,
-      "dashed": true,
-      "notes": "Exception path, not the default model"
     },
     {
       "from": "coinbase",
