@@ -8,6 +8,8 @@ Serves static UI + APIs:
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
+  GET  /api/open-orchestra — probe Orchestrator (port 8790)
+  POST /api/open-orchestra — ensure Orchestrator is running (start if needed)
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
 
@@ -21,8 +23,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import socket
 import subprocess
 import sys
+import time
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -40,6 +44,192 @@ from treasury.watchlist_dashboard import (  # noqa: E402
 )
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
+ORCHESTRA_PORT = 8790
+ORCHESTRA_URL = f"http://127.0.0.1:{ORCHESTRA_PORT}/"
+_ORCHESTRA_PID: int | None = None
+
+
+def _probe_port(port: int, host: str = "127.0.0.1", timeout: float = 0.35) -> bool:
+    """True if something accepts TCP on host:port (same idea as orchestra launcher)."""
+    if not port:
+        return False
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _orchestra_script() -> Path | None:
+    """Prefer workspace orchestra/server.py under ROOT."""
+    p = (ROOT / "orchestra" / "server.py").resolve()
+    if p.is_file():
+        return p
+    return None
+
+
+def ensure_orchestra(*, ready_timeout: float = 20.0) -> dict:
+    """Probe Orchestrator on :8790; start orchestra/server.py if down.
+
+    Mirrors orchestra/launcher.ensure_domain for the command-center itself so
+    child dashboards (FCC, capital-flows, …) can return home reliably.
+    """
+    global _ORCHESTRA_PID
+    ready_timeout = max(3.0, min(float(ready_timeout), 30.0))
+    url = ORCHESTRA_URL
+    port = ORCHESTRA_PORT
+
+    if _probe_port(port):
+        return {
+            "ok": True,
+            "id": "orchestra",
+            "label": "Orchestrator",
+            "live": True,
+            "started": False,
+            "already_running": True,
+            "url": url,
+            "port": port,
+            "pid": _ORCHESTRA_PID,
+            "message": f"Orchestrator already listening on {port}",
+        }
+
+    script = _orchestra_script()
+    if not script:
+        return {
+            "ok": False,
+            "id": "orchestra",
+            "label": "Orchestrator",
+            "live": False,
+            "url": url,
+            "port": port,
+            "error": f"orchestra/server.py not found under {ROOT}",
+        }
+
+    log_dir = ROOT / "orchestra" / ".launch-logs"
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
+    log_path = log_dir / "orchestra-from-fcc.log"
+    try:
+        log_f = open(log_path, "a", encoding="utf-8")
+        log_f.write(
+            f"\n--- launch {time.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"port={port} script={script} ---\n"
+        )
+        log_f.flush()
+    except OSError as e:
+        return {
+            "ok": False,
+            "id": "orchestra",
+            "error": f"Cannot open launch log: {e}",
+            "url": url,
+            "port": port,
+        }
+
+    cmd = [
+        sys.executable,
+        str(script),
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(port),
+        "--no-browser",
+    ]
+    log_f.write(f"cmd: {' '.join(cmd)}\n")
+    log_f.flush()
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(ROOT),
+            stdout=log_f,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+        )
+    except OSError as e:
+        try:
+            log_f.close()
+        except OSError:
+            pass
+        return {
+            "ok": False,
+            "id": "orchestra",
+            "live": False,
+            "url": url,
+            "port": port,
+            "error": f"Failed to spawn Orchestrator: {e}",
+            "log": str(log_path),
+        }
+
+    _ORCHESTRA_PID = proc.pid
+    deadline = time.time() + ready_timeout
+    while time.time() < deadline:
+        if _probe_port(port):
+            try:
+                log_f.close()
+            except OSError:
+                pass
+            return {
+                "ok": True,
+                "id": "orchestra",
+                "label": "Orchestrator",
+                "live": True,
+                "started": True,
+                "already_running": False,
+                "url": url,
+                "port": port,
+                "pid": proc.pid,
+                "log": str(log_path),
+                "message": f"Started Orchestrator on port {port}",
+            }
+        if proc.poll() is not None:
+            try:
+                log_f.close()
+            except OSError:
+                pass
+            detail = ""
+            try:
+                tail = log_path.read_text(encoding="utf-8", errors="replace")[-600:]
+                detail = " " + tail.strip().splitlines()[-1] if tail.strip() else ""
+            except OSError:
+                pass
+            return {
+                "ok": False,
+                "id": "orchestra",
+                "live": False,
+                "url": url,
+                "port": port,
+                "pid": proc.pid,
+                "error": (
+                    f"Orchestrator exited early (code {proc.returncode})."
+                    f"{detail}"
+                ),
+                "log": str(log_path),
+            }
+        time.sleep(0.2)
+
+    try:
+        log_f.close()
+    except OSError:
+        pass
+    live = _probe_port(port)
+    return {
+        "ok": live,
+        "id": "orchestra",
+        "label": "Orchestrator",
+        "live": live,
+        "started": True,
+        "already_running": False,
+        "url": url,
+        "port": port,
+        "pid": proc.pid,
+        "log": str(log_path),
+        "error": None
+        if live
+        else f"Timed out waiting for Orchestrator on port {port}",
+        "message": f"Spawned pid {proc.pid}; live={live}",
+    }
 
 
 def _braiins_live() -> dict:
@@ -269,6 +459,26 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
+        if path in ("/api/open-orchestra", "/api/orchestra-status"):
+            live = _probe_port(ORCHESTRA_PORT)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "id": "orchestra",
+                    "label": "Orchestrator",
+                    "live": live,
+                    "url": ORCHESTRA_URL,
+                    "port": ORCHESTRA_PORT,
+                    "already_running": live,
+                    "message": (
+                        f"Orchestrator listening on {ORCHESTRA_PORT}"
+                        if live
+                        else f"Orchestrator not running on {ORCHESTRA_PORT}"
+                    ),
+                },
+            )
+            return
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
@@ -346,6 +556,21 @@ class FCCHandler(SimpleHTTPRequestHandler):
             p = ROOT / "financial-command" / "treasury_latest.json"
             data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
             self._json(200, {"ok": True, "treasury": data})
+            return
+
+        if path in ("/api/open-orchestra", "/api/launch-orchestra"):
+            body = self._read_json()
+            try:
+                timeout = float(body.get("ready_timeout") or 20.0)
+            except (TypeError, ValueError):
+                timeout = 20.0
+            try:
+                result = ensure_orchestra(ready_timeout=timeout)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            code = 200 if result.get("ok") else 400
+            self._json(code, result)
             return
 
         self._json(404, {"ok": False, "error": "unknown endpoint"})

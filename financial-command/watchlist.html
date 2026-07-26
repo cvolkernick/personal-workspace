@@ -253,6 +253,7 @@
         <div class="sub" id="subtitle">Loading…</div>
       </div>
       <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
         <a class="btn" href="index.html">← FCC</a>
         <a class="btn" href="capital-flows.html">Capital flows</a>
         <button type="button" class="primary" id="btn-refresh">Refresh</button>
@@ -637,5 +638,6 @@
     document.getElementById("btn-refresh").addEventListener("click", loadWatchlist);
     loadWatchlist();
   </script>
+  <script src="nav-orchestra.js"></script>
 </body>
 </html>
