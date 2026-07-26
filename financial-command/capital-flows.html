@@ -108,15 +108,33 @@
     .node-box.leverage { stroke: var(--leverage); }
     .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
     .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
+    /* butt caps on dashed edges — round + thick stroke collapses short gaps to solid */
     .edge-path {
       fill: none;
-      stroke-linecap: round;
-      opacity: 0.75;
+      stroke-linecap: butt;
+      opacity: 0.8;
     }
-    .edge-path.observed { stroke: #3dd68c; }
-    .edge-path.inferred { stroke: #f5c542; stroke-dasharray: 6 4; }
-    .edge-path.planned { stroke: #5b9fd4; stroke-dasharray: 2 3; }
-    .edge-path.owner_stated { stroke: #c9a0ff; stroke-dasharray: 5 3; }
+    .edge-path.observed {
+      stroke: #3dd68c;
+      stroke-linecap: round;
+      stroke-dasharray: none;
+    }
+    .edge-path.inferred {
+      stroke: #f5c542;
+      stroke-dasharray: 9 7;
+    }
+    .edge-path.planned {
+      stroke: #5b9fd4;
+      stroke-dasharray: 3 6;
+    }
+    .edge-path.owner_stated {
+      stroke: #c9a0ff;
+      stroke-dasharray: 10 8;
+    }
+    /* explicit exception paths (e.g. Lyft express) — denser dashes on top of confidence color */
+    .edge-path.explicit-dash {
+      stroke-dasharray: 5 7;
+    }
     .edge-label {
       fill: var(--muted);
       font-size: 9px;
@@ -235,7 +253,7 @@
           <h3>Connecting lines (confidence)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
-            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
+            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you (not yet in YNAB/sheet)</span></div></div>
             <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
             <div class="leg-item"><span class="swatch-line planned"></span><div><strong>Planned</strong><br/><span class="desc">Dotted blue — target / intent</span></div></div>
             <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker line</strong><br/><span class="desc">Higher relative importance (not $)</span></div></div>
@@ -275,7 +293,7 @@
 
     <section class="card">
       <h2>Open questions / next integrations</h2>
-      <p class="hint">Cadences are set; $ sizing and Braiins live read still open.</p>
+      <p class="hint">Cadences are set. Braiins: put token in <code>~/.config/braiins/token</code> then <code>python3 treasury/braiins_sync.py</code>.</p>
       <ol class="q-list" id="questions"></ol>
       <div id="integrations" class="hint" style="margin-top:0.75rem"></div>
     </section>
@@ -393,10 +411,12 @@
         const x2 = b.x;
         const y2 = b.y + b.h / 2;
         const mx = (x1 + x2) / 2;
-        const w = 1.2 + (e.weight || 1) * 1.1;
+        // Cap stroke so dash gaps stay visible (weight still differentiates importance)
+        const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
         const conf = e.confidence || "inferred";
+        const dashCls = e.dashed ? " explicit-dash" : "";
         const path = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
-        html += `<path class="edge-path ${esc(conf)}" d="${path}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
+        html += `<path class="edge-path ${esc(conf)}${dashCls}" d="${path}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
         const lx = mx - 20;
         const ly = (y1 + y2) / 2 - 4;
         if (e.label) {
@@ -441,6 +461,34 @@
         liveBits.push(
           `X Money bills est $${Number(data.live.x_money_funded_monthly_est).toFixed(0)}/mo`
         );
+      }
+      if (data.live && data.live.braiins) {
+        const br = data.live.braiins;
+        if (br.error) {
+          liveBits.push(`Braiins: ${br.error}`);
+        } else {
+          const parts = ["Braiins"];
+          if (br.hash_rate_24h != null) {
+            parts.push(
+              `${Number(br.hash_rate_24h).toLocaleString()} ${br.hash_rate_unit || "Gh/s"} 24h`
+            );
+          }
+          if (br.ok_workers != null) {
+            parts.push(
+              `${br.ok_workers} ok` +
+                (br.off_workers ? ` / ${br.off_workers} off` : "") +
+                " workers"
+            );
+          }
+          if (br.today_reward_btc != null) {
+            parts.push(`today ${Number(br.today_reward_btc).toFixed(8)} BTC`);
+          }
+          if (br.last_payout_btc != null) {
+            parts.push(`last payout ${Number(br.last_payout_btc).toFixed(8)} BTC`);
+          }
+          if (br.as_of) parts.push(String(br.as_of).slice(0, 16));
+          liveBits.push(parts.join(" · "));
+        }
       }
       if (liveBits.length) {
         html += `<text class="edge-label" x="30" y="${H - 16}">Live: ${esc(liveBits.join(" · "))}</text>`;
@@ -490,17 +538,52 @@
         .join("");
 
       const integ = data.integrations || {};
-      const brai = integ.braiins_pool;
+      const brai = integ.braiins_pool || {};
+      const liveBr = (data.live && data.live.braiins) || null;
       const integEl = document.getElementById("integrations");
-      if (integEl && brai) {
-        integEl.innerHTML =
-          `<strong>Braiins Pool</strong> (${esc(brai.status || "planned")}): ` +
-          esc(brai.notes || "") +
-          (brai.cadence_hint
-            ? `<br/>Hint: ${esc(brai.cadence_hint)}`
-            : "");
-      } else if (integEl) {
-        integEl.innerHTML = "";
+      if (integEl) {
+        let status = brai.status || "planned";
+        if (liveBr && !liveBr.error) status = liveBr.status || "live";
+        else if (liveBr && liveBr.error) status = "error";
+        const bits = [
+          `<strong>Braiins Pool</strong> (${esc(status)})`,
+        ];
+        if (liveBr && !liveBr.error) {
+          bits.push(
+            `user <code>${esc(liveBr.username || "—")}</code>` +
+              (liveBr.hash_rate_24h != null
+                ? ` · 24h ${esc(String(liveBr.hash_rate_24h))} ${esc(liveBr.hash_rate_unit || "Gh/s")}`
+                : "") +
+              (liveBr.today_reward_btc != null
+                ? ` · today ${esc(Number(liveBr.today_reward_btc).toFixed(8))} BTC`
+                : "") +
+              (liveBr.last_payout_btc != null
+                ? ` · last payout ${esc(Number(liveBr.last_payout_btc).toFixed(8))} BTC` +
+                  (liveBr.last_payout_at
+                    ? ` @ ${esc(String(liveBr.last_payout_at).slice(0, 10))}`
+                    : "")
+                : "") +
+              (liveBr.ok_workers != null
+                ? ` · workers ok/off ${esc(String(liveBr.ok_workers))}/${esc(String(liveBr.off_workers || 0))}`
+                : "") +
+              (liveBr.as_of
+                ? ` · synced ${esc(String(liveBr.as_of).slice(0, 19))}`
+                : "")
+          );
+        } else if (liveBr && liveBr.error) {
+          bits.push(esc(liveBr.error));
+        } else {
+          bits.push(
+            esc(
+              brai.notes ||
+                "No braiins_latest.json yet — set token and run: python3 treasury/braiins_sync.py"
+            )
+          );
+        }
+        if (brai.cadence_hint) {
+          bits.push(`<br/><span class="hint">Hint: ${esc(brai.cadence_hint)}</span>`);
+        }
+        integEl.innerHTML = bits.join(" — ");
       }
     }
 

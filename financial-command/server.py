@@ -97,6 +97,55 @@ def _capital_flows_payload() -> dict:
                 )
         except (OSError, json.JSONDecodeError, TypeError):
             pass
+    # Braiins Pool mining snapshot (treasury/braiins_sync.py)
+    brai_path = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
+    if brai_path.is_file():
+        try:
+            bd = json.loads(brai_path.read_text(encoding="utf-8"))
+            if not bd.get("ok"):
+                err = bd.get("error") or "sync failed"
+                if err == "token_missing":
+                    err = (
+                        "token missing — ~/.config/braiins/token or BRAIINS_POOL_TOKEN, "
+                        "then python3 treasury/braiins_sync.py"
+                    )
+                live["braiins"] = {
+                    "status": "error",
+                    "error": err,
+                    "as_of": bd.get("as_of"),
+                }
+            else:
+                live["braiins"] = {
+                    "status": "live",
+                    "username": bd.get("username"),
+                    "hash_rate_5m": bd.get("hash_rate_5m"),
+                    "hash_rate_60m": bd.get("hash_rate_60m"),
+                    "hash_rate_24h": bd.get("hash_rate_24h"),
+                    "hash_rate_unit": bd.get("hash_rate_unit") or "Gh/s",
+                    "ok_workers": bd.get("ok_workers"),
+                    "low_workers": bd.get("low_workers"),
+                    "off_workers": bd.get("off_workers"),
+                    "today_reward_btc": bd.get("today_reward_btc"),
+                    "estimated_reward_btc": bd.get("estimated_reward_btc"),
+                    "current_balance_btc": bd.get("current_balance_btc"),
+                    "all_time_reward_btc": bd.get("all_time_reward_btc"),
+                    "last_payout_btc": bd.get("last_payout_btc"),
+                    "last_payout_at": bd.get("last_payout_at"),
+                    "worker_count": bd.get("worker_count"),
+                    "as_of": bd.get("as_of"),
+                }
+            # Surface status on integrations block for UI
+            integ = data.get("integrations")
+            if isinstance(integ, dict) and isinstance(integ.get("braiins_pool"), dict):
+                bp = dict(integ["braiins_pool"])
+                if bd.get("ok"):
+                    bp["status"] = "live"
+                    bp["last_sync"] = bd.get("as_of")
+                else:
+                    bp["status"] = "token_missing" if bd.get("error") == "token_missing" else "error"
+                data["integrations"] = {**integ, "braiins_pool": bp}
+        except (OSError, json.JSONDecodeError, TypeError):
+            pass
     data["live"] = live
     # Prefer simpler key for SVG caption (express-pay Lyft on X Money)
     if live.get("lyft_inflow_from_x_money_txs") is not None:

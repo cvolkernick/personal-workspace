@@ -41,10 +41,11 @@
   ],
   "integrations": {
     "braiins_pool": {
-      "status": "planned",
+      "status": "ready",
       "purpose": "Read ASIC hashrate / payout stats directly instead of inferring from Coinbase deposits",
-      "notes": "Braiins Pool (Slush) exposes account APIs for mining stats and rewards for authenticated accounts. Next step: confirm account access (API token / read-only key), map payout destination to Coinbase, and add a small sync into treasury/snapshots (e.g. braiins_latest.json) for FCC capital-flows live strip.",
-      "cadence_hint": "Poll daily or after expected payout window; surface last_payout_btc and estimated monthly"
+      "notes": "Sync via treasury/braiins_sync.py → treasury/snapshots/braiins_latest.json. Token: ~/.config/braiins/token or BRAIINS_POOL_TOKEN. Create at pool.braiins.com → Settings → Access Profiles → Allow web APIs → Generate token.",
+      "sync_command": "python3 treasury/braiins_sync.py",
+      "cadence_hint": "Poll daily or after expected payout window; FCC capital-flows reads braiins_latest.json live strip"
     }
   },
   "channels": [
@@ -154,7 +155,7 @@
       "label": "~Monthly",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Braiins pool → Coinbase (integration planned)"
+      "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py)"
     },
     {
       "from": "lyft",
@@ -245,7 +246,7 @@
     }
   ],
   "open_questions": [
-    "Braiins: obtain read-only API token and confirm payout address/account mapping to Coinbase",
+    "Braiins: drop API token at ~/.config/braiins/token and run python3 treasury/braiins_sync.py; confirm payout destination maps to Coinbase",
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights"
