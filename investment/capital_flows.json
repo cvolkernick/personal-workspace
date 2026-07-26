@@ -1,8 +1,8 @@
 {
-  "version": 5,
+  "version": 6,
   "as_of": "2026-07-26",
   "title": "Capital flows — income to channels",
-  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (includes fleet, ASIC OpEx, ASIC hardware/capex, auto loans, etc.). Lyft express→X Money is exceptional only.",
+  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays). Lyft express→X Money is exceptional only.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -101,8 +101,8 @@
       "id": "rh_agentic",
       "label": "Agentic fund",
       "kind": "invest",
-      "subtitle": "40/60 active book",
-      "confidence": "observed"
+      "subtitle": "40/60 · funded Mon via X Money",
+      "confidence": "owner_stated"
     },
     {
       "id": "bills_xm",
@@ -196,12 +196,12 @@
       "notes": "ASIC OpEx and hardware/capex roll into Bills"
     },
     {
-      "from": "coinbase",
+      "from": "x_money",
       "to": "rh_agentic",
-      "label": "Fund agentic",
-      "confidence": "inferred",
-      "weight": 1,
-      "dashed": true
+      "label": "Weekly Mon",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "Agentic fund funded by X Money transfers every Monday"
     }
   ],
   "open_questions": [
