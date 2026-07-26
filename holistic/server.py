@@ -214,7 +214,9 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 auth = calendar_credentials_status()
                 state = load_state(_data())
                 summary = calendar_summary_for_state(state)
-                self._json(200, {"ok": True, **summary, "auth": auth})
+                # Keep transport ok=True even when calendar auth is not ready
+                body = {**summary, "auth": auth, "ok": True, "calendar_ready": bool(auth.get("ok"))}
+                self._json(200, body)
             except Exception as e:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(e)})
             return
