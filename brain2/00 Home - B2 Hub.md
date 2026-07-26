@@ -14,6 +14,7 @@
 
 | Domain | Note |
 |--------|------|
+| **Ikigai & identity (Layer 0)** | [[Ikigai & Identity]] |
 | Strategy & bets | [[Strategy & Bets]] |
 | Finance & investment | [[Finance & Investment]] |
 | Fitness & health | [[Fitness & Health]] |
@@ -23,7 +24,7 @@
 
 ## North-star themes
 
-From the long-horizon bets (see [[Strategy & Bets]]):
+From **Ikigai center** (see [[Ikigai & Identity]]) expressed via long-horizon bets ([[Strategy & Bets]]):
 
 - **Energy** (incl. nuclear exposure)
 - **Bitcoin** (direct + indirect)
@@ -36,9 +37,9 @@ Balanced life domains stay roughly equal weight and are adjusted over time: fitn
 ## How B2 connects
 
 ```
-Obsidian (this vault)  ←→  same Markdown files  ←→  B2 web UX + Ask Grok
-                                    ↓
-              personal-workspace dashboards (Orchestra, FCC, Resistance, …)
+Ikigai (Layer 0) → Horizon (season) → Orchestrator (next action) → domain dashboards
+         ↑
+Obsidian B2  ←→  same Markdown  ←→  B2 web UX + Ask Grok  (knowledge layer)
 ```
 
 Operational data (JSON snapshots, OAuth tokens) stays **out** of B2. Link *to* those systems; store *ideas, decisions, maps, and how-tos* here.

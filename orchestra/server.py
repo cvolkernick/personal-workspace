@@ -44,6 +44,7 @@ from conductor import (  # noqa: E402
     ask_conductor,
     auth_status,
 )
+from ikigai import load_ikigai, save_ikigai  # noqa: E402
 from intent import FOCUS_BRIEF_PROMPT, load_intent, save_intent  # noqa: E402
 from launcher import ensure_domain, status_all  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
@@ -126,6 +127,15 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, {"ok": True, "intent": data})
+            return
+
+        if path in ("/api/ikigai", "/api/identity"):
+            try:
+                data = load_ikigai(WORKSPACE_ROOT)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, {"ok": True, "ikigai": data})
             return
 
         if path == "/api/strategy":
@@ -296,6 +306,16 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                 self._json(500, {"ok": False, "error": str(e)})
                 return
             self._json(200, {"ok": True, "intent": saved})
+            return
+
+        if path in ("/api/ikigai", "/api/identity"):
+            body = self._read_json_body()
+            try:
+                saved = save_ikigai(body, WORKSPACE_ROOT)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, {"ok": True, "ikigai": saved})
             return
 
         if path in ("/api/focus-brief", "/api/conductor/focus-brief"):

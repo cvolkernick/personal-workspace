@@ -1,5 +1,7 @@
 # High-Conviction Bets (3-5 Year North Star)
 
+> **Layer note:** Identity / Ikigai is Layer 0 — see [`ikigai/`](./ikigai/). These thematic bets **nest under Ikigai** (vehicles for *paid_for* / *vocation* / leverage themes), not a co-equal north star.
+
 **Guiding Principle:** Building wealth and financial optionality through disciplined, high-conviction bets, while maintaining a balanced life across dynamically weighted domains.
 
 **Current Thematic Bets (Energy, Bitcoin, AI, Autonomy, Robotics):**

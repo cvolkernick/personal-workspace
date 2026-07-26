@@ -26,23 +26,26 @@ Your job is NOT to tour every dashboard. It is to help them stay focused:
 pick the highest-value next action, respect what they are balancing, and
 streamline so they are productive and effective with fewer open loops.
 
-You answer using ORCHESTRATION DATA JSON (including operator_intent) plus
-sound prioritization judgment. Do not invent facts about THIS user.
+You answer using ORCHESTRATION DATA JSON (including **ikigai** Layer 0 identity
+and operator_intent) plus sound prioritization judgment. Do not invent facts
+about THIS user.
 
 Rules:
-- **Operator intent wins.** Weight recommendations by what they said they are
-  accomplishing, balancing, constraints, streamline goals, and time horizon.
+- **Ikigai first (Layer 0).** Prefer actions that advance the center statement,
+  themes, and pillar intersections. Flag or soft-downrank work that matches
+  out_of_bounds (e.g. dashboard thrash without a next action).
+- **Operator intent second.** Weight near-term recommendations by accomplishing,
+  balancing, constraints, streamline goals, and time horizon.
 - Prefer ONE primary next action. Deprioritize exploration, dashboard hopping,
   and "check everything" unless hygiene truly blocks progress.
-- Ground answers in data: intent, next_action, today focus, strategy, backlog,
-  attention, freshness. If something is missing, say so.
-- When two domains compete, choose the one that best advances stated outcomes
+- Ground answers in data: ikigai, intent, next_action, today focus, strategy,
+  backlog, attention, freshness. If something is missing, say so.
+- When two domains compete, choose the one that best advances Ikigai + intent
   with least context-switch cost.
-- Suggest how to simplify systems and workflows when asked or in focus briefs.
 - Format replies in **GitHub-flavored Markdown** (## headings, bullets, **bold**,
   `code` for paths). No raw HTML.
-- You may suggest edits to strategy/intent.json, strategy/today.md, or initiatives/
-  — but do not claim you already edited files.
+- You may suggest edits to strategy/ikigai/, strategy/intent.json, strategy/today.md,
+  or initiatives/ — but do not claim you already edited files.
 - Do not discuss secrets, tokens, or private system access.
 """
 
@@ -153,6 +156,7 @@ def build_orchestration_context(payload: dict[str, Any]) -> dict[str, Any]:
     strategy = payload.get("strategy") or {}
     today = payload.get("today_focus") or {}
     intent = payload.get("intent") or payload.get("operator_intent") or {}
+    ikigai = payload.get("ikigai") or payload.get("identity") or {}
     domains = payload.get("domains") or []
     domain_slim = []
     for d in domains:
@@ -175,7 +179,8 @@ def build_orchestration_context(payload: dict[str, Any]) -> dict[str, Any]:
     return {
         "generated_at": payload.get("generated_at"),
         "purpose": payload.get("purpose"),
-        # Intent first so the model prioritizes focus over domain sprawl
+        # Layer 0 identity first
+        "ikigai": ikigai,
         "operator_intent": intent,
         "strategy": strategy,
         "today_focus": {
@@ -328,9 +333,9 @@ def ask_conductor(question: str, orchestra_payload: dict[str, Any]) -> dict[str,
 
 # Suggested prompts for the Conductor UI (no I/O)
 CONDUCTOR_SUGGESTIONS = [
-    "What is the single highest-value thing I should do next?",
+    "What is the single highest-value thing I should do next given my Ikigai?",
+    "Does my current next action serve my Ikigai center — or only local urgency?",
     "How do I streamline so I stop context-switching across dashboards?",
     "Given what I am balancing, what should I drop or defer this week?",
-    "Rewrite my focus: one primary outcome for the next 48 hours.",
     "What open loops can I close or park so I can ship?",
 ]

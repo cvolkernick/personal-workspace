@@ -2,6 +2,8 @@
 title: "Build one small but real automation that multiplies output on creative or wealth-building work"
 status: todo
 linked_bets: ["AI/Autonomy/Robotics"]
+ikigai_pillars: ["love", "good_at", "paid_for"]
+ikigai_intersection: "profession"
 priority_impact: high
 next_action: "Identify one painful, repeatable manual step in the current workflow (e.g. turning scattered notes from a chat or memory file into a structured initiative or today.md entry) and prototype a tiny script or Grok prompt + workflow that reduces the friction."
 energy: low-to-medium

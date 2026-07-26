@@ -533,13 +533,25 @@
       margin: 0; padding-left: 1.1rem; color: var(--text); font-size: 0.88rem;
     }
     .strategy-panel li { margin: 0.2rem 0; }
-    .strategy-panel .bet-chips {
+    .strategy-panel .bet-chips,
+    .bet-chips {
       display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.25rem 0 0.4rem;
     }
-    .strategy-panel .bet-chip {
+    .strategy-panel .bet-chip,
+    .bet-chip {
       font-size: 0.75rem; font-weight: 700;
       padding: 0.2rem 0.55rem; border-radius: 999px;
       border: 1px solid #3a4a6a; background: #152033; color: var(--cyan);
+    }
+    details.ikigai-panel {
+      background: linear-gradient(145deg, #141a28 0%, var(--panel) 60%);
+      border: 1px solid #2a3a55;
+      border-radius: 14px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+    }
+    details.ikigai-panel > summary {
+      font-weight: 700; cursor: pointer; color: var(--cyan);
     }
     .strategy-panel .paths {
       margin-top: 0.65rem; font-size: 0.78rem; color: var(--muted);
@@ -564,6 +576,39 @@
   </nav>
   <main>
     <div class="error-banner" id="error"></div>
+
+    <details class="secondary ikigai-panel" id="sec-ikigai" open>
+      <summary>Identity / Ikigai (Layer 0) <span class="badge" id="ikigai-badge">—</span></summary>
+      <p class="hint" style="margin:0.45rem 0;color:var(--muted);font-size:0.82rem">
+        North star. Edit here or in <code>strategy/ikigai/</code>. Bets nest under this — not co-equal.
+      </p>
+      <div class="guiding" id="ikigai-center" style="margin:0.35rem 0 0.65rem;font-weight:600"></div>
+      <div class="bet-chips" id="ikigai-themes" style="margin-bottom:0.65rem"></div>
+      <div class="intent-row">
+        <div class="intent-half">
+          <label class="field-label" for="ikigai-statement">Center statement</label>
+          <textarea id="ikigai-statement" rows="3" placeholder="Who you are at the intersection…"></textarea>
+        </div>
+        <div class="intent-half">
+          <label class="field-label" for="ikigai-themes-edit">Themes (one per line)</label>
+          <textarea id="ikigai-themes-edit" rows="3" placeholder="AI leverage…"></textarea>
+        </div>
+      </div>
+      <label class="field-label" for="ikigai-love">Love (one per line)</label>
+      <textarea id="ikigai-love" rows="2"></textarea>
+      <label class="field-label" for="ikigai-good-at">Good at (one per line)</label>
+      <textarea id="ikigai-good-at" rows="2"></textarea>
+      <label class="field-label" for="ikigai-world">World needs (one per line)</label>
+      <textarea id="ikigai-world" rows="2"></textarea>
+      <label class="field-label" for="ikigai-paid">Paid for (one per line)</label>
+      <textarea id="ikigai-paid" rows="2"></textarea>
+      <label class="field-label" for="ikigai-oob">Out of bounds (one per line)</label>
+      <textarea id="ikigai-oob" rows="2"></textarea>
+      <div class="intent-actions">
+        <button type="button" class="primary" id="btn-ikigai-save">Save Ikigai</button>
+        <span class="hint" id="ikigai-meta" style="color:var(--muted);font-size:0.8rem"></span>
+      </div>
+    </details>
 
     <section class="conductor" id="sec-conductor" aria-label="Ask Focus Coach">
       <div class="label">
@@ -1192,6 +1237,39 @@
       }
     }
 
+    function fillIkigaiForm(data) {
+      const ik = data.ikigai || data.identity || {};
+      const meta = data.ikigai_meta || {};
+      const stmt = $("ikigai-statement");
+      if (!stmt) return;
+      const center = ik.center || {};
+      const pillars = ik.pillars || {};
+      if (!stmt.dataset.dirty) {
+        stmt.value = center.statement || "";
+        $("ikigai-themes-edit").value = linesToText(center.themes);
+        $("ikigai-love").value = linesToText((pillars.love || {}).items);
+        $("ikigai-good-at").value = linesToText((pillars.good_at || {}).items);
+        $("ikigai-world").value = linesToText((pillars.world_needs || {}).items);
+        $("ikigai-paid").value = linesToText((pillars.paid_for || {}).items);
+        $("ikigai-oob").value = linesToText(ik.out_of_bounds);
+      }
+      $("ikigai-center").textContent = center.statement
+        ? center.statement
+        : "No center statement yet — fill and save.";
+      const themes = center.themes || [];
+      $("ikigai-themes").innerHTML = themes
+        .map((t) => `<span class="bet-chip">${esc(t)}</span>`)
+        .join("");
+      const badge = $("ikigai-badge");
+      if (badge) badge.textContent = ik.ok || meta.exists ? "loaded" : "empty";
+      const im = $("ikigai-meta");
+      if (im) {
+        im.textContent = meta.updated_at
+          ? "Updated " + meta.updated_at + " · " + (meta.path || "strategy/ikigai/pillars.json")
+          : "Source: " + (meta.path || "strategy/ikigai/pillars.json");
+      }
+    }
+
     function render(data) {
       lastData = data;
       showError("");
@@ -1210,6 +1288,7 @@
       const recMode = rec.mode || "—";
 
       fillIntentForm(data);
+      fillIkigaiForm(data);
       renderStrategy(data);
       const qs = new URLSearchParams(location.search);
       const focusRec = qs.get("rec") || "";
@@ -1679,6 +1758,47 @@
     $("btn-intent-save").addEventListener("click", () => saveIntent());
     $("btn-focus-brief").addEventListener("click", () => runFocusBrief());
     $("btn-focus-brief-2").addEventListener("click", () => runFocusBrief());
+
+    ["ikigai-statement", "ikigai-themes-edit", "ikigai-love", "ikigai-good-at", "ikigai-world", "ikigai-paid", "ikigai-oob"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener("input", () => { el.dataset.dirty = "1"; });
+    });
+
+    async function saveIkigai() {
+      const body = {
+        center: {
+          statement: $("ikigai-statement").value,
+          themes: $("ikigai-themes-edit").value,
+        },
+        pillars: {
+          love: { items: $("ikigai-love").value },
+          good_at: { items: $("ikigai-good-at").value },
+          world_needs: { items: $("ikigai-world").value },
+          paid_for: { items: $("ikigai-paid").value },
+        },
+        out_of_bounds: $("ikigai-oob").value,
+      };
+      try {
+        const res = await fetch("/api/ikigai", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || "save failed");
+        ["ikigai-statement", "ikigai-themes-edit", "ikigai-love", "ikigai-good-at", "ikigai-world", "ikigai-paid", "ikigai-oob"].forEach((id) => {
+          const el = $(id);
+          if (el) delete el.dataset.dirty;
+        });
+        showLaunchToast("Ikigai saved · strategy/ikigai/pillars.json", false);
+        await load(lastProbe);
+      } catch (e) {
+        showLaunchToast("Ikigai save failed: " + e.message, true);
+      }
+    }
+    const btnIk = $("btn-ikigai-save");
+    if (btnIk) btnIk.addEventListener("click", () => saveIkigai());
 
     loadConductorStatus();
     // Probe ports on first load so offline domains are visible

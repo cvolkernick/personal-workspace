@@ -11,6 +11,7 @@ try:
     from .attention import compute_freshness, synthesize_attention
     from .collectors import build_strategy_section, collect_all_domains
     from .domains import DOMAIN_SPECS
+    from .ikigai import ikigai_for_context, load_ikigai
     from .intent import intent_for_context, load_intent
     from .priorities import synthesize_priorities
     from .recommendations import synthesize_recommendations
@@ -19,6 +20,7 @@ except ImportError:
     from attention import compute_freshness, synthesize_attention
     from collectors import build_strategy_section, collect_all_domains
     from domains import DOMAIN_SPECS
+    from ikigai import ikigai_for_context, load_ikigai
     from intent import intent_for_context, load_intent
     from priorities import synthesize_priorities
     from recommendations import synthesize_recommendations
@@ -229,6 +231,8 @@ def build_orchestra_payload(
     strategy_section = build_strategy_section(strategy)
     intent_raw = load_intent(ws)
     intent = intent_for_context(intent_raw)
+    ikigai_raw = load_ikigai(ws)
+    ikigai = ikigai_for_context(ikigai_raw)
 
     today_path = s_sig.get("today_path") or "strategy/today.md"
     bets_path = s_sig.get("bets_path") or "strategy/bets.md"
@@ -267,14 +271,24 @@ def build_orchestra_payload(
         "service": "orchestra",
         "name": "Orchestrator",
         "purpose": (
-            "Focus coach: highest-value next actions given your intent, what you are balancing, "
-            "and live signals — domain dashboards are drill-downs, not the home screen."
+            "Focus coach: highest-value next actions given Ikigai (Layer 0 identity), "
+            "near-term intent, and live signals — domain dashboards are drill-downs."
         ),
         "generated_at": generated_at.isoformat(),
         "workspace": str(ws),
         "domains": domains,
         "domain_ids": domain_ids,
         "links": links,
+        # Layer 0 identity
+        "ikigai": ikigai,
+        "identity": ikigai,
+        "ikigai_meta": {
+            "path": ikigai_raw.get("path") or "strategy/ikigai/pillars.json",
+            "narrative_path": ikigai_raw.get("narrative_path"),
+            "exists": bool(ikigai_raw.get("exists")),
+            "ok": bool(ikigai_raw.get("ok")),
+            "updated_at": ikigai_raw.get("updated_at"),
+        },
         # Operator feedback — what to accomplish / balance / streamline
         "intent": intent,
         "operator_intent": intent,
@@ -283,7 +297,7 @@ def build_orchestra_payload(
             "exists": bool(intent_raw.get("exists")),
             "updated_at": intent_raw.get("updated_at"),
         },
-        # North-star strategy brief (top-level UI; not a domain card)
+        # North-star strategy brief (thematic bets nest under Ikigai)
         "strategy": strategy_section,
         # Daily action plan slice (source: strategy/today.md)
         "today_focus": today_focus,

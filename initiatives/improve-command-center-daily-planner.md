@@ -2,6 +2,8 @@
 title: "Improve command center daily action planner (Today's Focus)"
 status: active
 linked_bets: ["AI/Autonomy/Robotics"]
+ikigai_pillars: ["love", "good_at", "world_needs"]
+ikigai_intersection: "passion"
 priority_impact: high
 next_action: "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)"
 energy: medium
