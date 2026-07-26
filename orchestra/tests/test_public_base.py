@@ -40,14 +40,17 @@ class PublicBaseTests(unittest.TestCase):
                 {"id": "workflow", "url": "http://127.0.0.1:8765/"},
                 {"id": "iot", "url": "http://localhost:8780/"},
             ],
-            "links": [{"id": "finance", "url": "http://127.0.0.1:8000/financial-command/"}],
+            "links": [
+                {"id": "finance", "url": "http://127.0.0.1:8000/financial-command/"}
+            ],
             "meta": {"url": "http://127.0.0.1:8790/"},
         }
         out = rewrite_payload_urls(payload, "192.168.100.98")
         self.assertEqual(out["domains"][0]["url"], "http://192.168.100.98:8765/")
         self.assertEqual(out["domains"][1]["url"], "http://192.168.100.98:8780/")
         self.assertEqual(
-            out["links"][0]["url"], "http://192.168.100.98:8000/financial-command/"
+            out["links"][0]["url"],
+            "http://192.168.100.98:8000/financial-command/",
         )
         self.assertEqual(out["meta"]["url"], "http://192.168.100.98:8790/")
 

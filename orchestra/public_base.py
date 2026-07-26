@@ -24,7 +24,11 @@ def public_hostname(
 ) -> str:
     """Return bare hostname for public deep-links, or empty if none configured."""
     e = env if env is not None else os.environ
-    for key in ("ORCHESTRA_PUBLIC_HOST", "DASHBOARD_PUBLIC_HOST"):
+    for key in (
+        "ORCHESTRATOR_PUBLIC_HOST",
+        "ORCHESTRA_PUBLIC_HOST",
+        "DASHBOARD_PUBLIC_HOST",
+    ):
         raw = (e.get(key) or "").strip()
         if raw:
             # allow accidental full URL in env

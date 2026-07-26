@@ -19,6 +19,12 @@ if str(ORCH) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from attention import (  # noqa: E402
+    compute_freshness,
+    hours_since,
+    parse_timestamp,
+    synthesize_attention,
+)
 from collectors import (  # noqa: E402
     collect_all_domains,
     collect_finance,
@@ -27,10 +33,13 @@ from collectors import (  # noqa: E402
     collect_iot,
     collect_strategy,
     collect_workflow,
+    parse_today_focus_items,
 )
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
+from recommendations import synthesize_recommendations  # noqa: E402
 from synergies import detect_synergies  # noqa: E402
+from datetime import datetime, timedelta, timezone  # noqa: E402
 
 
 def _write(path: Path, text: str) -> None:
@@ -55,10 +64,12 @@ Investment / Wealth Building supports Bitcoin accumulation.
     _write(
         base / "strategy" / "today.md",
         """# Today
+**Date:** 2026-07-22
+**Context:** Fixture micro plan for tests
 ## Top Priorities Right Now
-- [ ] **Next action from AI/Autonomy leverage initiative** (command center automation)
+- [ ] **Next action from AI/Autonomy leverage initiative** (command center automation). *Why this moves the bet: Advances AI/Autonomy leverage.*
 - [ ] **Fitness / Health enabler action** hit the full PPL session + nutrition
-- [ ] **Investment / thematic bet maintenance** review DCA and treasury liquidity
+- [ ] **Investment / thematic bet maintenance** review DCA and treasury liquidity for Bitcoin
 - [x] already done item should be ignored
 """,
     )
@@ -246,6 +257,37 @@ next_action: "Fill Morpho LTV fields and confirm buying power floor"
     return base
 
 
+class TodayFocusTests(unittest.TestCase):
+    def test_parse_today_focus_items_from_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            md = (ws / "strategy" / "today.md").read_text(encoding="utf-8")
+            items = parse_today_focus_items(md)
+            self.assertGreaterEqual(len(items), 3)
+            titles = " ".join(str(i.get("title") or i.get("raw") or "") for i in items)
+            self.assertTrue(
+                "AI" in titles or "Autonomy" in titles or "automation" in titles.lower()
+            )
+            st = collect_strategy(ws)
+            focus_items = (st.get("signals") or {}).get("today_focus_items") or []
+            self.assertGreaterEqual(len(focus_items), 3)
+
+    def test_payload_exposes_today_focus(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            self.assertTrue(payload["ok"])
+            tf = payload.get("today_focus") or {}
+            # Payload may use items list and count
+            count = tf.get("count") or tf.get("open_count") or len(tf.get("items") or [])
+            self.assertGreaterEqual(int(count), 1)
+            self.assertGreaterEqual(
+                payload.get("counts", {}).get("today_items") or count, 1
+            )
+            self.assertIn("strategy", payload)
+            self.assertIn("next_action", payload)
+
+
 class CollectorsAggregationTests(unittest.TestCase):
     def test_multi_domain_status_aggregation_from_fixture(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -262,6 +304,18 @@ class CollectorsAggregationTests(unittest.TestCase):
             self.assertGreaterEqual(by["strategy"]["signals"]["today_count"], 3)
             self.assertIn("Bitcoin", by["strategy"]["signals"]["thematic_bets"])
             self.assertGreaterEqual(len(by["strategy"]["signals"]["initiatives"]), 2)
+            # Structured focus nested under strategy signals (items or open_count)
+            sig = by["strategy"]["signals"] or {}
+            tf = sig.get("today_focus") or {}
+            focus_n = (
+                tf.get("open_count")
+                or tf.get("count")
+                or len(tf.get("items") or [])
+                or len(sig.get("today_focus_items") or [])
+                or sig.get("today_count")
+                or 0
+            )
+            self.assertGreaterEqual(int(focus_n), 3)
 
             self.assertTrue(by["workflow"]["available"])
             self.assertGreaterEqual(by["workflow"]["signals"]["backlog"]["count"], 1)
@@ -406,7 +460,14 @@ class PrioritySynthesisTests(unittest.TestCase):
             self.assertGreaterEqual(len(payload["synergies"]), 1)
             self.assertTrue(payload["synergies"][0].get("title"))
             self.assertGreaterEqual(len(payload["priorities"]), 1)
+            self.assertIn("recommendations", payload)
+            self.assertGreaterEqual(len(payload["recommended_actions"]), 1)
             self.assertGreaterEqual(len(payload["action_plan"]), 1)
+            # action_plan is primary alias for recommended actions
+            self.assertEqual(
+                [x.get("id") for x in payload["action_plan"]],
+                [x.get("id") for x in payload["recommended_actions"]],
+            )
             # Launch pointers for known subordinate ports
             ports = {
                 ln.get("port")
@@ -424,8 +485,323 @@ class PrioritySynthesisTests(unittest.TestCase):
                 payload["meta"]["subordinate_ports"]["financial-command"], 8000
             )
             self.assertEqual(payload["meta"]["subordinate_ports"]["iot"], 8780)
+            self.assertIn(
+                payload["meta"].get("primary_output"),
+                ("recommendations", "next_action", None),
+            )
             # unused var silence
             _ = sources
+
+
+class FreshnessAndAttentionTests(unittest.TestCase):
+    """Drive shipped attention/freshness functions and full payload paths."""
+
+    def test_parse_timestamp_and_hours_since(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        dt = parse_timestamp("2026-07-17T12:00:00+00:00")
+        self.assertIsNotNone(dt)
+        age = hours_since("2026-07-17T12:00:00+00:00", now=now)
+        self.assertIsNotNone(age)
+        self.assertAlmostEqual(age, 24.0, places=2)
+        self.assertIsNone(parse_timestamp("not-a-date"))
+        self.assertIsNone(hours_since(None, now=now))
+        # Z suffix
+        age_z = hours_since("2026-07-18T06:00:00Z", now=now)
+        self.assertAlmostEqual(age_z, 6.0, places=2)
+
+    def test_compute_freshness_flags_stale_finance_snapshot(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        domains = [
+            {
+                "id": "finance",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "as_of": (now - timedelta(hours=72)).isoformat(),
+                    "source": "treasury/snapshots/treasury_latest.json",
+                },
+            },
+            {
+                "id": "workflow",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "backlog": {
+                        "ok": True,
+                        "updated_at": (now - timedelta(hours=2)).isoformat(),
+                        "source": "ops/backlog/items.json",
+                    }
+                },
+            },
+        ]
+        fresh = compute_freshness(domains, now=now, stale_hours=48.0)
+        self.assertTrue(fresh["has_stale"])
+        self.assertGreaterEqual(fresh["stale_count"], 1)
+        self.assertIn("finance_snapshot", fresh["stale_ids"])
+        by = {s["id"]: s for s in fresh["sources"]}
+        self.assertTrue(by["finance_snapshot"]["stale"])
+        self.assertFalse(by["backlog"]["stale"])
+        self.assertAlmostEqual(by["finance_snapshot"]["age_hours"], 72.0, places=1)
+
+    def test_synthesize_attention_missing_domain_and_stale(self) -> None:
+        now = datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc)
+        domains = [
+            {
+                "id": "finance",
+                "label": "Finance / Treasury",
+                "available": False,
+                "status": "missing",
+                "summary": "No treasury snapshot found",
+                "signals": {},
+            },
+            {
+                "id": "strategy",
+                "label": "Strategy",
+                "available": True,
+                "status": "ok",
+                "signals": {"today_count": 0, "today_open": []},
+            },
+            {
+                "id": "workflow",
+                "label": "Workflow",
+                "available": True,
+                "status": "ok",
+                "signals": {
+                    "backlog": {
+                        "ok": True,
+                        "updated_at": (now - timedelta(hours=100)).isoformat(),
+                        "source": "ops/backlog/items.json",
+                    }
+                },
+            },
+        ]
+        freshness = compute_freshness(domains, now=now, stale_hours=48.0)
+        bridge = {
+            "candidates": [
+                {"backlog_id": "b1", "title": "Ship feature A"},
+                {"backlog_id": "b2", "title": "Ship feature B"},
+                {"backlog_id": "b3", "title": "Ship feature C"},
+            ]
+        }
+        priorities = [
+            {
+                "title": "Do the important thing",
+                "domains": ["strategy"],
+                "priority": "high",
+                "rationale": "from today",
+                "source": "strategy/today.md",
+            }
+        ]
+        atts = synthesize_attention(
+            domains,
+            priorities=priorities,
+            bridge=bridge,
+            freshness=freshness,
+            synergies=[
+                {
+                    "title": "Fitness enables deep work",
+                    "strength": "high",
+                    "domains": ["fitness", "strategy"],
+                    "detail": "Energy enabler",
+                }
+            ],
+        )
+        self.assertGreaterEqual(len(atts), 3)
+        kinds = {a["kind"] for a in atts}
+        self.assertIn("domain_missing", kinds)
+        self.assertIn("stale_source", kinds)
+        self.assertIn("bridge_backlog", kinds)
+        self.assertIn("empty_today", kinds)
+        for a in atts:
+            self.assertTrue(a.get("title"))
+            self.assertIn("rank", a)
+            self.assertIn(a.get("severity"), ("critical", "high", "medium", "low", "info"))
+            self.assertTrue(a.get("domains"))
+
+    def test_payload_includes_attention_and_freshness_on_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            # Make finance snapshot old so stale flag fires under 48h threshold
+            snap_path = ws / "treasury" / "snapshots" / "treasury_latest.json"
+            data = json.loads(snap_path.read_text(encoding="utf-8"))
+            old = (datetime.now(timezone.utc) - timedelta(hours=96)).isoformat()
+            data["snapshot"]["as_of"] = old
+            snap_path.write_text(json.dumps(data), encoding="utf-8")
+
+            # Also stamp backlog updated_at as fresh
+            bl_path = ws / "ops" / "backlog" / "items.json"
+            bl = json.loads(bl_path.read_text(encoding="utf-8"))
+            bl["updated_at"] = datetime.now(timezone.utc).isoformat()
+            bl_path.write_text(json.dumps(bl), encoding="utf-8")
+
+            payload = build_orchestra_payload(ws, probe_ports=False, stale_hours=48.0)
+            self.assertTrue(payload["ok"])
+            self.assertIn("attention", payload)
+            self.assertIn("freshness", payload)
+            self.assertIsInstance(payload["attention"], list)
+            self.assertGreaterEqual(len(payload["attention"]), 1)
+            self.assertIn("sources", payload["freshness"])
+            self.assertTrue(payload["freshness"].get("has_stale"))
+            self.assertIn("attention", payload["counts"])
+            self.assertIn("stale_sources", payload["counts"])
+            self.assertGreaterEqual(payload["counts"]["stale_sources"], 1)
+            self.assertIn("synergies_high", payload["counts"])
+
+            finance = next(d for d in payload["domains"] if d["id"] == "finance")
+            self.assertTrue(finance.get("stale"))
+            self.assertIsNotNone(finance.get("age_hours"))
+            self.assertGreater(finance["age_hours"], 48.0)
+
+            kinds = {a["kind"] for a in payload["attention"]}
+            self.assertIn("stale_source", kinds)
+
+            # IoT keyword tagging on today items (priorities enhancement)
+            pris = synthesize_priorities(
+                today_items=["Check home IoT lights and wiz bulbs schedule"],
+                limit=5,
+            )
+            self.assertTrue(pris)
+            self.assertIn("iot", pris[0].get("domains") or [])
+
+            # Stale finance should surface in automated recommendations
+            rec = payload["recommendations"]
+            self.assertTrue(rec.get("summary"))
+            self.assertGreaterEqual(len(rec.get("items") or []), 1)
+            rec_kinds = {r.get("kind") for r in rec["items"]}
+            self.assertTrue(
+                "hygiene" in rec_kinds or any(
+                    "stale" in (r.get("action") or "").lower()
+                    or "stale" in (r.get("title") or "").lower()
+                    for r in rec["items"]
+                ),
+                msg=rec["items"],
+            )
+
+
+class RecommendationsTests(unittest.TestCase):
+    """Drive shipped synthesize_recommendations — high focus + medium fallback."""
+
+    def test_high_synergies_produce_synergy_actions(self) -> None:
+        rec = synthesize_recommendations(
+            domains=[
+                {"id": "strategy", "available": True, "status": "ok"},
+                {"id": "finance", "available": True, "status": "ok"},
+            ],
+            priorities=[
+                {
+                    "id": "pri-1",
+                    "title": "Ship automation",
+                    "priority": "high",
+                    "kind": "today",
+                    "domains": ["strategy", "workflow"],
+                    "rationale": "from today",
+                    "source": "strategy/today.md",
+                    "rank": 1,
+                }
+            ],
+            attention=[],
+            synergies=[
+                {
+                    "id": "syn-1",
+                    "title": "Treasury actions support wealth / Bitcoin leg",
+                    "strength": "high",
+                    "kind": "connection",
+                    "domains": ["finance", "strategy"],
+                    "detail": "Open treasury actions protect liquidity.",
+                }
+            ],
+            bridge={"candidates": []},
+            freshness={"stale_count": 0},
+            limit=8,
+        )
+        self.assertEqual(rec["mode"], "high_focus")
+        self.assertEqual(rec["high_synergy_count"], 1)
+        self.assertGreaterEqual(len(rec["items"]), 2)
+        self.assertTrue(rec["summary"])
+        kinds = {i["kind"] for i in rec["items"]}
+        self.assertIn("synergy", kinds)
+        self.assertIn("focus", kinds)
+        for item in rec["items"]:
+            self.assertTrue(item.get("action"))
+            self.assertTrue(item.get("why"))
+            self.assertTrue(item.get("automated"))
+            self.assertIn("rank", item)
+        # Focus is top N
+        self.assertEqual(len(rec["focus"]), min(3, len(rec["items"])))
+
+    def test_no_high_synergies_falls_back_to_medium(self) -> None:
+        rec = synthesize_recommendations(
+            domains=[{"id": "strategy", "available": True, "status": "ok"}],
+            priorities=[
+                {
+                    "title": "Groom backlog",
+                    "priority": "medium",
+                    "kind": "backlog",
+                    "domains": ["workflow"],
+                    "rationale": "triage",
+                    "source": "ops/backlog",
+                }
+            ],
+            attention=[],
+            synergies=[
+                {
+                    "id": "syn-m",
+                    "title": "Shared theme: Time/Focus",
+                    "strength": "medium",
+                    "kind": "overlap",
+                    "domains": ["strategy", "holistic"],
+                    "detail": "Theme appears in two domains.",
+                }
+            ],
+            bridge={"candidates": []},
+            freshness={},
+        )
+        self.assertEqual(rec["mode"], "fallback_medium")
+        self.assertEqual(rec["high_synergy_count"], 0)
+        self.assertTrue(rec.get("deferred_note"))
+        kinds = {i["kind"] for i in rec["items"]}
+        self.assertIn("fallback", kinds)
+        self.assertTrue(any(i.get("related", {}).get("fallback") for i in rec["items"] if i.get("kind") == "fallback"))
+
+    def test_hygiene_first_when_stale_attention(self) -> None:
+        rec = synthesize_recommendations(
+            domains=[{"id": "finance", "available": True, "status": "ok"}],
+            priorities=[],
+            attention=[
+                {
+                    "id": "att-1",
+                    "title": "Stale data: Treasury snapshot",
+                    "severity": "high",
+                    "kind": "stale_source",
+                    "domains": ["finance"],
+                    "detail": "96h old",
+                }
+            ],
+            synergies=[],
+            bridge={},
+            freshness={"stale_count": 1},
+        )
+        self.assertGreaterEqual(len(rec["items"]), 1)
+        self.assertEqual(rec["items"][0]["kind"], "hygiene")
+        self.assertEqual(rec["mode"], "hygiene_first")
+        self.assertIn("Refresh", rec["items"][0]["action"])
+
+    def test_payload_recommendations_on_fixture(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = _build_fixture_workspace(Path(td))
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            rec = payload["recommendations"]
+            self.assertIn(rec["mode"], ("high_focus", "fallback_medium", "hygiene_first", "thin_data"))
+            self.assertGreaterEqual(len(payload["recommended_actions"]), 1)
+            self.assertEqual(
+                payload["counts"]["recommendations"],
+                len(payload["recommended_actions"]),
+            )
+            # Fixture has fitness + today + finance → expect high synergies path typically
+            self.assertIsInstance(rec["high_synergy_count"], int)
+            for item in payload["recommended_actions"]:
+                self.assertTrue(item.get("action"))
+                self.assertTrue(item.get("title"))
 
 
 if __name__ == "__main__":

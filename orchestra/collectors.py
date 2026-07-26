@@ -35,12 +35,75 @@ def _read_json(path: Path) -> Optional[dict[str, Any]]:
 
 
 def _checklist_open(md: str) -> list[str]:
-    out: list[str] = []
+    """Open checklist body strings (legacy consumers: synergies, priorities)."""
+    return [item["raw"] for item in parse_today_focus_items(md)]
+
+
+def parse_today_focus_items(md: str) -> list[dict[str, Any]]:
+    """Parse open markdown checkboxes into structured Today's Focus cards.
+
+    Supports common strategy/today.md patterns:
+      - [ ] **Title** (context). *Why this moves the bet: …*
+      - [ ] Plain title without markup
+
+    Returns list of dicts with: id, rank, title, why, raw, source.
+    Pure function — no I/O.
+    """
+    items: list[dict[str, Any]] = []
     for line in md.splitlines():
         m = re.match(r"^\s*[-*]\s*\[\s*\]\s*(.+)$", line)
-        if m:
-            out.append(m.group(1).strip())
-    return out
+        if not m:
+            continue
+        raw = m.group(1).strip()
+        why = ""
+        title_src = raw
+
+        # Trailing single-asterisk italic (not **bold**): space/*text*/
+        italic = re.search(r"(?<!\*)\*([^*]+)\*(?!\*)\s*$", raw)
+        if italic:
+            why = italic.group(1).strip()
+            title_src = raw[: italic.start()].strip().rstrip(" .")
+
+        # Prefer **bold** span as title
+        bold = re.search(r"\*\*(.+?)\*\*", title_src)
+        if bold:
+            title = bold.group(1).strip()
+            rest = title_src[bold.end() :].strip().strip(" .;—-")
+            if rest and not why:
+                why = rest
+            elif rest and why and rest not in why:
+                why = f"{rest} {why}".strip()
+        else:
+            title = re.sub(r"\*+", "", title_src).strip()
+            if ":" in title and len(title) > 80:
+                head, _, tail = title.partition(":")
+                if len(head) >= 8:
+                    title = head.strip()
+                    why = (tail.strip() + (" " + why if why else "")).strip()
+
+        title = re.sub(r"\s+", " ", title).strip(" .")
+        if not title:
+            title = re.sub(r"\*\*", "", raw).strip()[:200]
+        why = re.sub(r"\s+", " ", why).strip()
+        why_disp = re.sub(
+            r"^(Why this moves the bet|Link to bets|Link)\s*:\s*",
+            "",
+            why,
+            flags=re.I,
+        ).strip() or why
+
+        rank = len(items) + 1
+        items.append(
+            {
+                "id": f"today-{rank}",
+                "rank": rank,
+                "title": title[:200],
+                "why": why_disp[:400],
+                "raw": raw,
+                "source": "strategy/today.md",
+            }
+        )
+    return items
 
 
 def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
@@ -142,8 +205,23 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
                 "area": it.get("area") or "",
                 "notes": (it.get("notes") or "")[:300],
                 "tags": it.get("tags") or [],
+                "press_rank": it.get("press_rank"),
+                "schedule_slot": it.get("schedule_slot"),
+                "schedule_label": it.get("schedule_label"),
             }
         )
+
+    def _sort_key(x: dict[str, Any]) -> tuple:
+        rank = x.get("press_rank")
+        try:
+            r = int(rank) if rank is not None else 99
+        except (TypeError, ValueError):
+            r = 99
+        slot = (x.get("schedule_slot") or "").lower()
+        slot_w = 0 if slot == "now" else 1 if slot == "this_week" else 2
+        return (slot_w, r, str(x.get("title") or ""))
+
+    active.sort(key=_sort_key)
     return {
         "ok": True,
         "count": len(active),
@@ -154,17 +232,128 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
     }
 
 
+def _parse_strategy_brief(bets_text: str, today_text: str) -> dict[str, Any]:
+    """Extract guiding principle, themes, weightings, directives from strategy MDs."""
+    guiding = ""
+    m = re.search(
+        r"(?im)^\*\*Guiding Principle:\*\*\s*(.+?)(?:\n\n|\n\*\*|\Z)",
+        bets_text,
+    )
+    if m:
+        guiding = m.group(1).strip()
+    if not guiding:
+        m2 = re.search(r"(?im)^Guiding Principle[:\s]+(.+)$", bets_text)
+        if m2:
+            guiding = m2.group(1).strip()
+
+    thematic: list[str] = []
+    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
+        if re.search(rf"\b{name}\b", bets_text, re.I):
+            thematic.append(name)
+
+    # Bullet themes under thematic bets (optional detail lines)
+    theme_details: list[str] = []
+    for line in bets_text.splitlines():
+        bm = re.match(r"^\s*[-*]\s+\*\*([^*]+)\*\*\s*(.*)$", line)
+        if bm and bm.group(1).strip() in (
+            "Energy",
+            "Bitcoin",
+            "AI",
+            "Autonomy",
+            "Robotics",
+        ):
+            detail = (bm.group(1).strip() + " " + bm.group(2).strip()).strip()
+            theme_details.append(detail[:200])
+
+    weightings: list[dict[str, str]] = []
+    in_weights = False
+    for line in bets_text.splitlines():
+        if re.search(r"(?i)domain weightings", line):
+            in_weights = True
+            continue
+        if in_weights and line.startswith("##"):
+            break
+        if in_weights:
+            wm = re.match(r"^\s*[-*]\s+(.+?)(?::\s*| — | – | - )(.+)$", line)
+            if wm:
+                weightings.append(
+                    {
+                        "domain": wm.group(1).strip(),
+                        "weight": wm.group(2).strip()[:120],
+                    }
+                )
+
+    directives: list[str] = []
+    # Balanced life principle block
+    bl = re.search(
+        r"(?is)\*\*Balanced Life Principle:\*\*\s*(.+?)(?:\n\n\*\*|\n---|\n##|\Z)",
+        bets_text,
+    )
+    if bl:
+        text = re.sub(r"\s+", " ", bl.group(1)).strip()
+        if text:
+            directives.append(text[:400])
+    # How to use bullets from bets
+    how = re.search(
+        r"(?is)\*\*How to use this file:\*\*\s*(.+?)(?:\n\n\*Last|\n---|\n##|\Z)",
+        bets_text,
+    )
+    if how:
+        for line in how.group(1).splitlines():
+            lm = re.match(r"^\s*[-*]\s+(.+)$", line)
+            if lm:
+                directives.append(lm.group(1).strip()[:240])
+
+    # Today context line
+    today_context = ""
+    cm = re.search(r"(?im)^\*\*Context:\*\*\s*(.+)$", today_text)
+    if cm:
+        today_context = cm.group(1).strip()[:400]
+
+    goals: list[str] = []
+    if thematic:
+        goals.append(
+            "Advance high-conviction thematic bets: " + ", ".join(thematic) + "."
+        )
+    if weightings:
+        goals.append(
+            "Maintain balanced life domains with dynamic weightings "
+            f"({len(weightings)} domains tracked)."
+        )
+    if today_context:
+        goals.append(today_context)
+
+    summary_parts = []
+    if guiding:
+        summary_parts.append(guiding[:180])
+    if thematic:
+        summary_parts.append("Bets: " + ", ".join(thematic))
+    if weightings:
+        summary_parts.append(f"{len(weightings)} domain weightings")
+    summary = " · ".join(summary_parts) if summary_parts else "Strategy sources present"
+
+    return {
+        "guiding_principle": guiding,
+        "thematic_bets": thematic,
+        "theme_details": theme_details[:8],
+        "domain_weightings": weightings[:16],
+        "directives": directives[:8],
+        "goals": goals[:8],
+        "today_context": today_context,
+        "summary": summary,
+    }
+
+
 def collect_strategy(workspace: Path) -> dict[str, Any]:
     ws = Path(workspace)
     bets_path = ws / "strategy" / "bets.md"
     today_path = ws / "strategy" / "today.md"
     bets_text = _read_text(bets_path)
     today_text = _read_text(today_path)
-    thematic = []
-    for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
-        if re.search(rf"\b{name}\b", bets_text, re.I):
-            thematic.append(name)
-    open_items = _checklist_open(today_text)
+    brief = _parse_strategy_brief(bets_text, today_text)
+    thematic = brief.get("thematic_bets") or []
+    focus_items = parse_today_focus_items(today_text)
+    open_items = [it["raw"] for it in focus_items]
     initiatives = collect_initiatives(ws)
     status = "ok" if bets_text or today_text else "missing"
     summary_bits = []
@@ -179,6 +368,15 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
             if (i.get("status") or "").lower() in ("active", "todo", "in_progress", "planning")
         )
         summary_bits.append(f"{active_n} initiative(s)")
+    bets_rel = "strategy/bets.md" if bets_path.is_file() else None
+    today_rel = "strategy/today.md" if today_path.is_file() else None
+    init_dir = "initiatives/" if (ws / "initiatives").is_dir() else None
+    active_inits = [
+        i
+        for i in initiatives
+        if (i.get("status") or "").lower()
+        in ("active", "todo", "in_progress", "planning", "ready")
+    ]
     return {
         "id": "strategy",
         "label": "Strategy",
@@ -187,16 +385,72 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
         "signals": {
             "thematic_bets": thematic,
             "today_open": open_items,
+            "today_focus_items": focus_items,
             "today_count": len(open_items),
             "initiatives": initiatives,
-            "bets_path": "strategy/bets.md" if bets_path.is_file() else None,
-            "today_path": "strategy/today.md" if today_path.is_file() else None,
+            "bets_path": bets_rel,
+            "today_path": today_rel,
+            "initiatives_dir": init_dir,
+            "guiding_principle": brief.get("guiding_principle") or "",
+            "domain_weightings": brief.get("domain_weightings") or [],
+            "directives": brief.get("directives") or [],
+            "goals": brief.get("goals") or [],
+            "theme_details": brief.get("theme_details") or [],
+            "today_context": brief.get("today_context") or "",
+            "strategy_summary": brief.get("summary") or "",
+            "active_initiative_count": len(active_inits),
         },
         "available": bool(bets_text or today_text or initiatives),
         "live": None,
         "url": None,
         "launch": None,
         "sources": ["strategy/bets.md", "strategy/today.md", "initiatives/"],
+    }
+
+
+def build_strategy_section(
+    strategy_domain: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Top-level strategy block for Orchestra UI (not a domain card)."""
+    d = strategy_domain or {}
+    sig = d.get("signals") or {}
+    initiatives = list(sig.get("initiatives") or [])
+    active = [
+        {
+            "id": i.get("id"),
+            "title": i.get("title"),
+            "status": i.get("status"),
+            "next_action": i.get("next_action"),
+            "linked_bets": i.get("linked_bets") or [],
+        }
+        for i in initiatives
+        if (i.get("status") or "").lower()
+        not in ("done", "cancelled", "archived")
+    ][:8]
+    return {
+        "title": "Strategy",
+        "available": bool(d.get("available")),
+        "status": d.get("status") or "missing",
+        "summary": sig.get("strategy_summary") or d.get("summary") or "",
+        "guiding_principle": sig.get("guiding_principle") or "",
+        "thematic_bets": list(sig.get("thematic_bets") or []),
+        "theme_details": list(sig.get("theme_details") or []),
+        "goals": list(sig.get("goals") or []),
+        "directives": list(sig.get("directives") or []),
+        "domain_weightings": list(sig.get("domain_weightings") or []),
+        "today_context": sig.get("today_context") or "",
+        "today_count": sig.get("today_count") or 0,
+        "initiatives": active,
+        "paths": {
+            "bets": sig.get("bets_path") or "strategy/bets.md",
+            "today": sig.get("today_path") or "strategy/today.md",
+            "initiatives": sig.get("initiatives_dir") or "initiatives/",
+        },
+        "sources": d.get("sources") or [
+            "strategy/bets.md",
+            "strategy/today.md",
+            "initiatives/",
+        ],
     }
 
 
