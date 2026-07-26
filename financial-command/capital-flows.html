@@ -263,7 +263,7 @@
         <div>
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Lyft, Turo, ASICs</span></div></div>
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase hub</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC, agentic book</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho collateral / USDC borrow</span></div></div>
@@ -336,7 +336,7 @@
     function layoutNodes(data) {
       // Fixed columns: income → Coinbase stack → cash/credit → uses
       const cols = {
-        income: { x: 30, ids: ["turo", "lyft", "asics"] },
+        income: { x: 30, ids: ["lyft", "turo", "asics"] },
         cb_stack: {
           x: 250,
           ids: [
