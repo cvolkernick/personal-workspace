@@ -187,10 +187,17 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
         if path == "/api/state":
             qs = urlparse(self.path).query
             refresh = "refresh_walks=1" in qs or "refresh_walks=true" in qs
-            self._json(200, state_payload(refresh_walks=refresh))
+            try:
+                self._json(200, state_payload(refresh_walks=refresh))
+            except Exception as e:  # noqa: BLE001
+                sys.stderr.write(f"[time-allocator] /api/state failed: {e}\n")
+                self._json(500, {"ok": False, "error": f"state failed: {e}"})
             return
         if path == "/api/ask/status":
-            self._json(200, {"ok": True, **grok_auth_status()})
+            try:
+                self._json(200, {"ok": True, **grok_auth_status()})
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
             return
         if path in ("/", "/index.html"):
             self.path = "/index.html"
