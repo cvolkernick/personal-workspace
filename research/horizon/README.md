@@ -4,7 +4,18 @@ Global Macro & Geopolitical Intelligence System — world-state model + daily sy
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for design.
 
-## Run
+## Visual dashboard (primary UX)
+
+```bash
+python3 research/horizon/server.py --bootstrap
+# → http://127.0.0.1:8795/
+```
+
+Or double-click `research/horizon/start.command`.
+
+Dashboard tabs: **Overview** (domain heat + top signals), **Executive brief**, **World state**, **My strategy**, **Watchlist**, **Connections**. Refresh re-runs the offline pipeline; **Live sources** tries RSS.
+
+## CLI pipeline
 
 ```bash
 # Offline (fixtures; CI-safe)

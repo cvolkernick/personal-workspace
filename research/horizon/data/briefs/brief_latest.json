@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
-  "version_id": "20260726T195950Z",
-  "generated_at": "2026-07-26T19:59:50.956487+00:00",
+  "version_id": "20260726T201738Z",
+  "generated_at": "2026-07-26T20:17:38.015435+00:00",
   "executive_brief": {
     "title": "Executive Brief",
-    "generated_at": "2026-07-26T19:59:50.956415+00:00",
-    "version_id": "20260726T195950Z",
+    "generated_at": "2026-07-26T20:17:38.015360+00:00",
+    "version_id": "20260726T201738Z",
     "items": [
       {
         "rank": 1,
@@ -75,8 +75,8 @@
   },
   "current_world_state": {
     "title": "Current World State",
-    "version_id": "20260726T195950Z",
-    "updated_at": "2026-07-26T19:59:50.951459+00:00",
+    "version_id": "20260726T201738Z",
+    "updated_at": "2026-07-26T20:17:38.011492+00:00",
     "domains": {
       "geopolitics": {
         "label": "Geopolitics",
@@ -275,7 +275,7 @@
         "fixture"
       ],
       "event_count": 10,
-      "run_id": "20260726T195950Z",
+      "run_id": "20260726T201738Z",
       "node_total": 10
     }
   },

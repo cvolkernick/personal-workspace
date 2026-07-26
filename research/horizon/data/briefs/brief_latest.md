@@ -1,6 +1,6 @@
-# Horizon Daily Brief — 20260726T195950Z
+# Horizon Daily Brief — 20260726T201738Z
 
-_Generated: 2026-07-26T19:59:50.956487+00:00_
+_Generated: 2026-07-26T20:17:38.015435+00:00_
 
 ## 1. Executive Brief
 
