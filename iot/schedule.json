@@ -3,28 +3,68 @@
     "latitude": 26.6093,
     "longitude": -81.60184,
     "timezone": "America/New_York",
-    "label": "Approx. Lehigh Acres, FL (IP geolocation \u2014 refine with Use browser location)"
+    "label": "Approx. Lehigh Acres, FL (IP geolocation — refine with Use browser location)"
   },
   "routines": [
     {
-      "id": "sunset_all_on",
+      "id": "sunset_lights_on",
       "enabled": true,
-      "name": "Sunset \u2014 all lights on",
+      "name": "Sunset — house lights magenta",
       "trigger": "sunset",
       "offset_minutes": 0,
-      "target": "all",
+      "target": "lights",
       "color": "magenta",
       "brightness": 180
     },
     {
-      "id": "sunrise_all_off",
+      "id": "sunset_office_on",
       "enabled": true,
-      "name": "Sunrise \u2014 all lights off",
-      "trigger": "sunrise",
+      "name": "Sunset — office plug on",
+      "trigger": "sunset",
       "offset_minutes": 0,
-      "target": "all",
+      "target": "office",
+      "color": "warm",
+      "brightness": 200
+    },
+    {
+      "id": "sunset_plants_off",
+      "enabled": true,
+      "name": "Sunset — plant lights off",
+      "trigger": "sunset",
+      "offset_minutes": 0,
+      "target": "plantlights",
       "color": "off",
       "brightness": null
+    },
+    {
+      "id": "sunrise_lights_off",
+      "enabled": true,
+      "name": "Sunrise — house lights off",
+      "trigger": "sunrise",
+      "offset_minutes": 0,
+      "target": "lights",
+      "color": "off",
+      "brightness": null
+    },
+    {
+      "id": "sunrise_office_off",
+      "enabled": true,
+      "name": "Sunrise — office plug off",
+      "trigger": "sunrise",
+      "offset_minutes": 0,
+      "target": "office",
+      "color": "off",
+      "brightness": null
+    },
+    {
+      "id": "sunrise_plants_on",
+      "enabled": true,
+      "name": "Sunrise — plant lights on",
+      "trigger": "sunrise",
+      "offset_minutes": 0,
+      "target": "plantlights",
+      "color": "warm",
+      "brightness": 200
     }
   ]
 }

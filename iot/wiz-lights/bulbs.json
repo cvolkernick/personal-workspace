@@ -1,9 +1,31 @@
 {
-  "entryway1": {"ip": "192.168.100.106", "mac": "6c2990089296"},
-  "entryway2": {"ip": "192.168.100.118", "mac": "6c2990d5075a"},
-  "entryway3": {"ip": "192.168.100.184", "mac": "6c29904e244e"},
-  "entryway4": {"ip": "192.168.100.207", "mac": "6c29903d3195"},
-  "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c"},
-  "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6"}
+  "entryway1": {"ip": "192.168.100.106", "mac": "6c2990089296", "type": "wiz"},
+  "entryway2": {"ip": "192.168.100.118", "mac": "6c2990d5075a", "type": "wiz"},
+  "entryway3": {"ip": "192.168.100.184", "mac": "6c29904e244e", "type": "wiz"},
+  "entryway4": {"ip": "192.168.100.207", "mac": "6c29903d3195", "type": "wiz"},
+  "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c", "type": "wiz"},
+  "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6", "type": "wiz"},
+  "masterbathroom1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6", "type": "wiz"},
+  "masterbedroom1": {"ip": "192.168.100.203", "mac": "6c2990fe26e4", "type": "wiz"},
+  "plantlight": {
+    "type": "kasa",
+    "ip": "192.168.100.116",
+    "mac": "d807b6a69ec2",
+    "label": "Plant Light (Kasa)",
+    "model": "HS103"
+  },
+  "smallplantlight": {
+    "type": "vesync",
+    "device_name": "Small Plant Light",
+    "label": "Small Plant Light",
+    "cid": "67e9b057-c639-4c3b-978a-37dfd7f64ca4",
+    "model": "wifi-switch-1.3"
+  },
+  "officelights": {
+    "type": "vesync",
+    "device_name": "Office Lights",
+    "label": "Office Lights",
+    "cid": "581788e8-f73b-49ab-ac66-dcae7c60280c",
+    "model": "wifi-switch-1.3"
+  }
 }
-
