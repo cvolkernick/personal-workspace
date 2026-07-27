@@ -274,3 +274,22 @@
 - BUY SPCX $? [filled_concurrent_agentic] 6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3
 - BUY MSTR $? [filled_concurrent_agentic] 6a67a3be-fae3-403f-a493-715dcf48f270
 
+
+## 2026-07-27T18:33:18 — deploy
+**Summary:** Mid-session team review: ~$25.50 idle cash already deployed agentic ~18:30Z (CLSK $5 + MSTR $5.20 + TSLA $7.60 + SPCX $7.70). Residual BP $0.04 HOLD. Sleeves ~40.2/59.8 in band. Research/rotate complete (held+unheld+watchlist).
+**Book:** NAV $173.52 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled/mid-session review after rules need_llm (cash/BP $25.54). Cash is unallocated until deployed. Live_autopilot; no owner approval mid-pass. Regular hours, not open/close scalp.
+**Why not alternatives:** Rejected BE into 7/28 earnings. Rejected watchlist AI first-buys without deep-dive. Rejected extra miners RIOT/WULF and credit STRC/SATA/ASST for overcrowding. CLSK as unheld allowlist miner is acceptable diversification vs pure held-only top-up; critic accepts at ~3% NAV but flags three-miner stack. No reverse of fills (churn). Residual BP $0.04 below min trade.
+**Team:**
+- **scout:** ok — Agentic ••••1752 NAV~$173.52 equity~$173.48 cash/BP~$0.04 pending_dep~$25. Held MSTR BITA MARA IREN CLSK TSLA SPCX. Deployed ~40.2/59.8 in band. Four filled buys ~$25.50 at 18:30Z.
+- **thesis:** ok — Best use of idle cash: keep 40/60 via core. Chosen MSTR+CLSK (btc) and TSLA+SPCX (stocks). AI mega-caps deferred to deep-dive; BE blocked into print. Not held-only — CLSK is new allowlist name.
+- **risk:** ok — Agentic capital only; cash account; no leverage. Tickets >$1 min. Residual $0.04 no trade. Concentration: TSLA ~34% NAV elevated but thesis primary growth name; CLSK ~3% OK. If pending $25 settles to BP, re-size under full research_rotate.
+- **critic:** ok — Challenge held-only: concurrent path added CLSK (good process signal). Challenge third miner vs prior MARA+IREN-only preference — accept small size, no fourth miner. Block BE and undived AI. Block same-day reverse of CLSK. Force HOLD on residual BP.
+- **executor:** hold — No new orders. Observed/ratified filled agentic markets: CLSK $5, TSLA $7.60, SPCX $7.70, MSTR $5.20. BP $0.04 — cannot place further dollar markets.
+**Actions:**
+- BUY CLSK $5.0 [filled] 6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1
+- BUY TSLA $7.6 [filled] 6a67a3be-5924-440f-9b58-37db43c18147
+- BUY SPCX $7.7 [filled] 6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3
+- BUY MSTR $5.2 [filled] 6a67a3be-fae3-403f-a493-715dcf48f270
+

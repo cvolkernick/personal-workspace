@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-27T18:33:06.788386+00:00",
+    "as_of": "2026-07-27T18:33:18.304412+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-26T17:20:19.428992+00:00",
@@ -2265,12 +2265,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-27T18:33:06.789761+00:00",
+      "as_of": "2026-07-27T18:33:18.305308+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-27T18:33:06.789247+00:00",
+        "as_of": "2026-07-27T18:33:18.304891+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -2443,6 +2443,200 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
       },
       "recent_decisions": [
+        {
+          "as_of": "2026-07-27T18:33:18.184964+00:00",
+          "kind": "deploy",
+          "outcome": "hold_residual",
+          "path": "team_llm",
+          "summary": "Mid-session team review: ~$25.50 idle cash already deployed agentic ~18:30Z (CLSK $5 + MSTR $5.20 + TSLA $7.60 + SPCX $7.70). Residual BP $0.04 HOLD. Sleeves ~40.2/59.8 in band. Research/rotate complete (held+unheld+watchlist).",
+          "nav_usd": 173.52,
+          "buying_power_usd": 0.04,
+          "cash_usd": 0.04,
+          "pending_deposits_usd": 25.0,
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4017,
+            "stocks_growth": 0.5983
+          },
+          "names_considered": [
+            "MSTR",
+            "BITA",
+            "MARA",
+            "IREN",
+            "CLSK",
+            "RIOT",
+            "WULF",
+            "STRC",
+            "SATA",
+            "ASST",
+            "TSLA",
+            "SPCX",
+            "BTC",
+            "BE",
+            "GOOGL",
+            "AAPL",
+            "NVDA"
+          ],
+          "names_chosen": [
+            {
+              "symbol": "MSTR",
+              "theme": "digital_credit",
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "CLSK",
+              "theme": "btc_infrastructure",
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "TSLA",
+              "theme": "growth_equity",
+              "sleeve": "stocks_growth"
+            },
+            {
+              "symbol": "SPCX",
+              "theme": "growth_equity",
+              "sleeve": "stocks_growth"
+            }
+          ],
+          "names_rejected": {
+            "BITA_topup": "Valid yield top-up; concurrent path preferred CLSK diversification",
+            "IREN_MARA_topup": "Already sized; CLSK chosen as third miner instead",
+            "RIOT_WULF": "Miner overcrowding at ~$174 NAV (already MARA+IREN+CLSK)",
+            "STRC_SATA_ASST": "Credit overcrowding vs MSTR+BITA",
+            "BTC_RH": "Prefer equity vehicles on agentic RH",
+            "BE": "monitor_no_buy; earnings 2026-07-28 AMC",
+            "GOOGL_AAPL_NVDA": "AI gap real but deep_dive_required; prefer core this pass",
+            "reverse_CLSK": "Same-day rotate is churn at $5 size; allowlist OK"
+          },
+          "theme_allocation": {
+            "btc_digital_credit_40pct": {
+              "MSTR": "digital_credit_core",
+              "BITA": "btc_yield_held",
+              "MARA": "miner_held",
+              "IREN": "miner_power_infra_held",
+              "CLSK": "miner_new_small"
+            },
+            "stocks_growth_60pct": {
+              "TSLA": "growth_primary",
+              "SPCX": "growth_secondary"
+            },
+            "watchlist_monitor_only": [
+              "BE",
+              "GOOGL",
+              "AAPL",
+              "NVDA"
+            ]
+          },
+          "rationale": {
+            "summary": "Deploy idle capital toward 40/60 on core allowlist; ratify concurrent fills; hold residual dust.",
+            "why_now": "Scheduled/mid-session review after rules need_llm (cash/BP $25.54). Cash is unallocated until deployed. Live_autopilot; no owner approval mid-pass. Regular hours, not open/close scalp.",
+            "why_not_alternatives": "Rejected BE into 7/28 earnings. Rejected watchlist AI first-buys without deep-dive. Rejected extra miners RIOT/WULF and credit STRC/SATA/ASST for overcrowding. CLSK as unheld allowlist miner is acceptable diversification vs pure held-only top-up; critic accepts at ~3% NAV but flags three-miner stack. No reverse of fills (churn). Residual BP $0.04 below min trade.",
+            "thesis_tags": [
+              "modernized_60_40",
+              "research_rotate",
+              "core_allowlist",
+              "size_invariant",
+              "concurrent_deploy_ratified"
+            ],
+            "names_considered": [
+              "MSTR",
+              "BITA",
+              "MARA",
+              "IREN",
+              "CLSK",
+              "RIOT",
+              "WULF",
+              "STRC",
+              "SATA",
+              "ASST",
+              "TSLA",
+              "SPCX",
+              "BTC",
+              "BE",
+              "GOOGL",
+              "AAPL",
+              "NVDA"
+            ],
+            "names_rejected": {
+              "BE": "earnings 7/28 + monitor_no_buy",
+              "GOOGL/AAPL/NVDA": "deep_dive_required",
+              "RIOT/WULF": "miner overcrowding",
+              "STRC/SATA/ASST": "credit overcrowding"
+            },
+            "research_path": "investment/research/fund_manager_research_latest.md",
+            "notes": "Executor in this session found fills already placed by concurrent agentic path at 18:30:22Z; no additional place_equity_order calls. pending_deposits=$25 may free BP later \u2014 re-run process then."
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "ok",
+              "note": "Agentic \u2022\u2022\u2022\u20221752 NAV~$173.52 equity~$173.48 cash/BP~$0.04 pending_dep~$25. Held MSTR BITA MARA IREN CLSK TSLA SPCX. Deployed ~40.2/59.8 in band. Four filled buys ~$25.50 at 18:30Z."
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "Best use of idle cash: keep 40/60 via core. Chosen MSTR+CLSK (btc) and TSLA+SPCX (stocks). AI mega-caps deferred to deep-dive; BE blocked into print. Not held-only \u2014 CLSK is new allowlist name."
+            },
+            "risk": {
+              "vote": "ok",
+              "note": "Agentic capital only; cash account; no leverage. Tickets >$1 min. Residual $0.04 no trade. Concentration: TSLA ~34% NAV elevated but thesis primary growth name; CLSK ~3% OK. If pending $25 settles to BP, re-size under full research_rotate."
+            },
+            "critic": {
+              "vote": "ok",
+              "note": "Challenge held-only: concurrent path added CLSK (good process signal). Challenge third miner vs prior MARA+IREN-only preference \u2014 accept small size, no fourth miner. Block BE and undived AI. Block same-day reverse of CLSK. Force HOLD on residual BP."
+            },
+            "executor": {
+              "vote": "hold",
+              "note": "No new orders. Observed/ratified filled agentic markets: CLSK $5, TSLA $7.60, SPCX $7.70, MSTR $5.20. BP $0.04 \u2014 cannot place further dollar markets."
+            }
+          },
+          "actions": [
+            {
+              "symbol": "CLSK",
+              "side": "buy",
+              "notional_usd": 5.0,
+              "status": "filled",
+              "order_id": "6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1",
+              "avg_price": 13.82,
+              "theme": "btc_infrastructure",
+              "note": "concurrent_agentic_fill_ratified"
+            },
+            {
+              "symbol": "TSLA",
+              "side": "buy",
+              "notional_usd": 7.6,
+              "status": "filled",
+              "order_id": "6a67a3be-5924-440f-9b58-37db43c18147",
+              "avg_price": 306.32,
+              "theme": "growth_equity",
+              "note": "concurrent_agentic_fill_ratified"
+            },
+            {
+              "symbol": "SPCX",
+              "side": "buy",
+              "notional_usd": 7.7,
+              "status": "filled",
+              "order_id": "6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3",
+              "avg_price": 111.0199,
+              "theme": "growth_equity",
+              "note": "concurrent_agentic_fill_ratified"
+            },
+            {
+              "symbol": "MSTR",
+              "side": "buy",
+              "notional_usd": 5.2,
+              "status": "filled",
+              "order_id": "6a67a3be-fae3-403f-a493-715dcf48f270",
+              "avg_price": 97.8299,
+              "theme": "digital_credit",
+              "note": "concurrent_agentic_fill_ratified"
+            }
+          ],
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "kind": "hold",
           "outcome": "hold",
@@ -3770,12 +3964,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-27T18:33:06.789761+00:00",
+    "as_of": "2026-07-27T18:33:18.305308+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-27T18:33:06.789247+00:00",
+      "as_of": "2026-07-27T18:33:18.304891+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
@@ -3948,6 +4142,200 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
     },
     "recent_decisions": [
+      {
+        "as_of": "2026-07-27T18:33:18.184964+00:00",
+        "kind": "deploy",
+        "outcome": "hold_residual",
+        "path": "team_llm",
+        "summary": "Mid-session team review: ~$25.50 idle cash already deployed agentic ~18:30Z (CLSK $5 + MSTR $5.20 + TSLA $7.60 + SPCX $7.70). Residual BP $0.04 HOLD. Sleeves ~40.2/59.8 in band. Research/rotate complete (held+unheld+watchlist).",
+        "nav_usd": 173.52,
+        "buying_power_usd": 0.04,
+        "cash_usd": 0.04,
+        "pending_deposits_usd": 25.0,
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4017,
+          "stocks_growth": 0.5983
+        },
+        "names_considered": [
+          "MSTR",
+          "BITA",
+          "MARA",
+          "IREN",
+          "CLSK",
+          "RIOT",
+          "WULF",
+          "STRC",
+          "SATA",
+          "ASST",
+          "TSLA",
+          "SPCX",
+          "BTC",
+          "BE",
+          "GOOGL",
+          "AAPL",
+          "NVDA"
+        ],
+        "names_chosen": [
+          {
+            "symbol": "MSTR",
+            "theme": "digital_credit",
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "CLSK",
+            "theme": "btc_infrastructure",
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "TSLA",
+            "theme": "growth_equity",
+            "sleeve": "stocks_growth"
+          },
+          {
+            "symbol": "SPCX",
+            "theme": "growth_equity",
+            "sleeve": "stocks_growth"
+          }
+        ],
+        "names_rejected": {
+          "BITA_topup": "Valid yield top-up; concurrent path preferred CLSK diversification",
+          "IREN_MARA_topup": "Already sized; CLSK chosen as third miner instead",
+          "RIOT_WULF": "Miner overcrowding at ~$174 NAV (already MARA+IREN+CLSK)",
+          "STRC_SATA_ASST": "Credit overcrowding vs MSTR+BITA",
+          "BTC_RH": "Prefer equity vehicles on agentic RH",
+          "BE": "monitor_no_buy; earnings 2026-07-28 AMC",
+          "GOOGL_AAPL_NVDA": "AI gap real but deep_dive_required; prefer core this pass",
+          "reverse_CLSK": "Same-day rotate is churn at $5 size; allowlist OK"
+        },
+        "theme_allocation": {
+          "btc_digital_credit_40pct": {
+            "MSTR": "digital_credit_core",
+            "BITA": "btc_yield_held",
+            "MARA": "miner_held",
+            "IREN": "miner_power_infra_held",
+            "CLSK": "miner_new_small"
+          },
+          "stocks_growth_60pct": {
+            "TSLA": "growth_primary",
+            "SPCX": "growth_secondary"
+          },
+          "watchlist_monitor_only": [
+            "BE",
+            "GOOGL",
+            "AAPL",
+            "NVDA"
+          ]
+        },
+        "rationale": {
+          "summary": "Deploy idle capital toward 40/60 on core allowlist; ratify concurrent fills; hold residual dust.",
+          "why_now": "Scheduled/mid-session review after rules need_llm (cash/BP $25.54). Cash is unallocated until deployed. Live_autopilot; no owner approval mid-pass. Regular hours, not open/close scalp.",
+          "why_not_alternatives": "Rejected BE into 7/28 earnings. Rejected watchlist AI first-buys without deep-dive. Rejected extra miners RIOT/WULF and credit STRC/SATA/ASST for overcrowding. CLSK as unheld allowlist miner is acceptable diversification vs pure held-only top-up; critic accepts at ~3% NAV but flags three-miner stack. No reverse of fills (churn). Residual BP $0.04 below min trade.",
+          "thesis_tags": [
+            "modernized_60_40",
+            "research_rotate",
+            "core_allowlist",
+            "size_invariant",
+            "concurrent_deploy_ratified"
+          ],
+          "names_considered": [
+            "MSTR",
+            "BITA",
+            "MARA",
+            "IREN",
+            "CLSK",
+            "RIOT",
+            "WULF",
+            "STRC",
+            "SATA",
+            "ASST",
+            "TSLA",
+            "SPCX",
+            "BTC",
+            "BE",
+            "GOOGL",
+            "AAPL",
+            "NVDA"
+          ],
+          "names_rejected": {
+            "BE": "earnings 7/28 + monitor_no_buy",
+            "GOOGL/AAPL/NVDA": "deep_dive_required",
+            "RIOT/WULF": "miner overcrowding",
+            "STRC/SATA/ASST": "credit overcrowding"
+          },
+          "research_path": "investment/research/fund_manager_research_latest.md",
+          "notes": "Executor in this session found fills already placed by concurrent agentic path at 18:30:22Z; no additional place_equity_order calls. pending_deposits=$25 may free BP later \u2014 re-run process then."
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "ok",
+            "note": "Agentic \u2022\u2022\u2022\u20221752 NAV~$173.52 equity~$173.48 cash/BP~$0.04 pending_dep~$25. Held MSTR BITA MARA IREN CLSK TSLA SPCX. Deployed ~40.2/59.8 in band. Four filled buys ~$25.50 at 18:30Z."
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "Best use of idle cash: keep 40/60 via core. Chosen MSTR+CLSK (btc) and TSLA+SPCX (stocks). AI mega-caps deferred to deep-dive; BE blocked into print. Not held-only \u2014 CLSK is new allowlist name."
+          },
+          "risk": {
+            "vote": "ok",
+            "note": "Agentic capital only; cash account; no leverage. Tickets >$1 min. Residual $0.04 no trade. Concentration: TSLA ~34% NAV elevated but thesis primary growth name; CLSK ~3% OK. If pending $25 settles to BP, re-size under full research_rotate."
+          },
+          "critic": {
+            "vote": "ok",
+            "note": "Challenge held-only: concurrent path added CLSK (good process signal). Challenge third miner vs prior MARA+IREN-only preference \u2014 accept small size, no fourth miner. Block BE and undived AI. Block same-day reverse of CLSK. Force HOLD on residual BP."
+          },
+          "executor": {
+            "vote": "hold",
+            "note": "No new orders. Observed/ratified filled agentic markets: CLSK $5, TSLA $7.60, SPCX $7.70, MSTR $5.20. BP $0.04 \u2014 cannot place further dollar markets."
+          }
+        },
+        "actions": [
+          {
+            "symbol": "CLSK",
+            "side": "buy",
+            "notional_usd": 5.0,
+            "status": "filled",
+            "order_id": "6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1",
+            "avg_price": 13.82,
+            "theme": "btc_infrastructure",
+            "note": "concurrent_agentic_fill_ratified"
+          },
+          {
+            "symbol": "TSLA",
+            "side": "buy",
+            "notional_usd": 7.6,
+            "status": "filled",
+            "order_id": "6a67a3be-5924-440f-9b58-37db43c18147",
+            "avg_price": 306.32,
+            "theme": "growth_equity",
+            "note": "concurrent_agentic_fill_ratified"
+          },
+          {
+            "symbol": "SPCX",
+            "side": "buy",
+            "notional_usd": 7.7,
+            "status": "filled",
+            "order_id": "6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3",
+            "avg_price": 111.0199,
+            "theme": "growth_equity",
+            "note": "concurrent_agentic_fill_ratified"
+          },
+          {
+            "symbol": "MSTR",
+            "side": "buy",
+            "notional_usd": 5.2,
+            "status": "filled",
+            "order_id": "6a67a3be-fae3-403f-a493-715dcf48f270",
+            "avg_price": 97.8299,
+            "theme": "digital_credit",
+            "note": "concurrent_agentic_fill_ratified"
+          }
+        ],
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "kind": "hold",
         "outcome": "hold",

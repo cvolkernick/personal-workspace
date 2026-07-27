@@ -1,99 +1,89 @@
-# Fund manager research — mid-session review
+# Fund manager research — mid-session 2026-07-27
 
-**As of:** 2026-07-27 (mid-session ET)  
+**As of:** 2026-07-27 ~18:31Z (14:31 ET)  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV:** ~$173.47 · cash/BP ~$0.04 · **pending deposits $25**
+**Live NAV:** ~$173.52 · **cash/BP:** ~$0.04 · **pending_deposits:** $25 (watch next cycle if settles to BP)
 
-## Executive findings
+## Scout snapshot
 
-1. **Free-capital signal was real** (rules path / BP poll: cash/BP ~$25.54 on stale snapshot), but **live MCP scout** found residual **BP/cash $0.04** after concurrent agentic market fills at **18:30:22Z**.
-2. Concurrent fills (~**$25.50** total): **CLSK $5** (new allowlist miner), **MSTR $5.20**, **TSLA $7.60**, **SPCX $7.70** — roughly **40/60** of the cash just deployed.
-3. **Deployed sleeves remain ~40% BTC-complex / ~60% stocks** (in band). No forced rebalance.
-4. **Pending deposit $25** is **not** buying power yet — next deploy pass when settled.
-5. **Watchlist stays monitor-only:** BE into 7/28 earnings; GOOGL / AAPL / NVDA lack required deep-dives.
-6. **This pass Executor: HOLD** (dust BP). Research/rotate still completed; alternatives documented.
+| Field | Value |
+|-------|--------|
+| Held | MSTR, BITA, MARA, IREN, **CLSK** (new), TSLA, SPCX |
+| Deployed sleeve mix | ~**40.2%** BTC-complex / ~**59.8%** stocks (in ±5% band) |
+| Idle cash | ~$0.04 (below min trade $1) |
+| Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
+| Gaps | Pure AI mega-cap (GOOGL/AAPL/NVDA watchlist) · energy (BE watchlist) · extra digital credit (STRC/SATA/ASST) |
 
-## Book inventory (post concurrent fills)
+### Live market values (RH quotes × qty)
 
-| Symbol | Sleeve | Theme | Role |
-|--------|--------|-------|------|
-| **MSTR** | btc_digital_credit | Digital credit / BTC proxy | Core credit; topped +$5.20 |
-| **BITA** | btc_digital_credit | BTC yield / premium income | Hold (not topped this cash) |
-| **MARA** | btc_digital_credit | BTC infra miner | Hold |
-| **IREN** | btc_digital_credit | BTC infra / energy-intensive | Hold |
-| **CLSK** | btc_digital_credit | BTC infra miner | **NEW** ~$5 allowlist diversifier |
-| **TSLA** | stocks_growth | Growth / energy-adjacent | Topped +$7.60 |
-| **SPCX** | stocks_growth | Growth equity | Topped +$7.70 |
+| Symbol | Sleeve | Theme | ~$ | % NAV |
+|--------|--------|-------|-----|-------|
+| MSTR | btc | digital credit | ~28.7 | 16.6% |
+| BITA | btc | BTC yield | ~15.1 | 8.7% |
+| MARA | btc | miner | ~11.1 | 6.4% |
+| IREN | btc | miner/power infra | ~9.8 | 5.6% |
+| CLSK | btc | miner | ~5.0 | 2.9% |
+| TSLA | stocks | growth | ~59.5 | 34.3% |
+| SPCX | stocks | growth | ~44.3 | 25.5% |
 
-**Unheld core allowlist:** STRC, SATA, ASST, RIOT, WULF, BTC (spot).  
-**Watchlist:** BE, GOOGL, AAPL, NVDA (all deep-dive gates).
+### Concurrent deploy (same review window)
 
-## Names considered → chosen / rejected
+At ~18:30:22Z agentic orders **filled** (~$25.50 idle cash that triggered rules `need_llm`):
 
-### Chosen (hold / affirm post-fill book)
-| Name | Why |
-|------|-----|
-| MSTR | Liquid digital-credit centerpiece; concurrent top-up on relative strength OK |
-| BITA | Explicit BTC yield product; keep sleeve completeness even if not topped today |
-| MARA | Pure miner; keep |
-| IREN | Miner/power-infra diversifier vs MARA-only |
-| CLSK | Unheld allowlist miner; concurrent add avoids pure held-only inertia; small ticket |
-| TSLA | Primary growth name for 60% sleeve |
-| SPCX | Second core stocks name |
+| Symbol | Side | Notional | Order id | Theme |
+|--------|------|----------|----------|-------|
+| CLSK | buy | $5.00 | `6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1` | BTC infra miner (new name) |
+| TSLA | buy | $7.60 | `6a67a3be-5924-440f-9b58-37db43c18147` | stocks growth |
+| SPCX | buy | $7.70 | `6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3` | stocks growth |
+| MSTR | buy | $5.20 | `6a67a3be-fae3-403f-a493-715dcf48f270` | digital credit |
 
-### Rejected (with reasons)
+**Sleeve of deploy:** ~$10.20 BTC-complex (40%) + ~$15.30 stocks (60%). Residual cash ~$0.04.
+
+## Research / rotate (required)
+
+### Names considered
+MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, STRC, SATA, ASST, TSLA, SPCX, BTC (RH), BE, GOOGL, AAPL, NVDA; held-only top-up of prior 6 without new names.
+
+### Names chosen (post-state / ratify concurrent deploy)
+| Name | Theme map | Why |
+|------|-----------|-----|
+| **MSTR** | digital credit | Core liquid BTC-corporate proxy; top-up keeps credit centerpiece |
+| **CLSK** | BTC infrastructure | Allowlist miner; diversifies beyond MARA+IREN at small ticket |
+| **TSLA** | growth / AI-energy-adjacent | Primary stocks sleeve name |
+| **SPCX** | growth equity | Second core stocks name; balances TSLA concentration slightly |
+
+### Names rejected (with reasons)
 | Name | Why not now |
 |------|-------------|
-| **BE** | Deep-dive = monitor_no_buy; **earnings 2026-07-28 AMC**; valuation/beta |
-| **GOOGL** | Watchlist; **no deep-dive completed** — first buy blocked |
-| **AAPL** | Watchlist; **no deep-dive completed** — first buy blocked |
-| **NVDA** | Watchlist; **no deep-dive**; concentration/valuation critic gate (even on soft day) |
-| **STRC / SATA / ASST** | Digital-credit overcrowding vs MSTR+BITA at ~$173 NAV |
-| **RIOT / WULF** | Miner overcrowding — already MARA+IREN+CLSK |
-| **BTC spot on RH** | Prefer equity vehicles on agentic RH; CB for spot/vault |
-| **Forced sells / rotate** | In-band; cash-account settlement risk; churn |
+| **BITA top-up** | Valid BTC-yield expression; concurrent path preferred CLSK diversification over yield top-up. Acceptable alternative — not wrong, just not selected this pass |
+| **IREN / MARA top-up** | Already sized; third miner CLSK chosen instead of concentrating two |
+| **RIOT, WULF** | Valid miners; at ~$174 NAV four+ miners over-concentrates mining beta (MARA+IREN+CLSK already three) |
+| **STRC, SATA, ASST** | Digital credit allowlist; MSTR+BITA cover credit/yield; avoid overcrowding small book |
+| **BTC spot on RH** | Prefer equity vehicles on agentic RH; CB for spot/vault elsewhere |
+| **BE** | Watchlist deep-dive = monitor_no_buy; **earnings 2026-07-28 AMC** — do not buy into print |
+| **GOOGL, AAPL, NVDA** | Real **AI stack gap** vs TSLA/SPCX-only stocks sleeve; `deep_dive_required_before_buy` and no completed deep-dive → **not** first-buy this pass. Prefer core for routine deploy. **Next cycle:** schedule `/position-deep-dive` on GOOGL and/or NVDA if stocks capital free |
+| **Full held-only inertia** | Explicitly considered; concurrent path **did** add unheld allowlist **CLSK** — process not pure top-up of old 6 |
+| **Rotate/sell CLSK same day** | Churn + spread vs $5 size; CLSK is core allowlist; no thesis break → hold |
 
-## Theme mapping (how capital serves themes *now*)
+### How new capital best serves themes *now*
+Idle cash violated “cash is unallocated.” Best fit: maintain **40/60**, prefer **core allowlist**, allow one **unheld** miner for infra diversification (CLSK) rather than only topping the largest held names. AI pure-plays wait on deep-dive; energy waits post-BE print.
 
-| Theme | Expression in book | Gap? |
-|-------|-------------------|------|
-| Bitcoin / hard money | Via MSTR/BITA/miners (not RH spot) | Optional metals empty — OK |
-| Digital credit / BTC yield | MSTR + BITA | Covered |
-| BTC infrastructure | MARA + IREN + **CLSK** | Covered (3 miners — enough at this NAV) |
-| Growth equity | TSLA + SPCX | Covered core |
-| AI stack (broad) | Via TSLA/SPCX only | Watchlist GOOGL/AAPL/NVDA **monitor** until deep-dive |
-| Energy opportunistic | Via mining/power infra; BE watchlist | No BE until post-print |
-
-## Team votes
+## Team votes (this pass)
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Live MCP: NAV~$173 BP$0.04 pending$25; 7 names; concurrent fills logged |
-| Thesis | ok | Affirm 40/60 7-name theme book; no watchlist buys |
-| Risk | ok | Dust BP — no trade; pending not spendable |
-| Critic | ok | HOLD; block BE/AI first buys; no further miners; re-research when pending settles |
-| Executor | hold | Zero new orders this pass |
+| Scout | ok | Live MCP: NAV~$173.5 BP~$0.04; 7 names; concurrent 4 fills ~$25.50; sleeves in band |
+| Thesis | ok | Ratify 40/60 deploy (MSTR+CLSK / TSLA+SPCX); no further orders |
+| Risk | ok | BP dust; min notional; no leverage; agentic-only; pending_deposits $25 → re-scout if BP rises |
+| Critic | ok (size caution) | CLSK = third miner vs prior clean-slate “MARA+IREN enough” — accept at 2.9% NAV; block BE into earnings; block watchlist AI without deep-dive; **do not reverse** fills (churn) |
+| Executor | hold | No new MCP orders this pass; residual BP <$1; prior fills already agentic |
 
-## Concurrent fill blotter (observed)
+## Decision
+**HOLD** residual capital. Book post-deploy is on-target. No rotate.
 
-| Symbol | Notional | Order id | Status |
-|--------|----------|----------|--------|
-| CLSK | $5.00 | `6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1` | filled |
-| TSLA | $7.60 | `6a67a3be-5924-440f-9b58-37db43c18147` | filled |
-| SPCX | $7.70 | `6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3` | filled |
-| MSTR | $5.20 | `6a67a3be-fae3-403f-a493-715dcf48f270` | filled |
-
-## Next actions
-
-1. **When pending $25 → BP:** run full research/rotate again (size-invariant; do not auto top-up held only).
-2. **Post 2026-07-28:** re-evaluate BE after Q2 print (or re-run deep-dive).
-3. **Optional research queue:** position-deep-dive for **NVDA** / **GOOGL** / **AAPL** before any first buy.
-4. Owner feedback optional after this brief.
-
-## Size-invariant process check
-
-- Considered held **and** unheld allowlist + full watchlist.
-- Reject reasons written for each non-chosen name.
-- Did **not** skip research because book is small.
-- Only constraint on action count was **BP = $0.04** (execution), not simplified strategy.
+## Next cycle hooks
+1. If **pending_deposits $25** becomes spendable BP → full research/rotate again (not auto held-only).  
+2. After **BE 7/28 earnings** → re-run deep-dive / status.  
+3. Optional **GOOGL/NVDA** deep-dives for AI stack under stocks sleeve when capital available.  
+4. If miner sleeve >~15% NAV or fourth miner proposed → critic pressure to consolidate.
