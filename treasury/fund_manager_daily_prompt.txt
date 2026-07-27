@@ -20,7 +20,8 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 
 ### 2) Research / rotate (REQUIRED — not optional)
 - Run `/fund-manager-research` if available, OR emulate: book health + theme scan + watchlist + allowlist relative value
-- Consider **held and unheld** allowlist names under the themes (e.g. BITA, STRC, SATA, ASST, other miners, TSLA/SPCX, watchlist only if ready)
+- Consider **held and unheld** allowlist names under the themes (e.g. BITA, **STRC**, **SATA**, ASST, multi-miners, TSLA/SPCX, watchlist only if ready)
+- **Owner prefs (2026-07-27):** (1) **Elevate digital credit STRC/SATA** in BTC-complex deploys — not MSTR-only by habit. Override only with a strong liquidity/structure/risk rebuttal logged. (2) **Multi-miner diversification is good** — do NOT reject RIOT/CLSK/WULF/etc. for “miner overlap.” Diversify the miner sleeve; only block on true concentration vs credit/whole-book, liquidity, or thesis failure.
 - Produce before any order proposal:
   - names_considered
   - names_chosen (with theme mapping)
@@ -30,14 +31,18 @@ You are running the fund-manager review for personal-workspace (agentic Robinhoo
 
 ### 3) Thesis
 - Propose allocation of idle cash / rotates toward 40/60 **using best names now**, not merely largest held
+- Within BTC complex, include **STRC and/or SATA** when deploying unless strongly rebutted
 - Map each proposed action to a theme
 
 ### 4) Risk
 - Concentration, liquidity, min notional, capital bounds
 - Small NAV → smaller tickets OK; **not** fewer themes considered
+- Multi-miner is diversification; do not treat “already have a miner” as a risk block
 
 ### 5) Critic
 - Explicitly challenge held-only inertia and weak “we already own it” rationales
+- Challenge **under-allocation to STRC/SATA** if BTC-complex capital deploys without digital credit
+- Challenge **false “miner overlap”** rejections that block sleeve diversification
 - May block, cut size, or demand different symbols
 
 ### 6) Quorum → Executor

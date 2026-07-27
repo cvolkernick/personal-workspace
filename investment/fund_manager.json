@@ -42,10 +42,18 @@
         "core_allowlist_unheld",
         "sleeve_gaps_vs_40_60",
         "themes_btc_digital_credit_ai_energy",
+        "digital_credit_strc_sata_emphasis",
+        "multi_miner_diversification",
         "watchlist_ready_or_monitor",
         "relative_value_and_concentration"
       ],
       "deploy_where": "best_fit_at_time_per_themes_and_40_60",
+      "owner_preferences": {
+        "as_of": "2026-07-27",
+        "digital_credit_emphasis": "Prefer allocating a meaningful share of BTC-complex deploys to STRC and/or SATA (digital credit), not only MSTR/BITA, unless Risk/Critic has a strong liquidity, structure, or thesis rebuttal.",
+        "miner_diversification": "Multiple miners (MARA, IREN, CLSK, RIOT, WULF, …) is desired diversification within the miner sleeve. Reject 'miner overlap' as a default no. Only concentrate or skip miners when credit/MSTR underweight, liquidity fails, or true single-name/book concentration risk.",
+        "notes": "Post-pass owner feedback after Mon 2026-07-27 deploy. Apply on next review/deploy; strong team rebuttal must be logged if overriding."
+      },
       "output_required": [
         "names_considered",
         "names_chosen",
@@ -148,7 +156,7 @@
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, give digital credit (esp. STRC/SATA) a real seat — not MSTR-only by habit."
   },
   "sleeves": {
     "btc_digital_credit": {
@@ -167,7 +175,21 @@
         "IREN"
       ],
       "optional_symbols": ["PAXG", "GLDM", "IAU", "SLV"],
-      "themes": ["bitcoin", "hard_money", "digital_credit", "btc_infrastructure", "btc_yield"]
+      "themes": ["bitcoin", "hard_money", "digital_credit", "btc_infrastructure", "btc_yield"],
+      "sub_sleeves": {
+        "digital_credit": {
+          "priority": "elevated",
+          "symbols": ["STRC", "SATA", "ASST", "BITA", "MSTR"],
+          "preferred_core": ["STRC", "SATA"],
+          "notes": "Owner 2026-07-27: more emphasis on digital credit, especially STRC/SATA (and ASST/BITA as credit/yield expressions). Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Prefer a real STRC/SATA presence when deploying BTC-complex capital."
+        },
+        "miners_infra": {
+          "priority": "diversify_within_sleeve",
+          "symbols": ["MARA", "RIOT", "CLSK", "WULF", "IREN"],
+          "notes": "Owner 2026-07-27: multi-miner diversification is intentional. Do NOT reject RIOT/CLSK/WULF/etc. merely for 'miner overlap' or 'already have MARA+IREN'. Diversify mining beta across names; only block on true concentration (e.g. miners crowding out digital credit / MSTR / whole-book limits), liquidity, or thesis failure."
+        }
+      },
+      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Elevates STRC/SATA within credit; treats multi-miner book as diversification, not redundancy."
     },
     "stocks_growth": {
       "target_pct": 0.6,
@@ -229,7 +251,7 @@
       "TSLA",
       "SPCX"
     ],
-    "notes": "strict=false: core preferred; watchlist/energy/AI names only after consideration (and deep-dive when required). Prefer core for default rebalances."
+    "notes": "strict=false: core preferred; watchlist/energy/AI names only after consideration (and deep-dive when required). Prefer core for default rebalances. Within BTC complex, do not underweight STRC/SATA by habit; multi-miner holds are OK."
   },
   "guardrails": {
     "block_if_agentic_bp_zero": true,

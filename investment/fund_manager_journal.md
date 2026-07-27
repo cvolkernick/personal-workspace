@@ -293,3 +293,9 @@
 - BUY SPCX $7.7 [filled] 6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3
 - BUY MSTR $5.2 [filled] 6a67a3be-fae3-403f-a493-715dcf48f270
 
+
+## 2026-07-27 — owner feedback (strategy)
+**Digital credit:** More emphasis on STRC/SATA (and credit sleeve generally). Do not default-skip as “tiny ticket / MSTR covers it” without a strong team rebuttal.
+**Miners:** Multi-miner diversification is desired. Downplay “miner overlap” as a rejection reason; diversify the miner sleeve across names.
+**Apply:** Next review/deploy (policy updated in fund_manager.json + daily prompt + README/positions/runbook).
+

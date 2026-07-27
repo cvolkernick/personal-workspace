@@ -110,3 +110,7 @@ python3 -m treasury.fund_manager --rules-review --notify
 
 Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**.  
 Cash risk budget = deposits (cash account today). Full allowlist is the menu each deploy; held names are not privileged without a thesis case.
+
+**Owner prefs (2026-07-27):**
+- **Digital credit:** Elevate **STRC / SATA** within the BTC complex (not MSTR-only). Skip only with a strong, logged Risk/Critic rebuttal (liquidity/structure/thesis).
+- **Miners:** Multi-miner diversification is intentional. Do not reject names for “miner overlap.” Diversify across MARA, IREN, CLSK, RIOT, WULF, etc.
