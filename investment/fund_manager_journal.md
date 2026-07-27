@@ -195,3 +195,17 @@
 - BUY TSLA $? [filled] 6a63ae99-a77c-4fae-b450-8e5364682bde
 - BUY SPCX $? [filled] 6a63ae9a-10e1-40dd-96fd-212f7d5f34ff
 
+
+## 2026-07-27T18:24:11 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.54 BP $25.54 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $173.3586 · BP $25.54
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $173.36 BP $25.54 cash $25.54
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
