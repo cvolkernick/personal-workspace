@@ -299,3 +299,31 @@
 **Miners:** Multi-miner diversification is desired. Downplay “miner overlap” as a rejection reason; diversify the miner sleeve across names.
 **Apply:** Next review/deploy (policy updated in fund_manager.json + daily prompt + README/positions/runbook).
 
+
+## 2026-07-27T18:50:02 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $173.4787 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $173.48 BP $0.04 cash $0.04
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-27T18:51:44 — hold
+**Summary:** Mid-session research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK): agentic BP/cash $0.04 HOLD. Sleeves ~40/60 in band. No orders (dust + robinhood MCP unavailable). Next free capital: meaningful BTC-complex share to STRC/SATA; multi-miner not blocked for overlap.
+**Book:** NAV $173.48 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled/mid-session style fund-manager review (rules need_llm path after free-capital signal). live:true; no owner approval mid-pass. Regular hours ET. Cash is unallocated until deployed, but residual BP is dust and cannot meet min notional.
+**Why not alternatives:** No buys: BP $0.04 < $1 and robinhood-trading MCP not connected this session. No sells: sleeves in ±5% band; churn unjustified. Did not size into BE into 7/28 earnings. Did not first-buy GOOGL/AAPL/NVDA without deep-dive. Did NOT reject STRC/SATA on thesis — they are preferred for next BTC-complex deploy per owner 2026-07-27. Did NOT reject RIOT/WULF for false miner-overlap; capital is the only gate this pass. Held-only top-up is not the default for next free cash.
+**Team:**
+- **scout:** ok — Agentic ••••1752 NAV~$173.48 equity MSTR BITA MARA IREN CLSK TSLA SPCX; cash/BP $0.04; deployed ~40/60 in band. Unheld core: STRC SATA ASST RIOT WULF BTC. Watchlist BE GOOGL AAPL NVDA. Snapshot source robinhood_latest ~18:49Z; MCP live read failed this session.
+- **thesis:** ok — HOLD current book. Themes covered: credit MSTR+BITA, miners MARA+IREN+CLSK, growth TSLA+SPCX. Gap: no STRC/SATA — elevated for next BTC-complex capital. Multi-miner is diversification (good). AI mega-caps deferred to deep-dive; BE blocked into print. Not held-only for next deploy plan.
+- **risk:** ok — Agentic capital only; cash account; no leverage. BP $0.04 < min $1 — no trade. TSLA ~34% NAV single-name concentration elevated but thesis primary growth. Miner correlation real but multi-miner intentional at small tickets; do not force consolidate for 'overlap'. MCP outage is operational risk for autopilot — fix auth before next deposit if possible.
+- **critic:** ok — Force HOLD residual dust. Challenge held-only inertia for next capital. Challenge under-allocation to STRC/SATA: next BTC deploy must include digital credit seat unless strong liquidity/structure rebuttal logged. Challenge false miner-overlap rejections — RIOT/WULF remain eligible diversifiers. Block BE into 7/28 and undived AI first-buys. No reverse of morning fills (churn).
+- **executor:** hold — No place/cancel. Robinhood MCP tools not available this session. Even with venue, $0.04 cannot meet min_trade $1.00.
+
