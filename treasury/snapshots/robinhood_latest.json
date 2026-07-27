@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-07-27T18:28:59.748520+00:00",
+  "as_of": "2026-07-27T18:32:18.798434+00:00",
   "total_value": 0.024046,
   "equity_value": 0.0,
   "cash": 0.02,
@@ -12,27 +12,27 @@
   "account_number_last4": "9737",
   "agentic_allowed": false,
   "positions": [],
+  "pending_deposits": 0.0,
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-27T18:28:59.748516+00:00",
-    "total_value": 173.7196497352,
-    "equity_value": 148.1796497352,
-    "cash": 25.54,
-    "buying_power": 25.54,
-    "unleveraged_buying_power": 25.54,
+    "as_of": "2026-07-27T18:32:18.798451+00:00",
+    "total_value": 173.5227858914,
+    "equity_value": 173.4827858914,
+    "cash": 0.04,
+    "buying_power": 0.04,
+    "unleveraged_buying_power": 0.04,
     "margin_use": null,
     "currency": "USD",
-    "account_number_last4": "1752",
     "account_number": "674601752",
+    "account_number_last4": "1752",
     "agentic_allowed": true,
-    "nickname": "Agentic",
     "positions": [
       {
         "symbol": "MSTR",
-        "quantity": "0.240529",
-        "intraday_quantity": "0.000000",
-        "average_buy_price": "92.920000",
-        "shares_available_for_sells": "0.240529",
+        "quantity": "0.293682",
+        "intraday_quantity": "0.053153",
+        "average_buy_price": "93.810000",
+        "shares_available_for_sells": "0.293682",
         "shares_held_for_sells": "0.000000",
         "shares_held_for_stock_grants": "0.000000",
         "shares_held_for_options_events": "0.000000",
@@ -55,10 +55,10 @@
       },
       {
         "symbol": "TSLA",
-        "quantity": "0.169538",
-        "intraday_quantity": "0.000000",
-        "average_buy_price": "307.600000",
-        "shares_available_for_sells": "0.169538",
+        "quantity": "0.194348",
+        "intraday_quantity": "0.024810",
+        "average_buy_price": "307.440000",
+        "shares_available_for_sells": "0.194348",
         "shares_held_for_sells": "0.000000",
         "shares_held_for_stock_grants": "0.000000",
         "shares_held_for_options_events": "0.000000",
@@ -68,10 +68,10 @@
       },
       {
         "symbol": "SPCX",
-        "quantity": "0.329442",
-        "intraday_quantity": "0.000000",
-        "average_buy_price": "113.070000",
-        "shares_available_for_sells": "0.329442",
+        "quantity": "0.398798",
+        "intraday_quantity": "0.069356",
+        "average_buy_price": "112.710000",
+        "shares_available_for_sells": "0.398798",
         "shares_held_for_sells": "0.000000",
         "shares_held_for_stock_grants": "0.000000",
         "shares_held_for_options_events": "0.000000",
@@ -104,8 +104,23 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long"
+      },
+      {
+        "symbol": "CLSK",
+        "quantity": "0.361794",
+        "intraday_quantity": "0.361794",
+        "average_buy_price": "13.820000",
+        "shares_available_for_sells": "0.361794",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "long"
       }
-    ]
+    ],
+    "pending_deposits": 25.0,
+    "nickname": "Agentic"
   },
   "accounts": [
     {
@@ -144,5 +159,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
+  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent HTTP MCP bridge + rh_sync format."
 }
