@@ -32,8 +32,8 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
     },
     {
         "id": "horizon",
-        "label": "Horizon",
-        "description": "Seasonal plan between Ikigai and Orchestrator",
+        "label": "Seasonal plan",
+        "description": "Season themes between Ikigai and Orchestrator (not Global Macro)",
         "port": 8791,
         "url": "http://127.0.0.1:8791/",
         "launch": "python3 horizon/server.py",
@@ -45,6 +45,22 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         ],
         "kind": "dashboard",
         "work_branch": "work/horizon",
+    },
+    {
+        "id": "horizon_macro",
+        "label": "Horizon Macro",
+        "description": "Global macro & geopolitical intelligence (world-state + strategy linkage)",
+        "port": 8795,
+        "url": "http://127.0.0.1:8795/",
+        "launch": "python3 research/horizon/server.py --bootstrap",
+        "sources": [
+            "research/horizon/",
+            "strategy/bets.md",
+            "strategy/intent.json",
+            "investment/positions.md",
+        ],
+        "kind": "dashboard",
+        "work_branch": "work/treasury",
     },
     {
         "id": "workflow",

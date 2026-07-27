@@ -809,7 +809,7 @@ def collect_iot(workspace: Path) -> dict[str, Any]:
 
 
 def collect_horizon(workspace: Path) -> dict[str, Any]:
-    """Seasonal Horizon plan from strategy/horizon_season.json + horizon.md."""
+    """Seasonal plan from strategy/horizon_season.json + horizon.md (not Global Macro)."""
     ws = Path(workspace)
     season_path = ws / "strategy" / "horizon_season.json"
     md_path = ws / "strategy" / "horizon.md"
@@ -828,7 +828,7 @@ def collect_horizon(workspace: Path) -> dict[str, Any]:
     available = bool(season or md_path.is_file())
     return {
         "id": "horizon",
-        "label": "Horizon",
+        "label": "Seasonal plan",
         "status": "ok" if available else "missing",
         "summary": "; ".join(bits) or "No seasonal plan yet",
         "signals": {
@@ -852,6 +852,54 @@ def collect_horizon(workspace: Path) -> dict[str, Any]:
             "strategy/horizon.md",
             "strategy/horizon_season.json",
             "horizon/",
+        ],
+    }
+
+
+def collect_horizon_macro(workspace: Path) -> dict[str, Any]:
+    """Global macro / geopolitical intelligence dashboard (research/horizon)."""
+    ws = Path(workspace)
+    pkg = ws / "research" / "horizon"
+    brief = pkg / "data" / "briefs" / "brief_latest.json"
+    world = pkg / "data" / "world_state_latest.json"
+    server = pkg / "server.py"
+    bits = []
+    version = None
+    if brief.is_file():
+        data = _read_json(brief) or {}
+        version = data.get("version_id")
+        if version:
+            bits.append(f"brief {version}")
+        impl = data.get("implications_for_my_strategy") or {}
+        n = impl.get("linkage_count")
+        if n is not None:
+            bits.append(f"{n} strategy links")
+    if world.is_file() and not bits:
+        bits.append("world-state present")
+    if server.is_file():
+        bits.append("dashboard")
+    available = server.is_file()
+    return {
+        "id": "horizon_macro",
+        "label": "Horizon Macro",
+        "status": "ok" if available else "missing",
+        "summary": "; ".join(bits) or "research/horizon package not found",
+        "signals": {
+            "version_id": version,
+            "has_brief": brief.is_file(),
+            "has_world_state": world.is_file(),
+            "package": "research/horizon/" if pkg.is_dir() else None,
+        },
+        "available": available,
+        "live": None,
+        "url": "http://127.0.0.1:8795/",
+        "launch": "python3 research/horizon/server.py --bootstrap",
+        "port": 8795,
+        "sources": [
+            "research/horizon/",
+            "strategy/bets.md",
+            "strategy/intent.json",
+            "investment/positions.md",
         ],
     }
 
@@ -910,6 +958,7 @@ _COLLECTORS = {
     "strategy": collect_strategy,
     "b2": collect_b2,
     "horizon": collect_horizon,
+    "horizon_macro": collect_horizon_macro,
     "workflow": collect_workflow,
     "finance": collect_finance,
     "fitness": collect_fitness,

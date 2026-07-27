@@ -92,6 +92,12 @@ def domain_spec(domain_id: str) -> Optional[dict[str, Any]]:
         "home": "iot",
         "season": "horizon",
         "seasonal": "horizon",
+        "seasonal-plan": "horizon",
+        "seasonal_plan": "horizon",
+        "macro": "horizon_macro",
+        "horizon-macro": "horizon_macro",
+        "global-macro": "horizon_macro",
+        "global_macro": "horizon_macro",
         "obsidian": "b2",
         "brain2": "b2",
         "b2-ux": "b2",
@@ -190,8 +196,28 @@ def build_launch_argv(
             str(port),
         ]
 
-    # horizon / holistic / iot / default: --host --port --no-browser
-    if did == "horizon" or "horizon/" in script_s or script_s.endswith("horizon/server.py"):
+    # Global Macro Horizon: research/horizon/server.py — --port --no-browser [--bootstrap]
+    # (no --host; do not match before research/ path or seasonal launcher breaks)
+    if (
+        did == "horizon_macro"
+        or "research/horizon" in script_s
+        or script_s.endswith("research/horizon/server.py")
+    ):
+        return [
+            py,
+            str(script),
+            "--port",
+            str(port),
+            "--no-browser",
+            "--bootstrap",
+        ]
+
+    # Seasonal plan dashboard: top-level horizon/server.py — --host --port --no-browser
+    if (
+        did == "horizon"
+        or script_s.endswith("/horizon/server.py")
+        or script_s.endswith("horizon/server.py")
+    ) and "research/horizon" not in script_s:
         return [
             py,
             str(script),
@@ -202,6 +228,7 @@ def build_launch_argv(
             "--no-browser",
         ]
 
+    # holistic / iot / default: --host --port --no-browser
     return [
         py,
         str(script),

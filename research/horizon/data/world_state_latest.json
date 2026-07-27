@@ -1,0 +1,460 @@
+{
+  "schema_version": 1,
+  "version_id": "20260727T001437Z",
+  "updated_at": "2026-07-27T00:14:37.346479+00:00",
+  "domains": {
+    "geopolitics": {
+      "label": "Geopolitics",
+      "nodes": [
+        {
+          "id": "geo-great-power-competition",
+          "domain": "geopolitics",
+          "title": "US–China strategic competition remains the primary geopolitical axis",
+          "facts": [
+            "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
+            "Both sides continue to deepen security partnerships with regional partners."
+          ],
+          "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
+          "confidence": 0.85,
+          "impact": "high",
+          "priority_score": 2.975,
+          "tags": [
+            "china",
+            "us",
+            "semiconductors",
+            "geopolitics",
+            "export-controls"
+          ],
+          "related_domains": [
+            "technology_ai",
+            "supply_chains",
+            "military"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346491+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: US–China strategic competition remains the primary geopolitical axis"
+    },
+    "macroeconomics": {
+      "label": "Macroeconomics",
+      "nodes": [
+        {
+          "id": "macro-rates-regime",
+          "domain": "macroeconomics",
+          "title": "Global policy rates remain elevated vs 2010s baseline",
+          "facts": [
+            "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
+            "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+          ],
+          "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
+          "confidence": 0.8,
+          "impact": "high",
+          "priority_score": 2.8,
+          "tags": [
+            "rates",
+            "inflation",
+            "fed",
+            "macro",
+            "liquidity"
+          ],
+          "related_domains": [
+            "capital_flows"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346559+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Global policy rates remain elevated vs 2010s baseline"
+    },
+    "energy": {
+      "label": "Energy",
+      "nodes": [
+        {
+          "id": "energy-nuclear-renaissance",
+          "domain": "energy",
+          "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+          "facts": [
+            "Hyperscalers have announced long-dated power purchase interest including nuclear-linked supply.",
+            "Uranium fuel-cycle capacity remains tight relative to announced reactor and SMR ambitions."
+          ],
+          "interpretation": "Energy scarcity becomes a binding constraint on AI scale-out; nuclear miners/utilities and grid equipment sit at the intersection of Energy and AI bets.",
+          "confidence": 0.75,
+          "impact": "high",
+          "priority_score": 2.625,
+          "tags": [
+            "nuclear",
+            "uranium",
+            "ai",
+            "data-centers",
+            "power",
+            "energy"
+          ],
+          "related_domains": [
+            "technology_ai",
+            "climate_resources"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346605+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives"
+    },
+    "technology_ai": {
+      "label": "Technology / AI",
+      "nodes": [
+        {
+          "id": "tech-ai-compute-race",
+          "domain": "technology_ai",
+          "title": "Frontier AI remains compute- and energy-constrained",
+          "facts": [
+            "Leading labs continue multi-billion-dollar training and inference buildouts.",
+            "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+          ],
+          "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
+          "confidence": 0.8,
+          "impact": "high",
+          "priority_score": 2.8,
+          "tags": [
+            "ai",
+            "gpus",
+            "nvidia",
+            "compute",
+            "semiconductors"
+          ],
+          "related_domains": [
+            "energy",
+            "supply_chains",
+            "capital_flows"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346648+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Frontier AI remains compute- and energy-constrained"
+    },
+    "military": {
+      "label": "Military",
+      "nodes": [
+        {
+          "id": "mil-indo-pacific-posture",
+          "domain": "military",
+          "title": "Indo-Pacific force posture and industrial base remain priority theaters",
+          "facts": [
+            "Allied exercises and basing arrangements in the Indo-Pacific continue to expand in tempo.",
+            "Defense industrial capacity (munitions, shipbuilding, missiles) is a stated bottleneck for multiple governments."
+          ],
+          "interpretation": "Military posture reinforces export-control and dual-use tech regimes; watch for escalation risk premiums in Asia supply chains.",
+          "confidence": 0.7,
+          "impact": "medium",
+          "priority_score": 1.4,
+          "tags": [
+            "indo-pacific",
+            "defense",
+            "alliances",
+            "military"
+          ],
+          "related_domains": [
+            "geopolitics",
+            "supply_chains"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346692+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Indo-Pacific force posture and industrial base remain priority theaters"
+    },
+    "demographics": {
+      "label": "Demographics",
+      "nodes": [
+        {
+          "id": "demo-aging-advanced-economies",
+          "domain": "demographics",
+          "title": "Advanced-economy aging and tight labor markets constrain growth potential",
+          "facts": [
+            "Working-age population growth is slow or negative in several major economies.",
+            "Labor force participation and immigration policy remain central political variables."
+          ],
+          "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
+          "confidence": 0.75,
+          "impact": "medium",
+          "priority_score": 1.5,
+          "tags": [
+            "demographics",
+            "labor",
+            "aging",
+            "automation"
+          ],
+          "related_domains": [
+            "technology_ai",
+            "macroeconomics"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346731+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Advanced-economy aging and tight labor markets constrain growth potential"
+    },
+    "supply_chains": {
+      "label": "Supply Chains",
+      "nodes": [
+        {
+          "id": "supply-chip-geography",
+          "domain": "supply_chains",
+          "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+          "facts": [
+            "Leading-edge logic capacity is highly concentrated in a small number of firms and locations.",
+            "Friend-shoring and subsidy programs aim to diversify capacity over multi-year horizons."
+          ],
+          "interpretation": "Concentration is a systemic risk node linking geopolitics, AI compute, and capital expenditure cycles.",
+          "confidence": 0.85,
+          "impact": "high",
+          "priority_score": 2.975,
+          "tags": [
+            "semiconductors",
+            "taiwan",
+            "tsm",
+            "supply-chain",
+            "chips"
+          ],
+          "related_domains": [
+            "geopolitics",
+            "technology_ai"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346768+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Advanced semiconductor manufacturing remains geographically concentrated"
+    },
+    "capital_flows": {
+      "label": "Capital Flows",
+      "nodes": [
+        {
+          "id": "capital-btc-liquidity",
+          "domain": "capital_flows",
+          "title": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
+          "facts": [
+            "Spot BTC ETFs and corporate treasury narratives have expanded institutional access channels.",
+            "BTC drawdowns and rallies remain correlated with broader risk-asset and real-rate moves in many regimes."
+          ],
+          "interpretation": "For a Bitcoin accumulation thesis, watch real rates, USD liquidity, ETF flows, and regulatory clarity as first-order drivers.",
+          "confidence": 0.7,
+          "impact": "high",
+          "priority_score": 2.45,
+          "tags": [
+            "bitcoin",
+            "btc",
+            "etf",
+            "liquidity",
+            "risk-assets",
+            "mstr"
+          ],
+          "related_domains": [
+            "macroeconomics",
+            "narrative_information"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346809+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite"
+    },
+    "climate_resources": {
+      "label": "Climate / Resources",
+      "nodes": [
+        {
+          "id": "climate-critical-minerals",
+          "domain": "climate_resources",
+          "title": "Critical minerals and water stress bind energy transition and industrial policy",
+          "facts": [
+            "Copper, lithium, and rare earths face multi-year project lead times relative to demand forecasts.",
+            "Regional drought and heat events increasingly affect hydro and thermal power reliability."
+          ],
+          "interpretation": "Resource bottlenecks interact with AI power demand and defense industrial needs; not purely a green-narrative story.",
+          "confidence": 0.65,
+          "impact": "medium",
+          "priority_score": 1.3,
+          "tags": [
+            "copper",
+            "lithium",
+            "minerals",
+            "water",
+            "climate"
+          ],
+          "related_domains": [
+            "energy",
+            "supply_chains"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346851+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: Critical minerals and water stress bind energy transition and industrial policy"
+    },
+    "narrative_information": {
+      "label": "Narrative / Information Environment",
+      "nodes": [
+        {
+          "id": "narrative-ai-hype-cycle",
+          "domain": "narrative_information",
+          "title": "AI and crypto narratives oscillate between euphoria and disillusionment in media cycles",
+          "facts": [
+            "Coverage volume of generative AI remains elevated across business and tech media.",
+            "Retail and institutional narratives around Bitcoin flip with price regimes."
+          ],
+          "interpretation": "Narrative intensity is a sentiment input, not a fundamental; use low confidence unless corroborated by capital-flow or policy facts.",
+          "confidence": 0.55,
+          "impact": "medium",
+          "priority_score": 1.1,
+          "tags": [
+            "narrative",
+            "ai",
+            "bitcoin",
+            "sentiment",
+            "media"
+          ],
+          "related_domains": [
+            "technology_ai",
+            "capital_flows"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-07-27T00:14:37.346891+00:00"
+        }
+      ],
+      "summary": "1 node(s). Top: AI and crypto narratives oscillate between euphoria and disillusionment in media cycles"
+    }
+  },
+  "edges": [
+    {
+      "from_id": "tech-ai-compute-race",
+      "to_id": "energy-nuclear-renaissance",
+      "relation": "affects",
+      "note": "shared tags: ai"
+    },
+    {
+      "from_id": "supply-chip-geography",
+      "to_id": "geo-great-power-competition",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "supply-chip-geography",
+      "to_id": "tech-ai-compute-race",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "capital-btc-liquidity",
+      "to_id": "macro-rates-regime",
+      "relation": "affects",
+      "note": "shared tags: liquidity"
+    },
+    {
+      "from_id": "narrative-ai-hype-cycle",
+      "to_id": "tech-ai-compute-race",
+      "relation": "affects",
+      "note": "shared tags: ai"
+    },
+    {
+      "from_id": "narrative-ai-hype-cycle",
+      "to_id": "capital-btc-liquidity",
+      "relation": "affects",
+      "note": "shared tags: bitcoin"
+    },
+    {
+      "from_id": "geo-great-power-competition",
+      "to_id": "tech-ai-compute-race",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "geo-great-power-competition",
+      "to_id": "supply-chip-geography",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "macro-rates-regime",
+      "to_id": "capital-btc-liquidity",
+      "relation": "affects",
+      "note": "shared tags: liquidity"
+    },
+    {
+      "from_id": "energy-nuclear-renaissance",
+      "to_id": "tech-ai-compute-race",
+      "relation": "affects",
+      "note": "shared tags: ai"
+    },
+    {
+      "from_id": "tech-ai-compute-race",
+      "to_id": "supply-chip-geography",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "capital-btc-liquidity",
+      "to_id": "narrative-ai-hype-cycle",
+      "relation": "affects",
+      "note": "shared tags: bitcoin"
+    }
+  ],
+  "meta": {
+    "source_modes": [
+      "fixture"
+    ],
+    "event_count": 10,
+    "run_id": "20260727T001437Z",
+    "node_total": 10
+  }
+}

@@ -300,6 +300,7 @@ class CollectorsAggregationTests(unittest.TestCase):
                     "strategy",
                     "b2",
                     "horizon",
+                    "horizon_macro",
                     "workflow",
                     "finance",
                     "fitness",
@@ -312,6 +313,9 @@ class CollectorsAggregationTests(unittest.TestCase):
             self.assertIn("8792", by["b2"]["url"] or "")
             self.assertEqual(by["horizon"]["port"], 8791)
             self.assertIn("8791", by["horizon"]["url"] or "")
+            self.assertEqual(by["horizon"]["label"], "Seasonal plan")
+            self.assertEqual(by["horizon_macro"]["port"], 8795)
+            self.assertIn("8795", by["horizon_macro"]["url"] or "")
 
             self.assertTrue(by["strategy"]["available"])
             self.assertGreaterEqual(by["strategy"]["signals"]["today_count"], 3)

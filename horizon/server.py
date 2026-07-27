@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Horizon seasonal planning dashboard.
+"""Seasonal planning dashboard (not Global Macro Horizon).
+
+  Port 8791 — seasonal themes between Ikigai and Orchestrator.
+  Global macro intelligence is research/horizon on port 8795.
 
   GET  /api/health
   GET  /api/horizon   — season plan + initiatives + ikigai themes
@@ -39,7 +42,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(HORIZON_DIR), **kwargs)
 
     def log_message(self, fmt: str, *args) -> None:
-        sys.stderr.write("[horizon] " + (fmt % args) + "\n")
+        sys.stderr.write("[seasonal] " + (fmt % args) + "\n")
 
     def _json(self, code: int, payload: dict) -> None:
         body = json.dumps(payload, default=str).encode("utf-8")
@@ -69,8 +72,11 @@ class HorizonHandler(SimpleHTTPRequestHandler):
                 200,
                 {
                     "ok": True,
-                    "service": "horizon",
+                    "service": "seasonal-plan",
+                    "label": "Seasonal plan",
+                    "port": DEFAULT_PORT,
                     "workspace": str(ROOT),
+                    "note": "Not Global Macro Horizon (that is research/horizon on :8795)",
                 },
             )
             return
