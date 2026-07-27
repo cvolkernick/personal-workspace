@@ -856,8 +856,59 @@ def collect_horizon(workspace: Path) -> dict[str, Any]:
     }
 
 
+def collect_b2(workspace: Path) -> dict[str, Any]:
+    """Obsidian B2 knowledge vault (brain2/) + b2-ux dashboard package."""
+    ws = Path(workspace)
+    vault = ws / "brain2"
+    ux = ws / "b2-ux"
+    server = ux / "server.py"
+    hub = vault / "00 Home - B2 Hub.md"
+    note_paths: list[Path] = []
+    if vault.is_dir():
+        note_paths = [
+            p
+            for p in vault.rglob("*.md")
+            if ".obsidian" not in p.parts and p.is_file()
+        ]
+    domain_notes = sorted(
+        p.stem
+        for p in (vault / "domains").glob("*.md")
+        if (vault / "domains").is_dir() and p.is_file()
+    )[:12]
+    bits = []
+    if note_paths:
+        bits.append(f"{len(note_paths)} notes")
+    if domain_notes:
+        bits.append("domains: " + ", ".join(domain_notes[:4]))
+    if hub.is_file():
+        bits.append("hub")
+    if server.is_file():
+        bits.append("b2-ux")
+    available = vault.is_dir() and (bool(note_paths) or hub.is_file())
+    return {
+        "id": "b2",
+        "label": "Obsidian B2",
+        "status": "ok" if available else "missing",
+        "summary": "; ".join(bits) or "B2 vault not found",
+        "signals": {
+            "note_count": len(note_paths),
+            "domain_notes": domain_notes,
+            "hub": hub.is_file(),
+            "ux_package": server.is_file(),
+            "vault": "brain2/" if vault.is_dir() else None,
+        },
+        "available": available,
+        "live": None,
+        "url": "http://127.0.0.1:8792/",
+        "launch": "python3 b2-ux/server.py",
+        "port": 8792,
+        "sources": ["brain2/", "b2-ux/"],
+    }
+
+
 _COLLECTORS = {
     "strategy": collect_strategy,
+    "b2": collect_b2,
     "horizon": collect_horizon,
     "workflow": collect_workflow,
     "finance": collect_finance,

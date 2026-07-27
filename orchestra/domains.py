@@ -17,6 +17,20 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "kind": "files",
     },
     {
+        "id": "b2",
+        "label": "Obsidian B2",
+        "description": "Brain 2 knowledge vault — browse, search, Ask Grok",
+        "port": 8792,
+        "url": "http://127.0.0.1:8792/",
+        "launch": "python3 b2-ux/server.py",
+        "sources": [
+            "brain2/",
+            "b2-ux/",
+        ],
+        "kind": "dashboard",
+        "work_branch": "feature/b2-knowledge-base",
+    },
+    {
         "id": "horizon",
         "label": "Horizon",
         "description": "Seasonal plan between Ikigai and Orchestrator",

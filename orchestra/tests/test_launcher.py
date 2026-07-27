@@ -58,9 +58,22 @@ class LaunchArgvTests(unittest.TestCase):
         self.assertIn("--no-browser", cmd)
         self.assertEqual(domain_spec("season")["id"], "horizon")
 
+    def test_b2_launch_argv_no_no_browser(self) -> None:
+        cmd = build_launch_argv(
+            "b2", ROOT / "b2-ux" / "server.py", 8792, bind_host="127.0.0.1"
+        )
+        self.assertIn("--host", cmd)
+        self.assertIn("127.0.0.1", cmd)
+        self.assertIn("--port", cmd)
+        self.assertIn("8792", cmd)
+        self.assertNotIn("--no-browser", cmd)
+        self.assertEqual(domain_spec("obsidian")["id"], "b2")
+        self.assertEqual(domain_spec("brain2")["id"], "b2")
+
     def test_domain_spec_aliases(self) -> None:
         self.assertEqual(domain_spec("treasury")["id"], "finance")
         self.assertEqual(domain_spec("resistance")["id"], "fitness")
+        self.assertEqual(domain_spec("b2-ux")["id"], "b2")
 
     def test_probe_localhost_8790_or_skip(self) -> None:
         # Soft check — don't fail suite if orchestrator isn't running

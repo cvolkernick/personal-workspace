@@ -298,6 +298,7 @@ class CollectorsAggregationTests(unittest.TestCase):
                 ids,
                 {
                     "strategy",
+                    "b2",
                     "horizon",
                     "workflow",
                     "finance",
@@ -307,6 +308,8 @@ class CollectorsAggregationTests(unittest.TestCase):
                 },
             )
             by = {d["id"]: d for d in domains}
+            self.assertEqual(by["b2"]["port"], 8792)
+            self.assertIn("8792", by["b2"]["url"] or "")
             self.assertEqual(by["horizon"]["port"], 8791)
             self.assertIn("8791", by["horizon"]["url"] or "")
 
