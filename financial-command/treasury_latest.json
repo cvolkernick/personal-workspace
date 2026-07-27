@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-27T18:29:00.511234+00:00",
+    "as_of": "2026-07-27T18:29:23.290192+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-26T17:20:19.428992+00:00",
@@ -2049,19 +2049,19 @@
         "expenses_as_of": "2026-07-26T17:20:22.687019+00:00"
       },
       "stale": [
-        "coinbase data 25.1h old (>6.0h)",
-        "one_card data 25.1h old (>6.0h)",
-        "rh_checking data 25.1h old (>6.0h)",
+        "coinbase data 25.2h old (>6.0h)",
+        "one_card data 25.2h old (>6.0h)",
+        "rh_checking data 25.2h old (>6.0h)",
         "x_money data 20.4h old (>6.0h)",
-        "expenses data 25.1h old (>6.0h)"
+        "expenses data 25.2h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: collateral_btc_usd, ltv",
-        "coinbase data 25.1h old (>6.0h)",
-        "one_card data 25.1h old (>6.0h)",
-        "rh_checking data 25.1h old (>6.0h)",
+        "coinbase data 25.2h old (>6.0h)",
+        "one_card data 25.2h old (>6.0h)",
+        "rh_checking data 25.2h old (>6.0h)",
         "x_money data 20.4h old (>6.0h)",
-        "expenses data 25.1h old (>6.0h)"
+        "expenses data 25.2h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2250,12 +2250,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-27T18:29:00.512001+00:00",
+      "as_of": "2026-07-27T18:29:23.291067+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-27T18:29:00.511698+00:00",
+        "as_of": "2026-07-27T18:29:23.290694+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -3401,12 +3401,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-27T18:29:00.512001+00:00",
+    "as_of": "2026-07-27T18:29:23.291067+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-27T18:29:00.511698+00:00",
+      "as_of": "2026-07-27T18:29:23.290694+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
