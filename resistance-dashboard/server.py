@@ -527,6 +527,28 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "labs": labs,
     }
 
+    # Full-width calorie pacing + same-day in/out delta bars
+    try:
+        from rt_dashboard.calorie_bars import build_calorie_bars_payload
+
+        burned_today = None
+        for b in health.calories_burned or []:
+            if str(getattr(b, "date", "") or "")[:10] == str(local_today)[:10]:
+                try:
+                    burned_today = float(getattr(b, "calories", None) or 0)
+                except (TypeError, ValueError):
+                    burned_today = None
+                break
+        payload["calorie_bars"] = build_calorie_bars_payload(
+            today_consumed=consumed,
+            targets=nut.get("targets") or {},
+            sleep_battery=sleep_battery,
+            calories_burned_today=burned_today,
+        )
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"calorie_bars: {e}")
+        payload["calorie_bars"] = {"pacing": None, "delta": None}
+
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
     try:
         wo = load_catalog_and_goals(nut_client)

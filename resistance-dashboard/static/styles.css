@@ -1612,6 +1612,147 @@ footer {
   margin-top: 0.5rem;
 }
 
+/* —— Full-width calorie pacing + in/out delta bars —— */
+.calorie-bar-card {
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.calorie-bar-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.calorie-bar-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.calorie-bar-meta {
+  font-size: 0.78rem;
+}
+
+.calorie-bar-summary {
+  margin: 0.45rem 0 0;
+  font-size: 0.8rem;
+}
+
+/* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
+.pace-track {
+  position: relative;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.pace-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9));
+  transition: width 0.35s ease;
+}
+
+.pace-fill.ahead {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.55), rgba(240, 180, 41, 0.95));
+}
+
+.pace-fill.behind {
+  background: linear-gradient(90deg, rgba(61, 156, 240, 0.45), rgba(61, 156, 240, 0.9));
+}
+
+.pace-fill.on_pace,
+.pace-fill.start {
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9));
+}
+
+.pace-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  margin-left: -1.5px;
+  left: 0%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  z-index: 2;
+  transition: left 0.35s ease;
+}
+
+/* Bidirectional delta: midpoint 0, left=deficit red, right=surplus green */
+.delta-track {
+  position: relative;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.delta-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.75);
+  z-index: 2;
+}
+
+.delta-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  transition: width 0.35s ease;
+}
+
+.delta-fill.delta-left {
+  right: 50%;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(270deg, rgba(240, 113, 120, 0.95), rgba(240, 113, 120, 0.45));
+}
+
+.delta-fill.delta-right {
+  left: 50%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.45), rgba(92, 225, 168, 0.95));
+}
+
+.delta-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.delta-labels span:nth-child(2) {
+  color: rgba(255, 255, 255, 0.7);
+}
+
 /* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;

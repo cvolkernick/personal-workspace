@@ -1716,6 +1716,81 @@
     fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g", soFarPct.f, tgtPct.f);
   }
 
+  function fmtBarWhen(iso) {
+    if (!iso) return "—";
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(11, 16) || "—";
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    } catch (_) {
+      return "—";
+    }
+  }
+
+  /** Render full-width calorie pacing + in/out delta from server calorie_bars. */
+  function renderCalorieBars(data) {
+    const bars = (data && data.calorie_bars) || {};
+    const pacing = bars.pacing || null;
+    const delta = bars.delta || null;
+
+    // —— Pacing bar (above macro chips) ——
+    const fill = $("calorie-pacing-fill");
+    const marker = $("calorie-pacing-marker");
+    const paceSum = $("calorie-pacing-summary");
+    const paceMeta = $("calorie-pacing-meta");
+    if (fill && pacing) {
+      const pct = Math.max(0, Math.min(100, Number(pacing.fill_pct) || 0));
+      const exp = Math.max(0, Math.min(100, Number(pacing.expected_pct) || 0));
+      fill.style.width = `${pct}%`;
+      fill.className = `pace-fill ${pacing.status || "on_pace"}`;
+      if (marker) marker.style.left = `${exp}%`;
+      if (paceSum) paceSum.textContent = pacing.summary || "—";
+      const win = pacing.window || {};
+      if (paceMeta) {
+        const bits = [];
+        if (win.window_start)
+          bits.push(`wake ${fmtBarWhen(win.window_start)}`);
+        if (win.window_end) bits.push(`bed ~${fmtBarWhen(win.window_end)}`);
+        if (win.fraction != null)
+          bits.push(`${Math.round(Number(win.fraction) * 100)}% of window`);
+        if (pacing.paced_budget != null)
+          bits.push(`paced ~${fmtNum(pacing.paced_budget)} kcal`);
+        paceMeta.textContent = bits.join(" · ");
+      }
+    } else if (paceSum) {
+      paceSum.textContent = "Waiting for nutrition / sleep data…";
+    }
+
+    // —— In/out delta bar (below macro chips) ——
+    const left = $("calorie-delta-fill-left");
+    const right = $("calorie-delta-fill-right");
+    const dSum = $("calorie-delta-summary");
+    const dMeta = $("calorie-delta-meta");
+    if (left) left.style.width = "0%";
+    if (right) right.style.width = "0%";
+    if (delta && delta.status === "ok") {
+      // bar_pct is 0–100 of the half-track; CSS widths are % of full track
+      const barPct = Math.max(0, Math.min(100, Number(delta.bar_pct) || 0));
+      const halfW = barPct * 0.5;
+      if (delta.side === "deficit" && left) {
+        left.style.width = `${halfW}%`;
+      } else if (delta.side === "surplus" && right) {
+        right.style.width = `${halfW}%`;
+      }
+      if (dSum) dSum.textContent = delta.summary || "—";
+      if (dMeta) {
+        dMeta.textContent = `in ${fmtNum(delta.intake)} · out ${fmtNum(
+          delta.burned
+        )} · scale ±${fmtNum(delta.scale_kcal)} kcal`;
+      }
+    } else if (dSum) {
+      dSum.textContent =
+        (delta && delta.summary) ||
+        "No same-day burned calories yet — delta unavailable.";
+      if (dMeta) dMeta.textContent = "";
+    }
+  }
+
   function renderTargetsAndRemaining(store) {
     const t = (store && store.targets) || {};
     const c = (store && store.today_consumed) || {};
@@ -2154,6 +2229,8 @@
 
     // Colored macro tiles: left = today so far, right = daily target
     renderNutritionStatTiles(data.nutrition_store);
+    // Full-width pacing (above chips) + in/out delta (below chips)
+    renderCalorieBars(data);
 
     if (data.health && data.health.error) {
       const err = String(data.health.error || "");

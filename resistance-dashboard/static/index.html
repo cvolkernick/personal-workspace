@@ -141,6 +141,24 @@
         </article>
       </section>
 
+      <!-- Full-width: calorie pacing over sleep-battery eating window -->
+      <section
+        class="card calorie-bar-card"
+        style="margin-top: 1rem"
+        id="calorie-pacing-section"
+        aria-label="Calorie pacing through eating window"
+      >
+        <div class="calorie-bar-header">
+          <h2 class="calorie-bar-title">Calorie pacing · eating window</h2>
+          <span class="muted calorie-bar-meta" id="calorie-pacing-meta"></span>
+        </div>
+        <div class="pace-track" id="calorie-pacing-track" role="img" aria-label="Calorie pace progress">
+          <div class="pace-fill" id="calorie-pacing-fill"></div>
+          <div class="pace-marker" id="calorie-pacing-marker" title="Expected progress now"></div>
+        </div>
+        <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
+      </section>
+
       <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" aria-label="Nutrition summary">
         <div class="card stat macro-stat macro-cals">
           <div class="label">Calories</div>
@@ -200,7 +218,31 @@
         </div>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem">
+      <!-- Full-width: same-day calories in vs out delta (midpoint 0) -->
+      <section
+        class="card calorie-bar-card"
+        style="margin-top: 1rem"
+        id="calorie-delta-section"
+        aria-label="Today calories in versus out"
+      >
+        <div class="calorie-bar-header">
+          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
+          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
+        </div>
+        <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
+          <div class="delta-mid" aria-hidden="true"></div>
+          <div class="delta-fill delta-left" id="calorie-delta-fill-left"></div>
+          <div class="delta-fill delta-right" id="calorie-delta-fill-right"></div>
+          <div class="delta-labels" aria-hidden="true">
+            <span>deficit</span>
+            <span>0</span>
+            <span>surplus</span>
+          </div>
+        </div>
+        <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
+      </section>
+
+      <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts">
         <article class="card">
           <h2>Calories intake vs burned · 30d</h2>
           <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart last 30 days"></canvas></div>
