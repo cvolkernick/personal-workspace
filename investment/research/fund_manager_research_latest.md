@@ -1,10 +1,10 @@
-# Fund manager research — mid-session 2026-07-27 (post-owner-pref pass)
+# Fund manager research — mid-session 2026-07-27 (BP-poll / need_llm)
 
-**As of:** 2026-07-27 ~18:51Z (14:51 ET)  
+**As of:** 2026-07-27 ~19:11Z (15:11 ET)  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV:** ~$173.48 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
-**MCP:** robinhood-trading **unavailable this session** (auth/connection failed) — Executor cannot place; decision still fully logged for glass box  
+**Live NAV:** ~$174.62 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
+**MCP:** robinhood-trading **unavailable this session** (auth/connection failed) — Executor cannot place; decision fully logged for glass box  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good** (do not reject RIOT/CLSK/WULF for “overlap”)
 
 ## Scout snapshot
@@ -12,32 +12,34 @@
 | Field | Value |
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
-| Deployed sleeve mix | ~**40.0%** BTC-complex / ~**60.0%** stocks (in ±5% band) |
-| Weights of NAV | BTC ~40.2% · stocks ~60.4% · cash ~0.02% |
+| Deployed sleeve mix | ~**40.3%** BTC-complex / ~**59.8%** stocks (in ±5% band) |
+| Weights of NAV | BTC ~40.3% · stocks ~59.8% · cash ~0.02% |
 | Idle cash | ~$0.04 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · extra miners RIOT/WULF optional · pure AI mega-cap (GOOGL/AAPL/NVDA) · energy (BE) |
 
-### Live market values (analysis / qty × mark)
+### Live market values (qty × Yahoo mark ~19:10Z)
 
 | Symbol | Sleeve | Theme | ~$ | % NAV (approx) |
 |--------|--------|-------|-----|----------------|
-| MSTR | btc | digital credit | ~27.6 | ~15.9% |
-| BITA | btc | BTC yield | ~14.9 | ~8.6% |
-| MARA | btc | miner | ~11.9 | ~6.9% |
-| IREN | btc | miner/power infra | ~10.4 | ~6.0% |
-| CLSK | btc | miner | ~5.0 | ~2.9% |
-| TSLA | stocks | growth | ~59.8 | ~34.4% |
-| SPCX | stocks | growth | ~44.9 | ~25.9% |
+| MSTR | btc | digital credit | ~29.1 | ~16.7% |
+| BITA | btc | BTC yield | ~15.0 | ~8.6% |
+| MARA | btc | miner | ~11.3 | ~6.5% |
+| IREN | btc | miner/power infra | ~10.0 | ~5.7% |
+| CLSK | btc | miner | ~5.1 | ~2.9% |
+| TSLA | stocks | growth | ~59.9 | ~34.3% |
+| SPCX | stocks | growth | ~44.5 | ~25.5% |
 
-**Sub-sleeve notes (BTC complex ~$69.8):**
-- Digital credit/yield (MSTR+BITA): ~$42.4 (~61% of complex) — **no STRC/SATA seat**
-- Miners/infra (MARA+IREN+CLSK): ~$27.3 (~39% of complex) — multi-miner stack OK per owner pref
+**Sub-sleeve notes (BTC complex ~$70.5):**
+- Digital credit/yield (MSTR+BITA): ~$44.1 (~63% of complex) — **no STRC/SATA seat**
+- Miners/infra (MARA+IREN+CLSK): ~$26.4 (~37% of complex) — multi-miner stack OK per owner pref
+
+**Core unheld:** STRC (~$89.15), SATA (~$96.78), ASST (~$12.19), RIOT (~$21.87), WULF (~$17.92)
 
 ## Research / rotate (required)
 
 ### Names considered
-MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, BTC (RH), BE, GOOGL, AAPL, NVDA; held-only top-up path; forced rotate sells.
+MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, BTC (RH), BE, GOOGL, AAPL, NVDA; held-only top-up path; forced rotate sells (MSTR/BITA→STRC/SATA).
 
 ### Names chosen (this pass — HOLD book)
 | Name | Theme map | Stance |
@@ -51,10 +53,10 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 | Name / path | Why not **now** |
 |-------------|-----------------|
 | **Any buy** | BP/cash $0.04 < min $1; no spendable free capital |
-| **Any sell / rotate** | Deployed mix in 40/60 band; cash-account settlement churn; no thesis break |
 | **STRC, SATA (buy now)** | Preferred for **next** BTC-complex deploy per owner pref — **not** rejected on thesis; blocked only by zero deployable cash + MCP down |
+| **forced rotate → STRC/SATA** | Considered; deferred — sleeves in band, no MCP, prefer free-capital path first; no thesis break on held credit/miners |
 | **ASST** | Secondary digital credit; prefer STRC/SATA first when capital returns |
-| **RIOT, WULF** | Valid multi-miner diversifiers — **not** rejected for “overlap.” Skip this pass for capital only; eligible next deploy if miner sleeve room vs credit |
+| **RIOT, WULF** | Valid multi-miner diversifiers — **not** rejected for “overlap.” Skip this pass for capital only |
 | **BTC spot on RH** | Prefer equity vehicles on agentic RH; CB for spot/vault elsewhere |
 | **BE** | Watchlist `monitor_no_buy`; **earnings 2026-07-28 AMC** — block into print |
 | **GOOGL, AAPL, NVDA** | Real AI stack gap; `deep_dive_required_before_buy` and no completed deep-dive → not first-buy ready |
@@ -79,10 +81,10 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot ~18:50Z agentic ••••1752: NAV~$173.48 equity 7 names cash/BP $0.04; sleeves in band; MCP offline this session |
+| Scout | ok | Snapshot ~19:08Z agentic ••••1752: NAV~$174.62 equity 7 names cash/BP $0.04; sleeves in band; MCP offline |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained |
-| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; concentration TSLA ~34% NAV elevated but thesis primary growth name |
-| Critic | ok (hold) + process flag | Force HOLD on residual. Flag prior under-allocation to STRC/SATA for next capital. Reject false miner-overlap blocks. Block BE into 7/28 and undived AI first-buys |
+| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA ~34% NAV elevated but thesis primary growth name |
+| Critic | ok (hold) + process flag | Force HOLD on residual. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. Block BE into 7/28 and undived AI first-buys |
 | Executor | hold | No MCP tools this session; even if live, $0.04 cannot fill min notional |
 
 ## Decision
