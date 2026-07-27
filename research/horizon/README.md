@@ -15,6 +15,15 @@ Or double-click `research/horizon/start.command`.
 
 Dashboard tabs: **Overview** (domain heat + top signals), **Executive brief**, **World state**, **My strategy**, **Watchlist**, **Connections**. Refresh re-runs the offline pipeline; **Live sources** tries RSS.
 
+### Not the seasonal planner
+
+| App | Path | Port |
+|-----|------|------|
+| **Horizon Macro** (this package) | `research/horizon/` | **8795** |
+| Seasonal plan (Ikigai themes) | `horizon/` | **8791** |
+
+Orchestrator lists them separately as **Horizon Macro** vs **Seasonal plan**.
+
 ## CLI pipeline
 
 ```bash

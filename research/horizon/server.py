@@ -132,7 +132,16 @@ class HorizonHandler(SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/health":
-            self._json(200, {"ok": True, "service": "horizon", "port": DEFAULT_PORT})
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "horizon-macro",
+                    "label": "Horizon Macro",
+                    "port": DEFAULT_PORT,
+                    "note": "Global macro intelligence — seasonal plan is horizon/ on :8791",
+                },
+            )
             return
 
         if path == "/api/dashboard":
