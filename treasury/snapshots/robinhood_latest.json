@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-07-27T18:32:18.798434+00:00",
+  "as_of": "2026-07-27T18:49:52.555417+00:00",
   "total_value": 0.024046,
   "equity_value": 0.0,
   "cash": 0.02,
@@ -12,20 +12,20 @@
   "account_number_last4": "9737",
   "agentic_allowed": false,
   "positions": [],
-  "pending_deposits": 0.0,
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-27T18:32:18.798451+00:00",
-    "total_value": 173.5227858914,
-    "equity_value": 173.4827858914,
+    "as_of": "2026-07-27T18:49:52.555412+00:00",
+    "total_value": 173.47874652,
+    "equity_value": 173.43874652,
     "cash": 0.04,
     "buying_power": 0.04,
     "unleveraged_buying_power": 0.04,
     "margin_use": null,
     "currency": "USD",
-    "account_number": "674601752",
     "account_number_last4": "1752",
+    "account_number": "674601752",
     "agentic_allowed": true,
+    "nickname": "Agentic",
     "positions": [
       {
         "symbol": "MSTR",
@@ -118,9 +118,7 @@
         "shares_pending_from_options_events": "0.000000",
         "type": "long"
       }
-    ],
-    "pending_deposits": 25.0,
-    "nickname": "Agentic"
+    ]
   },
   "accounts": [
     {
@@ -159,5 +157,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent HTTP MCP bridge + rh_sync format."
+  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
 }

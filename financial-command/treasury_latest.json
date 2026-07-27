@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-27T18:33:18.304412+00:00",
+    "as_of": "2026-07-27T18:49:52.674760+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-26T17:20:19.428992+00:00",
@@ -1703,7 +1703,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-07-27T18:32:18.798434+00:00",
+      "as_of": "2026-07-27T18:49:52.555417+00:00",
       "total_value": 0.024046,
       "equity_value": 0.0,
       "cash": 0.02,
@@ -1715,20 +1715,20 @@
       "account_number_last4": "9737",
       "agentic_allowed": false,
       "positions": [],
-      "pending_deposits": 0.0,
       "agentic": {
         "source": "live",
-        "as_of": "2026-07-27T18:32:18.798451+00:00",
-        "total_value": 173.5227858914,
-        "equity_value": 173.4827858914,
+        "as_of": "2026-07-27T18:49:52.555412+00:00",
+        "total_value": 173.47874652,
+        "equity_value": 173.43874652,
         "cash": 0.04,
         "buying_power": 0.04,
         "unleveraged_buying_power": 0.04,
         "margin_use": null,
         "currency": "USD",
-        "account_number": "674601752",
         "account_number_last4": "1752",
+        "account_number": "674601752",
         "agentic_allowed": true,
+        "nickname": "Agentic",
         "positions": [
           {
             "symbol": "MSTR",
@@ -1821,9 +1821,7 @@
             "shares_pending_from_options_events": "0.000000",
             "type": "long"
           }
-        ],
-        "pending_deposits": 25.0,
-        "nickname": "Agentic"
+        ]
       },
       "accounts": [
         {
@@ -1862,7 +1860,7 @@
         "connected": true,
         "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
       },
-      "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent HTTP MCP bridge + rh_sync format.",
+      "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot.",
       "usdg_earn_usdg": null,
       "usdg_earn_apy_est": "0.07",
       "margin_loan_usd": null,
@@ -1979,7 +1977,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.04,
       "rh_agentic_cash": 0.04,
-      "rh_agentic_total_value": 173.5227858914,
+      "rh_agentic_total_value": 173.47874652,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2057,26 +2055,26 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-07-26T17:20:19.428992+00:00",
-        "robinhood_as_of": "2026-07-27T18:32:18.798434+00:00",
+        "robinhood_as_of": "2026-07-27T18:49:52.555417+00:00",
         "one_card_as_of": "2026-07-26T17:20:21.639865+00:00",
         "rh_checking_as_of": "2026-07-26T17:20:21.959005+00:00",
         "x_money_as_of": "2026-07-26T22:03:06.602847+00:00",
         "expenses_as_of": "2026-07-26T17:20:22.687019+00:00"
       },
       "stale": [
-        "coinbase data 25.2h old (>6.0h)",
-        "one_card data 25.2h old (>6.0h)",
-        "rh_checking data 25.2h old (>6.0h)",
-        "x_money data 20.5h old (>6.0h)",
-        "expenses data 25.2h old (>6.0h)"
+        "coinbase data 25.5h old (>6.0h)",
+        "one_card data 25.5h old (>6.0h)",
+        "rh_checking data 25.5h old (>6.0h)",
+        "x_money data 20.8h old (>6.0h)",
+        "expenses data 25.5h old (>6.0h)"
       ],
       "warnings": [
         "Missing Coinbase app fields: collateral_btc_usd, ltv",
-        "coinbase data 25.2h old (>6.0h)",
-        "one_card data 25.2h old (>6.0h)",
-        "rh_checking data 25.2h old (>6.0h)",
-        "x_money data 20.5h old (>6.0h)",
-        "expenses data 25.2h old (>6.0h)"
+        "coinbase data 25.5h old (>6.0h)",
+        "one_card data 25.5h old (>6.0h)",
+        "rh_checking data 25.5h old (>6.0h)",
+        "x_money data 20.8h old (>6.0h)",
+        "expenses data 25.5h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2265,25 +2263,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-27T18:33:18.305308+00:00",
+      "as_of": "2026-07-27T18:49:52.675638+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-27T18:33:18.304891+00:00",
+        "as_of": "2026-07-27T18:49:52.675249+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 173.5228,
+        "nav_usd": 173.4787,
         "cash_usd": 0.04,
         "buying_power_usd": 0.04,
-        "pending_deposits_usd": 25.0,
+        "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.4023,
-          "stocks_growth": 0.6034,
+          "btc_digital_credit": 0.4024,
+          "stocks_growth": 0.6035,
           "other": 0.0,
           "cash": 0.0002
         },
@@ -3933,7 +3931,7 @@
           "stocks_growth_pct": 0.6,
           "band_pct": 0.05,
           "cash_is_unallocated": true,
-          "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+          "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, give digital credit (esp. STRC/SATA) a real seat \u2014 not MSTR-only by habit."
         },
         "cadence": {
           "scheduled_reviews_per_day": 1,
@@ -3964,25 +3962,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-27T18:33:18.305308+00:00",
+    "as_of": "2026-07-27T18:49:52.675638+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-27T18:33:18.304891+00:00",
+      "as_of": "2026-07-27T18:49:52.675249+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 173.5228,
+      "nav_usd": 173.4787,
       "cash_usd": 0.04,
       "buying_power_usd": 0.04,
-      "pending_deposits_usd": 25.0,
+      "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.4023,
-        "stocks_growth": 0.6034,
+        "btc_digital_credit": 0.4024,
+        "stocks_growth": 0.6035,
         "other": 0.0,
         "cash": 0.0002
       },
@@ -5632,7 +5630,7 @@
         "stocks_growth_pct": 0.6,
         "band_pct": 0.05,
         "cash_is_unallocated": true,
-        "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed."
+        "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, give digital credit (esp. STRC/SATA) a real seat \u2014 not MSTR-only by habit."
       },
       "cadence": {
         "scheduled_reviews_per_day": 1,
