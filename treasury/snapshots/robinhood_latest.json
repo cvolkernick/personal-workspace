@@ -1,25 +1,25 @@
 {
   "source": "live",
-  "as_of": "2026-07-24T18:28:22.372511+00:00",
-  "total_value": 0.004046,
+  "as_of": "2026-07-27T18:24:11.920976+00:00",
+  "total_value": 0.024046,
   "equity_value": 0.0,
-  "cash": 0.0,
-  "buying_power": 0.0,
-  "unleveraged_buying_power": null,
+  "cash": 0.02,
+  "buying_power": 0.02,
+  "unleveraged_buying_power": 0.02,
   "margin_use": null,
   "currency": "USD",
   "account_number": "5QW39737",
   "account_number_last4": "9737",
   "agentic_allowed": false,
-  "positions": null,
+  "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-24T18:28:22.372507+00:00",
-    "total_value": 149.44996422,
-    "equity_value": 148.90996422,
-    "cash": 0.54,
-    "buying_power": 0.54,
-    "unleveraged_buying_power": null,
+    "as_of": "2026-07-27T18:24:11.920971+00:00",
+    "total_value": 173.3586076401,
+    "equity_value": 147.8186076401,
+    "cash": 25.54,
+    "buying_power": 25.54,
+    "unleveraged_buying_power": 25.54,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
@@ -31,37 +31,37 @@
         "symbol": "MSTR",
         "quantity": "0.240529",
         "average_buy_price": "92.920000",
-        "shares_available_for_sells": "0.240529"
-      },
-      {
-        "symbol": "BITA",
-        "quantity": "0.287194",
-        "average_buy_price": "51.880000",
-        "shares_available_for_sells": "0.287194"
+        "type": "long"
       },
       {
         "symbol": "MARA",
         "quantity": "0.961298",
         "average_buy_price": "12.400000",
-        "shares_available_for_sells": "0.961298"
-      },
-      {
-        "symbol": "IREN",
-        "quantity": "0.274791",
-        "average_buy_price": "37.960000",
-        "shares_available_for_sells": "0.274791"
+        "type": "long"
       },
       {
         "symbol": "TSLA",
         "quantity": "0.169538",
         "average_buy_price": "307.600000",
-        "shares_available_for_sells": "0.169538"
+        "type": "long"
       },
       {
         "symbol": "SPCX",
         "quantity": "0.329442",
         "average_buy_price": "113.070000",
-        "shares_available_for_sells": "0.329442"
+        "type": "long"
+      },
+      {
+        "symbol": "BITA",
+        "quantity": "0.287194",
+        "average_buy_price": "51.880000",
+        "type": "long"
+      },
+      {
+        "symbol": "IREN",
+        "quantity": "0.274791",
+        "average_buy_price": "37.960000",
+        "type": "long"
       }
     ]
   },
@@ -69,13 +69,15 @@
     {
       "account_number": "5QW39737",
       "agentic_allowed": false,
-      "type": "margin"
+      "is_default": true,
+      "type": "cash"
     },
     {
       "account_number": "674601752",
       "agentic_allowed": true,
-      "type": "cash",
-      "nickname": "Agentic"
+      "is_default": false,
+      "nickname": "Agentic",
+      "type": "cash"
     }
   ],
   "mcp": {
@@ -84,5 +86,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Manual team deploy 2026-07-24 after reauth; 6-name theme book filled"
+  "notes": "MCP refresh 2026-07-27 agent session after stale snapshot diagnosis"
 }
