@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-27T18:26:07.870690+00:00",
+    "as_of": "2026-07-27T18:29:00.511234+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-26T17:20:19.428992+00:00",
@@ -1703,7 +1703,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-07-27T18:24:11.920976+00:00",
+      "as_of": "2026-07-27T18:28:59.748520+00:00",
       "total_value": 0.024046,
       "equity_value": 0.0,
       "cash": 0.02,
@@ -1717,9 +1717,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-07-27T18:24:11.920971+00:00",
-        "total_value": 173.3586076401,
-        "equity_value": 147.8186076401,
+        "as_of": "2026-07-27T18:28:59.748516+00:00",
+        "total_value": 173.7196497352,
+        "equity_value": 148.1796497352,
         "cash": 25.54,
         "buying_power": 25.54,
         "unleveraged_buying_power": 25.54,
@@ -1733,37 +1733,79 @@
           {
             "symbol": "MSTR",
             "quantity": "0.240529",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "92.920000",
+            "shares_available_for_sells": "0.240529",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           },
           {
             "symbol": "MARA",
             "quantity": "0.961298",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "12.400000",
+            "shares_available_for_sells": "0.961298",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           },
           {
             "symbol": "TSLA",
             "quantity": "0.169538",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "307.600000",
+            "shares_available_for_sells": "0.169538",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           },
           {
             "symbol": "SPCX",
             "quantity": "0.329442",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "113.070000",
+            "shares_available_for_sells": "0.329442",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           },
           {
             "symbol": "BITA",
             "quantity": "0.287194",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "51.880000",
+            "shares_available_for_sells": "0.287194",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           },
           {
             "symbol": "IREN",
             "quantity": "0.274791",
+            "intraday_quantity": "0.000000",
             "average_buy_price": "37.960000",
+            "shares_available_for_sells": "0.274791",
+            "shares_held_for_sells": "0.000000",
+            "shares_held_for_stock_grants": "0.000000",
+            "shares_held_for_options_events": "0.000000",
+            "shares_held_for_asset_transfer": "0.000000",
+            "shares_pending_from_options_events": "0.000000",
             "type": "long"
           }
         ]
@@ -1771,16 +1813,32 @@
       "accounts": [
         {
           "account_number": "5QW39737",
-          "agentic_allowed": false,
+          "rhs_account_number": "106397375",
+          "type": "cash",
+          "brokerage_account_type": "individual",
           "is_default": true,
-          "type": "cash"
+          "agentic_allowed": false,
+          "option_level": "option_level_2",
+          "management_type": "self_directed",
+          "affiliate": "rhf",
+          "state": "active",
+          "deactivated": false,
+          "permanently_deactivated": false
         },
         {
           "account_number": "674601752",
-          "agentic_allowed": true,
-          "is_default": false,
+          "rhs_account_number": "674601752",
+          "type": "cash",
+          "brokerage_account_type": "individual",
           "nickname": "Agentic",
-          "type": "cash"
+          "is_default": false,
+          "agentic_allowed": true,
+          "option_level": "option_level_2",
+          "management_type": "self_directed",
+          "affiliate": "rhf",
+          "state": "active",
+          "deactivated": false,
+          "permanently_deactivated": false
         }
       ],
       "mcp": {
@@ -1789,7 +1847,7 @@
         "connected": true,
         "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
       },
-      "notes": "MCP refresh 2026-07-27 agent session after stale snapshot diagnosis",
+      "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot.",
       "usdg_earn_usdg": null,
       "usdg_earn_apy_est": "0.07",
       "margin_loan_usd": null,
@@ -1906,7 +1964,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 25.54,
       "rh_agentic_cash": 25.54,
-      "rh_agentic_total_value": 173.3586076401,
+      "rh_agentic_total_value": 173.7196497352,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 6,
@@ -1984,7 +2042,7 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-07-26T17:20:19.428992+00:00",
-        "robinhood_as_of": "2026-07-27T18:24:11.920976+00:00",
+        "robinhood_as_of": "2026-07-27T18:28:59.748520+00:00",
         "one_card_as_of": "2026-07-26T17:20:21.639865+00:00",
         "rh_checking_as_of": "2026-07-26T17:20:21.959005+00:00",
         "x_money_as_of": "2026-07-26T22:03:06.602847+00:00",
@@ -2192,27 +2250,27 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-27T18:26:07.871614+00:00",
+      "as_of": "2026-07-27T18:29:00.512001+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-27T18:26:07.871274+00:00",
+        "as_of": "2026-07-27T18:29:00.511698+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 173.3586,
+        "nav_usd": 173.7196,
         "cash_usd": 25.54,
         "buying_power_usd": 25.54,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 149.0006,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3438,
-          "stocks_growth": 0.5157,
+          "btc_digital_credit": 0.3431,
+          "stocks_growth": 0.5146,
           "other": 0.0,
-          "cash": 0.1473
+          "cash": 0.147
         },
         "weights_of_deployed": {
           "btc_digital_credit": 0.4,
@@ -2364,6 +2422,58 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
       },
       "recent_decisions": [
+        {
+          "kind": "deploy",
+          "outcome": "need_llm",
+          "need_llm": true,
+          "path": "rules",
+          "summary": "Rules \u2192 need team/LLM: free capital cash $25.54 BP $25.54 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+          "nav_usd": 173.3586,
+          "buying_power_usd": 25.54,
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "rationale": {
+            "summary": "Rules \u2192 need team/LLM: free capital cash $25.54 BP $25.54 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+            "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
+            "thesis_tags": [
+              "rules_engine",
+              "modernized_60_40"
+            ]
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "observe",
+              "note": "NAV $173.36 BP $25.54 cash $25.54"
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "deployed BTC 0.4 stocks 0.6"
+            },
+            "risk": {
+              "vote": "review",
+              "note": "Agentic capital only; no trade if hold"
+            },
+            "critic": {
+              "vote": "challenge",
+              "note": "Hold preferred when bands ok \u2014 avoid churn"
+            },
+            "executor": {
+              "vote": "await_team",
+              "note": "No MCP orders on pure rules HOLD"
+            }
+          },
+          "actions": [],
+          "as_of": "2026-07-27T18:27:27.357136+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "kind": "deploy",
           "outcome": "need_llm",
@@ -3291,27 +3401,27 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-27T18:26:07.871614+00:00",
+    "as_of": "2026-07-27T18:29:00.512001+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-27T18:26:07.871274+00:00",
+      "as_of": "2026-07-27T18:29:00.511698+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 173.3586,
+      "nav_usd": 173.7196,
       "cash_usd": 25.54,
       "buying_power_usd": 25.54,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 149.0006,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3438,
-        "stocks_growth": 0.5157,
+        "btc_digital_credit": 0.3431,
+        "stocks_growth": 0.5146,
         "other": 0.0,
-        "cash": 0.1473
+        "cash": 0.147
       },
       "weights_of_deployed": {
         "btc_digital_credit": 0.4,
@@ -3463,6 +3573,58 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
     },
     "recent_decisions": [
+      {
+        "kind": "deploy",
+        "outcome": "need_llm",
+        "need_llm": true,
+        "path": "rules",
+        "summary": "Rules \u2192 need team/LLM: free capital cash $25.54 BP $25.54 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+        "nav_usd": 173.3586,
+        "buying_power_usd": 25.54,
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "rationale": {
+          "summary": "Rules \u2192 need team/LLM: free capital cash $25.54 BP $25.54 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+          "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
+          "thesis_tags": [
+            "rules_engine",
+            "modernized_60_40"
+          ]
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "observe",
+            "note": "NAV $173.36 BP $25.54 cash $25.54"
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "deployed BTC 0.4 stocks 0.6"
+          },
+          "risk": {
+            "vote": "review",
+            "note": "Agentic capital only; no trade if hold"
+          },
+          "critic": {
+            "vote": "challenge",
+            "note": "Hold preferred when bands ok \u2014 avoid churn"
+          },
+          "executor": {
+            "vote": "await_team",
+            "note": "No MCP orders on pure rules HOLD"
+          }
+        },
+        "actions": [],
+        "as_of": "2026-07-27T18:27:27.357136+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "kind": "deploy",
         "outcome": "need_llm",
