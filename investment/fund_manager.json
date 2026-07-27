@@ -232,7 +232,7 @@
       "portfolio_research": "On need_llm reviews, capital step-changes, periodic thematic scan, or when watchlist empty/stale; may propose new candidates"
     },
     "verbose_reports": true,
-    "notes": "Native Grok .rhai workflows under .grok/workflows/. If host lacks workflow tool, emulate phases inline and still write research files. Never place trades from research alone."
+    "notes": "Native Grok .rhai workflows under .grok/workflows/. position-deep-dive follows Grok Build /deep-research shape: Plan → parallel claim research → adversarial Verify (fail-closed) → Report (Partial if drops) plus fund Critic/verdict. If host lacks workflow tool, emulate the same phases inline and still write research files. Never place trades from research alone."
   },
   "allowlist": {
     "strict": false,

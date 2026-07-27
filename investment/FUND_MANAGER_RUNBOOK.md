@@ -103,7 +103,7 @@ python3 -m treasury.fund_manager --rules-review --notify
 |----------|------|
 | [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. BE) — not auto-buy |
 | [`research/`](./research/) | Deep-dives + portfolio research |
-| `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive |
+| `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive (**deep-research** pattern: Plan → Research claims → Verify → Report + Critic) |
 | `.grok/workflows/fund-manager-research.rhai` | Book + themes + candidates |
 
 ## Strategy reminder
