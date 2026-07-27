@@ -237,3 +237,40 @@
 - **critic:** challenge — Hold preferred when bands ok — avoid churn
 - **executor:** await_team — No MCP orders on pure rules HOLD
 
+
+## 2026-07-27T18:32:14 — deploy
+**Summary:** Mon mid-session research/rotate: deploy ~$25.50 free cash (~40% BTC-complex / ~60% stocks). New CLSK miner + add MSTR; add TSLA/SPCX growth. Fills confirmed; BP ~$0.04.
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled Monday mid-session overdue due to automation gap; live agentic cash/BP ~$25.54 (pending deposit + free cash). Deployed sleeve mix already ~40/60; cash was ~15% of NAV unallocated.
+**Why not alternatives:** Watchlist NVDA/GOOGL/AAPL/BE need deep-dive before first buy. STRC/SATA/ASST less liquid for tiny tickets. RIOT/WULF redundant with existing miners once CLSK added. BITA/MARA/IREN already sized; CLSK diversifies miner book. Held-only top-up rejected as sole strategy — CLSK is new allowlist name.
+**Team:**
+- **scout:** ok — NAV~$173, BP/cash~$25.54, pending_dep $25; 6 held; unheld core miners/digital credit available; watchlist not ready.
+- **thesis:** ok — Deploy 40/60 of free cash: CLSK+MSTR BTC complex; TSLA+SPCX growth. Rotate introduces CLSK.
+- **risk:** ok — Tickets >$1 min; liquid names; agentic risk budget only; no watchlist first-buys without deep-dive.
+- **critic:** ok — Challenged held-only: CLSK is unheld allowlist miner. Blocked NVDA/GOOGL/AAPL/BE until deep-dive.
+- **executor:** ok — Market $ buys regular hours; 4 orders submitted and filled.
+**Actions:**
+- BUY CLSK $5.0 [filled] 6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1
+- BUY MSTR $5.2 [filled] 6a67a3be-fae3-403f-a493-715dcf48f270
+- BUY SPCX $7.7 [filled] 6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3
+- BUY TSLA $7.6 [filled] 6a67a3be-5924-440f-9b58-37db43c18147
+
+
+## 2026-07-27T18:33:06 — hold
+**Summary:** Mid-session research/rotate: idle cash was already deployed by concurrent agentic fills at 18:30Z (CLSK $5 + MSTR $5.20 + TSLA $7.60 + SPCX $7.70 = ~$25.50). Live BP/cash $0.04 (below min $1). Deployed sleeves ~40/60 in band. Pending deposit $25 — re-run deploy when BP settles. No new orders this pass.
+**Book:** NAV $173.47 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled/BP-poll mid-session review with free capital signal. Live MCP scout showed concurrent agentic market buys already filled ~$25.50 of prior cash; residual BP $0.04 is dust. Pending deposit $25 not yet buying power — cannot deploy. Full research/rotate still required and completed.
+**Why not alternatives:** No new buys: BP < min_trade $1. No sells/rotate: deployed mix in ±5% 40/60 band; churn would re-introduce cash-settlement risk on cash account. Did not reverse CLSK: allowlist miner, small $5, diversifies MARA+IREN; same-day reverse is churn. Did not buy watchlist (BE earnings 7/28; GOOGL/AAPL/NVDA lack deep-dive). Did not add STRC/SATA/ASST (credit overcrowding vs MSTR+BITA) or RIOT/WULF (miner overcrowding with 3 miners already).
+**Team:**
+- **scout:** ok — Live MCP agentic ••••1752: NAV~$173.47 equity 7 names cash/BP $0.04 pending_deposits $25. Held MSTR BITA MARA IREN CLSK TSLA SPCX. Concurrent fills 18:30Z: CLSK$5 MSTR$5.2 TSLA$7.6 SPCX$7.7. Deployed ~40.2/59.8 in band. Unheld core: STRC SATA ASST RIOT WULF BTC. Watchlist: BE GOOGL AAPL NVDA.
+- **thesis:** ok — Research/rotate affirms 7-name theme book: MSTR+BITA credit/yield, MARA+IREN+CLSK miner triad (CLSK was unheld allowlist — not held-only inertia), TSLA+SPCX stocks. New free cash when pending $25 settles should re-run same process (not auto top-up). No watchlist first buys this pass.
+- **risk:** ok — BP $0.04 < min $1 — no trade. Agentic cash-account only. Pending $25 is not spendable until settled. Miner correlation elevated with 3 names but each ticket tiny. Concentration acceptable at NAV scale.
+- **critic:** ok — Challenged held-only: concurrent CLSK add satisfies unheld consideration. Challenged more miners: reject further RIOT/WULF. Challenged AI mega-caps: block until deep-dive. Challenged BE into 7/28 print: block. Challenged forced rebalance: in-band + dust BP → HOLD. Demand next pass re-research when pending settles.
+- **executor:** hold — No MCP orders this pass (BP dust). Concurrent agentic fills already recorded in order blotter; logged below as observed for glass box. Will deploy pending capital only after BP>0 and fresh quorum.
+**Actions:**
+- BUY CLSK $? [filled_concurrent_agentic] 6a67a3be-1e89-4a65-8e5d-e0482dbdf8d1
+- BUY TSLA $? [filled_concurrent_agentic] 6a67a3be-5924-440f-9b58-37db43c18147
+- BUY SPCX $? [filled_concurrent_agentic] 6a67a3be-e7d7-4b45-a9d4-e7ebb2268fe3
+- BUY MSTR $? [filled_concurrent_agentic] 6a67a3be-fae3-403f-a493-715dcf48f270
+
