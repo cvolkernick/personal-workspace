@@ -808,8 +808,57 @@ def collect_iot(workspace: Path) -> dict[str, Any]:
     }
 
 
+def collect_horizon(workspace: Path) -> dict[str, Any]:
+    """Seasonal Horizon plan from strategy/horizon_season.json + horizon.md."""
+    ws = Path(workspace)
+    season_path = ws / "strategy" / "horizon_season.json"
+    md_path = ws / "strategy" / "horizon.md"
+    season = _read_json(season_path) or {}
+    label = season.get("season_label") or ""
+    primary = season.get("primary_themes") or []
+    if not isinstance(primary, list):
+        primary = []
+    bits = []
+    if label:
+        bits.append(str(label))
+    if primary:
+        bits.append("themes: " + ", ".join(str(t) for t in primary[:4]))
+    if md_path.is_file():
+        bits.append("horizon.md")
+    available = bool(season or md_path.is_file())
+    return {
+        "id": "horizon",
+        "label": "Horizon",
+        "status": "ok" if available else "missing",
+        "summary": "; ".join(bits) or "No seasonal plan yet",
+        "signals": {
+            "season_label": label,
+            "primary_themes": primary[:8],
+            "secondary_themes": (season.get("secondary_themes") or [])[:6]
+            if isinstance(season.get("secondary_themes"), list)
+            else [],
+            "underweight": (season.get("underweight") or [])[:6]
+            if isinstance(season.get("underweight"), list)
+            else [],
+            "updated_at": season.get("updated_at"),
+            "source": "strategy/horizon_season.json" if season_path.is_file() else None,
+        },
+        "available": available,
+        "live": None,
+        "url": "http://127.0.0.1:8791/",
+        "launch": "python3 horizon/server.py",
+        "port": 8791,
+        "sources": [
+            "strategy/horizon.md",
+            "strategy/horizon_season.json",
+            "horizon/",
+        ],
+    }
+
+
 _COLLECTORS = {
     "strategy": collect_strategy,
+    "horizon": collect_horizon,
     "workflow": collect_workflow,
     "finance": collect_finance,
     "fitness": collect_fitness,

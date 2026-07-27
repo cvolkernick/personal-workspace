@@ -17,6 +17,22 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         "kind": "files",
     },
     {
+        "id": "horizon",
+        "label": "Horizon",
+        "description": "Seasonal plan between Ikigai and Orchestrator",
+        "port": 8791,
+        "url": "http://127.0.0.1:8791/",
+        "launch": "python3 horizon/server.py",
+        "sources": [
+            "strategy/horizon.md",
+            "strategy/horizon_season.json",
+            "horizon/",
+            "initiatives/",
+        ],
+        "kind": "dashboard",
+        "work_branch": "work/horizon",
+    },
+    {
         "id": "workflow",
         "label": "Workflow / Projects",
         "description": "Pre-reboot readiness, backlog, Grok sessions",
@@ -131,6 +147,8 @@ THEME_KEYWORDS: dict[str, list[str]] = {
         "plan",
         "today",
         "schedule",
+        "horizon",
+        "season",
     ],
     "Home/IoT": [
         "iot",

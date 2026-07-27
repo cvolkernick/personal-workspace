@@ -90,6 +90,8 @@ def domain_spec(domain_id: str) -> Optional[dict[str, Any]]:
         "resistance-dashboard": "fitness",
         "health": "fitness",
         "home": "iot",
+        "season": "horizon",
+        "seasonal": "horizon",
     }
     did = aliases.get(did, did)
     for spec in DOMAIN_SPECS:
@@ -169,7 +171,18 @@ def build_launch_argv(
             "--no-browser",
         ]
 
-    # holistic / iot / default: --host --port --no-browser
+    # horizon / holistic / iot / default: --host --port --no-browser
+    if did == "horizon" or "horizon/" in script_s or script_s.endswith("horizon/server.py"):
+        return [
+            py,
+            str(script),
+            "--host",
+            bind_host,
+            "--port",
+            str(port),
+            "--no-browser",
+        ]
+
     return [
         py,
         str(script),

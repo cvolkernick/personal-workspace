@@ -49,6 +49,15 @@ class LaunchArgvTests(unittest.TestCase):
         self.assertIn("--host", cmd)
         self.assertIn("127.0.0.1", cmd)
 
+    def test_horizon_launch_argv(self) -> None:
+        cmd = build_launch_argv(
+            "horizon", ROOT / "horizon" / "server.py", 8791, bind_host="127.0.0.1"
+        )
+        self.assertIn("--port", cmd)
+        self.assertIn("8791", cmd)
+        self.assertIn("--no-browser", cmd)
+        self.assertEqual(domain_spec("season")["id"], "horizon")
+
     def test_domain_spec_aliases(self) -> None:
         self.assertEqual(domain_spec("treasury")["id"], "finance")
         self.assertEqual(domain_spec("resistance")["id"], "fitness")

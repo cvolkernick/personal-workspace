@@ -296,9 +296,19 @@ class CollectorsAggregationTests(unittest.TestCase):
             ids = {d["id"] for d in domains}
             self.assertEqual(
                 ids,
-                {"strategy", "workflow", "finance", "fitness", "holistic", "iot"},
+                {
+                    "strategy",
+                    "horizon",
+                    "workflow",
+                    "finance",
+                    "fitness",
+                    "holistic",
+                    "iot",
+                },
             )
             by = {d["id"]: d for d in domains}
+            self.assertEqual(by["horizon"]["port"], 8791)
+            self.assertIn("8791", by["horizon"]["url"] or "")
 
             self.assertTrue(by["strategy"]["available"])
             self.assertGreaterEqual(by["strategy"]["signals"]["today_count"], 3)

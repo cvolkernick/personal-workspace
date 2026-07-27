@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Horizon — seasonal plan</title>
+  <style>
+    :root {
+      --bg: #080c12; --panel: #111820; --border: #1e2a36;
+      --text: #e7eef5; --muted: #8aa0b5; --accent: #5b9fd4;
+      --green: #3dd68c; --purple: #c084fc; --cyan: #4fd1c5;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: "Segoe UI", system-ui, sans-serif;
+      background: radial-gradient(900px 500px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text); min-height: 100vh; line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
+      display: flex; flex-wrap: wrap; gap: 0.75rem; justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { margin: 0; font-size: 1.25rem; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    button {
+      background: var(--panel); color: var(--text); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.4rem 0.85rem; font-weight: 600; cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: #1a3a55; border-color: #2d6a9f; }
+    main { max-width: 900px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 1rem 1.1rem; margin-bottom: 1rem;
+    }
+    .card h2 { margin: 0 0 0.65rem; font-size: 1rem; color: var(--cyan); }
+    label {
+      display: block; font-size: 0.72rem; font-weight: 700; color: var(--muted);
+      text-transform: uppercase; letter-spacing: 0.04em; margin: 0.55rem 0 0.25rem;
+    }
+    input, textarea {
+      width: 100%; background: #0a1018; color: var(--text);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 0.5rem 0.7rem; font: inherit; font-size: 0.9rem;
+    }
+    textarea { min-height: 4rem; resize: vertical; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.35rem 0; }
+    .chip {
+      font-size: 0.75rem; font-weight: 650; padding: 0.2rem 0.55rem;
+      border-radius: 999px; border: 1px solid #3a4a6a; color: var(--purple);
+      background: #152033;
+    }
+    .row {
+      border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.65rem 0.8rem; margin: 0.4rem 0; background: #0a1018;
+    }
+    .row .title { font-weight: 650; }
+    .row .meta { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+    .hint { color: var(--muted); font-size: 0.85rem; }
+    a { color: var(--accent); }
+    .toast { color: var(--green); font-size: 0.85rem; font-weight: 600; }
+    .error { color: #ff6b6b; }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Horizon</h1>
+      <div class="sub">Seasonal planning · between Ikigai and Orchestrator</div>
+    </div>
+    <div class="actions">
+      <button type="button" id="btn-refresh">Refresh</button>
+      <a href="http://127.0.0.1:8790/"><button type="button">Orchestrator</button></a>
+    </div>
+  </header>
+  <main>
+    <p class="hint" id="status">Loading…</p>
+
+    <section class="card">
+      <h2>This season</h2>
+      <label for="season-label">Season label</label>
+      <input id="season-label" type="text" placeholder="2026-Q3" />
+      <label for="primary">Primary themes (one per line)</label>
+      <textarea id="primary"></textarea>
+      <label for="secondary">Secondary themes (one per line)</label>
+      <textarea id="secondary"></textarea>
+      <label for="underweight">Underweight / park (one per line)</label>
+      <textarea id="underweight"></textarea>
+      <label for="capacity">Capacity notes</label>
+      <textarea id="capacity" rows="2"></textarea>
+      <label for="notes">Notes</label>
+      <textarea id="notes" rows="2"></textarea>
+      <div class="actions" style="margin-top:0.75rem">
+        <button type="button" class="primary" id="btn-save">Save season</button>
+        <span class="toast" id="toast"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Ikigai center themes (read-only)</h2>
+      <div class="chips" id="ikigai-themes"></div>
+      <p class="hint">From <code>strategy/ikigai/pillars.json</code> — edit in Orchestrator Identity panel.</p>
+    </section>
+
+    <section class="card">
+      <h2>Initiative portfolio</h2>
+      <p class="hint">Initiatives with optional <code>ikigai_pillars</code> / <code>ikigai_intersection</code> frontmatter.</p>
+      <div id="initiatives"></div>
+    </section>
+
+    <section class="card">
+      <h2>Layer notes</h2>
+      <p class="hint">
+        Docs: <code>strategy/horizon.md</code> · data: <code>strategy/horizon_season.json</code><br />
+        Flow: Ikigai → <strong>Horizon</strong> → Orchestrator → domain dashboards
+      </p>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    function lines(arr) {
+      return (arr || []).join("\n");
+    }
+    function parseLines(s) {
+      return String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
+    }
+
+    async function load() {
+      $("status").textContent = "Loading…";
+      $("status").className = "hint";
+      try {
+        const res = await fetch("/api/horizon", { cache: "no-store" });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "load failed");
+        const s = data.season || {};
+        $("season-label").value = s.season_label || "";
+        $("primary").value = lines(s.primary_themes);
+        $("secondary").value = lines(s.secondary_themes);
+        $("underweight").value = lines(s.underweight);
+        $("capacity").value = s.capacity_notes || "";
+        $("notes").value = s.notes || "";
+        $("ikigai-themes").innerHTML = (data.ikigai_themes || [])
+          .map((t) => `<span class="chip">${t}</span>`).join("") || "<span class='hint'>No themes</span>";
+        const inits = data.initiatives || [];
+        $("initiatives").innerHTML = inits.length
+          ? inits.map((i) => `
+            <div class="row">
+              <div class="title">${i.title || i.id}</div>
+              <div class="meta">
+                ${i.status || "?"} · ${i.ikigai_intersection || "no intersection"} ·
+                ${(i.ikigai_pillars || []).join(", ") || "no pillars"} ·
+                <code>${i.path || ""}</code>
+              </div>
+              <div class="meta">${i.next_action || ""}</div>
+            </div>`).join("")
+          : "<p class='hint'>No initiatives found.</p>";
+        $("status").textContent =
+          "Season " + (s.season_label || "—") +
+          (s.updated_at ? " · updated " + s.updated_at : "");
+      } catch (e) {
+        $("status").textContent = "Error: " + e.message;
+        $("status").className = "hint error";
+      }
+    }
+
+    async function save() {
+      $("toast").textContent = "Saving…";
+      try {
+        const body = {
+          season_label: $("season-label").value,
+          primary_themes: parseLines($("primary").value),
+          secondary_themes: parseLines($("secondary").value),
+          underweight: parseLines($("underweight").value),
+          capacity_notes: $("capacity").value,
+          notes: $("notes").value,
+        };
+        const res = await fetch("/api/season", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "save failed");
+        $("toast").textContent = "Saved · strategy/horizon_season.json";
+        await load();
+      } catch (e) {
+        $("toast").textContent = "Save failed: " + e.message;
+        $("toast").style.color = "#ff6b6b";
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", () => load());
+    $("btn-save").addEventListener("click", () => save());
+    load();
+  </script>
+</body>
+</html>
