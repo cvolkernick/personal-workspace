@@ -43,6 +43,8 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["side"], "deficit")
         self.assertEqual(d["color"], "red")
         self.assertGreater(d["bar_pct"], 0)
+        # Fixed scale ≥1000 → 500/1000 = 50% (not forced to 100%)
+        self.assertAlmostEqual(d["bar_pct"], 50.0, places=0)
 
     def test_surplus_right_green(self):
         d = calorie_in_out_delta(intake=2200, burned=1800)
@@ -50,6 +52,25 @@ class TestCalorieBars(unittest.TestCase):
         self.assertEqual(d["side"], "surplus")
         self.assertEqual(d["color"], "green")
         self.assertGreater(d["bar_pct"], 0)
+        self.assertLess(d["bar_pct"], 100.0)
+
+    def test_larger_delta_larger_bar_until_cap(self):
+        """bar_pct must grow with |delta|; scale must not absorb |delta|."""
+        small = calorie_in_out_delta(intake=1500, burned=2000)  # −500
+        mid = calorie_in_out_delta(intake=1000, burned=2000)  # −1000
+        huge = calorie_in_out_delta(intake=0, burned=2500)  # −2500
+        self.assertEqual(small["side"], "deficit")
+        self.assertEqual(mid["side"], "deficit")
+        self.assertEqual(huge["side"], "deficit")
+        self.assertLess(small["bar_pct"], mid["bar_pct"])
+        # mid at −1000 on scale 1000 → 100%; huge also capped at 100
+        self.assertAlmostEqual(mid["bar_pct"], 100.0, places=0)
+        self.assertEqual(huge["bar_pct"], 100.0)
+        # With explicit larger scale, huge stays strictly above mid
+        mid_s = calorie_in_out_delta(intake=1000, burned=2000, scale_kcal=3000)
+        huge_s = calorie_in_out_delta(intake=0, burned=2500, scale_kcal=3000)
+        self.assertLess(mid_s["bar_pct"], huge_s["bar_pct"])
+        self.assertLess(huge_s["bar_pct"], 100.0)
 
     def test_missing_burned(self):
         d = calorie_in_out_delta(intake=1500, burned=None)

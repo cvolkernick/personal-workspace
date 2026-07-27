@@ -189,9 +189,12 @@ def calorie_in_out_delta(
 
     burned_f = max(0.0, burned_f)
     delta = intake - burned_f
-    # Scale: at least 500 kcal half-width, prefer max(|delta|, 25% of larger of in/out)
-    auto_scale = max(500.0, abs(delta), 0.25 * max(intake, burned_f, 1.0))
-    scale = float(scale_kcal) if scale_kcal and scale_kcal > 0 else auto_scale
+    # Half-track scale must NOT include |delta| — otherwise large deficits/surpluses
+    # all cap at 100% and are not proportionate. Fixed baseline + size of day.
+    if scale_kcal is not None and float(scale_kcal) > 0:
+        scale = float(scale_kcal)
+    else:
+        scale = max(1000.0, 0.5 * max(intake, burned_f, 1.0))
     scale = max(100.0, scale)
     bar_pct = min(100.0, (abs(delta) / scale) * 100.0)
 
