@@ -529,6 +529,54 @@
       flex-direction: column;
       gap: 0.4rem;
     }
+    /* Coach split: left pay-plan scrolls to match right pay-from height */
+    .coach-split {
+      align-items: stretch;
+    }
+    .coach-pay-plan {
+      /* Don't let long bill list size the row — right column sets height */
+      height: 0;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .coach-pay-plan > .hint {
+      flex: 0 0 auto;
+      margin-bottom: 0.35rem;
+    }
+    .coach-pay-plan .bill-list-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 0.25rem;
+      margin-right: -0.1rem;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+    .coach-pay-plan .bill-list-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .coach-pay-plan .bill-list-scroll::-webkit-scrollbar-thumb {
+      background: #2a3a4a;
+      border-radius: 999px;
+    }
+    .coach-pay-from {
+      min-width: 0;
+    }
+    @media (max-width: 700px) {
+      /* Stacked layout: give pay plan a bounded scroll instead of zero-height trick */
+      .coach-pay-plan {
+        height: auto;
+        min-height: 0;
+        max-height: 22rem;
+      }
+      .coach-pay-plan .bill-list-scroll {
+        max-height: 20rem;
+      }
+    }
     .bill-row {
       display: grid;
       grid-template-columns: auto 1fr auto;
@@ -1001,12 +1049,12 @@
         <span><i class="green"></i> &gt;14d</span>
       </div>
       <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
-      <div class="grid-2">
-        <div>
+      <div class="grid-2 coach-split">
+        <div class="coach-pay-plan">
           <div class="hint">Pay plan (alloc / gap)</div>
-          <div id="expenses-upcoming" class="bill-list"></div>
+          <div id="expenses-upcoming" class="bill-list bill-list-scroll"></div>
         </div>
-        <div>
+        <div class="coach-pay-from" id="coach-pay-from-col">
           <div class="hint">Pay-from · buffers</div>
           <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
           <div id="expenses-by-source"></div>
