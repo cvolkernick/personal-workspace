@@ -17,6 +17,12 @@
 - Focus energy on highest return on invested energy (time / physical / capital) and abstract upward.
 - Capital is the binding constraint for scaling the two primary fleets ([[Strategy & Bets]], [[Finance & Investment]]).
 
+## PDCA Rhythm
+
+Every active project maintains a lightweight PDCA cycle.  
+Current highest-priority PDCA surface: **AI systems** that reduce friction in vehicle-owner acquisition and ASIC scaling.  
+Link every experiment back to [[Kaizen & Continuous Improvement]].
+
 ## Decision logging
 
 Material choices of the form “chose X over Y because…” go in [[Decision Log]] (and individual notes under `decisions/` when needed) so patterns can be reused by agents and future self.
@@ -38,6 +44,7 @@ One monorepo checkout = one branch. Parallel domains use `~/personal-workspace-w
 
 ## Related
 
+- [[Kaizen & Continuous Improvement]]
 - [[Strategy & Bets]]
 - [[Finance & Investment]]
 - [[Agents & Tooling]]

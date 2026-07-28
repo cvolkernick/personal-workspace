@@ -17,9 +17,17 @@ B2 is the durable context foundation and aggregated **tribal knowledge** across 
 - Prefer durable policies, theses, and pointers over ephemeral session data.
 - No secrets (keys, passwords, account numbers) in notes or prompts that write to B2.
 
+## Kaizen Instruction for Agents
+
+- Prefer the next smallest high-leverage improvement over large speculative leaps.
+- Actively look for **muda** (waste) in AI systems, capital deployment processes, and energy use.
+- When proposing changes to owner-acquisition AI, ASIC workflows, or agent tooling, frame them as **PDCA** experiments.
+- Help keep B2 itself under continuous improvement.
+- Full stance: [[Kaizen & Continuous Improvement]].
+
 ## Continuous improvement
 
-B2 itself is a living system. Updates to these notes are part of the continuous improvement loop — same meta-theme as [[Strategy & Bets]] and [[Workflow & Projects]].
+B2 itself is a living system. Updates to these notes are part of the continuous improvement loop — same meta-theme as [[Strategy & Bets]], [[Kaizen & Continuous Improvement]], and [[Workflow & Projects]].
 
 ## Core stack
 
@@ -47,6 +55,7 @@ Offline grounded fallback uses retrieved vault text only when live creds are mis
 
 ## Related
 
+- [[Kaizen & Continuous Improvement]]
 - [[Ikigai & Identity]]
 - [[Strategy & Bets]]
 - [[Workflow & Projects]]

@@ -25,6 +25,7 @@ See [[Ikigai & Identity]] and [[Strategy & Bets]].
 |--------|------|
 | **Ikigai & identity (Layer 0)** | [[Ikigai & Identity]] |
 | Strategy & bets | [[Strategy & Bets]] |
+| **Kaizen / continuous improvement** | [[Kaizen & Continuous Improvement]] |
 | Finance & investment | [[Finance & Investment]] |
 | Fitness & health | [[Fitness & Health]] |
 | Agents & tooling | [[Agents & Tooling]] |
@@ -44,7 +45,7 @@ From **Ikigai center** ([[Ikigai & Identity]]) expressed via primary bets ([[Str
 1. **Vehicle Rental / Management Fleet** (primary capital engine)
 2. **Bitcoin ASIC Mining Fleet** (primary capital engine)
 3. Supporting: Energy, AI / Automation / Robotics, Macro
-4. Meta: **Continuous Improvement** (B2 and the OS as living knowledge)
+4. Meta: **Kaizen / Continuous Improvement** ([[Kaizen & Continuous Improvement]]) — B2 and the OS as living knowledge
 
 ## How B2 connects
 

@@ -23,7 +23,13 @@ These two form the foundational, repeatable unitary models that are essentially 
 | **Macro** | Context for capital and risk |
 | **Bitcoin (accumulation / exposure)** | Adjacent to mining engine; not a third fleet |
 
-## Meta theme: Continuous Improvement
+## Meta Theme — Kaizen / Continuous Improvement
+
+[[Kaizen & Continuous Improvement]] is the living operating system of the two primary bets.
+
+- Highest-leverage surface: **AI systems that feed fleet scaling**.
+- Secondary surface: **personal energy allocation**.
+- All capital and process decisions are judged through a continuous-improvement lens (small increments, muda elimination, PDCA).
 
 **B2 and the operating system itself** must be treated as a living theory and body of knowledge under constant refinement — not a static plan file.
 
@@ -48,6 +54,7 @@ Applies to: this vault, agent workflows ([[Agents & Tooling]]), and project exec
 
 ## Related
 
+- [[Kaizen & Continuous Improvement]] — OS for improvement
 - [[Ikigai & Identity]] — the why
 - [[Finance & Investment]] — capital engines and rules
 - [[Workflow & Projects]] — active project list

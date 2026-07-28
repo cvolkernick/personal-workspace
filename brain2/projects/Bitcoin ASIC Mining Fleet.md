@@ -23,9 +23,15 @@ Any additional ASICs = concrete progress. Exploring **Simple Mining** as a lower
 - Detailed host contracts, live profitability tables, or API dumps in B2.
 - Replacing the unitary model with constant experimental pivots.
 
+## Current Kaizen Focus
+
+Friction in capital deployment and unit onboarding (including Simple Mining path evaluation).  
+Improvements judged by capital efficiency and process simplicity per [[Kaizen & Continuous Improvement]].
+
 ## Links
 
 - Part of [[Strategy & Bets]] and [[Finance & Investment]].
 - Serves the north-star in [[Ikigai & Identity]].
 - Capital input support: [[X Account Growth]].
 - Sibling engine: [[Vehicle Rental Management Fleet]].
+- OS: [[Kaizen & Continuous Improvement]].
