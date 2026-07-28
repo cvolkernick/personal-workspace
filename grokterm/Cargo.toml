@@ -1,0 +1,32 @@
+[package]
+name = "grokterm"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-tab terminal host for Grok Build — real PTY sessions, manager control plane, two-way voice"
+license = "MIT"
+authors = ["GrokTerm clean-room reimplementation"]
+readme = "README.md"
+keywords = ["terminal", "tui", "pty", "grok", "multiplexer"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "grokterm"
+path = "src/main.rs"
+
+[lib]
+name = "grokterm"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.28"
+portable-pty = "0.8"
+ratatui = "0.29"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+which = "7"
+
+[dev-dependencies]
+tempfile = "3"
