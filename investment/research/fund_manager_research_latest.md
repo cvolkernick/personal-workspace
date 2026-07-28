@@ -1,11 +1,11 @@
-# Fund manager research — mid-session 2026-07-28 (team full review / need_llm residual)
+# Fund manager research — mid-session 2026-07-28 (~15:19 ET team full review)
 
-**As of:** 2026-07-28 ~19:01Z (15:01 ET)  
+**As of:** 2026-07-28 ~19:20Z (15:19 ET)  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV (RH total):** ~$173.96 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
-**Equity marks (qty × Yahoo ~15:00 ET):** ~$174.11  
-**MCP:** robinhood-trading tools **unavailable this session** (auth required / no MCP tools) — Executor cannot place  
+**Live NAV (RH total):** ~$173.84 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
+**Equity marks (policy engine):** ~$174.50 sleeve MV  
+**MCP:** robinhood-trading tools **unavailable this session** (connection/auth failed) — Executor cannot place  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**
 
 ## Scout snapshot
@@ -13,31 +13,27 @@
 | Field | Value |
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
-| Deployed sleeve mix (Yahoo mark equity) | ~**39.0%** BTC-complex / ~**61.0%** stocks (in ±5% band) |
-| RH weights_of_deployed (policy engine) | **40%** / **60%** in band |
+| Deployed sleeve mix (policy engine) | **40.0%** BTC-complex / **60.0%** stocks (in ±5% band) |
+| Weights of NAV | BTC ~40.15% · stocks ~60.23% · cash ~0.02% |
 | Idle cash | ~$0.04 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · pure AI mega-cap · energy (BE) |
 
-### Live market values (qty × Yahoo mark ~15:00 ET)
+### Live market values (agentic qty × RH marks in snapshot)
 
-| Symbol | Sleeve | Theme | ~$ | % equity (approx) |
-|--------|--------|-------|-----|-------------------|
-| MSTR | btc | digital credit | ~28.17 | ~16.2% |
-| BITA | btc | BTC yield | ~14.82 | ~8.5% |
-| MARA | btc | miner | ~10.87 | ~6.2% |
-| IREN | btc | miner/power infra | ~9.25 | ~5.3% |
-| CLSK | btc | miner | ~4.82 | ~2.8% |
-| TSLA | stocks | growth | ~59.59 | ~34.2% |
-| SPCX | stocks | growth | ~46.58 | ~26.8% |
+| Symbol | Sleeve | Theme | ~$ | % of equity (approx) |
+|--------|--------|-------|-----|----------------------|
+| MSTR | btc | digital credit | 27.55 | ~15.8% |
+| BITA | btc | BTC yield | 14.90 | ~8.5% |
+| MARA | btc | miner | 11.92 | ~6.8% |
+| IREN | btc | miner/power infra | 10.43 | ~6.0% |
+| CLSK | btc | miner | 5.00 | ~2.9% |
+| TSLA | stocks | growth | 59.75 | ~34.2% |
+| SPCX | stocks | growth | 44.95 | ~25.8% |
 
-**Sub-sleeve notes (BTC complex ~$67.94 mark):**
-- Digital credit/yield (MSTR+BITA): ~$42.99 (~63% of complex) — **no STRC/SATA seat**
-- Miners/infra (MARA+IREN+CLSK): ~$24.94 (~37% of complex) — multi-miner stack OK per owner pref
-
-**Core unheld marks:** STRC ~$88.63 · SATA ~$96.44 · ASST ~$11.85 · RIOT ~$21.08 · WULF ~$16.57
-
-**Watchlist marks:** BE ~$163.25 (earnings **today 2026-07-28 AMC**) · GOOGL ~$335.32 · AAPL ~$339.42 · NVDA ~$197.37
+**Sub-sleeve notes (BTC complex ~$69.80):**
+- Digital credit/yield (MSTR+BITA): ~$42.45 (~61% of complex) — **no STRC/SATA seat**
+- Miners/infra (MARA+IREN+CLSK): ~$27.35 (~39% of complex) — multi-miner stack OK per owner pref
 
 ## Research / rotate (required)
 
@@ -87,7 +83,7 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot agentic ••••1752: NAV~$173.96 equity 7 names cash/BP $0.04; sleeves in band; MCP auth unavailable this session |
+| Scout | ok | Snapshot agentic ••••1752: NAV~$173.84 equity 7 names cash/BP $0.04; sleeves 40/60 in band; MCP unavailable |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained |
 | Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated but thesis primary growth name |
 | Critic | ok (hold) + process flag | Force HOLD on residual. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. Block BE into 7/28 AMC and undived AI first-buys |
