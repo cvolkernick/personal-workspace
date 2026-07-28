@@ -1,38 +1,59 @@
 # Agents & Tooling
 
-**Hub:** [[00 Home - B2 Hub]] · **Bets:** [[Strategy & Bets]] (AI / Autonomy / Robotics)
+**Hub:** [[00 Home - B2 Hub]] · **Identity:** [[Ikigai & Identity]] · **Bets:** [[Strategy & Bets]]
 
-## Purpose
+## Purpose of B2 for agents
 
-Personal leverage through agents, dashboards, and small automations. B2 itself is part of this domain: a durable knowledge layer for every session and project.
+B2 is the durable context foundation and aggregated **tribal knowledge** across domains. It is **not** a live data store.
+
+## How agents should use this vault
+
+- Always ground recommendations in the north-star ([[Ikigai & Identity]]) and the current primary bets ([[Strategy & Bets]]).
+- Surface connections, synergies, complementary overlaps, and patterns across domains and prior efforts.
+- Transfer lessons, approaches, and strategies from earlier projects to new ones.
+- Help avoid repeating past mistakes.
+- Treat capital, time, and energy as scarce; prefer capital-efficient and automatable paths.
+- Never invent holdings, balances, or live operational numbers.
+- Prefer durable policies, theses, and pointers over ephemeral session data.
+- No secrets (keys, passwords, account numbers) in notes or prompts that write to B2.
+
+## Continuous improvement
+
+B2 itself is a living system. Updates to these notes are part of the continuous improvement loop — same meta-theme as [[Strategy & Bets]] and [[Workflow & Projects]].
 
 ## Core stack
 
 | Tool | Role |
 |------|------|
 | **Grok / Grok Build** | Agent CLI; sessions under `~/.grok/sessions` |
-| **B2 vault + UX** | Global KB; browse/search/Ask Grok on vault notes |
-| **Orchestra** | Top-level multi-domain dashboard (port 8790) |
+| **B2 vault + UX** | Global KB; browse/search/graph/Ask Grok |
+| **Orchestra** | Top-level multi-domain dashboard (~8790) |
 | **Subordinate UIs** | FCC, projects, holistic, IoT, resistance |
-| **personal-workspace** | Git monorepo for all of the above |
+| **personal-workspace** | Git monorepo for execution code |
 
 ## Auth pattern (Ask Grok)
 
-Live model calls prefer:
+1. `XAI_API_KEY` env, or  
+2. SuperGrok session in `~/.grok/auth.json` (`grok login`)  
 
-1. `XAI_API_KEY` env (console.x.ai), or
-2. SuperGrok session in `~/.grok/auth.json` (`grok login`)
+Offline grounded fallback uses retrieved vault text only when live creds are missing.
 
-B2 Ask Grok and resistance-dashboard Ask share this pattern. If credentials are missing, B2 falls back to an **offline grounded** answer from retrieved vault text only.
+## Initiative themes (tooling)
 
-## Initiative themes
-
-- Improve daily planner / Today's Focus synthesis (command center)
-- Ship small automations that remove repeat friction (notes → structured MD, reviews, etc.)
-- Keep scope tiny: hours, not multi-day rewrites
+- Daily planner / Today's Focus synthesis
+- Small automations that remove repeat friction
+- AI-assisted owner acquisition for the vehicle fleet
+- Keep scope shippable in hours when possible
 
 ## Related
 
-- [[Workflow & Projects]] — session index, worktrees, protect & push
-- [[HOWTO - Using B2]] — Ask Grok over the vault
-- [[Personal Workspace Map]] — ports and paths
+- [[Ikigai & Identity]]
+- [[Strategy & Bets]]
+- [[Workflow & Projects]]
+- [[Vehicle Rental Management Fleet]] — systems leverage on managed-owner channel
+- [[HOWTO - Using B2]]
+- [[Personal Workspace Map]]
+
+---
+
+*Updated 2026-07-26 from B2 seed interview.*

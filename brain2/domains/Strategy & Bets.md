@@ -1,49 +1,60 @@
 # Strategy & Bets
 
-**Source roots:** `personal-workspace/strategy/`, `initiatives/`  
-**Hub:** [[00 Home - B2 Hub]] · **Map:** [[Personal Workspace Map]]
+**Hub:** [[00 Home - B2 Hub]] · **Identity:** [[Ikigai & Identity]] · **Map:** [[Personal Workspace Map]]  
+**Source roots (monorepo):** `strategy/`, `initiatives/`
 
 ## Guiding principle
 
-Build wealth and financial optionality through disciplined, high-conviction bets, while maintaining a balanced life across dynamically weighted domains.
+Design and automate systems that scale out of survival-mode hustle — via capital-efficient, repeatable engines — while treating continuous improvement as the operating system.
 
-## Thematic bets (3–5 year north star)
+## Primary thematic bets (highest leverage, 3–5 year)
 
-| Bet | Emphasis |
-|-----|----------|
-| **Energy** | Nuclear exposure and related opportunities |
-| **Bitcoin** | Direct + indirect (e.g. MSTR); disciplined accumulation |
-| **AI** | Personal leverage and systems |
-| **Autonomy** | Systems and tooling that multiply output |
-| **Robotics** | Physical-world leverage, tied to autonomy |
+1. **Vehicle Rental / Management Fleet** — current Turo/private + path to Tesla robotaxi / broader managed fleet → [[Vehicle Rental Management Fleet]]
+2. **Bitcoin ASIC Mining Fleet** — unitary model mastered at small scale; scale is capital-driven → [[Bitcoin ASIC Mining Fleet]]
 
-Initiatives should declare which bet(s) they primarily serve.
+These two form the foundational, repeatable unitary models that are essentially mastered at small scale. **Scaling is now primarily a capital-deployment problem.**
 
-## Dynamic domain weightings
+## Supporting / enabling themes
 
-Roughly equal by default; rebalance on energy, opportunity, and weekly review:
+| Theme | Role |
+|-------|------|
+| **Energy** | Especially power for mining |
+| **AI / Automation / Robotics** | Systems leverage + future autonomy |
+| **Macro** | Context for capital and risk |
+| **Bitcoin (accumulation / exposure)** | Adjacent to mining engine; not a third fleet |
 
-- Fitness / Health & Vitality (enabler for deep work)
-- Agents / AI Systems / Personal Tooling → [[Agents & Tooling]]
-- Creative Projects / Writing / Building
-- Relationships & Community
-- Career / Business / Professional Impact
-- Learning & Intellectual Curiosity
-- Home, Environment & Daily Systems → [[Home & IoT]]
-- Investment / Wealth Building → [[Finance & Investment]]
+## Meta theme: Continuous Improvement
 
-## Active initiative themes
+**B2 and the operating system itself** must be treated as a living theory and body of knowledge under constant refinement — not a static plan file.
 
-From seed initiatives:
+Applies to: this vault, agent workflows ([[Agents & Tooling]]), and project execution ([[Workflow & Projects]]).
 
-1. **Improve command center daily planner** — surface "Today's Focus" from strategy notes; linked bets: AI/Autonomy/Robotics.
-2. **Build small automation for leverage** — ship tiny agentic automations that remove repeat friction; same bet cluster.
+## Capital & energy framing
 
-Working micro-plan lives in workspace `strategy/today.md` (execution checklist); durable thesis lives here and in `strategy/bets.md`.
+- **Capital is the binding constraint.**
+- Bootstrap fuel today: Lyft + cashflow from small existing fleets + emerging X monetization ([[X Account Growth]]).
+- Energy (time, physical, capital) is finite → identify highest return on invested energy; abstract upward to simplify motivation.
+- Standing rule: capital efficiency and deliberate concentration vs diversification (see [[Finance & Investment]]).
+
+## Domain weightings (current, rough)
+
+| Domain | Weight note |
+|--------|-------------|
+| Finance / fleets / capital generation | Highest energy now |
+| Agents & tooling / systems | High |
+| Workflow & projects | High (execution of fleets + X) |
+| Ikigai / Strategy | Foundational reference |
+| Fitness, Home & IoT, pure exploration | Lower *for now*; target of reclaimed agency |
 
 ## Related
 
-- [[Finance & Investment]] — capital allocation to bets
-- [[Fitness & Health]] — energy enabler
-- [[Agents & Tooling]] — AI/autonomy leverage
-- [[HOWTO - Using B2]] — capture strategy decisions into B2
+- [[Ikigai & Identity]] — the why
+- [[Finance & Investment]] — capital engines and rules
+- [[Workflow & Projects]] — active project list
+- [[Agents & Tooling]] — how agents use this graph
+- [[Decision Log]] — capture chose X over Y
+- [[HOWTO - Using B2]] — capture into the vault
+
+---
+
+*Updated 2026-07-26 from B2 seed interview. Older “equal-weight all domains” seed retired in favor of explicit fleet focus.*

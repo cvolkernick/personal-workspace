@@ -1,38 +1,60 @@
 # Finance & Investment
 
-**Execution:** `treasury/`, `financial-command/`, `investment/`  
-**Hub:** [[00 Home - B2 Hub]] · **Bets:** [[Strategy & Bets]]
+**Hub:** [[00 Home - B2 Hub]] · **Bets:** [[Strategy & Bets]] · **Identity:** [[Ikigai & Identity]]  
+**Execution UIs:** `treasury/`, `financial-command/`, `investment/` (live numbers stay there)
 
-## Dual-venue liquidity (treasury)
+## Core capital engines
 
-Bridge model: **Coinbase** (BTC collateral loan, High Yield vault, One Card, liquid USDC) ↔ **Robinhood** (equity/margin, DCA) via USDC.
+### Bitcoin ASIC Mining Fleet
 
-Policy ideas (tune in `treasury/config.json`, not secrets here):
+- Currently **2 units** (high-level count only; no balances here).
+- Unitary model mastered; additional ASICs = concrete progress.
+- Exploring **Simple Mining** for lower-capex / turnkey acquisition.
+- Project note: [[Bitcoin ASIC Mining Fleet]]
 
-- Card available-credit comfort floors
-- Loan LTV comfort band (target well under liquidation; e.g. comfort &lt; 50% vs ~86% liq)
-- RH buying-power floors
-- Weekly human checklist: real LTV in app vs config, vault liquidity, card credit, live refresh
+### Vehicle Rental & Management Fleet
 
-**UI:** Financial Command Center (`financial-command/`, typically port 8000) · Orchestra aggregates status.
+- Currently **2 Turo vehicles**.
+- Scale **owned** units and an **asset-light** model (client-owned vehicles under management).
+- AI systems for owner acquisition and onboarding are an active leverage point.
+- Longer path: Tesla robotaxi / broader autonomous mobility.
+- Project note: [[Vehicle Rental Management Fleet]]
 
-## Investment thesis (high level)
+## Supporting capital stream
 
-- Weekly **DCA** discipline
-- Macro tilt: AI hardware / semiconductors + Bitcoin + energy/nuclear
-- Categories seen in portfolio maps: semis, BTC stack, tech/EV, nuclear, gold, cloud
+- **X Account Growth & Monetization** — capital input for the fleets, not a primary thematic bet.
+- Project note: [[X Account Growth]]
 
-Detailed positions and live balances stay in dashboards and brokers — B2 holds **policy and thesis**, not account dumps.
+## Standing rules
 
-## Data sources (conceptual)
+- Capital efficiency: max value-add per unit of capital or effort.
+- Explicit opportunity-cost thinking; deliberate concentration vs diversification.
+- **Capital is the primary (and currently only significant) constraint.**
+- Prefer automatable, repeatable unit models over one-off heroics.
 
-- Coinbase Advanced Trade / CLI adapters
-- Robinhood (MCP / snapshots)
-- YNAB for card/checking lines where wired
-- Manual Morpho/vault fields when APIs do not cover them
+## Dual-venue liquidity (treasury — pointer only)
+
+Bridge model in tools: **Coinbase** ↔ **Robinhood** via USDC (loan/vault/card hygiene, RH BP floors).  
+**UI:** Financial Command Center (`financial-command/`, ~port 8000). Policies live in config and FCC — not secrets or live LTV dumps in B2.
+
+## What stays out of B2
+
+- Live balances, holdings dumps, loan principals, API keys
+- Daily P&L noise
+- Broker screenshots as “source of truth”
+
+B2 holds **policy, thesis, and project context**. Numbers live in dashboards and brokers.
 
 ## Related
 
-- [[Strategy & Bets]] — Energy, Bitcoin, AI legs
-- [[Workflow & Projects]] — protect & push before risky ops
-- [[Personal Workspace Map]] — ports and launchers
+- [[Strategy & Bets]]
+- [[Ikigai & Identity]]
+- [[Workflow & Projects]]
+- [[Bitcoin ASIC Mining Fleet]]
+- [[Vehicle Rental Management Fleet]]
+- [[X Account Growth]]
+- [[Personal Workspace Map]]
+
+---
+
+*Updated 2026-07-26 from B2 seed interview.*
