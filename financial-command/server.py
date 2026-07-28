@@ -52,6 +52,60 @@ BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 ORCHESTRA_PORT = 8790
 ORCHESTRA_URL = f"http://127.0.0.1:{ORCHESTRA_PORT}/"
 _ORCHESTRA_PID: int | None = None
+_YNAB_REFRESH_COOLDOWN_S = 300.0  # don't hammer YNAB more than once / 5 min
+_last_ynab_refresh_ts = 0.0
+
+
+def _snapshot_age_hours(path: Path) -> float | None:
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        iso = data.get("as_of")
+        if not iso:
+            return None
+        from datetime import datetime, timezone
+
+        t = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - t).total_seconds() / 3600.0
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return None
+
+
+def _ynab_cash_stale(max_hours: float = 6.0) -> bool:
+    """True if any YNAB cash feed is missing or older than max_hours."""
+    for name in ("x_money_latest.json", "one_card_latest.json", "rh_checking_latest.json"):
+        age = _snapshot_age_hours(ROOT / "treasury" / "snapshots" / name)
+        if age is None or age > max_hours:
+            return True
+    return False
+
+
+def _maybe_refresh_ynab_for_coach(*, force: bool = False) -> bool:
+    """Run ynab_sync when cash feeds are stale (or force). Returns True if sync ran."""
+    global _last_ynab_refresh_ts
+    import time
+
+    now = time.time()
+    if not force and now - _last_ynab_refresh_ts < _YNAB_REFRESH_COOLDOWN_S:
+        return False
+    if not force and not _ynab_cash_stale(6.0):
+        return False
+    try:
+        from treasury.ynab_sync import main as ynab_main
+
+        ynab_main([])
+        _last_ynab_refresh_ts = time.time()
+        sys.stderr.write("[fcc] coach: ynab_sync refreshed cash feeds\n")
+        return True
+    except SystemExit:
+        _last_ynab_refresh_ts = time.time()
+        return True
+    except Exception as e:
+        sys.stderr.write(f"[fcc] coach ynab_sync warning: {e}\n")
+        return False
 
 
 def _probe_port(port: int, host: str = "127.0.0.1", timeout: float = 0.35) -> bool:
@@ -466,9 +520,17 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/coach":
             try:
-                snaps = load_coach_snapshots(ROOT / "treasury" / "snapshots")
-                # Prefer evaluation copy used by FCC if present
+                qs = parse_qs(parsed.query or "")
+                force = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
+                # Auto-refresh YNAB cash feeds when stale (soft UI poll never hits YNAB)
+                refreshed = _maybe_refresh_ynab_for_coach(force=force)
                 tre_fcc = ROOT / "financial-command" / "treasury_latest.json"
+                if refreshed:
+                    try:
+                        run_treasury_main(["--offline"])
+                    except Exception as te:
+                        sys.stderr.write(f"[fcc] coach treasury recompute: {te}\n")
+                snaps = load_coach_snapshots(ROOT / "treasury" / "snapshots")
                 if tre_fcc.is_file():
                     try:
                         snaps["treasury"] = json.loads(
@@ -477,6 +539,8 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except (OSError, json.JSONDecodeError):
                         pass
                 plan = build_coach_plan(snaps)
+                if refreshed:
+                    plan["ynab_refreshed"] = True
                 self._json(200, plan)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})

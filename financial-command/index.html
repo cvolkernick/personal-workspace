@@ -2377,12 +2377,19 @@
       const vBits = Object.keys(venues)
         .map((k) => {
           const v = venues[k] || {};
+          const age =
+            v.age_hours != null
+              ? v.age_hours < 1
+                ? " · just now"
+                : ` · ${Number(v.age_hours).toFixed(0)}h old`
+              : "";
           return (
             (v.label || k) +
             " avail " +
             money(v.available) +
             " → residual " +
-            money(v.residual)
+            money(v.residual) +
+            age
           );
         })
         .join(" · ");
@@ -2472,9 +2479,14 @@
         : "";
     }
 
-    async function loadCoach() {
+    async function loadCoach(opts) {
+      const force = opts && opts.refresh;
       try {
-        const res = await fetch("/api/coach?ts=" + Date.now());
+        const q =
+          "/api/coach?ts=" +
+          Date.now() +
+          (force ? "&refresh=1" : "");
+        const res = await fetch(q);
         if (!res.ok) throw new Error("HTTP " + res.status);
         const plan = await res.json();
         renderCoach(plan);
@@ -2623,7 +2635,8 @@
 
     document.getElementById("btn-refresh").addEventListener("click", refreshLive);
     const btnCoach = document.getElementById("btn-coach-refresh");
-    if (btnCoach) btnCoach.addEventListener("click", loadCoach);
+    if (btnCoach)
+      btnCoach.addEventListener("click", () => loadCoach({ refresh: true }));
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
     // Soft auto-poll treasury JSON (does not call RH MCP — keeps UI fresh)
     setInterval(() => {

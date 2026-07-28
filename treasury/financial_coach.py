@@ -188,6 +188,9 @@ def extract_venues(snapshots: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
             "available": round(max(0.0, working), 2),
             "liquid_spot_usdc": round(max(0.0, liquid_spot), 2),
             "vault_usdc": round(max(0.0, vault), 2),
+            "as_of": (snapshots.get("coinbase") or {}).get("as_of")
+            or (tre.get("snapshot") or {}).get("as_of")
+            or tre.get("as_of"),
             "notes": (
                 "Working USDC = spot liquid + High Yield vault. "
                 "Vault may require an app withdraw before external ACH."
@@ -198,11 +201,13 @@ def extract_venues(snapshots: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         "x_money": {
             "label": "X Money",
             "available": round(max(0.0, x_cash), 2),
+            "as_of": xm.get("as_of"),
             "notes": "YNAB Checking balance (X Money).",
         },
         "rh_checking": {
             "label": "RH Checking",
             "available": round(max(0.0, rh_cash), 2),
+            "as_of": rhc.get("as_of"),
             "notes": "YNAB RH Checking float.",
         },
     }
@@ -401,19 +406,29 @@ def collect_data_requests(
             }
         )
 
-    for name, snap in (
-        ("expenses", exp),
-        ("x_money", snapshots.get("x_money") or {}),
-        ("coinbase", snapshots.get("coinbase") or {}),
-        ("robinhood", snapshots.get("robinhood") or {}),
+    # Cash feeds go stale faster (6h); expenses/coinbase 12h; RH 12h
+    for name, snap, max_h in (
+        ("expenses", exp, 12.0),
+        ("x_money", snapshots.get("x_money") or {}, 6.0),
+        ("one_card", snapshots.get("one_card") or {}, 6.0),
+        ("rh_checking", snapshots.get("rh_checking") or {}, 6.0),
+        ("coinbase", snapshots.get("coinbase") or {}, 12.0),
+        ("robinhood", snapshots.get("robinhood") or {}, 12.0),
     ):
-        age = _age_hours(snap.get("as_of"))
-        if snap and age is not None and age > 48:
+        age = _age_hours(snap.get("as_of")) if snap else None
+        if snap and age is not None and age > max_h:
             reqs.append(
                 {
                     "field": f"{name}_freshness",
-                    "why": f"{name} snapshot is ~{age:.0f}h old; balances/due list may be stale.",
-                    "how": f"Refresh via FCC or run the matching sync for {name}.",
+                    "why": (
+                        f"{name} snapshot is ~{age:.0f}h old (warn >{max_h:.0f}h); "
+                        "balances may be wrong until YNAB/sync refresh."
+                    ),
+                    "how": (
+                        "FCC Refresh (live) or python3 treasury/ynab_sync.py"
+                        if name in ("x_money", "one_card", "rh_checking")
+                        else f"Refresh via FCC or matching sync for {name}."
+                    ),
                 }
             )
         if name != "robinhood" and not snap:
@@ -530,6 +545,12 @@ def build_coach_plan(
                     "notes": v.get("notes"),
                     "liquid_spot_usdc": v.get("liquid_spot_usdc"),
                     "vault_usdc": v.get("vault_usdc"),
+                    "as_of": v.get("as_of"),
+                    "age_hours": (
+                        round(_age_hours(v.get("as_of")), 1)
+                        if _age_hours(v.get("as_of")) is not None
+                        else None
+                    ),
                 }
                 for k, v in venues.items()
             },
