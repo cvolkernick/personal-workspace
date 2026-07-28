@@ -72,6 +72,19 @@ impl Host {
         self.apply_and_spawn(ManagerCommand::OpenShell {
             title: Some("shell".into()),
         })?;
+        // Seed a visible welcome so the first frame is never a blank black box.
+        if let Some(id) = self.manager.tabs.active_id() {
+            let welcome = format!(
+                "\r\n  GrokTerm v{} ready\r\n\
+                 \r\n  Keys: Ctrl+T shell · Ctrl+B grok · Ctrl+G manager · Ctrl+V voice · Ctrl+Q quit\r\n\
+                 \r\n  Type in this pane for the shell PTY. Open manager with Ctrl+G.\r\n\r\n",
+                crate::PRODUCT_VERSION
+            );
+            self.buffers
+                .entry(id)
+                .or_default()
+                .push_str(&welcome);
+        }
         if open_grok {
             self.apply_and_spawn(ManagerCommand::OpenGrok {
                 title: Some("grok".into()),
