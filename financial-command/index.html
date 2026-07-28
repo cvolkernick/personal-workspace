@@ -1024,6 +1024,17 @@
       border-radius: 99px;
       min-width: 0;
     }
+    .braiins-stats {
+      margin-top: 0.15rem;
+    }
+    .braiins-workers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.2rem 0.75rem;
+    }
+    .braiins-workers-grid .metric {
+      margin-bottom: 0 !important;
+    }
     .payout-bar-lab {
       display: flex;
       justify-content: space-between;
@@ -1157,15 +1168,17 @@
         <span class="live-dot off" id="braiins-live-dot" style="margin-left:0.5rem">—</span>
       </summary>
       <div class="body">
-        <div class="grid-2">
+        <div id="braiins-progress"></div>
+        <div class="grid-2 braiins-stats">
           <div id="braiins-metrics">Loading…</div>
-          <div>
-            <div class="hint">Workers</div>
-            <div id="braiins-workers"></div>
-            <p class="hint" style="margin-top:0.45rem">
-              <a href="capital-flows.html">Capital flows →</a>
-            </p>
-          </div>
+          <div id="braiins-metrics-b"></div>
+        </div>
+        <div class="braiins-workers-row">
+          <div class="hint" style="margin:0.45rem 0 0.25rem">Workers</div>
+          <div id="braiins-workers" class="braiins-workers-grid"></div>
+          <p class="hint" style="margin:0.35rem 0 0">
+            <a href="capital-flows.html">Capital flows →</a>
+          </p>
         </div>
       </div>
     </details>
@@ -2910,6 +2923,8 @@
 
     function renderBraiins(br) {
       const metricsEl = document.getElementById("braiins-metrics");
+      const metricsB = document.getElementById("braiins-metrics-b");
+      const progressEl = document.getElementById("braiins-progress");
       const workersEl = document.getElementById("braiins-workers");
       const dot = document.getElementById("braiins-live-dot");
       if (!metricsEl) return;
@@ -2919,12 +2934,14 @@
           dot.className = "live-dot off";
           dot.textContent = br.status === "missing" ? "No snapshot" : "Offline";
         }
+        if (progressEl) progressEl.innerHTML = "";
         metricsEl.innerHTML =
           `<p class="hint" style="margin:0">${escapeHtml(
             br.error || "Braiins not synced"
           )}</p>` +
           `<p class="hint">Token at <code>~/.config/braiins/token</code> then ` +
           `<code>python3 treasury/braiins_sync.py</code></p>`;
+        if (metricsB) metricsB.innerHTML = "";
         if (workersEl) workersEl.innerHTML = "";
         return;
       }
@@ -2950,10 +2967,10 @@
           ? Math.max(0, Math.min(100, Number(prog)))
           : null;
       const eta = formatPayoutEta(br.next_payout_est_at, br.days_to_next_payout_est);
-      // Hero block mirrors Braiins dashboard "progress to threshold → next pay"
+      // Hero: progress to threshold (full width)
       const progressBlock =
         barPct != null
-          ? `<div class="payout-bar-wrap" style="margin-bottom:0.55rem">` +
+          ? `<div class="payout-bar-wrap" style="margin-bottom:0.4rem">` +
             `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem">` +
             `<div><div class="hint" style="margin:0">Next payout (est.)</div>` +
             `<div style="font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums">${escapeHtml(
@@ -2972,48 +2989,55 @@
               eta
             )}</span></div>`;
 
-      metricsEl.innerHTML =
-        progressBlock +
-        [
-          metric(
-            "Avg daily reward",
-            btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)
-          ),
-          metric("User", escapeHtml(br.username || "—")),
-          metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
-          metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
-          metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
-          metric(
-            "Workers",
-            `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
-              (br.low_workers ? ` · ${br.low_workers} low` : "") +
-              (br.off_workers ? ` · ${br.off_workers} off` : "")
-          ),
-          metric("Today reward", btcAmt(br.today_reward_btc)),
-          metric("Pool balance", btcAmt(br.current_balance_btc)),
-          metric("Last payout", btcAmt(br.last_payout_btc)),
-          metric(
-            "Last payout at",
-            br.last_payout_at
-              ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
-                  " UTC"
-              : "—"
-          ),
-          metric(
-            "Hist. interval",
-            outlook.median_payout_interval_days != null
-              ? `~${outlook.median_payout_interval_days}d between pays`
-              : "—"
-          ),
-          metric("All-time reward", btcAmt(br.all_time_reward_btc)),
-          metric("Synced", ageLabel(br.as_of) || "—"),
-        ].join("") +
-        `<p class="hint" style="margin:0.45rem 0 0">` +
-        `Same idea as Braiins UI progress-to-threshold (API has no explicit next-payout field). ` +
-        `Threshold inferred from payout history (~${btcAmt(thr, 4)}); ~${btcAmt(
-          br.daily_reward_avg_btc || outlook.daily_reward_avg_btc
-        )}/day → ETA. Fires at next 09:00 UTC after threshold is met.` +
-        `</p>`;
+      if (progressEl) progressEl.innerHTML = progressBlock;
+
+      // Stat lines split evenly across two columns (less vertical height)
+      const statRows = [
+        metric(
+          "Avg daily reward",
+          btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)
+        ),
+        metric("User", escapeHtml(br.username || "—")),
+        metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
+        metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
+        metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
+        metric(
+          "Workers",
+          `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
+            (br.low_workers ? ` · ${br.low_workers} low` : "") +
+            (br.off_workers ? ` · ${br.off_workers} off` : "")
+        ),
+        metric("Today reward", btcAmt(br.today_reward_btc)),
+        metric("Pool balance", btcAmt(br.current_balance_btc)),
+        metric("Last payout", btcAmt(br.last_payout_btc)),
+        metric(
+          "Last payout at",
+          br.last_payout_at
+            ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
+                " UTC"
+            : "—"
+        ),
+        metric(
+          "Hist. interval",
+          outlook.median_payout_interval_days != null
+            ? `~${outlook.median_payout_interval_days}d between pays`
+            : "—"
+        ),
+        metric("All-time reward", btcAmt(br.all_time_reward_btc)),
+        metric("Synced", ageLabel(br.as_of) || "—"),
+      ];
+      const mid = Math.ceil(statRows.length / 2);
+      metricsEl.innerHTML = statRows.slice(0, mid).join("");
+      if (metricsB) {
+        metricsB.innerHTML =
+          statRows.slice(mid).join("") +
+          `<p class="hint" style="margin:0.4rem 0 0">` +
+          `Threshold ~${btcAmt(thr, 4)} from payout history; ` +
+          `~${btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)}/day → ETA. ` +
+          `Pays at next 09:00 UTC after threshold.` +
+          `</p>`;
+      }
+
       const workers = br.workers || [];
       if (workersEl) {
         if (!workers.length) {
@@ -3024,7 +3048,7 @@
               const name = String(w.name || "?").split(".").pop() || w.name;
               const st = w.state || "?";
               return (
-                `<div class="metric" style="margin-bottom:0.35rem">` +
+                `<div class="metric">` +
                 `<span class="label">${escapeHtml(name)} · ${escapeHtml(st)}</span>` +
                 `<span class="val" style="font-size:0.9rem">${formatHashrate(
                   w.hash_rate_24h != null ? w.hash_rate_24h : w.hash_rate_5m,
