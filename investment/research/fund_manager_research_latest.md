@@ -1,10 +1,10 @@
 # Fund manager research — mid-session 2026-07-28
 
-**As of:** 2026-07-28 ~16:43Z (12:43 ET)  
+**As of:** 2026-07-28 ~16:45Z (12:45 ET)  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV (RH total):** ~$168.07 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
-**Equity marks (qty × Yahoo ~16:43Z):** ~$174.12  
+**Live NAV (RH total):** ~$174.69 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
+**Equity marks (qty × Yahoo ~16:45Z):** ~$174.63  
 **MCP:** robinhood-trading **unavailable this session** (auth/connection failed) — Executor cannot place  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**
 
@@ -13,31 +13,31 @@
 | Field | Value |
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
-| Deployed sleeve mix (mark equity) | ~**39.4%** BTC-complex / ~**60.7%** stocks (in ±5% band) |
+| Deployed sleeve mix (mark equity) | ~**39.3%** BTC-complex / ~**60.7%** stocks (in ±5% band) |
 | RH weights_of_deployed (policy engine) | **40%** / **60%** in band |
 | Idle cash | ~$0.04 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · pure AI mega-cap · energy (BE) |
 
-### Live market values (qty × Yahoo mark ~16:43Z)
+### Live market values (qty × Yahoo mark ~16:45Z)
 
-| Symbol | Sleeve | Theme | ~$ | % RH NAV (approx) |
+| Symbol | Sleeve | Theme | ~$ | % equity (approx) |
 |--------|--------|-------|-----|-------------------|
-| MSTR | btc | digital credit | ~28.6 | ~17.0% |
-| BITA | btc | BTC yield | ~14.8 | ~8.8% |
-| MARA | btc | miner | ~10.8 | ~6.5% |
-| IREN | btc | miner/power infra | ~9.4 | ~5.6% |
-| CLSK | btc | miner | ~4.9 | ~2.9% |
-| TSLA | stocks | growth | ~59.6 | ~35.4% |
-| SPCX | stocks | growth | ~46.0 | ~27.4% |
+| MSTR | btc | digital credit | ~28.65 | ~16.4% |
+| BITA | btc | BTC yield | ~14.80 | ~8.5% |
+| MARA | btc | miner | ~10.84 | ~6.2% |
+| IREN | btc | miner/power infra | ~9.41 | ~5.4% |
+| CLSK | btc | miner | ~4.91 | ~2.8% |
+| TSLA | stocks | growth | ~59.72 | ~34.2% |
+| SPCX | stocks | growth | ~46.31 | ~26.5% |
 
-**Sub-sleeve notes (BTC complex ~$68.5 mark):**
-- Digital credit/yield (MSTR+BITA): ~$43.4 (~63% of complex) — **no STRC/SATA seat**
-- Miners/infra (MARA+IREN+CLSK): ~$25.1 (~37% of complex) — multi-miner stack OK per owner pref
+**Sub-sleeve notes (BTC complex ~$68.60 mark):**
+- Digital credit/yield (MSTR+BITA): ~$43.45 (~63% of complex) — **no STRC/SATA seat**
+- Miners/infra (MARA+IREN+CLSK): ~$25.15 (~37% of complex) — multi-miner stack OK per owner pref
 
-**Core unheld marks:** STRC ~$88.78 · SATA ~$96.77 · ASST ~$11.89 · RIOT ~$20.97 · WULF ~$16.52
+**Core unheld marks:** STRC ~$88.76 · SATA ~$96.53 · ASST ~$11.95 · RIOT ~$20.97 · WULF ~$16.54
 
-**Watchlist marks:** BE ~$163.01 (earnings **today 2026-07-28 AMC**) · GOOGL ~$333.76 · NVDA ~$197.52 · AAPL (quote fail this pass)
+**Watchlist marks:** BE ~$163.85 (earnings **today 2026-07-28 AMC**) · GOOGL ~$333.69 · AAPL ~$339.25 · NVDA ~$197.80
 
 ## Research / rotate (required)
 
@@ -87,9 +87,9 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot agentic ••••1752: NAV~$168.07 equity 7 names cash/BP $0.04; sleeves in band; MCP offline |
+| Scout | ok | Snapshot agentic ••••1752: NAV~$174.69 equity 7 names cash/BP $0.04; sleeves in band; MCP offline |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained |
-| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA ~35% NAV elevated but thesis primary growth name |
+| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA ~34% equity elevated but thesis primary growth name |
 | Critic | ok (hold) + process flag | Force HOLD on residual. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. Block BE into 7/28 AMC and undived AI first-buys |
 | Executor | hold | No MCP tools this session; even if live, $0.04 cannot fill min notional |
 
