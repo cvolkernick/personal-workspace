@@ -598,6 +598,10 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             workout_plan=(payload.get("workout_store") or {}).get("plan") or {},
             as_of=local_today,
             labs=labs,
+            inventory_suggestions=inv_suggestions,
+            inventory_removals=inv_removals,
+            sleep_battery=sleep_battery,
+            calorie_bars=payload.get("calorie_bars"),
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"coach: {e}")

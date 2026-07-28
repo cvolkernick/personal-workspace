@@ -86,22 +86,38 @@
       </section>
 
       <section class="card" style="margin-top: 1rem" id="today-hub">
-        <h2>Today</h2>
-        <p class="muted" style="margin-top: 0; font-size: 0.85rem" id="today-hub-date"></p>
-        <div class="grid two" id="today-hub-grid">
+        <div class="today-hub-header">
           <div>
-            <h3 class="today-subh">Readiness</h3>
-            <div id="today-recovery"></div>
-            <div id="today-adherence" class="muted" style="margin-top: 0.75rem; font-size: 0.9rem"></div>
+            <h2>Today · full-day guide</h2>
+            <p class="muted" style="margin: 0.25rem 0 0; font-size: 0.85rem" id="today-hub-date"></p>
           </div>
-          <div>
-            <h3 class="today-subh">Training &amp; nutrition</h3>
+          <div class="actions today-hub-actions">
+            <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
+            <button type="button" id="btn-scroll-workout-plan">Edit workout</button>
+            <button type="button" id="btn-scroll-meal-plan">Meal plan card</button>
+          </div>
+        </div>
+        <p class="muted today-headline" id="today-headline" style="margin: 0.65rem 0 0; font-size: 0.92rem"></p>
+        <p class="muted" id="today-overview" style="margin: 0.35rem 0 0; font-size: 0.82rem"></p>
+
+        <div id="today-actions" class="today-actions" style="margin-top: 0.85rem"></div>
+
+        <div class="today-sections" id="today-hub-grid">
+          <div class="today-panel">
+            <h3 class="today-subh">Targets &amp; why</h3>
+            <div id="today-targets"></div>
+            <div id="today-recovery" style="margin-top: 0.75rem"></div>
+            <div id="today-adherence" class="muted" style="margin-top: 0.65rem; font-size: 0.85rem"></div>
+          </div>
+          <div class="today-panel">
+            <h3 class="today-subh">Meal plan · in stock only</h3>
+            <div id="today-meal" style="font-size: 0.9rem"></div>
+            <div id="today-purchases" style="margin-top: 0.65rem; font-size: 0.88rem"></div>
+            <div id="today-macros" class="muted" style="margin-top: 0.65rem; font-size: 0.88rem"></div>
+          </div>
+          <div class="today-panel today-panel-wide">
+            <h3 class="today-subh">Training</h3>
             <div id="today-workout" style="font-size: 0.92rem"></div>
-            <div id="today-macros" class="muted" style="margin-top: 0.65rem; font-size: 0.9rem"></div>
-            <div class="actions" style="margin-top: 0.75rem">
-              <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
-              <button type="button" id="btn-scroll-workout-plan">Edit plan</button>
-            </div>
           </div>
         </div>
         <div id="coach-brief" class="coach-brief" style="margin-top: 1rem"></div>

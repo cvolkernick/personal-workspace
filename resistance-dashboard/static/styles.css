@@ -1612,6 +1612,147 @@ footer {
   margin-top: 0.5rem;
 }
 
+.today-hub-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.today-hub-actions {
+  margin: 0;
+}
+
+.today-headline {
+  font-weight: 600;
+  color: var(--text, #e8eef7);
+}
+
+.today-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.today-panel {
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.today-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.today-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.today-action {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(61, 156, 240, 0.08);
+  border: 1px solid rgba(61, 156, 240, 0.18);
+  font-size: 0.88rem;
+}
+
+.today-action-kind {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  min-width: 4.2rem;
+}
+
+.today-action-text {
+  flex: 1 1 auto;
+  line-height: 1.35;
+}
+
+.today-action-why {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.today-target-row {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.88rem;
+}
+
+.today-target-row:last-child {
+  border-bottom: none;
+}
+
+.today-target-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 650;
+}
+
+.today-target-why {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  opacity: 0.78;
+  line-height: 1.35;
+}
+
+.today-meal-bucket {
+  margin-top: 0.45rem;
+}
+
+.today-meal-bucket-label {
+  font-weight: 650;
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+}
+
+.today-purchase {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+
+.today-purchase:last-child {
+  border-bottom: none;
+}
+
+.today-purchase .badge-restock {
+  color: #f0c14d;
+  font-weight: 650;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.today-purchase .badge-add {
+  color: #6db7f5;
+  font-weight: 650;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .today-sections {
+    grid-template-columns: 1fr;
+  }
+  .today-panel-wide {
+    grid-column: auto;
+  }
+}
+
 /* —— Full-width calorie pacing + in/out delta bars —— */
 .calorie-bar-card {
   padding: 0.85rem 1rem 0.75rem;

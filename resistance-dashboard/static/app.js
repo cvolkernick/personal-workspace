@@ -2312,16 +2312,91 @@
     const adh = coach.adherence_7d || {};
     const brief = coach.brief || {};
     const weekly = coach.weekly_review || {};
+    const nutStore = data.nutrition_store || {};
+
     if ($("today-hub-date")) {
       const rec = today.recommendation || "—";
       $("today-hub-date").textContent =
         `${today.date || (data.meta && data.meta.local_today) || ""} · recommendation: ${rec}`;
     }
+    if ($("today-headline")) {
+      $("today-headline").textContent =
+        today.headline ||
+        (today.motivations && today.motivations.overview) ||
+        "";
+    }
+    if ($("today-overview")) {
+      $("today-overview").textContent =
+        (today.motivations && today.motivations.overview) ||
+        "Rebuilt each load from live logs, stock, recovery, and planners.";
+    }
+
+    // Priority action list
+    if ($("today-actions")) {
+      const acts = today.actions || [];
+      if (!acts.length) {
+        $("today-actions").innerHTML = "";
+      } else {
+        $("today-actions").innerHTML = acts
+          .slice(0, 8)
+          .map(
+            (a) => `<div class="today-action">
+            <span class="today-action-kind">${a.kind || "do"}</span>
+            <span class="today-action-text">${a.text || ""}${
+              a.motivation
+                ? `<span class="today-action-why">${a.motivation}</span>`
+                : ""
+            }</span>
+          </div>`
+          )
+          .join("");
+      }
+    }
+
+    // Targets with motivations + progress
+    if ($("today-targets")) {
+      const rows = today.targets || [];
+      if (!rows.length) {
+        // Fallback from nutrition_store
+        const t = nutStore.targets || {};
+        const c = nutStore.today_consumed || {};
+        $("today-targets").innerHTML = `
+          <div class="today-target-row"><div class="today-target-top">
+            <span>Calories</span><span>${fmtNum(c.calories)} / ${fmtNum(t.calories)}</span>
+          </div></div>`;
+      } else {
+        $("today-targets").innerHTML = rows
+          .map((r) => {
+            const unit = r.unit === "kcal" ? "" : r.unit || "";
+            const pct =
+              r.pct != null ? ` · ${r.pct}%` : "";
+            return `<div class="today-target-row">
+              <div class="today-target-top">
+                <span>${r.label || r.id}</span>
+                <span>${fmtNum(r.consumed)}${unit ? " " + unit : ""} / ${fmtNum(r.target)}${
+              unit ? " " + unit : ""
+            }${pct}</span>
+              </div>
+              <div class="muted" style="font-size:0.78rem">${fmtNum(r.remaining)}${
+              unit ? " " + unit : ""
+            } left</div>
+              ${
+                r.motivation
+                  ? `<div class="today-target-why">${r.motivation}</div>`
+                  : ""
+              }
+            </div>`;
+          })
+          .join("");
+      }
+    }
+
     if ($("today-recovery")) {
       const r = today.recovery || data.recovery || {};
       const reasons = (r.reasons || []).slice(0, 4);
       $("today-recovery").innerHTML = `
         <div class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${r.score != null ? Math.round(r.score) : "—"}</div>
+        ${r.motivation ? `<p class="muted" style="font-size:0.8rem;margin:0.35rem 0 0">${r.motivation}</p>` : ""}
         <ul class="reasons" style="margin-top:0.5rem">${reasons.map((x) => `<li>${x}</li>`).join("")}</ul>
       `;
     }
@@ -2330,46 +2405,174 @@
       const s = adh.sleep || {};
       const h = adh.hydration || {};
       const c = adh.calories || {};
-      const fmt = (block, label) =>
-        block.pct != null
-          ? `${label} ${block.pct}% (${block.hits}/${block.days_logged})`
-          : `${label} —`;
+      // Prefer nested objects from adherence_7d; fall back to today.adherence flat pcts
+      const flat = today.adherence_7d || {};
+      const fmt = (block, label, flatKey) => {
+        if (block && block.pct != null)
+          return `${label} ${block.pct}% (${block.hits ?? "—"}/${block.days_logged ?? "—"})`;
+        if (flat[flatKey] != null) return `${label} ${flat[flatKey]}%`;
+        return `${label} —`;
+      };
       $("today-adherence").innerHTML = `
         <strong>7-day adherence</strong><br/>
-        ${fmt(p, "Protein")} · ${fmt(c, "Calories")}<br/>
-        ${fmt(s, "Sleep")} · ${fmt(h, "Hydration")}
+        ${fmt(p, "Protein", "protein_pct")} · ${fmt(c, "Calories", "calories_pct")}<br/>
+        ${fmt(s, "Sleep", "sleep_pct")} · ${fmt(h, "Hydration", "hydration_pct")}
       `;
     }
+
+    // Meal plan from coach.today.meal (stock-only planner)
+    if ($("today-meal")) {
+      const meal = today.meal || {};
+      const meals = meal.meals || [];
+      const items = meal.items || [];
+      let html = "";
+      if (meal.message) {
+        html += `<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">${meal.message}</p>`;
+      }
+      if (meal.empty || (!meals.length && !items.length)) {
+        html += `<p class="muted">No stocked meal plan yet — restock staples below, then refresh.</p>`;
+      } else if (meals.length) {
+        meals.forEach((bucket) => {
+          const its = bucket.items || [];
+          html += `<div class="today-meal-bucket">
+            <div class="today-meal-bucket-label">${bucket.label || "Meal"}</div>
+            <ul style="margin:0;padding-left:1.1rem">`;
+          its.forEach((it) => {
+            const n = Number(it.servings) || 1;
+            const serve =
+              n > 1
+                ? `${n} × ${it.serving_label || "serving"}`
+                : it.serving_label || "1 serving";
+            html += `<li><strong>${it.name || "Item"}</strong> · ${serve}
+              · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
+          });
+          html += `</ul></div>`;
+        });
+      } else {
+        html += `<ul style="margin:0;padding-left:1.1rem">`;
+        items.forEach((it) => {
+          html += `<li><strong>${it.name}</strong> · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
+        });
+        html += `</ul>`;
+      }
+      const pt = meal.planned_totals || {};
+      if (pt.calories != null) {
+        html += `<p class="muted" style="margin:0.45rem 0 0;font-size:0.82rem">
+          Planned add: ${fmtNum(pt.calories)} kcal · P${fmtNum(pt.protein_g)}
+          C${fmtNum(pt.carbs_g)} F${fmtNum(pt.fat_g)}
+        </p>`;
+      }
+      $("today-meal").innerHTML = html;
+    }
+
+    if ($("today-purchases")) {
+      const purchases = today.purchases || [];
+      if (!purchases.length) {
+        $("today-purchases").innerHTML =
+          `<p class="muted" style="margin:0;font-size:0.82rem">No restock/add suggestions right now.</p>`;
+      } else {
+        $("today-purchases").innerHTML =
+          `<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">Buy / restock</div>` +
+          purchases
+            .slice(0, 6)
+            .map((p) => {
+              const badge =
+                p.action === "restock"
+                  ? `<span class="badge-restock">restock</span>`
+                  : `<span class="badge-add">add</span>`;
+              return `<div class="today-purchase">${badge} <strong>${
+                p.name || "Item"
+              }</strong>
+                <div class="muted" style="font-size:0.78rem">${p.reason || ""}</div></div>`;
+            })
+            .join("");
+      }
+    }
+
     if ($("today-workout")) {
-      const w = today.workout || (data.workout_store && data.workout_store.plan) || {};
-      if (w.is_rest_day) {
-        $("today-workout").innerHTML = `<p><strong>Rest day</strong> — ${w.message || ""}</p>`;
+      const w =
+        today.workout ||
+        (data.workout_store && data.workout_store.plan) ||
+        {};
+      const focus = w.focus || {};
+      const focusMuscles = Array.isArray(focus.muscles) ? focus.muscles : [];
+      let focusLine = "";
+      if (focusMuscles.length) {
+        focusLine = `<p class="muted" style="font-size:0.82rem;margin:0.3rem 0">
+          Focus: <strong>${focusMuscles
+            .map((m) => String(m).replace(/_/g, " "))
+            .join(", ")}</strong>${
+          focus.reason ? ` — ${focus.reason}` : ""
+        }</p>`;
+      }
+      const why = w.motivation
+        ? `<p class="muted" style="font-size:0.8rem;margin:0.25rem 0 0.4rem">${w.motivation}</p>`
+        : "";
+      if (w.is_rest_day || today.recommendation === "rest") {
+        $("today-workout").innerHTML = `
+          ${why}
+          <p><strong>Rest day</strong> — ${w.message || "Recovery below threshold."}</p>
+          ${focusLine}
+        `;
       } else {
         const ex = w.exercises || [];
         const lines = ex
-          .slice(0, 6)
           .map((e) => {
             const rx = e.prescription || e;
-            const wt = rx.weight_lbs != null ? `${rx.weight_lbs} lb` : "load TBD";
-            return `<li><strong>${e.name}</strong> — ${wt} × ${rx.sets || "?"} × ${rx.reps || "?"}</li>`;
+            const wt =
+              rx.weight_lbs != null && rx.weight_lbs !== ""
+                ? `${rx.weight_lbs} lb`
+                : "load TBD";
+            const muscles = (e.primary_muscles || []).join(", ");
+            return `<li><strong>${e.name}</strong> — ${wt} × ${rx.sets || "?"} × ${
+              rx.reps || "?"
+            }${muscles ? ` · ${muscles}` : ""}${
+              e.rationale
+                ? `<div class="muted" style="font-size:0.78rem">${e.rationale}</div>`
+                : ""
+            }</li>`;
           })
           .join("");
         $("today-workout").innerHTML = `
-          <p><strong>${(w.session_type || "session").toUpperCase()}</strong> · ${ex.length} lifts</p>
-          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">${lines || "<li class='muted'>No exercises</li>"}</ul>
+          ${why}
+          <p><strong>${(w.session_type || "session").toUpperCase()}</strong>
+            · ${ex.length} lifts
+            · mode: ${today.recommendation || w.recommendation || "train"}</p>
+          ${focusLine}
+          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">${
+            lines || "<li class='muted'>No exercises</li>"
+          }</ul>
           <p class="muted" style="font-size:0.85rem;margin-top:0.4rem">${w.message || ""}</p>
         `;
       }
     }
     if ($("today-macros")) {
       const n = today.nutrition || {};
-      const cons = n.consumed || (data.nutrition_store && data.nutrition_store.today_consumed) || {};
+      const cons =
+        n.consumed ||
+        (data.nutrition_store && data.nutrition_store.today_consumed) ||
+        {};
       const rem = n.remaining || {};
+      const nLogs = n.food_log_count != null ? n.food_log_count : "";
+      const pace =
+        (today.calorie_bars && today.calorie_bars.pacing_summary) ||
+        ((data.calorie_bars || {}).pacing || {}).summary ||
+        "";
+      const delta =
+        (today.calorie_bars && today.calorie_bars.delta_summary) ||
+        ((data.calorie_bars || {}).delta || {}).summary ||
+        "";
       $("today-macros").innerHTML = `
-        <strong>Today so far</strong>: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
+        <strong>Logged so far</strong>${
+          nLogs !== "" ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
+        }: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
         C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}<br/>
-        <strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(rem.protein_g)}
+        <strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(
+        rem.protein_g
+      )}
         C${fmtNum(rem.carbs_g)} F${fmtNum(rem.fat_g)}
+        ${pace ? `<br/><span style="font-size:0.8rem">${pace}</span>` : ""}
+        ${delta ? `<br/><span style="font-size:0.8rem">${delta}</span>` : ""}
       `;
     }
     if ($("coach-brief")) {
@@ -2944,6 +3147,12 @@
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
         const el = $("workout-plan-card") || $("workout-plan-section");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
+    if ($("btn-scroll-meal-plan")) {
+      $("btn-scroll-meal-plan").addEventListener("click", () => {
+        const el = $("meal-plan-card") || $("meal-plan-result");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }

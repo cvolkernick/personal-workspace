@@ -291,6 +291,48 @@ def compute_weekly_review(
     }
 
 
+# Short motivations for daily targets (deterministic, not LLM).
+TARGET_MOTIVATIONS = {
+    "calories": (
+        "Daily energy budget — hit this over the waking window so training and recovery "
+        "have fuel without drifting into an uncontrolled surplus or crash deficit."
+    ),
+    "protein_g": (
+        "Protein is the priority macro for muscle repair and satiety. Hitting this target "
+        "protects lean mass while you train and cut or recomp."
+    ),
+    "carbs_g": (
+        "Carbs support training performance and glycogen. Scale them around today's "
+        "session so hard sets feel strong without blowing the calorie budget."
+    ),
+    "fat_g": (
+        "Dietary fat supports hormones and micronutrient absorption. Keep it intentional "
+        "rather than snacking it away late in the window."
+    ),
+    "training": (
+        "Execute today's prescription (or rest if recovery says so) to keep progressive "
+        "overload and weekly volume on track without junk volume."
+    ),
+    "recovery": (
+        "Recovery score gates intensity. Low readiness means protect tomorrow's session "
+        "with rest or an easy day instead of forcing a hard lift."
+    ),
+    "sleep": (
+        "Sleep is the main recovery lever. Protect bedtime so tomorrow's battery starts full."
+    ),
+    "hydration": (
+        "Hydration supports performance and appetite control. Sip through the day, not only at meals."
+    ),
+}
+
+
+def _remaining_macros(targets: dict, consumed: dict) -> dict:
+    return {
+        k: max(0.0, float(targets.get(k) or 0) - float(consumed.get(k) or 0))
+        for k in ("calories", "protein_g", "carbs_g", "fat_g")
+    }
+
+
 def build_today_board(
     *,
     as_of: str,
@@ -300,15 +342,27 @@ def build_today_board(
     consumed: dict,
     targets: dict,
     adherence: dict,
+    inventory_suggestions: Optional[dict] = None,
+    inventory_removals: Optional[dict] = None,
+    sleep_battery: Optional[dict] = None,
+    calorie_bars: Optional[dict] = None,
+    food_logs_today: Optional[Sequence[Any]] = None,
 ) -> dict:
+    """Comprehensive same-day guide: targets + why, meal, training, actions.
+
+    Meal content comes from the stock-only meal planner. Purchase/restock rows come
+    from inventory suggestions. Workout follows recovery + generate_workout_plan.
+    Remaining macros recompute from targets − consumed so mid-day logs update Today.
+    """
     wp = workout_plan or {}
     mp = meal_plan or {}
-    rem = mp.get("remaining_before_plan") or {}
-    if not rem and targets:
-        rem = {
-            k: max(0.0, float(targets.get(k) or 0) - float(consumed.get(k) or 0))
-            for k in ("calories", "protein_g", "carbs_g", "fat_g")
-        }
+    targets = targets or {}
+    consumed = consumed or {}
+    rem = mp.get("remaining_before_plan") or _remaining_macros(targets, consumed)
+    # Always recompute remaining from live consumed so Today tracks logs even if
+    # meal_plan.remaining_before_plan was snapshotted earlier.
+    rem = _remaining_macros(targets, consumed)
+
     exercises = []
     for ex in wp.get("exercises") or []:
         if not isinstance(ex, dict):
@@ -321,6 +375,9 @@ def build_today_board(
                 "sets": rx.get("sets"),
                 "reps": rx.get("reps"),
                 "primary_muscles": ex.get("primary_muscles"),
+                "secondary_muscles": ex.get("secondary_muscles"),
+                "rationale": ex.get("rationale"),
+                "movement": ex.get("movement"),
             }
         )
     rec_label = "rest" if wp.get("is_rest_day") else "train"
@@ -329,28 +386,287 @@ def build_today_board(
     elif recovery.score < 55 and not wp.get("is_rest_day"):
         rec_label = "easy"
 
+    focus = (wp.get("volume") or {}).get("focus") or (wp.get("context") or {}).get(
+        "focus"
+    )
+
+    # Targets with motivations + progress vs logged day
+    target_rows = []
+    for key, label, unit in (
+        ("calories", "Calories", "kcal"),
+        ("protein_g", "Protein", "g"),
+        ("carbs_g", "Carbs", "g"),
+        ("fat_g", "Fat", "g"),
+    ):
+        t = float(targets.get(key) or 0)
+        c = float(consumed.get(key) or 0)
+        left = max(0.0, t - c)
+        pct = round(min(999.0, (c / t) * 100.0), 1) if t > 0 else None
+        target_rows.append(
+            {
+                "id": key,
+                "label": label,
+                "unit": unit,
+                "target": t,
+                "consumed": c,
+                "remaining": left,
+                "pct": pct,
+                "motivation": TARGET_MOTIVATIONS.get(key, ""),
+            }
+        )
+
+    # Meal plan (stock-only) — pass through planner structure
+    meals = list(mp.get("meals") or [])
+    meal_items = list(mp.get("items") or [])
+    meal_block = {
+        "message": mp.get("message") or "",
+        "in_stock_only": bool(mp.get("in_stock_only", True)),
+        "stocked_count": mp.get("stocked_count"),
+        "meals": meals,
+        "items": meal_items,
+        "planned_totals": mp.get("planned_totals") or {},
+        "remaining_after_plan": mp.get("remaining_after_plan") or {},
+        "empty": not meals and not meal_items,
+    }
+
+    # Purchase / restock recommendations
+    sug = inventory_suggestions or {}
+    purchases: List[dict] = []
+    for s in (sug.get("suggestions") if isinstance(sug, dict) else None) or []:
+        if not isinstance(s, dict):
+            continue
+        purchases.append(
+            {
+                "action": s.get("action") or "add",
+                "id": s.get("id"),
+                "name": s.get("name"),
+                "reason": s.get("reason") or "",
+                "category": s.get("category"),
+                "calories": s.get("calories"),
+                "protein_g": s.get("protein_g"),
+            }
+        )
+        if len(purchases) >= 6:
+            break
+    # If meal plan empty and stock low, emphasize purchases
+    if meal_block["empty"] and not purchases:
+        purchases.append(
+            {
+                "action": "add",
+                "id": None,
+                "name": "High-protein staples",
+                "reason": (
+                    "No in-stock ingredients available for a meal plan — "
+                    "restock pantry staples (chicken, Greek yogurt, eggs, rice) to unlock today."
+                ),
+                "category": "protein",
+            }
+        )
+
+    rem_block = inventory_removals or {}
+    removals = []
+    for s in (rem_block.get("suggestions") if isinstance(rem_block, dict) else None) or []:
+        if isinstance(s, dict) and s.get("name"):
+            removals.append(
+                {
+                    "name": s.get("name"),
+                    "reason": s.get("reason") or "",
+                    "id": s.get("id"),
+                }
+            )
+        if len(removals) >= 3:
+            break
+
+    # Action items (priority ordered)
+    actions: List[dict] = []
+    n_logs = 0
+    if food_logs_today is not None:
+        n_logs = len(list(food_logs_today))
+    elif consumed.get("food_log_count") is not None:
+        n_logs = int(consumed.get("food_log_count") or 0)
+
+    if rec_label == "rest":
+        actions.append(
+            {
+                "kind": "training",
+                "priority": 1,
+                "text": "Rest / recover today — skip heavy lifting; optional walk or mobility.",
+                "motivation": TARGET_MOTIVATIONS["recovery"],
+            }
+        )
+    elif rec_label == "easy":
+        actions.append(
+            {
+                "kind": "training",
+                "priority": 1,
+                "text": (
+                    f"Easy {(wp.get('session_type') or 'session').upper()} — "
+                    "keep loads moderate; prioritize form and leave reps in reserve."
+                ),
+                "motivation": TARGET_MOTIVATIONS["recovery"],
+            }
+        )
+    else:
+        st = (wp.get("session_type") or "session").upper()
+        n_ex = len(exercises)
+        actions.append(
+            {
+                "kind": "training",
+                "priority": 1,
+                "text": f"Complete today's {st} session ({n_ex} lifts as prescribed).",
+                "motivation": TARGET_MOTIVATIONS["training"],
+            }
+        )
+
+    if rem.get("protein_g", 0) > 20:
+        actions.append(
+            {
+                "kind": "nutrition",
+                "priority": 2,
+                "text": (
+                    f"Cover remaining protein (~{rem['protein_g']:.0f} g) from the meal plan "
+                    "or a high-protein stocked staple."
+                ),
+                "motivation": TARGET_MOTIVATIONS["protein_g"],
+            }
+        )
+    if rem.get("calories", 0) > 200 and meal_items:
+        actions.append(
+            {
+                "kind": "nutrition",
+                "priority": 3,
+                "text": (
+                    f"Eat through the planned meals to use ~{rem['calories']:.0f} kcal remaining "
+                    "(paced over the waking window)."
+                ),
+                "motivation": TARGET_MOTIVATIONS["calories"],
+            }
+        )
+    if purchases:
+        top = purchases[0]
+        actions.append(
+            {
+                "kind": "shopping",
+                "priority": 4,
+                "text": (
+                    f"{'Restock' if top.get('action') == 'restock' else 'Add'} "
+                    f"{top.get('name') or 'staples'} — {top.get('reason') or 'needed for meals'}."
+                ),
+                "motivation": "Stock enables today's meal plan without guesswork.",
+            }
+        )
+
+    bat = sleep_battery or {}
+    if bat.get("mode") == "awake" and float(bat.get("pct_charged") or 100) < 30:
+        actions.append(
+            {
+                "kind": "sleep",
+                "priority": 2,
+                "text": (
+                    f"Sleep battery low ({bat.get('pct_charged')}%) — plan bedtime soon "
+                    f"(empty ~{str(bat.get('empty_at') or '')[11:16] or 'tonight'})."
+                ),
+                "motivation": TARGET_MOTIVATIONS["sleep"],
+            }
+        )
+    elif bat.get("mode") == "awake":
+        actions.append(
+            {
+                "kind": "sleep",
+                "priority": 5,
+                "text": (
+                    f"Protect bedtime — battery {bat.get('pct_charged')}% after wake "
+                    f"{str(bat.get('last_wake_at') or '')[11:16] or '—'}."
+                ),
+                "motivation": TARGET_MOTIVATIONS["sleep"],
+            }
+        )
+
+    cb = calorie_bars or {}
+    pacing = cb.get("pacing") if isinstance(cb, dict) else None
+    if isinstance(pacing, dict) and pacing.get("status") == "ahead":
+        actions.append(
+            {
+                "kind": "nutrition",
+                "priority": 3,
+                "text": "Calorie pace is ahead of the waking window — slow intake until the next meal slot.",
+                "motivation": TARGET_MOTIVATIONS["calories"],
+            }
+        )
+    elif isinstance(pacing, dict) and pacing.get("status") == "behind" and rem.get("calories", 0) > 400:
+        actions.append(
+            {
+                "kind": "nutrition",
+                "priority": 3,
+                "text": "Calorie pace is behind — don't skip planned meals if macros still remain.",
+                "motivation": TARGET_MOTIVATIONS["calories"],
+            }
+        )
+
+    actions.sort(key=lambda a: int(a.get("priority") or 9))
+
+    headline = {
+        "rest": "Rest day — recover so the next hard session is productive.",
+        "easy": "Easy day — train lightly; recovery is moderate.",
+        "train": "Train day — execute the prescribed session and fuel around it.",
+    }.get(rec_label, "Today's guide")
+
     return {
         "date": as_of,
         "recommendation": rec_label,
+        "headline": headline,
+        "motivations": {
+            "overview": (
+                "This guide is rebuilt on every dashboard load from live logs, stock, "
+                "recovery, and planners — it tracks what you already ate and still need."
+            ),
+            "targets": TARGET_MOTIVATIONS,
+        },
+        "targets": target_rows,
         "recovery": {
             "label": recovery.label,
             "score": recovery.score,
             "reasons": recovery.reasons[:4],
+            "motivation": TARGET_MOTIVATIONS["recovery"],
         },
         "workout": {
             "session_type": wp.get("session_type"),
             "is_rest_day": bool(wp.get("is_rest_day")),
             "message": wp.get("message"),
             "exercises": exercises,
-            "focus": (wp.get("volume") or {}).get("focus")
-            or (wp.get("context") or {}).get("focus"),
+            "focus": focus,
+            "motivation": TARGET_MOTIVATIONS["training"],
+            "recommendation": rec_label,
         },
+        "meal": meal_block,
+        "purchases": purchases,
+        "inventory_removals": removals,
         "nutrition": {
             "consumed": consumed,
             "targets": targets,
             "remaining": rem,
             "meal_plan_message": mp.get("message"),
+            "food_log_count": n_logs,
         },
+        "actions": actions,
+        "sleep_battery": {
+            "pct_charged": bat.get("pct_charged"),
+            "mode": bat.get("mode"),
+            "last_wake_at": bat.get("last_wake_at"),
+            "empty_at": bat.get("empty_at"),
+            "summary": bat.get("summary"),
+            "motivation": TARGET_MOTIVATIONS["sleep"],
+        }
+        if bat
+        else None,
+        "calorie_bars": {
+            "pacing_summary": (pacing or {}).get("summary") if isinstance(pacing, dict) else None,
+            "delta_summary": ((cb.get("delta") or {}) if isinstance(cb, dict) else {}).get(
+                "summary"
+            ),
+        }
+        if cb
+        else None,
         "adherence_7d": {
             "protein_pct": (adherence.get("protein") or {}).get("pct"),
             "sleep_pct": (adherence.get("sleep") or {}).get("pct"),
@@ -707,6 +1023,10 @@ def build_coach_payload(
     workout_plan: dict,
     as_of: Optional[str] = None,
     labs: Optional[dict] = None,
+    inventory_suggestions: Optional[dict] = None,
+    inventory_removals: Optional[dict] = None,
+    sleep_battery: Optional[dict] = None,
+    calorie_bars: Optional[dict] = None,
 ) -> dict:
     day = as_of or local_today_iso()
     adherence = compute_adherence_7d(
@@ -726,6 +1046,7 @@ def build_coach_payload(
         adherence=adherence,
         as_of=day,
     )
+    today_logs = [f for f in (health.food_logs or []) if getattr(f, "date", None) == day]
     today = build_today_board(
         as_of=day,
         recovery=recovery,
@@ -734,6 +1055,11 @@ def build_coach_payload(
         consumed=consumed or {},
         targets=targets or {},
         adherence=adherence,
+        inventory_suggestions=inventory_suggestions,
+        inventory_removals=inventory_removals,
+        sleep_battery=sleep_battery,
+        calorie_bars=calorie_bars,
+        food_logs_today=today_logs,
     )
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],
