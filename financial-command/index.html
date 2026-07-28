@@ -2254,8 +2254,7 @@
         missPanel.classList.add("hidden");
       }
 
-      // Settings
-      const pol = ev.policy || {};
+      // Settings (pol declared above with KPI tones)
       document.getElementById("policy-grid").innerHTML = [
         sleeveHtml("Card float target", pol.cb_card_float_usdc, pol.cb_card_float_usdc, 0),
         sleeveHtml("Loan buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
