@@ -282,10 +282,26 @@ class GoogleHealthClient:
         *,
         end_date: Optional[datetime] = None,
     ) -> dict:
-        end = (end_date or datetime.now(timezone.utc)).date()
-        if isinstance(end, datetime):
-            end = end.date()
-        start = end - timedelta(days=max(1, days - 1))
+        """Build civil date range for dataPoints:dailyRollUp.
+
+        Google Health treats ``range.end`` as **exclusive** (live check: end=today
+        omits today's partial total-calories; end=tomorrow includes today's kcalSum).
+        Request end = last_inclusive_day + 1.
+
+        Default last inclusive day is **local** civil today (not UTC).
+        """
+        if end_date is None:
+            end_inclusive = datetime.now().astimezone().date()
+        elif isinstance(end_date, datetime):
+            end_inclusive = (
+                end_date.astimezone().date()
+                if end_date.tzinfo is not None
+                else end_date.date()
+            )
+        else:
+            end_inclusive = end_date
+        start = end_inclusive - timedelta(days=max(1, days - 1))
+        end_exclusive = end_inclusive + timedelta(days=1)
         # Google enforces windowSizeDays * pageSize <= maxDuration for some types
         page_size = min(page_size, max(1, days))
         return {
@@ -299,9 +315,9 @@ class GoogleHealthClient:
                 },
                 "end": {
                     "date": {
-                        "year": end.year,
-                        "month": end.month,
-                        "day": end.day,
+                        "year": end_exclusive.year,
+                        "month": end_exclusive.month,
+                        "day": end_exclusive.day,
                     }
                 },
             },
@@ -326,10 +342,11 @@ class GoogleHealthClient:
         days: int,
         chunk_days: int,
     ) -> dict:
-        """Fetch rollups in chunks ending today, walking backward."""
+        """Fetch rollups in chunks ending today (local civil), walking backward."""
         days = max(1, int(days))
         chunk_days = max(1, int(chunk_days))
-        end = datetime.now(timezone.utc)
+        # Inclusive last day of this chunk (local calendar)
+        end = datetime.now().astimezone()
         remaining = days
         all_pts: List[dict] = []
         while remaining > 0:
