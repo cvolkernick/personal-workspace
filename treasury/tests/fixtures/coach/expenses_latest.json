@@ -1,0 +1,58 @@
+{
+  "source": "fixture",
+  "as_of": "2026-07-27T12:00:00+00:00",
+  "tabs": {
+    "Personal": {
+      "items": [
+        {
+          "date": "7/1/2026",
+          "from": "Coinbase",
+          "item": "Overdue rent residual",
+          "monthly": 500.0
+        },
+        {
+          "date": "7/20/2026",
+          "from": "Coinbase",
+          "item": "Also overdue smaller",
+          "monthly": 100.0
+        },
+        {
+          "date": "7/28/2026",
+          "from": "X Money",
+          "item": "Soon insurance",
+          "monthly": 200.0
+        },
+        {
+          "date": "8/15/2026",
+          "from": "X Money",
+          "item": "Later fleet",
+          "monthly": 300.0
+        },
+        {
+          "date": "8/1/2026",
+          "from": "RH Checking",
+          "item": "Small checking bill",
+          "monthly": 50.0
+        },
+        {
+          "date": null,
+          "from": "Coinbase",
+          "item": "Undated subscription",
+          "monthly": 25.0
+        }
+      ],
+      "by_source_monthly": {
+        "Coinbase": 625.0,
+        "X Money": 500.0,
+        "RH Checking": 50.0
+      }
+    }
+  },
+  "summary": {
+    "upcoming_expense_monthly": 1175.0,
+    "personal_monthly": 1175.0,
+    "personal_daily": 39.17,
+    "coinbase_funded_monthly": 625.0,
+    "rh_checking_funded_monthly": 50.0
+  }
+}

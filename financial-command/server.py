@@ -8,6 +8,7 @@ Serves static UI + APIs:
   GET  /api/watchlist/deep-dive?symbol=BE — full deep-dive markdown
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
+  GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/open-orchestra — probe Orchestrator (port 8790)
   POST /api/open-orchestra — ensure Orchestrator is running (start if needed)
   POST /api/config     — merge-save manual fields / policy
@@ -37,6 +38,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import load_config, save_config  # noqa: E402
+from treasury.financial_coach import (  # noqa: E402
+    build_coach_plan,
+    load_snapshots as load_coach_snapshots,
+)
 from treasury.run_treasury import main as run_treasury_main  # noqa: E402
 from treasury.watchlist_dashboard import (  # noqa: E402
     build_watchlist_dashboard,
@@ -456,6 +461,23 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/capital-flows":
             try:
                 self._json(200, _capital_flows_payload())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/coach":
+            try:
+                snaps = load_coach_snapshots(ROOT / "treasury" / "snapshots")
+                # Prefer evaluation copy used by FCC if present
+                tre_fcc = ROOT / "financial-command" / "treasury_latest.json"
+                if tre_fcc.is_file():
+                    try:
+                        snaps["treasury"] = json.loads(
+                            tre_fcc.read_text(encoding="utf-8")
+                        )
+                    except (OSError, json.JSONDecodeError):
+                        pass
+                plan = build_coach_plan(snaps)
+                self._json(200, plan)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return

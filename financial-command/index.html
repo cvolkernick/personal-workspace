@@ -881,6 +881,21 @@
       </div>
     </section>
 
+    <section class="card" id="coach-card">
+      <div class="card-head">
+        <h2>Financial coach · pay on time</h2>
+        <button type="button" class="btn" id="btn-coach-refresh">Refresh coach</button>
+      </div>
+      <p class="hint" style="margin-top:0">
+        Allocates available cash to the most overdue / soonest-due expenses first (advisory only — does not move money).
+      </p>
+      <div id="coach-summary" class="hint">Loading coach…</div>
+      <div id="coach-advice" style="margin-top:0.45rem"></div>
+      <div id="coach-table" style="margin-top:0.55rem;overflow-x:auto"></div>
+      <div id="coach-habits" style="margin-top:0.55rem"></div>
+      <div id="coach-requests" style="margin-top:0.45rem"></div>
+    </section>
+
     <section class="card" id="upcoming-card">
       <div class="bill-section-head">
         <h2 style="margin:0">Upcoming bills (estimates)</h2>
@@ -2346,6 +2361,128 @@
       };
     }
 
+    function renderCoach(plan) {
+      const sumEl = document.getElementById("coach-summary");
+      const advEl = document.getElementById("coach-advice");
+      const tabEl = document.getElementById("coach-table");
+      const habEl = document.getElementById("coach-habits");
+      const reqEl = document.getElementById("coach-requests");
+      if (!sumEl) return;
+      if (!plan || !plan.ok) {
+        sumEl.textContent = "Coach unavailable: " + (plan && plan.error ? plan.error : "no data");
+        return;
+      }
+      const s = plan.summary || {};
+      const venues = s.venues || {};
+      const vBits = Object.keys(venues)
+        .map((k) => {
+          const v = venues[k] || {};
+          return (
+            (v.label || k) +
+            " avail " +
+            money(v.available) +
+            " → residual " +
+            money(v.residual)
+          );
+        })
+        .join(" · ");
+      sumEl.innerHTML =
+        `<strong>${s.obligation_count || 0}</strong> obligations · due ` +
+        money(s.total_due) +
+        ` · allocated ` +
+        money(s.total_allocated) +
+        ` · gap ` +
+        money(s.total_gap) +
+        (s.overdue_count ? ` · <span style="color:var(--red)">${s.overdue_count} overdue</span>` : "") +
+        `<div class="hint" style="margin:0.35rem 0 0">${escapeHtml(vBits)}</div>`;
+
+      advEl.innerHTML = (plan.advice || [])
+        .map((a) => `<div class="hint" style="margin:0.2rem 0">• ${escapeHtml(a)}</div>`)
+        .join("");
+
+      const rows = plan.obligations || [];
+      if (!rows.length) {
+        tabEl.innerHTML = `<p class="hint">No expense lines in snapshot.</p>`;
+      } else {
+        tabEl.innerHTML =
+          `<table class="pos-table"><thead><tr>` +
+          `<th>#</th><th>Item</th><th>Due</th><th>From</th><th>Amount</th><th>Alloc</th><th>Gap</th><th>Status</th>` +
+          `</tr></thead><tbody>` +
+          rows
+            .slice(0, 24)
+            .map((r) => {
+              const dueLab = r.overdue
+                ? `OVERDUE (${Math.abs(r.days_until_due || 0)}d)`
+                : r.due_date
+                  ? r.due_date +
+                    (r.days_until_due != null ? ` (${r.days_until_due}d)` : "")
+                  : "no date";
+              const amt =
+                money(r.amount_due) + (r.amount_is_estimate ? " est" : "");
+              return (
+                `<tr>` +
+                `<td>${r.urgency_rank || ""}</td>` +
+                `<td>${escapeHtml(r.item || "—")}</td>` +
+                `<td>${escapeHtml(dueLab)}</td>` +
+                `<td>${escapeHtml(r.from_label || r.venue || "")}</td>` +
+                `<td>${amt}</td>` +
+                `<td>${money(r.allocated)}</td>` +
+                `<td>${money(r.gap)}</td>` +
+                `<td>${escapeHtml(r.status || "")}</td>` +
+                `</tr>`
+              );
+            })
+            .join("") +
+          `</tbody></table>` +
+          (rows.length > 24
+            ? `<p class="hint">Showing top 24 of ${rows.length} by urgency.</p>`
+            : "");
+      }
+
+      const h = plan.habits || {};
+      habEl.innerHTML =
+        `<div class="hint"><strong>Habits / pace</strong> · sheet burn ` +
+        (h.personal_daily_burn_est != null
+          ? money(h.personal_daily_burn_est) + "/day"
+          : "—") +
+        (h.runway_days_at_sheet_burn != null
+          ? ` · liquid runway ~${h.runway_days_at_sheet_burn}d`
+          : "") +
+        (h.ynab_spend_30d
+          ? ` · YNAB 30d spend card+cash ${money(
+              (h.ynab_spend_30d.combined_card_and_cash)
+            )}`
+          : "") +
+        `</div>`;
+
+      const reqs = plan.data_requests || [];
+      reqEl.innerHTML = reqs.length
+        ? `<div class="hint"><strong>Data requests</strong></div>` +
+          reqs
+            .slice(0, 8)
+            .map(
+              (d) =>
+                `<div class="hint" style="margin:0.2rem 0">• <code>${escapeHtml(
+                  d.field || ""
+                )}</code> — ${escapeHtml(d.why || "")} <em>${escapeHtml(
+                  d.how || ""
+                )}</em></div>`
+            )
+            .join("")
+        : "";
+    }
+
+    async function loadCoach() {
+      try {
+        const res = await fetch("/api/coach?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const plan = await res.json();
+        renderCoach(plan);
+      } catch (e) {
+        renderCoach({ ok: false, error: e.message });
+      }
+    }
+
     async function loadWatchlistPreview() {
       const el = document.getElementById("watchlist-preview");
       if (!el) return;
@@ -2421,6 +2558,7 @@
         window.__treasury = data;
         render(data);
         loadWatchlistPreview();
+        loadCoach();
       } catch (e) {
         errEl.classList.remove("hidden");
         errEl.textContent =
@@ -2484,6 +2622,8 @@
     }
 
     document.getElementById("btn-refresh").addEventListener("click", refreshLive);
+    const btnCoach = document.getElementById("btn-coach-refresh");
+    if (btnCoach) btnCoach.addEventListener("click", loadCoach);
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
     // Soft auto-poll treasury JSON (does not call RH MCP — keeps UI fresh)
     setInterval(() => {

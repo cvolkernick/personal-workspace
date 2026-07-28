@@ -1,0 +1,13 @@
+{
+  "evaluation": {
+    "inputs": {
+      "liquid_usdc": 50.0,
+      "vault_usdc": 100.0,
+      "working_usdc": 150.0,
+      "x_money_cash": 150.0,
+      "rh_checking_cash": 40.0,
+      "card_balance": 200.0,
+      "ltv": null
+    }
+  }
+}
