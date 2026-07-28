@@ -13,6 +13,7 @@
       --muted: #8aa0b5;
       --green: #3dd68c;
       --yellow: #f5c542;
+      --orange: #f08a3c;
       --red: #ff6b6b;
       --accent: #5b9fd4;
       --agent: #7c9cff;
@@ -134,24 +135,79 @@
     .toast.show { display: block; }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.55rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.35rem;
     }
-    @media (max-width: 700px) {
-      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    @media (max-width: 820px) {
+      .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .kpi {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      padding: 0.38rem 0.45rem 0.42rem;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, filter 0.15s;
+      min-width: 0;
     }
-    .kpi:hover { border-color: #3a5066; }
-    .kpi .k { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .kpi .v { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 0.2rem; }
-    .kpi .s { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .kpi:hover { filter: brightness(1.06); }
+    .kpi .k {
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .kpi .v {
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-top: 0.1rem;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .kpi .s {
+      font-size: 0.62rem;
+      color: var(--muted);
+      margin-top: 0.08rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Attention shading: fill + border + value color */
+    .kpi.tone-red {
+      background: linear-gradient(180deg, #2a1216 0%, #1a1010 100%);
+      border-color: #6b2e2e;
+    }
+    .kpi.tone-red .v { color: var(--red); }
+    .kpi.tone-orange {
+      background: linear-gradient(180deg, #2a1a10 0%, #1a140c 100%);
+      border-color: #7a4020;
+    }
+    .kpi.tone-orange .v { color: var(--orange); }
+    .kpi.tone-yellow {
+      background: linear-gradient(180deg, #2a2410 0%, #1a1608 100%);
+      border-color: #6b5a1e;
+    }
+    .kpi.tone-yellow .v { color: var(--yellow); }
+    .kpi.tone-green {
+      background: linear-gradient(180deg, #102a1c 0%, #0e1814 100%);
+      border-color: #1e4a32;
+    }
+    .kpi.tone-green .v { color: var(--green); }
+    .kpi.tone-muted {
+      background: var(--panel);
+      border-color: var(--border);
+      opacity: 0.92;
+    }
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -823,6 +879,12 @@
 
   <main>
     <div id="load-error" class="error hidden"></div>
+
+    <section id="at-a-glance" aria-label="At a glance">
+      <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
+      <div class="kpi-grid" id="kpi-grid"></div>
+    </section>
+
     <div id="status-why" class="status-why yellow">Loading…</div>
     <div class="status-split" id="status-split"></div>
 
@@ -831,11 +893,6 @@
       <div class="actions" id="actions-top"></div>
       <button type="button" id="show-all-actions" class="hidden">Show all actions</button>
       <div class="actions hidden" id="actions-rest" style="margin-top:0.5rem"></div>
-    </section>
-
-    <section>
-      <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
-      <div class="kpi-grid" id="kpi-grid"></div>
     </section>
 
     <section class="card" id="bills-coach-card">
@@ -1599,38 +1656,140 @@
         restEl.classList.add("hidden");
       }
 
-      // KPIs
+      // KPIs — 10 chips in a 5-col grid (2 even rows); tone = attention shading
       const oc = snap.one_card || {};
       const rhc = snap.rh_checking || {};
       const xm = snap.x_money || {};
       const ex = snap.expenses || {};
       const es = ex.summary || {};
+      const pol = ev.policy || DEFAULT_POLICY;
+      const br = data.braiins || {};
+      const fmK = data.fund_manager || ev.fund_manager || {};
+      const fmaK = fmK.analysis || {};
+      const wDepK = fmaK.weights_of_deployed || {};
+
+      const workingUsdc = f(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc);
+      const cardOwed = f(inp.card_balance ?? oc.balance_owed);
+      const cardDeposit = f(inp.card_security_deposit_usdc);
+      const rhCheck = f(inp.rh_checking_cash ?? rhc.cash);
+      const xMoney = f(inp.x_money_cash ?? xm.cash);
+      const agentNav = f(fmaK.nav_usd);
+      const rhBp = f(inp.rh_buying_power);
+      const billsMo = f(
+        es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly
+      );
+      const totalLiquid = workingUsdc + rhCheck + xMoney;
+      const ltvVal = inp.ltv == null || inp.ltv === "" ? null : f(inp.ltv);
+      const ltvMax = f(pol.cb_target_ltv_max) || 0.5;
+      const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
+      const bpFloor = f(pol.rh_bp_floor) || 25;
+
+      function cashLowTone(n, crit, urg, mod) {
+        if (!Number.isFinite(n)) return "muted";
+        if (n < crit) return "red";
+        if (n < urg) return "orange";
+        if (n < mod) return "yellow";
+        return "green";
+      }
+      function cardOwedTone(owed, deposit) {
+        if (!Number.isFinite(owed)) return "muted";
+        const util = deposit > 0 ? owed / deposit : null;
+        if (util != null) {
+          if (util >= 0.9) return "red";
+          if (util >= 0.7) return "orange";
+          if (util >= 0.4) return "yellow";
+          return "green";
+        }
+        if (owed >= 450) return "red";
+        if (owed >= 300) return "orange";
+        if (owed >= 100) return "yellow";
+        return "green";
+      }
+      function agenticTone() {
+        if (!fmaK.ok) return agentNav > 0 ? "yellow" : "muted";
+        if (fmK.policy_summary && fmK.policy_summary.live === false) return "yellow";
+        if (agentNav <= 0) return "orange";
+        const band = (fmaK.targets && fmaK.targets.band_pct) || 0.05;
+        const tgtB = (fmaK.targets && fmaK.targets.btc_digital_credit_pct) || 0.4;
+        if (wDepK.btc_digital_credit == null) {
+          return f(fmaK.cash_usd) > 1 ? "yellow" : "orange";
+        }
+        const drift = Math.abs(wDepK.btc_digital_credit - tgtB);
+        if (drift > band * 2) return "orange";
+        if (drift > band) return "yellow";
+        return "green";
+      }
+      function billsPressureTone() {
+        if (!(billsMo > 0)) return "muted";
+        const cover = totalLiquid / billsMo;
+        if (cover < 0.05) return "red";
+        if (cover < 0.15) return "orange";
+        if (cover < 0.4) return "yellow";
+        return "green";
+      }
+      function ltvTone() {
+        if (ltvVal == null || !Number.isFinite(ltvVal)) return "yellow";
+        if (ltvVal >= ltvMax) return "red";
+        if (ltvVal >= ltvAlert) return "orange";
+        if (ltvVal >= ltvAlert * 0.85) return "yellow";
+        return "green";
+      }
+      function asicHashTone() {
+        if (!br.ok) return "orange";
+        const hr = f(br.hash_rate_24h);
+        const off = f(br.off_workers);
+        if (!(hr > 0)) return "red";
+        if (off > 0) return "orange";
+        return "green";
+      }
+      function nextPayTone() {
+        if (!br.ok) return "muted";
+        const d = br.days_to_next_payout_est;
+        if (d == null || !Number.isFinite(Number(d))) return "yellow";
+        const days = Number(d);
+        if (days <= 7) return "green";
+        if (days <= 21) return "yellow";
+        if (days <= 45) return "orange";
+        return "orange";
+      }
+
       const kpis = [
         {
           k: "USDC working",
-          v: money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc),
+          v: money(workingUsdc),
           s:
             "spot " +
             money(inp.liquid_usdc) +
             " + vault " +
             (inp.vault_known === false || inp.vault_usdc == null ? "?" : money(inp.vault_usdc)),
           target: "cash-credit",
+          tone:
+            stress.coinbase_liquid === "red"
+              ? "red"
+              : stress.coinbase_liquid === "yellow"
+                ? "yellow"
+                : cashLowTone(workingUsdc, 40, 120, 350),
         },
         {
           k: "One Card owed",
-          v: money(inp.card_balance ?? oc.balance_owed),
+          v: money(cardOwed),
           s: oc.account_name ? "YNAB" : "—",
           target: "cash-credit",
+          tone:
+            stress.coinbase_card === "red"
+              ? "red"
+              : cardOwedTone(cardOwed, cardDeposit),
         },
         {
           k: "RH Checking",
-          v: money(inp.rh_checking_cash ?? rhc.cash),
+          v: money(rhCheck),
           s: "bill-pay float",
           target: "cash-credit",
+          tone: cashLowTone(rhCheck, 5, 25, 75),
         },
         {
           k: "X Money",
-          v: money(inp.x_money_cash ?? xm.cash),
+          v: money(xMoney),
           s: (() => {
             const name = (inp.x_money_account || xm.account_name || "YNAB")
               .toString()
@@ -1641,64 +1800,68 @@
               : name;
           })(),
           target: "cash-credit",
+          tone: cashLowTone(xMoney, 40, 150, 400),
         },
         {
           k: "Agentic NAV",
-          v: money(
-            ((data.fund_manager || ev.fund_manager || {}).analysis || {}).nav_usd
-          ),
+          v: money(agentNav),
           s: (() => {
-            const w =
-              ((data.fund_manager || ev.fund_manager || {}).analysis || {})
-                .weights_of_deployed || {};
-            if (w.btc_digital_credit == null) return "fund manager";
+            if (wDepK.btc_digital_credit == null) return "fund manager";
             return (
-              Math.round(w.btc_digital_credit * 100) +
+              Math.round(wDepK.btc_digital_credit * 100) +
               "/" +
-              Math.round((w.stocks_growth || 0) * 100) +
+              Math.round((wDepK.stocks_growth || 0) * 100) +
               " deploy"
             );
           })(),
           target: "fund-manager-card",
+          tone: agenticTone(),
         },
         {
           k: "RH BP",
-          v: money(inp.rh_buying_power),
+          v: money(rhBp),
           s: "primary brokerage",
           target: "panel-brokerage",
+          tone:
+            !Number.isFinite(rhBp)
+              ? "muted"
+              : rhBp < bpFloor
+                ? "red"
+                : rhBp < bpFloor * 3
+                  ? "orange"
+                  : rhBp < bpFloor * 8
+                    ? "yellow"
+                    : "green",
         },
         {
           k: "Bills / mo est.",
-          v: money(es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly),
+          v: money(billsMo),
           s: "sheet Personal",
           target: "bills-coach-card",
+          tone: billsPressureTone(),
         },
         {
           k: "LTV",
-          v: pct(inp.ltv),
-          s: stress.coinbase_ltv || "set in Settings",
+          v: pct(ltvVal),
+          s: stress.coinbase_ltv || (ltvVal == null ? "set in Settings" : "Morpho"),
           target: "panel-settings",
+          tone: ltvTone(),
         },
         {
           k: "ASICs 24h",
-          v: (() => {
-            const br = data.braiins || {};
-            if (!br.ok) return "—";
-            return formatHashrate(br.hash_rate_24h, br.hash_rate_unit);
-          })(),
+          v: br.ok ? formatHashrate(br.hash_rate_24h, br.hash_rate_unit) : "—",
           s: (() => {
-            const br = data.braiins || {};
             if (!br.ok) return br.error ? "sync needed" : "Braiins";
             const ok = br.ok_workers != null ? br.ok_workers : "?";
             const off = br.off_workers || 0;
             return `${ok} ok` + (off ? ` · ${off} off` : "") + " · Braiins";
           })(),
           target: "braiins-card",
+          tone: asicHashTone(),
         },
         {
           k: "Next ASIC pay",
           v: (() => {
-            const br = data.braiins || {};
             if (!br.ok) return "—";
             if (br.days_to_next_payout_est != null) {
               return "~" + Number(br.days_to_next_payout_est).toFixed(0) + "d";
@@ -1706,11 +1869,10 @@
             return "—";
           })(),
           s: (() => {
-            const br = data.braiins || {};
             if (!br.ok) return "Braiins";
             const bits = [];
             if (br.next_payout_progress_pct != null) {
-              bits.push(Number(br.next_payout_progress_pct).toFixed(0) + "% of thr");
+              bits.push(Number(br.next_payout_progress_pct).toFixed(0) + "% thr");
             }
             if (br.next_payout_est_at) {
               const t = Date.parse(br.next_payout_est_at);
@@ -1723,16 +1885,24 @@
                 );
               }
             }
-            return bits.join(" · ") || "est. from threshold";
+            return bits.join(" · ") || "est. threshold";
           })(),
           target: "braiins-card",
+          tone: nextPayTone(),
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
-        .map(
-          (k) =>
-            `<div class="kpi" data-target="${k.target}"><div class="k">${k.k}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`
-        )
+        .map((k) => {
+          const tone = k.tone || "muted";
+          return (
+            `<div class="kpi tone-${tone}" data-target="${k.target}" title="${escapeHtml(
+              k.k + " · " + tone
+            )}">` +
+            `<div class="k">${k.k}</div>` +
+            `<div class="v">${k.v}</div>` +
+            `<div class="s">${k.s}</div></div>`
+          );
+        })
         .join("");
       document.querySelectorAll(".kpi").forEach((el) => {
         el.addEventListener("click", () => {
