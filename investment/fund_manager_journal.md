@@ -439,3 +439,31 @@
 - **critic:** ok_hold_process_flag — Force HOLD on residual. Challenge: STRC/SATA still unheld after prior deploys — flag for NEXT free capital. Reject false miner-overlap blocks. Reject held-only inertia. Do not force sell-to-buy rotate this pass (in-band + no MCP). Block BE into 7/28 AMC and undived AI first-buys.
 - **executor:** hold — No place/cancel. robinhood-trading MCP tools unavailable this session. Even with venue, $0.04 cannot satisfy min_trade $1.00.
 
+
+## 2026-07-28T18:42:07 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $173.5861 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $173.59 BP $0.04 cash $0.04
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-28T18:43:50 — hold
+**Summary:** Mid-session fund-manager review 2026-07-28 (~14:42 ET): agentic ••••1752 NAV~$173.59, cash/BP $0.04 HOLD. Yahoo mark equity ~39.0% BTC-complex / ~61.0% stocks (policy engine 40/60 deployed, in ±5% band). Full research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK). No orders: dust capital (<$1 min) + robinhood-trading MCP auth unavailable. BE earnings today AMC — blocked. Next free capital ≥$1 → prioritize STRC/SATA seat in BTC-complex leg; multi-miner retained; reject held-only default.
+**Book:** NAV $173.5861 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.39 · Stocks 0.61
+**Why now:** Scheduled mid-session fund-manager review (~14:42 ET Tue). live:true; no owner approval mid-pass. Any cash/BP>0 triggers full team even when residual is dust. Uniform research/rotate required (size-invariant). Confirm 40/60 and owner-pref process flags (STRC/SATA elevate, multi-miner OK) for glass box. BE earnings today AMC reinforces energy hold.
+**Why not alternatives:** Buys blocked by $0.04 BP < $1 min and robinhood-trading MCP auth unavailable this session. Forced rotate to STRC/SATA deferred (in-band, prefer free capital, settlement risk). Watchlist BE blocked into 7/28 AMC earnings; GOOGL/AAPL/NVDA blocked without deep-dive. Did NOT reject STRC/SATA on thesis — preferred for next BTC-complex deploy. Did NOT reject RIOT/WULF for false miner-overlap. Held-only top-up rejected as default for next free cash.
+**Team:**
+- **scout:** ok — Agentic ••••1752 RH snapshot 18:42Z: NAV $173.59 equity 7 names (MSTR BITA MARA IREN CLSK TSLA SPCX), cash/BP $0.04. Yahoo marks ~39.0/61.0 in band. Core unheld: STRC SATA ASST RIOT WULF. Watchlist BE GOOGL AAPL NVDA. MCP tools unavailable this session (auth required).
+- **thesis:** ok_hold — Book on 40/60 target. Hold multi-miner stack + MSTR/BITA credit + TSLA/SPCX. Next deploy: meaningful STRC and/or SATA in BTC-complex; do not MSTR-only by habit. RIOT/WULF eligible diversifiers — not overlap rejects. Watchlist not ready for first buy; BE blocked earnings day.
+- **risk:** ok_hold — No trade: BP dust below min $1. Agentic-only cash account, no leverage. TSLA ~34% of equity elevated but primary growth core; multi-miner is diversification not concentration block. Small NAV → no process skip. MCP outage is operational risk for autopilot.
+- **critic:** ok_hold_process_flag — Force HOLD on residual. Challenge: STRC/SATA still unheld after prior deploys — flag for NEXT free capital. Reject false miner-overlap blocks. Reject held-only inertia. Do not force sell-to-buy rotate this pass (in-band + no MCP). Block BE into 7/28 AMC and undived AI first-buys.
+- **executor:** hold — No place/cancel. robinhood-trading MCP auth required / tools unavailable this session. Even with venue, $0.04 cannot satisfy min_trade $1.00.
+

@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-26T22:03:06.602847+00:00",
+  "as_of": "2026-07-28T18:42:38.037330+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 10.71,
-  "cash": 10.71,
-  "available": 10.71,
-  "cleared_balance": 10.71,
+  "balance_raw": 218.23,
+  "cash": 218.23,
+  "available": 218.23,
+  "cleared_balance": 218.23,
   "uncleared_balance": 0.0,
-  "spend_30d": 270.73,
-  "inflow_30d": 281.44,
-  "transaction_count": 41,
+  "spend_30d": 317.37,
+  "inflow_30d": 535.6,
+  "transaction_count": 54,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -217,7 +217,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -437,7 +437,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
+      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -448,7 +448,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
+      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -468,9 +468,108 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "5537086d-03d7-401a-a338-9e7ee04e61da",
+      "date": "2026-07-27",
+      "payee": "Wawa",
+      "amount": -3.0,
+      "amount_display": -3.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "09ba72f1-a9a8-4a41-9322-8ff8324fba04",
+      "date": "2026-07-27",
+      "payee": "McDonald's",
+      "amount": -1.84,
+      "amount_display": -1.84,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "019e5ba8-5d82-4608-ac5d-99764f3ab97c",
+      "date": "2026-07-27",
+      "payee": "RaceTrac",
+      "amount": -1.6,
+      "amount_display": -1.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "a10ade45-e0f5-4259-a992-100809d2d815",
+      "date": "2026-07-27",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "aceeb512-0555-4fd4-897d-c90e1c50fb80",
+      "date": "2026-07-27",
+      "payee": "7-Eleven",
+      "amount": -0.63,
+      "amount_display": -0.63,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "1fa6adb1-0464-4b02-8cb1-23f1831718d9",
+      "date": "2026-07-27",
+      "payee": "X Card Cashback Reward",
+      "amount": 5.26,
+      "amount_display": 5.26,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "4d6fbce5-8c87-4c4d-98fe-bbaa1a93edf1",
+      "date": "2026-07-27",
+      "payee": "099FEF4C",
+      "amount": 13.67,
+      "amount_display": 13.67,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "c81443fa-6122-4d2c-a5e4-5b116d7559cf",
+      "date": "2026-07-27",
+      "payee": "Lyft",
+      "amount": 235.23,
+      "amount_display": 235.23,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Inflow: Ready to Assign"
+    },
+    {
+      "id": "602d4a2b-6fe9-4567-acba-56c28531358e",
+      "date": "2026-07-28",
+      "payee": "Funds",
+      "amount": -25.0,
+      "amount_display": -25.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-04-27"
+  "since": "2026-04-29"
 }
