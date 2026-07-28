@@ -204,5 +204,13 @@ class TestExtractVenues(unittest.TestCase):
         self.assertAlmostEqual(venues["coinbase"]["liquid_spot_usdc"], 50.0)
 
 
+class TestResidualsHardened(unittest.TestCase):
+    def test_plan_residuals_never_negative_on_fixture(self):
+        plan = build_coach_plan(load_snapshots(FIXTURE_DIR), today=TODAY)
+        self.assertTrue(plan.get("ok"))
+        for k, v in (plan.get("residuals") or {}).items():
+            self.assertGreaterEqual(float(v), 0.0, msg=k)
+
+
 if __name__ == "__main__":
     unittest.main()

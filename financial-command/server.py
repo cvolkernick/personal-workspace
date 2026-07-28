@@ -454,7 +454,15 @@ class FCCHandler(SimpleHTTPRequestHandler):
         sys.stderr.write("[fcc] " + (fmt % args) + "\n")
 
     def _json(self, code: int, payload: dict) -> None:
-        body = json.dumps(payload).encode("utf-8")
+        if not isinstance(payload, dict):
+            payload = {"ok": False, "error": "invalid payload type"}
+        try:
+            body = json.dumps(payload, default=str).encode("utf-8")
+        except (TypeError, ValueError) as e:
+            body = json.dumps(
+                {"ok": False, "error": f"json encode failed: {e}"}
+            ).encode("utf-8")
+            code = 500
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -478,20 +486,42 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path == "/api/treasury":
             p = ROOT / "financial-command" / "treasury_latest.json"
             if not p.is_file():
-                self._json(404, {"ok": False, "error": "no treasury_latest.json — POST /api/refresh"})
+                # Fallback to treasury/snapshots copy
+                p = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
+            if not p.is_file():
+                self._json(
+                    404,
+                    {
+                        "ok": False,
+                        "error": "no treasury_latest.json — POST /api/refresh",
+                    },
+                )
                 return
             try:
                 data = json.loads(p.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
+            except (OSError, json.JSONDecodeError) as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return
-            if isinstance(data, dict):
-                data = dict(data)
+            if not isinstance(data, dict):
+                self._json(500, {"ok": False, "error": "treasury_latest.json is not an object"})
+                return
+            data = dict(data)
+            data.setdefault("ok", True)
+            try:
                 data["braiins"] = _braiins_live()
+            except Exception as be:
+                data["braiins"] = {
+                    "ok": False,
+                    "status": "error",
+                    "error": f"braiins attach failed: {be}",
+                }
             self._json(200, data)
             return
         if path == "/api/braiins":
-            self._json(200, _braiins_live())
+            try:
+                self._json(200, _braiins_live())
+            except Exception as e:
+                self._json(500, {"ok": False, "status": "error", "error": str(e)})
             return
         if path == "/api/config":
             self._json(200, {"ok": True, "config": load_config()})
@@ -531,6 +561,24 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as te:
                         sys.stderr.write(f"[fcc] coach treasury recompute: {te}\n")
                 snaps = load_coach_snapshots(ROOT / "treasury" / "snapshots")
+                if not snaps.get("expenses"):
+                    self._json(
+                        200,
+                        {
+                            "ok": False,
+                            "error": "expenses_latest.json missing — run expenses_sync or FCC Refresh",
+                            "obligations": [],
+                            "summary": {},
+                            "data_requests": [
+                                {
+                                    "field": "expenses_snapshot",
+                                    "why": "No expense sheet snapshot.",
+                                    "how": "python3 treasury/expenses_sync.py",
+                                }
+                            ],
+                        },
+                    )
+                    return
                 if tre_fcc.is_file():
                     try:
                         snaps["treasury"] = json.loads(
@@ -539,11 +587,20 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except (OSError, json.JSONDecodeError):
                         pass
                 plan = build_coach_plan(snaps)
+                if not isinstance(plan, dict):
+                    plan = {"ok": False, "error": "coach builder returned non-object"}
+                plan.setdefault("ok", True)
                 if refreshed:
                     plan["ynab_refreshed"] = True
-                self._json(200, plan)
+                # never invent cash: residuals must be non-negative
+                for v in (plan.get("residuals") or {}).values():
+                    if isinstance(v, (int, float)) and v < -0.01:
+                        plan["ok"] = False
+                        plan["error"] = "invalid negative residual cash"
+                        break
+                self._json(200 if plan.get("ok") is not False else 500, plan)
             except Exception as e:
-                self._json(500, {"ok": False, "error": str(e)})
+                self._json(500, {"ok": False, "error": str(e), "obligations": []})
             return
         if path in ("/api/open-orchestra", "/api/orchestra-status"):
             live = _probe_port(ORCHESTRA_PORT)

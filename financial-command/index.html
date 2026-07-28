@@ -95,17 +95,22 @@
     main {
       max-width: 1000px;
       margin: 0 auto;
-      padding: 1rem 1.25rem 2.5rem;
+      padding: 0.65rem 1.1rem 2rem;
       display: grid;
-      gap: 0.85rem;
+      gap: 0.55rem;
     }
+    .card {
+      padding: 0.65rem 0.85rem;
+    }
+    .card.compact-metrics .metric { margin: 0.15rem 0; }
+    .card.compact-metrics .hint { margin: 0.1rem 0 0.3rem; }
     .status-why {
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       color: var(--text);
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.7rem 0.9rem;
+      padding: 0.55rem 0.75rem;
     }
     .status-why.red { border-color: #5a2a2a; background: #1a1010; }
     .status-why.yellow { border-color: #5a4a1a; background: #1a1608; }
@@ -151,11 +156,11 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 0.85rem 1rem;
+      padding: 0.65rem 0.85rem;
     }
     .card h2 {
-      margin: 0 0 0.6rem;
-      font-size: 0.8rem;
+      margin: 0 0 0.4rem;
+      font-size: 0.78rem;
       color: var(--muted);
       font-weight: 650;
       text-transform: uppercase;
@@ -821,62 +826,60 @@
     <div id="status-why" class="status-why yellow">Loading…</div>
     <div class="status-split" id="status-split"></div>
 
-    <section class="card" id="fund-manager-card">
-      <div class="card-head">
-        <h2>Fund manager</h2>
-        <span class="live-dot" id="fm-live-dot">Autopilot</span>
-      </div>
-      <p class="hint" style="margin-top:0">
-        Agentic RH only · ~daily team review · optional watch — no action required
-      </p>
-      <div class="controls" style="margin:0.45rem 0 0.15rem">
-        <a class="btn" href="watchlist.html" id="link-watchlist-dash">Watchlist research →</a>
-        <a class="btn" href="capital-flows.html" id="link-capital-flows">Capital flows →</a>
-      </div>
-      <div class="fm-hero">
-        <div>
-          <div class="hint">Allocation vs 40 / 60 targets</div>
-          <div class="alloc-stack" id="fm-alloc"></div>
-          <div id="fund-manager-metrics" style="margin-top:0.65rem"></div>
-        </div>
-        <div>
-          <div class="hint">Agentic holdings</div>
-          <div id="fm-holdings"></div>
-        </div>
-      </div>
-      <div class="hint" style="margin-top:0.85rem">Decision log — team debate &amp; rationale</div>
-      <div id="fund-manager-decisions"></div>
-    </section>
-
-    <section class="card" id="watchlist-preview-card">
-      <div class="card-head">
-        <h2>Watchlist research</h2>
-        <a class="btn" href="watchlist.html" id="link-watchlist-full">Watchlist research →</a>
-      </div>
-      <p class="hint" style="margin-top:0">
-        Thematic candidates (monitor / consider — not holdings). Deep dives, conclusions, and sleeve fit.
-      </p>
-      <div id="watchlist-preview">Loading…</div>
-    </section>
-
     <section class="card" id="actions-card">
-      <h2>Do now (liquidity &amp; ops)</h2>
+      <h2>Do now</h2>
       <div class="actions" id="actions-top"></div>
       <button type="button" id="show-all-actions" class="hidden">Show all actions</button>
       <div class="actions hidden" id="actions-rest" style="margin-top:0.5rem"></div>
     </section>
 
     <section>
-      <h2 style="margin:0 0 0.45rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
+      <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
 
-    <section class="card" id="cash-credit">
-      <h2>Cash &amp; credit</h2>
-      <div class="sleeves" id="buffer-sleeves"></div>
-      <div class="grid-2" style="margin-top:0.75rem">
+    <section class="card" id="bills-coach-card">
+      <div class="bill-section-head">
         <div>
-          <div class="hint">Coinbase liquid</div>
+          <h2 style="margin:0">Bills &amp; cash coach</h2>
+          <p class="hint" style="margin:0.2rem 0 0">
+            Overdue first · pay-from cash · advisory only
+          </p>
+        </div>
+        <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
+      </div>
+      <div id="coach-summary" class="hint">Loading pay plan…</div>
+      <div id="coach-advice" style="margin-top:0.25rem"></div>
+      <div class="bill-legend" aria-label="Due-date color legend">
+        <span><i class="red"></i> ≤7d / overdue</span>
+        <span><i class="yellow"></i> 8–14d</span>
+        <span><i class="green"></i> &gt;14d</span>
+      </div>
+      <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
+      <div class="grid-2">
+        <div>
+          <div class="hint">Pay plan (alloc / gap)</div>
+          <div id="expenses-upcoming" class="bill-list"></div>
+        </div>
+        <div>
+          <div class="hint">Pay-from · buffers</div>
+          <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
+          <div id="expenses-by-source"></div>
+          <div class="grid-2" style="margin-top:0.4rem" id="expense-kpis"></div>
+          <div id="coach-habits" style="margin-top:0.4rem"></div>
+          <div id="coach-requests" style="margin-top:0.25rem"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card compact-metrics" id="cash-credit">
+      <div class="card-head">
+        <h2>Cash &amp; credit</h2>
+      </div>
+      <div class="sleeves" id="buffer-sleeves"></div>
+      <div class="grid-2" style="margin-top:0.45rem">
+        <div>
+          <div class="hint">Coinbase</div>
           <div id="cb-metrics"></div>
         </div>
         <div>
@@ -886,64 +889,56 @@
       </div>
     </section>
 
-    <section class="card" id="braiins-card">
+    <section class="card" id="fund-manager-card">
       <div class="card-head">
-        <h2>ASIC mining · Braiins Pool</h2>
-        <span class="live-dot off" id="braiins-live-dot">—</span>
+        <h2>Fund manager</h2>
+        <span class="live-dot" id="fm-live-dot">Autopilot</span>
       </div>
-      <p class="hint" style="margin-top:0">
-        Income → Coinbase (~monthly). Sync: <code>python3 treasury/braiins_sync.py</code>
-      </p>
-      <div class="grid-2" style="margin-top:0.55rem">
-        <div id="braiins-metrics">Loading…</div>
+      <div class="fm-hero">
         <div>
-          <div class="hint">Workers</div>
-          <div id="braiins-workers"></div>
-          <p class="hint" style="margin-top:0.55rem">
-            <a href="capital-flows.html">Capital flows map →</a>
-          </p>
+          <div class="hint">40 / 60 allocation</div>
+          <div class="alloc-stack" id="fm-alloc"></div>
+          <div id="fund-manager-metrics" style="margin-top:0.45rem"></div>
+        </div>
+        <div>
+          <div class="hint">Agentic holdings</div>
+          <div id="fm-holdings"></div>
         </div>
       </div>
+      <div class="hint" style="margin-top:0.55rem">Decision log</div>
+      <div id="fund-manager-decisions"></div>
     </section>
 
-    <section class="card" id="bills-coach-card">
-      <div class="bill-section-head">
-        <div>
-          <h2 style="margin:0">Bills &amp; cash coach</h2>
-          <p class="hint" style="margin:0.25rem 0 0">
-            Overdue → soonest due · allocates available cash by pay-from (advisory — does not move money) · sheet est. · YNAB cash
-          </p>
-        </div>
-        <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
-      </div>
-      <div id="coach-summary" class="hint">Loading pay plan…</div>
-      <div id="coach-advice" style="margin-top:0.35rem"></div>
-      <div class="bill-legend" aria-label="Due-date color legend">
-        <span><i class="red"></i> ≤7 days (or overdue)</span>
-        <span><i class="yellow"></i> 8–14 days</span>
-        <span><i class="green"></i> &gt;14 days</span>
-      </div>
-      <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
-      <div class="grid-2">
-        <div>
-          <div class="hint">Pay plan (urgency order · alloc / gap)</div>
-          <div id="expenses-upcoming" class="bill-list"></div>
-        </div>
-        <div>
-          <div class="hint">Pay-from (monthly est.)</div>
-          <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
-          <div id="expenses-by-source"></div>
-          <div class="grid-2" style="margin-top:0.55rem" id="expense-kpis"></div>
-          <div id="coach-habits" style="margin-top:0.55rem"></div>
-          <div id="coach-requests" style="margin-top:0.35rem"></div>
+    <details class="panel" id="braiins-card" open>
+      <summary>
+        ASIC · Braiins
+        <span class="live-dot off" id="braiins-live-dot" style="margin-left:0.5rem">—</span>
+      </summary>
+      <div class="body">
+        <div class="grid-2">
+          <div id="braiins-metrics">Loading…</div>
+          <div>
+            <div class="hint">Workers</div>
+            <div id="braiins-workers"></div>
+            <p class="hint" style="margin-top:0.45rem">
+              <a href="capital-flows.html">Capital flows →</a>
+            </p>
+          </div>
         </div>
       </div>
-    </section>
+    </details>
+
+    <details class="panel" id="watchlist-preview-card">
+      <summary>Watchlist research <a class="btn" href="watchlist.html" id="link-watchlist-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <div id="watchlist-preview">Loading…</div>
+      </div>
+    </details>
 
     <details class="panel" id="panel-brokerage">
-      <summary>Brokerage detail (RH primary metrics)</summary>
+      <summary>Brokerage detail (RH primary)</summary>
       <div class="body">
-        <p class="hint">Primary margin = legacy/read for this agent · fund manager lives in card above</p>
+        <p class="hint">Primary margin = read-only for this agent · trades on agentic above</p>
         <div id="rh-metrics"></div>
       </div>
     </details>
