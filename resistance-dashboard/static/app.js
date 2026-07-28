@@ -2177,28 +2177,24 @@
   function render(data) {
     state = data;
     clearAlerts();
-    $("stat-sessions").textContent = data.session_count ?? "—";
-    $("stat-volume").textContent = fmtNum(data.total_volume);
-    const latestW =
-      data.health && data.health.weight && data.health.weight.length
-        ? data.health.weight[data.health.weight.length - 1].weight_lbs
-        : null;
-    $("stat-weight").textContent = latestW != null ? `${latestW.toFixed(1)} lb` : "—";
 
     const rec = data.recovery || {};
-    $("stat-recovery").textContent = rec.label || "—";
-    $("recovery-badge").innerHTML = `<span class="badge ${recoveryClass(rec.label)}">${rec.label || "—"} · ${rec.score ?? "—"}</span>`;
+    if ($("recovery-badge")) {
+      $("recovery-badge").innerHTML = `<span class="badge ${recoveryClass(rec.label)}">${rec.label || "—"} · ${rec.score ?? "—"}</span>`;
+    }
     renderSleepBatteryMini(
       (rec && rec.sleep_battery) || data.sleep_battery || null
     ); // bottom of recovery card
     const reasons = $("recovery-reasons");
-    reasons.innerHTML = "";
-    // Cap reasons so the mini battery does not force the card taller
-    (rec.reasons || []).slice(0, 4).forEach((r) => {
-      const li = document.createElement("li");
-      li.textContent = r;
-      reasons.appendChild(li);
-    });
+    if (reasons) {
+      reasons.innerHTML = "";
+      // Cap reasons so the mini battery does not force the card taller
+      (rec.reasons || []).slice(0, 4).forEach((r) => {
+        const li = document.createElement("li");
+        li.textContent = r;
+        reasons.appendChild(li);
+      });
+    }
 
     const meta = data.meta || {};
     const loadMs = meta.load_ms != null ? ` · ${meta.load_ms}ms` : "";
