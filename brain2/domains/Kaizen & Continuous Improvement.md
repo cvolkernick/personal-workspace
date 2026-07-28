@@ -1,6 +1,6 @@
 # Kaizen & Continuous Improvement
 
-Kaizen is the operating system for continuous, incremental improvement. It turns the north-star (“design and automate systems… so I can explore freely”) into daily practice.
+Kaizen is the operating system for continuous, incremental improvement. It turns the north-star into daily practice: small steps, muda elimination, standardization before automation, and relentless PDCA.
 
 ## Core Stance
 
@@ -11,18 +11,26 @@ Kaizen is the operating system for continuous, incremental improvement. It turns
 - Focus on the process; results follow.
 - Every system and every agent participates.
 
-## Highest-Leverage Application Right Now
+## Highest-Leverage Application
 
-**AI systems** that accelerate fleet scaling, especially:
+**AI systems** that accelerate fleet scaling (especially owner-acquisition and onboarding for the asset-light vehicle model). These systems feed the physical fleets ([[Vehicle Rental Management Fleet]] and [[Bitcoin ASIC Mining Fleet]]).
 
-- Owner-acquisition and onboarding mechanisms for the asset-light vehicle management model
-- Any AI-assisted workflows that reduce friction in capital deployment or unit economics
+Secondary surface: personal energy allocation.
 
-These AI systems directly feed the physical fleets ([[Vehicle Rental Management Fleet]] and [[Bitcoin ASIC Mining Fleet]]).
+## Resonances
 
-## Secondary / Broader Application
+**Tom Bilyeu / Impact Theory / Project Kyzen**  
+Following Tom Bilyeu has been a recent high-volume media focus. His current central project is Project Kyzen (a game from Impact Theory Studios). The phonetic and thematic near-match with Kaizen registers as synchronistic reinforcement of this continuous-improvement operating system.
 
-Personal energy allocation — treat attention, physical energy, and cognitive load as scarce resources subject to the same muda elimination and continuous improvement.
+Key frameworks that currently resonate and are worth tracking for pattern recognition:
+
+- **Escape the Matrix** — free yourself from limiting beliefs and societal programming that keep you stuck in survival-mode patterns.
+- **You can learn anything** — ability is not fixed; deliberate practice + the right mindset lets you acquire any skill required for the next level of systems or capital deployment.
+- **Failure as feedback / love the process** — treat setbacks and experiments (especially AI-system experiments) as data rather than identity-level verdicts.
+- **Storytelling as leverage** — useful ideas scale fastest when wrapped in narrative (relevant both to [[X Account Growth]] and to how agents surface insights from B2).
+- Recent public lessons from building Kyzen itself: avoid over-polishing too early, get domain expertise early, recognize that AI accelerates both good and bad decisions, and keep human judgment on the critical path for certain steps.
+
+These ideas sit in the graph so agents can surface unexpected overlaps with capital efficiency, systems design, energy ROI, and the north-star ([[Ikigai & Identity]]). See [[Influences]] for the wider node.
 
 ## Practical Rules for B2 & Agents
 
@@ -31,4 +39,4 @@ Personal energy allocation — treat attention, physical energy, and cognitive l
 - Surface muda categories relevant to this context: waiting, over-processing, excess complexity, decision fatigue, under-utilized capital, context-switching.
 - Record PDCA experiments (especially AI-system experiments) so lessons transfer — see [[Decision Log]] when material.
 
-See [[Strategy & Bets]] for the thematic home and [[Agents & Tooling]] for how agents apply this. Also [[Workflow & Projects]] and [[Ikigai & Identity]].
+See [[Strategy & Bets]] for the thematic home and [[Agents & Tooling]] for how agents apply this. Also [[Workflow & Projects]].

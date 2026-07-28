@@ -26,6 +26,7 @@ See [[Ikigai & Identity]] and [[Strategy & Bets]].
 | **Ikigai & identity (Layer 0)** | [[Ikigai & Identity]] |
 | Strategy & bets | [[Strategy & Bets]] |
 | **Kaizen / continuous improvement** | [[Kaizen & Continuous Improvement]] |
+| Influences (graph width) | [[Influences]] |
 | Finance & investment | [[Finance & Investment]] |
 | Fitness & health | [[Fitness & Health]] |
 | Agents & tooling | [[Agents & Tooling]] |

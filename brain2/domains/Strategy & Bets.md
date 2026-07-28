@@ -35,6 +35,8 @@ These two form the foundational, repeatable unitary models that are essentially 
 
 Applies to: this vault, agent workflows ([[Agents & Tooling]]), and project execution ([[Workflow & Projects]]).
 
+External frames that reinforce this OS (e.g. Tom Bilyeu / Impact Theory / Project Kyzen): see Resonances on [[Kaizen & Continuous Improvement]] and the wider [[Influences]] node.
+
 ## Capital & energy framing
 
 - **Capital is the binding constraint.**
@@ -55,6 +57,7 @@ Applies to: this vault, agent workflows ([[Agents & Tooling]]), and project exec
 ## Related
 
 - [[Kaizen & Continuous Improvement]] — OS for improvement
+- [[Influences]] — external frames & media (graph width)
 - [[Ikigai & Identity]] — the why
 - [[Finance & Investment]] — capital engines and rules
 - [[Workflow & Projects]] — active project list

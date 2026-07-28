@@ -23,7 +23,8 @@ B2 is the durable context foundation and aggregated **tribal knowledge** across 
 - Actively look for **muda** (waste) in AI systems, capital deployment processes, and energy use.
 - When proposing changes to owner-acquisition AI, ASIC workflows, or agent tooling, frame them as **PDCA** experiments.
 - Help keep B2 itself under continuous improvement.
-- Full stance: [[Kaizen & Continuous Improvement]].
+- Full stance: [[Kaizen & Continuous Improvement]] (including Resonances).
+- For unexpected pattern overlaps from media/frameworks, also check [[Influences]].
 
 ## Continuous improvement
 
@@ -56,6 +57,7 @@ Offline grounded fallback uses retrieved vault text only when live creds are mis
 ## Related
 
 - [[Kaizen & Continuous Improvement]]
+- [[Influences]] — external frames (storytelling, failure-as-feedback, etc.)
 - [[Ikigai & Identity]]
 - [[Strategy & Bets]]
 - [[Workflow & Projects]]
