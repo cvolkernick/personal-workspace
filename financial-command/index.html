@@ -137,7 +137,9 @@
       display: grid;
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.35rem;
+      overflow: visible;
     }
+    #at-a-glance { overflow: visible; }
     @media (max-width: 820px) {
       .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     }
@@ -208,6 +210,54 @@
       border-color: var(--border);
       opacity: 0.92;
     }
+    /* Hover: why this chip is red/orange/yellow/green */
+    .kpi {
+      position: relative;
+    }
+    .kpi-tip {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%) translateY(2px);
+      z-index: 30;
+      min-width: 11rem;
+      max-width: 16rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0e1620;
+      color: var(--text);
+      font-size: 0.68rem;
+      font-weight: 500;
+      line-height: 1.35;
+      text-align: left;
+      text-transform: none;
+      letter-spacing: 0;
+      white-space: normal;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    .kpi-tip .tip-tone {
+      display: block;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.15rem;
+      color: var(--muted);
+    }
+    .kpi.tone-red .kpi-tip .tip-tone { color: var(--red); }
+    .kpi.tone-orange .kpi-tip .tip-tone { color: var(--orange); }
+    .kpi.tone-yellow .kpi-tip .tip-tone { color: var(--yellow); }
+    .kpi.tone-green .kpi-tip .tip-tone { color: var(--green); }
+    .kpi:hover .kpi-tip,
+    .kpi:focus-visible .kpi-tip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    /* Flip tip below when near top of viewport isn't needed; keep above chips */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -1013,7 +1063,6 @@
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
 
-    <div id="status-why" class="status-why yellow">Loading…</div>
     <div class="status-split" id="status-split"></div>
 
     <section class="card" id="actions-card">
@@ -1586,35 +1635,6 @@
       };
     }
 
-    function statusWhy(ev, snap) {
-      const s = ev.stress || {};
-      const overall = s.overall || "yellow";
-      const bits = [];
-      const inp = ev.inputs || {};
-      if (s.coinbase_liquid === "red")
-        bits.push(
-          `working USDC ${money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)} below buffers`
-        );
-      else if (s.coinbase_liquid === "yellow" && (inp.vault_known === false || inp.vault_usdc == null))
-        bits.push("High Yield vault balance unknown (spot often $0 by design)");
-      if (s.coinbase_ltv === "red") bits.push(`LTV ${pct(inp.ltv)} over max`);
-      else if (s.coinbase_ltv === "yellow" && inp.ltv == null) bits.push("Morpho LTV unknown");
-      if (s.coinbase_card === "red" && inp.card_balance)
-        bits.push(`One Card ${money(inp.card_balance)} owed`);
-      if (s.robinhood === "yellow" || s.robinhood === "red")
-        bits.push(`RH BP ${money(inp.rh_buying_power)}`);
-      if (inp.rh_checking_cash != null && inp.rh_checking_cash < 50)
-        bits.push(`RH Checking only ${money(inp.rh_checking_cash)}`);
-      const cbBurn = inp.expenses_coinbase_funded_monthly;
-      if (cbBurn && f(inp.liquid_usdc) < f(cbBurn) * 0.25)
-        bits.push(`~${money(cbBurn)}/mo Coinbase-funded bills estimated`);
-      if (!bits.length) {
-        if (overall === "green") return "All clear — buffers and feeds look healthy.";
-        return "Review actions below; some items need attention.";
-      }
-      return bits.slice(0, 4).join(" · ");
-    }
-
     function actionSeverity(a, stress) {
       if (a.priority <= 1) return "red";
       if (a.priority <= 3) return "yellow";
@@ -1809,11 +1829,7 @@
       pill.textContent = overall + " · " + actions.length + " acts";
       pill.className = "pill " + overall;
 
-      const why = document.getElementById("status-why");
-      why.className = "status-why " + overall;
-      why.textContent = statusWhy(ev, snap);
-
-      // Split: liquidity stress vs fund manager health (less confusing than one red banner)
+      // Split: liquidity stress vs fund manager health (detail lives on At a glance chips)
       const fmEarly = data.fund_manager || ev.fund_manager || {};
       const fmaEarly = fmEarly.analysis || {};
       const wDepEarly = fmaEarly.weights_of_deployed || {};
@@ -1922,74 +1938,277 @@
       const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
       const bpFloor = f(pol.rh_bp_floor) || 25;
 
-      function cashLowTone(n, crit, urg, mod) {
-        if (!Number.isFinite(n)) return "muted";
-        if (n < crit) return "red";
-        if (n < urg) return "orange";
-        if (n < mod) return "yellow";
-        return "green";
+      const toneWord = {
+        red: "Critical",
+        orange: "Urgent",
+        yellow: "Moderate",
+        green: "Good",
+        muted: "No signal",
+      };
+      function toneResult(tone, why) {
+        return { tone: tone || "muted", why: why || "" };
+      }
+      function cashLowTone(n, crit, urg, mod, label) {
+        if (!Number.isFinite(n))
+          return toneResult("muted", `${label}: no readable balance yet.`);
+        if (n < crit)
+          return toneResult(
+            "red",
+            `${label} ${money(n)} is critically low (under ${money(crit)}).`
+          );
+        if (n < urg)
+          return toneResult(
+            "orange",
+            `${label} ${money(n)} is tight (under ${money(urg)}).`
+          );
+        if (n < mod)
+          return toneResult(
+            "yellow",
+            `${label} ${money(n)} is only moderate (under ${money(mod)} cushion).`
+          );
+        return toneResult(
+          "green",
+          `${label} ${money(n)} is at a healthy cushion (≥ ${money(mod)}).`
+        );
+      }
+      function workingUsdcTone() {
+        if (stress.coinbase_liquid === "red") {
+          return toneResult(
+            "red",
+            `Working USDC ${money(workingUsdc)} is below configured buffer floors (card float + loan buffer + bridge powder).`
+          );
+        }
+        if (stress.coinbase_liquid === "yellow") {
+          return toneResult(
+            "yellow",
+            `Working USDC ${money(workingUsdc)} is tight vs buffers` +
+              (inp.vault_known === false || inp.vault_usdc == null
+                ? "; High Yield vault still unknown."
+                : ".")
+          );
+        }
+        return cashLowTone(workingUsdc, 40, 120, 350, "Working USDC");
       }
       function cardOwedTone(owed, deposit) {
-        if (!Number.isFinite(owed)) return "muted";
+        if (!Number.isFinite(owed))
+          return toneResult("muted", "One Card balance not loaded.");
         const util = deposit > 0 ? owed / deposit : null;
         if (util != null) {
-          if (util >= 0.9) return "red";
-          if (util >= 0.7) return "orange";
-          if (util >= 0.4) return "yellow";
-          return "green";
+          const utilPct = (util * 100).toFixed(0) + "%";
+          if (util >= 0.9)
+            return toneResult(
+              "red",
+              `Owed ${money(owed)} is ~${utilPct} of ${money(deposit)} security deposit — nearly maxed.`
+            );
+          if (util >= 0.7)
+            return toneResult(
+              "orange",
+              `Owed ${money(owed)} is ~${utilPct} of deposit ${money(deposit)} — pay down soon.`
+            );
+          if (util >= 0.4)
+            return toneResult(
+              "yellow",
+              `Owed ${money(owed)} is ~${utilPct} of deposit ${money(deposit)} — watch utilization.`
+            );
+          return toneResult(
+            "green",
+            `Owed ${money(owed)} is only ~${utilPct} of deposit ${money(deposit)}.`
+          );
         }
-        if (owed >= 450) return "red";
-        if (owed >= 300) return "orange";
-        if (owed >= 100) return "yellow";
-        return "green";
+        if (owed >= 450)
+          return toneResult("red", `One Card owed ${money(owed)} is high.`);
+        if (owed >= 300)
+          return toneResult("orange", `One Card owed ${money(owed)} needs attention.`);
+        if (owed >= 100)
+          return toneResult("yellow", `One Card owed ${money(owed)} is moderate.`);
+        return toneResult("green", `One Card owed ${money(owed)} is low.`);
       }
       function agenticTone() {
-        if (!fmaK.ok) return agentNav > 0 ? "yellow" : "muted";
-        if (fmK.policy_summary && fmK.policy_summary.live === false) return "yellow";
-        if (agentNav <= 0) return "orange";
+        if (!fmaK.ok) {
+          return agentNav > 0
+            ? toneResult(
+                "yellow",
+                `NAV ${money(agentNav)} present but full agentic analysis missing.`
+              )
+            : toneResult("muted", "No agentic fund analysis yet.");
+        }
+        if (fmK.policy_summary && fmK.policy_summary.live === false) {
+          return toneResult("yellow", "Fund manager paused (live:false).");
+        }
+        if (agentNav <= 0) {
+          return toneResult("orange", "Agentic NAV is empty — nothing deployed.");
+        }
         const band = (fmaK.targets && fmaK.targets.band_pct) || 0.05;
         const tgtB = (fmaK.targets && fmaK.targets.btc_digital_credit_pct) || 0.4;
         if (wDepK.btc_digital_credit == null) {
-          return f(fmaK.cash_usd) > 1 ? "yellow" : "orange";
+          return f(fmaK.cash_usd) > 1
+            ? toneResult(
+                "yellow",
+                `NAV ${money(agentNav)} with idle cash ${money(fmaK.cash_usd)} not fully deployed.`
+              )
+            : toneResult("orange", "Deployed sleeve weights unavailable.");
         }
         const drift = Math.abs(wDepK.btc_digital_credit - tgtB);
-        if (drift > band * 2) return "orange";
-        if (drift > band) return "yellow";
-        return "green";
+        const mix =
+          Math.round(wDepK.btc_digital_credit * 100) +
+          "/" +
+          Math.round((wDepK.stocks_growth || 0) * 100);
+        if (drift > band * 2)
+          return toneResult(
+            "orange",
+            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 40/60.`
+          );
+        if (drift > band)
+          return toneResult(
+            "yellow",
+            `Deployed mix ${mix} is near the edge of the 40/60 band.`
+          );
+        return toneResult(
+          "green",
+          `Deployed mix ${mix} is in band (~40/60). NAV ${money(agentNav)}.`
+        );
       }
       function billsPressureTone() {
-        if (!(billsMo > 0)) return "muted";
+        if (!(billsMo > 0))
+          return toneResult("muted", "No monthly bill estimate from sheet.");
         const cover = totalLiquid / billsMo;
-        if (cover < 0.05) return "red";
-        if (cover < 0.15) return "orange";
-        if (cover < 0.4) return "yellow";
-        return "green";
+        const coverPct = (cover * 100).toFixed(0) + "%";
+        if (cover < 0.05)
+          return toneResult(
+            "red",
+            `Liquid ${money(totalLiquid)} covers only ~${coverPct} of ${money(billsMo)}/mo sheet bills.`
+          );
+        if (cover < 0.15)
+          return toneResult(
+            "orange",
+            `Liquid ${money(totalLiquid)} is thin vs ${money(billsMo)}/mo (~${coverPct} cover).`
+          );
+        if (cover < 0.4)
+          return toneResult(
+            "yellow",
+            `Liquid ${money(totalLiquid)} vs ${money(billsMo)}/mo is moderate (~${coverPct} cover).`
+          );
+        return toneResult(
+          "green",
+          `Liquid ${money(totalLiquid)} covers ~${coverPct} of ${money(billsMo)}/mo estimate.`
+        );
       }
       function ltvTone() {
-        if (ltvVal == null || !Number.isFinite(ltvVal)) return "yellow";
-        if (ltvVal >= ltvMax) return "red";
-        if (ltvVal >= ltvAlert) return "orange";
-        if (ltvVal >= ltvAlert * 0.85) return "yellow";
-        return "green";
+        if (ltvVal == null || !Number.isFinite(ltvVal))
+          return toneResult(
+            "yellow",
+            "Morpho LTV unknown — set principal/collateral/LTV in Settings."
+          );
+        const lv = pct(ltvVal);
+        if (ltvVal >= ltvMax)
+          return toneResult(
+            "red",
+            `LTV ${lv} is at/above max ${pct(ltvMax)} — repay or add collateral.`
+          );
+        if (ltvVal >= ltvAlert)
+          return toneResult(
+            "orange",
+            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).`
+          );
+        if (ltvVal >= ltvAlert * 0.85)
+          return toneResult(
+            "yellow",
+            `LTV ${lv} is approaching alert ${pct(ltvAlert)}.`
+          );
+        return toneResult(
+          "green",
+          `LTV ${lv} is comfortably under alert ${pct(ltvAlert)}.`
+        );
       }
       function asicHashTone() {
-        if (!br.ok) return "orange";
+        if (!br.ok)
+          return toneResult(
+            "orange",
+            br.error
+              ? `Braiins sync issue: ${String(br.error).slice(0, 80)}`
+              : "Braiins data missing — run braiins_sync."
+          );
         const hr = f(br.hash_rate_24h);
         const off = f(br.off_workers);
-        if (!(hr > 0)) return "red";
-        if (off > 0) return "orange";
-        return "green";
+        const hrLabel = formatHashrate(br.hash_rate_24h, br.hash_rate_unit);
+        if (!(hr > 0))
+          return toneResult("red", "24h hashrate is zero — fleet may be offline.");
+        if (off > 0)
+          return toneResult(
+            "orange",
+            `${hrLabel} 24h but ${off} worker(s) off — check hardware.`
+          );
+        return toneResult(
+          "green",
+          `${hrLabel} 24h with ${br.ok_workers != null ? br.ok_workers : "?"} worker(s) ok.`
+        );
       }
       function nextPayTone() {
-        if (!br.ok) return "muted";
+        if (!br.ok)
+          return toneResult("muted", "Next payout estimate needs Braiins data.");
         const d = br.days_to_next_payout_est;
-        if (d == null || !Number.isFinite(Number(d))) return "yellow";
+        if (d == null || !Number.isFinite(Number(d)))
+          return toneResult("yellow", "Payout ETA not estimated yet.");
         const days = Number(d);
-        if (days <= 7) return "green";
-        if (days <= 21) return "yellow";
-        if (days <= 45) return "orange";
-        return "orange";
+        const prog =
+          br.next_payout_progress_pct != null
+            ? Number(br.next_payout_progress_pct).toFixed(0) + "% of threshold"
+            : "threshold progress unknown";
+        if (days <= 7)
+          return toneResult(
+            "green",
+            `Next payout ~${days.toFixed(0)}d away (${prog}) — income soon.`
+          );
+        if (days <= 21)
+          return toneResult(
+            "yellow",
+            `Next payout ~${days.toFixed(0)}d away (${prog}).`
+          );
+        return toneResult(
+          "orange",
+          `Next payout ~${days.toFixed(0)}d away (${prog}) — still filling threshold.`
+        );
       }
+      function rhBpTone() {
+        if (!Number.isFinite(rhBp))
+          return toneResult("muted", "Buying power not loaded.");
+        if (rhBp < bpFloor)
+          return toneResult(
+            "red",
+            `RH BP ${money(rhBp)} is under floor ${money(bpFloor)} — agentic deploy blocked.`
+          );
+        if (rhBp < bpFloor * 3)
+          return toneResult(
+            "orange",
+            `RH BP ${money(rhBp)} is low (floor ${money(bpFloor)}).`
+          );
+        if (rhBp < bpFloor * 8)
+          return toneResult(
+            "yellow",
+            `RH BP ${money(rhBp)} is moderate vs floor ${money(bpFloor)}.`
+          );
+        return toneResult(
+          "green",
+          `RH BP ${money(rhBp)} is healthy vs floor ${money(bpFloor)}.`
+        );
+      }
+
+      const tWorking = workingUsdcTone();
+      const tCard =
+        stress.coinbase_card === "red"
+          ? toneResult(
+              "red",
+              `One Card ${money(cardOwed)} owed is flagged critical by stress rules.`
+            )
+          : cardOwedTone(cardOwed, cardDeposit);
+      const tRhCheck = cashLowTone(rhCheck, 5, 25, 75, "RH Checking");
+      const tXMoney = cashLowTone(xMoney, 40, 150, 400, "X Money");
+      const tAgent = agenticTone();
+      const tBp = rhBpTone();
+      const tBills = billsPressureTone();
+      const tLtv = ltvTone();
+      const tAsic = asicHashTone();
+      const tPay = nextPayTone();
 
       const kpis = [
         {
@@ -2001,29 +2220,24 @@
             " + vault " +
             (inp.vault_known === false || inp.vault_usdc == null ? "?" : money(inp.vault_usdc)),
           target: "cash-credit",
-          tone:
-            stress.coinbase_liquid === "red"
-              ? "red"
-              : stress.coinbase_liquid === "yellow"
-                ? "yellow"
-                : cashLowTone(workingUsdc, 40, 120, 350),
+          tone: tWorking.tone,
+          why: tWorking.why,
         },
         {
           k: "One Card owed",
           v: money(cardOwed),
           s: oc.account_name ? "YNAB" : "—",
           target: "cash-credit",
-          tone:
-            stress.coinbase_card === "red"
-              ? "red"
-              : cardOwedTone(cardOwed, cardDeposit),
+          tone: tCard.tone,
+          why: tCard.why,
         },
         {
           k: "RH Checking",
           v: money(rhCheck),
           s: "bill-pay float",
           target: "cash-credit",
-          tone: cashLowTone(rhCheck, 5, 25, 75),
+          tone: tRhCheck.tone,
+          why: tRhCheck.why,
         },
         {
           k: "X Money",
@@ -2038,7 +2252,8 @@
               : name;
           })(),
           target: "cash-credit",
-          tone: cashLowTone(xMoney, 40, 150, 400),
+          tone: tXMoney.tone,
+          why: tXMoney.why,
         },
         {
           k: "Agentic NAV",
@@ -2053,37 +2268,32 @@
             );
           })(),
           target: "fund-manager-card",
-          tone: agenticTone(),
+          tone: tAgent.tone,
+          why: tAgent.why,
         },
         {
           k: "RH BP",
           v: money(rhBp),
           s: "primary brokerage",
           target: "panel-brokerage",
-          tone:
-            !Number.isFinite(rhBp)
-              ? "muted"
-              : rhBp < bpFloor
-                ? "red"
-                : rhBp < bpFloor * 3
-                  ? "orange"
-                  : rhBp < bpFloor * 8
-                    ? "yellow"
-                    : "green",
+          tone: tBp.tone,
+          why: tBp.why,
         },
         {
           k: "Bills / mo est.",
           v: money(billsMo),
           s: "sheet Personal",
           target: "bills-coach-card",
-          tone: billsPressureTone(),
+          tone: tBills.tone,
+          why: tBills.why,
         },
         {
           k: "LTV",
           v: pct(ltvVal),
           s: stress.coinbase_ltv || (ltvVal == null ? "set in Settings" : "Morpho"),
           target: "panel-settings",
-          tone: ltvTone(),
+          tone: tLtv.tone,
+          why: tLtv.why,
         },
         {
           k: "ASICs 24h",
@@ -2095,7 +2305,8 @@
             return `${ok} ok` + (off ? ` · ${off} off` : "") + " · Braiins";
           })(),
           target: "braiins-card",
-          tone: asicHashTone(),
+          tone: tAsic.tone,
+          why: tAsic.why,
         },
         {
           k: "Next ASIC pay",
@@ -2126,16 +2337,21 @@
             return bits.join(" · ") || "est. threshold";
           })(),
           target: "braiins-card",
-          tone: nextPayTone(),
+          tone: tPay.tone,
+          why: tPay.why,
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
         .map((k) => {
           const tone = k.tone || "muted";
+          const word = toneWord[tone] || tone;
+          const why = (k.why || "").trim() || `${k.k}: ${word}`;
           return (
-            `<div class="kpi tone-${tone}" data-target="${k.target}" title="${escapeHtml(
-              k.k + " · " + tone
-            )}">` +
+            `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
+            `aria-label="${escapeHtml(k.k + ": " + why)}">` +
+            `<div class="kpi-tip" role="tooltip">` +
+            `<span class="tip-tone">${escapeHtml(word)}</span>` +
+            `${escapeHtml(why)}</div>` +
             `<div class="k">${k.k}</div>` +
             `<div class="v">${k.v}</div>` +
             `<div class="s">${k.s}</div></div>`
