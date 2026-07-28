@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 from treasury.financial_coach import (  # noqa: E402
     allocate,
     build_coach_plan,
+    due_urgency_class,
     extract_venues,
     load_snapshots,
     main,
@@ -31,6 +32,34 @@ class TestVenueNormalize(unittest.TestCase):
         self.assertEqual(normalize_venue("Coinbase"), "coinbase")
         self.assertEqual(normalize_venue("X Money"), "x_money")
         self.assertEqual(normalize_venue("RH Checking"), "rh_checking")
+
+
+class TestDueUrgencyClass(unittest.TestCase):
+    """Dashboard bill-row colors: red ≤7/overdue, yellow 8–14, green >14."""
+
+    def test_bands(self):
+        self.assertEqual(due_urgency_class(-5), "due-red")
+        self.assertEqual(due_urgency_class(0), "due-red")
+        self.assertEqual(due_urgency_class(7), "due-red")
+        self.assertEqual(due_urgency_class(8), "due-yellow")
+        self.assertEqual(due_urgency_class(14), "due-yellow")
+        self.assertEqual(due_urgency_class(15), "due-green")
+        self.assertEqual(due_urgency_class(None), "due-unknown")
+
+    def test_ranked_obligations_match_dashboard_classes(self):
+        ranked = rank_obligations(
+            [
+                {"date": "7/1/2026", "from": "Coinbase", "item": "O", "monthly": 1},
+                {"date": "8/5/2026", "from": "Coinbase", "item": "Y", "monthly": 1},
+                {"date": "9/1/2026", "from": "Coinbase", "item": "G", "monthly": 1},
+            ],
+            today=TODAY,
+        )
+        # TODAY = 2026-07-27
+        by = {r["item"]: r for r in ranked}
+        self.assertEqual(due_urgency_class(by["O"]["days_until_due"]), "due-red")
+        self.assertEqual(due_urgency_class(by["Y"]["days_until_due"]), "due-yellow")
+        self.assertEqual(due_urgency_class(by["G"]["days_until_due"]), "due-green")
 
 
 class TestUrgencySort(unittest.TestCase):

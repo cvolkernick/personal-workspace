@@ -486,6 +486,31 @@
       text-align: right;
       white-space: nowrap;
     }
+    .bill-amt .sub {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+    .bill-amt .sub.gap { color: var(--red); }
+    .bill-amt .sub.ok { color: var(--green); }
+    .bill-row .status-pill {
+      display: inline-block;
+      margin-left: 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.08rem 0.35rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: middle;
+    }
+    .bill-row .status-pill.funded { color: var(--green); border-color: #1e4a32; }
+    .bill-row .status-pill.partial { color: var(--yellow); border-color: #5a4a1a; }
+    .bill-row .status-pill.unfunded { color: var(--red); border-color: #5a2a2a; }
     .bill-section-head {
       display: flex;
       flex-wrap: wrap;
@@ -881,26 +906,18 @@
       </div>
     </section>
 
-    <section class="card" id="coach-card">
-      <div class="card-head">
-        <h2>Financial coach · pay on time</h2>
-        <button type="button" class="btn" id="btn-coach-refresh">Refresh coach</button>
-      </div>
-      <p class="hint" style="margin-top:0">
-        Allocates available cash to the most overdue / soonest-due expenses first (advisory only — does not move money).
-      </p>
-      <div id="coach-summary" class="hint">Loading coach…</div>
-      <div id="coach-advice" style="margin-top:0.45rem"></div>
-      <div id="coach-table" style="margin-top:0.55rem;overflow-x:auto"></div>
-      <div id="coach-habits" style="margin-top:0.55rem"></div>
-      <div id="coach-requests" style="margin-top:0.45rem"></div>
-    </section>
-
-    <section class="card" id="upcoming-card">
+    <section class="card" id="bills-coach-card">
       <div class="bill-section-head">
-        <h2 style="margin:0">Upcoming bills (estimates)</h2>
+        <div>
+          <h2 style="margin:0">Bills &amp; cash coach</h2>
+          <p class="hint" style="margin:0.25rem 0 0">
+            Overdue → soonest due · allocates available cash by pay-from (advisory — does not move money) · sheet est. · YNAB cash
+          </p>
+        </div>
+        <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
       </div>
-      <p class="hint">Sheet Personal tab · ballpark OK · YNAB = actual spend</p>
+      <div id="coach-summary" class="hint">Loading pay plan…</div>
+      <div id="coach-advice" style="margin-top:0.35rem"></div>
       <div class="bill-legend" aria-label="Due-date color legend">
         <span><i class="red"></i> ≤7 days (or overdue)</span>
         <span><i class="yellow"></i> 8–14 days</span>
@@ -909,7 +926,7 @@
       <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
       <div class="grid-2">
         <div>
-          <div class="hint">Next due</div>
+          <div class="hint">Pay plan (urgency order · alloc / gap)</div>
           <div id="expenses-upcoming" class="bill-list"></div>
         </div>
         <div>
@@ -917,6 +934,8 @@
           <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
           <div id="expenses-by-source"></div>
           <div class="grid-2" style="margin-top:0.55rem" id="expense-kpis"></div>
+          <div id="coach-habits" style="margin-top:0.55rem"></div>
+          <div id="coach-requests" style="margin-top:0.35rem"></div>
         </div>
       </div>
     </section>
@@ -1187,6 +1206,98 @@
         `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
         `<div class="bill-amt">${money(r.monthly)}</div></div>`
       );
+    }
+    /** Map coach obligation → same due-* classes as sheet bill rows. */
+    function coachDueUrgency(o) {
+      if (o && o.days_until_due != null && Number.isFinite(Number(o.days_until_due))) {
+        const days = Number(o.days_until_due);
+        if (days < 0) {
+          const n = Math.abs(days);
+          return {
+            level: "red",
+            days,
+            rel: n === 1 ? "1d overdue" : n + "d overdue",
+            cls: "due-red",
+          };
+        }
+        if (days === 0) return { level: "red", days: 0, rel: "today", cls: "due-red" };
+        if (days === 1) return { level: "red", days: 1, rel: "tomorrow", cls: "due-red" };
+        if (days <= 7) return { level: "red", days, rel: "in " + days + "d", cls: "due-red" };
+        if (days <= 14) return { level: "yellow", days, rel: "in " + days + "d", cls: "due-yellow" };
+        return { level: "green", days, rel: "in " + days + "d", cls: "due-green" };
+      }
+      const dateStr = o && (o.due_date_raw || o.due_date || o.date);
+      return dueUrgency(dateStr);
+    }
+    function coachBillRowHtml(o) {
+      const u = coachDueUrgency(o);
+      const src = o.from_label || o.venue || "?";
+      const sc = srcTagClass(src);
+      const dateStr = o.due_date_raw || o.due_date || o.date;
+      const st = o.status || "";
+      const stCls =
+        st === "funded" ? "funded" : st === "partial" ? "partial" : st === "unfunded" ? "unfunded" : "";
+      const amt =
+        money(o.amount_due != null ? o.amount_due : o.monthly) +
+        (o.amount_is_estimate ? " est" : "");
+      const alloc = o.allocated != null ? money(o.allocated) : "—";
+      const gap = o.gap != null ? Number(o.gap) : null;
+      const gapHtml =
+        gap == null
+          ? ""
+          : gap > 0.005
+            ? `<span class="sub gap">gap ${money(gap)}</span>`
+            : `<span class="sub ok">covered</span>`;
+      return (
+        `<div class="bill-row ${u.cls}">` +
+        `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(dateStr))}</span>` +
+        `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
+        `<div class="bill-main"><div class="name">${escapeHtml(o.item || "—")}` +
+        (stCls
+          ? `<span class="status-pill ${stCls}">${escapeHtml(st)}</span>`
+          : "") +
+        `</div>` +
+        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        (o.urgency_rank != null ? ` · #${o.urgency_rank}` : "") +
+        `</div></div>` +
+        `<div class="bill-amt">${amt}` +
+        `<span class="sub">alloc ${alloc}</span>${gapHtml}</div></div>`
+      );
+    }
+    function fillBillUrgencyBar(rows, amountKey) {
+      let sumRed = 0,
+        sumYellow = 0,
+        sumGreen = 0,
+        nRed = 0,
+        nYellow = 0,
+        nGreen = 0;
+      for (const r of rows) {
+        const u =
+          r.days_until_due != null || r.due_date || r.overdue != null
+            ? coachDueUrgency(r)
+            : dueUrgency(r.date);
+        const amt = Number(r[amountKey] != null ? r[amountKey] : r.monthly) || 0;
+        if (u.level === "red") {
+          sumRed += amt;
+          nRed++;
+        } else if (u.level === "yellow") {
+          sumYellow += amt;
+          nYellow++;
+        } else if (u.level === "green") {
+          sumGreen += amt;
+          nGreen++;
+        }
+      }
+      const el = document.getElementById("bill-urgency-bar");
+      if (!el) return;
+      el.innerHTML = [
+        `<div class="bill-chip due-red"><span class="n">${money(sumRed)}</span>` +
+          `<span class="l">≤7d · ${nRed} bill${nRed === 1 ? "" : "s"}</span></div>`,
+        `<div class="bill-chip due-yellow"><span class="n">${money(sumYellow)}</span>` +
+          `<span class="l">8–14d · ${nYellow}</span></div>`,
+        `<div class="bill-chip due-green"><span class="n">${money(sumGreen)}</span>` +
+          `<span class="l">&gt;14d · ${nGreen}</span></div>`,
+      ].join("");
     }
     function sortBillsByDate(rows) {
       return [...rows].sort((a, b) => {
@@ -1565,7 +1676,7 @@
           k: "Bills / mo est.",
           v: money(es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly),
           s: "sheet Personal",
-          target: "upcoming-card",
+          target: "bills-coach-card",
         },
         {
           k: "LTV",
@@ -1699,45 +1810,23 @@
         metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
       ].join("");
 
-      // Upcoming bills (sheet Personal) — urgency matches spreadsheet colors
+      // Bills side panel (pay-from + KPIs). List filled by coach when available.
       const persTab = (ex.tabs && ex.tabs.Personal) || {};
       const discTab = (ex.tabs && ex.tabs.Discretionary) || {};
       const allItems = persTab.items || persTab.upcoming_by_date || [];
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
-      let sumRed = 0,
-        sumYellow = 0,
-        sumGreen = 0,
-        nRed = 0,
-        nYellow = 0,
-        nGreen = 0;
-      for (const r of billsSorted) {
-        const u = dueUrgency(r.date);
-        const amt = Number(r.monthly) || 0;
-        if (u.level === "red") {
-          sumRed += amt;
-          nRed++;
-        } else if (u.level === "yellow") {
-          sumYellow += amt;
-          nYellow++;
-        } else if (u.level === "green") {
-          sumGreen += amt;
-          nGreen++;
+      // Fallback list until /api/coach returns (same urgency colors)
+      if (!window.__coachPlan || !window.__coachPlan.ok) {
+        fillBillUrgencyBar(billsSorted, "monthly");
+        const listEl = document.getElementById("expenses-upcoming");
+        if (listEl) {
+          listEl.innerHTML =
+            billsSorted
+              .slice(0, 14)
+              .map(billRowHtml)
+              .join("") || `<p class="hint">No dated items</p>`;
         }
       }
-      document.getElementById("bill-urgency-bar").innerHTML = [
-        `<div class="bill-chip due-red"><span class="n">${money(sumRed)}</span>` +
-          `<span class="l">≤7d · ${nRed} bill${nRed === 1 ? "" : "s"}</span></div>`,
-        `<div class="bill-chip due-yellow"><span class="n">${money(sumYellow)}</span>` +
-          `<span class="l">8–14d · ${nYellow}</span></div>`,
-        `<div class="bill-chip due-green"><span class="n">${money(sumGreen)}</span>` +
-          `<span class="l">&gt;14d · ${nGreen}</span></div>`,
-      ].join("");
-
-      document.getElementById("expenses-upcoming").innerHTML =
-        billsSorted
-          .slice(0, 14)
-          .map(billRowHtml)
-          .join("") || `<p class="hint">No dated items</p>`;
 
       document.getElementById("expense-kpis").innerHTML = [
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
@@ -2362,14 +2451,17 @@
     }
 
     function renderCoach(plan) {
+      window.__coachPlan = plan;
       const sumEl = document.getElementById("coach-summary");
       const advEl = document.getElementById("coach-advice");
-      const tabEl = document.getElementById("coach-table");
+      const listEl = document.getElementById("expenses-upcoming");
       const habEl = document.getElementById("coach-habits");
       const reqEl = document.getElementById("coach-requests");
       if (!sumEl) return;
       if (!plan || !plan.ok) {
-        sumEl.textContent = "Coach unavailable: " + (plan && plan.error ? plan.error : "no data");
+        sumEl.textContent =
+          "Coach unavailable: " + (plan && plan.error ? plan.error : "no data") +
+          " — showing sheet due list only.";
         return;
       }
       const s = plan.summary || {};
@@ -2394,89 +2486,69 @@
         })
         .join(" · ");
       sumEl.innerHTML =
-        `<strong>${s.obligation_count || 0}</strong> obligations · due ` +
+        `<strong>${s.obligation_count || 0}</strong> lines · due ` +
         money(s.total_due) +
         ` · allocated ` +
         money(s.total_allocated) +
         ` · gap ` +
         money(s.total_gap) +
-        (s.overdue_count ? ` · <span style="color:var(--red)">${s.overdue_count} overdue</span>` : "") +
+        (s.overdue_count
+          ? ` · <span style="color:var(--red)">${s.overdue_count} overdue</span>`
+          : "") +
         `<div class="hint" style="margin:0.35rem 0 0">${escapeHtml(vBits)}</div>`;
 
-      advEl.innerHTML = (plan.advice || [])
-        .map((a) => `<div class="hint" style="margin:0.2rem 0">• ${escapeHtml(a)}</div>`)
-        .join("");
+      if (advEl) {
+        advEl.innerHTML = (plan.advice || [])
+          .map((a) => `<div class="hint" style="margin:0.2rem 0">• ${escapeHtml(a)}</div>`)
+          .join("");
+      }
 
       const rows = plan.obligations || [];
-      if (!rows.length) {
-        tabEl.innerHTML = `<p class="hint">No expense lines in snapshot.</p>`;
-      } else {
-        tabEl.innerHTML =
-          `<table class="pos-table"><thead><tr>` +
-          `<th>#</th><th>Item</th><th>Due</th><th>From</th><th>Amount</th><th>Alloc</th><th>Gap</th><th>Status</th>` +
-          `</tr></thead><tbody>` +
-          rows
-            .slice(0, 24)
-            .map((r) => {
-              const dueLab = r.overdue
-                ? `OVERDUE (${Math.abs(r.days_until_due || 0)}d)`
-                : r.due_date
-                  ? r.due_date +
-                    (r.days_until_due != null ? ` (${r.days_until_due}d)` : "")
-                  : "no date";
-              const amt =
-                money(r.amount_due) + (r.amount_is_estimate ? " est" : "");
-              return (
-                `<tr>` +
-                `<td>${r.urgency_rank || ""}</td>` +
-                `<td>${escapeHtml(r.item || "—")}</td>` +
-                `<td>${escapeHtml(dueLab)}</td>` +
-                `<td>${escapeHtml(r.from_label || r.venue || "")}</td>` +
-                `<td>${amt}</td>` +
-                `<td>${money(r.allocated)}</td>` +
-                `<td>${money(r.gap)}</td>` +
-                `<td>${escapeHtml(r.status || "")}</td>` +
-                `</tr>`
-              );
-            })
-            .join("") +
-          `</tbody></table>` +
-          (rows.length > 24
-            ? `<p class="hint">Showing top 24 of ${rows.length} by urgency.</p>`
-            : "");
+      fillBillUrgencyBar(rows, "amount_due");
+      if (listEl) {
+        listEl.innerHTML = rows.length
+          ? rows.slice(0, 20).map(coachBillRowHtml).join("") +
+            (rows.length > 20
+              ? `<p class="hint">Showing top 20 of ${rows.length} by pay urgency.</p>`
+              : "")
+          : `<p class="hint">No expense lines in coach snapshot.</p>`;
       }
 
       const h = plan.habits || {};
-      habEl.innerHTML =
-        `<div class="hint"><strong>Habits / pace</strong> · sheet burn ` +
-        (h.personal_daily_burn_est != null
-          ? money(h.personal_daily_burn_est) + "/day"
-          : "—") +
-        (h.runway_days_at_sheet_burn != null
-          ? ` · liquid runway ~${h.runway_days_at_sheet_burn}d`
-          : "") +
-        (h.ynab_spend_30d
-          ? ` · YNAB 30d spend card+cash ${money(
-              (h.ynab_spend_30d.combined_card_and_cash)
-            )}`
-          : "") +
-        `</div>`;
+      if (habEl) {
+        habEl.innerHTML =
+          `<div class="hint"><strong>Habits / pace</strong> · sheet burn ` +
+          (h.personal_daily_burn_est != null
+            ? money(h.personal_daily_burn_est) + "/day"
+            : "—") +
+          (h.runway_days_at_sheet_burn != null
+            ? ` · liquid runway ~${h.runway_days_at_sheet_burn}d`
+            : "") +
+          (h.ynab_spend_30d
+            ? ` · YNAB 30d spend card+cash ${money(
+                h.ynab_spend_30d.combined_card_and_cash
+              )}`
+            : "") +
+          `</div>`;
+      }
 
       const reqs = plan.data_requests || [];
-      reqEl.innerHTML = reqs.length
-        ? `<div class="hint"><strong>Data requests</strong></div>` +
-          reqs
-            .slice(0, 8)
-            .map(
-              (d) =>
-                `<div class="hint" style="margin:0.2rem 0">• <code>${escapeHtml(
-                  d.field || ""
-                )}</code> — ${escapeHtml(d.why || "")} <em>${escapeHtml(
-                  d.how || ""
-                )}</em></div>`
-            )
-            .join("")
-        : "";
+      if (reqEl) {
+        reqEl.innerHTML = reqs.length
+          ? `<div class="hint"><strong>Data requests</strong></div>` +
+            reqs
+              .slice(0, 8)
+              .map(
+                (d) =>
+                  `<div class="hint" style="margin:0.2rem 0">• <code>${escapeHtml(
+                    d.field || ""
+                  )}</code> — ${escapeHtml(d.why || "")} <em>${escapeHtml(
+                    d.how || ""
+                  )}</em></div>`
+              )
+              .join("")
+          : "";
+      }
     }
 
     async function loadCoach(opts) {

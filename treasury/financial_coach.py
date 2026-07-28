@@ -84,6 +84,21 @@ def days_until_due(due: Optional[date], today: date) -> Optional[int]:
     return (due - today).days
 
 
+def due_urgency_class(days_until: Optional[int]) -> str:
+    """Match FCC bill-row CSS: due-red / due-yellow / due-green / due-unknown.
+
+    Rules (same as financial-command/index.html dueUrgency):
+      overdue or ≤7d → due-red; 8–14d → due-yellow; >14d → due-green; no date → due-unknown
+    """
+    if days_until is None:
+        return "due-unknown"
+    if days_until <= 7:
+        return "due-red"
+    if days_until <= 14:
+        return "due-yellow"
+    return "due-green"
+
+
 def urgency_key(
     item: Dict[str, Any], today: date
 ) -> Tuple[int, int, int, float]:
