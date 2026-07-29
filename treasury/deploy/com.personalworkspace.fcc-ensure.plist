@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hourly ensure Financial Command Center (:8000) is running.
+  Install:
+    cp treasury/deploy/com.personalworkspace.fcc-ensure.plist ~/Library/LaunchAgents/
+    launchctl bootout gui/$(id -u)/com.personalworkspace.fcc-ensure 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.fcc-ensure.plist
+    launchctl kickstart -k gui/$(id -u)/com.personalworkspace.fcc-ensure
+  Unload:
+    launchctl bootout gui/$(id -u)/com.personalworkspace.fcc-ensure
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.fcc-ensure</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/ensure_fcc_server.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/usr/local/bin:/usr/bin:/bin:/Users/cvolkernick/.grok/bin</string>
+    <key>HOME</key>
+    <string>/Users/cvolkernick</string>
+    <key>FCC_PORT</key>
+    <string>8000</string>
+    <key>FCC_WORKTREE_ROOT</key>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  </dict>
+  <!-- Every hour -->
+  <key>StartInterval</key>
+  <integer>3600</integer>
+  <!-- Also run at login / when agent loads -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fcc_ensure_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/fcc_ensure_launchd.err.log</string>
+</dict>
+</plist>
