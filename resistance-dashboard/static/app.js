@@ -574,12 +574,12 @@
     }
 
     // Prefer server-expanded calendar series (unlogged nights = 0h).
-    // Fall back: fill gaps client-side so the chart never skips dates.
+    // Chart span: last 45 calendar days (zeros for unlogged nights).
     const sleepRaw = [...((data.health && data.health.sleep) || [])].sort((a, b) =>
       String(a.date).localeCompare(String(b.date))
     );
-    const sleepFilled = fillSleepCalendarDays(sleepRaw, 90);
-    const sleep = downsamplePoints(sleepFilled, 90);
+    const sleepFilled = fillSleepCalendarDays(sleepRaw, 45);
+    const sleep = downsamplePoints(sleepFilled, 45);
     const sleepVals = sleep.map((s) => Number(s.sleep_hours) || 0);
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
