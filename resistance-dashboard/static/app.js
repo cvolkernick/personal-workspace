@@ -999,18 +999,42 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
-      // Chronological; % of calories from P/C/F (4/4/9 kcal per gram).
-      const macroDays = downsamplePoints(
-        [...nutrition]
+      // Same 90d civil axis as intake/burned and body weight.
+      // Map logged nutrition onto each day; null split when no macros that day.
+      const macroByDate = Object.fromEntries(
+        nutritionAll
           .filter(
             (n) =>
               n &&
               (n.protein_g != null || n.carbs_g != null || n.fat_g != null)
           )
-          .sort((a, b) => String(a.date).localeCompare(String(b.date))),
-        45
+          .map((n) => [String(n.date).slice(0, 10), n])
       );
+      const macroDays = calLabels.map((d) => {
+        const n = macroByDate[d];
+        if (!n) {
+          return {
+            date: d,
+            protein_g: null,
+            carbs_g: null,
+            fat_g: null,
+          };
+        }
+        return {
+          date: d,
+          protein_g: n.protein_g,
+          carbs_g: n.carbs_g,
+          fat_g: n.fat_g,
+        };
+      });
       const splits = macroDays.map((n) => {
+        if (
+          n.protein_g == null &&
+          n.carbs_g == null &&
+          n.fat_g == null
+        ) {
+          return { p: null, c: null, f: null, grams: { p: 0, c: 0, f: 0 } };
+        }
         const p = Number(n.protein_g) || 0;
         const c = Number(n.carbs_g) || 0;
         const f = Number(n.fat_g) || 0;
@@ -1051,6 +1075,7 @@
               backgroundColor: "rgba(61,156,240,0.45)",
               borderRadius: 2,
               stack: "macros",
+              spanGaps: false,
               yAxisID: "y",
               order: 2,
             },
@@ -1061,6 +1086,7 @@
               backgroundColor: "rgba(240,180,41,0.45)",
               borderRadius: 2,
               stack: "macros",
+              spanGaps: false,
               yAxisID: "y",
               order: 2,
             },
@@ -1071,6 +1097,7 @@
               backgroundColor: "rgba(240,113,120,0.4)",
               borderRadius: 2,
               stack: "macros",
+              spanGaps: false,
               yAxisID: "y",
               order: 2,
             },
@@ -1272,7 +1299,7 @@
                 <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · avg/day</span>
               </div>
             </div>
-            <p class="chart-summary-meta">${nDays} days on chart · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
+            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
           `;
         }
       }
