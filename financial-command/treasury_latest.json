@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-29T07:14:24.439534+00:00",
+    "as_of": "2026-07-29T07:47:40.245874+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-29T05:29:20.041103+00:00",
@@ -2357,12 +2357,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-29T07:14:24.441031+00:00",
+      "as_of": "2026-07-29T07:47:40.248030+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-29T07:14:24.440092+00:00",
+        "as_of": "2026-07-29T07:47:40.246772+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -5414,12 +5414,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-29T07:14:24.441031+00:00",
+    "as_of": "2026-07-29T07:47:40.248030+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-29T07:14:24.440092+00:00",
+      "as_of": "2026-07-29T07:47:40.246772+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
