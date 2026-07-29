@@ -523,6 +523,27 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "status": "error", "error": str(e)})
             return
+        if path in ("/api/health", "/api/fcc-identity"):
+            # Orchestrator / launchers use this to refuse wrong monorepo FCC instances
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "service": "financial-command",
+                    "canonical": True,
+                    "workspace_root": str(ROOT),
+                    "config_path": str(ROOT / "treasury" / "config.json"),
+                    "branch_expected": "work/treasury",
+                    "features": [
+                        "braiins",
+                        "x_money",
+                        "coach",
+                        "watchlist",
+                        "capital_flows",
+                    ],
+                },
+            )
+            return
         if path == "/api/config":
             self._json(200, {"ok": True, "config": load_config()})
             return
@@ -725,6 +746,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--offline", action="store_true", help="Initial refresh offline")
     args = parser.parse_args(argv)
+
+    print(f"[fcc] workspace_root={ROOT}", file=sys.stderr)
+    print(f"[fcc] config={ROOT / 'treasury' / 'config.json'}", file=sys.stderr)
 
     # Initial YNAB + treasury refresh
     try:
