@@ -298,28 +298,123 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             if not result.get("ok"):
                 self._json(404, result)
                 return
-            # Lightweight HTML view — escape ALL interpolated fields (XSS)
+            # Rendered Markdown view (marked.js) — title/rel escaped; body via JSON
             title = html_module.escape(
                 str(result.get("label") or result.get("id") or "Action Plan")
             )
             rel = html_module.escape(str(result.get("rel_path") or ""))
             body_md = result.get("body") or ""
-            esc_body = html_module.escape(body_md)
+            body_json = json.dumps(body_md, ensure_ascii=False)
             html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
 <style>
-  body{{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0b0f14;color:#e7eef5;
-  padding:1.25rem 1.5rem;line-height:1.45}}
-  h1{{font-size:1.15rem;margin:0 0 .35rem}}
-  .path{{color:#8aa0b5;font-size:.85rem;margin-bottom:1rem}}
-  pre{{white-space:pre-wrap;background:#121820;border:1px solid #243044;border-radius:8px;
-  padding:1rem;font-size:.9rem}}
-  a{{color:#5b9fd4}}
-</style></head><body>
-<h1>{title}</h1>
-<div class="path">Source: <code>{rel}</code> · <a href="/">← Orchestrator</a></div>
-<pre>{esc_body}</pre>
+  :root {{
+    --bg: #0b0f14; --panel: #121820; --border: #243044; --text: #e7eef5;
+    --muted: #8aa0b5; --accent: #5b9fd4; --cyan: #3ecfbf;
+  }}
+  * {{ box-sizing: border-box; }}
+  body {{
+    margin: 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+    background: var(--bg); color: var(--text); padding: 1.25rem 1.5rem 2.5rem;
+    line-height: 1.55; max-width: 52rem;
+  }}
+  .top h1 {{ font-size: 1.25rem; margin: 0 0 .35rem; font-weight: 650; }}
+  .path {{ color: var(--muted); font-size: .85rem; margin-bottom: 1rem; }}
+  .path code {{ color: var(--cyan); font-size: .8rem; }}
+  a {{ color: var(--accent); }}
+  .md {{
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1.1rem 1.25rem 1.35rem;
+  }}
+  .md h1, .md h2, .md h3, .md h4 {{
+    line-height: 1.25; margin: 1.1rem 0 .45rem; font-weight: 650;
+  }}
+  .md h1 {{ font-size: 1.35rem; border-bottom: 1px solid var(--border); padding-bottom: .35rem; }}
+  .md h2 {{ font-size: 1.15rem; color: #c5d4e6; }}
+  .md h3 {{ font-size: 1.02rem; color: var(--cyan); }}
+  .md h4 {{ font-size: .95rem; color: var(--muted); }}
+  .md p {{ margin: .5rem 0; }}
+  .md ul, .md ol {{ margin: .4rem 0 .6rem; padding-left: 1.35rem; }}
+  .md li {{ margin: .25rem 0; }}
+  .md strong {{ color: #fff; font-weight: 650; }}
+  .md em {{ color: #c8d6e5; }}
+  .md code {{
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .86em; background: #0b0f14; border: 1px solid var(--border);
+    border-radius: 4px; padding: .1em .35em;
+  }}
+  .md pre {{
+    background: #0b0f14; border: 1px solid var(--border); border-radius: 8px;
+    padding: .75rem 1rem; overflow-x: auto;
+  }}
+  .md pre code {{ border: 0; background: transparent; padding: 0; }}
+  .md hr {{ border: 0; border-top: 1px solid var(--border); margin: 1.1rem 0; }}
+  .md blockquote {{
+    margin: .6rem 0; padding: .35rem .9rem; border-left: 3px solid var(--accent);
+    color: var(--muted); background: rgba(91,159,212,.06);
+  }}
+  .raw-toggle {{
+    margin-top: .75rem; font-size: .8rem; color: var(--muted); cursor: pointer;
+    background: none; border: 0; padding: 0; text-decoration: underline;
+  }}
+  #raw {{
+    display: none; margin-top: .5rem; white-space: pre-wrap;
+    background: #0b0f14; border: 1px solid var(--border); border-radius: 8px;
+    padding: .85rem 1rem; font-size: .85rem; color: var(--muted);
+  }}
+  #raw.show {{ display: block; }}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+</head><body>
+<div class="top">
+  <h1>{title}</h1>
+  <div class="path">Source: <code>{rel}</code> · <a href="/">← Orchestrator</a></div>
+</div>
+<article class="md" id="md-out">Loading…</article>
+<button type="button" class="raw-toggle" id="btn-raw">Show raw Markdown</button>
+<pre id="raw"></pre>
+<script type="application/json" id="md-src">{body_json}</script>
+<script>
+(function () {{
+  var raw = "";
+  try {{
+    raw = JSON.parse(document.getElementById("md-src").textContent || '""');
+  }} catch (e) {{
+    raw = "";
+  }}
+  var out = document.getElementById("md-out");
+  var rawEl = document.getElementById("raw");
+  rawEl.textContent = raw || "";
+  function escHtml(s) {{
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }}
+  function render(md) {{
+    var escaped = escHtml(md);
+    try {{
+      if (typeof marked !== "undefined" && typeof marked.parse === "function") {{
+        if (typeof marked.setOptions === "function") {{
+          marked.setOptions({{ gfm: true, breaks: true }});
+        }}
+        return marked.parse(escaped);
+      }}
+    }} catch (e) {{ /* fall through */ }}
+    // minimal fallback
+    return "<pre>" + escaped + "</pre>";
+  }}
+  out.innerHTML = render(raw);
+  document.getElementById("btn-raw").addEventListener("click", function () {{
+    rawEl.classList.toggle("show");
+    this.textContent = rawEl.classList.contains("show")
+      ? "Hide raw Markdown"
+      : "Show raw Markdown";
+  }});
+}})();
+</script>
 </body></html>"""
             raw = html.encode("utf-8")
             self.send_response(200)
