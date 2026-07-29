@@ -7,6 +7,7 @@ Action, Supporting Micro-Actions, Hygiene gate, Up-Channel Signal).
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -19,6 +20,9 @@ except ImportError:  # unittest path insert
 TEMPLATE_REL = "strategy/action-plan-template.md"
 MACRO_PLAN_REL = "strategy/action-plan.md"
 DOMAIN_PLANS_DIR_REL = "strategy/action-plans"
+
+# Safe domain ids only — blocks path traversal / odd path chars
+_DOMAIN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 # Required markers that every skeleton / plan instance must contain
 REQUIRED_MARKERS: tuple[str, ...] = (
@@ -75,16 +79,46 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
-def domain_plan_rel(domain_id: str) -> str:
+def sanitize_domain_id(domain_id: str) -> Optional[str]:
+    """Return normalized domain id or None if unsafe / empty.
+
+    Only ``[a-z0-9_-]`` (after lowercasing), no dots/slashes — blocks ``../`` traversal.
+    """
     did = (domain_id or "").strip().lower()
+    if not did or not _DOMAIN_ID_RE.match(did):
+        return None
+    if ".." in did or "/" in did or "\\" in did:
+        return None
+    return did
+
+
+def domain_plan_rel(domain_id: str) -> str:
+    did = sanitize_domain_id(domain_id)
+    if not did:
+        raise ValueError(f"invalid domain_id: {domain_id!r}")
     return f"{DOMAIN_PLANS_DIR_REL}/{did}.md"
+
+
+def resolve_domain_plan_path(workspace: Path, domain_id: str) -> Path:
+    """Absolute path to domain plan; must stay under ``strategy/action-plans/``."""
+    ws = Path(workspace).resolve()
+    did = sanitize_domain_id(domain_id)
+    if not did:
+        raise ValueError(f"invalid domain_id: {domain_id!r}")
+    plans_root = (ws / DOMAIN_PLANS_DIR_REL).resolve()
+    path = (plans_root / f"{did}.md").resolve()
+    try:
+        path.relative_to(plans_root)
+    except ValueError as e:
+        raise ValueError(f"domain plan path escapes action-plans dir: {path}") from e
+    return path
 
 
 def action_plan_domain_ids() -> list[str]:
     """Domains that host a micro action plan (all registered except strategy files)."""
     out = []
     for spec in DOMAIN_SPECS:
-        did = str(spec.get("id") or "")
+        did = sanitize_domain_id(str(spec.get("id") or ""))
         if not did or did == "strategy":
             continue
         out.append(did)
@@ -143,10 +177,35 @@ def _ensure_plan_file(
     title: str,
     layer: str,
     domain_id: Optional[str] = None,
+    absolute_path: Optional[Path] = None,
 ) -> dict[str, Any]:
     ws = Path(workspace).resolve()
     ensure_template_file(ws)
-    path = ws / rel_path
+    if absolute_path is not None:
+        path = Path(absolute_path).resolve()
+        # Domain plans must stay under strategy/action-plans/
+        if layer == "domain":
+            plans_root = (ws / DOMAIN_PLANS_DIR_REL).resolve()
+            try:
+                path.relative_to(plans_root)
+            except ValueError:
+                return {
+                    "ok": False,
+                    "error": "domain plan path escapes strategy/action-plans/",
+                    "layer": layer,
+                    "id": domain_id,
+                }
+    else:
+        path = (ws / rel_path).resolve()
+        try:
+            path.relative_to(ws)
+        except ValueError:
+            return {
+                "ok": False,
+                "error": "plan path escapes workspace",
+                "layer": layer,
+                "id": domain_id or "orchestrator",
+            }
     created = False
     if path.is_file():
         # leave intact
@@ -194,9 +253,15 @@ def ensure_macro_action_plan(workspace: Path) -> dict[str, Any]:
 
 def ensure_domain_action_plan(workspace: Path, domain_id: str) -> dict[str, Any]:
     """Create strategy/action-plans/<domain>.md from skeleton if missing."""
-    did = (domain_id or "").strip().lower()
+    did = sanitize_domain_id(domain_id)
     if not did:
-        return {"ok": False, "error": "domain_id is required"}
+        return {
+            "ok": False,
+            "error": (
+                "invalid domain_id: use [a-z0-9_-] only "
+                f"(got {domain_id!r})"
+            ),
+        }
     if did == "strategy":
         return {
             "ok": False,
@@ -204,20 +269,21 @@ def ensure_domain_action_plan(workspace: Path, domain_id: str) -> dict[str, Any]
         }
     label = did
     for spec in DOMAIN_SPECS:
-        if spec.get("id") == did:
+        if sanitize_domain_id(str(spec.get("id") or "")) == did:
             label = str(spec.get("label") or did)
             break
-    if did not in action_plan_domain_ids() and not any(
-        s.get("id") == did for s in DOMAIN_SPECS
-    ):
-        # Still allow ensure for known-looking ids (future domains) with id as label
-        pass
+    try:
+        abs_path = resolve_domain_plan_path(workspace, did)
+        rel = domain_plan_rel(did)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
     return _ensure_plan_file(
         workspace,
-        rel_path=domain_plan_rel(did),
+        rel_path=rel,
         title=label,
         layer="domain",
         domain_id=did,
+        absolute_path=abs_path,
     )
 
 
@@ -261,7 +327,7 @@ def collect_action_plans(workspace: Path) -> dict[str, Any]:
     )
     domains: list[dict[str, Any]] = []
     for spec in DOMAIN_SPECS:
-        did = str(spec.get("id") or "")
+        did = sanitize_domain_id(str(spec.get("id") or ""))
         if not did or did == "strategy":
             continue
         domains.append(
@@ -290,21 +356,35 @@ def read_plan_body(workspace: Path, *, layer: str = "macro", domain_id: Optional
     """Read plan markdown; does not create."""
     ws = Path(workspace).resolve()
     if layer == "domain" or domain_id:
-        did = (domain_id or "").strip().lower()
+        did = sanitize_domain_id(domain_id or "")
         if not did:
-            return {"ok": False, "error": "domain_id required for domain layer"}
-        rel = domain_plan_rel(did)
+            return {
+                "ok": False,
+                "error": (
+                    "invalid or missing domain_id: use [a-z0-9_-] only "
+                    f"(got {domain_id!r})"
+                ),
+            }
+        try:
+            path = resolve_domain_plan_path(ws, did)
+            rel = domain_plan_rel(did)
+        except ValueError as e:
+            return {"ok": False, "error": str(e)}
         plan_id = did
         label = did
         for spec in DOMAIN_SPECS:
-            if spec.get("id") == did:
+            if sanitize_domain_id(str(spec.get("id") or "")) == did:
                 label = str(spec.get("label") or did)
                 break
     else:
         rel = MACRO_PLAN_REL
         plan_id = "orchestrator"
         label = "Orchestrator (Macro)"
-    path = ws / rel
+        path = (ws / rel).resolve()
+        try:
+            path.relative_to(ws)
+        except ValueError:
+            return {"ok": False, "error": "plan path escapes workspace", "rel_path": rel}
     if not path.is_file():
         return {
             "ok": False,

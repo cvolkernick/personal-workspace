@@ -24,6 +24,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html as html_module
 import json
 import sys
 import webbrowser
@@ -44,6 +45,7 @@ from action_plan_template import (  # noqa: E402
     ensure_macro_action_plan,
     ensure_template_file,
     read_plan_body,
+    sanitize_domain_id,
 )
 from conductor import (  # noqa: E402
     CONDUCTOR_SUGGESTIONS,
@@ -243,7 +245,17 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
 
         if path in ("/api/action-plans/content", "/api/action_plans/body"):
             layer = (qs.get("layer") or ["macro"])[0].strip().lower()
-            domain = (qs.get("domain") or qs.get("id") or [""])[0].strip().lower()
+            raw_domain = (qs.get("domain") or qs.get("id") or [""])[0]
+            domain = sanitize_domain_id(raw_domain) if raw_domain.strip() else None
+            if raw_domain.strip() and not domain:
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": f"invalid domain_id: use [a-z0-9_-] only (got {raw_domain!r})",
+                    },
+                )
+                return
             try:
                 if domain:
                     result = read_plan_body(
@@ -260,7 +272,17 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
 
         if path in ("/api/action-plans/view",):
             layer = (qs.get("layer") or ["macro"])[0].strip().lower()
-            domain = (qs.get("domain") or qs.get("id") or [""])[0].strip().lower()
+            raw_domain = (qs.get("domain") or qs.get("id") or [""])[0]
+            domain = sanitize_domain_id(raw_domain) if raw_domain.strip() else None
+            if raw_domain.strip() and not domain:
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": f"invalid domain_id: use [a-z0-9_-] only (got {raw_domain!r})",
+                    },
+                )
+                return
             try:
                 if domain:
                     ensure_domain_action_plan(WORKSPACE_ROOT, domain)
@@ -276,16 +298,13 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             if not result.get("ok"):
                 self._json(404, result)
                 return
-            # Lightweight HTML view so "open plan" works in-browser
-            title = result.get("label") or result.get("id") or "Action Plan"
-            rel = result.get("rel_path") or ""
-            body_md = result.get("body") or ""
-            # Escape for pre display
-            esc = (
-                body_md.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
+            # Lightweight HTML view — escape ALL interpolated fields (XSS)
+            title = html_module.escape(
+                str(result.get("label") or result.get("id") or "Action Plan")
             )
+            rel = html_module.escape(str(result.get("rel_path") or ""))
+            body_md = result.get("body") or ""
+            esc_body = html_module.escape(body_md)
             html = f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <title>{title}</title>
@@ -300,7 +319,7 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
 </style></head><body>
 <h1>{title}</h1>
 <div class="path">Source: <code>{rel}</code> · <a href="/">← Orchestrator</a></div>
-<pre>{esc}</pre>
+<pre>{esc_body}</pre>
 </body></html>"""
             raw = html.encode("utf-8")
             self.send_response(200)
@@ -495,9 +514,19 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
         if path in ("/api/action-plans/ensure", "/api/action_plans/ensure"):
             body = self._read_json_body()
             layer = (body.get("layer") or "").strip().lower()
-            domain = (
+            raw_domain = (
                 body.get("domain") or body.get("id") or body.get("domain_id") or ""
-            ).strip().lower()
+            )
+            domain = sanitize_domain_id(str(raw_domain)) if str(raw_domain).strip() else None
+            if str(raw_domain).strip() and not domain:
+                self._json(
+                    400,
+                    {
+                        "ok": False,
+                        "error": f"invalid domain_id: use [a-z0-9_-] only (got {raw_domain!r})",
+                    },
+                )
+                return
             try:
                 ensure_template_file(WORKSPACE_ROOT)
                 # domain wins unless caller forces macro layer without a domain id
