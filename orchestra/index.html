@@ -1364,39 +1364,73 @@
 
     async function runActionPlanTemplate(opts) {
       const domain = (opts && opts.domain) || "";
-      const layer = (opts && opts.layer) || (domain ? "domain" : "macro");
-      const body = domain
-        ? { domain: domain, layer: "domain" }
-        : { layer: "macro" };
+      const preferView = (opts && opts.view) || "";
+      // Always open the view URL (GET). Ensure is best-effort so a wedged POST
+      // cannot block viewing an already-ready plan.
+      const view =
+        preferView
+        || (domain
+          ? "/api/action-plans/view?domain=" + encodeURIComponent(domain)
+          : "/api/action-plans/view?layer=macro");
+
       showLaunchToast(
-        domain ? `Ensuring ${domain} action plan…` : "Ensuring macro action plan…",
+        domain ? `Opening ${domain} action plan…` : "Opening macro action plan…",
         false
       );
+
+      // Open tab immediately (user gesture) to avoid popup blockers
+      let win = null;
       try {
+        win = window.open(view, "_blank", "noopener");
+      } catch (e) {
+        win = null;
+      }
+
+      // Best-effort ensure (create if missing); does not block open when ready
+      try {
+        const body = domain
+          ? { domain: domain, layer: "domain" }
+          : { layer: "macro" };
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
         const res = await fetch("/api/action-plans/ensure", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
+          signal: controller.signal,
         });
+        clearTimeout(timer);
         const data = await res.json().catch(() => ({}));
-        if (!data.ok) {
+        if (data.ok) {
+          const note = data.created
+            ? `Created ${(data.label || domain || "macro")} plan`
+            : `${data.label || domain || "Macro"} plan ready`;
+          showLaunchToast(note, false);
+          // If ensure created the file after a 404 view, reload the tab
+          if (data.created && win && !win.closed) {
+            try { win.location.href = view; } catch (e) { /* ignore */ }
+          }
+          if (typeof load === "function") load(false);
+        } else if (!win || win.closed) {
           showLaunchToast(data.error || "Could not ensure action plan", true);
-          return;
         }
-        const view =
-          data.view_url
-          || (domain
-            ? "/api/action-plans/view?domain=" + encodeURIComponent(domain)
-            : "/api/action-plans/view?layer=macro");
-        const note = data.created
-          ? `Created ${(data.label || domain || "macro")} plan — opening…`
-          : `Opening ${(data.label || domain || "macro")} plan…`;
-        showLaunchToast(note, false);
-        window.open(view, "_blank", "noopener");
-        // Refresh payload so ready badges update
-        if (typeof load === "function") load(false);
       } catch (e) {
-        showLaunchToast("Action plan: " + e.message, true);
+        // Server down / abort: still try direct navigation if popup was blocked
+        if (!win || win.closed) {
+          try {
+            window.location.href = view;
+            return;
+          } catch (e2) { /* fall through */ }
+          showLaunchToast(
+            "Action plan: " + e.message + " — is Orchestrator running at :8790?",
+            true
+          );
+        } else {
+          showLaunchToast(
+            "Opened plan view (ensure skipped: " + e.message + ")",
+            false
+          );
+        }
       }
     }
 
@@ -1985,7 +2019,8 @@
         ev.preventDefault();
         ev.stopPropagation();
         const domain = runTpl.getAttribute("data-domain") || "";
-        runActionPlanTemplate({ domain: domain, layer: "domain" });
+        const view = runTpl.getAttribute("data-view") || runTpl.getAttribute("href") || "";
+        runActionPlanTemplate({ domain: domain, layer: "domain", view: view });
         return;
       }
       const btn = ev.target.closest(".domain-open");
