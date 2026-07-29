@@ -1051,9 +1051,47 @@
           }
           return null;
         })();
+        // Period averages over the same days shown on the chart
+        let sumPg = 0;
+        let sumCg = 0;
+        let sumFg = 0;
+        let nDays = 0;
+        splits.forEach((s) => {
+          if (!s || s.p == null) return;
+          sumPg += Number(s.grams.p) || 0;
+          sumCg += Number(s.grams.c) || 0;
+          sumFg += Number(s.grams.f) || 0;
+          nDays += 1;
+        });
+        let periodTxt = "";
+        if (nDays > 0) {
+          const avgPg = sumPg / nDays;
+          const avgCg = sumCg / nDays;
+          const avgFg = sumFg / nDays;
+          // Weighted calorie-share over the full period (not mean of daily %)
+          const totK = sumPg * 4 + sumCg * 4 + sumFg * 9;
+          const pctP =
+            totK > 0 ? Math.round((sumPg * 4 * 1000) / totK) / 10 : null;
+          const pctC =
+            totK > 0 ? Math.round((sumCg * 4 * 1000) / totK) / 10 : null;
+          const pctF =
+            totK > 0 ? Math.round((sumFg * 9 * 1000) / totK) / 10 : null;
+          const firstD = macroDays[0] && macroDays[0].date;
+          const lastD =
+            macroDays[macroDays.length - 1] &&
+            macroDays[macroDays.length - 1].date;
+          const rangeTxt =
+            firstD && lastD ? `${firstD} → ${lastD}` : `${nDays}d`;
+          periodTxt =
+            ` · Period avg (${rangeTxt}, ${nDays}d): ` +
+            `P ${Math.round(avgPg)} g (${pctP}%) · ` +
+            `C ${Math.round(avgCg)} g (${pctC}%) · ` +
+            `F ${Math.round(avgFg)} g (${pctF}%)`;
+        }
         if (!last || last.p == null) {
           $("macros-note").textContent =
-            "Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %.";
+            "Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %." +
+            periodTxt;
         } else {
           const rollTxt = lastRoll
             ? ` · 7d avg P ${lastRoll.p}% · C ${lastRoll.c}% · F ${lastRoll.f}%`
@@ -1062,6 +1100,7 @@
             `Latest day: P ${last.p}% · C ${last.c}% · F ${last.f}% ` +
             `(${Math.round(last.grams.p)} / ${Math.round(last.grams.c)} / ${Math.round(last.grams.f)} g)` +
             rollTxt +
+            periodTxt +
             ` · bars = daily split, lines = ${rollWin}d rolling avg`;
         }
       }
