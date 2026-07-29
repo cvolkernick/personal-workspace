@@ -817,3 +817,31 @@
 - **critic:** ok_hold_process_flag — Force HOLD on residual dust — no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: print was strong but do not auto-promote to buy without fresh deep-dive + quorum; still not first-buy ready. Block undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block.
 - **executor:** hold — No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00.
 
+
+## 2026-07-29T18:03:27 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $173.0255 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $173.03 BP $0.04 cash $0.04
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-29T18:04:40 — hold
+**Summary:** Mid-session fund-manager review 2026-07-29 (~14:05 ET): agentic ••••1752 NAV~$173.03, cash/BP $0.04/$0.04 HOLD. Deployed sleeves BTC 0.4 / stocks 0.6 in ±5% band. Full research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP unavailable this session. Next free capital ≥$1 → prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).
+**Book:** NAV $173.0255 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Rules path flagged free capital (any cash/BP>0 → need_llm). Mid-session team review (~14:05 ET). Not open/close scalp. Size-invariant process even at dust residual.
+**Why not alternatives:** No buys: below min_trade $1 and Executor has no MCP. Forced sell-to-buy rotate to STRC/SATA deferred while 40/60 in band (settlement risk on cash account; no thesis break). Watchlist BE/GOOGL/AAPL/NVDA not first-buy ready (deep-dive gates). Held-only top-up rejected as default for next deploy. RIOT/WULF not blocked as 'overlap'.
+**Team:**
+- **scout:** ok — Agentic ••••1752 NAV $173.03 equity_MV $174.5 cash/BP $0.04/$0.04. Held: MSTR, MARA, TSLA, SPCX, BITA, IREN, CLSK. Deployed BTC 0.4 / stocks 0.6 in band. Gaps: STRC/SATA/ASST unheld; RIOT/WULF optional miners; AI (GOOGL/AAPL/NVDA) + BE watchlist. MCP robinhood-trading unavailable this session. RH snapshot live ~18:03Z.
+- **thesis:** ok_hold — Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA (owner pref — not MSTR-only); RIOT/WULF eligible diversifiers (not overlap rejects); ~60% TSLA/SPCX unless AI dive completes. BE post-print remains monitor until deep-dive refresh. How new capital serves themes now: open STRC/SATA seat first within BTC complex, then residual credit/miners + growth cores.
+- **risk:** ok_hold — No trade: BP dust below min $1. Agentic-only cash account, no leverage. TSLA single-name elevated (~34% of equity marks) but primary growth core — no forced cut this pass. Multi-miner is diversification not concentration block. Small NAV → no process skip. MCP outage is operational risk for autopilot. No sell-to-buy rotate for dust residual (settlement risk).
+- **critic:** ok_hold_process_flag — Force HOLD on residual dust — no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute for elevated digital credit). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: strong Q2 print ≠ auto-buy without fresh deep-dive + quorum. Block undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block.
+- **executor:** hold — No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00.
+
