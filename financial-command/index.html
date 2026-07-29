@@ -2153,7 +2153,8 @@
               ? `${label}: source=${s || "—"} · ${age || "age ?"} · warn if >${staleH || 6}h`
               : `${label}: no as_of`;
             if (label === "RH trade") {
-              tip += " · FCC Refresh does not pull RH MCP (agent rh_sync / fund manager)";
+              tip +=
+                " · Refresh: pull from Pi schedule first, else local Robinhood MCP";
             }
             if (label === "Braiins") {
               tip += " · refreshed via braiins_sync on full Refresh";
@@ -3569,7 +3570,12 @@
         if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
         else if (r.braiins && r.braiins !== "skipped")
           bits.push("Braiins⚠");
-        bits.push("RH trade=MCP");
+        if (String(r.robinhood || "").startsWith("ok")) {
+          const src = String(r.robinhood).replace(/^ok:/, "") || "ok";
+          bits.push("RH:" + src);
+        } else if (r.robinhood && r.robinhood !== "skipped") {
+          bits.push("RH⚠");
+        }
         toast(
           bits.length
             ? "Refreshed: " + bits.join(" · ")

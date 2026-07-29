@@ -48,5 +48,13 @@
       "Personal",
       "Discretionary"
     ]
+  },
+  "pi_sync": {
+    "enabled": true,
+    "ssh": "prism-agent@192.168.100.98",
+    "remote_root": "/home/prism-agent/personal-workspace",
+    "connect_timeout_s": 5,
+    "max_age_hours": 12,
+    "notes": "Local FCC/rh_refresh: pull robinhood_latest.json from Pi first; if unreachable or stale, fall back to local Grok+Robinhood MCP. Override with TREASURY_PI_SSH / TREASURY_PI_ROOT."
   }
 }

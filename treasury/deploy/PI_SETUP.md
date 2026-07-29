@@ -85,6 +85,23 @@ Override with env `FCC_HOST_TAG=pi` or `config.json` → `notifications.host_tag
 | `fund-manager` | weekdays ~12:30 | Rules HOLD if 40/60 ok; else Grok team review |
 | `fund-manager-bp-poll` | ~15m | If agentic cash>0 or BP>0 → full team deploy (market hours) |
 
+## Mac local FCC + Pi snapshots
+Local Mac FCC does **not** share the Pi filesystem. To keep **RH trade** green on the laptop:
+
+1. Pi continues writing `treasury/snapshots/robinhood_latest.json` on its schedule.
+2. On Mac, `python3 -m treasury.rh_snapshot_sync` (also used by `rh_refresh.sh` and FCC **Refresh**):
+   - **First** SSH/SCP pull from Pi (`pi_sync` in `treasury/config.json`, or `TREASURY_PI_SSH` / `TREASURY_PI_ROOT`)
+   - **If Pi unreachable / missing / too stale** → local Grok + Robinhood MCP fallback
+
+```bash
+# on Mac (work/treasury)
+python3 -m treasury.rh_snapshot_sync --print
+# force local MCP only:
+TREASURY_SKIP_PI=1 python3 -m treasury.rh_snapshot_sync
+```
+
+Default SSH target: `prism-agent@192.168.100.98` → `/home/prism-agent/personal-workspace`.
+
 ## Notifications
 `config.json` → `notifications.ntfy_topic` (or default topic).  
 Alerts on need_llm / error / stale RH — quiet on routine HOLD.  

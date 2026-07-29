@@ -769,11 +769,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 "expenses": "skipped" if offline else "pending",
                 "coinbase_treasury": "pending",
                 "braiins": "skipped" if offline else "pending",
-                "robinhood": (
-                    "unchanged_file_snapshot"
-                    if offline
-                    else "mcp_only — run fund manager / rh_sync (not in FCC Refresh)"
-                ),
+                "robinhood": "skipped" if offline else "pending",
             }
             try:
                 if not offline:
@@ -812,6 +808,32 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as be:
                         report["braiins"] = f"error: {be}"
                         sys.stderr.write(f"[fcc] braiins_sync warning: {be}\n")
+                    # RH: Pi snapshot first, local Grok+MCP fallback
+                    try:
+                        from treasury.rh_snapshot_sync import sync_rh_snapshot
+
+                        rh = sync_rh_snapshot(
+                            prefer_pi=True,
+                            allow_local_mcp=True,
+                            reevaluate=False,  # full run_treasury below
+                        )
+                        if rh.get("ok"):
+                            report["robinhood"] = f"ok:{rh.get('source')}"
+                            report["robinhood_as_of"] = rh.get("as_of")
+                        else:
+                            report["robinhood"] = (
+                                f"error:{rh.get('error') or 'failed'}"
+                            )
+                            report["robinhood_detail"] = {
+                                "pi": (rh.get("pi") or {}).get("error"),
+                                "local_mcp": (rh.get("local_mcp") or {}).get("error"),
+                            }
+                            sys.stderr.write(
+                                f"[fcc] rh_snapshot_sync failed: {report['robinhood']}\n"
+                            )
+                    except Exception as re:
+                        report["robinhood"] = f"error: {re}"
+                        sys.stderr.write(f"[fcc] rh_snapshot_sync warning: {re}\n")
                 code = run_treasury_main(args)
                 report["coinbase_treasury"] = (
                     "ok" if code in (0, None) else f"exit {code}"
