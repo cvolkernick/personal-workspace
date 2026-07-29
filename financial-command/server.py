@@ -761,38 +761,91 @@ class FCCHandler(SimpleHTTPRequestHandler):
             body = self._read_json()
             if body.get("offline"):
                 offline = True
-            # Prefer live YNAB + Coinbase unless offline
+            # Prefer live YNAB + Coinbase + Braiins unless offline.
+            # RH trade is MCP-written (rh_sync) — not pullable from this server alone.
             args = ["--offline"] if offline else []
+            report: dict = {
+                "ynab": "skipped" if offline else "pending",
+                "expenses": "skipped" if offline else "pending",
+                "coinbase_treasury": "pending",
+                "braiins": "skipped" if offline else "pending",
+                "robinhood": (
+                    "unchanged_file_snapshot"
+                    if offline
+                    else "mcp_only — run fund manager / rh_sync (not in FCC Refresh)"
+                ),
+            }
             try:
                 if not offline:
                     try:
                         from treasury.ynab_sync import main as ynab_main
 
                         ynab_main([])
-                    except SystemExit:
-                        pass
+                        report["ynab"] = "ok"
+                    except SystemExit as se:
+                        report["ynab"] = "ok" if se.code in (0, None) else f"exit {se.code}"
                     except Exception as ye:
+                        report["ynab"] = f"error: {ye}"
                         sys.stderr.write(f"[fcc] ynab_sync warning: {ye}\n")
                     try:
                         from treasury.expenses_sync import main as exp_main
 
                         exp_main([])
-                    except SystemExit:
-                        pass
+                        report["expenses"] = "ok"
+                    except SystemExit as se:
+                        report["expenses"] = (
+                            "ok" if se.code in (0, None) else f"exit {se.code}"
+                        )
                     except Exception as ee:
+                        report["expenses"] = f"error: {ee}"
                         sys.stderr.write(f"[fcc] expenses_sync warning: {ee}\n")
+                    try:
+                        from treasury.braiins_sync import main as braiins_main
+
+                        # braiins_sync sleeps ~5s between API calls; allow long timeout
+                        bc = braiins_main([])
+                        report["braiins"] = "ok" if bc in (0, None) else f"exit {bc}"
+                    except SystemExit as se:
+                        report["braiins"] = (
+                            "ok" if se.code in (0, None) else f"exit {se.code}"
+                        )
+                    except Exception as be:
+                        report["braiins"] = f"error: {be}"
+                        sys.stderr.write(f"[fcc] braiins_sync warning: {be}\n")
                 code = run_treasury_main(args)
+                report["coinbase_treasury"] = (
+                    "ok" if code in (0, None) else f"exit {code}"
+                )
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
+                report["coinbase_treasury"] = (
+                    "ok" if code in (0, None) else f"exit {code}"
+                )
             except Exception as e:
-                self._json(500, {"ok": False, "error": str(e)})
+                self._json(500, {"ok": False, "error": str(e), "refreshed": report})
                 return
             if code not in (0, None):
-                self._json(500, {"ok": False, "error": f"treasury exit {code}"})
+                self._json(
+                    500,
+                    {
+                        "ok": False,
+                        "error": f"treasury exit {code}",
+                        "refreshed": report,
+                    },
+                )
                 return
             p = ROOT / "financial-command" / "treasury_latest.json"
             data = json.loads(p.read_text(encoding="utf-8")) if p.is_file() else {}
-            self._json(200, {"ok": True, "treasury": data})
+            if isinstance(data, dict):
+                try:
+                    data["braiins"] = _braiins_live()
+                except Exception as be:
+                    data["braiins"] = {
+                        "ok": False,
+                        "status": "error",
+                        "error": f"braiins attach failed: {be}",
+                    }
+            self._json(200, {"ok": True, "treasury": data, "refreshed": report})
             return
 
         if path in ("/api/open-orchestra", "/api/launch-orchestra"):

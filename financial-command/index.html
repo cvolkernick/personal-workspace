@@ -1607,11 +1607,14 @@
       return (h / 24).toFixed(1) + "d ago";
     }
     function feedClass(src, asOf, staleH = 6) {
-      // RH is refreshed on a 3h schedule (agent/MCP); warn still at 6h.
+      // Stale threshold: most feeds 6h. RH trade is MCP-only (not FCC Refresh).
       if (!src || src === "empty") return "bad";
       if (asOf) {
         const t = Date.parse(asOf);
         if (Number.isFinite(t) && (Date.now() - t) / 3600000 > staleH) return "warn";
+      } else if (src && src !== "live" && src !== "ynab" && src !== "google_sheets") {
+        // Has a source string but no as_of → treat as warn when we expect ages
+        return "warn";
       }
       return "ok";
     }
@@ -2122,17 +2125,19 @@
       const meta = snap.meta || {};
       const src = (ev.data_quality && ev.data_quality.sources) || {};
       const brFeed = data.braiins || {};
+      // staleH: hours until yellow. RH trade is agent MCP only (not FCC Refresh).
       const feeds = [
-        ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of],
-        ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of],
-        ["RH check", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of],
-        ["X Money", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of],
-        ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of],
-        ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of],
+        ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of, 6],
+        ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of, 6],
+        ["RH check", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of, 6],
+        ["X Money", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of, 6],
+        ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of, 12],
+        ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of, 6],
         [
           "Braiins",
           brFeed.ok ? brFeed.source || "live" : brFeed.status || "empty",
           brFeed.as_of,
+          12,
         ],
       ];
       const ages = feeds.map(([, , asOf]) => ageLabel(asOf)).filter(Boolean);
@@ -2140,13 +2145,19 @@
       document.getElementById("feeds-line").innerHTML =
         `<span>Refreshed ${ageLabel(snap.as_of) || newest}</span>` +
         feeds
-          .map(([label, s, asOf]) => {
-            const cls = feedClass(s, asOf);
+          .map(([label, s, asOf, staleH]) => {
+            const cls = feedClass(s, asOf, staleH || 6);
             const mark = cls === "ok" ? "✓" : cls === "warn" ? "⚠" : "✗";
             const age = ageLabel(asOf);
-            const tip = asOf
-              ? `${label}: source=${s || "—"} · ${age || "age ?"} · warn if >6h`
+            let tip = asOf
+              ? `${label}: source=${s || "—"} · ${age || "age ?"} · warn if >${staleH || 6}h`
               : `${label}: no as_of`;
+            if (label === "RH trade") {
+              tip += " · FCC Refresh does not pull RH MCP (agent rh_sync / fund manager)";
+            }
+            if (label === "Braiins") {
+              tip += " · refreshed via braiins_sync on full Refresh";
+            }
             return `<span class="${cls}" title="${escapeHtml(tip)}">${label} ${mark}</span>`;
           })
           .join("");
@@ -3546,8 +3557,24 @@
           }
           window.__treasury = t;
           render(t);
+          if (typeof loadCoach === "function") loadCoach();
         } else await loadTreasury();
-        toast("Updated all feeds");
+        // Honest toast: Refresh is not "all feeds" (RH trade is MCP-only)
+        const r = body.refreshed || {};
+        const bits = [];
+        if (r.ynab === "ok") bits.push("YNAB");
+        if (r.expenses === "ok") bits.push("Sheet");
+        if (r.coinbase_treasury === "ok" || r.coinbase_treasury === "pending")
+          bits.push("CB");
+        if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
+        else if (r.braiins && r.braiins !== "skipped")
+          bits.push("Braiins⚠");
+        bits.push("RH trade=MCP");
+        toast(
+          bits.length
+            ? "Refreshed: " + bits.join(" · ")
+            : "Treasury re-evaluated (see feed ages)"
+        );
       } catch (e) {
         toast("Refresh failed — is the server running?");
         await loadTreasury();
