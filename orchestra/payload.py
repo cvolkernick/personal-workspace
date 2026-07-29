@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 try:
+    from .action_plan_template import collect_action_plans
     from .attention import compute_freshness, synthesize_attention
     from .collectors import build_strategy_section, collect_all_domains
     from .domains import DOMAIN_SPECS
@@ -17,6 +18,7 @@ try:
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
+    from action_plan_template import collect_action_plans
     from attention import compute_freshness, synthesize_attention
     from collectors import build_strategy_section, collect_all_domains
     from domains import DOMAIN_SPECS
@@ -237,6 +239,7 @@ def build_orchestra_payload(
     today_path = s_sig.get("today_path") or "strategy/today.md"
     bets_path = s_sig.get("bets_path") or "strategy/bets.md"
     initiatives_dir = s_sig.get("initiatives_dir") or "initiatives/"
+    action_plans = collect_action_plans(ws)
     today_focus = {
         "title": "Today's Focus",
         "items": today_focus_items,
@@ -265,6 +268,9 @@ def build_orchestra_payload(
             "next_action, energy (see initiatives/improve-command-center-daily-planner.md)."
         ),
         "source": today_path,
+        # Bridge to nested domain/macro action-plan templates
+        "action_plans": action_plans,
+        "section_bridge": "Today's Focus → Domain Action Plan",
     }
     return {
         "ok": True,
@@ -302,6 +308,8 @@ def build_orchestra_payload(
         # Daily action plan slice (source: strategy/today.md)
         "today_focus": today_focus,
         "today_items": today_focus_items,  # alias for UI / agents
+        # Nested Action Plan templates (macro + per-domain micro MD files)
+        "action_plans": action_plans,
         # Primary synthesized output for operators / agents
         "next_action": next_action,  # single decided next step
         "recommendations": recommendations,

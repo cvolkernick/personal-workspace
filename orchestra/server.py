@@ -38,6 +38,13 @@ if str(ORCHESTRA_DIR) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from action_plan_template import (  # noqa: E402
+    collect_action_plans,
+    ensure_domain_action_plan,
+    ensure_macro_action_plan,
+    ensure_template_file,
+    read_plan_body,
+)
 from conductor import (  # noqa: E402
     CONDUCTOR_SUGGESTIONS,
     ConductorError,
@@ -220,8 +227,88 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "priorities": payload.get("priorities") or [],
                     "action_plan": payload.get("action_plan") or [],
+                    "action_plans": payload.get("action_plans") or {},
                 },
             )
+            return
+
+        if path in ("/api/action-plans", "/api/action_plans"):
+            try:
+                plans = collect_action_plans(WORKSPACE_ROOT)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, {"ok": True, "action_plans": plans})
+            return
+
+        if path in ("/api/action-plans/content", "/api/action_plans/body"):
+            layer = (qs.get("layer") or ["macro"])[0].strip().lower()
+            domain = (qs.get("domain") or qs.get("id") or [""])[0].strip().lower()
+            try:
+                if domain:
+                    result = read_plan_body(
+                        WORKSPACE_ROOT, layer="domain", domain_id=domain
+                    )
+                else:
+                    result = read_plan_body(WORKSPACE_ROOT, layer=layer or "macro")
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            code = 200 if result.get("ok") else 404
+            self._json(code, result)
+            return
+
+        if path in ("/api/action-plans/view",):
+            layer = (qs.get("layer") or ["macro"])[0].strip().lower()
+            domain = (qs.get("domain") or qs.get("id") or [""])[0].strip().lower()
+            try:
+                if domain:
+                    ensure_domain_action_plan(WORKSPACE_ROOT, domain)
+                    result = read_plan_body(
+                        WORKSPACE_ROOT, layer="domain", domain_id=domain
+                    )
+                else:
+                    ensure_macro_action_plan(WORKSPACE_ROOT)
+                    result = read_plan_body(WORKSPACE_ROOT, layer="macro")
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            if not result.get("ok"):
+                self._json(404, result)
+                return
+            # Lightweight HTML view so "open plan" works in-browser
+            title = result.get("label") or result.get("id") or "Action Plan"
+            rel = result.get("rel_path") or ""
+            body_md = result.get("body") or ""
+            # Escape for pre display
+            esc = (
+                body_md.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+            html = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<title>{title}</title>
+<style>
+  body{{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0b0f14;color:#e7eef5;
+  padding:1.25rem 1.5rem;line-height:1.45}}
+  h1{{font-size:1.15rem;margin:0 0 .35rem}}
+  .path{{color:#8aa0b5;font-size:.85rem;margin-bottom:1rem}}
+  pre{{white-space:pre-wrap;background:#121820;border:1px solid #243044;border-radius:8px;
+  padding:1rem;font-size:.9rem}}
+  a{{color:#5b9fd4}}
+</style></head><body>
+<h1>{title}</h1>
+<div class="path">Source: <code>{rel}</code> · <a href="/">← Orchestrator</a></div>
+<pre>{esc}</pre>
+</body></html>"""
+            raw = html.encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(raw)
             return
 
         if path == "/api/attention":
@@ -398,6 +485,28 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     workspace=WORKSPACE_ROOT,
                     force_restart=bool(body.get("force")),
                 )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            code = 200 if result.get("ok") else 400
+            self._json(code, result)
+            return
+
+        if path in ("/api/action-plans/ensure", "/api/action_plans/ensure"):
+            body = self._read_json_body()
+            layer = (body.get("layer") or "").strip().lower()
+            domain = (
+                body.get("domain") or body.get("id") or body.get("domain_id") or ""
+            ).strip().lower()
+            try:
+                ensure_template_file(WORKSPACE_ROOT)
+                # domain wins unless caller forces macro layer without a domain id
+                if domain and layer not in ("macro", "orchestrator"):
+                    result = ensure_domain_action_plan(WORKSPACE_ROOT, domain)
+                elif layer in ("macro", "orchestrator") or not domain:
+                    result = ensure_macro_action_plan(WORKSPACE_ROOT)
+                else:
+                    result = ensure_domain_action_plan(WORKSPACE_ROOT, domain)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
                 return

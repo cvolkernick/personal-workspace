@@ -5,7 +5,7 @@ linked_bets: ["AI/Autonomy/Robotics"]
 ikigai_pillars: ["love", "good_at", "world_needs"]
 ikigai_intersection: "passion"
 priority_impact: high
-next_action: "Add a prominent 'Today's Focus' section to dashboard/index.html that nicely renders strategy/today.md (and makes it easy to edit)"
+next_action: "Use Today's Focus → Domain Action Plan in orchestra/index.html: fill macro strategy/action-plan.md, Run Domain Template on the highest-leverage domain, execute its Single Next Action"
 energy: medium
 target_date: "2026-06-10 or ongoing"
 domain_weighting_context: "Agents / AI tooling (currently high because this directly advances the AI/Autonomy/Robotics leverage bet and reduces synthesis friction across all domains)"
@@ -17,11 +17,18 @@ Evolve the command center from a good visual reader into the place where macro s
 This initiative itself is meta: building the tool that helps execute on the other bets.
 
 ## Current Next Action
-Add / enhance the rendering of `strategy/today.md` in the dashboard HTML (prominent section, nice cards for the top items, easy visual link back to the source bets and initiatives). Make "Add new initiative" guidance point to creating a real structured MD like this one.
+Use the nested Action Plan template loop in Orchestrator:
+
+1. Edit `strategy/action-plan.md` (macro domain prioritization).
+2. Click **Run Domain Template** for the chosen domain (creates `strategy/action-plans/<domain>.md` from the shared skeleton if missing).
+3. Execute that domain plan's Single Next Action; set Up-Channel Signal status back for re-weight.
+
+Today's Focus still renders `strategy/today.md` cards above the Domain Action Plan bridge.
 
 ## Progress / Wins
 - [x] Requirements gathered via Socratic process (user confirmed direction and that Today's Focus list is the single most valuable first slice).
-- [ ] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).
+- [x] First implementation of the Today's Focus rendering + supporting MDs (this file + bets.md + today.md skeleton).
+- [x] Nested Action Plan template (macro + per-domain) with **Run Domain Template** in `orchestra/index.html`.
 - [ ] User starts using the new flow for at least one real day of planning.
 
 ## Notes / Ideas

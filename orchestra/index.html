@@ -864,6 +864,26 @@
           No open checklist items. Add 2–5 lines like
           <code>- [ ] **Do this next**</code> in <code>strategy/today.md</code>, then Refresh.
         </div>
+
+        <!-- Nested Action Plan bridge: macro prioritization + per-domain micro plans -->
+        <div class="domain-action-plan-bridge" id="sec-domain-action-plans" style="margin-top:1rem;padding-top:0.85rem;border-top:1px solid var(--border)">
+          <h3 style="margin:0 0 0.35rem;font-size:0.95rem">
+            Today's Focus → Domain Action Plan
+            <span class="badge" id="action-plan-count">0</span>
+          </h3>
+          <p class="hint" style="margin:0 0 0.65rem;color:var(--muted);font-size:0.82rem">
+            Macro plan prioritizes domains; each domain hosts the same template for micro steps.
+            <strong>Run Domain Template</strong> creates the plan from the shared skeleton if missing, then opens it.
+          </p>
+          <div class="row" style="margin-bottom:0.55rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
+            <span style="font-size:0.8rem;color:var(--muted)">Macro:</span>
+            <code id="macro-action-plan-path" style="font-size:0.78rem">strategy/action-plan.md</code>
+            <button type="button" class="btn-link" id="btn-macro-action-plan" data-layer="macro">Open Macro Plan</button>
+            <span class="pill" id="macro-action-plan-status" style="font-size:0.72rem">—</span>
+          </div>
+          <div class="list" id="domain-action-plan-list"></div>
+        </div>
+
         <div class="today-meta">
           <details id="today-meta-details">
             <summary>Edit source · bets · initiatives</summary>
@@ -1287,7 +1307,86 @@
       if (bets.length) {
         pills.push(`<span class="status-pill" title="${esc(bets.join(", "))}">bets · ${esc(bets.slice(0, 3).join(" · "))}${bets.length > 3 ? "…" : ""}</span>`);
       }
-      $("status-bar").innerHTML = pills.join("");
+      const bar = $("status-bar");
+      if (bar) bar.innerHTML = pills.join("");
+    }
+
+    function renderActionPlans(data) {
+      const plans = data.action_plans
+        || (data.today_focus && data.today_focus.action_plans)
+        || {};
+      const macro = plans.macro || {};
+      const domains = plans.domains || [];
+      const countEl = $("action-plan-count");
+      if (countEl) countEl.textContent = String(domains.length + (macro.rel_path ? 1 : 0));
+      const pathEl = $("macro-action-plan-path");
+      if (pathEl) pathEl.textContent = macro.rel_path || "strategy/action-plan.md";
+      const stEl = $("macro-action-plan-status");
+      if (stEl) {
+        stEl.textContent = macro.exists ? "ready" : "missing";
+        stEl.className = "pill " + (macro.exists ? "live" : "missing");
+      }
+      const listEl = $("domain-action-plan-list");
+      if (!listEl) return;
+      if (!domains.length) {
+        listEl.innerHTML = '<div class="row detail">No domain action-plan slots registered.</div>';
+        return;
+      }
+      listEl.innerHTML = domains.map((d) => {
+        const exists = d.exists === true;
+        const pill = exists
+          ? '<span class="pill live">ready</span>'
+          : '<span class="pill missing">not created</span>';
+        return `<div class="row" style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+          <div class="title" style="min-width:8rem">${esc(d.label || d.id)}</div>
+          <div class="detail" style="flex:1"><code style="font-size:0.75rem">${esc(d.rel_path || "")}</code></div>
+          ${pill}
+          <button type="button" class="btn-link run-domain-template"
+            data-domain="${esc(d.id)}"
+            data-view="${esc(d.view_url || ("/api/action-plans/view?domain=" + d.id))}"
+            title="Create from skeleton if missing, then open">
+            Run Domain Template
+          </button>
+        </div>`;
+      }).join("");
+    }
+
+    async function runActionPlanTemplate(opts) {
+      const domain = (opts && opts.domain) || "";
+      const layer = (opts && opts.layer) || (domain ? "domain" : "macro");
+      const body = domain
+        ? { domain: domain, layer: "domain" }
+        : { layer: "macro" };
+      showLaunchToast(
+        domain ? `Ensuring ${domain} action plan…` : "Ensuring macro action plan…",
+        false
+      );
+      try {
+        const res = await fetch("/api/action-plans/ensure", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!data.ok) {
+          showLaunchToast(data.error || "Could not ensure action plan", true);
+          return;
+        }
+        const view =
+          data.view_url
+          || (domain
+            ? "/api/action-plans/view?domain=" + encodeURIComponent(domain)
+            : "/api/action-plans/view?layer=macro");
+        const note = data.created
+          ? `Created ${(data.label || domain || "macro")} plan — opening…`
+          : `Opening ${(data.label || domain || "macro")} plan…`;
+        showLaunchToast(note, false);
+        window.open(view, "_blank", "noopener");
+        // Refresh payload so ready badges update
+        if (typeof load === "function") load(false);
+      } catch (e) {
+        showLaunchToast("Action plan: " + e.message, true);
+      }
     }
 
     function renderStrategy(data) {
@@ -1653,6 +1752,9 @@
         $("today-empty").hidden = false;
       }
 
+      // Today's Focus → Domain Action Plan (macro + per-domain Run Domain Template)
+      renderActionPlans(data);
+
       // System suggestions (collapsed): top N only
       $("rec-count").textContent = String(recItems.length);
       $("rec-summary-label").innerHTML =
@@ -1867,6 +1969,14 @@
     }
 
     document.body.addEventListener("click", (ev) => {
+      const runTpl = ev.target.closest(".run-domain-template");
+      if (runTpl) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        const domain = runTpl.getAttribute("data-domain") || "";
+        runActionPlanTemplate({ domain: domain, layer: "domain" });
+        return;
+      }
       const btn = ev.target.closest(".domain-open");
       if (!btn) return;
       ev.preventDefault();
@@ -1879,6 +1989,14 @@
       ev.preventDefault();
       handleDomainOpen(el);
     });
+
+    const btnMacroPlan = $("btn-macro-action-plan");
+    if (btnMacroPlan) {
+      btnMacroPlan.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        runActionPlanTemplate({ layer: "macro" });
+      });
+    }
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));
     $("btn-probe").addEventListener("click", () => load(true));
