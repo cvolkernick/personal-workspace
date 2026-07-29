@@ -812,8 +812,8 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Rolling 30d only — older Google Health burned totals were inflated.
-    const calSpanDays = 30;
+    // Align with body-weight chart window (90 calendar days).
+    const calSpanDays = 90;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -825,7 +825,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Full series (not downsampled) mapped onto the 30d civil axis.
+    // Full series mapped onto the 90d civil axis.
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -2517,9 +2517,9 @@
         note.innerHTML =
           `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
       } else {
-        // Cumulative intake − burned over the same 30d window as the chart
-        // (days with both series present only, so the sum matches the shaded bands).
-        const spanDays = 30;
+        // Cumulative intake − burned over the same window as the chart (90d).
+        // Days with both series present only, so the sum matches the shaded bands.
+        const spanDays = 90;
         const end = new Date();
         end.setHours(0, 0, 0, 0);
         const z = (x) => String(x).padStart(2, "0");
