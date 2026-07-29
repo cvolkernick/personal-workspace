@@ -279,65 +279,137 @@ async def vesync_get_state(
     }
 
 
+def _vesync_is_on(outlet: Any) -> bool:
+    is_on = getattr(outlet, "is_on", None)
+    if is_on is not None:
+        return bool(is_on)
+    return str(getattr(outlet, "device_status", "")).lower() in ("on", "1", "true")
+
+
+async def _vesync_refresh_outlet(
+    manager: Any, *, device_name: Optional[str], cid: Optional[str]
+) -> Any:
+    """Reload device list / state and re-match outlet (fresh cloud view)."""
+    try:
+        if hasattr(manager, "update"):
+            await manager.update()
+        else:
+            await manager.get_devices()
+    except Exception:  # noqa: BLE001
+        try:
+            await manager.get_devices()
+        except Exception:  # noqa: BLE001
+            pass
+    o = _match_vesync_outlet(manager, device_name=device_name, cid=cid)
+    if o is None:
+        return None
+    try:
+        upd = getattr(o, "update", None)
+        if callable(upd):
+            await upd()
+    except Exception:  # noqa: BLE001
+        pass
+    return o
+
+
 async def vesync_set_power(
     on: bool,
     *,
     device_name: Optional[str] = None,
     cid: Optional[str] = None,
+    attempts: int = 3,
+    settle_seconds: float = 1.5,
 ) -> dict[str, Any]:
+    """Turn a VeSync outlet on/off with delayed re-read and retries.
+
+    VeSync often ACKs immediately while the physical plug lags or never
+    switches; we wait, re-fetch devices, and re-command until state matches.
+    """
+    import asyncio
+
     manager, err = await _vesync_manager()
     if err:
         return {"ok": False, "error": err}
-    await manager.get_devices()
-    o = _match_vesync_outlet(manager, device_name=device_name, cid=cid)
-    if o is None:
+
+    last_on: Optional[bool] = None
+    label: Optional[str] = None
+    out_cid: Optional[str] = cid
+    last_cmd_ok: Any = None
+
+    try:
+        for attempt in range(max(1, int(attempts))):
+            o = await _vesync_refresh_outlet(
+                manager, device_name=device_name, cid=cid
+            )
+            if o is None:
+                return {
+                    "ok": False,
+                    "error": (
+                        f"VeSync outlet not found "
+                        f"(name={device_name!r} cid={cid!r})"
+                    ),
+                    "type": "vesync",
+                }
+            label = getattr(o, "device_name", None) or getattr(o, "name", None)
+            out_cid = getattr(o, "cid", None) or cid
+
+            # Force-cycle when cloud already claims the desired state but we
+            # still need a reliable edge (stale "on" is a common failure mode).
+            if on:
+                if _vesync_is_on(o):
+                    last_cmd_ok = await o.turn_off()
+                    await asyncio.sleep(0.6)
+                    o = await _vesync_refresh_outlet(
+                        manager, device_name=device_name, cid=cid
+                    ) or o
+                last_cmd_ok = await o.turn_on()
+            else:
+                if not _vesync_is_on(o):
+                    last_cmd_ok = await o.turn_on()
+                    await asyncio.sleep(0.6)
+                    o = await _vesync_refresh_outlet(
+                        manager, device_name=device_name, cid=cid
+                    ) or o
+                last_cmd_ok = await o.turn_off()
+
+            if last_cmd_ok is False:
+                continue
+
+            await asyncio.sleep(float(settle_seconds))
+            o2 = await _vesync_refresh_outlet(
+                manager, device_name=device_name, cid=cid
+            )
+            if o2 is None:
+                continue
+            last_on = _vesync_is_on(o2)
+            label = getattr(o2, "device_name", None) or label
+            out_cid = getattr(o2, "cid", None) or out_cid
+            if last_on == on:
+                return {
+                    "ok": True,
+                    "action": "on" if on else "off",
+                    "on": last_on,
+                    "type": "vesync",
+                    "label": label,
+                    "cid": out_cid,
+                    "verified": True,
+                    "attempts": attempt + 1,
+                }
+
         return {
             "ok": False,
-            "error": f"VeSync outlet not found (name={device_name!r} cid={cid!r})",
-        }
-    try:
-        if on:
-            ok = await o.turn_on()
-        else:
-            ok = await o.turn_off()
-        # some versions return None/bool
-        if ok is False:
-            return {"ok": False, "error": "VeSync turn_* returned False", "type": "vesync"}
-        # Re-read device — cloud commands can report success while state lags/fails
-        try:
-            upd = getattr(o, "update", None)
-            if callable(upd):
-                await upd()
-            elif hasattr(manager, "update"):
-                await manager.update()
-        except Exception:  # noqa: BLE001
-            pass
-        is_on = getattr(o, "is_on", None)
-        if is_on is None:
-            is_on = str(getattr(o, "device_status", "")).lower() in ("on", "1", "true")
-        is_on_b = bool(is_on)
-        if is_on_b != on:
-            return {
-                "ok": False,
-                "error": (
-                    f"VeSync command accepted but device still "
-                    f"{'on' if is_on_b else 'off'} (wanted {'on' if on else 'off'})"
-                ),
-                "action": "on" if on else "off",
-                "on": is_on_b,
-                "type": "vesync",
-                "label": getattr(o, "device_name", None),
-                "cid": getattr(o, "cid", None),
-                "verified": False,
-            }
-        return {
-            "ok": True,
+            "error": (
+                f"VeSync still {'on' if last_on else 'off'} after {attempts} "
+                f"attempt(s) (wanted {'on' if on else 'off'})"
+            ),
             "action": "on" if on else "off",
-            "on": is_on_b,
+            "on": last_on,
             "type": "vesync",
-            "label": getattr(o, "device_name", None),
-            "cid": getattr(o, "cid", None),
-            "verified": True,
+            "label": label,
+            "cid": out_cid,
+            "verified": False,
+            "attempts": attempts,
+            "cmd_ok": last_cmd_ok,
         }
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": f"{type(e).__name__}: {e}", "type": "vesync"}

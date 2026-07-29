@@ -7,16 +7,6 @@
   },
   "routines": [
     {
-      "id": "sunset_lights_on",
-      "enabled": true,
-      "name": "Sunset — house lights magenta",
-      "trigger": "sunset",
-      "offset_minutes": 0,
-      "target": "lights",
-      "color": "magenta",
-      "brightness": 180
-    },
-    {
       "id": "sunset_office_on",
       "enabled": true,
       "name": "Sunset — office plug on",
@@ -25,6 +15,16 @@
       "target": "office",
       "color": "warm",
       "brightness": 200
+    },
+    {
+      "id": "sunset_lights_on",
+      "enabled": true,
+      "name": "Sunset — house lights magenta",
+      "trigger": "sunset",
+      "offset_minutes": 0,
+      "target": "lights",
+      "color": "magenta",
+      "brightness": 180
     },
     {
       "id": "sunset_plants_off",
@@ -37,22 +37,22 @@
       "brightness": null
     },
     {
-      "id": "sunrise_lights_off",
-      "enabled": true,
-      "name": "Sunrise — house lights off",
-      "trigger": "sunrise",
-      "offset_minutes": 0,
-      "target": "lights",
-      "color": "off",
-      "brightness": null
-    },
-    {
       "id": "sunrise_office_off",
       "enabled": true,
       "name": "Sunrise — office plug off",
       "trigger": "sunrise",
       "offset_minutes": 0,
       "target": "office",
+      "color": "off",
+      "brightness": null
+    },
+    {
+      "id": "sunrise_lights_off",
+      "enabled": true,
+      "name": "Sunrise — house lights off",
+      "trigger": "sunrise",
+      "offset_minutes": 0,
+      "target": "lights",
       "color": "off",
       "brightness": null
     },
