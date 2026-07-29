@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-29T17:46:22.471600+00:00",
+    "as_of": "2026-07-29T18:03:00.682907+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-29T05:29:20.041103+00:00",
@@ -16,9 +16,9 @@
       "account_count": 19
     },
     "coinbase_manual": {
-      "loan_principal_usdc": "166.99",
-      "collateral_btc_usd": "365.28",
-      "ltv": ".4571",
+      "loan_principal_usdc": "167",
+      "collateral_btc_usd": "861.98",
+      "ltv": ".1936",
       "vault_usdc": "147.43",
       "card_balance": "499.23",
       "card_available_credit": null,
@@ -1813,7 +1813,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-07-29T17:44:44.556563+00:00",
+      "as_of": "2026-07-29T18:03:00.560079+00:00",
       "total_value": 0.024046,
       "equity_value": 0.0,
       "cash": 0.02,
@@ -1827,9 +1827,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-07-29T17:44:44.556557+00:00",
-        "total_value": 171.6400341774,
-        "equity_value": 171.6000341774,
+        "as_of": "2026-07-29T18:03:00.560073+00:00",
+        "total_value": 173.0254930138,
+        "equity_value": 172.9854930138,
         "cash": 0.04,
         "buying_power": 0.04,
         "unleveraged_buying_power": 0.04,
@@ -1933,37 +1933,42 @@
           }
         ]
       },
-      "accounts": [
-        {
-          "account_number": "5QW39737",
-          "rhs_account_number": "106397375",
-          "type": "cash",
-          "brokerage_account_type": "individual",
-          "is_default": true,
-          "agentic_allowed": false,
-          "option_level": "option_level_2",
-          "management_type": "self_directed",
-          "affiliate": "rhf",
-          "state": "active",
-          "deactivated": false,
-          "permanently_deactivated": false
+      "accounts": {
+        "data": {
+          "accounts": [
+            {
+              "account_number": "5QW39737",
+              "rhs_account_number": "106397375",
+              "type": "cash",
+              "brokerage_account_type": "individual",
+              "is_default": true,
+              "agentic_allowed": false,
+              "option_level": "option_level_2",
+              "management_type": "self_directed",
+              "affiliate": "rhf",
+              "state": "active",
+              "deactivated": false,
+              "permanently_deactivated": false
+            },
+            {
+              "account_number": "674601752",
+              "rhs_account_number": "674601752",
+              "type": "cash",
+              "brokerage_account_type": "individual",
+              "nickname": "Agentic",
+              "is_default": false,
+              "agentic_allowed": true,
+              "option_level": "option_level_2",
+              "management_type": "self_directed",
+              "affiliate": "rhf",
+              "state": "active",
+              "deactivated": false,
+              "permanently_deactivated": false
+            }
+          ]
         },
-        {
-          "account_number": "674601752",
-          "rhs_account_number": "674601752",
-          "type": "cash",
-          "brokerage_account_type": "individual",
-          "nickname": "Agentic",
-          "is_default": false,
-          "agentic_allowed": true,
-          "option_level": "option_level_2",
-          "management_type": "self_directed",
-          "affiliate": "rhf",
-          "state": "active",
-          "deactivated": false,
-          "permanently_deactivated": false
-        }
-      ],
+        "guide": "Sort the list deterministically when presenting: the default account first, agentic accounts (agentic_allowed=true) second, then other individual accounts, then retirement (IRA) accounts. Present account_number, rhc_account_number (label it \"Crypto Account\"), brokerage_account_type (label it \"Account Type\" \u2014 a linked crypto account always shares it, so never add a separate crypto account type column), type (label it \"Brokerage Trading Type\"), nickname (if set), and is_default \u2014 in that column order. In the Crypto Account column show \"N/A\" for accounts with an empty rhc_account_number; omit the column entirely only when no account has one. When referring to the account in user-facing prose (e.g. \"your <X> account\"), use nickname when set; fall back to brokerage_account_type otherwise. When displaying account_number or rhc_account_number to the user, mask all but the last 4 digits (e.g. '\u2022\u2022\u2022\u20221234'); pass the full value to other tools unchanged \u2014 including get_option_level_upgrade_info and any fallback upgrade URL; masking breaks the link. Flag agentic_allowed when the user is choosing an account for a trade. agentic_allowed is caller-relative \u2014 true means accessible to this agent, false means this agent cannot act on it (the account may still be agentic-enabled for a different agent). Do not use nickname to determine agentic-account eligibility. Skip false accounts for trade operations; if the user asks why, say the account is not accessible to this agent, not that it needs to be enabled. When option_level is empty or 'option_level_0' and the user wants options, call get_option_level_upgrade_info with the account_number; if that tool is unavailable, direct the user to https://applink.robinhood.com/upgrade_options?account_number=<that account's account_number> (embed the full unmasked account_number in the URL). management_type='managed' is layered on brokerage_account_type \u2014 surface alongside, not as a replacement. For tools that ask for an account identifier on a crypto-backed flow (get_crypto_positions, future crypto write tools), pass rhs_account_number; for everything else (equities, options, etc.) pass account_number."
+      },
       "mcp": {
         "url": "https://agent.robinhood.com/mcp/trading",
         "server": "robinhood-trading",
@@ -2050,9 +2055,9 @@
       "liquid_btc": 8.77294815e-08,
       "liquid_btc_usd": 0.005603861875277716,
       "btc_usd_price": 63876.61,
-      "ltv": 0.4571,
-      "loan_principal_usdc": 166.99,
-      "collateral_btc_usd": 365.28,
+      "ltv": 0.1936,
+      "loan_principal_usdc": 167.0,
+      "collateral_btc_usd": 861.98,
       "vault_usdc": 147.43,
       "card_balance": 499.23,
       "card_available_credit": 0.7699999999999818,
@@ -2087,7 +2092,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.04,
       "rh_agentic_cash": 0.04,
-      "rh_agentic_total_value": 171.6400341774,
+      "rh_agentic_total_value": 173.0254930138,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2133,14 +2138,14 @@
       "margin_use": null
     },
     "stress": {
-      "coinbase_ltv": "yellow",
+      "coinbase_ltv": "green",
       "coinbase_liquid": "red",
       "coinbase_card": "red",
       "robinhood": "yellow",
       "data_quality": "yellow",
       "overall": "red",
       "dimensions": {
-        "coinbase_ltv": "yellow",
+        "coinbase_ltv": "green",
         "coinbase_liquid": "red",
         "coinbase_card": "red",
         "robinhood": "yellow",
@@ -2162,25 +2167,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-07-29T05:29:20.041103+00:00",
-        "robinhood_as_of": "2026-07-29T17:44:44.556563+00:00",
+        "robinhood_as_of": "2026-07-29T18:03:00.560079+00:00",
         "one_card_as_of": "2026-07-29T05:29:20.612582+00:00",
         "rh_checking_as_of": "2026-07-29T05:29:20.789738+00:00",
         "x_money_as_of": "2026-07-29T05:29:20.951813+00:00",
         "expenses_as_of": "2026-07-29T05:29:21.838623+00:00"
       },
       "stale": [
-        "coinbase data 12.3h old (>6.0h)",
-        "one_card data 12.3h old (>6.0h)",
-        "rh_checking data 12.3h old (>6.0h)",
-        "x_money data 12.3h old (>6.0h)",
-        "expenses data 12.3h old (>6.0h)"
+        "coinbase data 12.6h old (>6.0h)",
+        "one_card data 12.6h old (>6.0h)",
+        "rh_checking data 12.6h old (>6.0h)",
+        "x_money data 12.6h old (>6.0h)",
+        "expenses data 12.6h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 12.3h old (>6.0h)",
-        "one_card data 12.3h old (>6.0h)",
-        "rh_checking data 12.3h old (>6.0h)",
-        "x_money data 12.3h old (>6.0h)",
-        "expenses data 12.3h old (>6.0h)"
+        "coinbase data 12.6h old (>6.0h)",
+        "one_card data 12.6h old (>6.0h)",
+        "rh_checking data 12.6h old (>6.0h)",
+        "x_money data 12.6h old (>6.0h)",
+        "expenses data 12.6h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2195,14 +2200,6 @@
       }
     },
     "actions": [
-      {
-        "priority": 1,
-        "kind": "ltv_watch",
-        "title": "LTV 45.7% above alert 45% \u2014 prepare buffer",
-        "actor": "either",
-        "detail": "Agent can hold liquid USDC/BTC; human enables loan protection / tops up in app.",
-        "api_reachable": false
-      },
       {
         "priority": 2,
         "kind": "card_float",
@@ -2264,53 +2261,47 @@
       {
         "n": 1,
         "actor": "either",
-        "title": "LTV 45.7% above alert 45% \u2014 prepare buffer",
-        "api_reachable": false
-      },
-      {
-        "n": 2,
-        "actor": "either",
         "title": "USDC float short $352.57 (spot + High Yield vault)",
         "api_reachable": false
       },
       {
-        "n": 3,
+        "n": 2,
         "actor": "human",
         "title": "One Card balance $499.23 \u2014 pay down in app / confirm autopay",
         "api_reachable": false
       },
       {
-        "n": 4,
+        "n": 3,
         "actor": "agent",
         "title": "Pause DCA: buying power 0.02 below floor 500.00",
         "api_reachable": true
       },
       {
-        "n": 5,
+        "n": 4,
         "actor": "either",
         "title": "Est. Coinbase-funded bills ~$10834/mo vs working USDC $147.43 (spot+vault)",
         "api_reachable": false
       },
       {
-        "n": 6,
+        "n": 5,
         "actor": "either",
         "title": "Loan buffer short $1000.00 working USDC",
         "api_reachable": false
       },
       {
-        "n": 7,
+        "n": 6,
         "actor": "either",
         "title": "Bridge dry powder short $200.00 working USDC",
         "api_reachable": false
       },
       {
-        "n": 8,
+        "n": 7,
         "actor": "human",
         "title": "Pull up to $147.43 from High Yield vault for card/buffers (app)",
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.4571\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00000009 (~$0.01)\nOne Card owed: $499.23 (source=ynab) | 30d spend $403.78\nUpcoming expense estimates (sheet Personal): $16631.55/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $214.64 (Checking \u2013 2201) | RH brokerage BP: $0.02 cash: $0.02 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.02 below floor 500.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [either|manual] LTV 45.7% above alert 45% \u2014 prepare buffer\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $499.23 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.02 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $147.43 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.1936\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00000009 (~$0.01)\nOne Card owed: $499.23 (source=ynab) | 30d spend $403.78\nUpcoming expense estimates (sheet Personal): $16631.55/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $214.64 (Checking \u2013 2201) | RH brokerage BP: $0.02 cash: $0.02 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.02 below floor 500.00\nData quality: yellow score=1.0\nTop actions:\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $499.23 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.02 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $147.43 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\n  P4 [either|manual] Bridge dry powder short $200.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
@@ -2369,25 +2360,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-29T17:46:22.474313+00:00",
+      "as_of": "2026-07-29T18:03:00.684620+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-29T17:46:22.472497+00:00",
+        "as_of": "2026-07-29T18:03:00.683434+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 171.64,
+        "nav_usd": 173.0255,
         "cash_usd": 0.04,
         "buying_power_usd": 0.04,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.4067,
-          "stocks_growth": 0.61,
+          "btc_digital_credit": 0.4034,
+          "stocks_growth": 0.6051,
           "other": 0.0,
           "cash": 0.0002
         },
@@ -4346,25 +4337,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-29T17:46:22.474313+00:00",
+    "as_of": "2026-07-29T18:03:00.684620+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-29T17:46:22.472497+00:00",
+      "as_of": "2026-07-29T18:03:00.683434+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 171.64,
+      "nav_usd": 173.0255,
       "cash_usd": 0.04,
       "buying_power_usd": 0.04,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.4067,
-        "stocks_growth": 0.61,
+        "btc_digital_credit": 0.4034,
+        "stocks_growth": 0.6051,
         "other": 0.0,
         "cash": 0.0002
       },
