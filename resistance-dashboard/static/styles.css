@@ -1894,6 +1894,125 @@ footer {
   color: rgba(255, 255, 255, 0.7);
 }
 
+/* Compact metric strips under intake / macro charts */
+.chart-summary {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.chart-summary-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #8b9bb4);
+}
+
+.chart-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.chart-summary-chip {
+  flex: 1 1 auto;
+  min-width: 5.5rem;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.chart-summary-chip .chip-k {
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  line-height: 1.2;
+}
+
+.chart-summary-chip .chip-v {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.chart-summary-chip .chip-s {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  line-height: 1.25;
+}
+
+.chart-summary-chip.chip-surplus {
+  border-color: rgba(92, 225, 168, 0.35);
+  background: rgba(92, 225, 168, 0.1);
+}
+.chart-summary-chip.chip-surplus .chip-v {
+  color: #5ce1a8;
+}
+
+.chart-summary-chip.chip-deficit {
+  border-color: rgba(240, 113, 120, 0.35);
+  background: rgba(240, 113, 120, 0.1);
+}
+.chart-summary-chip.chip-deficit .chip-v {
+  color: #f07178;
+}
+
+.chart-summary-chip.chip-balance {
+  border-color: rgba(139, 155, 180, 0.35);
+}
+
+.chart-summary-chip.chip-in .chip-v {
+  color: #5ce1a8;
+}
+.chart-summary-chip.chip-out .chip-v {
+  color: #f07178;
+}
+
+.chart-summary-chip.chip-protein {
+  border-color: rgba(61, 156, 240, 0.35);
+  background: rgba(61, 156, 240, 0.1);
+}
+.chart-summary-chip.chip-protein .chip-v {
+  color: #6db7f5;
+}
+
+.chart-summary-chip.chip-carbs {
+  border-color: rgba(240, 180, 41, 0.35);
+  background: rgba(240, 180, 41, 0.1);
+}
+.chart-summary-chip.chip-carbs .chip-v {
+  color: #f0c14d;
+}
+
+.chart-summary-chip.chip-fat {
+  border-color: rgba(240, 113, 120, 0.3);
+  background: rgba(240, 113, 120, 0.08);
+}
+.chart-summary-chip.chip-fat .chip-v {
+  color: #f09098;
+}
+
+.chart-summary-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted, #8b9bb4);
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  .chart-summary-chip {
+    min-width: calc(50% - 0.3rem);
+  }
+}
+
 /* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;

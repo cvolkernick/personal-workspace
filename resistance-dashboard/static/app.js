@@ -1042,6 +1042,7 @@
         },
       });
       if ($("macros-note")) {
+        const note = $("macros-note");
         const last = splits.length ? splits[splits.length - 1] : null;
         const lastRoll = (() => {
           for (let i = pRoll.length - 1; i >= 0; i--) {
@@ -1063,45 +1064,78 @@
           sumFg += Number(s.grams.f) || 0;
           nDays += 1;
         });
-        let periodTxt = "";
-        if (nDays > 0) {
-          const avgPg = sumPg / nDays;
-          const avgCg = sumCg / nDays;
-          const avgFg = sumFg / nDays;
-          // Weighted calorie-share over the full period (not mean of daily %)
+        if (!last || last.p == null) {
+          note.innerHTML =
+            `<p class="chart-summary-empty">Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %.</p>`;
+        } else {
           const totK = sumPg * 4 + sumCg * 4 + sumFg * 9;
           const pctP =
-            totK > 0 ? Math.round((sumPg * 4 * 1000) / totK) / 10 : null;
+            nDays > 0 && totK > 0
+              ? Math.round((sumPg * 4 * 1000) / totK) / 10
+              : null;
           const pctC =
-            totK > 0 ? Math.round((sumCg * 4 * 1000) / totK) / 10 : null;
+            nDays > 0 && totK > 0
+              ? Math.round((sumCg * 4 * 1000) / totK) / 10
+              : null;
           const pctF =
-            totK > 0 ? Math.round((sumFg * 9 * 1000) / totK) / 10 : null;
+            nDays > 0 && totK > 0
+              ? Math.round((sumFg * 9 * 1000) / totK) / 10
+              : null;
+          const avgPg = nDays > 0 ? sumPg / nDays : 0;
+          const avgCg = nDays > 0 ? sumCg / nDays : 0;
+          const avgFg = nDays > 0 ? sumFg / nDays : 0;
           const firstD = macroDays[0] && macroDays[0].date;
           const lastD =
             macroDays[macroDays.length - 1] &&
             macroDays[macroDays.length - 1].date;
           const rangeTxt =
-            firstD && lastD ? `${firstD} → ${lastD}` : `${nDays}d`;
-          periodTxt =
-            ` · Period avg (${rangeTxt}, ${nDays}d): ` +
-            `P ${Math.round(avgPg)} g (${pctP}%) · ` +
-            `C ${Math.round(avgCg)} g (${pctC}%) · ` +
-            `F ${Math.round(avgFg)} g (${pctF}%)`;
-        }
-        if (!last || last.p == null) {
-          $("macros-note").textContent =
-            "Calorie share from protein / carbs / fat (4 / 4 / 9 kcal per gram). Lines = 7-day rolling avg %." +
-            periodTxt;
-        } else {
-          const rollTxt = lastRoll
-            ? ` · 7d avg P ${lastRoll.p}% · C ${lastRoll.c}% · F ${lastRoll.f}%`
-            : "";
-          $("macros-note").textContent =
-            `Latest day: P ${last.p}% · C ${last.c}% · F ${last.f}% ` +
-            `(${Math.round(last.grams.p)} / ${Math.round(last.grams.c)} / ${Math.round(last.grams.f)} g)` +
-            rollTxt +
-            periodTxt +
-            ` · bars = daily split, lines = ${rollWin}d rolling avg`;
+            firstD && lastD ? `${firstD} → ${lastD}` : `${nDays} days`;
+          note.innerHTML = `
+            <div class="chart-summary-row">
+              <div class="chart-summary-chip chip-protein">
+                <span class="chip-k">Period protein</span>
+                <span class="chip-v">${Math.round(avgPg)} g</span>
+                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · avg/day</span>
+              </div>
+              <div class="chart-summary-chip chip-carbs">
+                <span class="chip-k">Period carbs</span>
+                <span class="chip-v">${Math.round(avgCg)} g</span>
+                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · avg/day</span>
+              </div>
+              <div class="chart-summary-chip chip-fat">
+                <span class="chip-k">Period fat</span>
+                <span class="chip-v">${Math.round(avgFg)} g</span>
+                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · avg/day</span>
+              </div>
+            </div>
+            <div class="chart-summary-row">
+              <div class="chart-summary-chip chip-protein">
+                <span class="chip-k">Latest day · P</span>
+                <span class="chip-v">${last.p}%</span>
+                <span class="chip-s">${Math.round(last.grams.p)} g</span>
+              </div>
+              <div class="chart-summary-chip chip-carbs">
+                <span class="chip-k">Latest day · C</span>
+                <span class="chip-v">${last.c}%</span>
+                <span class="chip-s">${Math.round(last.grams.c)} g</span>
+              </div>
+              <div class="chart-summary-chip chip-fat">
+                <span class="chip-k">Latest day · F</span>
+                <span class="chip-v">${last.f}%</span>
+                <span class="chip-s">${Math.round(last.grams.f)} g</span>
+              </div>
+              ${
+                lastRoll
+                  ? `<div class="chart-summary-chip">
+                <span class="chip-k">7d rolling</span>
+                <span class="chip-v" style="font-size:0.85rem">P ${lastRoll.p}% · C ${lastRoll.c}% · F ${lastRoll.f}%</span>
+                <span class="chip-s">lines on chart</span>
+              </div>`
+                  : ""
+              }
+            </div>
+            <p class="chart-summary-meta">${nDays} days on chart · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
+          `;
         }
       }
     }
@@ -2337,12 +2371,13 @@
       $("health-note").textContent = `Google Health connected · ${data.health.weight.length} weight pts, ${(data.health.sleep || []).length} sleep nights.`;
     }
     if ($("nutrition-note")) {
+      const note = $("nutrition-note");
       const n = ((data.health && data.health.nutrition) || []).length;
       const h = ((data.health && data.health.hydration) || []).length;
       const b = ((data.health && data.health.calories_burned) || []).length;
       if (!n && !h && !b) {
-        $("nutrition-note").textContent =
-          "No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.";
+        note.innerHTML =
+          `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
       } else {
         // Cumulative intake − burned over the same 30d window as the chart
         // (days with both series present only, so the sum matches the shaded bands).
@@ -2390,20 +2425,52 @@
           cumDelta += vin - vout;
           pairDays += 1;
         });
-        let cumTxt = "";
-        if (pairDays > 0) {
-          const rounded = Math.round(cumDelta);
-          if (rounded > 0) {
-            cumTxt = ` · cumulative surplus +${rounded.toLocaleString()} kcal (${pairDays}d with both in & out)`;
-          } else if (rounded < 0) {
-            cumTxt = ` · cumulative deficit ${rounded.toLocaleString()} kcal (${pairDays}d with both in & out)`;
-          } else {
-            cumTxt = ` · cumulative balance ±0 kcal (${pairDays}d with both in & out)`;
-          }
-          cumTxt += ` · Σ in ${Math.round(sumIn).toLocaleString()} · Σ out ${Math.round(sumOut).toLocaleString()}`;
+        const rounded = Math.round(cumDelta);
+        let deltaClass = "chip-balance";
+        let deltaLabel = "Balance";
+        let deltaVal = "±0 kcal";
+        if (pairDays > 0 && rounded > 0) {
+          deltaClass = "chip-surplus";
+          deltaLabel = "Cumulative surplus";
+          deltaVal = `+${rounded.toLocaleString()} kcal`;
+        } else if (pairDays > 0 && rounded < 0) {
+          deltaClass = "chip-deficit";
+          deltaLabel = "Cumulative deficit";
+          deltaVal = `${rounded.toLocaleString()} kcal`;
+        } else if (pairDays === 0) {
+          deltaLabel = "Cumulative";
+          deltaVal = "—";
         }
-        $("nutrition-note").textContent =
-          `Rolling ${spanDays}d · nutrition days: ${n} · burned-calorie days: ${b}${cumTxt} · green = surplus (intake > burned), red = deficit`;
+        note.innerHTML = `
+          <div class="chart-summary-row">
+            <div class="chart-summary-chip ${deltaClass}">
+              <span class="chip-k">${deltaLabel}</span>
+              <span class="chip-v">${deltaVal}</span>
+              <span class="chip-s">${
+                pairDays > 0
+                  ? `${pairDays} days with both in &amp; out`
+                  : "Need paired intake + burned days"
+              }</span>
+            </div>
+            <div class="chart-summary-chip chip-in">
+              <span class="chip-k">Σ intake</span>
+              <span class="chip-v">${
+                pairDays > 0 ? Math.round(sumIn).toLocaleString() : "—"
+              }</span>
+              <span class="chip-s">kcal · ${spanDays}d window</span>
+            </div>
+            <div class="chart-summary-chip chip-out">
+              <span class="chip-k">Σ burned</span>
+              <span class="chip-v">${
+                pairDays > 0 ? Math.round(sumOut).toLocaleString() : "—"
+              }</span>
+              <span class="chip-s">kcal · ${spanDays}d window</span>
+            </div>
+          </div>
+          <p class="chart-summary-meta">
+            Rolling ${spanDays}d · ${n} nutrition days · ${b} burned days · green band = surplus · red band = deficit
+          </p>
+        `;
       }
     }
 
