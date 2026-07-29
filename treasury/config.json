@@ -14,13 +14,13 @@
     "one_card_security_deposit_usdc": 500
   },
   "coinbase_manual": {
-    "loan_principal_usdc": null,
-    "collateral_btc_usd": null,
-    "ltv": null,
+    "loan_principal_usdc": "166.99",
+    "collateral_btc_usd": "365.28",
+    "ltv": ".4571",
     "vault_usdc": "147.43",
-    "card_balance": null,
+    "card_balance": "499.23",
     "card_available_credit": null,
-    "one_card_security_deposit_usdc": 500,
+    "one_card_security_deposit_usdc": "500",
     "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
   },
   "robinhood": {

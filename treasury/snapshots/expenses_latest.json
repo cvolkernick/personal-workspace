@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-07-26T17:20:22.687019+00:00",
+  "as_of": "2026-07-29T04:42:14.074296+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -13,15 +13,15 @@
       "role": "upcoming_expense_estimates",
       "item_count": 29,
       "totals": {
-        "daily": 548.75,
-        "weekly": 3841.24,
-        "biweekly": 7682.48,
-        "monthly": 16639.88,
-        "annually": 69145.53
+        "daily": 548.47,
+        "weekly": 3839.31,
+        "biweekly": 7678.63,
+        "monthly": 16631.55,
+        "annually": 69045.53
       },
       "by_source_monthly": {
         "Coinbase": 10834.05,
-        "X Money": 5805.83
+        "X Money": 5797.5
       },
       "top_monthly": [
         {
@@ -29,7 +29,7 @@
           "monthly": 8400.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.5033
+          "budget_allocation": 0.5035000000000001
         },
         {
           "item": "GM Financial (May / June / July)",
@@ -50,7 +50,7 @@
           "monthly": 1121.55,
           "from": "X Money",
           "date": "5/21/2026",
-          "budget_allocation": 0.0681
+          "budget_allocation": 0.0682
         },
         {
           "item": "Santander (May / June / July)",
@@ -139,18 +139,18 @@
           "weekly": 308.39
         },
         {
-          "date": "7/27/2026",
-          "item": "Agentic Fund Allocation",
-          "from": "X Money",
-          "monthly": 108.33,
-          "weekly": 25.0
-        },
-        {
           "date": "8/1/2026",
           "item": "ASIC Fleet OpEx",
           "from": "X Money",
           "monthly": 437.2,
           "weekly": 100.89
+        },
+        {
+          "date": "8/1/2026",
+          "item": "Agentic Fund Allocation",
+          "from": "X Money",
+          "monthly": 100.0,
+          "weekly": 23.08
         },
         {
           "date": "8/3/2026",
@@ -261,7 +261,7 @@
           "biweekly": 3866.3,
           "monthly": 8400.0,
           "annually": 22800.0,
-          "budget_allocation": 0.5033
+          "budget_allocation": 0.5035000000000001
         },
         {
           "date": "5/21/2026",
@@ -272,7 +272,7 @@
           "biweekly": 523.39,
           "monthly": 1121.55,
           "annually": 1121.55,
-          "budget_allocation": 0.0681
+          "budget_allocation": 0.0682
         },
         {
           "date": "5/21/2026",
@@ -297,17 +297,6 @@
           "budget_allocation": 0.0803
         },
         {
-          "date": "7/27/2026",
-          "from": "X Money",
-          "item": "Agentic Fund Allocation",
-          "daily": 3.57,
-          "weekly": 25.0,
-          "biweekly": 50.0,
-          "monthly": 108.33,
-          "annually": 1300.0,
-          "budget_allocation": 0.006500000000000001
-        },
-        {
           "date": "8/1/2026",
           "from": "X Money",
           "item": "ASIC Fleet OpEx",
@@ -317,6 +306,17 @@
           "monthly": 437.2,
           "annually": 5246.4,
           "budget_allocation": 0.0263
+        },
+        {
+          "date": "8/1/2026",
+          "from": "X Money",
+          "item": "Agentic Fund Allocation",
+          "daily": 3.3,
+          "weekly": 23.08,
+          "biweekly": 46.15,
+          "monthly": 100.0,
+          "annually": 1200.0,
+          "budget_allocation": 0.006
         },
         {
           "date": "8/3/2026",
@@ -722,16 +722,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 16639.88,
-    "personal_monthly": 16639.88,
-    "personal_daily": 548.75,
-    "personal_weekly": 3841.24,
-    "personal_annually": 69145.53,
+    "upcoming_expense_monthly": 16631.55,
+    "personal_monthly": 16631.55,
+    "personal_daily": 548.47,
+    "personal_weekly": 3839.31,
+    "personal_annually": 69045.53,
     "capital_targets_monthly": 2548.0,
     "discretionary_monthly": 2548.0,
     "discretionary_daily": 84.93,
-    "combined_monthly": 16639.88,
-    "combined_daily": 548.75,
+    "combined_monthly": 16631.55,
+    "combined_daily": 548.47,
     "coinbase_funded_monthly": 10834.05,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0
