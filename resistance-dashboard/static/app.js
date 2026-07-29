@@ -1124,16 +1124,28 @@
                 <span class="chip-v">${last.f}%</span>
                 <span class="chip-s">${Math.round(last.grams.f)} g</span>
               </div>
-              ${
-                lastRoll
-                  ? `<div class="chart-summary-chip">
-                <span class="chip-k">7d rolling</span>
-                <span class="chip-v" style="font-size:0.85rem">P ${lastRoll.p}% · C ${lastRoll.c}% · F ${lastRoll.f}%</span>
-                <span class="chip-s">lines on chart</span>
-              </div>`
-                  : ""
-              }
             </div>
+            ${
+              lastRoll
+                ? `<div class="chart-summary-row">
+              <div class="chart-summary-chip chip-protein">
+                <span class="chip-k">7d rolling · P</span>
+                <span class="chip-v">${lastRoll.p}%</span>
+                <span class="chip-s">of kcal · chart line</span>
+              </div>
+              <div class="chart-summary-chip chip-carbs">
+                <span class="chip-k">7d rolling · C</span>
+                <span class="chip-v">${lastRoll.c}%</span>
+                <span class="chip-s">of kcal · chart line</span>
+              </div>
+              <div class="chart-summary-chip chip-fat">
+                <span class="chip-k">7d rolling · F</span>
+                <span class="chip-v">${lastRoll.f}%</span>
+                <span class="chip-s">of kcal · chart line</span>
+              </div>
+            </div>`
+                : ""
+            }
             <p class="chart-summary-meta">${nDays} days on chart · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
           `;
         }
