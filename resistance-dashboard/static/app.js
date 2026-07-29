@@ -19,7 +19,7 @@
     return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
   }
 
-  /** Fill missing civil days with 0h sleep (sleep debt). End = latest sample or today. */
+  /** Fill missing civil days with 0h sleep (sleep debt). End = today. */
   function fillSleepCalendarDays(points, windowDays = 90) {
     const by = {};
     (points || []).forEach((s) => {
@@ -40,6 +40,33 @@
       out.push({
         date: key,
         sleep_hours: by[key] != null ? by[key] : 0,
+        source: by[key] != null ? "logged" : "implied_zero",
+      });
+    }
+    return out;
+  }
+
+  /** Fill missing civil days with 0 ml water so unlogged days appear on the chart. */
+  function fillHydrationCalendarDays(points, windowDays = 90) {
+    const by = {};
+    (points || []).forEach((h) => {
+      if (!h || !h.date) return;
+      const d = String(h.date).slice(0, 10);
+      by[d] = (by[d] || 0) + (Number(h.water_ml) || 0);
+    });
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    const z = (n) => String(n).padStart(2, "0");
+    const iso = (dt) =>
+      `${dt.getFullYear()}-${z(dt.getMonth() + 1)}-${z(dt.getDate())}`;
+    const out = [];
+    for (let i = windowDays - 1; i >= 0; i--) {
+      const d = new Date(end);
+      d.setDate(d.getDate() - i);
+      const key = iso(d);
+      out.push({
+        date: key,
+        water_ml: by[key] != null ? by[key] : 0,
         source: by[key] != null ? "logged" : "implied_zero",
       });
     }
@@ -653,12 +680,12 @@
       ),
       45
     );
-    const hydration = downsamplePoints(
-      [...((data.health && data.health.hydration) || [])].sort((a, b) =>
-        String(a.date).localeCompare(String(b.date))
-      ),
-      45
-    );
+    // Calendar-complete hydration: unlogged days = 0 ml (same idea as sleep).
+    const hydrationRaw = [
+      ...((data.health && data.health.hydration) || []),
+    ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
+    const hydration = downsamplePoints(hydrationFilled, 90);
     // Rolling 30d only — older Google Health burned totals were inflated.
     const calSpanDays = 30;
     const calEnd = new Date();
@@ -1087,6 +1114,7 @@
         options: chartDefaults(),
       });
       if ($("hydration-trend-note")) {
+        const zeroDays = hydVals.filter((v) => v <= 0).length;
         if (lastHydRoll == null) {
           $("hydration-trend-note").textContent =
             "Need hydration logs for rolling average.";
@@ -1095,8 +1123,12 @@
             hSlope == null
               ? ""
               : ` · trend ${hSlope >= 0 ? "+" : ""}${Math.round(hSlope * 7)} ml/week`;
+          const zeroTxt =
+            zeroDays > 0
+              ? ` · ${zeroDays} day(s) with no log counted as 0 ml`
+              : "";
           $("hydration-trend-note").textContent =
-            `Latest 7d avg: ${Math.round(lastHydRoll).toLocaleString()} ml${slopeTxt} · ${hydration.length} days`;
+            `Latest 7d avg: ${Math.round(lastHydRoll).toLocaleString()} ml${slopeTxt}${zeroTxt} · ${hydration.length} calendar days`;
         }
       }
     }
