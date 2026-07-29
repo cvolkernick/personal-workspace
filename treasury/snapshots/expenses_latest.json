@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-07-29T05:29:21.838623+00:00",
+  "as_of": "2026-07-29T18:11:23.255959+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -11,17 +11,17 @@
   "tabs": {
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 29,
+      "item_count": 31,
       "totals": {
-        "daily": 548.47,
-        "weekly": 3839.31,
-        "biweekly": 7678.63,
-        "monthly": 16631.55,
-        "annually": 69045.53
+        "daily": 550.18,
+        "weekly": 3851.25,
+        "biweekly": 7702.51,
+        "monthly": 16683.42,
+        "annually": 69668.01
       },
       "by_source_monthly": {
         "Coinbase": 10834.05,
-        "X Money": 5797.5
+        "X Money": 5849.37
       },
       "top_monthly": [
         {
@@ -29,70 +29,70 @@
           "monthly": 8400.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.5035000000000001
+          "budget_allocation": 0.502
         },
         {
           "item": "GM Financial (May / June / July)",
           "monthly": 1321.66,
           "from": "X Money",
           "date": "5/23/2026",
-          "budget_allocation": 0.0803
+          "budget_allocation": 0.0801
         },
         {
           "item": "Final VA Payments",
           "monthly": 1250.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.07490000000000001
+          "budget_allocation": 0.0747
         },
         {
           "item": "Capital One (May / June / July)",
           "monthly": 1121.55,
           "from": "X Money",
           "date": "5/21/2026",
-          "budget_allocation": 0.0682
+          "budget_allocation": 0.068
         },
         {
           "item": "Santander (May / June / July)",
           "monthly": 1082.52,
           "from": "X Money",
           "date": "5/21/2026",
-          "budget_allocation": 0.0658
+          "budget_allocation": 0.06559999999999999
         },
         {
           "item": "Tha\u00eds",
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "8/10/2026",
-          "budget_allocation": 0.053899999999999997
+          "budget_allocation": 0.0538
         },
         {
           "item": "Fleet Insurance",
           "monthly": 562.0,
           "from": "X Money",
           "date": "8/21/2026",
-          "budget_allocation": 0.0337
+          "budget_allocation": 0.0336
         },
         {
           "item": "ASIC Fleet OpEx",
           "monthly": 437.2,
           "from": "X Money",
           "date": "8/1/2026",
-          "budget_allocation": 0.0263
+          "budget_allocation": 0.0262
         },
         {
           "item": "Electric",
           "monthly": 345.0,
           "from": "X Money",
           "date": "8/4/2026",
-          "budget_allocation": 0.0207
+          "budget_allocation": 0.0206
         },
         {
           "item": "Sud Stop Car Wash",
           "monthly": 159.48,
           "from": "Coinbase",
           "date": "8/20/2026",
-          "budget_allocation": 0.0096
+          "budget_allocation": 0.0095
         },
         {
           "item": "Groceries",
@@ -237,18 +237,18 @@
           "weekly": 129.34
         },
         {
+          "date": "8/22/2026",
+          "item": "Rythm Health",
+          "from": "X Money",
+          "monthly": 33.78,
+          "weekly": 7.77
+        },
+        {
           "date": "8/23/2026",
           "item": "7-Eleven Gold Pass",
           "from": "X Money",
           "monthly": 10.0,
           "weekly": 2.3
-        },
-        {
-          "date": "8/23/2026",
-          "item": "Coinbase One",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9
         }
       ],
       "items": [
@@ -261,7 +261,7 @@
           "biweekly": 3866.3,
           "monthly": 8400.0,
           "annually": 22800.0,
-          "budget_allocation": 0.5035000000000001
+          "budget_allocation": 0.502
         },
         {
           "date": "5/21/2026",
@@ -272,7 +272,7 @@
           "biweekly": 523.39,
           "monthly": 1121.55,
           "annually": 1121.55,
-          "budget_allocation": 0.0682
+          "budget_allocation": 0.068
         },
         {
           "date": "5/21/2026",
@@ -283,7 +283,7 @@
           "biweekly": 505.18,
           "monthly": 1082.52,
           "annually": 1082.52,
-          "budget_allocation": 0.0658
+          "budget_allocation": 0.06559999999999999
         },
         {
           "date": "5/23/2026",
@@ -294,7 +294,7 @@
           "biweekly": 616.77,
           "monthly": 1321.66,
           "annually": 1321.66,
-          "budget_allocation": 0.0803
+          "budget_allocation": 0.0801
         },
         {
           "date": "8/1/2026",
@@ -305,7 +305,7 @@
           "biweekly": 201.78,
           "monthly": 437.2,
           "annually": 5246.4,
-          "budget_allocation": 0.0263
+          "budget_allocation": 0.0262
         },
         {
           "date": "8/1/2026",
@@ -338,7 +338,7 @@
           "biweekly": 158.79,
           "monthly": 345.0,
           "annually": 4140.0,
-          "budget_allocation": 0.0207
+          "budget_allocation": 0.0206
         },
         {
           "date": "8/7/2026",
@@ -371,7 +371,7 @@
           "biweekly": 414.25,
           "monthly": 900.0,
           "annually": 10800.0,
-          "budget_allocation": 0.053899999999999997
+          "budget_allocation": 0.0538
         },
         {
           "date": "8/17/2026",
@@ -437,7 +437,7 @@
           "biweekly": 73.4,
           "monthly": 159.48,
           "annually": 1913.76,
-          "budget_allocation": 0.0096
+          "budget_allocation": 0.0095
         },
         {
           "date": "8/21/2026",
@@ -448,7 +448,18 @@
           "biweekly": 258.67,
           "monthly": 562.0,
           "annually": 6744.0,
-          "budget_allocation": 0.0337
+          "budget_allocation": 0.0336
+        },
+        {
+          "date": "8/22/2026",
+          "from": "X Money",
+          "item": "Rythm Health",
+          "daily": 1.11,
+          "weekly": 7.77,
+          "biweekly": 15.55,
+          "monthly": 33.78,
+          "annually": 405.36,
+          "budget_allocation": 0.002
         },
         {
           "date": "8/23/2026",
@@ -506,6 +517,17 @@
           "budget_allocation": 0.0006
         },
         {
+          "date": "10/29/2026",
+          "from": "X Money",
+          "item": "SodaStream Refills",
+          "daily": 0.59,
+          "weekly": 4.16,
+          "biweekly": 8.33,
+          "monthly": 18.09,
+          "annually": 217.12,
+          "budget_allocation": 0.0011
+        },
+        {
           "date": "1/9/2027",
           "from": "Coinbase",
           "item": "Amazon Prime",
@@ -558,7 +580,7 @@
           "biweekly": 575.34,
           "monthly": 1250.0,
           "annually": 1250.0,
-          "budget_allocation": 0.07490000000000001
+          "budget_allocation": 0.0747
         },
         {
           "date": "7/15/2027",
@@ -722,16 +744,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 16631.55,
-    "personal_monthly": 16631.55,
-    "personal_daily": 548.47,
-    "personal_weekly": 3839.31,
-    "personal_annually": 69045.53,
+    "upcoming_expense_monthly": 16683.42,
+    "personal_monthly": 16683.42,
+    "personal_daily": 550.18,
+    "personal_weekly": 3851.25,
+    "personal_annually": 69668.01,
     "capital_targets_monthly": 2548.0,
     "discretionary_monthly": 2548.0,
     "discretionary_daily": 84.93,
-    "combined_monthly": 16631.55,
-    "combined_daily": 548.47,
+    "combined_monthly": 16683.42,
+    "combined_daily": 550.18,
     "coinbase_funded_monthly": 10834.05,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0
