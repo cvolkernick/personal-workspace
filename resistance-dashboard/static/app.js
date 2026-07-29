@@ -1219,23 +1219,6 @@
           note.innerHTML = `
             <div class="chart-summary-row">
               <div class="chart-summary-chip chip-protein">
-                <span class="chip-k">Period protein</span>
-                <span class="chip-v">${Math.round(avgPg)} g</span>
-                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · avg/day</span>
-              </div>
-              <div class="chart-summary-chip chip-carbs">
-                <span class="chip-k">Period carbs</span>
-                <span class="chip-v">${Math.round(avgCg)} g</span>
-                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · avg/day</span>
-              </div>
-              <div class="chart-summary-chip chip-fat">
-                <span class="chip-k">Period fat</span>
-                <span class="chip-v">${Math.round(avgFg)} g</span>
-                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · avg/day</span>
-              </div>
-            </div>
-            <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein">
                 <span class="chip-k">Latest day · P</span>
                 <span class="chip-v">${last.p}%</span>
                 <span class="chip-s">${Math.round(last.grams.p)} g</span>
@@ -1272,6 +1255,23 @@
             </div>`
                 : ""
             }
+            <div class="chart-summary-row">
+              <div class="chart-summary-chip chip-protein">
+                <span class="chip-k">Period protein</span>
+                <span class="chip-v">${Math.round(avgPg)} g</span>
+                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · avg/day</span>
+              </div>
+              <div class="chart-summary-chip chip-carbs">
+                <span class="chip-k">Period carbs</span>
+                <span class="chip-v">${Math.round(avgCg)} g</span>
+                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · avg/day</span>
+              </div>
+              <div class="chart-summary-chip chip-fat">
+                <span class="chip-k">Period fat</span>
+                <span class="chip-v">${Math.round(avgFg)} g</span>
+                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · avg/day</span>
+              </div>
+            </div>
             <p class="chart-summary-meta">${nDays} days on chart · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
           `;
         }
