@@ -90,6 +90,8 @@ DOMAIN_SPECS: list[dict[str, Any]] = [
         ],
         "kind": "dashboard",
         "work_branch": "work/treasury",
+        # Prefer ~/personal-workspace-worktrees/treasury when present
+        "work_area": "treasury",
     },
     {
         "id": "fitness",

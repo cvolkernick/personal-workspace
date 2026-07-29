@@ -6,11 +6,15 @@ Each domain server has slightly different CLI flags; we build argv per server.
 
 from __future__ import annotations
 
+import json
 import os
+import signal
 import socket
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -27,9 +31,58 @@ _STARTED: dict[str, int] = {}
 DEFAULT_READY_TIMEOUT = 20.0
 PROBE_TIMEOUT = 0.35
 
+# Domain id → worktree area slug under ~/personal-workspace-worktrees/<area>
+# (mirrors projects-dashboard/worktrees.py AREA_WORKTREES where possible)
+DOMAIN_WORK_AREAS: dict[str, str] = {
+    "finance": "treasury",
+    "fitness": "resistance-dashboard",
+    "holistic": "holistic",
+    "iot": "iot",
+    "workflow": "projects-dashboard",
+    "horizon": "horizon",  # if present
+}
+
 
 def _workspace_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def worktree_base() -> Path:
+    return Path(
+        os.environ.get(
+            "PERSONAL_WORKSPACE_WORKTREES",
+            str(Path.home() / "personal-workspace-worktrees"),
+        )
+    ).expanduser().resolve()
+
+
+def resolve_domain_workspace(spec: dict[str, Any], monorepo_root: Path) -> Path:
+    """Prefer domain git worktree when present so configs/code match work/<area>."""
+    monorepo_root = Path(monorepo_root).resolve()
+    did = (spec.get("id") or "").strip()
+    area = (spec.get("work_area") or "").strip()
+    if not area:
+        area = DOMAIN_WORK_AREAS.get(did, "")
+    if not area:
+        branch = (spec.get("work_branch") or "").strip()
+        if branch.startswith("work/"):
+            area = branch.split("/", 1)[1]
+    if not area:
+        return monorepo_root
+    # Explicit override for finance
+    if did == "finance":
+        env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
+        if env:
+            p = Path(env).expanduser().resolve()
+            if p.is_dir() and (p / "financial-command" / "server.py").is_file():
+                return p
+    wt = worktree_base() / area
+    if not wt.is_dir():
+        return monorepo_root
+    launch = str(spec.get("launch") or "")
+    if _server_script_path(launch, wt) is None:
+        return monorepo_root
+    return wt.resolve()
 
 
 def probe_port(port: int, host: str = "127.0.0.1", timeout: float = PROBE_TIMEOUT) -> bool:
@@ -38,6 +91,71 @@ def probe_port(port: int, host: str = "127.0.0.1", timeout: float = PROBE_TIMEOU
     try:
         with socket.create_connection((host, int(port)), timeout=timeout):
             return True
+    except OSError:
+        return False
+
+
+def _http_json(url: str, timeout: float = 0.6) -> Optional[dict[str, Any]]:
+    try:
+        req = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+        return None
+
+
+def terminate_port_listeners(port: int) -> list[int]:
+    """SIGTERM (then SIGKILL) whatever is LISTENing on port. Returns killed pids."""
+    killed: list[int] = []
+    try:
+        out = subprocess.check_output(
+            ["lsof", "-t", f"-iTCP:{port}", "-sTCP:LISTEN"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError):
+        return killed
+    pids: list[int] = []
+    for line in out.split():
+        try:
+            pids.append(int(line.strip()))
+        except ValueError:
+            continue
+    for pid in pids:
+        try:
+            os.kill(pid, signal.SIGTERM)
+            killed.append(pid)
+        except OSError:
+            pass
+    time.sleep(0.45)
+    if probe_port(port):
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                if pid not in killed:
+                    killed.append(pid)
+            except OSError:
+                pass
+        time.sleep(0.25)
+    return killed
+
+
+def finance_server_is_canonical(port: int, expected_root: Path) -> bool:
+    """True if :port serves treasury-worktree FCC (health identity matches)."""
+    health = _http_json(f"http://127.0.0.1:{int(port)}/api/health")
+    if not health or not health.get("ok"):
+        return False
+    if health.get("service") != "financial-command":
+        return False
+    if health.get("canonical") is False:
+        return False
+    root = (health.get("workspace_root") or "").strip()
+    if not root:
+        return False
+    try:
+        return Path(root).resolve() == Path(expected_root).resolve()
     except OSError:
         return False
 
@@ -279,25 +397,38 @@ def ensure_domain(
             "error": "Domain is files-only (no server to launch).",
         }
 
-    root = Path(workspace or _workspace_root()).resolve()
+    monorepo = Path(workspace or _workspace_root()).resolve()
+    root = resolve_domain_workspace(spec, monorepo)
     port = int(spec["port"])
     url = _public_url(spec.get("url") or f"http://127.0.0.1:{port}/", port)
     did = spec["id"]
     ready_timeout = max(3.0, min(float(ready_timeout), 30.0))
 
     if not force_restart and probe_port(port):
-        return {
-            "ok": True,
-            "id": did,
-            "label": spec.get("label"),
-            "live": True,
-            "started": False,
-            "already_running": True,
-            "url": url,
-            "port": port,
-            "pid": _STARTED.get(did),
-            "message": f"{spec.get('label') or did} already listening on {port}",
-        }
+        # Finance: refuse a non-worktree / stale monorepo FCC on :8000
+        if did == "finance" and not finance_server_is_canonical(port, root):
+            killed = terminate_port_listeners(port)
+            # fall through and start the worktree server
+            wrong_note = f"replaced non-canonical FCC on :{port} (killed={killed})"
+        else:
+            return {
+                "ok": True,
+                "id": did,
+                "label": spec.get("label"),
+                "live": True,
+                "started": False,
+                "already_running": True,
+                "url": url,
+                "port": port,
+                "pid": _STARTED.get(did),
+                "workspace": str(root),
+                "message": f"{spec.get('label') or did} already listening on {port}",
+            }
+    else:
+        wrong_note = ""
+
+    if force_restart and probe_port(port):
+        terminate_port_listeners(port)
 
     script = _server_script_path(str(spec["launch"]), root)
     if not script:
@@ -307,16 +438,19 @@ def ensure_domain(
             "label": spec.get("label"),
             "live": False,
             "error": f"Server script not found for launch: {spec.get('launch')} (cwd={root})",
+            "workspace": str(root),
         }
 
-    log_dir = _log_dir(root)
+    log_dir = _log_dir(monorepo)  # keep launch logs under monorepo orchestra/
     log_path = log_dir / f"{did}.log"
     try:
         log_f = open(log_path, "a", encoding="utf-8")
         log_f.write(
             f"\n--- launch {time.strftime('%Y-%m-%d %H:%M:%S')} "
-            f"port={port} script={script} ---\n"
+            f"port={port} script={script} workspace={root} ---\n"
         )
+        if wrong_note:
+            log_f.write(wrong_note + "\n")
         log_f.flush()
     except OSError as e:
         return {
@@ -372,8 +506,13 @@ def ensure_domain(
                 "url": url,
                 "port": port,
                 "pid": proc.pid,
-                "log": _rel_log(log_path, root),
-                "message": f"Started {spec.get('label') or did} on port {port}",
+                "workspace": str(root),
+                "log": _rel_log(log_path, monorepo),
+                "message": (
+                    f"Started {spec.get('label') or did} on port {port}"
+                    + (f" ({wrong_note})" if wrong_note else "")
+                    + (f" from {root}" if root != monorepo else "")
+                ),
             }
         if proc.poll() is not None:
             try:

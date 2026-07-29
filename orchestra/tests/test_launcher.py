@@ -11,7 +11,13 @@ ROOT = ORCH.parent
 if str(ORCH) not in sys.path:
     sys.path.insert(0, str(ORCH))
 
-from launcher import build_launch_argv, domain_spec, probe_port  # noqa: E402
+from launcher import (  # noqa: E402
+    build_launch_argv,
+    domain_spec,
+    probe_port,
+    resolve_domain_workspace,
+    worktree_base,
+)
 
 
 class LaunchArgvTests(unittest.TestCase):
@@ -23,6 +29,25 @@ class LaunchArgvTests(unittest.TestCase):
         self.assertIn("--port", cmd)
         self.assertIn("8000", cmd)
         self.assertIn("--no-browser", cmd)
+
+    def test_finance_prefers_treasury_worktree_when_present(self) -> None:
+        spec = domain_spec("finance")
+        self.assertIsNotNone(spec)
+        assert spec is not None
+        resolved = resolve_domain_workspace(spec, ROOT)
+        wt = worktree_base() / "treasury"
+        if wt.is_dir() and (wt / "financial-command" / "server.py").is_file():
+            self.assertEqual(resolved, wt.resolve())
+            self.assertIn("worktrees", str(resolved))
+        else:
+            self.assertEqual(resolved, ROOT.resolve())
+
+    def test_finance_domain_has_work_area(self) -> None:
+        spec = domain_spec("finance")
+        self.assertIsNotNone(spec)
+        assert spec is not None
+        self.assertEqual(spec.get("work_area") or "treasury", "treasury")
+        self.assertEqual(spec.get("work_branch"), "work/treasury")
 
     def test_fitness_positional_port(self) -> None:
         cmd = build_launch_argv(
