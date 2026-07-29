@@ -1,12 +1,12 @@
-# Fund manager research — mid-session 2026-07-29 (team full review)
+# Fund manager research — mid-session 2026-07-29 (team full review, ~13:45 ET)
 
-**As of:** 2026-07-29 ~17:10Z  
+**As of:** 2026-07-29 ~17:45Z  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV (RH total):** ~$171.25 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
+**Live NAV (RH total):** ~$171.64 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
 **Equity marks (policy engine sleeve MV):** ~$174.50  
-**RH snapshot as_of:** 2026-07-29T17:08:00Z  
-**MCP (this Grok session):** robinhood-trading tools **unavailable** (connection failed) — Executor cannot place  
+**RH snapshot as_of:** 2026-07-29T17:44:44Z  
+**MCP (this Grok session):** robinhood-trading tools **unavailable** (auth/connection failed) — Executor cannot place  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**
 
 ## Scout snapshot
@@ -15,7 +15,7 @@
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
 | Deployed sleeve mix (policy engine) | **40.0%** BTC-complex / **60.0%** stocks (in ±5% band) |
-| Weights of NAV | BTC ~40.76% · stocks ~61.14% · cash ~0.02% |
+| Weights of NAV | BTC ~40.67% · stocks ~61.0% · cash ~0.02% |
 | Idle cash | ~$0.04 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · pure AI mega-cap · energy (BE) |
@@ -85,7 +85,7 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot agentic ••••1752: NAV~$171.25 equity 7 names cash/BP $0.04; sleeves 40/60 in band; MCP unavailable this session |
+| Scout | ok | Snapshot agentic ••••1752: NAV~$171.64 equity 7 names cash/BP $0.04; sleeves 40/60 in band; MCP unavailable this session |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained |
 | Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated but thesis primary growth name |
 | Critic | ok (hold) + process flag | Force HOLD on residual. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. BE still not first-buy ready post-print without dive. Block undived AI first-buys |

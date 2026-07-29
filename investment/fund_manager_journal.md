@@ -789,3 +789,31 @@
 - **critic:** ok_hold_process_flag — Force HOLD on residual dust — no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: print was strong but do not auto-promote to buy without fresh deep-dive + quorum; still not first-buy ready. Block undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block.
 - **executor:** hold — No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00.
 
+
+## 2026-07-29T17:44:54 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $171.64 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $171.64 BP $0.04 cash $0.04
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-29T17:46:22 — hold
+**Summary:** Mid-session fund-manager review 2026-07-29 (~13:45 ET): agentic ••••1752 NAV~$171.64, cash/BP $0.04/$0.04 HOLD. Deployed sleeves BTC 0.4 / stocks 0.6 in ±5% band. Full research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK). No orders: dust capital + robinhood-trading MCP unavailable this session. BE Q2 beat/raise still watchlist until post-print deep-dive. Next free capital ≥$1 → prioritize STRC/SATA seat in BTC-complex leg.
+**Book:** NAV $171.64 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled/BP-poll mid-session style review 2026-07-29 ~13:45 ET (rules need_llm residual cash/BP $0.04 any>0). live:true; uniform research/rotate required even when deployable capital is dust — size-invariant. Deployed mix already on 40/60 target band. Watchlist BE post Q2 2026 print remains monitor only.
+**Why not alternatives:** No buy: free capital below min_trade $1 and robinhood-trading MCP unavailable. No forced rotate to STRC/SATA: 40/60 in band; prefer free-capital path over churn/settlement risk. No watchlist first-buys: BE needs post-print deep-dive refresh despite strong Q2; AI names lack deep-dive. Held-only top-up rejected as default; next free capital must re-open full consider set with STRC/SATA priority in BTC sleeve. Multi-miner stack retained (not overlap-reject).
+**Team:**
+- **scout:** ok — Agentic ••••1752 RH snapshot 17:44Z: NAV $171.64 equity 7 names (MSTR, MARA, TSLA, SPCX, BITA, IREN, CLSK), cash/BP $0.04/$0.04. Deployed weights BTC 0.4 / stocks 0.6 in band (drift ~0). Core unheld: STRC SATA ASST RIOT WULF. Watchlist BE GOOGL AAPL NVDA. Sleeve MV BTC~$69.80 stocks~$104.70. MCP tools unavailable this session (auth/connection failed).
+- **thesis:** ok_hold — Book on 40/60 target. Hold multi-miner (MARA+IREN+CLSK) + MSTR/BITA credit + TSLA/SPCX growth. Next deploy: meaningful STRC and/or SATA in BTC-complex — not MSTR-only by habit. RIOT/WULF eligible diversifiers (not overlap rejects). Watchlist: BE post-print remains monitor until deep-dive refresh; AI mega-caps blocked without dive. How new capital serves themes now: ~40% complex with STRC/SATA seat + residual MSTR/BITA/miners; ~60% TSLA/SPCX unless AI dive completes.
+- **risk:** ok_hold — No trade: BP dust below min $1. Agentic-only cash account, no leverage. TSLA single-name elevated (~35% of equity marks) but primary growth core. Multi-miner is diversification not concentration block. Small NAV → no process skip. MCP outage is operational risk for autopilot. No sell-to-buy rotate for dust residual (settlement risk).
+- **critic:** ok_hold_process_flag — Force HOLD on residual dust — no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: print was strong but do not auto-promote to buy without fresh deep-dive + quorum; still not first-buy ready. Block undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block.
+- **executor:** hold — No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00.
+
