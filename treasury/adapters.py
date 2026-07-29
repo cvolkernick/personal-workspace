@@ -538,22 +538,38 @@ def _f_safe(x: Any) -> float:
 
 
 def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
-    """Persist treasury config.json (manual fields + policy)."""
+    """Persist treasury config.json (manual fields + policy).
+
+    Merges known sections into the existing file and **preserves** any other
+    top-level keys (e.g. notifications) so a partial UI save cannot drop them.
+    Null/empty-string values in a section update do not wipe an existing
+    non-empty value unless the client sends a real replacement.
+    """
     p = path or CONFIG_PATH
     existing = load_config(p)
-    merged = {
-        "policy": {**(existing.get("policy") or {}), **(data.get("policy") or {})},
-        "coinbase_manual": {
-            **(existing.get("coinbase_manual") or {}),
-            **(data.get("coinbase_manual") or {}),
-        },
-        "robinhood": {**(existing.get("robinhood") or {}), **(data.get("robinhood") or {})},
-        "ynab": {**(existing.get("ynab") or {}), **(data.get("ynab") or {})},
-        "expenses_sheet": {
-            **(existing.get("expenses_sheet") or {}),
-            **(data.get("expenses_sheet") or {}),
-        },
-    }
+
+    def _merge_section(old: Any, new: Any) -> Dict[str, Any]:
+        base = dict(old or {}) if isinstance(old, dict) else {}
+        inc = dict(new or {}) if isinstance(new, dict) else {}
+        for k, v in inc.items():
+            # Keep prior value when UI posts blank for an untouched/empty field
+            if v is None or v == "":
+                if k in base and base[k] not in (None, ""):
+                    continue
+            base[k] = v
+        return base
+
+    # Start from full existing config so unknown top-level keys survive
+    merged: Dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
+    merged["policy"] = _merge_section(existing.get("policy"), data.get("policy"))
+    merged["coinbase_manual"] = _merge_section(
+        existing.get("coinbase_manual"), data.get("coinbase_manual")
+    )
+    merged["robinhood"] = _merge_section(existing.get("robinhood"), data.get("robinhood"))
+    merged["ynab"] = _merge_section(existing.get("ynab"), data.get("ynab"))
+    merged["expenses_sheet"] = _merge_section(
+        existing.get("expenses_sheet"), data.get("expenses_sheet")
+    )
     # Preserve expenses_sheet if empty merge
     if not merged["expenses_sheet"] and existing.get("expenses_sheet"):
         merged["expenses_sheet"] = existing["expenses_sheet"]

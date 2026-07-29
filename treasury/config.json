@@ -14,10 +14,10 @@
     "one_card_security_deposit_usdc": "500"
   },
   "coinbase_manual": {
-    "loan_principal_usdc": "0",
-    "collateral_btc_usd": "364.97",
-    "ltv": ".4575",
-    "vault_usdc": "50.01",
+    "loan_principal_usdc": "166.99",
+    "collateral_btc_usd": "365.28",
+    "ltv": ".4571",
+    "vault_usdc": "147.43",
     "card_balance": "499.23",
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
@@ -27,10 +27,10 @@
     "account_number": "5QW39737",
     "agentic_account_number": "674601752",
     "mcp_url": "https://agent.robinhood.com/mcp/trading",
-    "usdg_earn_usdg": "0",
+    "usdg_earn_usdg": null,
     "usdg_earn_apy_est": "0.07",
-    "margin_loan_usd": "0",
-    "equity_collateral_usd": "0",
+    "margin_loan_usd": null,
+    "equity_collateral_usd": null,
     "notes": "Primary \u2022\u2022\u2022\u20229737 = equity book + optional margin to fund USDG. Agentic \u2022\u2022\u2022\u20221752 = fund manager equities. USDG Earn (Robinhood Earn / Morpho ~7% est.) is manual: app Crypto\u2192Earn; may roll into portfolio total, not a clean MCP cash field. usdg_earn_usdg = principal currently lent."
   },
   "ynab": {
