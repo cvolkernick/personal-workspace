@@ -2305,8 +2305,66 @@
         $("nutrition-note").textContent =
           "No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.";
       } else {
+        // Cumulative intake − burned over the same 30d window as the chart
+        // (days with both series present only, so the sum matches the shaded bands).
+        const spanDays = 30;
+        const end = new Date();
+        end.setHours(0, 0, 0, 0);
+        const z = (x) => String(x).padStart(2, "0");
+        const labels = [];
+        for (let i = spanDays - 1; i >= 0; i--) {
+          const d = new Date(end);
+          d.setDate(d.getDate() - i);
+          labels.push(
+            `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+          );
+        }
+        const intakeBy = Object.fromEntries(
+          ((data.health && data.health.nutrition) || []).map((row) => [
+            String(row.date).slice(0, 10),
+            Number(row.calories),
+          ])
+        );
+        const burnedBy = Object.fromEntries(
+          ((data.health && data.health.calories_burned) || []).map((row) => [
+            String(row.date).slice(0, 10),
+            Number(row.calories),
+          ])
+        );
+        let cumDelta = 0;
+        let pairDays = 0;
+        let sumIn = 0;
+        let sumOut = 0;
+        labels.forEach((day) => {
+          const vin = intakeBy[day];
+          const vout = burnedBy[day];
+          if (
+            vin == null ||
+            vout == null ||
+            Number.isNaN(vin) ||
+            Number.isNaN(vout)
+          ) {
+            return;
+          }
+          sumIn += vin;
+          sumOut += vout;
+          cumDelta += vin - vout;
+          pairDays += 1;
+        });
+        let cumTxt = "";
+        if (pairDays > 0) {
+          const rounded = Math.round(cumDelta);
+          if (rounded > 0) {
+            cumTxt = ` · cumulative surplus +${rounded.toLocaleString()} kcal (${pairDays}d with both in & out)`;
+          } else if (rounded < 0) {
+            cumTxt = ` · cumulative deficit ${rounded.toLocaleString()} kcal (${pairDays}d with both in & out)`;
+          } else {
+            cumTxt = ` · cumulative balance ±0 kcal (${pairDays}d with both in & out)`;
+          }
+          cumTxt += ` · Σ in ${Math.round(sumIn).toLocaleString()} · Σ out ${Math.round(sumOut).toLocaleString()}`;
+        }
         $("nutrition-note").textContent =
-          `Rolling 30d · nutrition days: ${n} · burned-calorie days: ${b} · green = surplus (intake > burned), red = deficit`;
+          `Rolling ${spanDays}d · nutrition days: ${n} · burned-calorie days: ${b}${cumTxt} · green = surplus (intake > burned), red = deficit`;
       }
     }
 
