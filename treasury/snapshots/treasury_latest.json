@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-07-29T17:10:48.975265+00:00",
+    "as_of": "2026-07-29T17:32:04.565861+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-29T05:29:20.041103+00:00",
@@ -1813,7 +1813,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-07-29T17:08:00.310904+00:00",
+      "as_of": "2026-07-29T17:32:04.455948+00:00",
       "total_value": 0.024046,
       "equity_value": 0.0,
       "cash": 0.02,
@@ -1827,9 +1827,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-07-29T17:08:00.310899+00:00",
-        "total_value": 171.2458293896,
-        "equity_value": 171.2058293896,
+        "as_of": "2026-07-29T17:32:04.455944+00:00",
+        "total_value": 171.1925001055,
+        "equity_value": 171.1525001055,
         "cash": 0.04,
         "buying_power": 0.04,
         "unleveraged_buying_power": 0.04,
@@ -2087,7 +2087,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.04,
       "rh_agentic_cash": 0.04,
-      "rh_agentic_total_value": 171.2458293896,
+      "rh_agentic_total_value": 171.1925001055,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2162,25 +2162,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-07-29T05:29:20.041103+00:00",
-        "robinhood_as_of": "2026-07-29T17:08:00.310904+00:00",
+        "robinhood_as_of": "2026-07-29T17:32:04.455948+00:00",
         "one_card_as_of": "2026-07-29T05:29:20.612582+00:00",
         "rh_checking_as_of": "2026-07-29T05:29:20.789738+00:00",
         "x_money_as_of": "2026-07-29T05:29:20.951813+00:00",
         "expenses_as_of": "2026-07-29T05:29:21.838623+00:00"
       },
       "stale": [
-        "coinbase data 11.7h old (>6.0h)",
-        "one_card data 11.7h old (>6.0h)",
-        "rh_checking data 11.7h old (>6.0h)",
-        "x_money data 11.7h old (>6.0h)",
-        "expenses data 11.7h old (>6.0h)"
+        "coinbase data 12.0h old (>6.0h)",
+        "one_card data 12.0h old (>6.0h)",
+        "rh_checking data 12.0h old (>6.0h)",
+        "x_money data 12.0h old (>6.0h)",
+        "expenses data 12.0h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 11.7h old (>6.0h)",
-        "one_card data 11.7h old (>6.0h)",
-        "rh_checking data 11.7h old (>6.0h)",
-        "x_money data 11.7h old (>6.0h)",
-        "expenses data 11.7h old (>6.0h)"
+        "coinbase data 12.0h old (>6.0h)",
+        "one_card data 12.0h old (>6.0h)",
+        "rh_checking data 12.0h old (>6.0h)",
+        "x_money data 12.0h old (>6.0h)",
+        "expenses data 12.0h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2369,25 +2369,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-29T17:10:48.978261+00:00",
+      "as_of": "2026-07-29T17:32:04.567442+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-29T17:10:48.976374+00:00",
+        "as_of": "2026-07-29T17:32:04.566388+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 171.2458,
+        "nav_usd": 171.1925,
         "cash_usd": 0.04,
         "buying_power_usd": 0.04,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.4076,
-          "stocks_growth": 0.6114,
+          "btc_digital_credit": 0.4077,
+          "stocks_growth": 0.6116,
           "other": 0.0,
           "cash": 0.0002
         },
@@ -4327,25 +4327,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-29T17:10:48.978261+00:00",
+    "as_of": "2026-07-29T17:32:04.567442+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-29T17:10:48.976374+00:00",
+      "as_of": "2026-07-29T17:32:04.566388+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 171.2458,
+      "nav_usd": 171.1925,
       "cash_usd": 0.04,
       "buying_power_usd": 0.04,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.4076,
-        "stocks_growth": 0.6114,
+        "btc_digital_credit": 0.4077,
+        "stocks_growth": 0.6116,
         "other": 0.0,
         "cash": 0.0002
       },
