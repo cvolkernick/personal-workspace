@@ -140,6 +140,130 @@
       overflow: visible;
     }
     #at-a-glance { overflow: visible; }
+
+    /* Ask Grok — financial advisor */
+    .advisor {
+      background: linear-gradient(145deg, #121c28 0%, var(--panel) 55%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.7rem 0.85rem 0.8rem;
+    }
+    .advisor-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem 0.75rem;
+      margin-bottom: 0.45rem;
+    }
+    .advisor-head h2 {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .advisor-head .sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 0.35rem;
+    }
+    .advisor-auth {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .advisor-auth.ok { color: var(--green); border-color: #1a4a35; }
+    .advisor-auth.bad { color: var(--yellow); border-color: #6a4a20; }
+    .advisor-row {
+      display: flex;
+      gap: 0.45rem;
+      align-items: stretch;
+    }
+    .advisor-row textarea {
+      flex: 1;
+      min-height: 2.6rem;
+      max-height: 7rem;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0b1218;
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+    .advisor-row textarea:focus {
+      outline: none;
+      border-color: #3a6a9a;
+    }
+    .advisor-row button.ask {
+      flex: 0 0 auto;
+      align-self: stretch;
+      min-width: 5.5rem;
+      font-weight: 700;
+    }
+    .advisor-row button.ask:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    .advisor-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.4rem;
+    }
+    .advisor-chips button.chip {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #0e151c;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .advisor-chips button.chip:hover {
+      color: var(--text);
+      border-color: #3a5066;
+    }
+    .advisor-answer {
+      display: none;
+      margin-top: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1218;
+    }
+    .advisor-answer.show { display: block; }
+    .advisor-answer .meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .advisor-answer .body {
+      font-size: 0.88rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+    }
+    .advisor-answer .body strong { color: #f0f4fa; }
+    .advisor-error {
+      display: none;
+      margin-top: 0.4rem;
+      color: var(--red);
+      font-size: 0.82rem;
+    }
+    .advisor-error.show { display: block; }
     @media (max-width: 820px) {
       .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
     }
@@ -1068,6 +1192,31 @@
 
   <main>
     <div id="load-error" class="error hidden"></div>
+
+    <section class="advisor" id="advisor-card" aria-label="Ask Grok financial advisor">
+      <div class="advisor-head">
+        <h2>
+          Ask Grok
+          <span class="sub">Financial advisor · grounded in this dashboard</span>
+        </h2>
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
+      </div>
+      <div class="advisor-row">
+        <textarea
+          id="advisor-question"
+          rows="2"
+          placeholder="e.g. What should I pay first with cash I actually have?"
+          maxlength="4000"
+        ></textarea>
+        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+      </div>
+      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+      <div class="advisor-error" id="advisor-error"></div>
+      <div class="advisor-answer" id="advisor-answer">
+        <div class="meta" id="advisor-answer-meta"></div>
+        <div class="body" id="advisor-answer-body"></div>
+      </div>
+    </section>
 
     <section id="at-a-glance" aria-label="At a glance">
       <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
@@ -3380,6 +3529,151 @@
       render({ snapshot: snap, evaluation: { ...base.evaluation, ...evaluation, actions: evaluation.actions } });
       document.getElementById("recompute-note").textContent = "What-if only — Save to persist";
     });
+
+    // —— Ask Grok (financial advisor) ——
+    const DEFAULT_ADVISOR_CHIPS = [
+      "What should I pay first with the cash I actually have?",
+      "How bad is my liquidity stress right now — and what would un-red it?",
+      "Given Morpho LTV and One Card, what is the safest next $100 use?",
+      "Is the agentic fund book healthy, or should I wait for pending capital?",
+      "Summarize ASIC/Braiins income timing vs my bill calendar.",
+    ];
+
+    function advisorFormatAnswer(md) {
+      // Lightweight markdown → HTML (escape first)
+      let s = escapeHtml(md || "");
+      s = s.replace(/^### (.+)$/gm, "<strong>$1</strong>");
+      s = s.replace(/^## (.+)$/gm, "<strong>$1</strong>");
+      s = s.replace(/^# (.+)$/gm, "<strong>$1</strong>");
+      s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+      s = s.replace(/^- (.+)$/gm, "• $1");
+      return s;
+    }
+
+    function renderAdvisorChips(list) {
+      const el = document.getElementById("advisor-chips");
+      if (!el) return;
+      const chips = Array.isArray(list) && list.length ? list : DEFAULT_ADVISOR_CHIPS;
+      el.innerHTML = chips
+        .map(
+          (t) =>
+            `<button type="button" class="chip" data-q="${escapeHtml(t)}">${escapeHtml(
+              t.length > 52 ? t.slice(0, 50) + "…" : t
+            )}</button>`
+        )
+        .join("");
+      el.querySelectorAll("button.chip").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const ta = document.getElementById("advisor-question");
+          if (ta) {
+            ta.value = btn.getAttribute("data-q") || btn.textContent;
+            ta.focus();
+          }
+        });
+      });
+    }
+
+    async function loadAdvisorStatus() {
+      const pill = document.getElementById("advisor-auth");
+      try {
+        const res = await fetch("/api/ask/status?ts=" + Date.now());
+        const data = await res.json();
+        if (pill) {
+          if (data.ok) {
+            pill.className = "advisor-auth ok";
+            pill.textContent =
+              (data.source === "xai_api_key" ? "xAI key" : "SuperGrok") +
+              (data.model ? " · ready" : " · ready");
+            pill.title = data.email
+              ? `Auth ok · ${data.email} · ${data.model || ""}`
+              : `Auth ok · ${data.source} · ${data.model || ""}`;
+          } else {
+            pill.className = "advisor-auth bad";
+            pill.textContent = data.expired ? "session expired" : "auth needed";
+            pill.title = data.error || "Set XAI_API_KEY or run grok login";
+          }
+        }
+        if (data.suggestions) renderAdvisorChips(data.suggestions);
+        else renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+      } catch (e) {
+        if (pill) {
+          pill.className = "advisor-auth bad";
+          pill.textContent = "offline";
+          pill.title = e.message || "status failed";
+        }
+        renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+      }
+    }
+
+    async function askAdvisor() {
+      const ta = document.getElementById("advisor-question");
+      const btn = document.getElementById("btn-advisor-ask");
+      const errEl = document.getElementById("advisor-error");
+      const ansEl = document.getElementById("advisor-answer");
+      const metaEl = document.getElementById("advisor-answer-meta");
+      const bodyEl = document.getElementById("advisor-answer-body");
+      const q = (ta && ta.value || "").trim();
+      if (errEl) {
+        errEl.classList.remove("show");
+        errEl.textContent = "";
+      }
+      if (!q) {
+        if (errEl) {
+          errEl.textContent = "Enter a question first.";
+          errEl.classList.add("show");
+        }
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "…";
+      }
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "HTTP " + res.status);
+        }
+        if (metaEl) {
+          metaEl.textContent =
+            (data.model || "Grok") +
+            (data.auth_source ? " · " + data.auth_source : "") +
+            " · grounded in live FCC snapshot";
+        }
+        if (bodyEl) bodyEl.innerHTML = advisorFormatAnswer(data.answer || "");
+        if (ansEl) ansEl.classList.add("show");
+      } catch (e) {
+        if (ansEl) ansEl.classList.remove("show");
+        if (errEl) {
+          errEl.textContent = e.message || "Ask failed";
+          errEl.classList.add("show");
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Ask";
+        }
+      }
+    }
+
+    const btnAsk = document.getElementById("btn-advisor-ask");
+    if (btnAsk) btnAsk.addEventListener("click", askAdvisor);
+    const taAsk = document.getElementById("advisor-question");
+    if (taAsk) {
+      taAsk.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          askAdvisor();
+        }
+      });
+    }
+    renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+    loadAdvisorStatus();
 
     loadTreasury();
   </script>

@@ -9,6 +9,8 @@ Serves static UI + APIs:
   GET  /api/capital-flows — income → channel flow model (+ optional live enrich)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
+  GET  /api/ask/status    — Ask Grok financial advisor auth + model
+  POST /api/ask           — {question} ask Grok about FCC/treasury domain
   GET  /api/open-orchestra — probe Orchestrator (port 8790)
   POST /api/open-orchestra — ensure Orchestrator is running (start if needed)
   POST /api/config     — merge-save manual fields / policy
@@ -38,6 +40,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import load_config, save_config  # noqa: E402
+from treasury.financial_advisor import (  # noqa: E402
+    AdvisorError,
+    ask_financial_advisor,
+    auth_status as advisor_auth_status,
+)
 from treasury.financial_coach import (  # noqa: E402
     build_coach_plan,
     load_snapshots as load_coach_snapshots,
@@ -643,6 +650,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 },
             )
             return
+        if path in ("/api/ask/status", "/api/advisor/status"):
+            try:
+                self._json(200, advisor_auth_status())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
@@ -654,8 +667,68 @@ class FCCHandler(SimpleHTTPRequestHandler):
             self.path = "/financial-command/capital-flows.html"
         return super().do_GET()
 
+    def _load_treasury_payload(self) -> dict:
+        p = ROOT / "financial-command" / "treasury_latest.json"
+        if not p.is_file():
+            p = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
+        if not p.is_file():
+            return {}
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        data = dict(data)
+        try:
+            data["braiins"] = _braiins_live()
+        except Exception as be:
+            data["braiins"] = {
+                "ok": False,
+                "status": "error",
+                "error": f"braiins attach failed: {be}",
+            }
+        return data
+
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path in ("/api/ask", "/api/advisor"):
+            body = self._read_json()
+            question = (body.get("question") or body.get("q") or "").strip()
+            try:
+                treasury = self._load_treasury_payload()
+                if not treasury:
+                    self._json(
+                        404,
+                        {
+                            "ok": False,
+                            "error": "no treasury snapshot — run Refresh first",
+                        },
+                    )
+                    return
+                coach = None
+                try:
+                    snaps = load_coach_snapshots(ROOT / "treasury" / "snapshots")
+                    coach = build_coach_plan(treasury, snapshots=snaps)
+                except Exception:
+                    coach = None
+                result = ask_financial_advisor(question, treasury, coach=coach)
+                self._json(200, result)
+            except AdvisorError as e:
+                code = e.status if e.status and 400 <= e.status < 600 else 500
+                if e.status == 0:
+                    code = 502
+                self._json(
+                    code,
+                    {
+                        "ok": False,
+                        "error": str(e),
+                        "body": (e.body or "")[:400],
+                    },
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
         if path == "/api/config":
             body = self._read_json()
             try:
