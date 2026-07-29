@@ -2443,15 +2443,6 @@
         }
         note.innerHTML = `
           <div class="chart-summary-row">
-            <div class="chart-summary-chip ${deltaClass}">
-              <span class="chip-k">${deltaLabel}</span>
-              <span class="chip-v">${deltaVal}</span>
-              <span class="chip-s">${
-                pairDays > 0
-                  ? `${pairDays} days with both in &amp; out`
-                  : "Need paired intake + burned days"
-              }</span>
-            </div>
             <div class="chart-summary-chip chip-in">
               <span class="chip-k">Σ intake</span>
               <span class="chip-v">${
@@ -2465,6 +2456,15 @@
                 pairDays > 0 ? Math.round(sumOut).toLocaleString() : "—"
               }</span>
               <span class="chip-s">kcal · ${spanDays}d window</span>
+            </div>
+            <div class="chart-summary-chip ${deltaClass}">
+              <span class="chip-k">${deltaLabel}</span>
+              <span class="chip-v">${deltaVal}</span>
+              <span class="chip-s">${
+                pairDays > 0
+                  ? `${pairDays} days with both in &amp; out`
+                  : "Need paired intake + burned days"
+              }</span>
             </div>
           </div>
           <p class="chart-summary-meta">
