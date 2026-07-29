@@ -812,8 +812,9 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Align with body-weight chart window (90 calendar days).
-    const calSpanDays = 90;
+    // Intake vs burned: 30d for now (older burned totals were inflated/corrupted).
+    // Macro split reuses its own 90d axis below.
+    const calSpanDays = 30;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -825,7 +826,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Full series mapped onto the 90d civil axis.
+    // Full series mapped onto the intake/burned civil axis (30d).
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -999,8 +1000,20 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
-      // Same 90d civil axis as intake/burned and body weight.
+      // 90d civil axis (aligned with body weight; independent of intake/burned 30d).
       // Map logged nutrition onto each day; null split when no macros that day.
+      const macroSpanDays = 90;
+      const macroEnd = new Date();
+      macroEnd.setHours(0, 0, 0, 0);
+      const macroLabels = [];
+      for (let i = macroSpanDays - 1; i >= 0; i--) {
+        const d = new Date(macroEnd);
+        d.setDate(d.getDate() - i);
+        const z = (n) => String(n).padStart(2, "0");
+        macroLabels.push(
+          `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
+        );
+      }
       const macroByDate = Object.fromEntries(
         nutritionAll
           .filter(
@@ -1010,7 +1023,7 @@
           )
           .map((n) => [String(n.date).slice(0, 10), n])
       );
-      const macroDays = calLabels.map((d) => {
+      const macroDays = macroLabels.map((d) => {
         const n = macroByDate[d];
         if (!n) {
           return {
@@ -2544,9 +2557,9 @@
         note.innerHTML =
           `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
       } else {
-        // Cumulative intake − burned over the same window as the chart (90d).
+        // Cumulative intake − burned over the same window as the chart (30d for now).
         // Days with both series present only, so the sum matches the shaded bands.
-        const spanDays = 90;
+        const spanDays = 30;
         const end = new Date();
         end.setHours(0, 0, 0, 0);
         const z = (x) => String(x).padStart(2, "0");
