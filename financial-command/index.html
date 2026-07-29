@@ -3627,7 +3627,8 @@
     if (btnCoach)
       btnCoach.addEventListener("click", () => loadCoach({ refresh: true }));
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
-    // Soft auto-poll treasury JSON (does not call RH MCP — keeps UI fresh)
+    // Soft auto-poll: re-read treasury JSON only (does NOT live-sync CB/Sheet/Braiins/RH).
+    // Use the Refresh button for live feed ages.
     setInterval(() => {
       if (document.hidden) return;
       loadTreasury();

@@ -349,7 +349,7 @@ def pull_from_pi(
     return out
 
 
-def refresh_via_local_mcp(*, timeout_s: float = 180.0) -> Dict[str, Any]:
+def refresh_via_local_mcp(*, timeout_s: float = 90.0) -> Dict[str, Any]:
     """Invoke grok headless with rh_refresh_prompt (local Robinhood MCP)."""
     out: Dict[str, Any] = {
         "ok": False,

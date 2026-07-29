@@ -798,7 +798,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     try:
                         from treasury.braiins_sync import main as braiins_main
 
-                        # braiins_sync sleeps ~5s between API calls; allow long timeout
+                        # braiins_sync sleeps ~5s between API calls
                         bc = braiins_main([])
                         report["braiins"] = "ok" if bc in (0, None) else f"exit {bc}"
                     except SystemExit as se:
@@ -808,18 +808,32 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as be:
                         report["braiins"] = f"error: {be}"
                         sys.stderr.write(f"[fcc] braiins_sync warning: {be}\n")
-                    # RH: Pi snapshot first, local Grok+MCP fallback
+                # Coinbase + assemble treasury BEFORE RH — RH MCP can take 1–2+ min
+                # and used to block CB/Sheet ages from updating if Refresh was aborted.
+                code = run_treasury_main(args)
+                report["coinbase_treasury"] = (
+                    "ok" if code in (0, None) else f"exit {code}"
+                )
+                if not offline:
+                    # RH: Pi snapshot first, local Grok+MCP fallback (bounded)
                     try:
                         from treasury.rh_snapshot_sync import sync_rh_snapshot
 
+                        # Prefer Pi (fast). Local MCP is slow — still try, but
+                        # core feeds already refreshed above.
                         rh = sync_rh_snapshot(
                             prefer_pi=True,
                             allow_local_mcp=True,
-                            reevaluate=False,  # full run_treasury below
+                            reevaluate=False,
                         )
                         if rh.get("ok"):
                             report["robinhood"] = f"ok:{rh.get('source')}"
                             report["robinhood_as_of"] = rh.get("as_of")
+                            # Re-merge RH into dashboard JSON without live CB again
+                            try:
+                                run_treasury_main(["--offline"])
+                            except SystemExit:
+                                pass
                         else:
                             report["robinhood"] = (
                                 f"error:{rh.get('error') or 'failed'}"
@@ -831,13 +845,9 @@ class FCCHandler(SimpleHTTPRequestHandler):
                             sys.stderr.write(
                                 f"[fcc] rh_snapshot_sync failed: {report['robinhood']}\n"
                             )
-                    except Exception as re:
-                        report["robinhood"] = f"error: {re}"
-                        sys.stderr.write(f"[fcc] rh_snapshot_sync warning: {re}\n")
-                code = run_treasury_main(args)
-                report["coinbase_treasury"] = (
-                    "ok" if code in (0, None) else f"exit {code}"
-                )
+                    except Exception as rexc:
+                        report["robinhood"] = f"error: {rexc}"
+                        sys.stderr.write(f"[fcc] rh_snapshot_sync warning: {rexc}\n")
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
                 report["coinbase_treasury"] = (
