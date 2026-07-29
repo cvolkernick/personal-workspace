@@ -872,13 +872,14 @@
             <span class="badge" id="action-plan-count">0</span>
           </h3>
           <p class="hint" style="margin:0 0 0.65rem;color:var(--muted);font-size:0.82rem">
-            Macro plan prioritizes domains; each domain hosts the same template for micro steps.
-            <strong>Run Domain Template</strong> creates the plan from the shared skeleton if missing, then opens it.
+            <strong>ready</strong> = plan file exists under <code>strategy/action-plans/</code>.
+            Click <strong>View plan</strong> to open it (or <strong>Create &amp; open</strong> if not created yet).
+            Fill in Single Next Action + Up-Channel Signal in that markdown.
           </p>
           <div class="row" style="margin-bottom:0.55rem;display:flex;flex-wrap:wrap;gap:0.5rem;align-items:center">
             <span style="font-size:0.8rem;color:var(--muted)">Macro:</span>
             <code id="macro-action-plan-path" style="font-size:0.78rem">strategy/action-plan.md</code>
-            <button type="button" class="btn-link" id="btn-macro-action-plan" data-layer="macro">Open Macro Plan</button>
+            <button type="button" class="btn-link" id="btn-macro-action-plan" data-layer="macro">View macro plan</button>
             <span class="pill" id="macro-action-plan-status" style="font-size:0.72rem">—</span>
           </div>
           <div class="list" id="domain-action-plan-list"></div>
@@ -1334,18 +1335,28 @@
       }
       listEl.innerHTML = domains.map((d) => {
         const exists = d.exists === true;
+        const view = d.view_url || ("/api/action-plans/view?domain=" + encodeURIComponent(d.id));
         const pill = exists
-          ? '<span class="pill live">ready</span>'
-          : '<span class="pill missing">not created</span>';
+          ? '<span class="pill live" title="File exists — click View plan">ready</span>'
+          : '<span class="pill missing" title="No file yet — Create & open will scaffold it">not created</span>';
+        const btnLabel = exists ? "View plan" : "Create & open";
+        const btnTitle = exists
+          ? "Open this domain action plan in a new tab"
+          : "Create from shared skeleton, then open";
         return `<div class="row" style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
           <div class="title" style="min-width:8rem">${esc(d.label || d.id)}</div>
-          <div class="detail" style="flex:1"><code style="font-size:0.75rem">${esc(d.rel_path || "")}</code></div>
+          <div class="detail" style="flex:1">
+            <a class="run-domain-template" href="${esc(view)}" data-domain="${esc(d.id)}"
+               style="font-size:0.75rem;color:var(--muted)" title="${esc(btnTitle)}">
+              <code>${esc(d.rel_path || "")}</code>
+            </a>
+          </div>
           ${pill}
           <button type="button" class="btn-link run-domain-template"
             data-domain="${esc(d.id)}"
-            data-view="${esc(d.view_url || ("/api/action-plans/view?domain=" + d.id))}"
-            title="Create from skeleton if missing, then open">
-            Run Domain Template
+            data-view="${esc(view)}"
+            title="${esc(btnTitle)}">
+            ${btnLabel}
           </button>
         </div>`;
       }).join("");
