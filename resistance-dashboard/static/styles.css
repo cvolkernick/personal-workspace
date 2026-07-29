@@ -2013,6 +2013,91 @@ footer {
   }
 }
 
+/* Energy balance vs body-weight insight (under intake/burned chips) */
+.energy-weight-insight {
+  margin-top: 0.15rem;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.energy-weight-insight.align-ok {
+  border-color: rgba(92, 225, 168, 0.35);
+  background: rgba(92, 225, 168, 0.06);
+}
+
+.energy-weight-insight.align-bad {
+  border-color: rgba(240, 113, 120, 0.35);
+  background: rgba(240, 113, 120, 0.06);
+}
+
+.energy-weight-insight.align-warn {
+  border-color: rgba(240, 180, 41, 0.35);
+  background: rgba(240, 180, 41, 0.06);
+}
+
+.ewi-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.ewi-title {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.ewi-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.align-ok .ewi-badge {
+  color: #5ce1a8;
+  background: rgba(92, 225, 168, 0.15);
+}
+
+.align-bad .ewi-badge {
+  color: #f07178;
+  background: rgba(240, 113, 120, 0.15);
+}
+
+.align-warn .ewi-badge {
+  color: #f0c14d;
+  background: rgba(240, 180, 41, 0.15);
+}
+
+.energy-weight-insight .ewi-metrics {
+  margin-bottom: 0.35rem;
+}
+
+.ewi-advice {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted, #8b9bb4);
+}
+
+.ewi-advice li {
+  margin: 0.2rem 0;
+}
+
+.ewi-advice li:first-child {
+  color: var(--text, #e8eef7);
+  opacity: 0.92;
+}
+
 /* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;

@@ -92,6 +92,132 @@
     return Math.round(n).toLocaleString();
   }
 
+  /** ~3500 kcal ≈ 1 lb tissue rule-of-thumb for energy vs scale alignment. */
+  const KCAL_PER_LB = 3500;
+
+  /**
+   * Compare logged cumulative intake−burned to observed weight change in the same window.
+   * Returns null if not enough data.
+   */
+  function energyWeightAlignment({
+    cumDeltaKcal,
+    pairDays,
+    weights,
+    windowStart,
+    windowEnd,
+    goalHint,
+  }) {
+    if (pairDays == null || pairDays < 5 || cumDeltaKcal == null) return null;
+    const inWin = (weights || [])
+      .map((w) => ({
+        date: String(w.date || "").slice(0, 10),
+        lbs: Number(w.weight_lbs),
+      }))
+      .filter(
+        (w) =>
+          w.date &&
+          !Number.isNaN(w.lbs) &&
+          w.date >= windowStart &&
+          w.date <= windowEnd
+      )
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (inWin.length < 2) return null;
+    const first = inWin[0];
+    const last = inWin[inWin.length - 1];
+    // Prefer span of at least ~7 days between weigh-ins
+    const spanMs =
+      new Date(last.date + "T12:00:00").getTime() -
+      new Date(first.date + "T12:00:00").getTime();
+    if (spanMs < 5 * 86400000) return null;
+
+    const actualLb = last.lbs - first.lbs;
+    const expectedLb = cumDeltaKcal / KCAL_PER_LB;
+    // Residual: scale moved more up (or less down) than energy balance implies
+    const residualLb = actualLb - expectedLb;
+    const absExp = Math.abs(expectedLb);
+    const absAct = Math.abs(actualLb);
+    const absRes = Math.abs(residualLb);
+
+    // Same direction if both near zero, or product positive, or both small
+    const bothNearFlat = absExp < 0.4 && absAct < 0.4;
+    const sameSign =
+      bothNearFlat ||
+      (expectedLb === 0 && absAct < 0.5) ||
+      expectedLb * actualLb > 0;
+    // Align if residual small absolute OR relative to expected change
+    const aligned =
+      absRes <= 1.25 || (absExp >= 0.75 && absRes / absExp <= 0.55);
+
+    let status = "mixed";
+    if (aligned && (sameSign || bothNearFlat)) status = "aligned";
+    else if (!sameSign && absRes >= 1.0) status = "divergent";
+    else if (absRes >= 1.5) status = "offset";
+
+    // Goal: cut / gain / recomp from notes or energy direction
+    const hint = String(goalHint || "").toLowerCase();
+    let goal = "recomp";
+    if (/cut|deficit|loss|lean/.test(hint)) goal = "cut";
+    else if (/bulk|surplus|gain|mass/.test(hint)) goal = "gain";
+    else if (cumDeltaKcal < -1500) goal = "cut";
+    else if (cumDeltaKcal > 1500) goal = "gain";
+
+    const advice = [];
+    if (status === "aligned") {
+      advice.push(
+        "Logged energy balance and scale change roughly line up for this window — good calibration of intake/burn tracking."
+      );
+      if (goal === "cut" && actualLb > -0.3) {
+        advice.push(
+          "For fat loss, deepen the deficit slightly (or improve adherence) — scale is nearly flat despite a logged deficit."
+        );
+      } else if (goal === "gain" && actualLb < 0.3) {
+        advice.push(
+          "For mass gain, add a small surplus — scale is flat despite a logged surplus/near balance."
+        );
+      }
+    } else {
+      // Scale down more (or up less) than energy implies → residual negative
+      if (residualLb <= -1.0) {
+        advice.push(
+          "Scale dropped more (or rose less) than the logged calorie balance suggests."
+        );
+        advice.push(
+          "Check: under-logged food, overestimated burn, or water/glycogen noise. If logging is solid and the goal is a cut, you may not need a deeper deficit."
+        );
+      } else if (residualLb >= 1.0) {
+        advice.push(
+          "Scale held or rose more than the logged calorie balance suggests."
+        );
+        advice.push(
+          "Common fixes: tighten food logging (oils, drinks, bites), treat wearable burn as an estimate, reduce weekend surplus. If goal is a cut, increase the true deficit (lower intake or more NEAT)."
+        );
+        if (goal === "gain") {
+          advice.push(
+            "If bulk is the goal and weight is rising faster than planned, trim surplus slightly."
+          );
+        }
+      } else if (!sameSign) {
+        advice.push(
+          "Energy balance and weight moved in opposite directions — treat this window as noisy; recheck after more consistent weigh-ins."
+        );
+      }
+    }
+    advice.push(
+      "Rule of thumb only (~3,500 kcal ≈ 1 lb); short windows and water weight can dominate."
+    );
+
+    return {
+      status,
+      actualLb,
+      expectedLb,
+      residualLb,
+      first,
+      last,
+      goal,
+      advice,
+    };
+  }
+
   function recoveryClass(label) {
     const l = (label || "").toLowerCase();
     if (l === "ready") return "ready";
@@ -2453,6 +2579,81 @@
           deltaLabel = "Cumulative";
           deltaVal = "—";
         }
+        const goalHint = [
+          (data.nutrition_store && data.nutrition_store.targets && data.nutrition_store.targets.notes) ||
+            "",
+          (data.workout_store && data.workout_store.goals && data.workout_store.goals.goal) ||
+            "",
+          (data.workout_store && data.workout_store.goals && data.workout_store.goals.notes) ||
+            "",
+        ].join(" ");
+        const align = energyWeightAlignment({
+          cumDeltaKcal: pairDays > 0 ? cumDelta : null,
+          pairDays,
+          weights: (data.health && data.health.weight) || [],
+          windowStart: labels[0],
+          windowEnd: labels[labels.length - 1],
+          goalHint,
+        });
+
+        let alignHtml = "";
+        if (align) {
+          const expSign = align.expectedLb >= 0 ? "+" : "";
+          const actSign = align.actualLb >= 0 ? "+" : "";
+          const statusLabel =
+            align.status === "aligned"
+              ? "Lines up"
+              : align.status === "divergent"
+                ? "Does not line up"
+                : "Partial match";
+          const statusClass =
+            align.status === "aligned"
+              ? "align-ok"
+              : align.status === "divergent"
+                ? "align-bad"
+                : "align-warn";
+          alignHtml = `
+            <div class="energy-weight-insight ${statusClass}">
+              <div class="ewi-header">
+                <span class="ewi-title">Energy vs scale · ${spanDays}d</span>
+                <span class="ewi-badge">${statusLabel}</span>
+              </div>
+              <div class="chart-summary-row ewi-metrics">
+                <div class="chart-summary-chip">
+                  <span class="chip-k">From calories</span>
+                  <span class="chip-v">${expSign}${align.expectedLb.toFixed(1)} lb</span>
+                  <span class="chip-s">expected · ~3,500 kcal/lb</span>
+                </div>
+                <div class="chart-summary-chip">
+                  <span class="chip-k">On scale</span>
+                  <span class="chip-v">${actSign}${align.actualLb.toFixed(1)} lb</span>
+                  <span class="chip-s">${align.first.date} → ${align.last.date}</span>
+                </div>
+                <div class="chart-summary-chip">
+                  <span class="chip-k">Gap</span>
+                  <span class="chip-v">${align.residualLb >= 0 ? "+" : ""}${align.residualLb.toFixed(1)} lb</span>
+                  <span class="chip-s">scale − expected</span>
+                </div>
+              </div>
+              <ul class="ewi-advice">
+                ${align.advice.map((a) => `<li>${a}</li>`).join("")}
+              </ul>
+            </div>
+          `;
+        } else if (pairDays >= 5) {
+          alignHtml = `
+            <div class="energy-weight-insight align-warn">
+              <div class="ewi-header">
+                <span class="ewi-title">Energy vs scale · ${spanDays}d</span>
+                <span class="ewi-badge">Need weigh-ins</span>
+              </div>
+              <p class="chart-summary-meta" style="margin:0">
+                Log at least two weigh-ins ≥5 days apart in this window to compare the cumulative calorie balance to scale change.
+              </p>
+            </div>
+          `;
+        }
+
         note.innerHTML = `
           <div class="chart-summary-row">
             <div class="chart-summary-chip chip-in">
@@ -2479,6 +2680,7 @@
               }</span>
             </div>
           </div>
+          ${alignHtml}
           <p class="chart-summary-meta">
             Rolling ${spanDays}d · ${n} nutrition days · ${b} burned days · green band = surplus · red band = deficit
           </p>
