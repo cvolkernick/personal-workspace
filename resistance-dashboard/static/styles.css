@@ -697,6 +697,35 @@ textarea {
   overflow: auto;
 }
 
+/* Catalog list grows with the side-by-side workout plan card */
+#workout-plan-section.equal-cards {
+  align-items: stretch;
+}
+
+#exercise-catalog-card {
+  min-height: 520px;
+}
+
+#exercise-catalog-card .log-form {
+  flex: 0 0 auto;
+}
+
+#exercise-catalog-list.exercise-catalog-scroll,
+.exercise-catalog-scroll {
+  flex: 1 1 auto;
+  min-height: 360px;
+  max-height: none;
+  height: 100%;
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+}
+
+#workout-plan-card {
+  min-height: 520px;
+}
+
 .session-list li {
   border-top: 1px solid var(--border);
   padding: 0.7rem 0;
