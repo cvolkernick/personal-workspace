@@ -21,13 +21,51 @@ from .models import HealthSnapshot, SleepSample, WeightSample
 DEFAULT_REL_PATH = "fitness/data/health-metrics.json"
 FITBIT_REPORT_REL = "fitness/data/fitbit-report-may2026.md"
 
+# Fitbit Aria report in this workspace labeled kg as "lbs" (e.g. 83.1 "lbs"
+# with BMI 23.75 → must be ~83 kg ≈ 183 lb). Google Health stores true pounds.
+KG_TO_LBS = 2.2046226218
+# Adult body mass that is almost certainly kilograms if filed as pounds.
+_KG_AS_LBS_MIN = 40.0
+_KG_AS_LBS_MAX = 130.0
+
+
+def coerce_weight_to_lbs(value: float, *, source: str = "") -> float:
+    """Return body weight in pounds.
+
+    Corrects Fitbit-report (and similar) samples that stored kilograms in the
+    ``weight_lbs`` field. Google Health / Fit samples are already true pounds.
+    """
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if v <= 0:
+        return v
+    src = (source or "").lower()
+    # Known bad path: fitbit_report markdown used kg with a "lbs" unit label.
+    if "fitbit" in src and _KG_AS_LBS_MIN <= v <= _KG_AS_LBS_MAX:
+        return round(v * KG_TO_LBS, 2)
+    return v
+
+
+def normalize_weight_samples(weights: List[WeightSample]) -> List[WeightSample]:
+    """Coerce any kg-as-lbs samples in place and return the list."""
+    for w in weights or []:
+        fixed = coerce_weight_to_lbs(w.weight_lbs, source=getattr(w, "source", "") or "")
+        if fixed != w.weight_lbs:
+            w.weight_lbs = fixed
+    return weights
+
 
 def parse_fitbit_report_markdown(text: str) -> Tuple[List[WeightSample], List[SleepSample]]:
-    """Extract weight table + average sleep from the Fitbit report markdown."""
+    """Extract weight table + average sleep from the Fitbit report markdown.
+
+    Report values are kilograms despite a ``lbs`` label — converted to pounds.
+    """
     weights: List[WeightSample] = []
-    # Lines like: | 04-20 | 86.1 lbs |  or | 05-19 | 83.1 lbs |
+    # Lines like: | 04-20 | 86.1 lbs |  or | 05-19 | 83.1 lbs |  (values are kg)
     for m in re.finditer(
-        r"\|\s*(\d{2})-(\d{2})\s*\|\s*(\d+(?:\.\d+)?)\s*lbs?\s*\|",
+        r"\|\s*(\d{2})-(\d{2})\s*\|\s*(\d+(?:\.\d+)?)\s*(?:lbs?|kg)\s*\|",
         text,
         re.IGNORECASE,
     ):
@@ -35,8 +73,9 @@ def parse_fitbit_report_markdown(text: str) -> Tuple[List[WeightSample], List[Sl
         # Report period is 2026
         year = 2026
         date = f"{year}-{mm}-{dd}"
+        lbs = coerce_weight_to_lbs(w, source="fitbit_report")
         weights.append(
-            WeightSample(date=date, weight_lbs=w, source="fitbit_report")
+            WeightSample(date=date, weight_lbs=lbs, source="fitbit_report")
         )
 
     sleep: List[SleepSample] = []
@@ -80,11 +119,15 @@ def metrics_from_payload(data: dict) -> HealthSnapshot:
     weights = [
         WeightSample(
             date=str(w["date"]),
-            weight_lbs=float(w["weight_lbs"]),
+            weight_lbs=coerce_weight_to_lbs(
+                float(w["weight_lbs"]),
+                source=str(w.get("source") or "health_metrics_store"),
+            ),
             source=str(w.get("source") or "health_metrics_store"),
         )
         for w in data.get("weight") or []
     ]
+    normalize_weight_samples(weights)
     sleep = [
         SleepSample(
             date=str(s["date"]),

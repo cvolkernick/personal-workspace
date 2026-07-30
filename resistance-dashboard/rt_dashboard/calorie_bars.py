@@ -179,21 +179,39 @@ def eating_window_fraction(
     budget = max(1.0, float(awake_budget_hours or 16.0))
     source = "sleep_battery"
 
-    if wake is None:
-        # Civil-day fallback
+    def _civil_day_window(src: str) -> Dict[str, Any]:
         local = now.astimezone()
         start = local.replace(hour=0, minute=0, second=0, microsecond=0)
-        end = start + timedelta(hours=24)
-        wake = start
-        source = "civil_day_fallback"
-    else:
-        wake_local = wake.astimezone(now.tzinfo)
-        if end is None:
-            end = wake_local + timedelta(hours=budget)
-        else:
-            end = end.astimezone(now.tzinfo)
-        wake = wake_local
+        day_end = start + timedelta(hours=24)
+        total = max(1.0, (day_end - start).total_seconds())
+        elapsed = (now - start).total_seconds()
+        frac = max(0.0, min(1.0, elapsed / total))
+        return {
+            "fraction": round(frac, 4),
+            "hours_elapsed": round(max(0.0, elapsed / 3600.0), 2),
+            "hours_total": round(total / 3600.0, 2),
+            "hours_left": round(max(0.0, (day_end - now).total_seconds() / 3600.0), 2),
+            "window_start": start.isoformat(timespec="seconds"),
+            "window_end": day_end.isoformat(timespec="seconds"),
+            "source": src,
+        }
 
+    if wake is None:
+        return _civil_day_window("civil_day_fallback")
+
+    wake_local = wake.astimezone(now.tzinfo)
+    if end is None:
+        end = wake_local + timedelta(hours=budget)
+    else:
+        end = end.astimezone(now.tzinfo)
+
+    # Wake→empty already finished (battery empty / overdue for sleep).
+    # Keep pacing on the *current* civil day so we don't pin intake to the
+    # completed cycle (e.g. yesterday's meals at 100% of an expired window).
+    if now > end:
+        return _civil_day_window("civil_day_after_empty")
+
+    wake = wake_local
     total_sec = max(1.0, (end - wake).total_seconds())
     elapsed_sec = (now - wake).total_seconds()
     frac = max(0.0, min(1.0, elapsed_sec / total_sec))

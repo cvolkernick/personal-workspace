@@ -168,6 +168,50 @@ class TestCalorieBars(unittest.TestCase):
         # Civil-day in/out still uses today_consumed
         self.assertEqual(payload["delta"]["intake"], 0.0)
 
+    def test_expired_wake_window_falls_back_to_civil_day(self):
+        """After empty_at, pacing must not stay pinned to the finished cycle."""
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=local)
+        empty = wake + timedelta(hours=16)  # ~04:07 next day
+        # Noon next day — well past empty
+        now = datetime(2026, 7, 30, 12, 0, 0, tzinfo=local)
+        win = eating_window_fraction(
+            now=now,
+            last_wake_at=wake,
+            empty_at=empty,
+            awake_budget_hours=16.0,
+        )
+        self.assertEqual(win["source"], "civil_day_after_empty")
+        self.assertLess(win["fraction"], 1.0)
+        # Window is today's midnight→midnight, not yesterday's wake
+        self.assertTrue(str(win["window_start"]).startswith("2026-07-30"))
+
+        logs = [
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Yesterday dinner",
+                calories=2000,
+                protein_g=100,
+                carbs_g=100,
+                fat_g=50,
+                time="21:00",
+            ),
+        ]
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 0},
+            targets={"calories": 2000},
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": empty.isoformat(),
+                "awake_budget_hours": 16,
+            },
+            food_logs=logs,
+            now=now,
+        )
+        # Yesterday's meals must not count as today's pacing intake
+        self.assertEqual(payload["pacing"]["window"]["source"], "civil_day_after_empty")
+        self.assertEqual(payload["pacing"]["consumed"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()

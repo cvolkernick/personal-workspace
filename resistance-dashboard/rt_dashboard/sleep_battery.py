@@ -244,12 +244,36 @@ def sleep_battery_from_fitdash_sleep(
     Falls back to daily-hour approximation (fixed 7am wake) only when no
     timed intervals are available — that approximation is known to skew
     hours_awake / % when real wake is much later than 7am.
+
+    When timed intervals exist but lag behind newer daily sleep totals,
+    append daily approximations only for nights that end *after* the last
+    timed wake so a stale interval set cannot strand the battery on an
+    old wake cycle.
     """
     intervals = normalize_intervals(list(sleep_intervals or []))
     source = "sleep_intervals"
     if not intervals:
         intervals = intervals_from_daily_sleep(sleep)
         source = "daily_sleep_approx" if intervals else "none"
+    else:
+        last_end: Optional[datetime] = None
+        for row in intervals:
+            en = _parse_dt(row.get("end"))
+            if en and (last_end is None or en > last_end):
+                last_end = en
+        daily = intervals_from_daily_sleep(sleep)
+        filled = 0
+        for row in daily:
+            en = _parse_dt(row.get("end"))
+            if not en or last_end is None:
+                continue
+            # Only nights whose wake is strictly after last timed wake
+            if en > last_end:
+                intervals.append(row)
+                filled += 1
+        if filled:
+            intervals = normalize_intervals(intervals)
+            source = "sleep_intervals+daily_fill"
     bat = compute_sleep_battery(
         intervals, now=now, sleep_target_hours=sleep_target_hours
     )

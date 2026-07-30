@@ -119,15 +119,21 @@ def health_cache_is_fresh(
 # --- Health -----------------------------------------------------------------
 
 def health_from_dict(data: dict) -> HealthSnapshot:
+    from .health_metrics_store import coerce_weight_to_lbs, normalize_weight_samples
+
     weights = [
         WeightSample(
             date=str(w.get("date") or ""),
-            weight_lbs=float(w.get("weight_lbs") or 0),
+            weight_lbs=coerce_weight_to_lbs(
+                float(w.get("weight_lbs") or 0),
+                source=str(w.get("source") or "cache"),
+            ),
             source=str(w.get("source") or "cache"),
         )
         for w in (data.get("weight") or [])
         if isinstance(w, dict) and w.get("date")
     ]
+    normalize_weight_samples(weights)
     sleep = [
         SleepSample(
             date=str(s.get("date") or ""),

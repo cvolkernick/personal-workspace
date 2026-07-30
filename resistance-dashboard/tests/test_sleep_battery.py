@@ -78,6 +78,33 @@ class TestSleepBattery(unittest.TestCase):
         self.assertGreaterEqual(bat["pct_charged"], 85)
         self.assertLess(bat["hours_awake"], 2.0)
 
+    def test_daily_fill_when_intervals_lag_newer_night(self):
+        """Stale timed intervals + newer daily total → fill so wake advances."""
+        tz = timezone.utc
+        old_wake = datetime(2026, 7, 28, 16, 0, 0, tzinfo=tz)
+        intervals = [
+            {
+                "start": (old_wake - timedelta(hours=8)).isoformat(),
+                "end": old_wake.isoformat(),
+                "source": "google_health",
+            }
+        ]
+        # Newer night only in daily totals (intervals lag / partial API)
+        sleep = [
+            SleepSample(date="2026-07-28", sleep_hours=8.0, source="google_health"),
+            SleepSample(date="2026-07-29", sleep_hours=8.0, source="google_health"),
+        ]
+        # ~1h after daily-approx wake (07:00 local → depends on host TZ).
+        # Use compute path via battery and assert data_source fill + newer wake.
+        now = datetime(2026, 7, 29, 12, 0, 0, tzinfo=tz)
+        bat = sleep_battery_from_fitdash_sleep(
+            sleep, now=now, sleep_intervals=intervals, sleep_target_hours=8.0
+        )
+        self.assertEqual(bat["data_source"], "sleep_intervals+daily_fill")
+        # Last wake should not remain stuck on the old timed interval alone
+        self.assertIsNotNone(bat["last_wake_at"])
+        self.assertGreater(bat["last_wake_at"], old_wake.isoformat())
+
 
 if __name__ == "__main__":
     unittest.main()
