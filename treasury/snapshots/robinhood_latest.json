@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-07-29T18:12:59.759810+00:00",
+  "as_of": "2026-07-30T16:31:12.008807+00:00",
   "total_value": 0.024046,
   "equity_value": 0.0,
   "cash": 0.02,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-07-29T18:12:59.759806+00:00",
-    "total_value": 172.8849279696,
-    "equity_value": 172.8449279696,
+    "as_of": "2026-07-30T16:31:12.008802+00:00",
+    "total_value": 175.2458078868,
+    "equity_value": 175.2058078868,
     "cash": 0.04,
     "buying_power": 0.04,
     "unleveraged_buying_power": 0.04,
