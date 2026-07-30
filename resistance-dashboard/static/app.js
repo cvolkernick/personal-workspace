@@ -1272,19 +1272,32 @@
             firstD && lastD ? `${firstD} → ${lastD}` : `${nDays} days`;
           // Keep chip titles short so P/C/F stay on one row; date goes in subline.
           const latestSub = lastDate ? lastDate : "most recent logged day";
+          // Daily targets → gram goals + calorie-share % (same 4/4/9 basis)
+          const tgt =
+            (data.nutrition_store && data.nutrition_store.targets) || {};
+          const tgtG = {
+            p: Number(tgt.protein_g) || 0,
+            c: Number(tgt.carbs_g) || 0,
+            f: Number(tgt.fat_g) || 0,
+          };
+          const tgtPct = macroCalPct(tgtG.p, tgtG.c, tgtG.f);
+          const bandPct = (v, key) =>
+            macroTargetBandClass(v, tgtPct[key]);
+          const bandG = (v, key) =>
+            macroTargetBandClass(v, tgtG[key]);
           note.innerHTML = `
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein">
+              <div class="chart-summary-chip chip-protein ${bandPct(last.p, "p")}">
                 <span class="chip-k">Latest · P</span>
                 <span class="chip-v">${last.p}%</span>
                 <span class="chip-s">${Math.round(last.grams.p)} g · ${latestSub}</span>
               </div>
-              <div class="chart-summary-chip chip-carbs">
+              <div class="chart-summary-chip chip-carbs ${bandPct(last.c, "c")}">
                 <span class="chip-k">Latest · C</span>
                 <span class="chip-v">${last.c}%</span>
                 <span class="chip-s">${Math.round(last.grams.c)} g · ${latestSub}</span>
               </div>
-              <div class="chart-summary-chip chip-fat">
+              <div class="chart-summary-chip chip-fat ${bandPct(last.f, "f")}">
                 <span class="chip-k">Latest · F</span>
                 <span class="chip-v">${last.f}%</span>
                 <span class="chip-s">${Math.round(last.grams.f)} g · ${latestSub}</span>
@@ -1293,42 +1306,42 @@
             ${
               lastRoll
                 ? `<div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein">
+              <div class="chart-summary-chip chip-protein ${bandPct(lastRoll.p, "p")}">
                 <span class="chip-k">7d rolling · P</span>
                 <span class="chip-v">${lastRoll.p}%</span>
-                <span class="chip-s">of kcal · chart line</span>
+                <span class="chip-s">of kcal · target ${tgtPct.p != null ? tgtPct.p + "%" : "—"} ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-carbs">
+              <div class="chart-summary-chip chip-carbs ${bandPct(lastRoll.c, "c")}">
                 <span class="chip-k">7d rolling · C</span>
                 <span class="chip-v">${lastRoll.c}%</span>
-                <span class="chip-s">of kcal · chart line</span>
+                <span class="chip-s">of kcal · target ${tgtPct.c != null ? tgtPct.c + "%" : "—"} ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-fat">
+              <div class="chart-summary-chip chip-fat ${bandPct(lastRoll.f, "f")}">
                 <span class="chip-k">7d rolling · F</span>
                 <span class="chip-v">${lastRoll.f}%</span>
-                <span class="chip-s">of kcal · chart line</span>
+                <span class="chip-s">of kcal · target ${tgtPct.f != null ? tgtPct.f + "%" : "—"} ±5%</span>
               </div>
             </div>`
                 : ""
             }
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein">
+              <div class="chart-summary-chip chip-protein ${bandG(avgPg, "p")}">
                 <span class="chip-k">Period protein</span>
                 <span class="chip-v">${Math.round(avgPg)} g</span>
-                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · avg/day</span>
+                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · target ${tgtG.p || "—"}g ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-carbs">
+              <div class="chart-summary-chip chip-carbs ${bandG(avgCg, "c")}">
                 <span class="chip-k">Period carbs</span>
                 <span class="chip-v">${Math.round(avgCg)} g</span>
-                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · avg/day</span>
+                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · target ${tgtG.c || "—"}g ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-fat">
+              <div class="chart-summary-chip chip-fat ${bandG(avgFg, "f")}">
                 <span class="chip-k">Period fat</span>
                 <span class="chip-v">${Math.round(avgFg)} g</span>
-                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · avg/day</span>
+                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · target ${tgtG.f || "—"}g ±5%</span>
               </div>
             </div>
-            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · bars = daily split · lines = ${rollWin}d avg · % of kcal from P×4 / C×4 / F×9</p>
+            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · green border = within ±5% of target · red = outside · % of kcal from P×4 / C×4 / F×9</p>
           `;
         }
       }
@@ -1913,6 +1926,18 @@
       c: Math.round((c * 4 * 1000) / tot) / 10,
       f: Math.round((f * 9 * 1000) / tot) / 10,
     };
+  }
+
+  /** ±5% of target (relative). Green in-range, red out. */
+  function macroTargetBandClass(value, target) {
+    const v = Number(value);
+    const t = Number(target);
+    if (value == null || target == null || Number.isNaN(v) || Number.isNaN(t) || t <= 0) {
+      return "";
+    }
+    const lo = t * 0.95;
+    const hi = t * 1.05;
+    return v >= lo && v <= hi ? "chip-in-range" : "chip-out-of-range";
   }
 
   function targetPct(consumed, target) {
