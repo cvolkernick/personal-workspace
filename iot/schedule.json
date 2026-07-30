@@ -17,6 +17,26 @@
       "brightness": 200
     },
     {
+      "id": "sunset_office_on_plus3",
+      "enabled": true,
+      "name": "Sunset+3m — office plug reassert on",
+      "trigger": "sunset",
+      "offset_minutes": 3,
+      "target": "office",
+      "color": "warm",
+      "brightness": 200
+    },
+    {
+      "id": "sunset_office_on_plus12",
+      "enabled": true,
+      "name": "Sunset+12m — office plug reassert on",
+      "trigger": "sunset",
+      "offset_minutes": 12,
+      "target": "office",
+      "color": "warm",
+      "brightness": 200
+    },
+    {
       "id": "sunset_lights_on",
       "enabled": true,
       "name": "Sunset — house lights magenta",
