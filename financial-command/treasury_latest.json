@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-07-29T18:12:59.894776+00:00",
+    "as_of": "2026-07-30T16:19:18.499955+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-07-29T18:11:45.740279+00:00",
+      "as_of": "2026-07-29T18:13:11.419926+00:00",
       "liquid_usdc": 0.0006861255613999999,
       "liquid_btc": 5.8977294815e-06,
-      "btc_usd_price": 64362.69,
-      "liquid_btc_usd": 0.3795937343216453,
+      "btc_usd_price": 64315.75,
+      "liquid_btc_usd": 0.37931689489978365,
       "by_currency": {
         "USDC": 1.904e-07,
         "USD": 0.0006859351614,
@@ -27,7 +27,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-07-29T18:11:46.240357+00:00",
+      "as_of": "2026-07-29T18:13:11.930166+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -450,7 +450,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-07-29T18:11:46.389615+00:00",
+      "as_of": "2026-07-29T18:13:12.101113+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -497,7 +497,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-07-29T18:11:46.609499+00:00",
+      "as_of": "2026-07-29T18:13:12.264675+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -1073,7 +1073,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-07-29T18:11:47.434046+00:00",
+      "as_of": "2026-07-29T18:13:13.026496+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -2070,8 +2070,8 @@
       "vault_known": true,
       "count_vault_toward_buffers": true,
       "liquid_btc": 5.8977294815e-06,
-      "liquid_btc_usd": 0.3795937343216453,
-      "btc_usd_price": 64362.69,
+      "liquid_btc_usd": 0.37931689489978365,
+      "btc_usd_price": 64315.75,
       "ltv": 0.1936,
       "loan_principal_usdc": 167.0,
       "collateral_btc_usd": 861.98,
@@ -2159,19 +2159,19 @@
       "coinbase_liquid": "red",
       "coinbase_card": "red",
       "robinhood": "yellow",
-      "data_quality": "green",
+      "data_quality": "yellow",
       "overall": "red",
       "dimensions": {
         "coinbase_ltv": "green",
         "coinbase_liquid": "red",
         "coinbase_card": "red",
         "robinhood": "yellow",
-        "data_quality": "green",
+        "data_quality": "yellow",
         "overall": "red"
       }
     },
     "data_quality": {
-      "status": "green",
+      "status": "yellow",
       "completeness_score": 1.0,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -2183,15 +2183,29 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-07-29T18:11:45.740279+00:00",
+        "coinbase_as_of": "2026-07-29T18:13:11.419926+00:00",
         "robinhood_as_of": "2026-07-29T18:12:59.759810+00:00",
-        "one_card_as_of": "2026-07-29T18:11:46.240357+00:00",
-        "rh_checking_as_of": "2026-07-29T18:11:46.389615+00:00",
-        "x_money_as_of": "2026-07-29T18:11:46.609499+00:00",
-        "expenses_as_of": "2026-07-29T18:11:47.434046+00:00"
+        "one_card_as_of": "2026-07-29T18:13:11.930166+00:00",
+        "rh_checking_as_of": "2026-07-29T18:13:12.101113+00:00",
+        "x_money_as_of": "2026-07-29T18:13:12.264675+00:00",
+        "expenses_as_of": "2026-07-29T18:13:13.026496+00:00"
       },
-      "stale": [],
-      "warnings": [],
+      "stale": [
+        "coinbase data 22.1h old (>6.0h)",
+        "robinhood data 22.1h old (>6.0h)",
+        "one_card data 22.1h old (>6.0h)",
+        "rh_checking data 22.1h old (>6.0h)",
+        "x_money data 22.1h old (>6.0h)",
+        "expenses data 22.1h old (>6.0h)"
+      ],
+      "warnings": [
+        "coinbase data 22.1h old (>6.0h)",
+        "robinhood data 22.1h old (>6.0h)",
+        "one_card data 22.1h old (>6.0h)",
+        "rh_checking data 22.1h old (>6.0h)",
+        "x_money data 22.1h old (>6.0h)",
+        "expenses data 22.1h old (>6.0h)"
+      ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
@@ -2306,7 +2320,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.1936\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00000590 (~$0.38)\nOne Card owed: $499.23 (source=ynab) | 30d spend $403.78\nUpcoming expense estimates (sheet Personal): $16683.42/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $155.03 (Checking \u2013 2201) | RH brokerage BP: $0.02 cash: $0.02 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.02 below floor 500.00\nData quality: green score=1.0\nTop actions:\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $499.23 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.02 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $147.43 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\n  P4 [either|manual] Bridge dry powder short $200.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.1936\nUSDC working: $147.43 (spot $0.00 + vault $147.43) | BTC liquid: 0.00000590 (~$0.38)\nOne Card owed: $499.23 (source=ynab) | 30d spend $403.78\nUpcoming expense estimates (sheet Personal): $16683.42/mo | CB-funded est $10834.05 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $155.03 (Checking \u2013 2201) | RH brokerage BP: $0.02 cash: $0.02 equity: $0.00\nDCA: PAUSE (pause) \u2014 buying power 0.02 below floor 500.00\nData quality: yellow score=1.0\nTop actions:\n  P2 [either|manual] USDC float short $352.57 (spot + High Yield vault)\n  P2 [human|manual] One Card balance $499.23 \u2014 pay down in app / confirm autopay\n  P3 [agent|API] Pause DCA: buying power 0.02 below floor 500.00\n  P3 [either|manual] Est. Coinbase-funded bills ~$10834/mo vs working USDC $147.43 (spot+vault)\n  P4 [either|manual] Loan buffer short $1000.00 working USDC\n  P4 [either|manual] Bridge dry powder short $200.00 working USDC\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "sleeves": {
       "card_float": {
         "target": 500.0,
@@ -2365,12 +2379,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-07-29T18:12:59.896589+00:00",
+      "as_of": "2026-07-30T16:19:18.501954+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-07-29T18:12:59.895282+00:00",
+        "as_of": "2026-07-30T16:19:18.500525+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -2543,6 +2557,359 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
       },
       "recent_decisions": [
+        {
+          "kind": "hold",
+          "outcome": "hold",
+          "path": "team_llm_full_review",
+          "live": true,
+          "summary": "Mid-session fund-manager review 2026-07-30 (~12:18 ET): agentic \u2022\u2022\u2022\u20221752 NAV~$172.8849, cash/BP $0.04/$0.04 HOLD. Deployed sleeves BTC 0.4 / stocks 0.6 in \u00b15% band. Full research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP unavailable this session. RH snapshot stale (~2026-07-29T18:12Z). Next free capital \u2265$1 \u2192 prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).",
+          "nav_usd": 172.8849,
+          "buying_power_usd": 0.04,
+          "cash_usd": 0.04,
+          "account_number_last4": "1752",
+          "account_number": "674601752",
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_of_nav": {
+            "btc_digital_credit": 0.4037,
+            "stocks_growth": 0.6056,
+            "other": 0.0,
+            "cash": 0.0002
+          },
+          "names_considered": [
+            "MSTR",
+            "BITA",
+            "MARA",
+            "IREN",
+            "CLSK",
+            "RIOT",
+            "WULF",
+            "STRC",
+            "SATA",
+            "ASST",
+            "TSLA",
+            "SPCX",
+            "BTC",
+            "BE",
+            "GOOGL",
+            "AAPL",
+            "NVDA",
+            "held_only_topup_path",
+            "forced_rotate_to_strc_sata"
+          ],
+          "names_chosen": [
+            {
+              "symbol": "MSTR",
+              "theme": "digital_credit",
+              "stance": "hold"
+            },
+            {
+              "symbol": "BITA",
+              "theme": "digital_credit_btc_yield",
+              "stance": "hold"
+            },
+            {
+              "symbol": "MARA",
+              "theme": "btc_infrastructure_miner",
+              "stance": "hold"
+            },
+            {
+              "symbol": "IREN",
+              "theme": "btc_infrastructure_miner_power",
+              "stance": "hold"
+            },
+            {
+              "symbol": "CLSK",
+              "theme": "btc_infrastructure_miner",
+              "stance": "hold"
+            },
+            {
+              "symbol": "TSLA",
+              "theme": "growth_equity",
+              "stance": "hold"
+            },
+            {
+              "symbol": "SPCX",
+              "theme": "growth_equity",
+              "stance": "hold"
+            }
+          ],
+          "names_rejected": [
+            {
+              "symbol": "STRC",
+              "reason": "Preferred next BTC-complex deploy (owner elevate); blocked now by cash dust + MCP down \u2014 not a thesis reject"
+            },
+            {
+              "symbol": "SATA",
+              "reason": "Preferred next BTC-complex deploy (owner elevate); blocked now by cash dust + MCP down \u2014 not a thesis reject"
+            },
+            {
+              "symbol": "ASST",
+              "reason": "Secondary digital credit; prefer STRC/SATA first when capital returns"
+            },
+            {
+              "symbol": "RIOT",
+              "reason": "Valid multi-miner diversifier \u2014 not overlap reject; skip for capital only"
+            },
+            {
+              "symbol": "WULF",
+              "reason": "Valid multi-miner diversifier \u2014 not overlap reject; skip for capital only"
+            },
+            {
+              "symbol": "BTC",
+              "reason": "Prefer equity vehicles on agentic RH; spot/vault on Coinbase stack elsewhere"
+            },
+            {
+              "symbol": "BE",
+              "reason": "Watchlist monitor; post-print deep-dive refresh required before first buy; prior monitor_no_buy"
+            },
+            {
+              "symbol": "GOOGL",
+              "reason": "deep_dive_required_before_buy; no completed dive"
+            },
+            {
+              "symbol": "AAPL",
+              "reason": "deep_dive_required_before_buy; no completed dive"
+            },
+            {
+              "symbol": "NVDA",
+              "reason": "deep_dive_required_before_buy; no completed dive"
+            },
+            {
+              "symbol": "held_only_topup_path",
+              "reason": "Rejected as default strategy; next capital must re-run full allowlist/theme consider"
+            },
+            {
+              "symbol": "forced_rotate_to_strc_sata",
+              "reason": "Deferred: 40/60 in band; settlement risk on sell-to-buy cash account; no thesis break on held credit/miners"
+            },
+            {
+              "symbol": "any_buy",
+              "reason": "BP/cash $0.04 < min_trade $1.00"
+            }
+          ],
+          "theme_allocation": {
+            "btc_digital_credit": {
+              "target_pct": 0.4,
+              "deployed_pct": 0.4,
+              "sub": {
+                "digital_credit": [
+                  "MSTR",
+                  "BITA"
+                ],
+                "digital_credit_gap": [
+                  "STRC",
+                  "SATA",
+                  "ASST"
+                ],
+                "miners_infra": [
+                  "MARA",
+                  "IREN",
+                  "CLSK"
+                ],
+                "miners_optional": [
+                  "RIOT",
+                  "WULF"
+                ]
+              },
+              "notes": "STRC/SATA seat still missing \u2014 prioritize on next free capital"
+            },
+            "stocks_growth": {
+              "target_pct": 0.6,
+              "deployed_pct": 0.6,
+              "held": [
+                "TSLA",
+                "SPCX"
+              ],
+              "watchlist_ai_energy": [
+                "BE",
+                "GOOGL",
+                "AAPL",
+                "NVDA"
+              ],
+              "notes": "Core TSLA/SPCX hold; AI/energy watchlist not first-buy ready"
+            }
+          },
+          "rationale": {
+            "summary": "HOLD residual dust after full size-invariant research/rotate; sleeves on target.",
+            "why_now": "Scheduled mid-session team review (rules need_llm on any free capital >0). Uniform process required even at dust NAV residual. Not open/close scalp.",
+            "why_not_alternatives": "No deployable capital: cash/BP $0.04 < min_trade $1. Forced sell-to-buy rotate to STRC/SATA deferred while 40/60 in band (settlement risk on cash account; no thesis break). Watchlist BE/GOOGL/AAPL/NVDA not first-buy ready (deep-dive gates). Held-only top-up rejected as default for next deploy. RIOT/WULF not blocked as 'overlap'. Executor cannot place: robinhood-trading MCP unavailable this session.",
+            "thesis_tags": [
+              "modernized_60_40",
+              "size_invariant",
+              "research_rotate",
+              "strc_sata_elevate",
+              "multi_miner_ok",
+              "mid_session",
+              "hold_dust",
+              "mcp_unavailable",
+              "rh_snapshot_stale"
+            ],
+            "names_considered": [
+              "MSTR",
+              "BITA",
+              "MARA",
+              "IREN",
+              "CLSK",
+              "RIOT",
+              "WULF",
+              "STRC",
+              "SATA",
+              "ASST",
+              "TSLA",
+              "SPCX",
+              "BTC",
+              "BE",
+              "GOOGL",
+              "AAPL",
+              "NVDA"
+            ],
+            "names_rejected": "see names_rejected field \u2014 capital/process gates not thesis rejects for STRC/SATA/RIOT/WULF"
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "ok",
+              "note": "Agentic \u2022\u2022\u2022\u20221752 NAV $172.8849 equity_MV $174.5 cash/BP $0.04/$0.04. Held: MSTR, MARA, TSLA, SPCX, BITA, IREN, CLSK. Deployed BTC 0.4 / stocks 0.6 in band. Gaps: STRC/SATA/ASST unheld; RIOT/WULF optional miners; AI (GOOGL/AAPL/NVDA) + BE watchlist. RH snapshot stale (~2026-07-29T18:12Z). MCP robinhood-trading unavailable this session."
+            },
+            "thesis": {
+              "vote": "ok_hold",
+              "note": "Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA (owner pref \u2014 not MSTR-only); RIOT/WULF eligible diversifiers (not overlap rejects); ~60% TSLA/SPCX unless AI dive completes. BE post-print remains monitor until deep-dive refresh. How new capital serves themes now: open STRC/SATA seat first within BTC complex, then residual credit/miners + growth cores."
+            },
+            "risk": {
+              "vote": "ok_hold",
+              "note": "No trade: BP dust below min $1. Agentic-only cash account, no leverage. TSLA single-name elevated (~34% of equity marks) but primary growth core \u2014 no forced cut this pass. Multi-miner is diversification not concentration block. Small NAV \u2192 no process skip. MCP outage + stale RH snapshot are operational risks for autopilot. No sell-to-buy rotate for dust residual (settlement risk)."
+            },
+            "critic": {
+              "vote": "ok_hold_process_flag",
+              "note": "Force HOLD on residual dust \u2014 no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute for elevated digital credit). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: strong Q2 print \u2260 auto-buy without fresh deep-dive + quorum. Block undived GOOGL/AAPL/NVDA first-buys. MCP down / stale snapshot is execution constraint, not thesis block \u2014 research still required."
+            },
+            "executor": {
+              "vote": "hold",
+              "note": "No place/cancel. robinhood-trading MCP tools unavailable (no MCP servers connected this session). Even if MCP live, $0.04 cannot meet min_trade $1.00."
+            }
+          },
+          "actions": [],
+          "mcp_status": "unavailable",
+          "min_trade_notional_usd": 1.0,
+          "positions_held": [
+            "MSTR",
+            "MARA",
+            "TSLA",
+            "SPCX",
+            "BITA",
+            "IREN",
+            "CLSK"
+          ],
+          "positions_detail": [
+            {
+              "symbol": "MSTR",
+              "quantity": 0.293682,
+              "market_value": 27.5503,
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "MARA",
+              "quantity": 0.961298,
+              "market_value": 11.9201,
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "TSLA",
+              "quantity": 0.194348,
+              "market_value": 59.7503,
+              "sleeve": "stocks_growth"
+            },
+            {
+              "symbol": "SPCX",
+              "quantity": 0.398798,
+              "market_value": 44.9485,
+              "sleeve": "stocks_growth"
+            },
+            {
+              "symbol": "BITA",
+              "quantity": 0.287194,
+              "market_value": 14.8996,
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "IREN",
+              "quantity": 0.274791,
+              "market_value": 10.4311,
+              "sleeve": "btc_digital_credit"
+            },
+            {
+              "symbol": "CLSK",
+              "quantity": 0.361794,
+              "market_value": 5.0,
+              "sleeve": "btc_digital_credit"
+            }
+          ],
+          "research_path": "investment/research/fund_manager_research_latest.md",
+          "trigger": "scheduled_mid_session_team_review_rules_need_llm_dust",
+          "rh_snapshot_as_of": "2026-07-29T18:12:59.759810+00:00",
+          "rh_snapshot_stale": true,
+          "as_of": "2026-07-30T16:19:18.349256+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
+        {
+          "kind": "deploy",
+          "outcome": "need_llm",
+          "need_llm": true,
+          "path": "rules",
+          "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+          "nav_usd": 172.8849,
+          "buying_power_usd": 0.04,
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "rationale": {
+            "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+            "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
+            "thesis_tags": [
+              "rules_engine",
+              "modernized_60_40"
+            ]
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "observe",
+              "note": "NAV $172.88 BP $0.04 cash $0.04"
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "deployed BTC 0.4 stocks 0.6"
+            },
+            "risk": {
+              "vote": "review",
+              "note": "Agentic capital only; no trade if hold"
+            },
+            "critic": {
+              "vote": "challenge",
+              "note": "Hold preferred when bands ok \u2014 avoid churn"
+            },
+            "executor": {
+              "vote": "await_team",
+              "note": "No MCP orders on pure rules HOLD"
+            }
+          },
+          "actions": [],
+          "as_of": "2026-07-30T16:17:52.084292+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "as_of": "2026-07-29T18:04:40.801836+00:00",
           "kind": "hold",
@@ -4051,345 +4418,6 @@
           "as_of": "2026-07-29T13:59:54.085791+00:00",
           "schema_version": 1,
           "account_scope": "agentic_only"
-        },
-        {
-          "kind": "deploy",
-          "outcome": "need_llm",
-          "need_llm": true,
-          "path": "rules",
-          "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-          "nav_usd": 174.2852,
-          "buying_power_usd": 0.04,
-          "weights_before": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "weights_after_expected": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "rationale": {
-            "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-            "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
-            "thesis_tags": [
-              "rules_engine",
-              "modernized_60_40"
-            ]
-          },
-          "team_votes": {
-            "scout": {
-              "vote": "observe",
-              "note": "NAV $174.29 BP $0.04 cash $0.04"
-            },
-            "thesis": {
-              "vote": "ok",
-              "note": "deployed BTC 0.4 stocks 0.6"
-            },
-            "risk": {
-              "vote": "review",
-              "note": "Agentic capital only; no trade if hold"
-            },
-            "critic": {
-              "vote": "challenge",
-              "note": "Hold preferred when bands ok \u2014 avoid churn"
-            },
-            "executor": {
-              "vote": "await_team",
-              "note": "No MCP orders on pure rules HOLD"
-            }
-          },
-          "actions": [],
-          "as_of": "2026-07-29T13:44:51.199609+00:00",
-          "schema_version": 1,
-          "account_scope": "agentic_only"
-        },
-        {
-          "kind": "hold",
-          "outcome": "hold",
-          "path": "team_full_review",
-          "summary": "Mid-session fund-manager review 2026-07-28 (~15:55 ET): agentic \u2022\u2022\u2022\u20221752 NAV~$174.1082, cash/BP $0.04/$0.04 HOLD. Deployed sleeves in band (BTC 0.4 / stocks 0.6). Full research/rotate: STRC/SATA preferred next BTC deploy; multi-miner retained; no orders (dust capital + robinhood-trading MCP tools unavailable this session).",
-          "nav_usd": 174.1082,
-          "buying_power_usd": 0.04,
-          "cash_usd": 0.04,
-          "weights_before": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "weights_after_expected": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "weights_of_nav": {
-            "btc_digital_credit": 0.4009,
-            "stocks_growth": 0.6013,
-            "other": 0.0,
-            "cash": 0.0002
-          },
-          "names_considered": [
-            "MSTR",
-            "BITA",
-            "STRC",
-            "SATA",
-            "ASST",
-            "MARA",
-            "IREN",
-            "CLSK",
-            "RIOT",
-            "WULF",
-            "TSLA",
-            "SPCX",
-            "BTC",
-            "BE",
-            "GOOGL",
-            "AAPL",
-            "NVDA",
-            "held_only_topup",
-            "forced_rotate_to_strc_sata"
-          ],
-          "names_chosen": [
-            {
-              "symbol": "MSTR",
-              "theme": "digital_credit",
-              "action": "hold"
-            },
-            {
-              "symbol": "BITA",
-              "theme": "digital_credit_btc_yield",
-              "action": "hold"
-            },
-            {
-              "symbol": "MARA",
-              "theme": "btc_infra_miner",
-              "action": "hold"
-            },
-            {
-              "symbol": "IREN",
-              "theme": "btc_infra_miner_power",
-              "action": "hold"
-            },
-            {
-              "symbol": "CLSK",
-              "theme": "btc_infra_miner",
-              "action": "hold"
-            },
-            {
-              "symbol": "TSLA",
-              "theme": "growth_equity",
-              "action": "hold"
-            },
-            {
-              "symbol": "SPCX",
-              "theme": "growth_equity",
-              "action": "hold"
-            }
-          ],
-          "names_rejected": [
-            {
-              "symbol": "ANY_BUY",
-              "reason": "cash/BP $0.04 < min_trade $1.00; no deployable free capital"
-            },
-            {
-              "symbol": "STRC",
-              "reason": "thesis preferred for next BTC-complex deploy (owner 2026-07-27); not rejected \u2014 capital/MCP block only"
-            },
-            {
-              "symbol": "SATA",
-              "reason": "thesis preferred for next BTC-complex deploy; not rejected \u2014 capital/MCP block only"
-            },
-            {
-              "symbol": "forced_rotate_to_strc_sata",
-              "reason": "40/60 already in band; no thesis break on held credit/miners; sell-to-buy settlement friction on cash account outweighs benefit at zero free capital"
-            },
-            {
-              "symbol": "ASST",
-              "reason": "secondary digital credit; prefer STRC/SATA first when capital returns"
-            },
-            {
-              "symbol": "RIOT",
-              "reason": "valid multi-miner diversifier \u2014 NOT overlap block; skip only for zero deployable capital this pass"
-            },
-            {
-              "symbol": "WULF",
-              "reason": "valid multi-miner diversifier \u2014 NOT overlap block; capital only"
-            },
-            {
-              "symbol": "BTC",
-              "reason": "prefer equity BTC vehicles on agentic RH; spot/vault on CB elsewhere"
-            },
-            {
-              "symbol": "BE",
-              "reason": "watchlist monitor_no_buy; earnings 2026-07-28 AMC today \u2014 block into/through print"
-            },
-            {
-              "symbol": "GOOGL",
-              "reason": "AI stack gap real but deep_dive_required and no completed dive \u2192 not first-buy ready"
-            },
-            {
-              "symbol": "AAPL",
-              "reason": "deep_dive_required; no completed dive"
-            },
-            {
-              "symbol": "NVDA",
-              "reason": "deep_dive_required; concentration/valuation gate + no dive"
-            },
-            {
-              "symbol": "held_only_topup",
-              "reason": "explicitly rejected as default strategy; next free capital must re-open full consider set with STRC/SATA priority"
-            }
-          ],
-          "theme_allocation": {
-            "btc_digital_credit_target": 0.4,
-            "stocks_growth_target": 0.6,
-            "btc_digital_credit_deployed": 0.4,
-            "stocks_growth_deployed": 0.6,
-            "btc_sub": {
-              "digital_credit_held": [
-                "MSTR",
-                "BITA"
-              ],
-              "digital_credit_elevated_unheld": [
-                "STRC",
-                "SATA"
-              ],
-              "miners_held": [
-                "MARA",
-                "IREN",
-                "CLSK"
-              ],
-              "miners_eligible_unheld": [
-                "RIOT",
-                "WULF"
-              ]
-            },
-            "stocks_held": [
-              "TSLA",
-              "SPCX"
-            ],
-            "stocks_watchlist_not_ready": [
-              "BE",
-              "GOOGL",
-              "AAPL",
-              "NVDA"
-            ],
-            "next_free_capital_plan": "Split toward 40/60; within BTC leg give meaningful share to STRC and/or SATA (not MSTR-only); multi-miner OK; stocks prefer TSLA/SPCX unless deep-dived AI ready."
-          },
-          "rationale": {
-            "summary": "HOLD residual dust. Book on 40/60 target. Research/rotate complete; next free capital prioritizes STRC/SATA in BTC complex.",
-            "why_now": "Scheduled/mid-session style review (~15:55 ET) after rules need_llm on residual cash/BP $0.04 (any >$0 triggers full process). Size-invariant: full research/rotate even when deployable capital is dust. Deployed mix already on 40/60 band.",
-            "why_not_alternatives": "No buy: free capital below min_trade $1.00 and MCP tools unavailable this session. No forced rotate to STRC/SATA: sleeves in band; prefer free-capital path over churn/settlement risk. No watchlist first-buys: BE into 7/28 AMC; AI names lack deep-dive. Held-only top-up rejected as default; next free capital re-opens full consider set with STRC/SATA priority. Multi-miner path not blocked on 'overlap'.",
-            "names_considered": [
-              "MSTR",
-              "BITA",
-              "STRC",
-              "SATA",
-              "ASST",
-              "MARA",
-              "IREN",
-              "CLSK",
-              "RIOT",
-              "WULF",
-              "TSLA",
-              "SPCX",
-              "BTC",
-              "BE",
-              "GOOGL",
-              "AAPL",
-              "NVDA",
-              "held_only_topup",
-              "forced_rotate_to_strc_sata"
-            ],
-            "names_rejected": [
-              {
-                "symbol": "ANY_BUY",
-                "reason": "cash/BP $0.04 < min_trade $1.00; no deployable free capital"
-              },
-              {
-                "symbol": "STRC",
-                "reason": "thesis preferred for next BTC-complex deploy (owner 2026-07-27); not rejected \u2014 capital/MCP block only"
-              },
-              {
-                "symbol": "SATA",
-                "reason": "thesis preferred for next BTC-complex deploy; not rejected \u2014 capital/MCP block only"
-              },
-              {
-                "symbol": "forced_rotate_to_strc_sata",
-                "reason": "40/60 already in band; no thesis break on held credit/miners; sell-to-buy settlement friction on cash account outweighs benefit at zero free capital"
-              },
-              {
-                "symbol": "ASST",
-                "reason": "secondary digital credit; prefer STRC/SATA first when capital returns"
-              },
-              {
-                "symbol": "RIOT",
-                "reason": "valid multi-miner diversifier \u2014 NOT overlap block; skip only for zero deployable capital this pass"
-              },
-              {
-                "symbol": "WULF",
-                "reason": "valid multi-miner diversifier \u2014 NOT overlap block; capital only"
-              },
-              {
-                "symbol": "BTC",
-                "reason": "prefer equity BTC vehicles on agentic RH; spot/vault on CB elsewhere"
-              },
-              {
-                "symbol": "BE",
-                "reason": "watchlist monitor_no_buy; earnings 2026-07-28 AMC today \u2014 block into/through print"
-              },
-              {
-                "symbol": "GOOGL",
-                "reason": "AI stack gap real but deep_dive_required and no completed dive \u2192 not first-buy ready"
-              },
-              {
-                "symbol": "AAPL",
-                "reason": "deep_dive_required; no completed dive"
-              },
-              {
-                "symbol": "NVDA",
-                "reason": "deep_dive_required; concentration/valuation gate + no dive"
-              },
-              {
-                "symbol": "held_only_topup",
-                "reason": "explicitly rejected as default strategy; next free capital must re-open full consider set with STRC/SATA priority"
-              }
-            ],
-            "thesis_tags": [
-              "modernized_60_40",
-              "digital_credit_strc_sata_emphasis",
-              "multi_miner_diversification",
-              "size_invariant",
-              "hold_dust"
-            ],
-            "positions_snapshot": "MSTR=$27.55, MARA=$11.92, TSLA=$59.75, SPCX=$44.95, BITA=$14.90, IREN=$10.43, CLSK=$5.00",
-            "mcp_status": "tools_unavailable_this_session",
-            "account": "674601752"
-          },
-          "team_votes": {
-            "scout": {
-              "vote": "ok",
-              "note": "Agentic \u2022\u2022\u2022\u20221752 NAV $174.1082 cash/BP $0.04/$0.04; held MSTR,BITA,MARA,IREN,CLSK,TSLA,SPCX; deployed BTC 40.0% stocks 60.0% in band; gaps STRC/SATA (+ASST; optional RIOT/WULF); watchlist BE/GOOGL/AAPL/NVDA monitor; RH snapshot live as_of ~19:55Z; MCP tools unavailable this Grok session."
-            },
-            "thesis": {
-              "vote": "ok_hold",
-              "note": "HOLD book. Themes: digital credit (MSTR+BITA), multi-miner (MARA/IREN/CLSK), growth (TSLA/SPCX). Next deploy: meaningful STRC/SATA seat in BTC complex per owner 2026-07-27; multi-miner may widen (RIOT/WULF eligible); stocks core unless deep-dived AI ready. Rejected held-only inertia as strategy default."
-            },
-            "risk": {
-              "vote": "ok_hold",
-              "note": "No trade: deployable $0.04 < min $1. Agentic-only cash account, no leverage. TSLA ~34% of equity is name concentration but thesis primary growth name at small NAV. Multi-miner not a concentration block vs credit/whole book. No sell-to-buy rotate for dust residual."
-            },
-            "critic": {
-              "vote": "ok_hold_process_flag",
-              "note": "Force HOLD on residual dust \u2014 no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute). Reject false 'miner overlap' blocks for RIOT/WULF. Block BE into 7/28 AMC and undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block."
-            },
-            "executor": {
-              "vote": "hold",
-              "note": "No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00."
-            }
-          },
-          "actions": [],
-          "as_of": "2026-07-28T19:56:27.565245+00:00",
-          "schema_version": 1,
-          "account_scope": "agentic_only"
         }
       ],
       "policy_summary": {
@@ -4434,12 +4462,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-07-29T18:12:59.896589+00:00",
+    "as_of": "2026-07-30T16:19:18.501954+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-07-29T18:12:59.895282+00:00",
+      "as_of": "2026-07-30T16:19:18.500525+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
@@ -4612,6 +4640,359 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
     },
     "recent_decisions": [
+      {
+        "kind": "hold",
+        "outcome": "hold",
+        "path": "team_llm_full_review",
+        "live": true,
+        "summary": "Mid-session fund-manager review 2026-07-30 (~12:18 ET): agentic \u2022\u2022\u2022\u20221752 NAV~$172.8849, cash/BP $0.04/$0.04 HOLD. Deployed sleeves BTC 0.4 / stocks 0.6 in \u00b15% band. Full research/rotate under owner prefs (STRC/SATA elevate + multi-miner OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP unavailable this session. RH snapshot stale (~2026-07-29T18:12Z). Next free capital \u2265$1 \u2192 prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).",
+        "nav_usd": 172.8849,
+        "buying_power_usd": 0.04,
+        "cash_usd": 0.04,
+        "account_number_last4": "1752",
+        "account_number": "674601752",
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_of_nav": {
+          "btc_digital_credit": 0.4037,
+          "stocks_growth": 0.6056,
+          "other": 0.0,
+          "cash": 0.0002
+        },
+        "names_considered": [
+          "MSTR",
+          "BITA",
+          "MARA",
+          "IREN",
+          "CLSK",
+          "RIOT",
+          "WULF",
+          "STRC",
+          "SATA",
+          "ASST",
+          "TSLA",
+          "SPCX",
+          "BTC",
+          "BE",
+          "GOOGL",
+          "AAPL",
+          "NVDA",
+          "held_only_topup_path",
+          "forced_rotate_to_strc_sata"
+        ],
+        "names_chosen": [
+          {
+            "symbol": "MSTR",
+            "theme": "digital_credit",
+            "stance": "hold"
+          },
+          {
+            "symbol": "BITA",
+            "theme": "digital_credit_btc_yield",
+            "stance": "hold"
+          },
+          {
+            "symbol": "MARA",
+            "theme": "btc_infrastructure_miner",
+            "stance": "hold"
+          },
+          {
+            "symbol": "IREN",
+            "theme": "btc_infrastructure_miner_power",
+            "stance": "hold"
+          },
+          {
+            "symbol": "CLSK",
+            "theme": "btc_infrastructure_miner",
+            "stance": "hold"
+          },
+          {
+            "symbol": "TSLA",
+            "theme": "growth_equity",
+            "stance": "hold"
+          },
+          {
+            "symbol": "SPCX",
+            "theme": "growth_equity",
+            "stance": "hold"
+          }
+        ],
+        "names_rejected": [
+          {
+            "symbol": "STRC",
+            "reason": "Preferred next BTC-complex deploy (owner elevate); blocked now by cash dust + MCP down \u2014 not a thesis reject"
+          },
+          {
+            "symbol": "SATA",
+            "reason": "Preferred next BTC-complex deploy (owner elevate); blocked now by cash dust + MCP down \u2014 not a thesis reject"
+          },
+          {
+            "symbol": "ASST",
+            "reason": "Secondary digital credit; prefer STRC/SATA first when capital returns"
+          },
+          {
+            "symbol": "RIOT",
+            "reason": "Valid multi-miner diversifier \u2014 not overlap reject; skip for capital only"
+          },
+          {
+            "symbol": "WULF",
+            "reason": "Valid multi-miner diversifier \u2014 not overlap reject; skip for capital only"
+          },
+          {
+            "symbol": "BTC",
+            "reason": "Prefer equity vehicles on agentic RH; spot/vault on Coinbase stack elsewhere"
+          },
+          {
+            "symbol": "BE",
+            "reason": "Watchlist monitor; post-print deep-dive refresh required before first buy; prior monitor_no_buy"
+          },
+          {
+            "symbol": "GOOGL",
+            "reason": "deep_dive_required_before_buy; no completed dive"
+          },
+          {
+            "symbol": "AAPL",
+            "reason": "deep_dive_required_before_buy; no completed dive"
+          },
+          {
+            "symbol": "NVDA",
+            "reason": "deep_dive_required_before_buy; no completed dive"
+          },
+          {
+            "symbol": "held_only_topup_path",
+            "reason": "Rejected as default strategy; next capital must re-run full allowlist/theme consider"
+          },
+          {
+            "symbol": "forced_rotate_to_strc_sata",
+            "reason": "Deferred: 40/60 in band; settlement risk on sell-to-buy cash account; no thesis break on held credit/miners"
+          },
+          {
+            "symbol": "any_buy",
+            "reason": "BP/cash $0.04 < min_trade $1.00"
+          }
+        ],
+        "theme_allocation": {
+          "btc_digital_credit": {
+            "target_pct": 0.4,
+            "deployed_pct": 0.4,
+            "sub": {
+              "digital_credit": [
+                "MSTR",
+                "BITA"
+              ],
+              "digital_credit_gap": [
+                "STRC",
+                "SATA",
+                "ASST"
+              ],
+              "miners_infra": [
+                "MARA",
+                "IREN",
+                "CLSK"
+              ],
+              "miners_optional": [
+                "RIOT",
+                "WULF"
+              ]
+            },
+            "notes": "STRC/SATA seat still missing \u2014 prioritize on next free capital"
+          },
+          "stocks_growth": {
+            "target_pct": 0.6,
+            "deployed_pct": 0.6,
+            "held": [
+              "TSLA",
+              "SPCX"
+            ],
+            "watchlist_ai_energy": [
+              "BE",
+              "GOOGL",
+              "AAPL",
+              "NVDA"
+            ],
+            "notes": "Core TSLA/SPCX hold; AI/energy watchlist not first-buy ready"
+          }
+        },
+        "rationale": {
+          "summary": "HOLD residual dust after full size-invariant research/rotate; sleeves on target.",
+          "why_now": "Scheduled mid-session team review (rules need_llm on any free capital >0). Uniform process required even at dust NAV residual. Not open/close scalp.",
+          "why_not_alternatives": "No deployable capital: cash/BP $0.04 < min_trade $1. Forced sell-to-buy rotate to STRC/SATA deferred while 40/60 in band (settlement risk on cash account; no thesis break). Watchlist BE/GOOGL/AAPL/NVDA not first-buy ready (deep-dive gates). Held-only top-up rejected as default for next deploy. RIOT/WULF not blocked as 'overlap'. Executor cannot place: robinhood-trading MCP unavailable this session.",
+          "thesis_tags": [
+            "modernized_60_40",
+            "size_invariant",
+            "research_rotate",
+            "strc_sata_elevate",
+            "multi_miner_ok",
+            "mid_session",
+            "hold_dust",
+            "mcp_unavailable",
+            "rh_snapshot_stale"
+          ],
+          "names_considered": [
+            "MSTR",
+            "BITA",
+            "MARA",
+            "IREN",
+            "CLSK",
+            "RIOT",
+            "WULF",
+            "STRC",
+            "SATA",
+            "ASST",
+            "TSLA",
+            "SPCX",
+            "BTC",
+            "BE",
+            "GOOGL",
+            "AAPL",
+            "NVDA"
+          ],
+          "names_rejected": "see names_rejected field \u2014 capital/process gates not thesis rejects for STRC/SATA/RIOT/WULF"
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "ok",
+            "note": "Agentic \u2022\u2022\u2022\u20221752 NAV $172.8849 equity_MV $174.5 cash/BP $0.04/$0.04. Held: MSTR, MARA, TSLA, SPCX, BITA, IREN, CLSK. Deployed BTC 0.4 / stocks 0.6 in band. Gaps: STRC/SATA/ASST unheld; RIOT/WULF optional miners; AI (GOOGL/AAPL/NVDA) + BE watchlist. RH snapshot stale (~2026-07-29T18:12Z). MCP robinhood-trading unavailable this session."
+          },
+          "thesis": {
+            "vote": "ok_hold",
+            "note": "Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA (owner pref \u2014 not MSTR-only); RIOT/WULF eligible diversifiers (not overlap rejects); ~60% TSLA/SPCX unless AI dive completes. BE post-print remains monitor until deep-dive refresh. How new capital serves themes now: open STRC/SATA seat first within BTC complex, then residual credit/miners + growth cores."
+          },
+          "risk": {
+            "vote": "ok_hold",
+            "note": "No trade: BP dust below min $1. Agentic-only cash account, no leverage. TSLA single-name elevated (~34% of equity marks) but primary growth core \u2014 no forced cut this pass. Multi-miner is diversification not concentration block. Small NAV \u2192 no process skip. MCP outage + stale RH snapshot are operational risks for autopilot. No sell-to-buy rotate for dust residual (settlement risk)."
+          },
+          "critic": {
+            "vote": "ok_hold_process_flag",
+            "note": "Force HOLD on residual dust \u2014 no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute for elevated digital credit). Reject false 'miner overlap' blocks for RIOT/WULF. Reject held-only inertia as default for next capital. BE: strong Q2 print \u2260 auto-buy without fresh deep-dive + quorum. Block undived GOOGL/AAPL/NVDA first-buys. MCP down / stale snapshot is execution constraint, not thesis block \u2014 research still required."
+          },
+          "executor": {
+            "vote": "hold",
+            "note": "No place/cancel. robinhood-trading MCP tools unavailable (no MCP servers connected this session). Even if MCP live, $0.04 cannot meet min_trade $1.00."
+          }
+        },
+        "actions": [],
+        "mcp_status": "unavailable",
+        "min_trade_notional_usd": 1.0,
+        "positions_held": [
+          "MSTR",
+          "MARA",
+          "TSLA",
+          "SPCX",
+          "BITA",
+          "IREN",
+          "CLSK"
+        ],
+        "positions_detail": [
+          {
+            "symbol": "MSTR",
+            "quantity": 0.293682,
+            "market_value": 27.5503,
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "MARA",
+            "quantity": 0.961298,
+            "market_value": 11.9201,
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "TSLA",
+            "quantity": 0.194348,
+            "market_value": 59.7503,
+            "sleeve": "stocks_growth"
+          },
+          {
+            "symbol": "SPCX",
+            "quantity": 0.398798,
+            "market_value": 44.9485,
+            "sleeve": "stocks_growth"
+          },
+          {
+            "symbol": "BITA",
+            "quantity": 0.287194,
+            "market_value": 14.8996,
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "IREN",
+            "quantity": 0.274791,
+            "market_value": 10.4311,
+            "sleeve": "btc_digital_credit"
+          },
+          {
+            "symbol": "CLSK",
+            "quantity": 0.361794,
+            "market_value": 5.0,
+            "sleeve": "btc_digital_credit"
+          }
+        ],
+        "research_path": "investment/research/fund_manager_research_latest.md",
+        "trigger": "scheduled_mid_session_team_review_rules_need_llm_dust",
+        "rh_snapshot_as_of": "2026-07-29T18:12:59.759810+00:00",
+        "rh_snapshot_stale": true,
+        "as_of": "2026-07-30T16:19:18.349256+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
+      {
+        "kind": "deploy",
+        "outcome": "need_llm",
+        "need_llm": true,
+        "path": "rules",
+        "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+        "nav_usd": 172.8849,
+        "buying_power_usd": 0.04,
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "rationale": {
+          "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
+          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+          "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
+          "thesis_tags": [
+            "rules_engine",
+            "modernized_60_40"
+          ]
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "observe",
+            "note": "NAV $172.88 BP $0.04 cash $0.04"
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "deployed BTC 0.4 stocks 0.6"
+          },
+          "risk": {
+            "vote": "review",
+            "note": "Agentic capital only; no trade if hold"
+          },
+          "critic": {
+            "vote": "challenge",
+            "note": "Hold preferred when bands ok \u2014 avoid churn"
+          },
+          "executor": {
+            "vote": "await_team",
+            "note": "No MCP orders on pure rules HOLD"
+          }
+        },
+        "actions": [],
+        "as_of": "2026-07-30T16:17:52.084292+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "as_of": "2026-07-29T18:04:40.801836+00:00",
         "kind": "hold",
@@ -6118,345 +6499,6 @@
         },
         "actions": [],
         "as_of": "2026-07-29T13:59:54.085791+00:00",
-        "schema_version": 1,
-        "account_scope": "agentic_only"
-      },
-      {
-        "kind": "deploy",
-        "outcome": "need_llm",
-        "need_llm": true,
-        "path": "rules",
-        "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-        "nav_usd": 174.2852,
-        "buying_power_usd": 0.04,
-        "weights_before": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "weights_after_expected": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "rationale": {
-          "summary": "Rules \u2192 need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-          "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
-          "thesis_tags": [
-            "rules_engine",
-            "modernized_60_40"
-          ]
-        },
-        "team_votes": {
-          "scout": {
-            "vote": "observe",
-            "note": "NAV $174.29 BP $0.04 cash $0.04"
-          },
-          "thesis": {
-            "vote": "ok",
-            "note": "deployed BTC 0.4 stocks 0.6"
-          },
-          "risk": {
-            "vote": "review",
-            "note": "Agentic capital only; no trade if hold"
-          },
-          "critic": {
-            "vote": "challenge",
-            "note": "Hold preferred when bands ok \u2014 avoid churn"
-          },
-          "executor": {
-            "vote": "await_team",
-            "note": "No MCP orders on pure rules HOLD"
-          }
-        },
-        "actions": [],
-        "as_of": "2026-07-29T13:44:51.199609+00:00",
-        "schema_version": 1,
-        "account_scope": "agentic_only"
-      },
-      {
-        "kind": "hold",
-        "outcome": "hold",
-        "path": "team_full_review",
-        "summary": "Mid-session fund-manager review 2026-07-28 (~15:55 ET): agentic \u2022\u2022\u2022\u20221752 NAV~$174.1082, cash/BP $0.04/$0.04 HOLD. Deployed sleeves in band (BTC 0.4 / stocks 0.6). Full research/rotate: STRC/SATA preferred next BTC deploy; multi-miner retained; no orders (dust capital + robinhood-trading MCP tools unavailable this session).",
-        "nav_usd": 174.1082,
-        "buying_power_usd": 0.04,
-        "cash_usd": 0.04,
-        "weights_before": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "weights_after_expected": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "weights_of_nav": {
-          "btc_digital_credit": 0.4009,
-          "stocks_growth": 0.6013,
-          "other": 0.0,
-          "cash": 0.0002
-        },
-        "names_considered": [
-          "MSTR",
-          "BITA",
-          "STRC",
-          "SATA",
-          "ASST",
-          "MARA",
-          "IREN",
-          "CLSK",
-          "RIOT",
-          "WULF",
-          "TSLA",
-          "SPCX",
-          "BTC",
-          "BE",
-          "GOOGL",
-          "AAPL",
-          "NVDA",
-          "held_only_topup",
-          "forced_rotate_to_strc_sata"
-        ],
-        "names_chosen": [
-          {
-            "symbol": "MSTR",
-            "theme": "digital_credit",
-            "action": "hold"
-          },
-          {
-            "symbol": "BITA",
-            "theme": "digital_credit_btc_yield",
-            "action": "hold"
-          },
-          {
-            "symbol": "MARA",
-            "theme": "btc_infra_miner",
-            "action": "hold"
-          },
-          {
-            "symbol": "IREN",
-            "theme": "btc_infra_miner_power",
-            "action": "hold"
-          },
-          {
-            "symbol": "CLSK",
-            "theme": "btc_infra_miner",
-            "action": "hold"
-          },
-          {
-            "symbol": "TSLA",
-            "theme": "growth_equity",
-            "action": "hold"
-          },
-          {
-            "symbol": "SPCX",
-            "theme": "growth_equity",
-            "action": "hold"
-          }
-        ],
-        "names_rejected": [
-          {
-            "symbol": "ANY_BUY",
-            "reason": "cash/BP $0.04 < min_trade $1.00; no deployable free capital"
-          },
-          {
-            "symbol": "STRC",
-            "reason": "thesis preferred for next BTC-complex deploy (owner 2026-07-27); not rejected \u2014 capital/MCP block only"
-          },
-          {
-            "symbol": "SATA",
-            "reason": "thesis preferred for next BTC-complex deploy; not rejected \u2014 capital/MCP block only"
-          },
-          {
-            "symbol": "forced_rotate_to_strc_sata",
-            "reason": "40/60 already in band; no thesis break on held credit/miners; sell-to-buy settlement friction on cash account outweighs benefit at zero free capital"
-          },
-          {
-            "symbol": "ASST",
-            "reason": "secondary digital credit; prefer STRC/SATA first when capital returns"
-          },
-          {
-            "symbol": "RIOT",
-            "reason": "valid multi-miner diversifier \u2014 NOT overlap block; skip only for zero deployable capital this pass"
-          },
-          {
-            "symbol": "WULF",
-            "reason": "valid multi-miner diversifier \u2014 NOT overlap block; capital only"
-          },
-          {
-            "symbol": "BTC",
-            "reason": "prefer equity BTC vehicles on agentic RH; spot/vault on CB elsewhere"
-          },
-          {
-            "symbol": "BE",
-            "reason": "watchlist monitor_no_buy; earnings 2026-07-28 AMC today \u2014 block into/through print"
-          },
-          {
-            "symbol": "GOOGL",
-            "reason": "AI stack gap real but deep_dive_required and no completed dive \u2192 not first-buy ready"
-          },
-          {
-            "symbol": "AAPL",
-            "reason": "deep_dive_required; no completed dive"
-          },
-          {
-            "symbol": "NVDA",
-            "reason": "deep_dive_required; concentration/valuation gate + no dive"
-          },
-          {
-            "symbol": "held_only_topup",
-            "reason": "explicitly rejected as default strategy; next free capital must re-open full consider set with STRC/SATA priority"
-          }
-        ],
-        "theme_allocation": {
-          "btc_digital_credit_target": 0.4,
-          "stocks_growth_target": 0.6,
-          "btc_digital_credit_deployed": 0.4,
-          "stocks_growth_deployed": 0.6,
-          "btc_sub": {
-            "digital_credit_held": [
-              "MSTR",
-              "BITA"
-            ],
-            "digital_credit_elevated_unheld": [
-              "STRC",
-              "SATA"
-            ],
-            "miners_held": [
-              "MARA",
-              "IREN",
-              "CLSK"
-            ],
-            "miners_eligible_unheld": [
-              "RIOT",
-              "WULF"
-            ]
-          },
-          "stocks_held": [
-            "TSLA",
-            "SPCX"
-          ],
-          "stocks_watchlist_not_ready": [
-            "BE",
-            "GOOGL",
-            "AAPL",
-            "NVDA"
-          ],
-          "next_free_capital_plan": "Split toward 40/60; within BTC leg give meaningful share to STRC and/or SATA (not MSTR-only); multi-miner OK; stocks prefer TSLA/SPCX unless deep-dived AI ready."
-        },
-        "rationale": {
-          "summary": "HOLD residual dust. Book on 40/60 target. Research/rotate complete; next free capital prioritizes STRC/SATA in BTC complex.",
-          "why_now": "Scheduled/mid-session style review (~15:55 ET) after rules need_llm on residual cash/BP $0.04 (any >$0 triggers full process). Size-invariant: full research/rotate even when deployable capital is dust. Deployed mix already on 40/60 band.",
-          "why_not_alternatives": "No buy: free capital below min_trade $1.00 and MCP tools unavailable this session. No forced rotate to STRC/SATA: sleeves in band; prefer free-capital path over churn/settlement risk. No watchlist first-buys: BE into 7/28 AMC; AI names lack deep-dive. Held-only top-up rejected as default; next free capital re-opens full consider set with STRC/SATA priority. Multi-miner path not blocked on 'overlap'.",
-          "names_considered": [
-            "MSTR",
-            "BITA",
-            "STRC",
-            "SATA",
-            "ASST",
-            "MARA",
-            "IREN",
-            "CLSK",
-            "RIOT",
-            "WULF",
-            "TSLA",
-            "SPCX",
-            "BTC",
-            "BE",
-            "GOOGL",
-            "AAPL",
-            "NVDA",
-            "held_only_topup",
-            "forced_rotate_to_strc_sata"
-          ],
-          "names_rejected": [
-            {
-              "symbol": "ANY_BUY",
-              "reason": "cash/BP $0.04 < min_trade $1.00; no deployable free capital"
-            },
-            {
-              "symbol": "STRC",
-              "reason": "thesis preferred for next BTC-complex deploy (owner 2026-07-27); not rejected \u2014 capital/MCP block only"
-            },
-            {
-              "symbol": "SATA",
-              "reason": "thesis preferred for next BTC-complex deploy; not rejected \u2014 capital/MCP block only"
-            },
-            {
-              "symbol": "forced_rotate_to_strc_sata",
-              "reason": "40/60 already in band; no thesis break on held credit/miners; sell-to-buy settlement friction on cash account outweighs benefit at zero free capital"
-            },
-            {
-              "symbol": "ASST",
-              "reason": "secondary digital credit; prefer STRC/SATA first when capital returns"
-            },
-            {
-              "symbol": "RIOT",
-              "reason": "valid multi-miner diversifier \u2014 NOT overlap block; skip only for zero deployable capital this pass"
-            },
-            {
-              "symbol": "WULF",
-              "reason": "valid multi-miner diversifier \u2014 NOT overlap block; capital only"
-            },
-            {
-              "symbol": "BTC",
-              "reason": "prefer equity BTC vehicles on agentic RH; spot/vault on CB elsewhere"
-            },
-            {
-              "symbol": "BE",
-              "reason": "watchlist monitor_no_buy; earnings 2026-07-28 AMC today \u2014 block into/through print"
-            },
-            {
-              "symbol": "GOOGL",
-              "reason": "AI stack gap real but deep_dive_required and no completed dive \u2192 not first-buy ready"
-            },
-            {
-              "symbol": "AAPL",
-              "reason": "deep_dive_required; no completed dive"
-            },
-            {
-              "symbol": "NVDA",
-              "reason": "deep_dive_required; concentration/valuation gate + no dive"
-            },
-            {
-              "symbol": "held_only_topup",
-              "reason": "explicitly rejected as default strategy; next free capital must re-open full consider set with STRC/SATA priority"
-            }
-          ],
-          "thesis_tags": [
-            "modernized_60_40",
-            "digital_credit_strc_sata_emphasis",
-            "multi_miner_diversification",
-            "size_invariant",
-            "hold_dust"
-          ],
-          "positions_snapshot": "MSTR=$27.55, MARA=$11.92, TSLA=$59.75, SPCX=$44.95, BITA=$14.90, IREN=$10.43, CLSK=$5.00",
-          "mcp_status": "tools_unavailable_this_session",
-          "account": "674601752"
-        },
-        "team_votes": {
-          "scout": {
-            "vote": "ok",
-            "note": "Agentic \u2022\u2022\u2022\u20221752 NAV $174.1082 cash/BP $0.04/$0.04; held MSTR,BITA,MARA,IREN,CLSK,TSLA,SPCX; deployed BTC 40.0% stocks 60.0% in band; gaps STRC/SATA (+ASST; optional RIOT/WULF); watchlist BE/GOOGL/AAPL/NVDA monitor; RH snapshot live as_of ~19:55Z; MCP tools unavailable this Grok session."
-          },
-          "thesis": {
-            "vote": "ok_hold",
-            "note": "HOLD book. Themes: digital credit (MSTR+BITA), multi-miner (MARA/IREN/CLSK), growth (TSLA/SPCX). Next deploy: meaningful STRC/SATA seat in BTC complex per owner 2026-07-27; multi-miner may widen (RIOT/WULF eligible); stocks core unless deep-dived AI ready. Rejected held-only inertia as strategy default."
-          },
-          "risk": {
-            "vote": "ok_hold",
-            "note": "No trade: deployable $0.04 < min $1. Agentic-only cash account, no leverage. TSLA ~34% of equity is name concentration but thesis primary growth name at small NAV. Multi-miner not a concentration block vs credit/whole book. No sell-to-buy rotate for dust residual."
-          },
-          "critic": {
-            "vote": "ok_hold_process_flag",
-            "note": "Force HOLD on residual dust \u2014 no churn. Flag STRC/SATA under-allocation for NEXT free capital (MSTR+BITA is not a permanent substitute). Reject false 'miner overlap' blocks for RIOT/WULF. Block BE into 7/28 AMC and undived GOOGL/AAPL/NVDA first-buys. MCP down is execution constraint, not thesis block."
-          },
-          "executor": {
-            "vote": "hold",
-            "note": "No place/cancel. robinhood-trading MCP tools unavailable (connection/auth failed this session). Even if MCP live, $0.04 cannot meet min_trade $1.00."
-          }
-        },
-        "actions": [],
-        "as_of": "2026-07-28T19:56:27.565245+00:00",
         "schema_version": 1,
         "account_scope": "agentic_only"
       }

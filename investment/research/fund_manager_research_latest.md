@@ -1,14 +1,14 @@
-# Fund manager research — mid-session 2026-07-29 (team full review, ~14:05 ET)
+# Fund manager research — mid-session 2026-07-30 (team full review, ~12:18 ET)
 
-**As of:** 2026-07-29 ~18:04Z  
+**As of:** 2026-07-30 ~16:18Z  
 **Account:** agentic ••••1752 only  
 **Process:** Uniform research/rotate (size-invariant)  
-**Live NAV (RH total):** ~$173.03 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
+**Live NAV (agentic RH total):** ~$172.88 · **cash/BP:** ~$0.04 · **min_trade:** $1.00  
 **Equity marks (policy engine sleeve MV):** ~$174.50  
-**RH snapshot as_of:** 2026-07-29T18:03:00Z  
-**MCP (this Grok session):** robinhood-trading tools **unavailable** (auth/connection failed) — Executor cannot place  
+**RH snapshot as_of:** 2026-07-29T18:12:59Z (**stale ~22h** — MCP refresh unavailable this session)  
+**MCP (this Grok session):** robinhood-trading tools **unavailable** (no MCP servers connected) — Executor cannot place  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**  
-**Trigger:** rules `need_llm` on free capital any cash/BP>0 (dust residual)
+**Trigger:** rules `need_llm` on free capital any cash/BP>0 (dust residual) + scheduled mid-session team review
 
 ## Scout snapshot
 
@@ -16,7 +16,7 @@
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
 | Deployed sleeve mix (policy engine) | **40.0%** BTC-complex / **60.0%** stocks (in ±5% band) |
-| Weights of NAV | BTC ~40.34% · stocks ~60.51% · cash ~0.02% |
+| Weights of NAV | BTC ~40.37% · stocks ~60.56% · cash ~0.02% |
 | Idle cash | ~$0.04 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · pure AI mega-cap · energy (BE) |
@@ -61,7 +61,7 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 | **ASST** | Secondary digital credit; prefer STRC/SATA first when capital returns |
 | **RIOT, WULF** | Valid multi-miner diversifiers — **not** rejected for “overlap.” Skip this pass for capital only |
 | **BTC spot on RH** | Prefer equity vehicles on agentic RH; CB for spot/vault elsewhere |
-| **BE** | Q2 2026 print **beat** (rev ~$1.065B, non-GAAP EPS ~$0.78) + **raised FY26 guidance** $3.9–4.2B. Thesis fit intact. Still **watchlist / not first-buy ready** until refreshed deep-dive + quorum; residual dust cannot size. Prior valuation/beta/NAV gates stand. |
+| **BE** | Prior dive 2026-07-23 `monitor_no_buy`; Q2 print beat + raised FY26 guidance. Still **not first-buy ready** until **post-print deep-dive refresh** + quorum. Residual dust cannot size. |
 | **GOOGL, AAPL, NVDA** | Real AI stack gap; `deep_dive_required_before_buy` and no completed deep-dive → not first-buy ready |
 | **Held-only inertia as default** | Explicitly rejected as strategy: next free capital must re-run full consider list with STRC/SATA priority in BTC sleeve |
 
@@ -81,14 +81,15 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 - Prior “STRC/SATA illiquid/overcrowding vs MSTR+BITA” is **insufficient** under 2026-07-27 owner prefs unless a **strong** liquidity/structure rebuttal is logged with ticket size evidence.
 - Prior “RIOT/WULF miner overlap” is a **false risk block** for sleeve diversification; only true concentration vs credit/whole-book, liquidity, or thesis failure may block.
 - BE post-print strength ≠ order authority without deep-dive + Risk/Critic.
+- RH snapshot staleness + MCP outage are **execution/ops constraints**, not a reason to skip research/rotate.
 
 ## Team votes (this pass)
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot agentic ••••1752: NAV~$173.03 equity 7 names cash/BP $0.04; sleeves 40/60 in band; MCP unavailable this session |
+| Scout | ok | Snapshot agentic ••••1752: NAV~$172.88 equity 7 names cash/BP $0.04; sleeves 40/60 in band; RH snapshot stale; MCP unavailable this session |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained |
-| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated but thesis primary growth name |
+| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated (~34% equity marks) but thesis primary growth name — no forced cut |
 | Critic | ok (hold) + process flag | Force HOLD on residual. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. BE still not first-buy ready post-print without dive. Block undived AI first-buys |
 | Executor | hold | No MCP tools this session; even if live, $0.04 cannot fill min notional |
 
@@ -99,4 +100,4 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 1. When **cash/BP ≥ $1** → full research/rotate again; include STRC/SATA in BTC-complex proposal unless strong rebuttal.
 2. **BE post 7/28 print** → re-run `/position-deep-dive symbol=BE` before any size-in.
 3. Optional **GOOGL/NVDA** deep-dives for AI stack under stocks when capital + time allow.
-4. Restore **robinhood-trading MCP** auth/tools so Executor can act unattended.
+4. Restore **robinhood-trading MCP** auth/tools so Executor can act unattended and RH snapshot can refresh.
