@@ -1629,34 +1629,34 @@
       return;
     }
     const stocked = items.filter((i) => i.in_stock !== false).length;
-    let slides = "";
+    let cards = "";
     items.forEach((ing) => {
       const stock = ing.in_stock !== false;
       const iid = String(ing.id || "").replace(/"/g, "&quot;");
       const iname = String(ing.name || "").replace(/"/g, "&quot;");
-      slides += `<div class="inv-slide inv-card compact${stock ? "" : " out"}">
+      cards += `<div class="inv-card${stock ? "" : " out"}">
         <div class="inv-card-name">${ing.name || "Ingredient"}${
         stock ? "" : ' <span class="inv-out-badge">out</span>'
       }</div>
         <div class="inv-card-meta muted">${ing.category || "other"} · ${ing.serving_label || "1 serving"}</div>
-        ${invMacroStrip(ing, true)}
-        <div class="actions inv-card-actions compact">
+        ${invMacroStrip(ing, false)}
+        <div class="actions inv-card-actions">
           <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
-            ${stock ? "Out" : "In stock"}
+            ${stock ? "Mark out" : "Mark in stock"}
           </button>
-          <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">✕</button>
+          <button type="button" class="btn-remove" data-action="remove" data-id="${iid}" data-name="${iname}">Remove</button>
         </div>
       </div>`;
     });
-    list.innerHTML = `<div class="macro-summary inv-panel compact-panel">
+    list.innerHTML = `<div class="macro-summary inv-panel compact-panel inv-panel-fill">
       <div class="macro-summary-header">
         <div>
           <div class="macro-summary-title">Pantry</div>
-          <div class="macro-summary-meta muted">${stocked} in · ${items.length - stocked} out · swipe or arrows</div>
+          <div class="macro-summary-meta muted">${stocked} in · ${items.length - stocked} out · scroll</div>
         </div>
         <div class="inv-carousel-count muted">${items.length}</div>
       </div>
-      ${invCarouselShell("pantry-carousel", slides)}
+      <div class="inv-cards">${cards}</div>
     </div>`;
   }
 

@@ -1355,10 +1355,42 @@ footer {
 }
 
 /* Inventory cards — same macro color language as targets panel */
-/* Inventory + meal plan side-by-side: don't stretch meal plan to pantry height */
+/* Inventory + meal plan: equal height like catalog / workout plan */
+#inventory-section.equal-cards,
 #inventory-section.inv-meal-row,
 .inv-meal-row {
-  align-items: start;
+  align-items: stretch;
+}
+
+#meal-plan-card,
+#inventory-card {
+  min-height: 520px;
+}
+
+#inventory-card .log-form,
+#inventory-card .inv-suggestions,
+#inventory-card .inv-removals {
+  flex: 0 0 auto;
+}
+
+#inventory-list.inv-list-scroll,
+.inv-list-scroll {
+  flex: 1 1 auto;
+  min-height: 280px;
+  max-height: none;
+  height: 100%;
+  overflow-y: auto;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+#inventory-list .inv-panel-fill {
+  min-height: 100%;
+}
+
+#inventory-list .inv-cards {
+  margin-top: 0.5rem;
 }
 
 .inv-panel,

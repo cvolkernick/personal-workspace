@@ -275,8 +275,8 @@
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
       </section>
 
-      <section class="grid two inv-meal-row" style="margin-top: 1rem" id="inventory-section">
-        <article class="card" id="meal-plan-card">
+      <section class="grid two equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section">
+        <article class="card card-fill" id="meal-plan-card">
           <h2>Daily targets &amp; meal plan</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
             Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
@@ -304,11 +304,12 @@
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
 
-        <article class="card" id="inventory-card">
+        <article class="card card-fill" id="inventory-card">
           <h2>Ingredient inventory</h2>
           <p class="muted" style="margin-top: 0; font-size: 0.85rem">
-            Pantry &amp; suggestions scroll sideways (carousel) so this column stays short.
-            Data: <code>fitness/nutrition/inventory.json</code>.
+            Matches the meal-plan column height — pantry list scrolls when long.
+            Suggestions stay as a compact carousel. Data:
+            <code>fitness/nutrition/inventory.json</code>.
           </p>
           <form class="log-form" id="ingredient-form">
             <div class="row cols-3">
@@ -344,7 +345,7 @@
           </form>
           <div id="inventory-suggestions" class="inv-suggestions" style="margin-top: 0.85rem"></div>
           <div id="inventory-removals" class="inv-removals" style="margin-top: 0.85rem"></div>
-          <div id="inventory-list" class="inv-list" style="margin-top: 0.85rem"></div>
+          <div id="inventory-list" class="inv-list inv-list-scroll" style="margin-top: 0.85rem"></div>
         </article>
       </section>
 
