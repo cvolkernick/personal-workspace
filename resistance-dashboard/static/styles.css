@@ -697,33 +697,36 @@ textarea {
   overflow: auto;
 }
 
-/* Catalog list grows with the side-by-side workout plan card */
+/* Catalog matches Today’s workout plan height; list scrolls inside, never drives row taller */
 #workout-plan-section.equal-cards {
   align-items: stretch;
 }
 
-#exercise-catalog-card {
-  min-height: 520px;
+#workout-plan-section > .card-fill {
+  min-height: 0;
+  overflow: hidden;
 }
 
-#exercise-catalog-card .log-form {
+#exercise-catalog-card .log-form,
+#workout-plan-card .log-form {
   flex: 0 0 auto;
 }
 
+#workout-plan-card #workout-plan-result {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* flex-basis 0 so catalog items don't expand the grid past the plan card */
 #exercise-catalog-list.exercise-catalog-scroll,
 .exercise-catalog-scroll {
-  flex: 1 1 auto;
-  min-height: 360px;
+  flex: 1 1 0;
+  min-height: 0;
   max-height: none;
-  height: 100%;
   overflow-y: auto;
   margin-top: 0.75rem;
   border-top: 1px solid var(--border);
   padding-top: 0.35rem;
-}
-
-#workout-plan-card {
-  min-height: 520px;
 }
 
 .session-list li {
