@@ -1270,23 +1270,24 @@
             macroDays[macroDays.length - 1].date;
           const rangeTxt =
             firstD && lastD ? `${firstD} → ${lastD}` : `${nDays} days`;
-          const latestLabel = lastDate ? `Latest · ${lastDate}` : "Latest day";
+          // Keep chip titles short so P/C/F stay on one row; date goes in subline.
+          const latestSub = lastDate ? lastDate : "most recent logged day";
           note.innerHTML = `
             <div class="chart-summary-row">
               <div class="chart-summary-chip chip-protein">
-                <span class="chip-k">${latestLabel} · P</span>
+                <span class="chip-k">Latest · P</span>
                 <span class="chip-v">${last.p}%</span>
-                <span class="chip-s">${Math.round(last.grams.p)} g</span>
+                <span class="chip-s">${Math.round(last.grams.p)} g · ${latestSub}</span>
               </div>
               <div class="chart-summary-chip chip-carbs">
-                <span class="chip-k">${latestLabel} · C</span>
+                <span class="chip-k">Latest · C</span>
                 <span class="chip-v">${last.c}%</span>
-                <span class="chip-s">${Math.round(last.grams.c)} g</span>
+                <span class="chip-s">${Math.round(last.grams.c)} g · ${latestSub}</span>
               </div>
               <div class="chart-summary-chip chip-fat">
-                <span class="chip-k">${latestLabel} · F</span>
+                <span class="chip-k">Latest · F</span>
                 <span class="chip-v">${last.f}%</span>
-                <span class="chip-s">${Math.round(last.grams.f)} g</span>
+                <span class="chip-s">${Math.round(last.grams.f)} g · ${latestSub}</span>
               </div>
             </div>
             ${

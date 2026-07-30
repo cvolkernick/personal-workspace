@@ -1910,14 +1910,14 @@ footer {
 
 .chart-summary-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.4rem;
   align-items: stretch;
 }
 
 .chart-summary-chip {
-  flex: 1 1 auto;
-  min-width: 5.5rem;
+  flex: 1 1 0;
+  min-width: 0;
   padding: 0.4rem 0.55rem;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
@@ -1934,13 +1934,17 @@ footer {
   text-transform: uppercase;
   opacity: 0.7;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chart-summary-chip .chip-v {
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.25;
-  word-break: break-word;
+  word-break: normal;
+  overflow-wrap: anywhere;
 }
 
 .chart-summary-chip .chip-s {
@@ -2008,8 +2012,16 @@ footer {
 }
 
 @media (max-width: 520px) {
+  /* Keep 3 metric chips on one row even on narrow cards */
+  .chart-summary-row {
+    flex-wrap: nowrap;
+  }
   .chart-summary-chip {
-    min-width: calc(50% - 0.3rem);
+    min-width: 0;
+    padding: 0.35rem 0.4rem;
+  }
+  .chart-summary-chip .chip-v {
+    font-size: 0.88rem;
   }
 }
 
