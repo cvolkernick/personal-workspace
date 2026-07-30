@@ -1283,8 +1283,6 @@
           const tgtPct = macroCalPct(tgtG.p, tgtG.c, tgtG.f);
           const bandPct = (v, key) =>
             macroTargetBandClass(v, tgtPct[key]);
-          const bandG = (v, key) =>
-            macroTargetBandClass(v, tgtG[key]);
           note.innerHTML = `
             <div class="chart-summary-row">
               <div class="chart-summary-chip chip-protein ${bandPct(last.p, "p")}">
@@ -1325,23 +1323,23 @@
                 : ""
             }
             <div class="chart-summary-row">
-              <div class="chart-summary-chip chip-protein ${bandG(avgPg, "p")}">
-                <span class="chip-k">Period protein</span>
-                <span class="chip-v">${Math.round(avgPg)} g</span>
-                <span class="chip-s">${pctP != null ? pctP + "% of kcal" : "—"} · target ${tgtG.p || "—"}g ±5%</span>
+              <div class="chart-summary-chip chip-protein ${bandPct(pctP, "p")}">
+                <span class="chip-k">Period · P</span>
+                <span class="chip-v">${pctP != null ? pctP + "%" : "—"}</span>
+                <span class="chip-s">${Math.round(avgPg)} g avg/day · target ${tgtPct.p != null ? tgtPct.p + "%" : "—"} ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-carbs ${bandG(avgCg, "c")}">
-                <span class="chip-k">Period carbs</span>
-                <span class="chip-v">${Math.round(avgCg)} g</span>
-                <span class="chip-s">${pctC != null ? pctC + "% of kcal" : "—"} · target ${tgtG.c || "—"}g ±5%</span>
+              <div class="chart-summary-chip chip-carbs ${bandPct(pctC, "c")}">
+                <span class="chip-k">Period · C</span>
+                <span class="chip-v">${pctC != null ? pctC + "%" : "—"}</span>
+                <span class="chip-s">${Math.round(avgCg)} g avg/day · target ${tgtPct.c != null ? tgtPct.c + "%" : "—"} ±5%</span>
               </div>
-              <div class="chart-summary-chip chip-fat ${bandG(avgFg, "f")}">
-                <span class="chip-k">Period fat</span>
-                <span class="chip-v">${Math.round(avgFg)} g</span>
-                <span class="chip-s">${pctF != null ? pctF + "% of kcal" : "—"} · target ${tgtG.f || "—"}g ±5%</span>
+              <div class="chart-summary-chip chip-fat ${bandPct(pctF, "f")}">
+                <span class="chip-k">Period · F</span>
+                <span class="chip-v">${pctF != null ? pctF + "%" : "—"}</span>
+                <span class="chip-s">${Math.round(avgFg)} g avg/day · target ${tgtPct.f != null ? tgtPct.f + "%" : "—"} ±5%</span>
               </div>
             </div>
-            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · green border = within ±5% of target · red = outside · % of kcal from P×4 / C×4 / F×9</p>
+            <p class="chart-summary-meta">90d span · ${nDays} days with macros · ${rangeTxt} · green border = within ±5% of target calorie share · red = outside · % of kcal from P×4 / C×4 / F×9</p>
           `;
         }
       }
