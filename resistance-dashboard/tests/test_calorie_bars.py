@@ -10,7 +10,9 @@ from rt_dashboard.calorie_bars import (
     calorie_in_out_delta,
     calorie_pacing,
     eating_window_fraction,
+    sum_intake_in_window,
 )
+from rt_dashboard.models import FoodLogEntry
 
 
 class TestCalorieBars(unittest.TestCase):
@@ -104,6 +106,67 @@ class TestCalorieBars(unittest.TestCase):
         self.assertAlmostEqual(payload["pacing"]["window_fraction"], 0.5, places=2)
         self.assertEqual(payload["delta"]["side"], "deficit")
         self.assertEqual(payload["delta"]["color"], "red")
+
+    def test_sum_intake_spans_midnight_window(self):
+        """Logs on wake day still count after civil midnight if inside wake→bed."""
+        # Use the process local TZ so FoodLog HH:MM aligns with window bounds.
+        local = datetime.now().astimezone().tzinfo or timezone.utc
+        wake = datetime(2026, 7, 29, 12, 7, 0, tzinfo=local)
+        bed = wake + timedelta(hours=16)
+        now = datetime(2026, 7, 30, 0, 14, 0, tzinfo=local)
+        logs = [
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Lunch",
+                calories=800,
+                protein_g=50,
+                carbs_g=60,
+                fat_g=20,
+                time="14:00",
+            ),
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Dinner",
+                calories=600,
+                protein_g=40,
+                carbs_g=40,
+                fat_g=25,
+                time="21:13",
+            ),
+            # Outside window (before wake)
+            FoodLogEntry(
+                date="2026-07-29",
+                name="Early snack",
+                calories=200,
+                protein_g=5,
+                carbs_g=20,
+                fat_g=10,
+                time="08:00",
+            ),
+        ]
+        got = sum_intake_in_window(
+            logs, window_start=wake, window_end=bed, now=now
+        )
+        self.assertEqual(got["log_count"], 2)
+        self.assertEqual(got["calories"], 1400.0)
+        self.assertEqual(got["source"], "eating_window_logs")
+
+        # Pacing uses window logs even when civil-day today is 0
+        payload = build_calorie_bars_payload(
+            today_consumed={"calories": 0},
+            targets={"calories": 2000},
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": bed.isoformat(),
+                "awake_budget_hours": 16,
+            },
+            food_logs=logs,
+            now=now,
+        )
+        self.assertEqual(payload["pacing"]["intake_source"], "eating_window_logs")
+        self.assertEqual(payload["pacing"]["consumed"], 1400.0)
+        # Civil-day in/out still uses today_consumed
+        self.assertEqual(payload["delta"]["intake"], 0.0)
 
 
 if __name__ == "__main__":

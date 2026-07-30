@@ -544,6 +544,8 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             targets=nut.get("targets") or {},
             sleep_battery=sleep_battery,
             calories_burned_today=burned_today,
+            # Timed logs so pacing can span midnight inside the wake window
+            food_logs=health.food_logs or [],
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"calorie_bars: {e}")

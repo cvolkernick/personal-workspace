@@ -7,7 +7,7 @@ is paced over waking hours rather than midnight–midnight.
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 
 def _parse_dt(value: Any) -> Optional[datetime]:
@@ -28,6 +28,133 @@ def _parse_dt(value: Any) -> Optional[datetime]:
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt
+
+
+def _food_log_as_dict(log: Any) -> Optional[dict]:
+    if log is None:
+        return None
+    if isinstance(log, dict):
+        return log
+    if hasattr(log, "to_dict"):
+        try:
+            d = log.to_dict()
+            return d if isinstance(d, dict) else None
+        except Exception:
+            pass
+    # Duck-type FoodLogEntry
+    date = getattr(log, "date", None)
+    if not date:
+        return None
+    return {
+        "date": date,
+        "time": getattr(log, "time", None),
+        "calories": getattr(log, "calories", None),
+        "protein_g": getattr(log, "protein_g", None),
+        "carbs_g": getattr(log, "carbs_g", None),
+        "fat_g": getattr(log, "fat_g", None),
+        "name": getattr(log, "name", None),
+    }
+
+
+def food_log_event_time(
+    log: Any, *, default_tz: Optional[timezone] = None
+) -> Optional[datetime]:
+    """Local civil datetime for a food log (date + HH:MM when present).
+
+    Logs without a time stamp are placed at local noon so full-day rows still
+    land inside a typical multi-day wake window.
+    """
+    d = _food_log_as_dict(log)
+    if not d:
+        return None
+    day = str(d.get("date") or "")[:10]
+    if len(day) < 10:
+        return None
+    try:
+        y, m, dd = int(day[0:4]), int(day[5:7]), int(day[8:10])
+    except ValueError:
+        return None
+    tz = default_tz or datetime.now().astimezone().tzinfo or timezone.utc
+    hh, mm = 12, 0  # noon fallback for date-only logs
+    traw = d.get("time")
+    if traw:
+        ts = str(traw).strip()
+        # Accept HH:MM or HH:MM:SS
+        parts = ts.replace(".", ":").split(":")
+        try:
+            if len(parts) >= 2:
+                hh = int(parts[0])
+                mm = int(parts[1])
+        except (TypeError, ValueError):
+            hh, mm = 12, 0
+    try:
+        return datetime(y, m, dd, hh, mm, 0, tzinfo=tz)
+    except ValueError:
+        return None
+
+
+def sum_intake_in_window(
+    food_logs: Optional[Sequence[Any]],
+    *,
+    window_start: Any,
+    window_end: Any,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Sum macros for food logs with event time in [window_start, cutoff].
+
+    cutoff = min(now, window_end) so future meals past bedtime are excluded.
+    Spans midnight correctly when the wake window crosses civil days.
+    """
+    if now is None:
+        now = datetime.now(timezone.utc).astimezone()
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc).astimezone()
+
+    start = _parse_dt(window_start)
+    end = _parse_dt(window_end)
+    if start is None or end is None:
+        return {
+            "calories": 0.0,
+            "protein_g": 0.0,
+            "carbs_g": 0.0,
+            "fat_g": 0.0,
+            "log_count": 0,
+            "source": "none",
+        }
+    start = start.astimezone(now.tzinfo)
+    end = end.astimezone(now.tzinfo)
+    cutoff = min(now, end)
+
+    totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    count = 0
+    for log in food_logs or []:
+        dt = food_log_event_time(log, default_tz=now.tzinfo)  # type: ignore[arg-type]
+        if dt is None:
+            continue
+        dt = dt.astimezone(now.tzinfo)
+        if dt < start or dt > cutoff:
+            continue
+        d = _food_log_as_dict(log) or {}
+        try:
+            totals["calories"] += float(d.get("calories") or 0)
+            totals["protein_g"] += float(d.get("protein_g") or 0)
+            totals["carbs_g"] += float(d.get("carbs_g") or 0)
+            totals["fat_g"] += float(d.get("fat_g") or 0)
+            count += 1
+        except (TypeError, ValueError):
+            continue
+
+    return {
+        "calories": round(totals["calories"], 1),
+        "protein_g": round(totals["protein_g"], 1),
+        "carbs_g": round(totals["carbs_g"], 1),
+        "fat_g": round(totals["fat_g"], 1),
+        "log_count": count,
+        "source": "eating_window_logs" if count else "none",
+        "window_start": start.isoformat(timespec="seconds"),
+        "window_end": end.isoformat(timespec="seconds"),
+        "cutoff": cutoff.isoformat(timespec="seconds"),
+    }
 
 
 def eating_window_fraction(
@@ -230,10 +357,17 @@ def build_calorie_bars_payload(
     targets: Optional[dict] = None,
     sleep_battery: Optional[dict] = None,
     calories_burned_today: Optional[float] = None,
+    food_logs: Optional[Sequence[Any]] = None,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
-    """Compose both bar payloads for the dashboard JSON."""
-    consumed = float((today_consumed or {}).get("calories") or 0)
+    """Compose both bar payloads for the dashboard JSON.
+
+    Pacing intake prefers food logs timed inside the sleep-battery eating
+    window (can span midnight). Falls back to civil-day ``today_consumed``
+    when no window logs are found. In/out delta still uses civil-day intake
+    vs same-day burned.
+    """
+    civil_consumed = float((today_consumed or {}).get("calories") or 0)
     target = float((targets or {}).get("calories") or 0)
     bat = sleep_battery or {}
 
@@ -243,15 +377,31 @@ def build_calorie_bars_payload(
         empty_at=bat.get("empty_at"),
         awake_budget_hours=float(bat.get("awake_budget_hours") or 16.0),
     )
+    win_intake = sum_intake_in_window(
+        food_logs,
+        window_start=window.get("window_start"),
+        window_end=window.get("window_end"),
+        now=now,
+    )
+    if win_intake.get("log_count"):
+        pacing_consumed = float(win_intake.get("calories") or 0)
+        pacing_source = "eating_window_logs"
+    else:
+        pacing_consumed = civil_consumed
+        pacing_source = "civil_day_fallback"
+
     pacing = calorie_pacing(
-        consumed=consumed,
+        consumed=pacing_consumed,
         target=target,
         window_fraction=float(window["fraction"]),
     )
     pacing["window"] = window
+    pacing["intake_source"] = pacing_source
+    pacing["window_intake"] = win_intake
+    pacing["civil_day_consumed"] = round(civil_consumed, 1)
 
     delta = calorie_in_out_delta(
-        intake=consumed,
+        intake=civil_consumed,
         burned=calories_burned_today,
     )
     return {"pacing": pacing, "delta": delta}

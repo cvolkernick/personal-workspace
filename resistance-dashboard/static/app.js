@@ -1209,7 +1209,21 @@
       });
       if ($("macros-note")) {
         const note = $("macros-note");
-        const last = splits.length ? splits[splits.length - 1] : null;
+        // Last civil day on a 90d axis is often empty (today not logged yet) —
+        // use the most recent day that actually has a macro split.
+        let last = null;
+        let lastIdx = -1;
+        for (let i = splits.length - 1; i >= 0; i--) {
+          if (splits[i] && splits[i].p != null) {
+            last = splits[i];
+            lastIdx = i;
+            break;
+          }
+        }
+        const lastDate =
+          lastIdx >= 0 && macroDays[lastIdx]
+            ? macroDays[lastIdx].date
+            : null;
         const lastRoll = (() => {
           for (let i = pRoll.length - 1; i >= 0; i--) {
             if (pRoll[i] != null && cRoll[i] != null && fRoll[i] != null) {
@@ -1256,20 +1270,21 @@
             macroDays[macroDays.length - 1].date;
           const rangeTxt =
             firstD && lastD ? `${firstD} → ${lastD}` : `${nDays} days`;
+          const latestLabel = lastDate ? `Latest · ${lastDate}` : "Latest day";
           note.innerHTML = `
             <div class="chart-summary-row">
               <div class="chart-summary-chip chip-protein">
-                <span class="chip-k">Latest day · P</span>
+                <span class="chip-k">${latestLabel} · P</span>
                 <span class="chip-v">${last.p}%</span>
                 <span class="chip-s">${Math.round(last.grams.p)} g</span>
               </div>
               <div class="chart-summary-chip chip-carbs">
-                <span class="chip-k">Latest day · C</span>
+                <span class="chip-k">${latestLabel} · C</span>
                 <span class="chip-v">${last.c}%</span>
                 <span class="chip-s">${Math.round(last.grams.c)} g</span>
               </div>
               <div class="chart-summary-chip chip-fat">
-                <span class="chip-k">Latest day · F</span>
+                <span class="chip-k">${latestLabel} · F</span>
                 <span class="chip-v">${last.f}%</span>
                 <span class="chip-s">${Math.round(last.grams.f)} g</span>
               </div>
@@ -2027,7 +2042,15 @@
       fill.style.width = `${pct}%`;
       fill.className = `pace-fill ${pacing.status || "on_pace"}`;
       if (marker) marker.style.left = `${exp}%`;
-      if (paceSum) paceSum.textContent = pacing.summary || "—";
+      if (paceSum) {
+        let sum = pacing.summary || "—";
+        if (pacing.intake_source === "eating_window_logs") {
+          const n =
+            (pacing.window_intake && pacing.window_intake.log_count) || 0;
+          sum += ` · from ${n} log${n === 1 ? "" : "s"} in wake window`;
+        }
+        paceSum.textContent = sum;
+      }
       const win = pacing.window || {};
       if (paceMeta) {
         const bits = [];
@@ -2038,6 +2061,8 @@
           bits.push(`${Math.round(Number(win.fraction) * 100)}% of window`);
         if (pacing.paced_budget != null)
           bits.push(`paced ~${fmtNum(pacing.paced_budget)} kcal`);
+        if (pacing.intake_source === "eating_window_logs")
+          bits.push("intake = logs in window (spans midnight)");
         paceMeta.textContent = bits.join(" · ");
       }
     } else if (paceSum) {
