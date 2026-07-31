@@ -309,7 +309,29 @@ async def _vesync_refresh_outlet(
             await upd()
     except Exception:  # noqa: BLE001
         pass
+    # Energy meters lag; pull when supported so power/voltage are usable.
+    try:
+        eng = getattr(o, "update_energy", None)
+        if callable(eng):
+            r = eng()
+            if hasattr(r, "__await__"):
+                await r
+    except Exception:  # noqa: BLE001
+        pass
     return o
+
+
+def _vesync_power_w(outlet: Any) -> Optional[float]:
+    st = getattr(outlet, "state", None)
+    raw = getattr(st, "power", None) if st is not None else None
+    if raw is None:
+        raw = getattr(outlet, "power", None)
+    try:
+        if raw is None:
+            return None
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 async def vesync_set_power(
@@ -318,12 +340,14 @@ async def vesync_set_power(
     device_name: Optional[str] = None,
     cid: Optional[str] = None,
     attempts: int = 3,
-    settle_seconds: float = 1.5,
+    settle_seconds: float = 3.5,
 ) -> dict[str, Any]:
     """Turn a VeSync outlet on/off with delayed re-read and retries.
 
-    VeSync often ACKs immediately while the physical plug lags or never
-    switches; we wait, re-fetch devices, and re-command until state matches.
+    Important: do **not** force off→on when the plug is already on with load.
+    Earlier reassert logic did that and could leave the outlet off if the
+    follow-up turn_on only updated cloud state. Prefer idempotent turn_on,
+    and only force-cycle when is_on but power stays ~0 (stale/dead).
     """
     import asyncio
 
@@ -332,6 +356,7 @@ async def vesync_set_power(
         return {"ok": False, "error": err}
 
     last_on: Optional[bool] = None
+    last_power: Optional[float] = None
     label: Optional[str] = None
     out_cid: Optional[str] = cid
     last_cmd_ok: Any = None
@@ -352,24 +377,37 @@ async def vesync_set_power(
                 }
             label = getattr(o, "device_name", None) or getattr(o, "name", None)
             out_cid = getattr(o, "cid", None) or cid
+            already = _vesync_is_on(o)
+            power0 = _vesync_power_w(o)
 
-            # Force-cycle when cloud already claims the desired state but we
-            # still need a reliable edge (stale "on" is a common failure mode).
             if on:
-                if _vesync_is_on(o):
+                # Already on with real load — do not force-cycle (that caused
+                # off-then-failed-on leaving the office dark after reasserts).
+                if already and power0 is not None and power0 > 1.0:
+                    return {
+                        "ok": True,
+                        "action": "on",
+                        "on": True,
+                        "power_w": power0,
+                        "type": "vesync",
+                        "label": label,
+                        "cid": out_cid,
+                        "verified": True,
+                        "attempts": attempt + 1,
+                        "skipped": "already_on_with_load",
+                    }
+                # Stale "on" with no draw — force edge
+                if already and power0 is not None and power0 <= 0.5:
                     last_cmd_ok = await o.turn_off()
-                    await asyncio.sleep(0.6)
-                    o = await _vesync_refresh_outlet(
-                        manager, device_name=device_name, cid=cid
-                    ) or o
+                    await asyncio.sleep(0.8)
+                    o = (
+                        await _vesync_refresh_outlet(
+                            manager, device_name=device_name, cid=cid
+                        )
+                        or o
+                    )
                 last_cmd_ok = await o.turn_on()
             else:
-                if not _vesync_is_on(o):
-                    last_cmd_ok = await o.turn_on()
-                    await asyncio.sleep(0.6)
-                    o = await _vesync_refresh_outlet(
-                        manager, device_name=device_name, cid=cid
-                    ) or o
                 last_cmd_ok = await o.turn_off()
 
             if last_cmd_ok is False:
@@ -382,28 +420,63 @@ async def vesync_set_power(
             if o2 is None:
                 continue
             last_on = _vesync_is_on(o2)
+            last_power = _vesync_power_w(o2)
             label = getattr(o2, "device_name", None) or label
             out_cid = getattr(o2, "cid", None) or out_cid
-            if last_on == on:
-                return {
-                    "ok": True,
-                    "action": "on" if on else "off",
-                    "on": last_on,
-                    "type": "vesync",
-                    "label": label,
-                    "cid": out_cid,
-                    "verified": True,
-                    "attempts": attempt + 1,
-                }
+
+            if on:
+                # Prefer power draw as physical proof when the meter works.
+                if last_on and last_power is not None and last_power > 1.0:
+                    return {
+                        "ok": True,
+                        "action": "on",
+                        "on": True,
+                        "power_w": last_power,
+                        "type": "vesync",
+                        "label": label,
+                        "cid": out_cid,
+                        "verified": True,
+                        "attempts": attempt + 1,
+                    }
+                if last_on and (last_power is None):
+                    # Meter unavailable — accept cloud on after long settle
+                    return {
+                        "ok": True,
+                        "action": "on",
+                        "on": True,
+                        "power_w": last_power,
+                        "type": "vesync",
+                        "label": label,
+                        "cid": out_cid,
+                        "verified": True,
+                        "attempts": attempt + 1,
+                        "note": "no_energy_reading",
+                    }
+                # is_on but power ~0, or still off → retry
+                continue
+            else:
+                if not last_on:
+                    return {
+                        "ok": True,
+                        "action": "off",
+                        "on": False,
+                        "power_w": last_power,
+                        "type": "vesync",
+                        "label": label,
+                        "cid": out_cid,
+                        "verified": True,
+                        "attempts": attempt + 1,
+                    }
 
         return {
             "ok": False,
             "error": (
-                f"VeSync still {'on' if last_on else 'off'} after {attempts} "
-                f"attempt(s) (wanted {'on' if on else 'off'})"
+                f"VeSync still on={last_on} power_w={last_power} after "
+                f"{attempts} attempt(s) (wanted on={on})"
             ),
             "action": "on" if on else "off",
             "on": last_on,
+            "power_w": last_power,
             "type": "vesync",
             "label": label,
             "cid": out_cid,
