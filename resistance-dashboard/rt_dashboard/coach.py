@@ -553,6 +553,9 @@ def build_today_board(
                     f"{top.get('name') or 'staples'} — {top.get('reason') or 'needed for meals'}."
                 ),
                 "motivation": "Stock enables today's meal plan without guesswork.",
+                "doordash_hint": (
+                    "Ask: order missing groceries — coach builds a DoorDash list via dd-cli."
+                ),
             }
         )
 
@@ -1027,6 +1030,7 @@ def build_coach_payload(
     inventory_removals: Optional[dict] = None,
     sleep_battery: Optional[dict] = None,
     calorie_bars: Optional[dict] = None,
+    inventory: Optional[dict] = None,
 ) -> dict:
     day = as_of or local_today_iso()
     adherence = compute_adherence_7d(
@@ -1076,10 +1080,37 @@ def build_coach_payload(
         recovery=recovery,
         food_commentary=food_commentary,
     )
+    # DoorDash restock: missing pantry items for planned meals (preview payload)
+    try:
+        from .doordash_restock import coach_doordash_block
+
+        doordash = coach_doordash_block(
+            inventory if inventory is not None else None,
+            meal_plan,
+            inventory_suggestions,
+        )
+    except Exception as e:  # noqa: BLE001
+        doordash = {
+            "items": [],
+            "count": 0,
+            "needs_order": False,
+            "error": str(e),
+            "summary": "DoorDash restock unavailable",
+        }
+    # Surface on today board for the UI action list
+    if isinstance(today, dict) and doordash.get("needs_order"):
+        today = dict(today)
+        today["doordash_restock"] = {
+            "count": doordash.get("count"),
+            "summary": doordash.get("summary"),
+            "items": (doordash.get("items") or [])[:6],
+            "dd_cli_available": doordash.get("dd_cli_available"),
+        }
     return {
         "today": today,
         "adherence_7d": adherence,
         "weekly_review": weekly,
         "food_commentary": food_commentary,
         "brief": brief,
+        "doordash_restock": doordash,
     }

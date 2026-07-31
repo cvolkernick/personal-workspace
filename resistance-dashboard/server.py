@@ -604,6 +604,7 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             inventory_removals=inv_removals,
             sleep_battery=sleep_battery,
             calorie_bars=payload.get("calorie_bars"),
+            inventory=inv_base,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"coach: {e}")
@@ -775,6 +776,32 @@ def _execute_coach_action(action: dict) -> dict:
                 store.get("today_consumed") or {},
             )
             return {"ok": True, "action": kind, "plan": plan}
+        if kind == "doordash_restock":
+            from rt_dashboard.doordash_restock import (
+                build_meal_restock_list,
+                execute_restock_order,
+            )
+
+            data = load_dashboard_data(force_refresh=False)
+            store = data.get("nutrition_store") or {}
+            restock = build_meal_restock_list(
+                store.get("inventory") or {"ingredients": []},
+                store.get("meal_plan") or {},
+                store.get("inventory_suggestions") or {},
+            )
+            out = execute_restock_order(
+                restock,
+                execute=bool(action.get("execute")),
+                confirm=bool(action.get("confirm")),
+                store_query=action.get("store_query"),
+                store_id=action.get("store_id"),
+                tip_cents=action.get("tip_cents"),
+            )
+            return {
+                "ok": bool(out.get("ok")),
+                "action": kind,
+                **out,
+            }
         if kind == "refresh_workout_plan":
             data = load_dashboard_data(force_refresh=False)
             wo = data.get("workout_store") or {}
@@ -918,6 +945,33 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
+        if parsed.path == "/api/doordash/restock":
+            # Preview shopping list for meal restock (no dd-cli mutations).
+            try:
+                from rt_dashboard.doordash_restock import (
+                    build_meal_restock_list,
+                    execute_restock_order,
+                    dd_cli_available,
+                )
+
+                data = load_dashboard_data(force_refresh=False)
+                store = data.get("nutrition_store") or {}
+                restock = build_meal_restock_list(
+                    store.get("inventory") or {"ingredients": []},
+                    store.get("meal_plan") or {},
+                    store.get("inventory_suggestions") or {},
+                )
+                preview = execute_restock_order(restock, execute=False, confirm=False)
+                self._send_json(
+                    {
+                        "ok": True,
+                        "dd_cli_available": dd_cli_available(),
+                        **preview,
+                    }
+                )
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/cache/status":
             try:
                 self._send_json({"ok": True, **cache_status()})
@@ -1000,6 +1054,48 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json(load_dashboard_data(force_refresh=True))
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/doordash/restock":
+            # Body: { execute?: bool, confirm?: bool, store_query?, store_id?, tip_cents? }
+            # execute=false (default) → shopping list preview only
+            # execute=true → drive dd-cli (cart/preview/checkout-url)
+            # confirm=true → also attempt order submit (payment)
+            try:
+                from rt_dashboard.doordash_restock import (
+                    build_meal_restock_list,
+                    execute_restock_order,
+                    dd_cli_available,
+                )
+
+                body = self._read_json()
+                data = load_dashboard_data(force_refresh=False)
+                store = data.get("nutrition_store") or {}
+                restock = build_meal_restock_list(
+                    store.get("inventory") or {"ingredients": []},
+                    store.get("meal_plan") or {},
+                    store.get("inventory_suggestions") or {},
+                )
+                out = execute_restock_order(
+                    restock,
+                    execute=bool(body.get("execute")),
+                    confirm=bool(body.get("confirm")),
+                    store_query=body.get("store_query"),
+                    store_id=body.get("store_id"),
+                    tip_cents=body.get("tip_cents"),
+                )
+                status = 200 if out.get("ok") else 400
+                self._send_json(
+                    {
+                        "ok": bool(out.get("ok")),
+                        "dd_cli_available": dd_cli_available(),
+                        **out,
+                    },
+                    status=status,
+                )
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/inventory/add":
             try:

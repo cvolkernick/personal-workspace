@@ -1636,6 +1636,21 @@ footer {
   color: #d0a4ff;
 }
 
+/* DoorDash meal restock panel (Nutrition Coach) */
+.doordash-panel {
+  border-left: 3px solid var(--accent-2, #3d9cf0);
+}
+
+.doordash-item-list {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.doordash-item-list li {
+  margin: 0.25rem 0;
+}
+
 .inv-card-actions {
   margin-top: 0.55rem;
 }

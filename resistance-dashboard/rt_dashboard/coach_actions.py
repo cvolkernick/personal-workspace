@@ -250,6 +250,41 @@ def try_parse_coach_action(
             in_stock = m.group(2) == "in stock"
             return {"action": "set_stock", "id_or_name": ident, "in_stock": in_stock}
 
+    # --- DoorDash meal restock ----------------------------------------------
+    # Preview shopping list (default) or execute / confirm order via dd-cli.
+    if re.match(
+        r"^(?:please\s+)?(?:"
+        r"(?:order|buy|purchase|restock)\s+(?:missing\s+)?(?:groceries|ingredients|staples|food|pantry)|"
+        r"restock\s+via\s+doordash|"
+        r"doordash\s+(?:restock|order|groceries)|"
+        r"order\s+(?:my\s+)?(?:missing\s+)?(?:meal\s+)?(?:ingredients|staples)|"
+        r"shop\s+(?:for\s+)?(?:missing\s+)?(?:groceries|ingredients|staples)"
+        r")\s*$",
+        low,
+    ):
+        return {"action": "doordash_restock", "execute": False, "confirm": False}
+
+    m = re.match(
+        r"^(?:please\s+)?(?:"
+        r"(?:execute|run|start|place)\s+(?:the\s+)?(?:doordash\s+)?(?:restock|grocery\s+order)|"
+        r"(?:doordash\s+)?restock\s+(?:now|execute)|"
+        r"build\s+(?:the\s+)?(?:doordash\s+)?cart"
+        r")\s*$",
+        low,
+    )
+    if m:
+        return {"action": "doordash_restock", "execute": True, "confirm": False}
+
+    if re.match(
+        r"^(?:please\s+)?(?:"
+        r"confirm\s+(?:and\s+)?(?:place|submit)\s+(?:the\s+)?(?:doordash\s+)?order|"
+        r"submit\s+(?:the\s+)?(?:doordash\s+)?(?:grocery\s+)?order|"
+        r"place\s+(?:the\s+)?(?:doordash\s+)?order\s+now"
+        r")\s*$",
+        low,
+    ):
+        return {"action": "doordash_restock", "execute": True, "confirm": True}
+
     # --- meal / workout plan refresh ----------------------------------------
     if re.match(
         r"^(?:please\s+)?(?:refresh|regenerate|rebuild|update|generate|make)\s+"
@@ -412,5 +447,29 @@ def format_action_reply(result: Dict[str, Any]) -> str:
         return (
             f"**Workout plan refreshed.** "
             f"{plan.get('message') or plan.get('session_type') or 'OK'}"
+        )
+    if action == "doordash_restock":
+        restock = result.get("restock") or {}
+        items = restock.get("items") or result.get("items") or []
+        n = len(items)
+        names = ", ".join(str(i.get("name") or "?") for i in items[:8])
+        msg = result.get("message") or restock.get("summary") or ""
+        mode = (
+            "submitted"
+            if result.get("submitted")
+            else ("executed" if result.get("execute") else "preview")
+        )
+        url = result.get("checkout_url")
+        extra = f" Checkout: {url}" if url else ""
+        if not result.get("ok") and result.get("error"):
+            return (
+                f"**DoorDash restock ({mode}) — issue:** {result.get('error')}\n\n"
+                f"List ({n}): {names or '—'}\n\n{msg}"
+            )
+        return (
+            f"**DoorDash restock ({mode}).** {n} item(s)"
+            f"{': ' + names if names else ''}.\n\n{msg}{extra}\n\n"
+            "Say **build the doordash cart** to run dd-cli (preview), or "
+            "**confirm and place the doordash order** to submit payment."
         )
     return f"**Done.** ({action})"
