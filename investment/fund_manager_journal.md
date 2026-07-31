@@ -1125,3 +1125,31 @@
 - **critic:** ok_hold — Force HOLD on residual dust. Challenge: STRC/SATA under-allocation remains a process flag for NEXT capital — do not accept 'MSTR+BITA already cover credit' without strong liquidity/structure rebuttal. Reject false miner-overlap blocks for RIOT/WULF. BE post-print strength ≠ first-buy authority without deep-dive refresh. Block undived GOOGL/AAPL/NVDA first-buys. Reject held-only top-up as next-deploy default. MCP outage is ops constraint, not research skip.
 - **executor:** hold — No orders. robinhood-trading MCP tools unavailable (search_tool empty / auth required). Even if live:true and tools present, $0.04 cash cannot meet min_trade $1.00. Primary margin never traded.
 
+
+## 2026-07-31T18:32:57 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $0.04 BP $0.04 (any >$0 triggers; min_trade $1.00 for dust tickets)
+**Book:** NAV $172.6226 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $172.62 BP $0.04 cash $0.04
+- **thesis:** ok — deployed BTC 0.4 stocks 0.6
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-07-31T18:35:24 — hold
+**Summary:** Mid-session fund-manager review 2026-07-31 (~14:35 ET): agentic ••••1752 NAV RH $172.62 / Yahoo marks+cash ~$172.15, cash/BP $0.04/$0.04 HOLD. Deployed sleeves policy 40/60 · Yahoo live ~39.9/60.1 of equity — in ±5% band. Full size-invariant research/rotate under owner prefs (elevate STRC/SATA; multi-miner diversify OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP tools unavailable this Grok session. RH snapshot 2026-07-31T18:07:46.025492+00:00 (stale vs session; last live sync). Next free capital ≥$1 → prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).
+**Book:** NAV $172.622628839 · BP $0.04
+**Weights before (deployed):** BTC-complex 0.4 · Stocks 0.6
+**Why now:** Rules path flagged free capital (any cash/BP>0 → need_llm) at ~2026-07-31T18:35:24.095426+00:00. Mid-session team review (~14:35 ET). Not open/close scalp. Size-invariant process even at dust residual. Owner prefs 2026-07-27: elevate STRC/SATA in BTC-complex deploys; multi-miner diversification is good. RH snapshot last live 2026-07-31T18:07:46.025492+00:00; Yahoo marks refreshed this pass.
+**Why not alternatives:** No deployable capital: cash/BP $0.04 < min_trade $1. Forced sell-to-buy rotate to STRC/SATA deferred while 40/60 in band (settlement risk on cash account; no thesis break). Watchlist BE/GOOGL/AAPL/NVDA not first-buy ready (deep-dive gates). Held-only top-up rejected as default for next deploy. RIOT/WULF not blocked as 'overlap'. Executor cannot place: robinhood-trading MCP tools unavailable this Grok session (auth required / search_tool empty).
+**Team:**
+- **scout:** ok — Agentic ••••1752 NAV RH $172.62; Yahoo equity ~$172.11 + cash $0.04. cash/BP $0.04/$0.04. Held: MSTR, MARA, TSLA, SPCX, BITA, IREN, CLSK. Deployed BTC ~39.9% / stocks ~60.1% of equity — in band. Gaps: STRC/SATA/ASST unheld (elevated digital credit); RIOT/WULF optional miners; AI (GOOGL/AAPL/NVDA) + BE watchlist. RH snapshot 2026-07-31T18:07:46.025492+00:00. MCP robinhood-trading tools unavailable this Grok session (auth required).
+- **thesis:** ok_hold — Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA (owner pref — not MSTR-only); RIOT/WULF eligible diversifiers (not overlap rejects); ~60% TSLA/SPCX unless AI dive completes. BE post-print remains monitor until deep-dive refresh. Yahoo: credit ~$42 (61% of complex), miners ~$26 (39%) — multi-miner stack retained.
+- **risk:** ok_hold — No trade: BP dust below min $1. Agentic-only cash account; no leverage. TSLA ~35% of equity is elevated single-name in stocks sleeve but is the thesis primary growth name — no forced cut while sleeve in band and no free capital. Do not block multi-miner for 'overlap'. Min notional $1 respected.
+- **critic:** ok_hold — Force HOLD on residual dust. Challenge: STRC/SATA under-allocation remains a process flag for NEXT capital — do not accept 'MSTR+BITA already cover credit' without strong liquidity/structure rebuttal. Reject false miner-overlap blocks for RIOT/WULF. BE post-print strength ≠ first-buy authority without deep-dive refresh. Block undived GOOGL/AAPL/NVDA first-buys. Reject held-only top-up as next-deploy default. MCP outage is ops constraint, not research skip.
+- **executor:** hold — No orders. robinhood-trading MCP tools unavailable (search_tool empty / auth required). Even if live:true and tools present, $0.04 cash cannot meet min_trade $1.00. Primary margin never traded.
+

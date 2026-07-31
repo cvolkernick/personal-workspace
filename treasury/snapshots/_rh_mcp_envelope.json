@@ -17,12 +17,13 @@
         "unleveraged_buying_power": "0.0200",
         "display_currency": "USD"
       }
-    }
+    },
+    "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value."
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "172.622628839",
-      "equity_value": "172.582628839",
+      "total_value": "172.104910073",
+      "equity_value": "172.064910073",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -37,7 +38,8 @@
         "unleveraged_buying_power": "0.0400",
         "display_currency": "USD"
       }
-    }
+    },
+    "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value."
   },
   "accounts": [
     {
