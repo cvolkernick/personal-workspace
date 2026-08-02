@@ -19,6 +19,23 @@ python3 server.py          # http://127.0.0.1:8787/
 
 Or: `PORT=8787 python3 server.py`
 
+Pi / LAN (bind all interfaces):
+
+```bash
+python3 server.py --host 0.0.0.0 --port 8787 --no-browser --local
+```
+
+### Deploy to Raspberry Pi
+
+When on the home LAN (see `deploy/README.md`):
+
+```bash
+bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
+# → http://192.168.100.98:8787/
+```
+
+Off-LAN: Tailscale on Pi + client (do **not** public port-forward while single-user).
+
 ## Configuration (env)
 
 | Variable | Purpose |

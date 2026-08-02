@@ -1,8 +1,15 @@
 #!/usr/bin/env python3
-"""FitDash (resistance training dashboard) server — real entry path."""
+"""FitDash (resistance training dashboard) server — real entry path.
+
+Usage:
+  python3 server.py                          # http://127.0.0.1:8787/
+  python3 server.py 8787                     # legacy positional port
+  python3 server.py --port 8787 --host 0.0.0.0 --no-browser --local
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -1366,15 +1373,58 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=404)
 
 
-def main() -> None:
-    port = DEFAULT_PORT
-    if len(sys.argv) > 1:
-        port = int(sys.argv[1])
+def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """CLI aligned with monorepo Pi deploy units (host/port/no-browser/local)."""
+    parser = argparse.ArgumentParser(description="FitDash resistance training dashboard")
+    parser.add_argument(
+        "port_positional",
+        nargs="?",
+        type=int,
+        default=None,
+        help="Listen port (legacy positional; prefer --port)",
+    )
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help=f"Listen port (default {DEFAULT_PORT} or $PORT)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default 127.0.0.1; use 0.0.0.0 on Pi / LAN)",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force full local stack on this host (Pi unit flag; no remote API proxy)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not open a browser tab (always true for systemd)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: Optional[List[str]] = None) -> None:
+    args = _parse_args(argv)
+    port = args.port if args.port is not None else (
+        args.port_positional if args.port_positional is not None else DEFAULT_PORT
+    )
+    host = str(args.host or "127.0.0.1")
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    server = ThreadingHTTPServer(("127.0.0.1", port), DashboardHandler)
-    print(f"FitDash listening on http://127.0.0.1:{port}/", flush=True)
-    print(f"API: http://127.0.0.1:{port}/api/dashboard", flush=True)
+    server = ThreadingHTTPServer((host, int(port)), DashboardHandler)
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    print(f"FitDash listening on http://{display_host}:{port}/", flush=True)
+    if host == "0.0.0.0":
+        print(f"LAN bind: 0.0.0.0:{port} (reachable on LAN / Tailscale)", flush=True)
+    print(f"API: http://{display_host}:{port}/api/dashboard", flush=True)
+    if args.local:
+        print("mode → local full stack (UI + API on this process)", flush=True)
+    # --no-browser: intentional no-op for FitDash (never auto-opens a browser)
+    _ = args.no_browser
     try:
         server.serve_forever()
     except KeyboardInterrupt:

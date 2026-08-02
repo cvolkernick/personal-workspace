@@ -1,0 +1,21 @@
+[Unit]
+Description=FitDash / resistance training dashboard (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace/resistance-dashboard
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace:%h/personal-workspace/resistance-dashboard
+Environment=LOCAL_WORKSPACE_DIR=%h/personal-workspace
+# Google Health / GitHub tokens: copy Mac ~/.config/resistance-dashboard/env to the Pi
+# (server also auto-loads that path via _bootstrap_env).
+EnvironmentFile=-%h/.config/resistance-dashboard/env
+# Bind all interfaces so LAN / Tailscale clients can reach http://<host>:8787/
+ExecStart=/usr/bin/python3 %h/personal-workspace/resistance-dashboard/server.py --host 0.0.0.0 --port 8787 --no-browser --local
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
