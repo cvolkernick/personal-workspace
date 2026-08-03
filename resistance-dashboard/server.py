@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
-"""Resistance training dashboard server — real entry path."""
+"""FitDash (resistance training dashboard) server — real entry path.
+
+Usage:
+  python3 server.py                          # http://127.0.0.1:8787/
+  python3 server.py 8787                     # legacy positional port
+  python3 server.py --port 8787 --host 0.0.0.0 --no-browser --local
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -83,14 +91,22 @@ from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_acti
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
+from rt_dashboard.google_auth import (  # noqa: E402
+    auth_flow_status as google_auth_status,
+    start_auth_flow as start_google_auth_flow,
+)
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
 from rt_dashboard.models import ExerciseEntry, HealthSnapshot, Session, SetEntry  # noqa: E402
+from rt_dashboard.labs_store import load_labs  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
+    food_logs_for_day,
     generate_meal_plan,
     remove_ingredient,
     set_in_stock,
+    suggest_inventory_removals,
+    suggest_inventory_staples,
     today_consumed_from_nutrition,
     update_targets,
 )
@@ -450,29 +466,111 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     source = "+".join(source_parts) if source_parts else "none"
     gh = build_github_client(for_write=False)
 
+    # Stale cache often keeps "token refresh HTTP 400" after a successful re-auth.
+    # If OAuth works now, drop that error so the UI stops alarming every load.
+    if health.error and re.search(
+        r"token|refresh|invalid_grant|oauth", str(health.error), re.I
+    ):
+        try:
+            health_client.ensure_access_token()
+            health.error = None
+        except Exception:
+            pass
+
+    # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
+    from rt_dashboard.sleep_series import expand_sleep_calendar
+
+    health.sleep = expand_sleep_calendar(
+        health.sleep or [],
+        as_of=local_today,
+        window_days=90,
+        fill_hours=0.0,
+        fill_source="implied_zero",
+    )
+
     recovery = compute_recovery_status(
         weight=health.weight,
         sleep=health.sleep,
         sessions=sessions,
         as_of=local_today,
     )
+    from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+
+    # Prefer timed Google sleep intervals (same as Time Allocator); daily
+    # totals alone assume a fixed 7am wake and skew the battery badly.
+    sleep_battery = sleep_battery_from_fitdash_sleep(
+        [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        sleep_target_hours=8.0,
+        sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+    )
+    recovery_dict = recovery.to_dict()
+    recovery_dict["sleep_battery"] = sleep_battery
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
-    payload["recovery"] = recovery.to_dict()
+    payload["recovery"] = recovery_dict
+    payload["sleep_battery"] = sleep_battery
 
-    consumed = today_consumed_from_nutrition(health.nutrition, as_of=local_today)
+    today_logs = food_logs_for_day(health.food_logs or [], as_of=local_today)
+    consumed = today_consumed_from_nutrition(
+        health.nutrition,
+        as_of=local_today,
+        food_logs=health.food_logs or [],
+    )
     auto_plan = generate_meal_plan(
         nut["inventory"] or {"ingredients": []},
         nut["targets"] or {},
         consumed,
+        food_logs_today=today_logs,
     )
+    inv_base = nut["inventory"] or {"ingredients": []}
+    inv_suggestions = suggest_inventory_staples(
+        inv_base,
+        targets=nut.get("targets") or {},
+        food_logs=health.food_logs or [],
+        consumed=consumed,
+    )
+    inv_removals = suggest_inventory_removals(
+        inv_base,
+        targets=nut.get("targets") or {},
+        food_logs=health.food_logs or [],
+    )
+    labs = load_labs(local_dir or "")
     payload["nutrition_store"] = {
         "inventory": nut["inventory"],
         "targets": nut["targets"],
         "sources": nut["sources"],
         "today_consumed": consumed,
+        "food_logs_today": today_logs,
+        "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
         "meal_plan": auto_plan,
+        "inventory_suggestions": inv_suggestions,
+        "inventory_removals": inv_removals,
+        "labs": labs,
     }
+
+    # Full-width calorie pacing + same-day in/out delta bars
+    try:
+        from rt_dashboard.calorie_bars import build_calorie_bars_payload
+
+        burned_today = None
+        for b in health.calories_burned or []:
+            if str(getattr(b, "date", "") or "")[:10] == str(local_today)[:10]:
+                try:
+                    burned_today = float(getattr(b, "calories", None) or 0)
+                except (TypeError, ValueError):
+                    burned_today = None
+                break
+        payload["calorie_bars"] = build_calorie_bars_payload(
+            today_consumed=consumed,
+            targets=nut.get("targets") or {},
+            sleep_battery=sleep_battery,
+            calories_burned_today=burned_today,
+            # Timed logs so pacing can span midnight inside the wake window
+            food_logs=health.food_logs or [],
+        )
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"calorie_bars: {e}")
+        payload["calorie_bars"] = {"pacing": None, "delta": None}
 
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
     try:
@@ -485,9 +583,20 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             recovery_score=(recovery.score if recovery else None),
             as_of=local_today,
         )
+        # Effective goals include autonomous focus_muscles from plan gen
+        effective_goals = dict(wo["goals"] or {})
+        if isinstance(workout_plan.get("goals"), dict):
+            effective_goals = {
+                **effective_goals,
+                **{
+                    k: v
+                    for k, v in workout_plan["goals"].items()
+                    if not str(k).startswith("_")
+                },
+            }
         payload["workout_store"] = {
             "catalog": wo["catalog"],
-            "goals": wo["goals"],
+            "goals": effective_goals,
             "sources": wo["sources"],
             "plan": workout_plan,
         }
@@ -511,6 +620,12 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             meal_plan=auto_plan,
             workout_plan=(payload.get("workout_store") or {}).get("plan") or {},
             as_of=local_today,
+            labs=labs,
+            inventory_suggestions=inv_suggestions,
+            inventory_removals=inv_removals,
+            sleep_battery=sleep_battery,
+            calorie_bars=payload.get("calorie_bars"),
+            inventory=inv_base,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"coach: {e}")
@@ -533,9 +648,11 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "health_weight_points": len(health.weight),
         "health_sleep_points": len(health.sleep),
         "health_nutrition_days": len(health.nutrition),
+        "health_food_logs": len(health.food_logs or []),
         "health_hydration_days": len(health.hydration),
         "health_calories_burned_days": len(health.calories_burned),
         "inventory_count": len((nut["inventory"].get("ingredients") or [])),
+        "labs_panels": len((labs.get("panels") or [])),
         "load_ms": elapsed_ms,
         "cache": cache_notes,
         "cache_ttl_sec": cache_ttl,
@@ -601,6 +718,21 @@ def _execute_coach_action(action: dict) -> dict:
             store = load_inventory_and_targets(client)
             base = dict(store.get("targets") or {})
             base.update(raw)
+            # Guard: refuse absurd calorie targets that look like gram values
+            try:
+                cal = float(base.get("calories") or 0)
+            except (TypeError, ValueError):
+                cal = 0
+            if cal and cal < 800:
+                # If only fat/protein/carbs were meant to change, drop bad calories
+                if "calories" in raw and float(raw.get("calories") or 0) < 800:
+                    base.pop("calories", None)
+                    # re-merge without bad cal so normalize can heal from macros
+                    base = dict(store.get("targets") or {})
+                    for k, v in raw.items():
+                        if k == "calories":
+                            continue
+                        base[k] = v
             updated = update_targets(base)
             write = write_nutrition_file(
                 client,
@@ -609,6 +741,53 @@ def _execute_coach_action(action: dict) -> dict:
                 message="nutrition: targets via coach",
             )
             return {"ok": True, "action": kind, "targets": updated, "write": write}
+        if kind == "set_focus_muscles":
+            from rt_dashboard.workout_planner import (
+                suggest_focus_muscles,
+                weekly_set_tally,
+            )
+            from rt_dashboard.dashboard_cache import sessions_from_dicts
+
+            store = load_catalog_and_goals(client)
+            goals = dict(store.get("goals") or {})
+            reason = ""
+            if action.get("clear"):
+                muscles: list = []
+                # Re-enable autonomous focus after clear
+                goals["auto_focus_muscles"] = True
+                reason = "Cleared pin — coach will auto-pick lagging muscles again."
+            elif action.get("auto"):
+                goals["auto_focus_muscles"] = True
+                data = load_dashboard_data(force_refresh=False)
+                sessions = sessions_from_dicts(data.get("sessions") or [])
+                catalog = store.get("catalog") or {"exercises": []}
+                tally = weekly_set_tally(
+                    sessions,
+                    catalog,
+                    secondary_fraction=float(
+                        goals.get("secondary_set_fraction") or 0.5
+                    ),
+                )
+                sug = suggest_focus_muscles(tally, goals, max_focus=2)
+                muscles = list(sug.get("muscles") or [])
+                reason = str(sug.get("reason") or "")
+            else:
+                # Manual pin disables auto until user re-enables
+                muscles = list(action.get("muscles") or [])
+                goals["auto_focus_muscles"] = False
+            goals["focus_muscles"] = muscles
+            updated = update_goals(goals)
+            write = write_goals(
+                client, updated, message="workout: focus muscles via coach"
+            )
+            return {
+                "ok": True,
+                "action": kind,
+                "muscles": updated.get("focus_muscles") or [],
+                "goals": updated,
+                "reason": reason,
+                "write": write,
+            }
         if kind == "refresh_meal_plan":
             data = load_dashboard_data(force_refresh=False)
             store = data.get("nutrition_store") or {}
@@ -618,6 +797,32 @@ def _execute_coach_action(action: dict) -> dict:
                 store.get("today_consumed") or {},
             )
             return {"ok": True, "action": kind, "plan": plan}
+        if kind == "doordash_restock":
+            from rt_dashboard.doordash_restock import (
+                build_meal_restock_list,
+                execute_restock_order,
+            )
+
+            data = load_dashboard_data(force_refresh=False)
+            store = data.get("nutrition_store") or {}
+            restock = build_meal_restock_list(
+                store.get("inventory") or {"ingredients": []},
+                store.get("meal_plan") or {},
+                store.get("inventory_suggestions") or {},
+            )
+            out = execute_restock_order(
+                restock,
+                execute=bool(action.get("execute")),
+                confirm=bool(action.get("confirm")),
+                store_query=action.get("store_query"),
+                store_id=action.get("store_id"),
+                tip_cents=action.get("tip_cents"),
+            )
+            return {
+                "ok": bool(out.get("ok")),
+                "action": kind,
+                **out,
+            }
         if kind == "refresh_workout_plan":
             data = load_dashboard_data(force_refresh=False)
             wo = data.get("workout_store") or {}
@@ -703,6 +908,17 @@ def parse_log_body(data: dict) -> Session:
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
+    # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".webmanifest": "application/manifest+json",
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".html": "text/html; charset=utf-8",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
@@ -777,6 +993,33 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
+        if parsed.path == "/api/doordash/restock":
+            # Preview shopping list for meal restock (no dd-cli mutations).
+            try:
+                from rt_dashboard.doordash_restock import (
+                    build_meal_restock_list,
+                    execute_restock_order,
+                    dd_cli_available,
+                )
+
+                data = load_dashboard_data(force_refresh=False)
+                store = data.get("nutrition_store") or {}
+                restock = build_meal_restock_list(
+                    store.get("inventory") or {"ingredients": []},
+                    store.get("meal_plan") or {},
+                    store.get("inventory_suggestions") or {},
+                )
+                preview = execute_restock_order(restock, execute=False, confirm=False)
+                self._send_json(
+                    {
+                        "ok": True,
+                        "dd_cli_available": dd_cli_available(),
+                        **preview,
+                    }
+                )
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/cache/status":
             try:
                 self._send_json({"ok": True, **cache_status()})
@@ -786,6 +1029,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/ask/status":
             try:
                 self._send_json(grok_auth_status())
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/google-health/auth/status":
+            try:
+                self._send_json(google_auth_status())
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
@@ -804,6 +1053,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         ):
             return
         parsed = urlparse(self.path)
+        if parsed.path == "/api/google-health/auth/start":
+            try:
+                body = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
+                )
+                force = bool(body.get("force"))
+                result = start_google_auth_flow(force=force)
+                status = 200 if result.get("ok") else 400
+                self._send_json(result, status=status)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/workouts":
             try:
                 body = self._read_json()
@@ -848,6 +1111,48 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json(load_dashboard_data(force_refresh=True))
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/doordash/restock":
+            # Body: { execute?: bool, confirm?: bool, store_query?, store_id?, tip_cents? }
+            # execute=false (default) → shopping list preview only
+            # execute=true → drive dd-cli (cart/preview/checkout-url)
+            # confirm=true → also attempt order submit (payment)
+            try:
+                from rt_dashboard.doordash_restock import (
+                    build_meal_restock_list,
+                    execute_restock_order,
+                    dd_cli_available,
+                )
+
+                body = self._read_json()
+                data = load_dashboard_data(force_refresh=False)
+                store = data.get("nutrition_store") or {}
+                restock = build_meal_restock_list(
+                    store.get("inventory") or {"ingredients": []},
+                    store.get("meal_plan") or {},
+                    store.get("inventory_suggestions") or {},
+                )
+                out = execute_restock_order(
+                    restock,
+                    execute=bool(body.get("execute")),
+                    confirm=bool(body.get("confirm")),
+                    store_query=body.get("store_query"),
+                    store_id=body.get("store_id"),
+                    tip_cents=body.get("tip_cents"),
+                )
+                status = 200 if out.get("ok") else 400
+                self._send_json(
+                    {
+                        "ok": bool(out.get("ok")),
+                        "dd_cli_available": dd_cli_available(),
+                        **out,
+                    },
+                    status=status,
+                )
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/inventory/add":
             try:
@@ -935,7 +1240,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 history = body.get("history") if isinstance(body.get("history"), list) else []
                 model = body.get("model")
                 # Local coach actions (stock / targets / refresh plans) — no model call.
-                action = try_parse_coach_action(question)
+                # Pass chat history so "apply those recommendations" can reuse numbers.
+                action = try_parse_coach_action(question, history=history)
                 if action:
                     act_result = _execute_coach_action(action)
                     self._send_json(
@@ -988,6 +1294,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # Prefer live consumed from dashboard nutrition days
                 from rt_dashboard.models import NutritionDay
 
+                from rt_dashboard.models import FoodLogEntry
+
                 nutrition_days = [
                     NutritionDay(
                         date=n["date"],
@@ -999,7 +1307,30 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     )
                     for n in (health.get("nutrition") or [])
                 ]
-                consumed = today_consumed_from_nutrition(nutrition_days)
+                food_entries = [
+                    FoodLogEntry(
+                        date=str(f.get("date") or ""),
+                        name=str(f.get("name") or "Logged food"),
+                        calories=f.get("calories"),
+                        protein_g=f.get("protein_g"),
+                        carbs_g=f.get("carbs_g"),
+                        fat_g=f.get("fat_g"),
+                        meal_type=f.get("meal_type"),
+                        serving_label=f.get("serving_label"),
+                        time=f.get("time"),
+                        nutrients=f.get("nutrients") or {},
+                        source=f.get("source") or "google_health",
+                    )
+                    for f in (health.get("food_logs") or [])
+                    if isinstance(f, dict) and f.get("date")
+                ]
+                # Prefer store's already-serialized today logs when present
+                today_logs = store.get("food_logs_today") or food_logs_for_day(
+                    food_entries
+                )
+                consumed = today_consumed_from_nutrition(
+                    nutrition_days, food_logs=food_entries
+                )
                 # allow override for testing
                 if body.get("consumed"):
                     consumed.update({k: float(body["consumed"][k]) for k in body["consumed"] if k in consumed})
@@ -1007,6 +1338,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     store.get("inventory") or {"ingredients": []},
                     store.get("targets") or {},
                     consumed,
+                    food_logs_today=today_logs,
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:
@@ -1091,50 +1423,58 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self._send_json({"error": "not found"}, status=404)
 
 
-def main(argv: Optional[list] = None) -> None:
-    global _BACKEND_URL, _BACKEND_LABEL, _FRONTEND
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Resistance training dashboard")
+def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+    """CLI aligned with monorepo Pi deploy units (host/port/no-browser/local)."""
+    parser = argparse.ArgumentParser(description="FitDash resistance training dashboard")
     parser.add_argument(
-        "port_pos",
+        "port_positional",
         nargs="?",
         type=int,
         default=None,
-        help="Optional positional port (legacy)",
+        help="Listen port (legacy positional; prefer --port)",
     )
-    parser.add_argument("--port", type=int, default=None)
-    parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--no-browser", action="store_true")
-    if add_backend_args is not None:
-        add_backend_args(parser)
-    else:
-        parser.add_argument("--backend", default=None)
-        parser.add_argument("--local", action="store_true")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        help=f"Listen port (default {DEFAULT_PORT} or $PORT)",
+    )
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (default 127.0.0.1; use 0.0.0.0 on Pi / LAN)",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force full local stack on this host (Pi unit flag; no remote API proxy)",
+    )
+    parser.add_argument(
+        "--no-browser",
+        action="store_true",
+        help="Do not open a browser tab (always true for systemd)",
+    )
+    return parser.parse_args(argv)
 
-    port = args.port or args.port_pos or DEFAULT_PORT
-    if resolve_backend is not None:
-        _BACKEND_URL, _BACKEND_LABEL = resolve_backend(
-            local=bool(args.local),
-            backend=args.backend,
-            config_path=DEFAULT_BACKEND_CONFIG,
-        )
-    else:
-        _BACKEND_URL, _BACKEND_LABEL = None, ""
 
+def main(argv: Optional[List[str]] = None) -> None:
+    args = _parse_args(argv)
+    port = args.port if args.port is not None else (
+        args.port_positional if args.port_positional is not None else DEFAULT_PORT
+    )
+    host = str(args.host or "127.0.0.1")
     # Ensure static exists
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
-    url = f"http://{args.host}:{port}/"
-    _FRONTEND = url
-    server = ThreadingHTTPServer((args.host, port), DashboardHandler)
-    print(f"Resistance dashboard listening on {url}", flush=True)
-    if _BACKEND_URL:
-        print(
-            f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]",
-            flush=True,
-        )
-    print(f"API: {url}api/dashboard", flush=True)
+    server = ThreadingHTTPServer((host, int(port)), DashboardHandler)
+    display_host = "127.0.0.1" if host in ("0.0.0.0", "") else host
+    print(f"FitDash listening on http://{display_host}:{port}/", flush=True)
+    if host == "0.0.0.0":
+        print(f"LAN bind: 0.0.0.0:{port} (reachable on LAN / Tailscale)", flush=True)
+    print(f"API: http://{display_host}:{port}/api/dashboard", flush=True)
+    if args.local:
+        print("mode → local full stack (UI + API on this process)", flush=True)
+    # --no-browser: intentional no-op for FitDash (never auto-opens a browser)
+    _ = args.no_browser
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -1,11 +1,21 @@
-"""Exercise catalog + daily workout plan generation (mirror of meal planner)."""
+"""Exercise catalog + daily workout plan generation (mirror of meal planner).
+
+Volume framework (Dean Turner / DeanTTraining — balanced hypertrophy):
+  - You do **not** need 10–20 working sets per muscle per week.
+  - Aim roughly **4–8 hard sets per major muscle group per week**, counting
+    compound **overlap** (e.g. RDL credits hams + glutes).
+  - Heavy priority on 1–2 muscles is fine; others drop toward a maintenance dose.
+  - Productive work is capped per session and per microcycle — high per-muscle
+    volume crowds out the rest of the body.
+  Source framing: https://x.com/DeanTTraining/status/2081501543510028437
+"""
 
 from __future__ import annotations
 
 import json
 import re
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -13,6 +23,80 @@ from .models import Session
 
 CATALOG_PATH = "fitness/exercises/catalog.json"
 GOALS_PATH = "fitness/exercises/goals.json"
+
+# Canonical major groups (DeanT list; aliases map into these).
+MAJOR_MUSCLES: Tuple[str, ...] = (
+    "chest",
+    "mid_upper_back",
+    "lats",
+    "delts",
+    "biceps",
+    "triceps",
+    "quads",
+    "hamstrings",
+    "calves",
+    "glutes",
+    "adductors",
+    "abs",
+    "traps",
+)
+
+# Catalog / log muscle tags → major group
+MUSCLE_ALIASES: Dict[str, str] = {
+    "chest": "chest",
+    "pecs": "chest",
+    "pectorals": "chest",
+    "back": "mid_upper_back",
+    "mid_upper_back": "mid_upper_back",
+    "upper_back": "mid_upper_back",
+    "mid_back": "mid_upper_back",
+    "rhomboids": "mid_upper_back",
+    "lats": "lats",
+    "lat": "lats",
+    "latissimus": "lats",
+    "delts": "delts",
+    "delt": "delts",
+    "shoulders": "delts",
+    "shoulder": "delts",
+    "rear_delts": "delts",
+    "side_delts": "delts",
+    "front_delts": "delts",
+    "biceps": "biceps",
+    "bis": "biceps",
+    "bicep": "biceps",
+    "triceps": "triceps",
+    "tris": "triceps",
+    "tricep": "triceps",
+    "quads": "quads",
+    "quad": "quads",
+    "quadriceps": "quads",
+    "hamstrings": "hamstrings",
+    "hams": "hamstrings",
+    "ham": "hamstrings",
+    "calves": "calves",
+    "calf": "calves",
+    "glutes": "glutes",
+    "glute": "glutes",
+    "adductors": "adductors",
+    "adductor": "adductors",
+    "abs": "abs",
+    "core": "abs",
+    "traps": "traps",
+    "trapezius": "traps",
+    "lower_back": "mid_upper_back",  # erectors — credit upper/mid back bucket lightly
+    "forearms": "biceps",  # small carry; not a major DeanT group
+}
+
+VOLUME_FRAMEWORK = {
+    "id": "dean_t_balanced_4_8",
+    "label": "DeanT balanced volume (≈4–8 sets/muscle/week)",
+    "source": "https://x.com/DeanTTraining/status/2081501543510028437",
+    "summary": (
+        "Hard sets ~4–8 per major muscle per week with compound overlap counted; "
+        "10–20+/muscle is usually unnecessary and exceeds productive weekly capacity. "
+        "Prioritize 1–2 muscles only by putting others at maintenance."
+    ),
+}
 
 DEFAULT_GOALS = {
     "split": "ppl",
@@ -24,7 +108,20 @@ DEFAULT_GOALS = {
     "progression": "double_progression",
     "notes": "",
     "focus_muscles": [],
+    # When true (default), each plan gen picks lagging muscles from logs and
+    # applies them as focus for volume bands + exercise selection — no Ask needed.
+    # Set false + explicit focus_muscles for a manual pin.
+    "auto_focus_muscles": True,
     "rest_if_recovery_below": 40,
+    # DeanT volume framework
+    "volume_framework": VOLUME_FRAMEWORK["id"],
+    "sets_per_muscle_week_min": 4,
+    "sets_per_muscle_week_max": 8,
+    "sets_per_muscle_week_priority_max": 12,
+    "maintenance_sets_per_muscle_week": 3,
+    "session_working_set_cap": 14,
+    "secondary_set_fraction": 0.5,
+    "default_hard_sets": 2,  # preferred hard sets when history is thin
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 }
 
@@ -110,12 +207,29 @@ def normalize_goals(raw: Optional[dict]) -> dict:
         g["rotation"] = [str(x).lower() for x in raw["rotation"]]
     if raw.get("goal"):
         g["goal"] = str(raw["goal"])
-    for k in ("sessions_per_week_target", "exercises_per_session", "rest_if_recovery_below"):
+    for k in (
+        "sessions_per_week_target",
+        "exercises_per_session",
+        "rest_if_recovery_below",
+        "sets_per_muscle_week_min",
+        "sets_per_muscle_week_max",
+        "sets_per_muscle_week_priority_max",
+        "maintenance_sets_per_muscle_week",
+        "session_working_set_cap",
+        "default_hard_sets",
+    ):
         if raw.get(k) is not None:
             try:
                 g[k] = int(raw[k])
             except (TypeError, ValueError):
                 pass
+    if raw.get("secondary_set_fraction") is not None:
+        try:
+            g["secondary_set_fraction"] = float(raw["secondary_set_fraction"])
+        except (TypeError, ValueError):
+            pass
+    if raw.get("volume_framework"):
+        g["volume_framework"] = str(raw["volume_framework"])
     if "prefer_compounds_first" in raw:
         g["prefer_compounds_first"] = bool(raw["prefer_compounds_first"])
     if raw.get("progression"):
@@ -123,10 +237,413 @@ def normalize_goals(raw: Optional[dict]) -> dict:
     if raw.get("notes") is not None:
         g["notes"] = str(raw["notes"])
     if isinstance(raw.get("focus_muscles"), list):
-        g["focus_muscles"] = [str(x) for x in raw["focus_muscles"]]
+        g["focus_muscles"] = [normalize_muscle(str(x)) for x in raw["focus_muscles"]]
+    if "auto_focus_muscles" in raw:
+        g["auto_focus_muscles"] = bool(raw["auto_focus_muscles"])
     if raw.get("updated_at"):
         g["updated_at"] = str(raw["updated_at"])
     return g
+
+
+def normalize_muscle(name: str) -> str:
+    key = re.sub(r"[\s\-]+", "_", str(name or "").strip().lower())
+    return MUSCLE_ALIASES.get(key, key)
+
+
+def muscle_targets(goals: dict) -> Dict[str, Dict[str, float]]:
+    """Per-muscle weekly set min/max, elevating focus muscles."""
+    goals = normalize_goals(goals)
+    lo = float(goals.get("sets_per_muscle_week_min") or 4)
+    hi = float(goals.get("sets_per_muscle_week_max") or 8)
+    pri_hi = float(goals.get("sets_per_muscle_week_priority_max") or 12)
+    maint = float(goals.get("maintenance_sets_per_muscle_week") or 3)
+    focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
+    out: Dict[str, Dict[str, float]] = {}
+    for m in MAJOR_MUSCLES:
+        if m in focus:
+            out[m] = {"min": lo, "max": pri_hi, "priority": True}
+        elif focus:
+            # Non-focus while prioritizing others → maintenance band
+            out[m] = {"min": max(2.0, maint - 1), "max": maint, "priority": False}
+        else:
+            out[m] = {"min": lo, "max": hi, "priority": False}
+    return out
+
+
+def _working_sets_from_entry(ex: Any) -> int:
+    """Hard/working sets from a logged ExerciseEntry or dict."""
+    if hasattr(ex, "sets"):
+        rows = ex.sets or []
+        total = 0
+        for st in rows:
+            total += int(getattr(st, "sets", 0) or 0)
+        return max(0, total)
+    if isinstance(ex, dict):
+        sets_field = ex.get("sets")
+        if isinstance(sets_field, list):
+            total = 0
+            for st in sets_field:
+                if isinstance(st, dict):
+                    total += int(st.get("sets") or 0)
+                else:
+                    total += int(getattr(st, "sets", 0) or 0)
+            return max(0, total)
+        if sets_field is not None:
+            try:
+                return max(0, int(sets_field))
+            except (TypeError, ValueError):
+                return 0
+    return 0
+
+
+def credit_sets_for_exercise(
+    primary: Sequence[str],
+    secondary: Sequence[str],
+    hard_sets: float,
+    *,
+    secondary_fraction: float = 0.5,
+) -> Dict[str, float]:
+    """Distribute hard sets across major muscles (primary full, secondary fractional)."""
+    credits: Dict[str, float] = {}
+    prim = [normalize_muscle(m) for m in primary if m]
+    sec = [normalize_muscle(m) for m in secondary if m]
+    # Avoid double-counting same major group
+    prim_u = list(dict.fromkeys(prim))
+    sec_u = [m for m in dict.fromkeys(sec) if m not in prim_u]
+    if prim_u:
+        share = float(hard_sets) / len(prim_u)
+        for m in prim_u:
+            credits[m] = credits.get(m, 0.0) + share
+    if sec_u and secondary_fraction > 0:
+        share = float(hard_sets) * float(secondary_fraction) / len(sec_u)
+        for m in sec_u:
+            credits[m] = credits.get(m, 0.0) + share
+    return credits
+
+
+def weekly_set_tally(
+    sessions: Sequence[Session],
+    catalog: dict,
+    *,
+    as_of: Optional[str] = None,
+    window_days: int = 7,
+    secondary_fraction: float = 0.5,
+) -> Dict[str, Any]:
+    """Trailing-week hard-set credits by major muscle (with compound overlap)."""
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = as_of
+    try:
+        end = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError:
+        end = datetime.now(timezone.utc).date()
+    start = end - timedelta(days=max(1, window_days) - 1)
+
+    available = available_exercises(catalog) if catalog else []
+    by_id = {ex["id"]: ex for ex in available}
+    by_name = {_norm_name(ex["name"]): ex for ex in available}
+
+    totals: Dict[str, float] = {m: 0.0 for m in MAJOR_MUSCLES}
+    logged_exercises = 0
+
+    for s in sessions or []:
+        try:
+            sd = datetime.strptime(str(s.date)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if sd < start or sd > end:
+            continue
+        for ex in s.exercises or []:
+            hard = _working_sets_from_entry(ex)
+            if hard <= 0:
+                continue
+            name = getattr(ex, "name", None) or (ex.get("name") if isinstance(ex, dict) else "")
+            cat = None
+            cid = match_catalog_id(str(name), by_id)
+            if cid:
+                cat = by_id.get(cid)
+            if not cat:
+                cat = by_name.get(_norm_name(str(name)))
+            if cat:
+                prim = cat.get("primary_muscles") or []
+                sec = cat.get("secondary_muscles") or []
+            else:
+                prim, sec = [], []
+            credits = credit_sets_for_exercise(
+                prim, sec, hard, secondary_fraction=secondary_fraction
+            )
+            if not credits:
+                # Unknown lift — skip rather than invent a muscle
+                continue
+            logged_exercises += 1
+            for m, c in credits.items():
+                if m in totals:
+                    totals[m] += c
+                else:
+                    totals[m] = c
+
+    rounded = {m: round(v, 2) for m, v in sorted(totals.items(), key=lambda x: x[0])}
+    return {
+        "window_days": window_days,
+        "as_of": day,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "by_muscle": rounded,
+        "total_set_credits": round(sum(rounded.values()), 2),
+        "logged_exercise_entries": logged_exercises,
+    }
+
+
+def classify_volume_status(
+    done: float, band: Dict[str, float]
+) -> str:
+    """under | ok | high | over relative to weekly band."""
+    lo = float(band.get("min") or 4)
+    hi = float(band.get("max") or 8)
+    if done < lo * 0.75:
+        return "under"
+    if done < lo:
+        return "low"
+    if done <= hi:
+        return "ok"
+    if done <= hi * 1.25:
+        return "high"
+    return "over"
+
+
+def suggest_focus_muscles(
+    tally: Dict[str, Any],
+    goals: Optional[dict] = None,
+    *,
+    max_focus: int = 2,
+) -> Dict[str, Any]:
+    """Pick 1–2 lagging major muscles for priority volume (DeanT style).
+
+    Uses trailing-week hard-set credits vs the balanced 4–8 band. Prefers muscles
+    that are furthest under the weekly min among core program groups.
+    """
+    goals = normalize_goals(goals or {})
+    bands = muscle_targets({**goals, "focus_muscles": []})  # balanced bands
+    by = dict(tally.get("by_muscle") or {})
+    # Prefer big drivers when gaps are equal (DeanT: prioritize 1–2 groups, not calves/arms first)
+    candidates = [
+        # rank 0 = highest priority for focus selection
+        ("chest", 0),
+        ("lats", 0),
+        ("mid_upper_back", 0),
+        ("quads", 0),
+        ("hamstrings", 0),
+        ("glutes", 0),
+        ("delts", 1),
+        ("triceps", 2),
+        ("biceps", 2),
+        ("traps", 3),
+        ("calves", 3),
+    ]
+    scored: List[Tuple[float, int, str, float, float]] = []
+    for m, rank in candidates:
+        done = float(by.get(m) or 0)
+        lo = float((bands.get(m) or {}).get("min") or 4)
+        gap = lo - done
+        if gap <= 0:
+            continue
+        scored.append((gap, rank, m, done, lo))
+    # Largest gap first, then more important muscle groups
+    scored.sort(key=lambda x: (-x[0], x[1], x[2]))
+    picks = [m for _, _, m, _, _ in scored[: max(1, min(3, max_focus))]]
+    reason_bits = []
+    for gap, _rank, m, done, lo in scored[: len(picks)]:
+        reason_bits.append(f"{m.replace('_', ' ')} {done:g}/{lo:g} sets")
+    return {
+        "muscles": picks,
+        "reason": (
+            "Lagging vs ≈4–8/week band: " + "; ".join(reason_bits)
+            if reason_bits
+            else "No clear lagging muscles in the last 7 days — balanced volume is fine."
+        ),
+        "candidates": [
+            {"muscle": m, "done": d, "min": lo, "gap": round(g, 2)}
+            for g, _r, m, d, lo in scored[:6]
+        ],
+    }
+
+
+def resolve_focus_for_plan(
+    goals: dict,
+    tally: Dict[str, Any],
+    *,
+    max_focus: int = 2,
+) -> Dict[str, Any]:
+    """Decide effective focus muscles for this plan generation.
+
+    Default: autonomous — derive lagging groups from weekly logs.
+    Manual pin: ``auto_focus_muscles=false`` and non-empty ``focus_muscles``.
+    """
+    goals = normalize_goals(goals)
+    suggested = suggest_focus_muscles(tally, goals, max_focus=max_focus)
+    manual = [normalize_muscle(m) for m in (goals.get("focus_muscles") or [])]
+    manual = [m for m in manual if m in MAJOR_MUSCLES]
+    auto = bool(goals.get("auto_focus_muscles", True))
+
+    if not auto and manual:
+        return {
+            "muscles": manual,
+            "source": "manual",
+            "auto": False,
+            "suggested": suggested,
+            "reason": "Pinned focus (auto focus off).",
+        }
+    if suggested.get("muscles"):
+        return {
+            "muscles": list(suggested["muscles"]),
+            "source": "auto",
+            "auto": True,
+            "suggested": suggested,
+            "reason": suggested.get("reason") or "Auto from weekly volume gaps.",
+        }
+    # Nothing lagging — keep empty (balanced) or fall back to manual if any
+    if manual:
+        return {
+            "muscles": manual,
+            "source": "manual_fallback",
+            "auto": auto,
+            "suggested": suggested,
+            "reason": "No lagging gaps; keeping stored focus.",
+        }
+    return {
+        "muscles": [],
+        "source": "balanced",
+        "auto": auto,
+        "suggested": suggested,
+        "reason": suggested.get("reason")
+        or "Balanced volume — no priority muscles this week.",
+    }
+
+
+def volume_balance_report(
+    tally: Dict[str, Any],
+    goals: dict,
+    *,
+    planned_credits: Optional[Dict[str, float]] = None,
+) -> Dict[str, Any]:
+    """Compare weekly tally (+ optional planned session) to DeanT bands."""
+    goals = normalize_goals(goals)
+    bands = muscle_targets(goals)
+    by = dict(tally.get("by_muscle") or {})
+    planned_credits = planned_credits or {}
+    rows = []
+    under, ok, high = [], [], []
+    for m in MAJOR_MUSCLES:
+        done = float(by.get(m) or 0)
+        add = float(planned_credits.get(m) or 0)
+        projected = done + add
+        band = bands.get(m) or {"min": 4, "max": 8, "priority": False}
+        status = classify_volume_status(projected if add else done, band)
+        row = {
+            "muscle": m,
+            "done": round(done, 2),
+            "planned": round(add, 2),
+            "projected": round(projected, 2),
+            "min": band["min"],
+            "max": band["max"],
+            "priority": bool(band.get("priority")),
+            "status": status,
+        }
+        rows.append(row)
+        if status in ("under", "low"):
+            under.append(m)
+        elif status == "ok":
+            ok.append(m)
+        else:
+            high.append(m)
+    return {
+        "framework": VOLUME_FRAMEWORK,
+        "bands": {
+            m: {"min": bands[m]["min"], "max": bands[m]["max"], "priority": bands[m]["priority"]}
+            for m in MAJOR_MUSCLES
+        },
+        "muscles": rows,
+        "under_target": under,
+        "in_range": ok,
+        "high_or_over": high,
+        "window": {
+            "days": tally.get("window_days"),
+            "start": tally.get("start"),
+            "end": tally.get("end"),
+            "as_of": tally.get("as_of"),
+        },
+        "total_set_credits": tally.get("total_set_credits"),
+    }
+
+
+def _score_exercise_for_volume(
+    ex: dict,
+    done: Dict[str, float],
+    bands: Dict[str, Dict[str, float]],
+    *,
+    focus: set,
+) -> float:
+    """Higher = more useful for filling under-target muscles without overshooting."""
+    score = 0.0
+    prim = [normalize_muscle(m) for m in (ex.get("primary_muscles") or [])]
+    sec = [normalize_muscle(m) for m in (ex.get("secondary_muscles") or [])]
+    for m in prim:
+        band = bands.get(m) or {"min": 4, "max": 8}
+        d = float(done.get(m) or 0)
+        if d < band["min"]:
+            score += (band["min"] - d) * 3.0
+        elif d > band["max"]:
+            score -= (d - band["max"]) * 4.0
+        else:
+            score += 0.5
+        if m in focus:
+            score += 2.0
+    for m in sec:
+        band = bands.get(m) or {"min": 4, "max": 8}
+        d = float(done.get(m) or 0)
+        if d < band["min"]:
+            score += (band["min"] - d) * 1.0
+        elif d > band["max"]:
+            score -= (d - band["max"]) * 1.5
+    if ex.get("movement") == "compound":
+        score += 1.5  # efficiency / multi-muscle stimulus
+    score += float(ex.get("priority") or 0) * 0.05
+    return score
+
+
+def _cap_sets_for_muscles(
+    hard_sets: int,
+    primary: Sequence[str],
+    secondary: Sequence[str],
+    done: Dict[str, float],
+    bands: Dict[str, Dict[str, float]],
+    *,
+    secondary_fraction: float,
+) -> int:
+    """Shrink hard sets so primaries stay near weekly max after this lift."""
+    sets = max(1, int(hard_sets))
+    while sets > 1:
+        credits = credit_sets_for_exercise(
+            primary, secondary, sets, secondary_fraction=secondary_fraction
+        )
+        over = False
+        for m, c in credits.items():
+            band = bands.get(m)
+            if not band:
+                continue
+            # Only hard-cap on primary muscles
+            if normalize_muscle(m) not in [normalize_muscle(x) for x in primary]:
+                continue
+            if float(done.get(m) or 0) + c > float(band["max"]) + 0.51:
+                over = True
+                break
+        if not over:
+            break
+        sets -= 1
+    return sets
 
 
 def normalize_exercise(raw: dict) -> dict:
@@ -286,8 +803,8 @@ def prescribe(
         weight = float(last["weight_lbs"])
         sets = int(last.get("sets") or sets)
         reps = int(last.get("reps") or reps)
-        # Cap sets to reasonable
-        sets = max(2, min(5, sets))
+        # Cap sets to productive hard-set range (DeanT: more is rarely better)
+        sets = max(1, min(4, sets))
         if reps >= hi:
             # progress load
             bump = 5.0 if weight >= 40 else 2.5
@@ -357,7 +874,33 @@ def generate_workout_plan(
     by_id = {ex["id"]: ex for ex in available}
 
     rest_threshold = int(goals.get("rest_if_recovery_below") or 40)
+    sec_frac = float(goals.get("secondary_set_fraction") or 0.5)
+    tally = weekly_set_tally(
+        sessions,
+        catalog,
+        as_of=day,
+        window_days=7,
+        secondary_fraction=sec_frac,
+    )
+    # Autonomous coach: pick focus from logs before volume bands / selection
+    focus_res = resolve_focus_for_plan(goals, tally, max_focus=2)
+    goals = {**goals, "focus_muscles": list(focus_res.get("muscles") or [])}
+    goals["_focus_resolution"] = {
+        "source": focus_res.get("source"),
+        "auto": focus_res.get("auto"),
+        "reason": focus_res.get("reason"),
+    }
+
     if recovery_score is not None and recovery_score < rest_threshold:
+        balance = volume_balance_report(tally, goals)
+        balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+            tally, goals
+        )
+        balance["focus"] = {
+            "muscles": goals.get("focus_muscles") or [],
+            "source": focus_res.get("source"),
+            "reason": focus_res.get("reason"),
+        }
         return {
             "date": day,
             "session_type": "rest",
@@ -368,11 +911,15 @@ def generate_workout_plan(
                 f"({rest_threshold}). Suggested rest or light walk/mobility only."
             ),
             "goals": goals,
+            "volume": balance,
             "context": {
                 "recovery_label": recovery_label,
                 "recovery_score": recovery_score,
                 "last_session_type": last_session_type(sessions),
                 "days_since_last": days_since_last_session(sessions, as_of=day),
+                "volume_framework": VOLUME_FRAMEWORK,
+                "weekly_sets": tally,
+                "focus": balance["focus"],
             },
         }
 
@@ -381,58 +928,50 @@ def generate_workout_plan(
     if not pool:
         pool = list(available)
 
-    # Prefer compounds first, then priority
-    if goals.get("prefer_compounds_first", True):
-        pool.sort(
-            key=lambda e: (
-                0 if e["movement"] == "compound" else 1,
-                -int(e["priority"]),
-                e["name"],
-            )
-        )
-    else:
-        pool.sort(key=lambda e: (-int(e["priority"]), e["name"]))
+    bands = muscle_targets(goals)
+    focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
+    done: Dict[str, float] = dict(tally.get("by_muscle") or {})
 
-    # Focus muscles boost
-    focus = {m.lower() for m in (goals.get("focus_muscles") or [])}
-
-    def focus_boost(ex: dict) -> int:
-        if not focus:
-            return 0
-        muscles = set(ex["primary_muscles"]) | set(ex["secondary_muscles"])
-        return len(muscles & focus)
-
-    if focus:
-        pool.sort(
-            key=lambda e: (
-                -focus_boost(e),
-                0 if e["movement"] == "compound" else 1,
-                -int(e["priority"]),
-            )
-        )
+    # Rank pool by volume need (under-target muscles) + compound efficiency
+    pool_scored = sorted(
+        pool,
+        key=lambda e: (
+            -_score_exercise_for_volume(e, done, bands, focus=focus),
+            0 if e.get("movement") == "compound" else 1,
+            -int(e.get("priority") or 0),
+            e.get("name") or "",
+        ),
+    )
 
     n = max(3, min(8, int(goals.get("exercises_per_session") or 5)))
-    # Ensure at least one compound if possible
+    session_cap = max(6, int(goals.get("session_working_set_cap") or 14))
+    default_hard = max(1, min(4, int(goals.get("default_hard_sets") or 2)))
+
     chosen: List[dict] = []
-    compounds = [e for e in pool if e["movement"] == "compound"]
-    isolations = [e for e in pool if e["movement"] != "compound"]
-    for e in compounds[: max(2, n - 2)]:
-        chosen.append(e)
-    for e in isolations:
+    # Seed with top compound if compounds preferred
+    if goals.get("prefer_compounds_first", True):
+        for e in pool_scored:
+            if e.get("movement") == "compound":
+                chosen.append(e)
+                break
+    for e in pool_scored:
         if len(chosen) >= n:
             break
         if e["id"] not in {c["id"] for c in chosen}:
-            chosen.append(e)
-    # fill if short
-    for e in pool:
-        if len(chosen) >= n:
-            break
-        if e["id"] not in {c["id"] for c in chosen}:
+            # Skip isolations whose primaries are already over weekly max
+            prim = [normalize_muscle(m) for m in (e.get("primary_muscles") or [])]
+            if e.get("movement") != "compound" and prim:
+                if all(float(done.get(m) or 0) >= float((bands.get(m) or {}).get("max") or 8) for m in prim):
+                    continue
             chosen.append(e)
 
     plan_ex: List[dict] = []
-    for ex in chosen[:n]:
-        # history: try catalog name + any alias that maps to this id
+    planned_credits: Dict[str, float] = {}
+    session_sets = 0
+
+    for ex in chosen:
+        if session_sets >= session_cap:
+            break
         last = last_performance(sessions, ex["name"])
         if not last:
             for alias, aid in NAME_ALIASES.items():
@@ -440,7 +979,39 @@ def generate_workout_plan(
                     last = last_performance(sessions, alias)
                     if last:
                         break
-        rx = prescribe(ex, last, recovery_score=recovery_score)
+        # Prefer thinner hard-set defaults when no history (fits 4–8/week model)
+        ex_rx = dict(ex)
+        if not last:
+            ex_rx["default_sets"] = min(int(ex.get("default_sets") or 3), default_hard)
+        rx = prescribe(ex_rx, last, recovery_score=recovery_score)
+        hard = int(rx["sets"] or default_hard)
+        hard = _cap_sets_for_muscles(
+            hard,
+            ex.get("primary_muscles") or [],
+            ex.get("secondary_muscles") or [],
+            {**done, **{k: done.get(k, 0) + planned_credits.get(k, 0) for k in set(done) | set(planned_credits)}},
+            bands,
+            secondary_fraction=sec_frac,
+        )
+        # Also respect remaining session budget
+        hard = max(1, min(hard, session_cap - session_sets))
+        rx["sets"] = hard
+        if hard < int((last or {}).get("sets") or ex.get("default_sets") or hard):
+            rx["rationale"] = (
+                f"{rx['rationale']} Volume cap: {hard} hard sets "
+                f"(≈4–8/muscle/week framework)."
+            ).strip()
+
+        credits = credit_sets_for_exercise(
+            ex.get("primary_muscles") or [],
+            ex.get("secondary_muscles") or [],
+            hard,
+            secondary_fraction=sec_frac,
+        )
+        for m, c in credits.items():
+            planned_credits[m] = planned_credits.get(m, 0.0) + c
+        session_sets += hard
+
         plan_ex.append(
             {
                 "id": ex["id"],
@@ -455,20 +1026,46 @@ def generate_workout_plan(
                     "reps": rx["reps"],
                     "rep_range": rx["rep_range"],
                 },
+                "set_credits": {k: round(v, 2) for k, v in credits.items()},
                 "rationale": rx["rationale"],
                 "last": rx["last"],
             }
         )
 
+    balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
+    balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
+        tally, goals
+    )
+    balance["focus"] = {
+        "muscles": list(goals.get("focus_muscles") or []),
+        "source": focus_res.get("source"),
+        "reason": focus_res.get("reason"),
+    }
+
     last_st = last_session_type(sessions)
     days = days_since_last_session(sessions, as_of=day)
-    msg_parts = [f"Suggested {st.upper()} session ({len(plan_ex)} exercises)."]
+    msg_parts = [
+        f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
+    ]
     if last_st:
         msg_parts.append(f"Last trained: {last_st}")
     if days is not None:
         msg_parts.append(f"{days}d since last log")
     if recovery_label:
         msg_parts.append(f"Recovery: {recovery_label}")
+    focus_list = list(goals.get("focus_muscles") or [])
+    if focus_list:
+        src = focus_res.get("source") or "auto"
+        pretty = ", ".join(m.replace("_", " ") for m in focus_list)
+        label = "Auto focus" if src == "auto" else "Focus"
+        msg_parts.append(f"{label}: {pretty}")
+    under = balance.get("under_target") or []
+    if under:
+        msg_parts.append(
+            f"Volume fill: {', '.join(under[:4])}"
+            + ("…" if len(under) > 4 else "")
+        )
+    msg_parts.append("Framework: ≈4–8 sets/muscle/week (w/ overlap)")
 
     return {
         "date": day,
@@ -477,6 +1074,7 @@ def generate_workout_plan(
         "exercises": plan_ex,
         "message": " · ".join(msg_parts),
         "goals": goals,
+        "volume": balance,
         "context": {
             "recovery_label": recovery_label,
             "recovery_score": recovery_score,
@@ -484,6 +1082,11 @@ def generate_workout_plan(
             "days_since_last": days,
             "catalog_available": len(available),
             "pool_for_session": len(pool),
+            "session_hard_sets": session_sets,
+            "session_working_set_cap": session_cap,
+            "volume_framework": VOLUME_FRAMEWORK,
+            "focus": balance["focus"],
+            "weekly_sets": tally,
         },
     }
 

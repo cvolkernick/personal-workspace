@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from .models import NutritionDay
+from .models import FoodLogEntry, NutritionDay
 
 INVENTORY_PATH = "fitness/nutrition/inventory.json"
 TARGETS_PATH = "fitness/nutrition/targets.json"
@@ -61,6 +61,20 @@ def normalize_targets(raw: Optional[dict]) -> dict:
             t["notes"] = str(raw["notes"])
         if raw.get("updated_at"):
             t["updated_at"] = str(raw["updated_at"])
+    # Heal obvious corruption: calorie target looks like a gram value (e.g. fat 45
+    # was also written into calories). Recompute from macros when plausible.
+    p, c, f = float(t.get("protein_g") or 0), float(t.get("carbs_g") or 0), float(t.get("fat_g") or 0)
+    macro_kcal = p * 4 + c * 4 + f * 9
+    cal = float(t.get("calories") or 0)
+    if cal < 800 and macro_kcal >= 800:
+        t["calories"] = round(macro_kcal)
+    elif cal < 800:
+        t["calories"] = float(DEFAULT_TARGETS["calories"])
+    # Clamp absurd ranges rather than displaying nonsense chips
+    t["calories"] = max(800.0, min(6000.0, float(t["calories"])))
+    t["protein_g"] = max(0.0, min(500.0, float(t["protein_g"])))
+    t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
+    t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
     return t
 
 
@@ -83,28 +97,57 @@ def normalize_ingredient(raw: dict) -> dict:
     }
 
 
+def is_in_stock(raw: dict) -> bool:
+    """True only when ingredient is actively marked in stock.
+
+    Missing key defaults to True for legacy rows; explicit false/0/\"false\"
+    are always out of stock.
+    """
+    if not isinstance(raw, dict):
+        return False
+    if "in_stock" not in raw:
+        return True
+    v = raw.get("in_stock")
+    if isinstance(v, str):
+        return v.strip().lower() in ("1", "true", "yes", "on")
+    return bool(v)
+
+
 def stocked_ingredients(inventory: dict) -> List[dict]:
+    """Return only ingredients currently marked in stock (for meal plans)."""
     return [
         normalize_ingredient(i)
         for i in inventory.get("ingredients") or []
-        if i.get("in_stock", True)
+        if is_in_stock(i)
     ]
 
 
 def today_consumed_from_nutrition(
-    nutrition: Sequence[NutritionDay], as_of: Optional[str] = None
+    nutrition: Sequence[NutritionDay],
+    as_of: Optional[str] = None,
+    food_logs: Optional[Sequence[FoodLogEntry]] = None,
 ) -> dict:
-    """Sum macros for as_of (default local civil today) from Google Health nutrition days."""
+    """Macros for as_of from daily rollups, falling back to summed meal logs."""
     if as_of is None:
         from .timeutil import local_today_iso
 
         day = local_today_iso()
     else:
         day = as_of
-    total = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0, "date": day}
+    total = {
+        "calories": 0.0,
+        "protein_g": 0.0,
+        "carbs_g": 0.0,
+        "fat_g": 0.0,
+        "date": day,
+        "source": "none",
+        "food_log_count": 0,
+    }
+    hit_day = False
     for n in nutrition:
         if n.date != day:
             continue
+        hit_day = True
         if n.calories is not None:
             total["calories"] += float(n.calories)
         if n.protein_g is not None:
@@ -113,9 +156,50 @@ def today_consumed_from_nutrition(
             total["carbs_g"] += float(n.carbs_g)
         if n.fat_g is not None:
             total["fat_g"] += float(n.fat_g)
+    if hit_day and any(
+        total[k] > 0 for k in ("calories", "protein_g", "carbs_g", "fat_g")
+    ):
+        total["source"] = "daily_rollup"
+    elif food_logs:
+        n_logs = 0
+        for f in food_logs:
+            if f.date != day:
+                continue
+            n_logs += 1
+            if f.calories is not None:
+                total["calories"] += float(f.calories)
+            if f.protein_g is not None:
+                total["protein_g"] += float(f.protein_g)
+            if f.carbs_g is not None:
+                total["carbs_g"] += float(f.carbs_g)
+            if f.fat_g is not None:
+                total["fat_g"] += float(f.fat_g)
+        if n_logs:
+            total["source"] = "food_logs"
+            total["food_log_count"] = n_logs
+    if food_logs and total.get("source") == "daily_rollup":
+        total["food_log_count"] = sum(1 for f in food_logs if f.date == day)
     for k in ("calories", "protein_g", "carbs_g", "fat_g"):
         total[k] = round(total[k], 1)
     return total
+
+
+def food_logs_for_day(
+    food_logs: Sequence[FoodLogEntry], as_of: Optional[str] = None
+) -> List[dict]:
+    """Serialize meal-level entries for a single civil day (UI / plan)."""
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        day = local_today_iso()
+    else:
+        day = as_of
+    out: List[dict] = []
+    for f in food_logs or []:
+        if f.date != day:
+            continue
+        out.append(f.to_dict() if hasattr(f, "to_dict") else dict(f))  # type: ignore[arg-type]
+    return out
 
 
 def remaining_macros(targets: dict, consumed: dict) -> dict:
@@ -142,18 +226,26 @@ def generate_meal_plan(
     targets: dict,
     consumed: dict,
     max_items: int = 12,
+    food_logs_today: Optional[Sequence[dict]] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
 
     Adds whole servings that best fill remaining protein/calories without
     massively overshooting calories (allow ~15% soft overshoot on protein only).
+    When food_logs_today is provided, the message and scoring bias away from
+    foods already eaten heavily today.
     """
     targets = normalize_targets(targets)
     rem = remaining_macros(targets, consumed)
+    # Meal plan MUST only use actively in-stock inventory (never out-of-stock).
     stocked = stocked_ingredients(inventory)
+    stocked_ids = {str(i.get("id") or "") for i in stocked}
+    stocked_names = {str(i.get("name") or "").strip().lower() for i in stocked}
     plan_items: List[dict] = []
     totals = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
+    logged = list(food_logs_today or [])
+    logged_names = {str(x.get("name") or "").strip().lower() for x in logged if x}
 
     if not stocked:
         return {
@@ -161,9 +253,13 @@ def generate_meal_plan(
             "items": [],
             "planned_totals": totals,
             "remaining_after_plan": rem,
+            "remaining_before_plan": rem,
             "targets": targets,
             "consumed": consumed,
-            "message": "No in-stock ingredients. Add items to inventory first.",
+            "food_logs_today": logged,
+            "stocked_count": 0,
+            "in_stock_only": True,
+            "message": "No in-stock ingredients. Mark items in stock (or add staples) first.",
         }
 
     # Soft calorie ceiling: don't exceed remaining + 10% or +80 kcal
@@ -199,6 +295,14 @@ def generate_meal_plan(
                 if float(ing["carbs_g"]) < 10:
                     continue
             sc = _score_ingredient(ing, rem)
+            # Soft diversify: slight penalty if already logged under a similar name
+            iname = str(ing.get("name") or "").strip().lower()
+            if iname and any(iname in ln or ln in iname for ln in logged_names if ln):
+                sc *= 0.85
+            # Stronger diversify vs items already in *this* plan
+            already = pick_counts.get(iid, 0)
+            if already >= 1:
+                sc *= 0.55 ** already
             if sc > 0:
                 candidates.append((sc, ing))
         if not candidates:
@@ -222,6 +326,7 @@ def generate_meal_plan(
                 "protein_g": best["protein_g"],
                 "carbs_g": best["carbs_g"],
                 "fat_g": best["fat_g"],
+                "in_stock": True,
             }
         )
         pick_counts[str(best["id"])] = pick_counts.get(str(best["id"]), 0) + 1
@@ -229,6 +334,15 @@ def generate_meal_plan(
             totals[k] += float(best[k])
             rem[k] = round(max(0.0, rem[k] - float(best[k])), 1)
 
+    # Safety net: never surface an item that is not currently stocked
+    plan_items = [
+        it
+        for it in plan_items
+        if str(it.get("id") or "") in stocked_ids
+        or str(it.get("name") or "").strip().lower() in stocked_names
+    ]
+    # Collapse repeated picks into one line with servings (e.g. 3× chicken)
+    plan_items = _collapse_plan_items(plan_items)
     # Group into simple meal buckets
     meals = _bucket_meals(plan_items)
     for k in totals:
@@ -244,11 +358,19 @@ def generate_meal_plan(
         },
     )
 
-    msg = "Plan generated from remaining macros and in-stock ingredients."
+    msg = (
+        f"Plan from {len(stocked)} in-stock ingredient"
+        f"{'s' if len(stocked) != 1 else ''} only (out-of-stock excluded)."
+    )
+    if logged:
+        msg += (
+            f" Uses {len(logged)} Google Health food log"
+            f"{'s' if len(logged) != 1 else ''} so far today for remaining macros."
+        )
     if remaining_after["protein_g"] > 40:
-        msg += " Protein still short — add more high-protein items to inventory if needed."
+        msg += " Protein still short — restock high-protein items if needed."
     if remaining_after["calories"] > 300 and not plan_items:
-        msg = "Could not fit more servings without exceeding soft calorie ceiling."
+        msg = "Could not fit more servings without exceeding soft calorie ceiling (in-stock only)."
 
     return {
         "meals": meals,
@@ -258,16 +380,57 @@ def generate_meal_plan(
         "remaining_after_plan": remaining_after,
         "targets": targets,
         "consumed": consumed,
+        "food_logs_today": logged,
+        "stocked_count": len(stocked),
+        "in_stock_only": True,
         "message": msg,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
+
+
+def _collapse_plan_items(items: List[dict]) -> List[dict]:
+    """Merge identical ingredient picks into a single row with servings count."""
+    if not items:
+        return []
+    order: List[str] = []
+    by_key: Dict[str, dict] = {}
+    for it in items:
+        key = str(it.get("id") or it.get("name") or "").lower()
+        if not key:
+            key = f"anon-{len(by_key)}"
+        if key not in by_key:
+            row = {
+                "id": it.get("id"),
+                "name": it.get("name"),
+                "servings": int(it.get("servings") or 1),
+                "serving_label": it.get("serving_label") or "1 serving",
+                "calories": float(it.get("calories") or 0),
+                "protein_g": float(it.get("protein_g") or 0),
+                "carbs_g": float(it.get("carbs_g") or 0),
+                "fat_g": float(it.get("fat_g") or 0),
+            }
+            by_key[key] = row
+            order.append(key)
+        else:
+            row = by_key[key]
+            add_n = int(it.get("servings") or 1)
+            row["servings"] = int(row.get("servings") or 0) + add_n
+            for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+                row[k] = round(float(row[k]) + float(it.get(k) or 0), 1)
+    out = []
+    for key in order:
+        row = by_key[key]
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            row[k] = round(float(row[k]), 1)
+        out.append(row)
+    return out
 
 
 def _bucket_meals(items: List[dict]) -> List[dict]:
     if not items:
         return []
     labels = ["Next meal", "Later meal", "Evening", "Optional snack"]
-    # split into chunks of ~3 items
+    # Split by ~3 distinct items; multi-serving rows already collapsed
     meals = []
     chunk = 3
     for i in range(0, len(items), chunk):
@@ -346,3 +509,612 @@ def update_targets(raw: dict) -> dict:
     if raw.get("notes") is not None:
         t["notes"] = str(raw.get("notes") or "")
     return t
+
+
+# Curated cutting/recomp staples for smart "add to inventory" suggestions.
+STAPLE_CATALOG: List[dict] = [
+    {
+        "id": "chicken-breast",
+        "name": "Chicken breast",
+        "category": "protein",
+        "serving_label": "6 oz cooked",
+        "calories": 280,
+        "protein_g": 52,
+        "carbs_g": 0,
+        "fat_g": 6,
+    },
+    {
+        "id": "turkey-breast",
+        "name": "Turkey breast",
+        "category": "protein",
+        "serving_label": "6 oz cooked",
+        "calories": 250,
+        "protein_g": 50,
+        "carbs_g": 0,
+        "fat_g": 4,
+    },
+    {
+        "id": "nonfat-greek-yogurt",
+        "name": "Greek yogurt (nonfat)",
+        "category": "protein",
+        "serving_label": "1.5 cups",
+        "calories": 200,
+        "protein_g": 30,
+        "carbs_g": 12,
+        "fat_g": 0,
+    },
+    {
+        "id": "cottage-cheese-lowfat",
+        "name": "Cottage cheese (low-fat)",
+        "category": "protein",
+        "serving_label": "1 cup",
+        "calories": 180,
+        "protein_g": 28,
+        "carbs_g": 8,
+        "fat_g": 2.5,
+    },
+    {
+        "id": "whey-protein",
+        "name": "Whey protein",
+        "category": "protein",
+        "serving_label": "1 scoop",
+        "calories": 120,
+        "protein_g": 24,
+        "carbs_g": 3,
+        "fat_g": 1,
+    },
+    {
+        "id": "egg-whites",
+        "name": "Egg whites",
+        "category": "protein",
+        "serving_label": "1 cup",
+        "calories": 125,
+        "protein_g": 26,
+        "carbs_g": 2,
+        "fat_g": 0,
+    },
+    {
+        "id": "canned-tuna",
+        "name": "Canned tuna (in water)",
+        "category": "protein",
+        "serving_label": "1 can drained",
+        "calories": 120,
+        "protein_g": 26,
+        "carbs_g": 0,
+        "fat_g": 1,
+    },
+    {
+        "id": "lean-ground-turkey",
+        "name": "Lean ground turkey (93%)",
+        "category": "protein",
+        "serving_label": "6 oz cooked",
+        "calories": 260,
+        "protein_g": 42,
+        "carbs_g": 0,
+        "fat_g": 10,
+    },
+    {
+        "id": "oats",
+        "name": "Oats",
+        "category": "carb",
+        "serving_label": "1/2 cup dry",
+        "calories": 150,
+        "protein_g": 5,
+        "carbs_g": 27,
+        "fat_g": 3,
+    },
+    {
+        "id": "brown-rice",
+        "name": "Brown rice",
+        "category": "carb",
+        "serving_label": "1 cup cooked",
+        "calories": 215,
+        "protein_g": 5,
+        "carbs_g": 45,
+        "fat_g": 2,
+    },
+    {
+        "id": "sweet-potato",
+        "name": "Sweet potato",
+        "category": "carb",
+        "serving_label": "1 medium",
+        "calories": 110,
+        "protein_g": 2,
+        "carbs_g": 26,
+        "fat_g": 0,
+    },
+    {
+        "id": "black-beans",
+        "name": "Black beans",
+        "category": "carb",
+        "serving_label": "1 cup cooked",
+        "calories": 220,
+        "protein_g": 15,
+        "carbs_g": 40,
+        "fat_g": 1,
+    },
+    {
+        "id": "broccoli",
+        "name": "Broccoli",
+        "category": "veg",
+        "serving_label": "2 cups",
+        "calories": 60,
+        "protein_g": 5,
+        "carbs_g": 12,
+        "fat_g": 0.5,
+    },
+    {
+        "id": "spinach",
+        "name": "Spinach",
+        "category": "veg",
+        "serving_label": "3 cups raw",
+        "calories": 20,
+        "protein_g": 2,
+        "carbs_g": 3,
+        "fat_g": 0,
+    },
+    {
+        "id": "berries-mixed",
+        "name": "Mixed berries",
+        "category": "carb",
+        "serving_label": "1 cup",
+        "calories": 70,
+        "protein_g": 1,
+        "carbs_g": 17,
+        "fat_g": 0.5,
+    },
+    {
+        "id": "olive-oil",
+        "name": "Olive oil",
+        "category": "fat",
+        "serving_label": "1 tbsp",
+        "calories": 120,
+        "protein_g": 0,
+        "carbs_g": 0,
+        "fat_g": 14,
+    },
+    {
+        "id": "avocado",
+        "name": "Avocado",
+        "category": "fat",
+        "serving_label": "1/2 medium",
+        "calories": 120,
+        "protein_g": 1.5,
+        "carbs_g": 6,
+        "fat_g": 11,
+    },
+]
+
+
+def _norm_name(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def _names_overlap(a: str, b: str) -> bool:
+    na, nb = _norm_name(a), _norm_name(b)
+    if not na or not nb:
+        return False
+    if na == nb or na in nb or nb in na:
+        return True
+    ta, tb = set(na.split()), set(nb.split())
+    # Ignore tiny tokens
+    ta = {t for t in ta if len(t) > 2}
+    tb = {t for t in tb if len(t) > 2}
+    if not ta or not tb:
+        return False
+    return len(ta & tb) >= min(2, len(ta), len(tb))
+
+
+def _protein_density(ing: dict) -> float:
+    cal = float(ing.get("calories") or 0) or 1.0
+    return float(ing.get("protein_g") or 0) / cal
+
+
+def _find_inventory_match(inventory: dict, name: str, iid: str = "") -> Optional[dict]:
+    want_id = (iid or "").strip().lower()
+    for raw in inventory.get("ingredients") or []:
+        if want_id and str(raw.get("id") or "").lower() == want_id:
+            return raw
+        if _names_overlap(str(raw.get("name") or ""), name):
+            return raw
+    return None
+
+
+def suggest_inventory_staples(
+    inventory: dict,
+    targets: Optional[dict] = None,
+    food_logs: Optional[Sequence[Any]] = None,
+    consumed: Optional[dict] = None,
+    max_suggestions: int = 8,
+) -> dict:
+    """Suggest restocks / new staples from inventory gaps, logs, and macro needs.
+
+    Returns ``{"suggestions": [...], "summary": str}`` where each suggestion has:
+    action (restock|add), reason, score, plus ingredient fields for one-click add.
+    """
+    targets = normalize_targets(targets or {})
+    logs = list(food_logs or [])
+    consumed = consumed or {}
+    suggestions: List[dict] = []
+    seen_keys: set = set()
+
+    def _key(name: str, iid: str = "") -> str:
+        return (iid or _slug(name)).lower()
+
+    def _push(item: dict) -> None:
+        k = _key(item.get("name") or "", str(item.get("id") or ""))
+        if k in seen_keys:
+            return
+        # Also skip near-duplicate names already queued
+        for existing in suggestions:
+            if _names_overlap(existing.get("name") or "", item.get("name") or ""):
+                return
+        seen_keys.add(k)
+        suggestions.append(item)
+
+    ingredients = [normalize_ingredient(i) for i in (inventory.get("ingredients") or [])]
+    stocked = [i for i in ingredients if i.get("in_stock", True)]
+    out_of_stock = [i for i in ingredients if not i.get("in_stock", True)]
+
+    # --- 1) Restock out-of-stock items (always high priority — already in your list) ---
+    for ing in out_of_stock:
+        dens = _protein_density(ing)
+        # Base high so restocks beat net-new catalog noise
+        score = 75.0 + dens * 80.0
+        if dens >= 0.08:
+            reason = "Out of stock and high protein density — restock for meal plans."
+            score += 20
+        elif (ing.get("category") or "") == "veg":
+            reason = "Out of stock veg — restock for volume/fiber."
+            score += 12
+        else:
+            reason = "Marked out of stock — restock if you still use it."
+            score += 10
+        _push(
+            {
+                **ing,
+                "action": "restock",
+                "reason": reason,
+                "score": round(score, 1),
+                "source": "inventory",
+            }
+        )
+
+    # --- 2) Frequently logged foods missing from inventory ---
+    log_stats: Dict[str, Dict[str, Any]] = {}
+    for f in logs:
+        if hasattr(f, "to_dict"):
+            d = f.to_dict()
+        elif isinstance(f, dict):
+            d = f
+        else:
+            continue
+        name = str(d.get("name") or "").strip()
+        if not name or name.lower() in ("logged food", "unknown"):
+            continue
+        bucket = log_stats.setdefault(
+            name,
+            {
+                "name": name,
+                "count": 0,
+                "calories": 0.0,
+                "protein_g": 0.0,
+                "carbs_g": 0.0,
+                "fat_g": 0.0,
+            },
+        )
+        bucket["count"] += 1
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            try:
+                bucket[k] += float(d.get(k) or 0)
+            except (TypeError, ValueError):
+                pass
+
+    for name, st in sorted(log_stats.items(), key=lambda x: -x[1]["count"]):
+        if st["count"] < 2:
+            continue
+        match = _find_inventory_match(inventory or {}, name)
+        if match and match.get("in_stock", True):
+            continue
+        n = max(1, st["count"])
+        avg = {
+            "calories": round(st["calories"] / n, 1),
+            "protein_g": round(st["protein_g"] / n, 1),
+            "carbs_g": round(st["carbs_g"] / n, 1),
+            "fat_g": round(st["fat_g"] / n, 1),
+        }
+        dens = avg["protein_g"] / (avg["calories"] or 1)
+        cat = "protein" if dens >= 0.08 else ("fat" if avg["fat_g"] > avg["carbs_g"] and dens < 0.04 else "carb")
+        if match and not match.get("in_stock", True):
+            _push(
+                {
+                    **normalize_ingredient(match),
+                    "action": "restock",
+                    "reason": f"Logged {st['count']}× recently and currently out of stock.",
+                    "score": round(50 + st["count"] * 8 + dens * 40, 1),
+                    "source": "food_logs",
+                }
+            )
+        else:
+            _push(
+                {
+                    "id": _slug(name),
+                    "name": name,
+                    "category": cat,
+                    "serving_label": "1 logged serving (avg)",
+                    **avg,
+                    "in_stock": True,
+                    "action": "add",
+                    "reason": f"Logged {st['count']}× recently but not in inventory.",
+                    "score": round(45 + st["count"] * 8 + dens * 50, 1),
+                    "source": "food_logs",
+                }
+            )
+
+    # --- 3) Catalog staples missing from inventory (gap-aware) ---
+    tgt_p = float(targets.get("protein_g") or 0)
+    rem_p = max(0.0, tgt_p - float(consumed.get("protein_g") or 0))
+    stocked_high_p = sum(1 for i in stocked if _protein_density(i) >= 0.08)
+    protein_gap = rem_p > 40 or stocked_high_p < 2
+
+    for staple in STAPLE_CATALOG:
+        match = _find_inventory_match(
+            inventory or {}, staple["name"], str(staple.get("id") or "")
+        )
+        if match and match.get("in_stock", True):
+            continue
+        dens = _protein_density(staple)
+        score = 20.0 + dens * 60.0
+        reasons = []
+        if match and not match.get("in_stock", True):
+            action = "restock"
+            reasons.append("Catalog staple currently out of stock.")
+            score += 25
+            payload = {**normalize_ingredient(match)}
+        else:
+            action = "add"
+            reasons.append("High-value staple not in inventory.")
+            payload = {**staple, "in_stock": True}
+        if protein_gap and dens >= 0.08:
+            reasons.append("Helps close protein / high-protein stock gap.")
+            score += 20
+        if staple.get("category") == "veg" and stocked_high_p >= 0:
+            # Mild boost for fiber volume when few veg stocked
+            veg_n = sum(1 for i in stocked if (i.get("category") or "") == "veg")
+            if veg_n < 2:
+                reasons.append("Few vegetables stocked.")
+                score += 10
+        if staple.get("category") == "carb":
+            carb_n = sum(1 for i in stocked if (i.get("category") or "") == "carb")
+            if carb_n < 2:
+                reasons.append("Limited carb staples stocked.")
+                score += 8
+        _push(
+            {
+                **payload,
+                "action": action,
+                "reason": " ".join(reasons),
+                "score": round(score, 1),
+                "source": "catalog",
+            }
+        )
+
+    suggestions.sort(key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
+    limit = max(1, int(max_suggestions))
+    # Prefer including restocks first, then fill remaining with highest-score adds
+    restocks = [s for s in suggestions if s.get("action") == "restock"]
+    adds = [s for s in suggestions if s.get("action") != "restock"]
+    top: List[dict] = []
+    top.extend(restocks[:limit])
+    if len(top) < limit:
+        top.extend(adds[: limit - len(top)])
+
+    restock_n = sum(1 for s in top if s.get("action") == "restock")
+    add_n = sum(1 for s in top if s.get("action") == "add")
+    bits = []
+    if restock_n:
+        bits.append(f"{restock_n} restock")
+    if add_n:
+        bits.append(f"{add_n} add")
+    summary = (
+        f"{len(top)} suggestions ({', '.join(bits) or 'none'}) from inventory gaps, "
+        f"food logs, and staple catalog."
+    )
+    return {"suggestions": top, "summary": summary, "count": len(top)}
+
+
+def suggest_inventory_removals(
+    inventory: dict,
+    targets: Optional[dict] = None,
+    food_logs: Optional[Sequence[Any]] = None,
+    max_suggestions: int = 6,
+) -> dict:
+    """Suggest inventory items that may be worth removing (with short reasons).
+
+    Signals: near-duplicates, out-of-stock clutter, low protein density vs
+    cutting targets, non-meal items, and stocked items never logged when
+    stronger alternatives already exist.
+    """
+    targets = normalize_targets(targets or {})
+    logs = list(food_logs or [])
+    ingredients = [normalize_ingredient(i) for i in (inventory.get("ingredients") or [])]
+    if not ingredients:
+        return {
+            "suggestions": [],
+            "summary": "No inventory items to review.",
+            "count": 0,
+        }
+
+    # Food-log name hits for "actually used"
+    log_names: List[str] = []
+    log_counts: Dict[str, int] = {}
+    for f in logs:
+        if hasattr(f, "to_dict"):
+            d = f.to_dict()
+        elif isinstance(f, dict):
+            d = f
+        else:
+            continue
+        name = str(d.get("name") or "").strip()
+        if not name:
+            continue
+        log_names.append(name)
+        log_counts[name] = log_counts.get(name, 0) + 1
+
+    def _logged(ing: dict) -> int:
+        n = 0
+        for ln, c in log_counts.items():
+            if _names_overlap(ing.get("name") or "", ln):
+                n += c
+        return n
+
+    tgt_p = float(targets.get("protein_g") or 0)
+    high_protein_goal = tgt_p >= 150
+    stocked = [i for i in ingredients if is_in_stock(i)]
+    stocked_high_p = [i for i in stocked if _protein_density(i) >= 0.08]
+
+    candidates: List[dict] = []
+    # Track which id we keep when flagging duplicates
+    skip_keep: set = set()
+
+    # --- Duplicates: keep higher protein-density / logged one ---
+    for i, a in enumerate(ingredients):
+        for b in ingredients[i + 1 :]:
+            if not _names_overlap(a.get("name") or "", b.get("name") or ""):
+                continue
+            # Prefer keep: more log hits, then density, then in-stock
+            def rank(x: dict) -> tuple:
+                return (
+                    _logged(x),
+                    _protein_density(x),
+                    1 if is_in_stock(x) else 0,
+                    float(x.get("protein_g") or 0),
+                )
+
+            keep, drop = (a, b) if rank(a) >= rank(b) else (b, a)
+            kid = str(keep.get("id") or "")
+            did = str(drop.get("id") or "")
+            if did in skip_keep:
+                continue
+            skip_keep.add(did)
+            candidates.append(
+                {
+                    **drop,
+                    "action": "remove",
+                    "reason": (
+                        f"Near-duplicate of “{keep.get('name')}” — keep one entry "
+                        f"to simplify meal planning."
+                    ),
+                    "score": 90.0,
+                    "source": "duplicate",
+                }
+            )
+
+    for ing in ingredients:
+        iid = str(ing.get("id") or "")
+        if iid in skip_keep:
+            continue  # already suggested as duplicate drop
+        dens = _protein_density(ing)
+        cal = float(ing.get("calories") or 0)
+        prot = float(ing.get("protein_g") or 0)
+        name = str(ing.get("name") or "")
+        name_l = name.lower()
+        cat = str(ing.get("category") or "other").lower()
+        logged_n = _logged(ing)
+        in_stock = is_in_stock(ing)
+        reasons: List[str] = []
+        score = 0.0
+
+        # Non-meal / supplement-like clutter for the meal planner
+        non_meal_kw = (
+            "vitamin",
+            "multivitamin",
+            "supplement",
+            "gummy",
+            "capsule",
+            "tablet",
+            "probiotic",
+            "electrolyte packet",
+        )
+        if any(k in name_l for k in non_meal_kw) or (
+            prot < 3 and cal < 40 and cat in ("other", "carb")
+        ):
+            reasons.append(
+                "Looks like a supplement/micro item — meal planner works better with real food staples."
+            )
+            score += 55
+
+        # Out of stock + unused + low utility
+        if not in_stock and logged_n == 0 and dens < 0.06:
+            reasons.append(
+                "Out of stock and not in recent food logs — safe to prune dead catalog rows."
+            )
+            score += 50
+        elif not in_stock and logged_n == 0:
+            reasons.append("Out of stock with no recent logs — consider removing if you won’t buy again.")
+            score += 35
+
+        # Low protein density while chasing high protein targets
+        if high_protein_goal and dens < 0.04 and cal >= 100 and cat in ("fat", "other", "carb"):
+            if logged_n <= 1:
+                reasons.append(
+                    f"Low protein density ({prot:.0f}g / {cal:.0f} kcal) for a ~{int(tgt_p)}g protein target."
+                )
+                score += 40
+            elif dens < 0.025 and cal >= 150:
+                reasons.append(
+                    "Calorie-dense / low-protein for a cutting-style protein goal — easy to overshoot calories."
+                )
+                score += 32
+
+        # Stocked but never logged while better proteins exist
+        if (
+            in_stock
+            and logged_n == 0
+            and dens < 0.07
+            and len(stocked_high_p) >= 2
+            and not any(_names_overlap(name, h.get("name") or "") for h in stocked_high_p)
+        ):
+            reasons.append(
+                "In stock but not logged recently; stronger high-protein staples already cover meal plans."
+            )
+            score += 28
+
+        # Empty / zero-macro junk rows
+        if cal <= 0 and prot <= 0 and float(ing.get("carbs_g") or 0) <= 0:
+            reasons.append("No macros on file — not useful for planning until filled in (or remove).")
+            score += 45
+
+        if not reasons or score < 25:
+            continue
+        # Don't suggest removing a heavily logged staple
+        if logged_n >= 5 and dens >= 0.08:
+            continue
+
+        candidates.append(
+            {
+                **ing,
+                "action": "remove",
+                "reason": " ".join(reasons[:2]),
+                "score": round(score, 1),
+                "source": "heuristic",
+            }
+        )
+
+    # Dedupe by id, keep highest score
+    by_id: Dict[str, dict] = {}
+    for c in candidates:
+        k = str(c.get("id") or c.get("name") or "").lower()
+        if not k:
+            continue
+        if k not in by_id or float(c.get("score") or 0) > float(by_id[k].get("score") or 0):
+            by_id[k] = c
+    ranked = sorted(by_id.values(), key=lambda x: (-float(x.get("score") or 0), x.get("name") or ""))
+    top = ranked[: max(1, int(max_suggestions))] if ranked else []
+    summary = (
+        f"{len(top)} removal suggestion{'s' if len(top) != 1 else ''} "
+        f"(duplicates, unused, or weak fit for targets)."
+        if top
+        else "No strong removal candidates — inventory looks lean."
+    )
+    return {"suggestions": top, "summary": summary, "count": len(top)}

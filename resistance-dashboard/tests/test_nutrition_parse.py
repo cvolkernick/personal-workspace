@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import unittest
 
-from rt_dashboard.google_health import parse_nutrition_log_points, parse_nutrition_rollup
+from rt_dashboard.google_health import (
+    parse_food_log_entries,
+    parse_nutrition_log_points,
+    parse_nutrition_rollup,
+)
 
 
 class TestNutritionParse(unittest.TestCase):
@@ -74,6 +78,66 @@ class TestNutritionParse(unittest.TestCase):
         self.assertEqual(days[0].protein_g, 30.0)
         self.assertEqual(days[0].carbs_g, 15.0)
         self.assertEqual(days[0].fat_g, 3.0)
+
+    def test_food_log_entries_meal_level(self):
+        payload = {
+            "dataPoints": [
+                {
+                    "nutritionLog": {
+                        "foodDisplayName": "Chicken breast",
+                        "mealType": "LUNCH",
+                        "serving": {
+                            "amount": 6,
+                            "foodMeasurementUnitDisplayName": "oz",
+                        },
+                        "interval": {
+                            "civilStartTime": {
+                                "date": {"year": 2026, "month": 7, "day": 11},
+                                "time": {"hours": 12, "minutes": 30},
+                            }
+                        },
+                        "energy": {"kcal": 280},
+                        "totalCarbohydrate": {"grams": 0},
+                        "totalFat": {"grams": 6},
+                        "nutrients": [
+                            {"nutrient": "PROTEIN", "quantity": {"grams": 52}},
+                            {"nutrient": "DIETARY_FIBER", "quantity": {"grams": 0}},
+                            {"nutrient": "SODIUM", "quantity": {"grams": 0.12}},
+                            {"nutrient": "IRON", "quantity": {"grams": 0.001}},
+                        ],
+                    }
+                },
+                {
+                    "nutritionLog": {
+                        "foodDisplayName": "Greek yogurt",
+                        "mealType": "SNACK",
+                        "interval": {
+                            "civilStartTime": {
+                                "date": {"year": 2026, "month": 7, "day": 11},
+                                "time": {"hours": 15, "minutes": 0},
+                            }
+                        },
+                        "energy": {"kcal": 150},
+                        "totalCarbohydrate": {"grams": 8},
+                        "totalFat": {"grams": 2},
+                        "nutrients": [
+                            {"nutrient": "PROTEIN", "quantity": {"grams": 20}},
+                            {"nutrient": "CALCIUM", "quantity": {"grams": 0.2}},
+                        ],
+                    }
+                },
+            ]
+        }
+        entries = parse_food_log_entries(payload, days=60)
+        self.assertEqual(len(entries), 2)
+        self.assertEqual(entries[0].name, "Chicken breast")
+        self.assertEqual(entries[0].meal_type, "Lunch")
+        self.assertEqual(entries[0].time, "12:30")
+        self.assertEqual(entries[0].serving_label, "6 oz")
+        self.assertEqual(entries[0].protein_g, 52.0)
+        self.assertIn("SODIUM", entries[0].nutrients)
+        self.assertEqual(entries[1].name, "Greek yogurt")
+        self.assertEqual(entries[1].calories, 150.0)
 
 
 if __name__ == "__main__":

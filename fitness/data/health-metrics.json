@@ -1,154 +1,154 @@
 {
-  "source_note": "Derived from fitness/data/fitbit-report-may2026.md (scale/sleep summary)",
+  "source_note": "Derived from fitness/data/fitbit-report-may2026.md (scale values were kg; stored as lbs)",
   "weight": [
     {
       "date": "2026-04-20",
-      "weight_lbs": 86.1,
+      "weight_lbs": 189.82,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-21",
-      "weight_lbs": 85.4,
+      "weight_lbs": 188.27,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-22",
-      "weight_lbs": 86.1,
+      "weight_lbs": 189.82,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-23",
-      "weight_lbs": 86.2,
+      "weight_lbs": 190.04,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-24",
-      "weight_lbs": 86.6,
+      "weight_lbs": 190.92,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-25",
-      "weight_lbs": 86.0,
+      "weight_lbs": 189.6,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-26",
-      "weight_lbs": 84.9,
+      "weight_lbs": 187.17,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-27",
-      "weight_lbs": 85.4,
+      "weight_lbs": 188.27,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-28",
-      "weight_lbs": 85.1,
+      "weight_lbs": 187.61,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-29",
-      "weight_lbs": 85.1,
+      "weight_lbs": 187.61,
       "source": "fitbit_report"
     },
     {
       "date": "2026-04-30",
-      "weight_lbs": 86.3,
+      "weight_lbs": 190.26,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-01",
-      "weight_lbs": 86.6,
+      "weight_lbs": 190.92,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-02",
-      "weight_lbs": 84.8,
+      "weight_lbs": 186.95,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-03",
-      "weight_lbs": 86.1,
+      "weight_lbs": 189.82,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-04",
-      "weight_lbs": 86.0,
+      "weight_lbs": 189.6,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-05",
-      "weight_lbs": 85.7,
+      "weight_lbs": 188.94,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-06",
-      "weight_lbs": 85.3,
+      "weight_lbs": 188.05,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-07",
-      "weight_lbs": 85.0,
+      "weight_lbs": 187.39,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-08",
-      "weight_lbs": 84.6,
+      "weight_lbs": 186.51,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-09",
-      "weight_lbs": 85.0,
+      "weight_lbs": 187.39,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-10",
-      "weight_lbs": 85.3,
+      "weight_lbs": 188.05,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-11",
-      "weight_lbs": 84.4,
+      "weight_lbs": 186.07,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-12",
-      "weight_lbs": 85.1,
+      "weight_lbs": 187.61,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-13",
-      "weight_lbs": 85.0,
+      "weight_lbs": 187.39,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-14",
-      "weight_lbs": 84.0,
+      "weight_lbs": 185.19,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-15",
-      "weight_lbs": 83.7,
+      "weight_lbs": 184.53,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-16",
-      "weight_lbs": 83.8,
+      "weight_lbs": 184.75,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-17",
-      "weight_lbs": 84.8,
+      "weight_lbs": 186.95,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-18",
-      "weight_lbs": 83.2,
+      "weight_lbs": 183.42,
       "source": "fitbit_report"
     },
     {
       "date": "2026-05-19",
-      "weight_lbs": 83.1,
+      "weight_lbs": 183.2,
       "source": "fitbit_report"
     }
   ],
