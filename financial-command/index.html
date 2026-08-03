@@ -1607,33 +1607,6 @@
       </div>
       <div class="carousel-dots" id="actions-dots" role="tablist" aria-label="Action pages"></div>
     </section>
-
-
-    <section class="advisor" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
-      <div class="advisor-head">
-        <h2>
-          Ask Grok
-          <span class="sub">Financial advisor · grounded in this dashboard</span>
-        </h2>
-        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
-      </div>
-      <div class="advisor-row">
-        <textarea
-          id="advisor-question"
-          rows="2"
-          placeholder="e.g. What should I pay first with cash I actually have?"
-          maxlength="4000"
-        ></textarea>
-        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
-      </div>
-      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
-      <div class="advisor-error" id="advisor-error"></div>
-      <div class="advisor-answer" id="advisor-answer">
-        <div class="meta" id="advisor-answer-meta"></div>
-        <div class="body" id="advisor-answer-body"></div>
-      </div>
-    </section>
-
     <section class="card" id="bills-coach-card" data-m-panel="coach">
       <div class="bill-section-head">
         <div>
@@ -1665,6 +1638,33 @@
           <div id="coach-habits" style="margin-top:0.4rem"></div>
           <div id="coach-requests" style="margin-top:0.25rem"></div>
         </div>
+      </div>
+    </section>
+
+
+
+    <section class="advisor" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
+      <div class="advisor-head">
+        <h2>
+          Ask Grok
+          <span class="sub">Financial advisor · grounded in this dashboard</span>
+        </h2>
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
+      </div>
+      <div class="advisor-row">
+        <textarea
+          id="advisor-question"
+          rows="2"
+          placeholder="e.g. What should I pay first with cash I actually have?"
+          maxlength="4000"
+        ></textarea>
+        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+      </div>
+      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+      <div class="advisor-error" id="advisor-error"></div>
+      <div class="advisor-answer" id="advisor-answer">
+        <div class="meta" id="advisor-answer-meta"></div>
+        <div class="body" id="advisor-answer-body"></div>
       </div>
     </section>
 
@@ -1763,7 +1763,7 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-missing" data-m-panel="more" class="hidden">
+    <details class="panel hidden" id="panel-missing" data-m-panel="more">
       <summary>Missing data</summary>
       <div class="body">
         <div id="dq-metrics"></div>
@@ -1827,6 +1827,29 @@
       </div>
     </details>
   </main>
+
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
+    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span>
+      <span class="tab-lbl">Glance</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="cash">
+      <span class="tab-ico" aria-hidden="true">$</span>
+      <span class="tab-lbl">Cash</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="mining">
+      <span class="tab-ico" aria-hidden="true">⛏</span>
+      <span class="tab-lbl">Mining</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="coach">
+      <span class="tab-ico" aria-hidden="true">✓</span>
+      <span class="tab-lbl">Coach</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="more">
+      <span class="tab-ico" aria-hidden="true">···</span>
+      <span class="tab-lbl">More</span>
+    </button>
+  </nav>
 
   <footer>
     Financial Command Center ·
@@ -4350,29 +4373,6 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="nav-orchestra.js"></script>
-
-  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
-    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
-      <span class="tab-ico" aria-hidden="true">◎</span>
-      <span class="tab-lbl">Glance</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="cash">
-      <span class="tab-ico" aria-hidden="true">$</span>
-      <span class="tab-lbl">Cash</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="mining">
-      <span class="tab-ico" aria-hidden="true">⛏</span>
-      <span class="tab-lbl">Mining</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="coach">
-      <span class="tab-ico" aria-hidden="true">✓</span>
-      <span class="tab-lbl">Coach</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="more">
-      <span class="tab-ico" aria-hidden="true">···</span>
-      <span class="tab-lbl">More</span>
-    </button>
-  </nav>
 
 </body>
 </html>
