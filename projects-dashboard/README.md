@@ -62,7 +62,8 @@ curl -s 'http://127.0.0.1:8765/api/branch-graph?max=80&remotes=1' | python3 -m j
 | | |
 |--|--|
 | UI | Workflow Management → **Branches** → Graph / List |
-| API | `GET /api/branch-graph?max=80&remotes=1` |
+| Order | **Newest at top** (gitk / `git log --graph` style); each row shows committer time |
+| API | `GET /api/branch-graph?max=80&remotes=1` (`date` is ISO-8601 committer) |
 | External | [GitHub Branches](https://github.com/cvolkernick/personal-workspace/branches) · [Network](https://github.com/cvolkernick/personal-workspace/network) |
 
 ## Day bridge (Workflow ↔ Time allocator)

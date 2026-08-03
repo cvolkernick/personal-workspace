@@ -100,6 +100,22 @@ class TestBranchGraph(unittest.TestCase):
         self.assertIn("work/treasury", names)
         self.assertTrue(any(r.get("is_work") for r in g["refs"]))
 
+    def test_newest_first_with_dates(self) -> None:
+        """Graph walks newest → oldest (row 0 = top = most recent)."""
+        g = collect_branch_graph(self.repo, max_commits=50, include_remotes=False)
+        self.assertTrue(g.get("ok"), g.get("error"))
+        commits = g["commits"]
+        self.assertGreaterEqual(len(commits), 2)
+        for c in commits:
+            self.assertIn("date", c)
+            self.assertTrue(c["date"], msg="each commit needs a committer timestamp")
+            # ISO-8601 from git %cI
+            self.assertRegex(c["date"], r"^\d{4}-\d{2}-\d{2}T")
+        # Strict newest-first by committer date
+        dates = [c["date"] for c in commits]
+        self.assertEqual(dates, sorted(dates, reverse=True))
+        self.assertEqual(commits[0]["row"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -931,6 +931,19 @@
       };
     }
 
+    /** Compact committer timestamp for graph rows (newest → oldest top→bottom). */
+    function formatGraphDate(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 16);
+      // Local wall clock, fixed width-ish: "Aug 03 15:36"
+      const mon = d.toLocaleString(undefined, { month: "short" });
+      const day = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${mon} ${day} ${hh}:${mm}`;
+    }
+
     function renderBranchGraphSvg(g) {
       const commits = g.commits || [];
       const edges = g.edges || [];
@@ -943,7 +956,10 @@
       const padL = 12;
       const padT = 10;
       const textX = padL + laneCount * laneW + 18;
-      const width = Math.max(720, textX + 520);
+      const shaW = 58;
+      const dateW = 108; // room for "Aug 03 15:36"
+      const subjX = textX + shaW + dateW;
+      const width = Math.max(820, subjX + 480);
       const height = padT * 2 + commits.length * rowH;
 
       const cx = (lane) => padL + lane * laneW + laneW / 2;
@@ -972,20 +988,24 @@
           return `<tspan fill="${bg}" font-weight="700">[${esc(lb.name)}] </tspan>`;
         }).join("");
         const subj = esc((c.subject || "").slice(0, 72));
+        const when = esc(formatGraphDate(c.date));
+        const title = esc([c.date, c.author, c.subject].filter(Boolean).join(" · "));
         const link = c.url
           ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text></a>`
           : `<text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text>`;
         return `
           <g class="graph-row-hit">
+            <title>${title}</title>
             <rect class="graph-bg" x="0" y="${cy(c.row) - rowH / 2}" width="${width}" height="${rowH}" fill="transparent"/>
             <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#0a1016" stroke-width="1.5"/>
             ${c.is_head ? `<circle cx="${x}" cy="${y}" r="${r + 3}" fill="none" stroke="${col}" stroke-width="1" opacity="0.7"/>` : ""}
             ${link}
-            <text x="${textX + 58}" y="${y + 4}" font-size="12" fill="#e7eef5">${labels}<tspan fill="#c5d0db">${subj}</tspan></text>
+            <text x="${textX + shaW}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#6b7c8f">${when}</text>
+            <text x="${subjX}" y="${y + 4}" font-size="12" fill="#e7eef5">${labels}<tspan fill="#c5d0db">${subj}</tspan></text>
           </g>`;
       }).join("");
 
-      return `<svg class="graph-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Git branch graph">
+      return `<svg class="graph-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Git branch graph, newest commits at top">
         ${edgePaths}
         ${nodes}
       </svg>`;
@@ -1009,6 +1029,7 @@
         mount.innerHTML = renderBranchGraphSvg(g);
         const links = g.links || {};
         const parts = [
+          "newest at top",
           `${g.commit_count} commits`,
           `${g.lane_count} lanes`,
           g.current_branch ? `HEAD ${g.current_branch}` : "",
