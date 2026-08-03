@@ -143,8 +143,16 @@
       grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.35rem;
       overflow: visible;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
-    #at-a-glance { overflow: visible; }
+    #at-a-glance {
+      overflow: visible;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
 
     /* Ask Grok — financial advisor */
     .advisor {
@@ -1280,14 +1288,21 @@
 
     @media (max-width: 720px) {
       body { font-size: 14px; }
+      html, body {
+        max-width: 100%;
+        overflow-x: clip;
+      }
       .sticky-top {
         padding: 0.55rem 0.75rem;
         padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+        max-width: 100%;
+        overflow-x: hidden;
       }
       .sticky-top .row {
         flex-direction: column;
         align-items: stretch;
         gap: 0.45rem;
+        max-width: 100%;
       }
       .sticky-top .controls {
         display: grid;
@@ -1318,16 +1333,51 @@
       main {
         padding: 0.5rem 0.7rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
         gap: 0.5rem;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+        box-sizing: border-box;
       }
       .grid-2 {
         grid-template-columns: 1fr;
       }
+      /* Phone At-a-glance: 2 equal cols that actually fit (no clip).
+         Hover tooltips are desktop-only — hide on narrow to stop overflow. */
+      #at-a-glance,
+      .kpi-grid {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+      }
       .kpi-grid {
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 0.4rem;
+        gap: 0.35rem;
+      }
+      .kpi {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      .kpi-tip {
+        display: none !important;
       }
       .kpi .v { font-size: 0.95rem; }
-      .kpi .k, .kpi .s { white-space: normal; }
+      .kpi .k, .kpi .s { white-space: normal; word-break: break-word; }
+      .advisor,
+      .advisor-chips,
+      .card,
+      .status-split {
+        max-width: 100%;
+        min-width: 0;
+      }
+      .advisor-chips button.chip {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       .bill-row {
         grid-template-columns: 1fr;
         gap: 0.35rem;

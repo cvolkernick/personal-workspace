@@ -460,6 +460,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
     def log_message(self, fmt: str, *args) -> None:
         sys.stderr.write("[fcc] " + (fmt % args) + "\n")
 
+    def end_headers(self) -> None:
+        # Phone browsers 304-cache index.html hard; always revalidate static UI.
+        self.send_header("Cache-Control", "no-store, max-age=0")
+        super().end_headers()
+
     def _json(self, code: int, payload: dict) -> None:
         if not isinstance(payload, dict):
             payload = {"ok": False, "error": "invalid payload type"}
@@ -900,6 +905,11 @@ class FCCHandler(SimpleHTTPRequestHandler):
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Financial Command Center server")
+    parser.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="Bind address (use 0.0.0.0 for LAN/Tailscale on Pi)",
+    )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--offline", action="store_true", help="Initial refresh offline")
@@ -933,6 +943,7 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:
         print(f"initial treasury refresh warning: {e}", file=sys.stderr)
 
+    bind_host = (args.host or "127.0.0.1").strip() or "127.0.0.1"
     url = f"http://127.0.0.1:{args.port}/financial-command/index.html"
     wl = f"http://127.0.0.1:{args.port}/financial-command/watchlist.html"
     print(f"Financial Command Center → {url}")
@@ -940,7 +951,8 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"Capital flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
     )
-    httpd = ThreadingHTTPServer(("127.0.0.1", args.port), FCCHandler)
+    print(f"[fcc] bind {bind_host}:{args.port}", file=sys.stderr)
+    httpd = ThreadingHTTPServer((bind_host, args.port), FCCHandler)
     if not args.no_browser:
         try:
             webbrowser.open(url)
