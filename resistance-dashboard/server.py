@@ -616,6 +616,14 @@ def load_dashboard_data(
     # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
     from rt_dashboard.sleep_series import expand_sleep_calendar
 
+    # Real sleep logs (before implied-zero fill). Missing Health must not
+    # auto-force a rest day via a ~30 "Caution" score from zero-filled nights.
+    had_real_sleep = any(
+        float(getattr(s, "sleep_hours", 0) or 0) > 0
+        and str(getattr(s, "source", "") or "") != "implied_zero"
+        for s in (health.sleep or [])
+    )
+
     health.sleep = expand_sleep_calendar(
         health.sleep or [],
         as_of=local_today,
@@ -641,6 +649,7 @@ def load_dashboard_data(
     )
     recovery_dict = recovery.to_dict()
     recovery_dict["sleep_battery"] = sleep_battery
+    recovery_dict["sparse"] = not had_real_sleep
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
     payload["recovery"] = recovery_dict
@@ -717,6 +726,8 @@ def load_dashboard_data(
             sessions,
             recovery_label=(recovery.label if recovery else None),
             recovery_score=(recovery.score if recovery else None),
+            # Sparse Health (no real sleep) → do not auto-rest on debt-filled score
+            recovery_sparse=not had_real_sleep,
             as_of=local_today,
         )
         # Effective goals include autonomous focus_muscles from plan gen
@@ -981,6 +992,7 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 sessions,
                 recovery_label=rec.get("label"),
                 recovery_score=rec.get("score"),
+                recovery_sparse=bool(rec.get("sparse")),
                 session_type=action.get("session_type"),
             )
             return {"ok": True, "action": kind, "plan": plan}
@@ -1698,6 +1710,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     sessions,
                     recovery_label=rec.get("label"),
                     recovery_score=rec.get("score"),
+                    recovery_sparse=bool(rec.get("sparse")),
                     session_type=str(session_type).lower() if session_type else None,
                 )
                 self._send_json({"ok": True, "plan": plan})

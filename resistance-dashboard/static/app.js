@@ -2098,7 +2098,7 @@
     return Number.isInteger(x) ? String(x) : x.toFixed(0);
   }
 
-  /** Sticky phone strip: cals · protein · recovery */
+  /** Sticky phone strip: cals · protein · recovery status */
   function updateMacroStrip(consumed, targets, recovery) {
     const strip = $("macro-strip");
     if (!strip) return;
@@ -2108,16 +2108,27 @@
     const calsEl = $("macro-strip-cals");
     const pEl = $("macro-strip-protein");
     const rEl = $("macro-strip-recovery");
+    // source "none" means Google Health has no day yet — show — not fake 0s
+    const noIntake =
+      !c.source || c.source === "none" || (c.food_log_count === 0 && !(Number(c.calories) > 0));
     if (calsEl) {
-      calsEl.textContent = `Cals ${fmtNumShort(c.calories)}/${fmtNumShort(t.calories)}`;
+      const eaten = noIntake && !(Number(c.calories) > 0) ? "—" : fmtNumShort(c.calories);
+      calsEl.textContent = `Cals ${eaten}/${fmtNumShort(t.calories)}`;
+      calsEl.title = "Calories eaten today / daily target (from Google Health)";
     }
     if (pEl) {
-      pEl.textContent = `P ${fmtNumShort(c.protein_g)}/${fmtNumShort(t.protein_g)}g`;
+      const eatenP =
+        noIntake && !(Number(c.protein_g) > 0) ? "—" : fmtNumShort(c.protein_g);
+      pEl.textContent = `P ${eatenP}/${fmtNumShort(t.protein_g)}g`;
+      pEl.title = "Protein eaten today / daily target (from Google Health)";
     }
     if (rEl) {
       const label = rec.label || "—";
-      const score = rec.score != null ? rec.score : "—";
-      rEl.textContent = `${label} ${score}`;
+      const score = rec.score != null ? Math.round(Number(rec.score)) : "—";
+      // Keep "Rec" prefix so Caution/Ready is not mistaken for a macro
+      rEl.textContent = `Rec ${label} ${score}`;
+      rEl.title =
+        "Recovery score 0–100 from sleep, recent training volume, and weight trend. Bands: Ready 75+, Moderate 50–74, Caution 30–49, Needs Rest <30.";
     }
     strip.hidden = false;
   }
@@ -2663,7 +2674,21 @@
       </div>
     </div>`;
     if (!meals.length) {
-      html += `<p class="muted">No items planned.</p>`;
+      const remB = plan.remaining_before_plan || {};
+      const remCals = Number(remB.calories);
+      const remP = Number(remB.protein_g);
+      if (
+        Number.isFinite(remCals) &&
+        Number.isFinite(remP) &&
+        remCals < 150 &&
+        remP < 20
+      ) {
+        html += `<p class="muted">Day is essentially full (≈${fmtNumShort(
+          remCals
+        )} kcal / ${fmtNumShort(remP)}g protein left) — nothing useful to add from stock.</p>`;
+      } else {
+        html += `<p class="muted">No items planned — check in-stock inventory or remaining macros.</p>`;
+      }
     } else {
       meals.forEach((m, mi) => {
         const items = m.items || [];

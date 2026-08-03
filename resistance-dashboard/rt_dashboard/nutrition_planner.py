@@ -358,6 +358,7 @@ def generate_meal_plan(
         },
     )
 
+    rem_before = remaining_macros(targets, consumed)
     msg = (
         f"Plan from {len(stocked)} in-stock ingredient"
         f"{'s' if len(stocked) != 1 else ''} only (out-of-stock excluded)."
@@ -367,9 +368,14 @@ def generate_meal_plan(
             f" Uses {len(logged)} Google Health food log"
             f"{'s' if len(logged) != 1 else ''} so far today for remaining macros."
         )
-    if remaining_after["protein_g"] > 40:
+    if not plan_items and rem_before["calories"] < 150 and rem_before["protein_g"] < 20:
+        msg = (
+            f"Day essentially complete — only ~{rem_before['calories']:.0f} kcal and "
+            f"{rem_before['protein_g']:.0f}g protein left under target; no extra servings planned."
+        )
+    elif remaining_after["protein_g"] > 40:
         msg += " Protein still short — restock high-protein items if needed."
-    if remaining_after["calories"] > 300 and not plan_items:
+    if remaining_after["calories"] > 300 and not plan_items and rem_before["protein_g"] >= 20:
         msg = "Could not fit more servings without exceeding soft calorie ceiling (in-stock only)."
 
     return {

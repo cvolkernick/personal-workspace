@@ -851,6 +851,7 @@ def generate_workout_plan(
     *,
     recovery_label: Optional[str] = None,
     recovery_score: Optional[float] = None,
+    recovery_sparse: bool = False,
     session_type: Optional[str] = None,
     as_of: Optional[str] = None,
 ) -> dict:
@@ -858,6 +859,10 @@ def generate_workout_plan(
     Build today's workout from catalog + history + recovery.
 
     Similar role to generate_meal_plan for nutrition.
+
+    When ``recovery_sparse`` is True (e.g. no real sleep logs from Health yet),
+    a low recovery score does not force a rest day — zero-filled sleep debt
+    would otherwise score ~30 Caution and blank the plan on cold cache.
     """
     goals = normalize_goals(goals)
     if as_of is None:
@@ -891,7 +896,11 @@ def generate_workout_plan(
         "reason": focus_res.get("reason"),
     }
 
-    if recovery_score is not None and recovery_score < rest_threshold:
+    if (
+        recovery_score is not None
+        and recovery_score < rest_threshold
+        and not recovery_sparse
+    ):
         balance = volume_balance_report(tally, goals)
         balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
             tally, goals
