@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-08-03T19:29:06.665837+00:00",
+  "as_of": "2026-08-03T20:54:03.024159+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-03T19:29:06.663058+00:00",
+    "as_of": "2026-08-03T20:54:03.021436+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 177.1675,
+    "nav_usd": 178.5752,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 174.5,
     "weights_of_nav": {
-      "btc_digital_credit": 0.394,
-      "stocks_growth": 0.591,
+      "btc_digital_credit": 0.3909,
+      "stocks_growth": 0.5863,
       "other": 0.0,
       "cash": 0.0005
     },
@@ -107,12 +107,13 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 4,
+      "count": 5,
       "symbols": [
         "BE",
         "GOOGL",
         "AAPL",
-        "NVDA"
+        "NVDA",
+        "PLTR"
       ],
       "entries": [
         {
@@ -162,6 +163,18 @@
           "last_deep_dive": null,
           "held": false,
           "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default."
+        },
+        {
+          "symbol": "PLTR",
+          "name": "Palantir Technologies",
+          "theme": "ai_stack",
+          "status": "monitor",
+          "priority": "medium",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": null,
+          "held": false,
+          "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core. See RESEARCH/PALANTIR_THESIS_FIT_2026_08_03.md (Buzz nest)."
         }
       ],
       "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance."
@@ -172,7 +185,7 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA \u2014 deep-dive via /position-deep-dive before first buy when required."
+      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR \u2014 deep-dive via /position-deep-dive before first buy when required."
     ],
     "fair_game": true,
     "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
