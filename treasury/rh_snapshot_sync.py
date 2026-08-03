@@ -67,6 +67,11 @@ DEFAULT_PUSH_FILES = (
     "braiins_latest.json",
     "fund_manager_latest.json",
     "treasury_latest.json",
+    # YNAB-sourced cash feeds (token lives on Mac; Pi is offline consumer)
+    "one_card_latest.json",
+    "rh_checking_latest.json",
+    "x_money_latest.json",
+    "expenses_latest.json",
 )
 
 
@@ -559,6 +564,44 @@ def push_snapshots_to_pi(
                 )
         except (subprocess.TimeoutExpired, OSError) as e:
             out["skipped"].append({"file": name, "reason": str(e)})
+
+    # FCC server also serves financial-command/treasury_latest.json — keep in sync
+    if "treasury_latest.json" in out["pushed"]:
+        local_tre = SNAPSHOTS_DIR / "treasury_latest.json"
+        remote_fcc = (
+            f"{ssh_host}:{remote_root.rstrip('/')}/financial-command/treasury_latest.json"
+        )
+        try:
+            r = subprocess.run(
+                [
+                    "scp",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    f"ConnectTimeout={int(max(1, timeout))}",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    str(local_tre),
+                    remote_fcc,
+                ],
+                capture_output=True,
+                text=True,
+                timeout=timeout + 30,
+            )
+            if r.returncode == 0:
+                out["pushed"].append("financial-command/treasury_latest.json")
+            else:
+                out["skipped"].append(
+                    {
+                        "file": "financial-command/treasury_latest.json",
+                        "reason": f"scp_exit_{r.returncode}",
+                        "stderr": (r.stderr or "")[:200],
+                    }
+                )
+        except (subprocess.TimeoutExpired, OSError) as e:
+            out["skipped"].append(
+                {"file": "financial-command/treasury_latest.json", "reason": str(e)}
+            )
 
     out["ok"] = len(out["pushed"]) > 0
     if not out["ok"] and not out["error"]:

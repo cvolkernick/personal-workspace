@@ -10,7 +10,7 @@ Mac is the **live producer** for Robinhood trade + Braiins. Pi is an **offline c
 | 2 | Pi pull accept window **12 → 6h** (matches FCC stale threshold) |
 | 3 | Mac launchd RH: **`TREASURY_SKIP_PI=1`** (never re-copy stale Pi RH) |
 | 4 | New **braiins** launchd every **4h** (`com.personalworkspace.braiins-refresh`) |
-| 5 | After Mac RH/Braiins success → **push** `robinhood_latest`, `braiins_latest`, `fund_manager_latest`, `treasury_latest` → Pi |
+| 5 | After Mac success → **push** RH/Braiins/FM/treasury **+ YNAB cash** (`one_card`, `rh_checking`, `x_money`, `expenses`) → Pi (+ `financial-command/treasury_latest.json`) |
 
 ## Install / reload (Mac)
 

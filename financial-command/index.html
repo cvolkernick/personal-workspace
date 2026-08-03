@@ -1306,16 +1306,20 @@
       }
       .sticky-top .controls {
         display: grid;
+        /* Watchlist | Refresh equal halves; status pill full-width below */
         grid-template-columns: 1fr 1fr;
         gap: 0.4rem;
         width: 100%;
       }
+      /* Do NOT span primary full-width — Chris wants equal split with Watchlist */
       .sticky-top .controls .primary {
-        grid-column: 1 / -1;
+        grid-column: auto;
+        width: 100%;
       }
       .sticky-top .controls .pill {
         grid-column: 1 / -1;
         justify-content: center;
+        width: 100%;
       }
       .sticky-top .controls .poll-note {
         display: none; /* reclaim chrome on phone */
@@ -1327,6 +1331,8 @@
         min-height: 2.5rem;
         padding: 0.5rem 0.6rem;
         font-size: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
       }
       h1 { font-size: 1.05rem; }
       .sub { font-size: 0.72rem; }
