@@ -102,20 +102,42 @@ echo "→ Installing systemd user unit…"
 ssh "$REMOTE" "mkdir -p ~/.config/systemd/user ~/.config/resistance-dashboard"
 scp "$TMP/resistance-dashboard.service" "$REMOTE:~/.config/systemd/user/"
 
-# Optional: push Mac env secrets if present (Google tokens, GitHub PAT)
+# Optional: push Mac env secrets if present (Google tokens, GitHub PAT).
+# Then pin Pi-only OAuth public URL so a Mac localhost env never becomes
+# Google's redirect_uri (that yields "this site can't be reached" on phone).
 LOCAL_ENV="${HOME}/.config/resistance-dashboard/env"
+# Override with FITDASH_PUBLIC_URL=... when invoking deploy if MagicDNS changes.
+PUBLIC_URL="${FITDASH_PUBLIC_URL:-https://prism-gateway.tailb1085a.ts.net}"
 if [[ -f "$LOCAL_ENV" ]]; then
   echo "→ Syncing ~/.config/resistance-dashboard/env to Pi (mode 600)…"
   scp "$LOCAL_ENV" "$REMOTE:~/.config/resistance-dashboard/env"
   ssh "$REMOTE" "chmod 600 ~/.config/resistance-dashboard/env"
 else
   echo "NOTE: no $LOCAL_ENV on this Mac — Google Health on Pi will need tokens later."
+  ssh "$REMOTE" "mkdir -p ~/.config/resistance-dashboard; touch ~/.config/resistance-dashboard/env; chmod 600 ~/.config/resistance-dashboard/env"
 fi
 
+echo "→ Pinning FITDASH_PUBLIC_URL=$PUBLIC_URL on Pi (OAuth redirect base)…"
 # shellcheck disable=SC2087
-ssh "$REMOTE" bash -s -- "$REMOTE_DIR" <<'REMOTE'
+ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "$PUBLIC_URL" <<'REMOTE'
 set -euo pipefail
 DIR="$1"
+PUBLIC_URL="$2"
+
+ENV="$HOME/.config/resistance-dashboard/env"
+mkdir -p "$(dirname "$ENV")"
+touch "$ENV"
+grep -vE '^(export[[:space:]]+)?FITDASH_PUBLIC_URL=' "$ENV" > "$ENV.tmp" || true
+mv "$ENV.tmp" "$ENV"
+{
+  echo ""
+  echo "# OAuth redirect base (reachable from phone/browser — never 127.0.0.1)"
+  printf "export FITDASH_PUBLIC_URL=%q\n" "$PUBLIC_URL"
+} >> "$ENV"
+if ! grep -qE '^(export[[:space:]]+)?FITDASH_REQUIRE_AUTH=' "$ENV"; then
+  echo "export FITDASH_REQUIRE_AUTH=1" >> "$ENV"
+fi
+chmod 600 "$ENV"
 
 loginctl enable-linger "$USER" 2>/dev/null || true
 systemctl --user daemon-reload
@@ -129,12 +151,17 @@ ss -lntp 2>/dev/null | grep -E ':8787\b' || true
 echo ""
 echo "Healthz:"
 curl -sS -m 5 "http://127.0.0.1:8787/api/healthz" || echo "(healthz not ready yet)"
+echo ""
+echo "Auth status (oauth_redirect_uri must NOT be 127.0.0.1):"
+curl -sS -m 5 "http://127.0.0.1:8787/api/auth/status" || true
+echo
 REMOTE
 
 echo ""
 echo "Deploy complete."
+echo "  Preferred: https://prism-gateway.tailb1085a.ts.net/  (Tailscale Serve HTTPS)"
 echo "  LAN:       http://$RHOST:8787/"
 echo "  Healthz:   curl -sS http://$RHOST:8787/api/healthz"
+echo "  OAuth:     ${PUBLIC_URL}/api/auth/google/callback  (must match Google Console)"
 echo "  Logs:      ssh $REMOTE 'journalctl --user -u resistance-dashboard -f'"
-echo "  Off-LAN:   install Tailscale on Pi + client; open http://<tailscale-name>:8787/"
-echo "  Security:  private mesh only until multi-user Google auth ships — no public port-forward."
+echo "  Security:  private mesh only — no public port-forward."
