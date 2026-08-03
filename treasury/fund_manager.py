@@ -553,9 +553,11 @@ def rules_based_review(
     nav = _f(analysis.get("nav_usd"))
     bp = _f(analysis.get("buying_power_usd"))
     min_trade = _f((policy.get("limits") or {}).get("min_trade_notional_usd"), 1.0)
-    # Any positive cash or BP is material — no %NAV gate (owner: deploy whenever capital is free)
-    idle_capital = cash > 0 or bp > 0
+    # Material free capital only — dust below min_trade cannot fill a ticket, so stay quiet.
+    # No %NAV gate (owner: deploy whenever spendable capital is free).
     deployable = max(cash, bp)
+    idle_capital = deployable >= min_trade
+    dust_capital = 0 < deployable < min_trade
 
     in_band = (
         btc is not None
@@ -578,17 +580,24 @@ def rules_based_review(
     elif in_band and not idle_capital:
         outcome = "hold"
         kind = "hold"
-        summary = (
-            f"Rules HOLD: deployed mix in ±{band:.0%} band "
-            f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash/BP ${cash:.2f}/${bp:.2f} zero"
-        )
+        if dust_capital:
+            summary = (
+                f"Rules HOLD: deployed mix in ±{band:.0%} band "
+                f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); "
+                f"dust cash/BP ${cash:.2f}/${bp:.2f} < min_trade ${min_trade:.2f} (not deployable)"
+            )
+        else:
+            summary = (
+                f"Rules HOLD: deployed mix in ±{band:.0%} band "
+                f"(BTC-complex {btc:.0%}, stocks {stocks:.0%}); cash/BP ${cash:.2f}/${bp:.2f} zero"
+            )
         need_llm = False
     elif idle_capital and no_deployed:
         outcome = "need_llm"
         kind = "deploy"
         summary = (
             f"Rules → need team/LLM: idle capital cash ${cash:.2f} BP ${bp:.2f} "
-            f"(deployable ${deployable:.2f}) toward 40/60"
+            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f}) toward 40/60"
         )
         need_llm = True
     elif idle_capital:
@@ -596,7 +605,7 @@ def rules_based_review(
         kind = "deploy"
         summary = (
             f"Rules → need team/LLM: free capital cash ${cash:.2f} BP ${bp:.2f} "
-            f"(any >$0 triggers; min_trade ${min_trade:.2f} for dust tickets)"
+            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f})"
         )
         need_llm = True
     elif not in_band and btc is not None:
@@ -690,11 +699,39 @@ def rules_based_review(
         "summary": summary,
         "in_band": in_band,
         "idle_capital": idle_capital,
+        "dust_capital": dust_capital,
         "deployable_usd": round(deployable, 4),
+        "min_trade_usd": round(min_trade, 4),
         "logged": logged,
     }
     write_fund_manager_snapshot(fm)
     return fm
+
+
+NTFY_STALE_RH_STATE = SNAPSHOTS_DIR / "ntfy_stale_rh_state.json"
+DEFAULT_STALE_RH_COOLDOWN_HOURS = 6.0
+
+
+def _stale_rh_on_cooldown(cooldown_hours: float, *, now: Optional[datetime] = None) -> bool:
+    """True if a stale-RH-only ntfy was sent within cooldown_hours."""
+    data = load_json(NTFY_STALE_RH_STATE) or {}
+    last = data.get("last_notified_at")
+    if not last:
+        return False
+    try:
+        last_s = str(last).replace("Z", "+00:00")
+        last_dt = datetime.fromisoformat(last_s)
+        if last_dt.tzinfo is None:
+            last_dt = last_dt.replace(tzinfo=timezone.utc)
+    except (TypeError, ValueError):
+        return False
+    now_dt = now or datetime.now(timezone.utc)
+    age_s = (now_dt - last_dt.astimezone(timezone.utc)).total_seconds()
+    return age_s < float(cooldown_hours) * 3600.0
+
+
+def _mark_stale_rh_notified(*, at: Optional[str] = None) -> None:
+    save_json(NTFY_STALE_RH_STATE, {"last_notified_at": at or _now()})
 
 
 def notify_if_needed(
@@ -703,7 +740,12 @@ def notify_if_needed(
     treasury_eval: Optional[Dict[str, Any]] = None,
     force: bool = False,
 ) -> Dict[str, Any]:
-    """Push ntfy alert for non-HOLD decisions or stale RH (optional email later)."""
+    """Push ntfy alert for non-HOLD decisions or stale RH (optional email later).
+
+    Quiet by default on HOLD. Stale-RH-only alerts are rate-limited (default 6h)
+    so a broken MCP feed does not page every poll cycle. force=True still bypasses
+    the enabled flag and stale cooldown (use sparingly — not for routine HOLD).
+    """
     import urllib.error
     import urllib.request
 
@@ -720,6 +762,8 @@ def notify_if_needed(
 
     rules = (decision_or_review.get("rules_review") or decision_or_review) if decision_or_review else {}
     outcome = rules.get("outcome") or decision_or_review.get("kind")
+    # Normalize kind-style outcomes ("hold", "deploy") used by decision log rows
+    kind = str(decision_or_review.get("kind") or rules.get("kind") or "").lower()
     need_llm = rules.get("need_llm")
     summary = rules.get("summary") or decision_or_review.get("summary") or ""
 
@@ -734,26 +778,61 @@ def notify_if_needed(
             if "robinhood" in str(w).lower() and "old" in str(w).lower():
                 stale_msgs.append(str(w))
 
-    should = force
+    should = False
+    actionable = False
     title = "FCC fund manager"
     body_parts: List[str] = []
 
-    if outcome in ("need_llm", "deploy", "rebalance", "rotate") or need_llm:
+    if outcome in ("need_llm", "deploy", "rebalance", "rotate") or need_llm or kind in (
+        "deploy",
+        "rebalance",
+        "rotate",
+    ):
         should = True
+        actionable = True
         title = "FCC · fund review needs action"
         body_parts.append(summary or "Team/LLM review recommended")
-    elif outcome == "error":
+    elif outcome == "error" or kind == "error":
         should = True
+        actionable = True
         title = "FCC · fund manager error"
         body_parts.append(summary)
-    elif outcome == "hold":
-        # quiet success — no notify unless forced
+    elif outcome in ("hold", "observe") or kind in ("hold", "observe"):
+        # quiet success — no notify unless forced (and even then prefer real signal)
         pass
 
-    if stale_msgs:
+    if force and not should and kind not in ("hold", "observe", ""):
+        # Legacy force for non-hold decisions only
         should = True
-        title = "FCC · stale RH feed"
-        body_parts.extend(stale_msgs[:3])
+        actionable = True
+        title = "FCC · fund review needs action"
+        if summary:
+            body_parts.append(summary)
+
+    stale_only = False
+    if stale_msgs:
+        if actionable:
+            # Annotate body; keep primary title (actionable > stale)
+            body_parts.extend(stale_msgs[:3])
+        else:
+            cooldown_h = _f(
+                ncfg.get("stale_rh_cooldown_hours"), DEFAULT_STALE_RH_COOLDOWN_HOURS
+            )
+            if cooldown_h > 0 and _stale_rh_on_cooldown(cooldown_h) and not force:
+                return {
+                    "ok": True,
+                    "notified": False,
+                    "reason": f"stale RH cooldown ({cooldown_h:g}h)",
+                    "stale": stale_msgs[:3],
+                }
+            should = True
+            stale_only = True
+            title = "FCC · stale RH feed"
+            body_parts.extend(stale_msgs[:3])
+
+    # force=True on pure HOLD with no stale signal still does nothing useful
+    if force and not should:
+        return {"ok": True, "notified": False, "reason": "force ignored on quiet hold"}
 
     if not should:
         return {"ok": True, "notified": False, "reason": "quiet hold"}
@@ -787,12 +866,15 @@ def notify_if_needed(
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=15) as resp:
+            if stale_only:
+                _mark_stale_rh_notified()
             return {
                 "ok": True,
                 "notified": True,
                 "status": resp.status,
                 "title": title,
                 "host": host_short,
+                "stale_only": stale_only,
             }
     except (urllib.error.URLError, TimeoutError, OSError) as e:
         return {"ok": False, "notified": False, "error": str(e)}

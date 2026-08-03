@@ -110,13 +110,17 @@ if [[ "${RR}" -eq 2 ]]; then
       --yolo \
       --output-format plain \
       || echo "WARN: grok headless exited non-zero"
+    # Notify only on non-HOLD decisions — never force on quiet HOLD (avoids double ntfy spam)
     python3 - <<'PY' || true
 from treasury.fund_manager import notify_if_needed, load_decision_log
 from treasury.adapters import load_json, SNAPSHOTS_DIR
 recent = load_decision_log(limit=1)
 dec = recent[0] if recent else {"kind": "deploy", "summary": "BP poll team review completed"}
 tre = load_json(SNAPSHOTS_DIR / "treasury_latest.json") or {}
-print(notify_if_needed(decision_or_review=dec, treasury_eval=tre.get("evaluation") or tre, force=True))
+kind = str(dec.get("kind") or "").lower()
+# force only for real action outcomes; HOLD stays quiet (stale RH uses its own cooldown)
+force = kind not in ("hold", "observe", "")
+print(notify_if_needed(decision_or_review=dec, treasury_eval=tre.get("evaluation") or tre, force=force))
 PY
   else
     echo "need_llm but grok missing — rules outcome only"

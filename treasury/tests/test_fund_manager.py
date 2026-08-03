@@ -10,12 +10,15 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from unittest import mock
+
 from treasury.fund_manager import (  # noqa: E402
     analyze_agentic_book,
     append_decision,
     load_decision_log,
     load_fund_policy,
     load_watchlist,
+    notify_if_needed,
     rules_based_review,
     sleeve_for_symbol,
     watchlist_summary,
@@ -117,15 +120,37 @@ class TestRulesReview(unittest.TestCase):
         self.assertFalse(rr["need_llm"])
         self.assertEqual(rr["outcome"], "hold")
 
-    def test_need_llm_when_any_cash_or_bp(self):
-        # Any cash > 0 triggers (no 5% NAV gate)
+    def test_hold_when_dust_below_min_trade(self):
+        # Dust < min_trade ($1) must not wake the team / ntfy every 15m
         rh = {
             "agentic": {
                 "account_number_last4": "1752",
                 "agentic_allowed": True,
-                "cash": 0.50,
-                "buying_power": 0.50,
-                "total_value": 100,
+                "cash": 0.09,
+                "buying_power": 0.09,
+                "total_value": 100.09,
+                "positions": [
+                    {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
+                    {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60},
+                ],
+            }
+        }
+        fm = rules_based_review(rh_snapshot=rh, log=False)
+        rr = fm["rules_review"]
+        self.assertFalse(rr["need_llm"])
+        self.assertEqual(rr["outcome"], "hold")
+        self.assertTrue(rr.get("dust_capital"))
+        self.assertLess(rr["deployable_usd"], rr["min_trade_usd"])
+
+    def test_need_llm_when_spendable_cash_or_bp(self):
+        # Spendable free capital (≥ min_trade) triggers deploy path
+        rh = {
+            "agentic": {
+                "account_number_last4": "1752",
+                "agentic_allowed": True,
+                "cash": 5.0,
+                "buying_power": 5.0,
+                "total_value": 105,
                 "positions": [
                     {"symbol": "MSTR", "quantity": 1, "average_buy_price": 40},
                     {"symbol": "TSLA", "quantity": 1, "average_buy_price": 60},
@@ -149,6 +174,67 @@ class TestRulesReview(unittest.TestCase):
         }
         fm = rules_based_review(rh_snapshot=rh, log=False)
         self.assertTrue(fm["rules_review"]["need_llm"])
+
+
+class TestNotifyIfNeeded(unittest.TestCase):
+    def test_quiet_on_hold_even_with_force(self):
+        out = notify_if_needed(
+            decision_or_review={"kind": "hold", "summary": "team HOLD"},
+            treasury_eval={},
+            force=True,
+        )
+        self.assertTrue(out.get("ok"))
+        self.assertFalse(out.get("notified"))
+        self.assertIn("hold", (out.get("reason") or "").lower())
+
+    def test_stale_rh_cooldown(self):
+        import tempfile
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        from treasury import fund_manager as fm
+
+        stale_eval = {
+            "data_quality": {
+                "stale": ["robinhood snapshot is old"],
+                "warnings": [],
+            }
+        }
+        with tempfile.TemporaryDirectory() as td:
+            state = Path(td) / "ntfy_stale_rh_state.json"
+            with mock.patch.object(fm, "NTFY_STALE_RH_STATE", state), mock.patch.object(
+                fm, "load_config", return_value={"notifications": {"enabled": True, "stale_rh_cooldown_hours": 6}}
+            ), mock.patch("urllib.request.urlopen") as urlopen:
+                resp = mock.MagicMock()
+                resp.status = 200
+                resp.__enter__.return_value = resp
+                resp.__exit__.return_value = None
+                urlopen.return_value = resp
+
+                first = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=stale_eval,
+                )
+                self.assertTrue(first.get("notified"), first)
+                self.assertEqual(urlopen.call_count, 1)
+
+                # Immediate re-notify should be suppressed by cooldown
+                second = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=stale_eval,
+                )
+                self.assertFalse(second.get("notified"), second)
+                self.assertIn("cooldown", second.get("reason") or "")
+                self.assertEqual(urlopen.call_count, 1)
+
+                # force bypasses cooldown
+                third = notify_if_needed(
+                    decision_or_review={"kind": "hold", "outcome": "hold"},
+                    treasury_eval=stale_eval,
+                    force=True,
+                )
+                self.assertTrue(third.get("notified"), third)
+                self.assertEqual(urlopen.call_count, 2)
 
 
 class TestAnalyze(unittest.TestCase):
