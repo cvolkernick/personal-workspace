@@ -133,11 +133,27 @@ def complete_login(code: str, state: str, store: Optional[UserStore] = None) -> 
         health_refresh_token=refresh,
     )
     claimed = store.claim_legacy_default_workouts(sub)
+    # Fresh review/prod DB: no legacy default rows → seed this user from workspace
+    # markdown once so first login is not an empty dashboard.
+    seeded = 0
+    try:
+        from .workout_repo import WorkoutRepository
+
+        repo = WorkoutRepository(db_path=store.db_path, user_id=sub)
+        if repo.count() == 0:
+            ws = (os.environ.get("LOCAL_WORKSPACE_DIR") or "").strip()
+            if ws:
+                result = repo.ensure_seeded_from_workspace(ws)
+                if result.get("seeded"):
+                    seeded = int(result.get("imported") or result.get("count") or 0)
+    except Exception:
+        seeded = 0
     sid = store.create_session(sub)
     return {
         "ok": True,
         "session_id": sid,
         "user": store.get_user(sub),
         "claimed_legacy_sessions": claimed,
+        "seeded_sessions": seeded,
         "redirect_uri": redirect_uri(),
     }

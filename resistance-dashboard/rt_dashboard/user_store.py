@@ -61,8 +61,18 @@ class UserStore:
         return conn
 
     def _ensure(self) -> None:
+        # Same file as WorkoutRepository — always create workout tables too so
+        # claim_legacy / login never hit "no such table: workout_sessions"
+        # when UserStore opens the DB first (empty review DB, cold OAuth).
+        from .workout_repo import SCHEMA as WORKOUT_SCHEMA
+
         with self._connect() as conn:
             conn.executescript(USERS_SCHEMA)
+            conn.executescript(WORKOUT_SCHEMA)
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_meta(key, value) VALUES(?, ?)",
+                ("version", "1"),
+            )
             conn.commit()
 
     def upsert_user_from_google(
@@ -200,6 +210,10 @@ class UserStore:
         legacy AAD (or plaintext JSON) and re-seal under the new user_id.
         """
         from datetime import datetime, timezone
+
+        # Guarantee workout_sessions exists even if this DB was only touched by
+        # an older UserStore that did not co-create workout schema.
+        self._ensure()
 
         def _now() -> str:
             return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

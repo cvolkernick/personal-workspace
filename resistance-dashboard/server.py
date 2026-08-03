@@ -273,13 +273,13 @@ def pull_merged_sessions(
     if workout_use_sqlite():
         try:
             repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
-            # Auto-seed only for legacy unauthenticated/default mode
-            if local_dir and not _auth_required() and repo.count() == 0:
+            # Empty user (or legacy default): one-time seed from workspace markdown
+            if local_dir and repo.count() == 0:
                 seed = repo.ensure_seeded_from_workspace(local_dir)
                 if seed.get("seeded"):
                     source_parts.append("sqlite_seed")
-            elif uid and repo.count() == 0:
-                source_parts.append("sqlite_empty")
+                elif uid:
+                    source_parts.append("sqlite_empty")
             local_sessions = repo.list_sessions()
             source_parts.append("sqlite")
         except Exception as e:  # noqa: BLE001
