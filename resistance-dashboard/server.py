@@ -20,7 +20,7 @@ from datetime import datetime
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
 
 T = TypeVar("T")
 
@@ -138,6 +138,53 @@ from rt_dashboard.workout_repo import (  # noqa: E402
     get_repo as get_workout_repo,
     use_sqlite as workout_use_sqlite,
 )
+from rt_dashboard.user_store import UserStore  # noqa: E402
+from rt_dashboard.auth_login import (  # noqa: E402
+    build_login_url,
+    complete_login,
+    public_base_url,
+    redirect_uri as auth_redirect_uri,
+)
+from rt_dashboard import crypto_box as _crypto_box  # noqa: E402
+
+SESSION_COOKIE = "fitdash_session"
+AUTH_PUBLIC_PATHS = {
+    "/api/healthz",
+    "/api/health",
+    "/api/auth/status",
+    "/api/auth/google/start",
+    "/api/auth/google/callback",
+    "/api/auth/logout",
+}
+
+
+def _auth_required() -> bool:
+    """When true (default), personal APIs need a signed-in session."""
+    return (os.environ.get("FITDASH_REQUIRE_AUTH") or "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
+
+def _parse_cookie_header(header: str) -> Dict[str, str]:
+    out: Dict[str, str] = {}
+    for part in (header or "").split(";"):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, _, v = part.partition("=")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _session_user_from_headers(headers) -> Optional[Dict[str, Any]]:
+    cookies = _parse_cookie_header(headers.get("Cookie") or "")
+    sid = cookies.get(SESSION_COOKIE) or ""
+    if not sid:
+        return None
+    return UserStore().resolve_session(sid)
 
 STATIC_DIR = ROOT / "static"
 DEFAULT_PORT = int(os.environ.get("PORT", "8787"))
@@ -203,13 +250,15 @@ def _call_with_timeout(
             pool.shutdown(wait=False)
 
 
-def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftClient]:
+def pull_merged_sessions(
+    user_id: Optional[str] = None,
+) -> Tuple[List[Any], str, Optional[str], GitHubLiftClient]:
     """
-    Load lift sessions.
+    Load lift sessions for one user (when auth on) or legacy default.
 
-    Phase 1a default: **SQLite** is the primary store (auto-seed from local
-    markdown once). GitHub remote merge remains available when
-    ``FITDASH_USE_SQLITE=0`` (legacy path).
+    Phase 1a/1b: **SQLite** is the primary store. With auth required, never
+    returns another user's rows. GitHub remote merge when
+    ``FITDASH_USE_SQLITE=0`` (legacy).
     """
     local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
     force_local = os.environ.get("GITHUB_PREFER_LOCAL", "").lower() in ("1", "true", "yes")
@@ -219,20 +268,27 @@ def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftCli
     remote_sessions: List[Session] = []
     local_sessions: List[Session] = []
     source_parts: List[str] = []
+    uid = (user_id or "").strip() or None
 
     if workout_use_sqlite():
         try:
-            repo = get_workout_repo()
-            if local_dir:
+            repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
+            # Auto-seed only for legacy unauthenticated/default mode
+            if local_dir and not _auth_required() and repo.count() == 0:
                 seed = repo.ensure_seeded_from_workspace(local_dir)
                 if seed.get("seeded"):
                     source_parts.append("sqlite_seed")
+            elif uid and repo.count() == 0:
+                source_parts.append("sqlite_empty")
             local_sessions = repo.list_sessions()
             source_parts.append("sqlite")
         except Exception as e:  # noqa: BLE001
             errors.append(f"sqlite_pull: {e}")
-            # Fall through to markdown if SQLite fails
-            if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
+            if (
+                not _auth_required()
+                and local_dir
+                and (Path(local_dir) / "fitness" / "workouts").is_dir()
+            ):
                 try:
                     local_client = GitHubLiftClient(
                         prefer_local=True,
@@ -289,14 +345,16 @@ def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftCli
     return sessions, source, error, meta_client
 
 
-def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
+def load_dashboard_data(
+    *,
+    force_refresh: bool = False,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
     """
-    Build dashboard payload.
+    Build dashboard payload for one authenticated user (or legacy default).
 
-    Always reads local workout logs + inventory (fast).
-    Google Health and remote GitHub sessions are cached on disk for
-    DASHBOARD_CACHE_TTL_SEC (default 3600 = 1 hour). Set force_refresh=True
-    (Refresh button / ?refresh=1) to pull remotes now.
+    Personal data is only loaded for the given user_id. Google Health uses
+    that user's encrypted refresh token when present.
     """
     t0 = datetime.utcnow()
     local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
@@ -308,10 +366,18 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     cache_ttl = ttl_sec()
     local_today = local_today_iso()
     tz_name = local_tz_name()
+    uid = (user_id or "").strip() or None
     try:
         incremental_days = max(3, int(os.environ.get("HEALTH_INCREMENTAL_DAYS", "14")))
     except ValueError:
         incremental_days = 14
+
+    # Per-user Health token (encrypted at rest) for this request only
+    prev_rt = os.environ.get("GOOGLE_REFRESH_TOKEN")
+    if uid:
+        urt = UserStore().get_health_refresh_token(uid)
+        if urt:
+            os.environ["GOOGLE_REFRESH_TOKEN"] = urt
 
     # --- Local lifts + inventory (always live) ---
     local_sessions: List[Session] = []
@@ -319,8 +385,8 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     errors: List[str] = []
     if workout_use_sqlite():
         try:
-            repo = get_workout_repo()
-            if local_dir:
+            repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
+            if local_dir and not _auth_required() and repo.count() == 0:
                 seed = repo.ensure_seeded_from_workspace(local_dir)
                 if seed.get("seeded"):
                     source_parts.append("sqlite_seed")
@@ -328,7 +394,11 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             source_parts.append("sqlite")
         except Exception as e:  # noqa: BLE001
             errors.append(f"sqlite_pull: {e}")
-            if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
+            if (
+                not _auth_required()
+                and local_dir
+                and (Path(local_dir) / "fitness" / "workouts").is_dir()
+            ):
                 try:
                     local_client = GitHubLiftClient(
                         prefer_local=True,
@@ -725,6 +795,8 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
         "local_today": local_today,
         "timezone": tz_name,
         "generated_at": datetime.utcnow().isoformat() + "Z",
+        "user_id": uid,
+        "auth_required": _auth_required(),
     }
 
     # Serve cache-fast responses, then refresh remotes in the background.
@@ -734,6 +806,12 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             token=token,
             health_age_sec=(health_cache_meta or {}).get("age_sec"),
         )
+    # Restore process-wide Health token after per-user override
+    if uid:
+        if prev_rt is None:
+            os.environ.pop("GOOGLE_REFRESH_TOKEN", None)
+        else:
+            os.environ["GOOGLE_REFRESH_TOKEN"] = prev_rt
     return payload
 
 
@@ -1000,12 +1078,42 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _set_session_cookie(self, session_id: str, *, clear: bool = False) -> None:
+        if clear:
+            cookie = (
+                f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+            )
+        else:
+            max_age = 14 * 24 * 3600
+            cookie = (
+                f"{SESSION_COOKIE}={session_id}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}"
+            )
+        self.send_header("Set-Cookie", cookie)
+
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length") or 0)
         raw = self.rfile.read(length) if length else b"{}"
         if not raw:
             return {}
         return json.loads(raw.decode("utf-8"))
+
+    def _require_user(self) -> Optional[Dict[str, Any]]:
+        """Return session user or send 401 and return None."""
+        if not _auth_required():
+            return {"user_id": None, "email": "", "display_name": "legacy"}
+        user = _session_user_from_headers(self.headers)
+        if not user:
+            self._send_json(
+                {
+                    "ok": False,
+                    "error": "auth_required",
+                    "message": "Sign in with Google to view your data.",
+                    "login": "/api/auth/google/start",
+                },
+                status=401,
+            )
+            return None
+        return user
 
     def do_GET(self) -> None:  # noqa: N802
         if try_proxy_api is not None and try_proxy_api(
@@ -1025,10 +1133,84 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "service": "resistance-dashboard",
                     "proxy": False,
                     "backend": None,
+                    "auth_required": _auth_required(),
                 }
             )
             return
+        if parsed.path == "/api/auth/status":
+            user = _session_user_from_headers(self.headers)
+            try:
+                _crypto_box.load_or_create_master_key()
+                master_ok = True
+            except Exception:
+                master_ok = False
+            self._send_json(
+                {
+                    "ok": True,
+                    "authenticated": bool(user),
+                    "auth_required": _auth_required(),
+                    "user": (
+                        {
+                            "id": user["user_id"],
+                            "email": user.get("email"),
+                            "display_name": user.get("display_name"),
+                        }
+                        if user
+                        else None
+                    ),
+                    "public_url": public_base_url(),
+                    "oauth_redirect_uri": auth_redirect_uri(),
+                    "master_key_ready": master_ok,
+                }
+            )
+            return
+        if parsed.path == "/api/auth/google/start":
+            try:
+                url, _state = build_login_url()
+                # Redirect browser to Google
+                self.send_response(302)
+                self.send_header("Location", url)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/auth/google/callback":
+            try:
+                qs = parse_qs(parsed.query or "")
+                code = (qs.get("code") or [""])[0]
+                state = (qs.get("state") or [""])[0]
+                if qs.get("error"):
+                    raise RuntimeError(f"Google OAuth error: {qs.get('error')}")
+                result = complete_login(code, state)
+                # Set cookie + redirect home
+                self.send_response(302)
+                self._set_session_cookie(result["session_id"])
+                self.send_header("Location", "/")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+            except Exception as e:
+                self.send_response(302)
+                self.send_header(
+                    "Location",
+                    "/?auth_error=" + quote(str(e)[:200]),
+                )
+                self.end_headers()
+            return
+        if parsed.path == "/api/auth/logout":
+            cookies = _parse_cookie_header(self.headers.get("Cookie") or "")
+            sid = cookies.get(SESSION_COOKIE) or ""
+            if sid:
+                UserStore().destroy_session(sid)
+            self.send_response(302)
+            self._set_session_cookie("", clear=True)
+            self.send_header("Location", "/")
+            self.end_headers()
+            return
         if parsed.path == "/api/dashboard":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
             try:
                 qs = parse_qs(parsed.query or "")
                 force = (qs.get("refresh") or qs.get("force") or ["0"])[0].lower() in (
@@ -1036,13 +1218,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     "true",
                     "yes",
                 )
-                self._send_json(load_dashboard_data(force_refresh=force))
+                uid = user.get("user_id") if user else None
+                self._send_json(
+                    load_dashboard_data(force_refresh=force, user_id=uid)
+                )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
         if parsed.path == "/api/sessions":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
             try:
-                data = load_dashboard_data(force_refresh=False)
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 self._send_json(
                     {
                         "sessions": data.get("sessions", []),
@@ -1053,12 +1242,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"error": str(e)}, status=500)
             return
         if parsed.path == "/api/nutrition":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
             try:
-                data = load_dashboard_data(force_refresh=False)
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 self._send_json(data.get("nutrition_store") or {})
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
+        # All remaining /api/* GETs require auth when FITDASH_REQUIRE_AUTH=1
+        if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+
         if parsed.path == "/api/doordash/restock":
             # Preview shopping list for meal restock (no dd-cli mutations).
             try:
@@ -1119,6 +1318,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         ):
             return
         parsed = urlparse(self.path)
+        # Gate all personal POST APIs
+        if parsed.path.startswith("/api/") and parsed.path not in AUTH_PUBLIC_PATHS:
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            self._request_user = user  # type: ignore[attr-defined]
         if parsed.path == "/api/google-health/auth/start":
             try:
                 body = (
@@ -1134,15 +1339,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/workouts":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
             try:
+                uid = user.get("user_id") if user else None
                 body = self._read_json()
                 session = parse_log_body(body)
                 # Auto-tag PRs from history (prior sessions only), then write.
-                history, _, _, _ = pull_merged_sessions()
+                history, _, _, _ = pull_merged_sessions(user_id=uid)
                 apply_auto_prs(session, history)
                 pr_names = [e.name for e in session.exercises if e.is_pr]
                 if workout_use_sqlite():
-                    result = get_workout_repo().upsert_session(session)
+                    repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
+                    result = repo.upsert_session(session)
                     # Optional dual-write to markdown/GitHub for backup
                     if os.environ.get("FITDASH_DUAL_WRITE", "").lower() in (
                         "1",
@@ -1158,7 +1368,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     client = build_github_client(for_write=True)
                     result = client.append_workout_safe(session)
                 # Reload via merged pull so response matches subsequent GET /api/dashboard
-                sessions, source, _err, _gh = pull_merged_sessions()
+                sessions, source, _err, _gh = pull_merged_sessions(user_id=uid)
                 self._send_json(
                     {
                         "ok": True,
@@ -1187,7 +1397,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             return
         if parsed.path == "/api/workouts/import":
             # Seed/re-import from local fitness/workouts markdown into SQLite.
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
             try:
+                uid = user.get("user_id") if user else None
                 body = (
                     self._read_json()
                     if int(self.headers.get("Content-Length") or 0)
@@ -1201,7 +1415,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                         status=400,
                     )
                     return
-                repo = get_workout_repo()
+                repo = get_workout_repo(user_id=uid) if uid else get_workout_repo()
                 result = repo.import_from_markdown_dir(local_dir, replace=replace)
                 status = 200 if result.get("ok") else 400
                 self._send_json(result, status=status)

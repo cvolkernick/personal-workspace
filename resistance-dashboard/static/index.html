@@ -16,11 +16,31 @@
     <script src="/app.js" defer></script>
   </head>
   <body>
-    <div class="wrap">
+    <!-- Shown when not signed in: no personal data is fetched or rendered -->
+    <div id="auth-gate" class="auth-gate" hidden>
+      <div class="auth-gate-card">
+        <h1>💪 FitDash</h1>
+        <p class="muted">
+          Sign in with Google to load <strong>your</strong> workouts and Health data.
+          Nothing is shown until you authenticate.
+        </p>
+        <p class="muted" id="auth-gate-error" style="color: var(--danger, #f07178)"></p>
+        <a class="btn primary auth-login-btn" id="btn-login" href="/api/auth/google/start">
+          Sign in with Google
+        </a>
+        <p class="muted auth-gate-note" style="font-size: 0.8rem; margin-top: 1rem">
+          Cross-device: same Google account on phone or laptop sees the same encrypted
+          server-side rows (Tailscale). Data at rest is ciphertext; unlocked only for your session.
+        </p>
+      </div>
+    </div>
+
+    <div class="wrap" id="app-shell" hidden>
       <header class="app-header">
         <div>
           <h1>💪 FitDash</h1>
           <p class="header-sub">Live lift logs · Google Health recovery, nutrition &amp; hydration</p>
+          <p class="muted" id="auth-user-line" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
         </div>
         <div class="actions header-actions-desktop">
           <button
@@ -34,6 +54,7 @@
             Refresh remotes
           </button>
           <button type="button" class="primary" id="btn-focus-log">Log workout</button>
+          <a class="btn" id="btn-logout" href="/api/auth/logout">Sign out</a>
         </div>
       </header>
 

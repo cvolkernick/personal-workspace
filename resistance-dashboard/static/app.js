@@ -3495,12 +3495,60 @@
     });
   }
 
+  function showLoginGate(message) {
+    const gate = $("auth-gate");
+    const shell = $("app-shell");
+    const tabbar = $("mobile-tabbar");
+    if (gate) gate.hidden = false;
+    if (shell) shell.hidden = true;
+    if (tabbar) tabbar.hidden = true;
+    const err = $("auth-gate-error");
+    if (err) {
+      const params = new URLSearchParams(window.location.search);
+      err.textContent = message || params.get("auth_error") || "";
+    }
+  }
+
+  function showAppShell(user) {
+    const gate = $("auth-gate");
+    const shell = $("app-shell");
+    if (gate) gate.hidden = true;
+    if (shell) shell.hidden = false;
+    const line = $("auth-user-line");
+    if (line && user) {
+      line.textContent = user.email
+        ? `Signed in as ${user.display_name || user.email} · ${user.email}`
+        : `Signed in · ${user.display_name || user.id || ""}`;
+    }
+  }
+
+  async function checkAuthAndBoot() {
+    try {
+      const res = await fetch("/api/auth/status", { cache: "no-store", credentials: "same-origin" });
+      const st = await res.json();
+      if (!st.auth_required) {
+        // Legacy mode: show app without Google login
+        showAppShell({ display_name: "local", email: "" });
+        loadDashboard(false);
+        return;
+      }
+      if (!st.authenticated) {
+        showLoginGate();
+        return;
+      }
+      showAppShell(st.user);
+      loadDashboard(false);
+    } catch (e) {
+      showLoginGate(`Auth check failed: ${e.message}`);
+    }
+  }
+
   async function loadDashboard(forceRefresh = false) {
     // Guard: if used as a raw click handler, first arg is an Event (truthy).
     if (forceRefresh && typeof forceRefresh !== "boolean") {
       forceRefresh = false;
     }
-    $("btn-refresh").disabled = true;
+    if ($("btn-refresh")) $("btn-refresh").disabled = true;
     // Don't wipe success toasts from inventory remove/add mid-action.
     const meta = $("meta-line");
     const started = Date.now();
@@ -3518,7 +3566,11 @@
     }, 500);
     try {
       const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+      if (res.status === 401) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       // Soft errors (partial data) live under meta.error — still render.
@@ -3535,7 +3587,7 @@
       if (meta) meta.textContent = `Load failed: ${e.message}`;
     } finally {
       clearInterval(tick);
-      $("btn-refresh").disabled = false;
+      if ($("btn-refresh")) $("btn-refresh").disabled = false;
     }
   }
 
@@ -3967,18 +4019,18 @@
   }
 
   function init() {
-    $("log-date").value = todayISO();
-    addExerciseRow();
+    if ($("log-date")) $("log-date").value = todayISO();
+    if ($("exercise-rows") && !$("exercise-rows").children.length) addExerciseRow();
     bindInventoryListOnce();
     initMobileShell();
     registerServiceWorker();
-    $("btn-add-ex").addEventListener("click", () => addExerciseRow());
-    $("log-form").addEventListener("submit", submitWorkout);
-    $("btn-refresh").addEventListener("click", () => loadDashboard(true));
+    if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
+    if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
+    if ($("btn-refresh")) $("btn-refresh").addEventListener("click", () => loadDashboard(true));
     if ($("btn-google-auth")) {
       $("btn-google-auth").addEventListener("click", () => refreshGoogleAuth());
     }
-    $("btn-focus-log").addEventListener("click", () => {
+    if ($("btn-focus-log")) $("btn-focus-log").addEventListener("click", () => {
       goMobileTab("log");
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();
@@ -4035,7 +4087,8 @@
       $("btn-ask-clear").addEventListener("click", clearAskChat);
     }
     refreshAskAuthStatus();
-    loadDashboard();
+    // Auth gate: no personal data fetch until signed in
+    checkAuthAndBoot();
   }
 
   if (document.readyState === "loading") {
