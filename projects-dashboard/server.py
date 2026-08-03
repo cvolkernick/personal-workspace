@@ -343,17 +343,39 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
-    parser.add_argument("--bind", default="127.0.0.1")
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1",
+        help="Bind address. Use 0.0.0.0 on the Pi for LAN/Tailscale access.",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Alias for --bind (matches other dashboard units).",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Force local API (Pi systemd unit flag; this server always serves API locally).",
+    )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help="Reserved for terminal frontend proxy mode (ignored when serving as Pi backend).",
+    )
     args = parser.parse_args(argv)
+    bind = args.host if args.host is not None else args.bind
 
-    url = f"http://{args.bind}:{args.port}/"
+    url = f"http://{bind}:{args.port}/"
     print(f"Workflow Management dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
+    if args.local:
+        print("Mode: local API (Pi backend)")
     print(
         "API: GET /api/projects /api/branch-graph | "
         "POST /api/sync /api/protect /api/start-work"
     )
-    httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
+    httpd = ThreadingHTTPServer((bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:
             webbrowser.open(url)

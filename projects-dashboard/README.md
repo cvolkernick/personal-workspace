@@ -126,3 +126,24 @@ Persisted in `ops/backlog/suggestions.json`.
 python3 projects-dashboard/server.py   # http://127.0.0.1:8765/
 python3 -m unittest discover -s projects-dashboard/tests -v
 ```
+
+### Always-on on Raspberry Pi (prism-gateway)
+
+Same pattern as Orchestra / IoT / FCC: systemd user unit on the Pi, bind `0.0.0.0:8765`.
+
+| Path | URL |
+|------|-----|
+| **LAN** | http://192.168.100.98:8765/ |
+| **Tailscale** | http://100.67.114.2:8765/ or http://prism-gateway:8765/ |
+| **Health** | `/api/health` |
+| **Branch graph** | `/api/branch-graph?max=80&remotes=1` |
+
+```bash
+# From Mac monorepo root — re-deploy this package only:
+bash deploy/install_remote.sh prism-agent@192.168.100.98 --only workflow
+# Or rsync this worktree's projects-dashboard/ then:
+ssh prism-agent@192.168.100.98 'systemctl --user restart workflow-dashboard'
+```
+
+Unit: `deploy/units/workflow-dashboard.service` (`--bind 0.0.0.0 --port 8765 --no-browser --local`).  
+Server accepts `--local` / `--host` for Pi unit compatibility (API is always local on the backend process).
