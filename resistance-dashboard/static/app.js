@@ -3495,7 +3495,12 @@
     });
   }
 
+  /** True after auth/status says we may load personal APIs (signed in, or legacy no-auth). */
+  let bootAllowsData = false;
+
   function showLoginGate(message) {
+    bootAllowsData = false;
+    clearAlerts();
     const gate = $("auth-gate");
     const shell = $("app-shell");
     const tabbar = $("mobile-tabbar");
@@ -3522,21 +3527,33 @@
     }
   }
 
+  function isAuthRequiredError(res, data, errMsg) {
+    if (res && res.status === 401) return true;
+    if (data && (data.error === "auth_required" || data.error === "unauthorized")) return true;
+    const m = String(errMsg || "");
+    return /HTTP 401|auth_required|unauthorized|session expired/i.test(m);
+  }
+
   async function checkAuthAndBoot() {
     try {
       const res = await fetch("/api/auth/status", { cache: "no-store", credentials: "same-origin" });
       const st = await res.json();
       if (!st.auth_required) {
         // Legacy mode: show app without Google login
+        bootAllowsData = true;
         showAppShell({ display_name: "local", email: "" });
+        refreshAskAuthStatus();
         loadDashboard(false);
         return;
       }
       if (!st.authenticated) {
+        // Expected path when signed out — login only, no dashboard fetch
         showLoginGate();
         return;
       }
+      bootAllowsData = true;
       showAppShell(st.user);
+      refreshAskAuthStatus();
       loadDashboard(false);
     } catch (e) {
       showLoginGate(`Auth check failed: ${e.message}`);
@@ -3547,6 +3564,11 @@
     // Guard: if used as a raw click handler, first arg is an Event (truthy).
     if (forceRefresh && typeof forceRefresh !== "boolean") {
       forceRefresh = false;
+    }
+    // Never hit /api/dashboard until boot confirmed auth (avoids 401 toast on cold open)
+    if (!bootAllowsData) {
+      showLoginGate();
+      return;
     }
     if ($("btn-refresh")) $("btn-refresh").disabled = true;
     // Don't wipe success toasts from inventory remove/add mid-action.
@@ -3573,6 +3595,10 @@
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (isAuthRequiredError(res, data)) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       // Soft errors (partial data) live under meta.error — still render.
       if (data.error && !data.sessions && !data.meta) {
         throw new Error(data.error);
@@ -3582,6 +3608,10 @@
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
     } catch (e) {
+      if (isAuthRequiredError(null, null, e && e.message)) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       clearAlerts();
       showAlert(`Failed to load dashboard: ${e.message}`, "err");
       if (meta) meta.textContent = `Load failed: ${e.message}`;
@@ -4086,8 +4116,7 @@
     if ($("btn-ask-clear")) {
       $("btn-ask-clear").addEventListener("click", clearAskChat);
     }
-    refreshAskAuthStatus();
-    // Auth gate: no personal data fetch until signed in
+    // Auth gate first — do not fetch /api/dashboard or /api/ask/* until signed in
     checkAuthAndBoot();
   }
 

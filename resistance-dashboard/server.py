@@ -1067,6 +1067,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
+    def end_headers(self) -> None:
+        # Avoid stale app.js/index after auth deploys (browsers heuristic-cache static).
+        path = urlparse(getattr(self, "path", "") or "").path
+        if path in ("/", "/index.html") or path.endswith(
+            (".js", ".css", ".html", ".webmanifest")
+        ):
+            self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def log_message(self, fmt: str, *args: Any) -> None:
         sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % args))
 
