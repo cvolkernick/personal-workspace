@@ -3382,32 +3382,30 @@
   }
 
   /* ---------- Mobile tab shell (≤720px) ---------- */
-  const MOBILE_MQ = "(max-width: 720px)";
+  /** Narrow phone density (CSS still uses 720px). Tab shell is always on. */
+  const NARROW_MQ = "(max-width: 720px)";
   let mobileActiveTab = "today";
 
-  function isMobileShell() {
+  function isNarrowViewport() {
     try {
-      return window.matchMedia(MOBILE_MQ).matches;
+      return window.matchMedia(NARROW_MQ).matches;
     } catch (_) {
       return false;
     }
   }
 
+  /** Unified tab shell on web + phone — same Today / Log / Trends / Kitchen / More. */
+  function useTabShell() {
+    return true;
+  }
+
+  /** @deprecated alias — kept so any residual callers keep working */
+  function isMobileShell() {
+    return useTabShell();
+  }
+
   function goMobileTab(tab) {
     mobileActiveTab = tab || "today";
-    if (!isMobileShell()) {
-      // Desktop: just scroll to a sensible anchor
-      const map = {
-        today: "today-hub",
-        log: "log-card",
-        trends: "charts-volume-strength",
-        kitchen: "inventory-section",
-        more: "ask-card",
-      };
-      const el = $(map[mobileActiveTab] || "today-hub");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
-    }
     document.body.classList.add("m-shell");
     document.body.dataset.mActive = mobileActiveTab;
     const bar = $("mobile-tabbar");
@@ -3420,10 +3418,11 @@
         else btn.removeAttribute("aria-current");
       });
     }
-    // Show mobile admin card only on More
+    // Admin card: More tab only (narrow); desktop keeps header actions
     const admin = $("mobile-admin-card");
-    if (admin) admin.hidden = false;
-    // When switching to More, catalog is inside workout-plan-section
+    if (admin) {
+      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
+    }
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     // After layout paints, resize charts that were built while hidden
     requestAnimationFrame(() => {
@@ -3448,40 +3447,30 @@
   }
 
   function syncMobileShell() {
-    const mobile = isMobileShell();
     const bar = $("mobile-tabbar");
     const pills = $("today-mobile-pills");
     const admin = $("mobile-admin-card");
-    if (mobile) {
-      document.body.classList.add("m-shell");
-      if (bar) bar.hidden = false;
-      if (pills) pills.hidden = false;
-      if (admin) admin.hidden = false;
-      goMobileTab(mobileActiveTab);
-      // Default hub panel: Lift (training plan) — Meal/Targets via pills
-      const activePill = document.querySelector(
-        "#today-hub-grid .today-panel.today-panel-active"
-      );
-      setTodayPill(
-        (activePill && activePill.getAttribute("data-today-panel")) || "lift"
-      );
-    } else {
-      document.body.classList.remove("m-shell");
-      delete document.body.dataset.mActive;
-      if (bar) bar.hidden = true;
-      if (pills) pills.hidden = true;
-      if (admin) admin.hidden = true;
-      // Restore all today panels on desktop
-      document.querySelectorAll("#today-hub-grid .today-panel").forEach((p) => {
-        p.classList.add("today-panel-active");
-      });
+    document.body.classList.add("m-shell");
+    if (bar) bar.hidden = false;
+    if (pills) pills.hidden = false;
+    // More-tab admin only on phone; desktop uses header buttons
+    if (admin) {
+      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
     }
+    goMobileTab(mobileActiveTab);
+    const activePill = document.querySelector(
+      "#today-hub-grid .today-panel.today-panel-active"
+    );
+    setTodayPill(
+      (activePill && activePill.getAttribute("data-today-panel")) || "lift"
+    );
   }
 
   function initMobileShell() {
     syncMobileShell();
+    // Re-apply admin card visibility when crossing narrow breakpoint
     try {
-      window.matchMedia(MOBILE_MQ).addEventListener("change", syncMobileShell);
+      window.matchMedia(NARROW_MQ).addEventListener("change", syncMobileShell);
     } catch (_) {
       window.addEventListener("resize", syncMobileShell);
     }
@@ -3501,7 +3490,7 @@
         setTodayPill(btn.getAttribute("data-today-pill"));
       });
     }
-    // Mobile admin mirrors desktop header buttons
+    // More-tab admin mirrors desktop header buttons (phone only)
     if ($("btn-refresh-mobile")) {
       $("btn-refresh-mobile").addEventListener("click", () => loadDashboard(true));
     }

@@ -10,10 +10,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/styles.css?v=desktop-tabs-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=auth-gate-4" defer></script>
+    <script src="/app.js?v=desktop-tabs-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -80,7 +80,7 @@
         </div>
       </header>
 
-      <!-- Sticky macro strip (filled by app.js) — most useful on phone -->
+      <!-- Sticky macro strip (filled by app.js) — tab shell, all viewports -->
       <div id="macro-strip" class="macro-strip" aria-live="polite" hidden>
         <span id="macro-strip-cals">Cals —</span>
         <span class="macro-strip-dot" aria-hidden="true">·</span>
@@ -566,8 +566,8 @@
       </footer>
     </div>
 
-    <!-- Bottom tab bar: phone / narrow viewports -->
-    <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main" hidden>
+    <!-- Bottom tab bar: Today / Log / Trends / Kitchen / More (web + phone) -->
+    <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
       <button type="button" class="tab-btn active" data-m-tab="today" aria-current="page">
         <span class="tab-ico" aria-hidden="true">◎</span>
         <span class="tab-lbl">Today</span>

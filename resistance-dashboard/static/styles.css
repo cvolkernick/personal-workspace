@@ -2529,8 +2529,8 @@ footer {
 }
 
 /* ==========================================================================
-   Mobile shell (M1–M3): tabs, sticky bar, gym-mode density
-   Desktop layout unchanged above 720px.
+   Tab shell (web + phone): Today / Log / Trends / Kitchen / More
+   Phone density stays under max-width 720px; panel tabs apply at all widths.
    ========================================================================== */
 
 .mobile-help {
@@ -2568,6 +2568,7 @@ footer {
   font-size: 0.85rem;
   font-weight: 600;
   min-height: 40px;
+  cursor: pointer;
 }
 
 .today-mobile-pills .pill.active {
@@ -2576,6 +2577,267 @@ footer {
   color: var(--text);
 }
 
+/* —— Shared shell (all viewports when body.m-shell) —— */
+body.m-shell {
+  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+body.m-shell .wrap {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Sticky macro strip */
+body.m-shell .macro-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.7rem;
+  background: rgba(15, 20, 25, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+body.m-shell .macro-strip[hidden] {
+  display: none !important;
+}
+
+body.m-shell .macro-strip-dot {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+body.m-shell #macro-strip-recovery {
+  color: var(--accent-2);
+}
+
+/* Panel visibility for tab shell */
+body.m-shell [data-m-panel] {
+  display: none !important;
+}
+
+body.m-shell[data-m-active="today"] [data-m-panel="today"],
+body.m-shell[data-m-active="log"] [data-m-panel="log"],
+body.m-shell[data-m-active="trends"] [data-m-panel="trends"],
+body.m-shell[data-m-active="kitchen"] [data-m-panel="kitchen"],
+body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+  display: block !important;
+}
+
+/* Grid sections must remain grid when active */
+body.m-shell[data-m-active="today"] section.grid[data-m-panel="today"],
+body.m-shell[data-m-active="log"] section.grid[data-m-panel="log"],
+body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"],
+body.m-shell[data-m-active="kitchen"] section.grid[data-m-panel="kitchen"],
+body.m-shell[data-m-active="more"] section.grid[data-m-panel="more"] {
+  display: grid !important;
+}
+
+/* Workout plan on Today; catalog under More */
+body.m-shell[data-m-active="today"] #exercise-catalog-card {
+  display: none !important;
+}
+
+body.m-shell[data-m-active="today"] #workout-plan-section {
+  display: grid !important;
+}
+
+body.m-shell[data-m-active="today"] #workout-plan-card {
+  display: block !important;
+}
+
+body.m-shell[data-m-active="more"] #workout-plan-section {
+  display: grid !important;
+}
+
+body.m-shell[data-m-active="more"] #workout-plan-card {
+  display: none !important;
+}
+
+body.m-shell[data-m-active="more"] #exercise-catalog-card {
+  display: block !important;
+}
+
+/* Today hub: pills switch Lift / Meal / Targets */
+body.m-shell .today-mobile-pills {
+  display: flex;
+}
+
+body.m-shell .today-mobile-pills[hidden] {
+  display: none !important;
+}
+
+body.m-shell #today-hub-grid {
+  grid-template-columns: 1fr !important;
+}
+
+body.m-shell #today-hub-grid .today-panel {
+  display: none;
+}
+
+body.m-shell #today-hub-grid .today-panel.today-panel-active {
+  display: block;
+}
+
+/* Bottom tab bar (all viewports) */
+body.m-shell .mobile-tabbar {
+  display: flex;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  gap: 0.15rem;
+  padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+  background: rgba(15, 20, 25, 0.96);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+body.m-shell .mobile-tabbar[hidden] {
+  display: none !important;
+}
+
+body.m-shell .mobile-tabbar .tab-btn {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  min-height: 48px;
+  padding: 0.35rem 0.2rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 12px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
+body.m-shell .mobile-tabbar .tab-btn.active {
+  color: var(--text);
+  background: rgba(61, 156, 240, 0.14);
+}
+
+body.m-shell .mobile-tabbar .tab-btn-primary {
+  color: var(--accent);
+}
+
+body.m-shell .mobile-tabbar .tab-btn-primary.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
+}
+
+body.m-shell,
+body.m-shell .wrap {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+body.m-shell .wrap {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+body.m-shell .card,
+body.m-shell section.grid > .card,
+body.m-shell section.grid > article {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body.m-shell #alerts {
+  position: sticky;
+  top: 2.6rem;
+  z-index: 35;
+}
+
+/* —— Desktop shell polish (≥721px) —— */
+@media (min-width: 721px) {
+  body.m-shell .wrap {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Keep header Refresh / Sign out on desktop */
+  body.m-shell .header-actions-desktop {
+    display: flex !important;
+  }
+
+  body.m-shell .desktop-help {
+    display: block !important;
+  }
+
+  body.m-shell .mobile-help {
+    display: none !important;
+  }
+
+  body.m-shell .mobile-only-card {
+    display: none !important;
+  }
+
+  /* Wider tabs, slightly larger labels */
+  body.m-shell .mobile-tabbar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: min(720px, 100%);
+    max-width: 100%;
+    border-radius: 16px 16px 0 0;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn {
+    min-height: 52px;
+    font-size: 0.75rem;
+    gap: 0.15rem;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+    font-size: 1.15rem;
+  }
+
+  body.m-shell .macro-strip {
+    font-size: 0.88rem;
+    padding: 0.5rem 0.85rem;
+  }
+
+  /* Two-column grids stay two-col on desktop tabs */
+  body.m-shell section.grid.two,
+  body.m-shell section.grid.equal-cards {
+    /* leave template from base styles */
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.m-shell .today-hub-actions.actions-row-single > button {
+    min-height: 40px;
+  }
+}
+
+/* —— Phone density (≤720px) —— */
 @media (max-width: 720px) {
   :root {
     font-size: 16px;
@@ -2601,7 +2863,7 @@ footer {
     font-size: 1.2rem;
   }
 
-  /* Desktop header actions → bottom tabs / More admin */
+  /* Desktop header actions → More tab admin on phone */
   .header-actions-desktop {
     display: none !important;
   }
@@ -2618,171 +2880,11 @@ footer {
     display: block;
   }
 
-  /* Sticky macro strip */
-  .macro-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    flex-wrap: wrap;
-    position: sticky;
-    top: 0;
-    z-index: 40;
-    margin: 0 0 0.65rem;
-    padding: 0.45rem 0.7rem;
-    background: rgba(15, 20, 25, 0.92);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--text);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
-  }
-
-  .macro-strip[hidden] {
-    display: none !important;
-  }
-
-  .macro-strip-dot {
-    color: var(--muted);
-    font-weight: 400;
-  }
-
-  #macro-strip-recovery {
-    color: var(--accent-2);
-  }
-
-  /* Panel visibility for tab shell */
-  body.m-shell [data-m-panel] {
-    display: none !important;
-  }
-
-  body.m-shell[data-m-active="today"] [data-m-panel="today"],
-  body.m-shell[data-m-active="log"] [data-m-panel="log"],
-  body.m-shell[data-m-active="trends"] [data-m-panel="trends"],
-  body.m-shell[data-m-active="kitchen"] [data-m-panel="kitchen"],
-  body.m-shell[data-m-active="more"] [data-m-panel="more"] {
-    display: block !important;
-  }
-
-  /* Grid sections must remain grid when active */
-  body.m-shell[data-m-active="today"] section.grid[data-m-panel="today"],
-  body.m-shell[data-m-active="log"] section.grid[data-m-panel="log"],
-  body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"],
-  body.m-shell[data-m-active="kitchen"] section.grid[data-m-panel="kitchen"],
-  body.m-shell[data-m-active="more"] section.grid[data-m-panel="more"] {
-    display: grid !important;
-  }
-
-  /* Workout plan (Save goals / Refresh / Push·Pull·Legs) sits on Today */
-  body.m-shell[data-m-active="today"] #exercise-catalog-card {
-    display: none !important;
-  }
-
-  body.m-shell[data-m-active="today"] #workout-plan-section {
-    display: grid !important;
-  }
-
-  body.m-shell[data-m-active="today"] #workout-plan-card {
-    display: block !important;
-  }
-
-  /* Catalog only under More — keep section visible, hide plan card */
-  body.m-shell[data-m-active="more"] #workout-plan-section {
-    display: grid !important;
-  }
-
-  body.m-shell[data-m-active="more"] #workout-plan-card {
-    display: none !important;
-  }
-
-  body.m-shell[data-m-active="more"] #exercise-catalog-card {
-    display: block !important;
-  }
-
   /* Today hub header actions: one row */
   .today-hub-actions.actions-row-single > button {
     min-height: 40px;
     padding: 0.4rem 0.55rem;
     font-size: 0.8rem;
-  }
-
-  /* Today hub: single panel via pills */
-  .today-mobile-pills {
-    display: flex;
-  }
-
-  .today-mobile-pills[hidden] {
-    display: none !important;
-  }
-
-  body.m-shell #today-hub-grid {
-    grid-template-columns: 1fr !important;
-  }
-
-  body.m-shell #today-hub-grid .today-panel {
-    display: none;
-  }
-
-  body.m-shell #today-hub-grid .today-panel.today-panel-active {
-    display: block;
-  }
-
-  /* Bottom tab bar */
-  .mobile-tabbar {
-    display: flex;
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 50;
-    gap: 0.15rem;
-    padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
-    background: rgba(15, 20, 25, 0.96);
-    border-top: 1px solid var(--border);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-  }
-
-  .mobile-tabbar[hidden] {
-    display: none !important;
-  }
-
-  .mobile-tabbar .tab-btn {
-    flex: 1 1 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.1rem;
-    min-height: 48px;
-    padding: 0.35rem 0.2rem;
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    border-radius: 12px;
-    font-size: 0.68rem;
-    font-weight: 600;
-  }
-
-  .mobile-tabbar .tab-btn .tab-ico {
-    font-size: 1.05rem;
-    line-height: 1;
-  }
-
-  .mobile-tabbar .tab-btn.active {
-    color: var(--text);
-    background: rgba(61, 156, 240, 0.14);
-  }
-
-  .mobile-tabbar .tab-btn-primary {
-    color: var(--accent);
-  }
-
-  .mobile-tabbar .tab-btn-primary.active {
-    color: #fff;
-    background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
   }
 
   /* Touch targets */
@@ -2792,7 +2894,6 @@ footer {
     min-height: 44px;
   }
 
-  /* Keep plan action strip on one line (compact chips, horizontal scroll if needed) */
   #workout-goals-form .actions.actions-row-single > button,
   #workout-goals-actions > button {
     min-height: 40px;
@@ -2800,7 +2901,6 @@ footer {
     font-size: 0.8rem;
   }
 
-  /* Extra insurance: never wrap these specific strips */
   #workout-goals-actions,
   .today-hub-actions {
     flex-wrap: nowrap !important;
@@ -2846,19 +2946,7 @@ footer {
     display: none;
   }
 
-  /* Prevent horizontal page bleed from charts / wide tab chips */
-  body.m-shell,
-  body.m-shell .wrap {
-    overflow-x: hidden;
-    max-width: 100vw;
-  }
-
-  body.m-shell .wrap {
-    width: 100%;
-    box-sizing: border-box;
-  }
-
-  /* Trends (and all two-col grids): always stack on phone */
+  /* Trends / two-col: stack on phone */
   body.m-shell section.grid.two,
   body.m-shell section.grid.equal-cards,
   body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"] {
@@ -2871,13 +2959,9 @@ footer {
   body.m-shell .card,
   body.m-shell section.grid > .card,
   body.m-shell section.grid > article {
-    min-width: 0;
-    max-width: 100%;
     overflow: hidden;
-    box-sizing: border-box;
   }
 
-  /* Charts shorter on phone + never expand past card */
   .chart-box {
     min-height: 160px !important;
     height: 180px;
@@ -2899,7 +2983,6 @@ footer {
     min-height: 160px;
   }
 
-  /* Strength exercise tabs: scroll inside card, don't widen page */
   .tabs {
     display: flex;
     flex-wrap: nowrap;
@@ -2921,7 +3004,6 @@ footer {
     white-space: nowrap;
   }
 
-  /* Trend notes can be long — wrap instead of expand */
   #volume-trend-note,
   #strength-trend-note,
   #sleep-trend-note,
@@ -2931,7 +3013,6 @@ footer {
     word-break: break-word;
   }
 
-  /* Stats: 2×2 on phone */
   .grid.stats {
     grid-template-columns: 1fr 1fr !important;
   }
@@ -2952,13 +3033,6 @@ footer {
     font-size: 0.72rem;
     color: var(--muted);
     padding-bottom: 0.5rem;
-  }
-
-  /* Prefer content order: strip → today first naturally via tabs */
-  #alerts {
-    position: sticky;
-    top: 2.6rem;
-    z-index: 35;
   }
 }
 
