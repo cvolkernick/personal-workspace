@@ -3025,8 +3025,12 @@ body.m-shell #alerts {
     flex-direction: column;
   }
 
-  .mobile-admin-actions button {
+  .mobile-admin-actions button,
+  .mobile-admin-actions a.btn {
     width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    text-decoration: none;
   }
 
   footer.app-footer {
