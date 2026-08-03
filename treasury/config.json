@@ -62,11 +62,12 @@
       "braiins_latest.json",
       "fund_manager_latest.json",
       "treasury_latest.json",
+      "coinbase_latest.json",
       "one_card_latest.json",
       "rh_checking_latest.json",
       "x_money_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins token, YNAB token). Pi is offline consumer of pushed snapshots — no secrets on Pi. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes YNAB cash feeds so phone FCC does not show source=empty red. Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots — no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

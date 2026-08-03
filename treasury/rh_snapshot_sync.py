@@ -67,7 +67,8 @@ DEFAULT_PUSH_FILES = (
     "braiins_latest.json",
     "fund_manager_latest.json",
     "treasury_latest.json",
-    # YNAB-sourced cash feeds (token lives on Mac; Pi is offline consumer)
+    # Mac-produced venue feeds (secrets stay on Mac; Pi is offline consumer)
+    "coinbase_latest.json",
     "one_card_latest.json",
     "rh_checking_latest.json",
     "x_money_latest.json",
