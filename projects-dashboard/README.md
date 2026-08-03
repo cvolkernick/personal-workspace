@@ -42,6 +42,23 @@ python3 projects-dashboard/git_workflow.py status
 python3 projects-dashboard/git_workflow.py protect "msg"
 ```
 
+### Branch graph (gitk-style)
+
+The dashboard **Branches** section draws a linked-list / DAG view of commits
+(same topology as `gitk` / `git log --graph`), from local git — no GitHub API.
+
+```bash
+python3 projects-dashboard/branch_graph.py --max 40
+# API while server is running:
+curl -s 'http://127.0.0.1:8765/api/branch-graph?max=80&remotes=1' | python3 -m json.tool | head
+```
+
+| | |
+|--|--|
+| UI | Workflow Management → **Branches** → Graph / List |
+| API | `GET /api/branch-graph?max=80&remotes=1` |
+| External | [GitHub Branches](https://github.com/cvolkernick/personal-workspace/branches) · [Network](https://github.com/cvolkernick/personal-workspace/network) |
+
 ## Day bridge (Workflow ↔ Time allocator)
 
 Macro backlog stays in Workflow; day minutes stay in Holistic. Bridge links them:

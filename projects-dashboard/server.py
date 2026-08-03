@@ -2,6 +2,7 @@
 """Local server for personal-workspace workflow-management dashboard.
 
   GET  /api/projects       — readiness + branches + resume kit + areas
+  GET  /api/branch-graph   — gitk-style commit lane graph (SVG data)
   POST /api/protect        — commit durable dirty work + push (auto branch)
   POST /api/sync           — session index + protect + push
   POST /api/session-index  — write ops/session-index only
@@ -36,6 +37,7 @@ from backlog import (  # noqa: E402
     update_item,
 )
 from backlog_groom import groom_backlog  # noqa: E402
+from branch_graph import collect_branch_graph  # noqa: E402
 from bridge import (  # noqa: E402
     list_bridge_status,
     send_backlog_to_allocator,
@@ -130,6 +132,28 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         if path == "/api/bridge":
             try:
                 self._json(200, list_bridge_status())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/branch-graph":
+            qs = parse_qs(parsed.query)
+            try:
+                max_c = int((qs.get("max") or ["80"])[0])
+            except ValueError:
+                max_c = 80
+            include_remotes = (qs.get("remotes") or ["1"])[0] not in (
+                "0",
+                "false",
+                "no",
+            )
+            try:
+                payload = collect_branch_graph(
+                    WORKSPACE_ROOT,
+                    max_commits=max_c,
+                    include_remotes=include_remotes,
+                )
+                self._json(200 if payload.get("ok") else 500, payload)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -322,7 +346,10 @@ def main(argv: list[str] | None = None) -> int:
     url = f"http://{args.bind}:{args.port}/"
     print(f"Workflow Management dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
-    print("API: GET /api/projects | POST /api/sync /api/protect /api/start-work")
+    print(
+        "API: GET /api/projects /api/branch-graph | "
+        "POST /api/sync /api/protect /api/start-work"
+    )
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:
         try:

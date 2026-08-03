@@ -175,6 +175,31 @@
     }
     footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
     .empty { color: var(--muted); text-align: center; padding: 1.25rem; border: 1px dashed var(--border); border-radius: 12px; }
+    /* gitk-style branch graph */
+    .graph-wrap {
+      overflow: auto; max-height: 28rem; border: 1px solid var(--border);
+      border-radius: 10px; background: #0a1016; margin-top: 0.5rem;
+    }
+    .graph-svg { display: block; min-width: 100%; }
+    .graph-row-hit { cursor: default; }
+    .graph-row-hit:hover rect.graph-bg { fill: rgba(91,159,212,0.08); }
+    .graph-label {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.65rem;
+      font-weight: 700; border: 1px solid; margin-right: 0.25rem;
+      font-family: ui-monospace, Menlo, monospace; vertical-align: middle;
+    }
+    .graph-controls {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      margin-bottom: 0.45rem;
+    }
+    .graph-controls button.active {
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(91,159,212,0.25);
+    }
+    .graph-meta { color: var(--muted); font-size: 0.78rem; }
+    .graph-meta a { color: var(--accent); text-decoration: none; }
+    .branch-list-compact { max-height: 12rem; overflow: auto; }
     /* Recommendation priority + press rank */
     .pill.pri-critical { color: #ff6b6b; border-color: #6b2e2e; background: #2a1515; }
     .pill.pri-high { color: #f5a623; border-color: #6b4a1e; background: #2a1f10; }
@@ -768,25 +793,42 @@
           ${blBody}
         </div>`;
 
-      // Branches panel (list only — current branch/status live in header)
+      // Branches panel: gitk-style graph + list (graph loaded async)
       const branchList = br.branches || [];
+      const graphMode = (window.__branchGraphMode || "graph");
       $("branches").innerHTML = `
-        <div class="section-title">Branches</div>
+        <div class="section-title">Branches <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· gitk-style graph + inventory</span></div>
         <div class="card">
-          ${branchList.length ? branchList.map((b) => `
-            <div class="sess">
-              <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
-              <div>
-                <div class="title">${esc(b.name)}</div>
-                <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
-              </div>
-              <div class="when">${b.is_master ? "integration" : ""}</div>
-            </div>`).join("") : `<div class="empty">No branches</div>`}
+          <div class="graph-controls">
+            <button type="button" id="btn-graph-view" class="${graphMode === "graph" ? "active" : ""}" title="Commit topology (linked list / DAG)">Graph</button>
+            <button type="button" id="btn-list-view" class="${graphMode === "list" ? "active" : ""}" title="Branch inventory">List</button>
+            <button type="button" id="btn-graph-refresh" title="Reload graph from local git">Refresh graph</button>
+            <label class="toggle" style="padding:0.3rem 0.55rem;font-size:0.8rem">
+              <input type="checkbox" id="graph-remotes" ${window.__branchGraphRemotes === false ? "" : "checked"} /> remotes
+            </label>
+            <span class="graph-meta" id="graph-meta">Loading graph…</span>
+          </div>
+          <div id="branch-graph-panel" style="${graphMode === "graph" ? "" : "display:none"}">
+            <div class="graph-wrap" id="branch-graph-mount"><div class="empty" style="margin:0.5rem;border:none">Fetching commit graph…</div></div>
+          </div>
+          <div id="branch-list-panel" class="branch-list-compact" style="${graphMode === "list" ? "" : "display:none"}">
+            ${branchList.length ? branchList.map((b) => `
+              <div class="sess">
+                <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
+                <div>
+                  <div class="title">${esc(b.name)}</div>
+                  <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
+                </div>
+                <div class="when">${b.is_master ? "integration" : ""}</div>
+              </div>`).join("") : `<div class="empty">No branches</div>`}
+          </div>
           <div style="margin-top:0.65rem;display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
             <input id="start-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.85rem" />
             <button type="button" id="btn-start-work">Start work/&lt;area&gt;</button>
           </div>
         </div>`;
+      wireBranchPanel();
+      if (graphMode === "graph") loadBranchGraph();
 
       const kit = data.resume_kit || {};
       const sess = kit.sessions || [];
@@ -857,6 +899,132 @@
       document.querySelectorAll("[data-copy]").forEach((btn) => {
         btn.addEventListener("click", () => copyText(btn.getAttribute("data-copy") || ""));
       });
+    }
+
+    /** Lane palette for graph columns (cycles). */
+    const LANE_COLORS = ["#7c9cff", "#c084fc", "#3dd68c", "#5b9fd4", "#f5c542", "#ff8fab", "#64d2ff", "#a78bfa"];
+
+    function wireBranchPanel() {
+      const gBtn = $("btn-graph-view");
+      const lBtn = $("btn-list-view");
+      const rBtn = $("btn-graph-refresh");
+      const rem = $("graph-remotes");
+      if (gBtn) gBtn.onclick = () => {
+        window.__branchGraphMode = "graph";
+        if ($("branch-graph-panel")) $("branch-graph-panel").style.display = "";
+        if ($("branch-list-panel")) $("branch-list-panel").style.display = "none";
+        gBtn.classList.add("active");
+        if (lBtn) lBtn.classList.remove("active");
+        loadBranchGraph();
+      };
+      if (lBtn) lBtn.onclick = () => {
+        window.__branchGraphMode = "list";
+        if ($("branch-graph-panel")) $("branch-graph-panel").style.display = "none";
+        if ($("branch-list-panel")) $("branch-list-panel").style.display = "";
+        lBtn.classList.add("active");
+        if (gBtn) gBtn.classList.remove("active");
+      };
+      if (rBtn) rBtn.onclick = () => loadBranchGraph(true);
+      if (rem) rem.onchange = () => {
+        window.__branchGraphRemotes = !!rem.checked;
+        loadBranchGraph(true);
+      };
+    }
+
+    function renderBranchGraphSvg(g) {
+      const commits = g.commits || [];
+      const edges = g.edges || [];
+      if (!commits.length) {
+        return `<div class="empty" style="margin:0.5rem;border:none">No commits in graph window.</div>`;
+      }
+      const laneCount = Math.max(1, g.lane_count || 1);
+      const rowH = 26;
+      const laneW = 16;
+      const padL = 12;
+      const padT = 10;
+      const textX = padL + laneCount * laneW + 18;
+      const width = Math.max(720, textX + 520);
+      const height = padT * 2 + commits.length * rowH;
+
+      const cx = (lane) => padL + lane * laneW + laneW / 2;
+      const cy = (row) => padT + row * rowH + rowH / 2;
+      const laneColor = (lane) => LANE_COLORS[lane % LANE_COLORS.length];
+
+      // Paths for edges (bezier vertical)
+      const edgePaths = edges.map((e) => {
+        const x1 = cx(e.from_lane), y1 = cy(e.from_row);
+        const x2 = cx(e.to_lane), y2 = cy(e.to_row);
+        const midY = (y1 + y2) / 2;
+        const col = laneColor(e.from_lane);
+        const dash = e.kind === "merge" ? ' stroke-dasharray="3 2"' : "";
+        const d = x1 === x2
+          ? `M ${x1} ${y1} L ${x2} ${y2}`
+          : `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+        return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" opacity="0.85"${dash}/>`;
+      }).join("");
+
+      const nodes = commits.map((c) => {
+        const x = cx(c.lane), y = cy(c.row);
+        const col = (c.labels && c.labels[0] && c.labels[0].color) || laneColor(c.lane);
+        const r = c.is_head ? 5.5 : 4;
+        const labels = (c.labels || []).slice(0, 4).map((lb) => {
+          const bg = lb.color || col;
+          return `<tspan fill="${bg}" font-weight="700">[${esc(lb.name)}] </tspan>`;
+        }).join("");
+        const subj = esc((c.subject || "").slice(0, 72));
+        const link = c.url
+          ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text></a>`
+          : `<text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text>`;
+        return `
+          <g class="graph-row-hit">
+            <rect class="graph-bg" x="0" y="${cy(c.row) - rowH / 2}" width="${width}" height="${rowH}" fill="transparent"/>
+            <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#0a1016" stroke-width="1.5"/>
+            ${c.is_head ? `<circle cx="${x}" cy="${y}" r="${r + 3}" fill="none" stroke="${col}" stroke-width="1" opacity="0.7"/>` : ""}
+            ${link}
+            <text x="${textX + 58}" y="${y + 4}" font-size="12" fill="#e7eef5">${labels}<tspan fill="#c5d0db">${subj}</tspan></text>
+          </g>`;
+      }).join("");
+
+      return `<svg class="graph-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Git branch graph">
+        ${edgePaths}
+        ${nodes}
+      </svg>`;
+    }
+
+    async function loadBranchGraph(force) {
+      const mount = $("branch-graph-mount");
+      const meta = $("graph-meta");
+      if (!mount) return;
+      if (!force && window.__branchGraphCache && window.__branchGraphMode !== "list") {
+        // still re-render from cache when panel rebuilt
+      }
+      const remotes = window.__branchGraphRemotes === false ? "0" : "1";
+      try {
+        if (meta) meta.textContent = "Loading graph…";
+        const res = await fetch(`/api/branch-graph?max=80&remotes=${remotes}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const g = await res.json();
+        if (!g.ok) throw new Error(g.error || "graph error");
+        window.__branchGraphCache = g;
+        mount.innerHTML = renderBranchGraphSvg(g);
+        const links = g.links || {};
+        const parts = [
+          `${g.commit_count} commits`,
+          `${g.lane_count} lanes`,
+          g.current_branch ? `HEAD ${g.current_branch}` : "",
+        ].filter(Boolean);
+        let extra = "";
+        if (links.github_network) {
+          extra = ` · <a href="${esc(links.github_network)}" target="_blank" rel="noopener">GitHub Network</a>`;
+          if (links.github_branches) {
+            extra += ` · <a href="${esc(links.github_branches)}" target="_blank" rel="noopener">Branches</a>`;
+          }
+        }
+        if (meta) meta.innerHTML = esc(parts.join(" · ")) + extra;
+      } catch (e) {
+        mount.innerHTML = `<div class="empty" style="margin:0.5rem;border:none">Graph failed: ${esc(e.message)}</div>`;
+        if (meta) meta.textContent = "Graph error";
+      }
     }
 
     async function load() {
