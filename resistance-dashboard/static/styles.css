@@ -64,6 +64,22 @@ header p {
   flex-wrap: wrap;
 }
 
+/* Single visual row: Save goals · Refresh plan · Push · Pull · Legs (etc.) */
+.actions.actions-row-single {
+  flex-wrap: nowrap;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  gap: 0.4rem;
+  padding-bottom: 0.15rem;
+}
+
+.actions.actions-row-single > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 button,
 .btn {
   appearance: none;
@@ -2601,6 +2617,13 @@ footer {
   .btn,
   .btn-touch {
     min-height: 44px;
+  }
+
+  /* Keep plan action strip on one line (compact chips, horizontal scroll if needed) */
+  #workout-goals-form .actions.actions-row-single > button {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
   }
 
   input,
