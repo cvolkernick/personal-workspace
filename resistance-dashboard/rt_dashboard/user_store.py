@@ -192,34 +192,81 @@ class UserStore:
             conn.commit()
 
     def claim_legacy_default_workouts(self, user_id: str) -> int:
-        """Reassign orphaned user_id='default' rows to this Google user (once)."""
+        """Move orphaned user_id='default' rows to this Google user (once).
+
+        Critical: exercises_json may be sealed with AAD ``user:default:workout``.
+        A bare UPDATE of user_id leaves ciphertext bound to the old AAD, so
+        reads under the new user return empty exercises. We re-open with the
+        legacy AAD (or plaintext JSON) and re-seal under the new user_id.
+        """
+        from datetime import datetime, timezone
+
+        def _now() -> str:
+            return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
         with self._connect() as conn:
-            # Only if this user has zero workouts and default has some
             mine = conn.execute(
                 "SELECT COUNT(*) AS c FROM workout_sessions WHERE user_id = ?",
                 (user_id,),
             ).fetchone()["c"]
-            legacy = conn.execute(
-                "SELECT COUNT(*) AS c FROM workout_sessions WHERE user_id = 'default'",
-            ).fetchone()["c"]
-            if mine > 0 or legacy == 0:
-                return 0
-            # Avoid unique conflicts: only reassign if no date/type clash
-            conn.execute(
+            legacy_rows = conn.execute(
                 """
-                UPDATE workout_sessions SET user_id = ?
-                WHERE user_id = 'default'
-                  AND NOT EXISTS (
-                    SELECT 1 FROM workout_sessions w2
-                    WHERE w2.user_id = ?
-                      AND w2.date = workout_sessions.date
-                      AND w2.session_type = workout_sessions.session_type
-                  )
-                """,
-                (user_id, user_id),
-            )
-            n = conn.total_changes
-            # Drop remaining default orphans that clashed (should be none)
+                SELECT id, date, session_type, notes, source_file, exercises_json,
+                       created_at
+                FROM workout_sessions WHERE user_id = 'default'
+                """
+            ).fetchall()
+            if mine > 0 or not legacy_rows:
+                return 0
+
+            claimed = 0
+            now = _now()
+            for row in legacy_rows:
+                # Skip if target already has this date+type
+                clash = conn.execute(
+                    """
+                    SELECT 1 FROM workout_sessions
+                    WHERE user_id = ? AND date = ? AND session_type = ?
+                    """,
+                    (user_id, row["date"], row["session_type"]),
+                ).fetchone()
+                if clash:
+                    continue
+
+                raw = str(row["exercises_json"] or "[]")
+                # Decrypt under legacy AAD, or accept plaintext Phase 1a rows
+                if raw.lstrip().startswith("["):
+                    plain = raw
+                else:
+                    try:
+                        plain = open_str(raw, aad="user:default:workout")
+                    except ValueError:
+                        # Try new-user AAD (shouldn't happen for default rows)
+                        try:
+                            plain = open_str(raw, aad=f"user:{user_id}:workout")
+                        except ValueError:
+                            plain = "[]"
+                resealed = seal_str(plain, aad=f"user:{user_id}:workout")
+                conn.execute(
+                    """
+                    INSERT INTO workout_sessions(
+                      user_id, date, session_type, notes, source_file,
+                      exercises_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        row["date"],
+                        row["session_type"],
+                        row["notes"] or "",
+                        row["source_file"] or "",
+                        resealed,
+                        row["created_at"] or now,
+                        now,
+                    ),
+                )
+                claimed += 1
+
             conn.execute("DELETE FROM workout_sessions WHERE user_id = 'default'")
             conn.commit()
-            return int(n)
+            return claimed

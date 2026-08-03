@@ -89,6 +89,24 @@ class UserStoreTests(unittest.TestCase):
         mine = WorkoutRepository(db_path=self.db, user_id="google-sub-2")
         self.assertEqual(mine.count(), 1)
         self.assertEqual(WorkoutRepository(db_path=self.db, user_id="default").count(), 0)
+        # Exercises must survive claim of *encrypted* default rows (not just count)
+        sessions = mine.list_sessions()
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0].exercises[0].name, "Press")
+        self.assertEqual(sessions[0].exercises[0].sets[0].weight_lbs, 50.0)
+        # Disk must be sealed under new user AAD, not leftover default AAD
+        import sqlite3
+
+        raw = sqlite3.connect(str(self.db)).execute(
+            "SELECT exercises_json FROM workout_sessions WHERE user_id='google-sub-2'"
+        ).fetchone()[0]
+        self.assertFalse(str(raw).lstrip().startswith("["))
+        from rt_dashboard.crypto_box import open_str
+
+        plain = open_str(str(raw), aad="user:google-sub-2:workout")
+        self.assertIn("Press", plain)
+        with self.assertRaises(ValueError):
+            open_str(str(raw), aad="user:default:workout")
 
 
 class EncryptedWorkoutTests(unittest.TestCase):

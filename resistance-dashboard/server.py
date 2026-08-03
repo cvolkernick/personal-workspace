@@ -815,10 +815,11 @@ def load_dashboard_data(
     return payload
 
 
-def _execute_coach_action(action: dict) -> dict:
+def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dict:
     """Run a structured coach action against local/GitHub stores."""
     kind = action.get("action")
     client = build_github_client(for_write=True)
+    uid = user_id
     try:
         if kind == "set_stock":
             store = load_inventory_and_targets(client)
@@ -902,7 +903,7 @@ def _execute_coach_action(action: dict) -> dict:
                 reason = "Cleared pin — coach will auto-pick lagging muscles again."
             elif action.get("auto"):
                 goals["auto_focus_muscles"] = True
-                data = load_dashboard_data(force_refresh=False)
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 sessions = sessions_from_dicts(data.get("sessions") or [])
                 catalog = store.get("catalog") or {"exercises": []}
                 tally = weekly_set_tally(
@@ -933,7 +934,7 @@ def _execute_coach_action(action: dict) -> dict:
                 "write": write,
             }
         if kind == "refresh_meal_plan":
-            data = load_dashboard_data(force_refresh=False)
+            data = load_dashboard_data(force_refresh=False, user_id=uid)
             store = data.get("nutrition_store") or {}
             plan = generate_meal_plan(
                 store.get("inventory") or {"ingredients": []},
@@ -947,7 +948,7 @@ def _execute_coach_action(action: dict) -> dict:
                 execute_restock_order,
             )
 
-            data = load_dashboard_data(force_refresh=False)
+            data = load_dashboard_data(force_refresh=False, user_id=uid)
             store = data.get("nutrition_store") or {}
             restock = build_meal_restock_list(
                 store.get("inventory") or {"ingredients": []},
@@ -968,7 +969,7 @@ def _execute_coach_action(action: dict) -> dict:
                 **out,
             }
         if kind == "refresh_workout_plan":
-            data = load_dashboard_data(force_refresh=False)
+            data = load_dashboard_data(force_refresh=False, user_id=uid)
             wo = data.get("workout_store") or {}
             rec = data.get("recovery") or {}
             from rt_dashboard.dashboard_cache import sessions_from_dicts
@@ -1257,6 +1258,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             user = self._require_user()
             if user is None and _auth_required():
                 return
+            self._request_user = user  # type: ignore[attr-defined]
 
         if parsed.path == "/api/doordash/restock":
             # Preview shopping list for meal restock (no dd-cli mutations).
@@ -1267,7 +1269,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     dd_cli_available,
                 )
 
-                data = load_dashboard_data(force_refresh=False)
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 store = data.get("nutrition_store") or {}
                 restock = build_meal_restock_list(
                     store.get("inventory") or {"ingredients": []},
@@ -1425,7 +1428,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/refresh":
             try:
                 # Explicit refresh always bypasses remote caches.
-                self._send_json(load_dashboard_data(force_refresh=True))
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                self._send_json(
+                    load_dashboard_data(force_refresh=True, user_id=uid)
+                )
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
@@ -1442,7 +1448,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
 
                 body = self._read_json()
-                data = load_dashboard_data(force_refresh=False)
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 store = data.get("nutrition_store") or {}
                 restock = build_meal_restock_list(
                     store.get("inventory") or {"ingredients": []},
@@ -1558,9 +1565,10 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 model = body.get("model")
                 # Local coach actions (stock / targets / refresh plans) — no model call.
                 # Pass chat history so "apply those recommendations" can reuse numbers.
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
                 action = try_parse_coach_action(question, history=history)
                 if action:
-                    act_result = _execute_coach_action(action)
+                    act_result = _execute_coach_action(action, user_id=uid)
                     self._send_json(
                         {
                             "ok": True,
@@ -1574,7 +1582,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     )
                     return
                 # Never force remote Health on Ask — use disk cache + local lifts.
-                dashboard = load_dashboard_data(force_refresh=False)
+                dashboard = load_dashboard_data(force_refresh=False, user_id=uid)
                 result = ask_about_dashboard(
                     question,
                     dashboard,
@@ -1605,7 +1613,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/meal-plan/generate":
             try:
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
-                data = load_dashboard_data()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 store = data.get("nutrition_store") or {}
                 health = data.get("health") or {}
                 # Prefer live consumed from dashboard nutrition days
@@ -1664,7 +1673,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/workout-plan/generate":
             try:
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}
-                data = load_dashboard_data(force_refresh=False)
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
                 wo = data.get("workout_store") or {}
                 rec = data.get("recovery") or {}
                 sessions_raw = data.get("sessions") or []
