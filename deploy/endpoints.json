@@ -1,0 +1,22 @@
+{
+  "pi_host": "192.168.100.98",
+  "pi_label": "prism-gateway",
+  "scheme": "http",
+  "notes": "Always-on dashboard backends live on the Pi. Override with env PI_HOST or DASHBOARD_HOST (Tailscale MagicDNS/IP when off-LAN).",
+  "services": {
+    "orchestra": { "port": 8790, "path": "/", "health": "/api/health" },
+    "financial-command": {
+      "port": 8000,
+      "path": "/financial-command/index.html",
+      "health": "/api/health"
+    },
+    "projects-dashboard": { "port": 8765, "path": "/", "health": "/api/health" },
+    "holistic": { "port": 8770, "path": "/", "health": "/api/health" },
+    "iot": { "port": 8780, "path": "/", "health": "/api/health" },
+    "resistance-dashboard": {
+      "port": 8787,
+      "path": "/",
+      "health": "/api/healthz"
+    }
+  }
+}

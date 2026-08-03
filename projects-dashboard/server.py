@@ -11,6 +11,7 @@
 Usage:
   python3 projects-dashboard/server.py
   python3 projects-dashboard/server.py --port 8765 --no-browser
+  python3 projects-dashboard/server.py --backend http://pi-host:8765
 """
 
 from __future__ import annotations
@@ -21,11 +22,15 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
+WORKSPACE = ROOT.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+if str(WORKSPACE) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE))
 
 from backlog import (  # noqa: E402
     add_item,
@@ -43,10 +48,15 @@ from recommendations import (  # noqa: E402
     reject_suggestion,
     generate_recommendations,
 )
+from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
 from session_backup import write_full_archive, write_session_index  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
 DEFAULT_PORT = 8765
+DEFAULT_BACKEND_CONFIG = ROOT / "backend.json"
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+_FRONTEND: str = ""
 
 
 class ProjectsHandler(SimpleHTTPRequestHandler):
@@ -77,6 +87,14 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             return {}
 
     def do_GET(self) -> None:  # noqa: N802
+        if try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="GET",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+        ):
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
@@ -87,6 +105,8 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "service": "projects-dashboard",
                     "workspace": str(WORKSPACE_ROOT),
+                    "proxy": False,
+                    "backend": None,
                 },
             )
             return
@@ -141,6 +161,14 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        if try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="POST",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+        ):
+            return
         path = urlparse(self.path).path
         body = self._read_json()
 
@@ -273,17 +301,27 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
+    global _BACKEND_URL, _BACKEND_LABEL, _FRONTEND
     parser = argparse.ArgumentParser(
         description="personal-workspace Workflow Management dashboard"
     )
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
     parser.add_argument("--bind", default="127.0.0.1")
+    add_backend_args(parser)
     args = parser.parse_args(argv)
 
+    _BACKEND_URL, _BACKEND_LABEL = resolve_backend(
+        local=bool(args.local),
+        backend=args.backend,
+        config_path=DEFAULT_BACKEND_CONFIG,
+    )
     url = f"http://{args.bind}:{args.port}/"
+    _FRONTEND = url
     print(f"Workflow Management dashboard → {url}")
     print(f"Workspace: {WORKSPACE_ROOT}")
+    if _BACKEND_URL:
+        print(f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]")
     print("API: GET /api/projects | POST /api/sync /api/protect /api/start-work")
     httpd = ThreadingHTTPServer((args.bind, args.port), ProjectsHandler)
     if not args.no_browser:

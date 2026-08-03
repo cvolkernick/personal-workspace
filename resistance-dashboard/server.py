@@ -25,7 +25,10 @@ from urllib.parse import parse_qs, urlparse
 T = TypeVar("T")
 
 ROOT = Path(__file__).resolve().parent
+WORKSPACE = ROOT.parent
 sys.path.insert(0, str(ROOT))
+if str(WORKSPACE) not in sys.path:
+    sys.path.insert(0, str(WORKSPACE))
 
 
 def _load_env_file(path: Path) -> None:
@@ -134,6 +137,17 @@ from rt_dashboard.workout_store import (  # noqa: E402
 
 STATIC_DIR = ROOT / "static"
 DEFAULT_PORT = int(os.environ.get("PORT", "8787"))
+DEFAULT_BACKEND_CONFIG = ROOT / "backend.json"
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+_FRONTEND: str = ""
+
+try:
+    from remote_backend import add_backend_args, resolve_backend, try_proxy_api
+except ImportError:  # pragma: no cover — monorepo root must be on path
+    add_backend_args = None  # type: ignore
+    resolve_backend = None  # type: ignore
+    try_proxy_api = None  # type: ignore
 
 
 def _default_local_workspace() -> str:
@@ -928,9 +942,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return json.loads(raw.decode("utf-8"))
 
     def do_GET(self) -> None:  # noqa: N802
+        if try_proxy_api is not None and try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="GET",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+            health_paths=("/api/health", "/api/healthz"),
+        ):
+            return
         parsed = urlparse(self.path)
-        if parsed.path == "/api/healthz":
-            self._send_json({"ok": True, "service": "resistance-dashboard"})
+        if parsed.path in ("/api/healthz", "/api/health"):
+            self._send_json(
+                {
+                    "ok": True,
+                    "service": "resistance-dashboard",
+                    "proxy": False,
+                    "backend": None,
+                }
+            )
             return
         if parsed.path == "/api/dashboard":
             try:
@@ -1013,6 +1043,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        if try_proxy_api is not None and try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="POST",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+            health_paths=("/api/health", "/api/healthz"),
+        ):
+            return
         parsed = urlparse(self.path)
         if parsed.path == "/api/google-health/auth/start":
             try:

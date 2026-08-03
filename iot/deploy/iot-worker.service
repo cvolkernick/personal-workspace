@@ -11,7 +11,8 @@ Group=pi
 WorkingDirectory=/home/pi/iot-workspace
 Environment=PYTHONPATH=/home/pi/iot-workspace
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/python3 /home/pi/iot-workspace/iot/worker.py --interval 30
+# Prefer venv created by install_remote.sh; install script rewrites path
+ExecStart=/home/pi/iot-workspace/.venv/bin/python /home/pi/iot-workspace/iot/worker.py --interval 30
 Restart=always
 RestartSec=10
 

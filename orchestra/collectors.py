@@ -2,6 +2,22 @@
 
 from __future__ import annotations
 
+def _svc_url(name: str) -> str:
+    """Always-on Pi URL for a dashboard service."""
+    try:
+        from dashboard_endpoints import service_url
+        return service_url(name)
+    except Exception:
+        ports = {
+            "projects-dashboard": "http://192.168.100.98:8765/",
+            "financial-command": "http://192.168.100.98:8000/financial-command/index.html",
+            "resistance-dashboard": "http://192.168.100.98:8787/",
+            "holistic": "http://192.168.100.98:8770/",
+            "iot": "http://192.168.100.98:8780/",
+        }
+        return ports.get(name, "http://192.168.100.98/")
+
+
 import json
 import re
 import socket
@@ -71,12 +87,25 @@ def _parse_frontmatter(text: str) -> tuple[dict[str, Any], str]:
     return meta, parts[2]
 
 
-def probe_port(port: int, host: str = "127.0.0.1", timeout: float = 0.25) -> bool:
-    """True if something accepts TCP connections on host:port."""
+def _default_probe_host() -> str:
+    """Probe always-on Pi host when available; fall back to localhost."""
+    try:
+        from dashboard_endpoints import pi_host
+
+        return pi_host()
+    except Exception:  # noqa: BLE001
+        return "127.0.0.1"
+
+
+def probe_port(
+    port: int, host: str | None = None, timeout: float = 0.35
+) -> bool:
+    """True if something accepts TCP connections on host:port (Pi by default)."""
     if not port:
         return False
+    target = host if host is not None else _default_probe_host()
     try:
-        with socket.create_connection((host, int(port)), timeout=timeout):
+        with socket.create_connection((target, int(port)), timeout=timeout):
             return True
     except OSError:
         return False
@@ -244,8 +273,8 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
         },
         "available": True,
         "live": None,
-        "url": "http://127.0.0.1:8765/",
-        "launch": "python3 projects-dashboard/server.py",
+        "url": _svc_url("projects-dashboard"),
+        "launch": "bash deploy/open_dashboard.sh projects-dashboard",
         "port": 8765,
         "sources": ["ops/backlog/", "ops/session-index/", "projects-dashboard/"],
     }
@@ -282,8 +311,8 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
             "signals": {},
             "available": False,
             "live": None,
-            "url": "http://127.0.0.1:8000/financial-command/",
-            "launch": "python3 financial-command/server.py",
+            "url": _svc_url("financial-command"),
+            "launch": "bash deploy/open_dashboard.sh financial-command",
             "port": 8000,
             "sources": sources_missing,
         }
@@ -345,8 +374,8 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
         },
         "available": True,
         "live": None,
-        "url": "http://127.0.0.1:8000/financial-command/",
-        "launch": "python3 financial-command/server.py",
+        "url": _svc_url("financial-command"),
+        "launch": "bash deploy/open_dashboard.sh financial-command",
         "port": 8000,
         "sources": [source] if source else [],
     }
@@ -405,8 +434,8 @@ def collect_fitness(workspace: Path) -> dict[str, Any]:
         },
         "available": available,
         "live": None,
-        "url": "http://127.0.0.1:8787/",
-        "launch": "python3 resistance-dashboard/server.py",
+        "url": _svc_url("resistance-dashboard"),
+        "launch": "bash deploy/open_dashboard.sh resistance-dashboard",
         "port": 8787,
         "sources": ["fitness/data/", "fitness/workouts/", "resistance-dashboard/"],
     }
@@ -452,8 +481,8 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
         },
         "available": bool(state),
         "live": None,
-        "url": "http://127.0.0.1:8770/",
-        "launch": "python3 holistic/server.py",
+        "url": _svc_url("holistic"),
+        "launch": "bash deploy/open_dashboard.sh holistic",
         "port": 8770,
         "sources": ["holistic/data/", "holistic/time_allocator/"],
     }
@@ -542,8 +571,8 @@ def collect_iot(workspace: Path) -> dict[str, Any]:
         },
         "available": available,
         "live": None,
-        "url": "http://127.0.0.1:8780/",
-        "launch": "python3 iot/server.py",
+        "url": _svc_url("iot"),
+        "launch": "bash deploy/open_dashboard.sh iot",
         "port": 8780,
         "sources": [
             "iot/wiz-lights/bulbs.json",

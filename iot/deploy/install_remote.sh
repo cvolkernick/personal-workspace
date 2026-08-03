@@ -81,11 +81,15 @@ if [[ "$DRY" -eq 1 ]]; then
 fi
 
 rsync "${RSYNC_ARGS[@]}" \
+  --exclude 'backend.json' \
   "$ROOT/iot/" \
   "$REMOTE:$REMOTE_DIR/iot/"
+# Pi must not ship Mac's backend.json (would proxy to itself)
 
-echo "→ Install pywizlight on remote (user site)…"
-ssh "$REMOTE" "python3 -m pip install --user -q 'pywizlight>=0.6.0' || python3 -m pip install --user 'pywizlight>=0.6.0'"
+echo "→ Create venv + install pywizlight (PEP 668-safe)…"
+ssh "$REMOTE" "python3 -m venv '$REMOTE_DIR/.venv' && \
+  '$REMOTE_DIR/.venv/bin/pip' install -q --upgrade pip && \
+  '$REMOTE_DIR/.venv/bin/pip' install -q 'pywizlight>=0.6.0'"
 
 echo "→ Ensure schedule data dir…"
 ssh "$REMOTE" "mkdir -p '$REMOTE_DIR/iot/data'"
@@ -98,12 +102,13 @@ if [[ "$MODE" == "dashboard" ]]; then
 fi
 
 echo "→ Install systemd unit ($UNIT_NAME)…"
-# Rewrite paths for this user/dir
+# Rewrite paths for this user/dir; use venv python
 TMP_UNIT="$(mktemp)"
 sed \
   -e "s|User=pi|User=${RUSER}|g" \
   -e "s|Group=pi|Group=${RUSER}|g" \
   -e "s|/home/pi/iot-workspace|${REMOTE_DIR}|g" \
+  -e "s|/usr/bin/python3|${REMOTE_DIR}/.venv/bin/python|g" \
   "$(dirname "$0")/$UNIT_SRC" > "$TMP_UNIT"
 
 scp "$TMP_UNIT" "$REMOTE:/tmp/$UNIT_NAME"

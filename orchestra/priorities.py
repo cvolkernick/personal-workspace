@@ -97,6 +97,8 @@ def synthesize_priorities(
             items[-1]["domains"] = sorted(set(items[-1]["domains"] + ["finance"]))
         if any(k in low for k in ("automation", "command center", "initiative", "ai", "agent")):
             items[-1]["domains"] = sorted(set(items[-1]["domains"] + ["workflow"]))
+        if any(k in low for k in ("iot", "home", "light", "bulb", "environment", "wiz")):
+            items[-1]["domains"] = sorted(set(items[-1]["domains"] + ["iot"]))
 
     # 2) Active initiatives with next_action
     for init in initiatives:

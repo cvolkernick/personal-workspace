@@ -1,4 +1,5 @@
 #!/bin/bash
-cd "$(dirname "$0")/.."
-export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)"
-exec python3 iot/server.py --port 8780
+# Open always-on IoT dashboard on the Pi (no local server).
+set -euo pipefail
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+exec bash "$ROOT/deploy/open_dashboard.sh" iot
