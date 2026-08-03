@@ -163,6 +163,6 @@
   "pulled_from_pi": {
     "ssh": "prism-agent@192.168.100.98",
     "remote_path": "/home/prism-agent/personal-workspace/treasury/snapshots/robinhood_latest.json",
-    "pulled_at": "2026-08-03T13:38:43.169623+00:00"
+    "pulled_at": "2026-08-03T13:55:51.704916+00:00"
   }
 }
