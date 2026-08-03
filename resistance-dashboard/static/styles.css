@@ -14,6 +14,163 @@
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+/* Phase 1b login gate — no app chrome until authenticated */
+.auth-gate {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--bg);
+  overflow: hidden;
+}
+.auth-gate[hidden] {
+  display: none !important;
+}
+.auth-gate-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(61, 156, 240, 0.28), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(92, 225, 168, 0.12), transparent 50%),
+    radial-gradient(ellipse 40% 30% at 0% 80%, rgba(240, 113, 120, 0.08), transparent 45%),
+    var(--bg);
+  pointer-events: none;
+}
+.auth-gate-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.auth-gate-card {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  width: 100%;
+  background: linear-gradient(165deg, rgba(36, 48, 68, 0.95), rgba(26, 35, 50, 0.98));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 2rem 1.65rem 1.5rem;
+  box-shadow: var(--shadow), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  backdrop-filter: blur(8px);
+}
+.auth-gate-brand {
+  text-align: center;
+  margin-bottom: 1.35rem;
+}
+.auth-gate-mark {
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #243044, #1a2332);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.auth-gate-card h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.auth-gate-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.auth-gate-features {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.auth-gate-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 20, 25, 0.45);
+  border: 1px solid rgba(45, 58, 79, 0.85);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+.auth-feat-icon {
+  flex-shrink: 0;
+  width: 1.35rem;
+  text-align: center;
+  line-height: 1.35;
+}
+.auth-gate-error {
+  margin: 0 0 0.75rem;
+  min-height: 0;
+  color: var(--danger);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.auth-gate-error:empty {
+  display: none;
+}
+.auth-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  min-height: 50px;
+  padding: 0.8rem 1.25rem;
+  text-decoration: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(45, 127, 212, 0.35);
+}
+.auth-login-btn:hover {
+  filter: brightness(1.06);
+}
+.auth-google-icon {
+  flex-shrink: 0;
+}
+.auth-gate-note {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.95rem;
+}
+a.btn.primary {
+  background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
+  border-color: transparent;
+  font-weight: 600;
+  color: #fff;
+}
+
 * {
   box-sizing: border-box;
 }

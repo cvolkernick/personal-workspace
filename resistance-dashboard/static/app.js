@@ -2098,7 +2098,7 @@
     return Number.isInteger(x) ? String(x) : x.toFixed(0);
   }
 
-  /** Sticky phone strip: cals · protein · recovery */
+  /** Sticky phone strip: cals · protein · recovery status */
   function updateMacroStrip(consumed, targets, recovery) {
     const strip = $("macro-strip");
     if (!strip) return;
@@ -2108,16 +2108,27 @@
     const calsEl = $("macro-strip-cals");
     const pEl = $("macro-strip-protein");
     const rEl = $("macro-strip-recovery");
+    // source "none" means Google Health has no day yet — show — not fake 0s
+    const noIntake =
+      !c.source || c.source === "none" || (c.food_log_count === 0 && !(Number(c.calories) > 0));
     if (calsEl) {
-      calsEl.textContent = `Cals ${fmtNumShort(c.calories)}/${fmtNumShort(t.calories)}`;
+      const eaten = noIntake && !(Number(c.calories) > 0) ? "—" : fmtNumShort(c.calories);
+      calsEl.textContent = `Cals ${eaten}/${fmtNumShort(t.calories)}`;
+      calsEl.title = "Calories eaten today / daily target (from Google Health)";
     }
     if (pEl) {
-      pEl.textContent = `P ${fmtNumShort(c.protein_g)}/${fmtNumShort(t.protein_g)}g`;
+      const eatenP =
+        noIntake && !(Number(c.protein_g) > 0) ? "—" : fmtNumShort(c.protein_g);
+      pEl.textContent = `P ${eatenP}/${fmtNumShort(t.protein_g)}g`;
+      pEl.title = "Protein eaten today / daily target (from Google Health)";
     }
     if (rEl) {
       const label = rec.label || "—";
-      const score = rec.score != null ? rec.score : "—";
-      rEl.textContent = `${label} ${score}`;
+      const score = rec.score != null ? Math.round(Number(rec.score)) : "—";
+      // Keep "Rec" prefix so Caution/Ready is not mistaken for a macro
+      rEl.textContent = `Rec ${label} ${score}`;
+      rEl.title =
+        "Recovery score 0–100 from sleep, recent training volume, and weight trend. Bands: Ready 75+, Moderate 50–74, Caution 30–49, Needs Rest <30.";
     }
     strip.hidden = false;
   }
@@ -2663,7 +2674,21 @@
       </div>
     </div>`;
     if (!meals.length) {
-      html += `<p class="muted">No items planned.</p>`;
+      const remB = plan.remaining_before_plan || {};
+      const remCals = Number(remB.calories);
+      const remP = Number(remB.protein_g);
+      if (
+        Number.isFinite(remCals) &&
+        Number.isFinite(remP) &&
+        remCals < 150 &&
+        remP < 20
+      ) {
+        html += `<p class="muted">Day is essentially full (≈${fmtNumShort(
+          remCals
+        )} kcal / ${fmtNumShort(remP)}g protein left) — nothing useful to add from stock.</p>`;
+      } else {
+        html += `<p class="muted">No items planned — check in-stock inventory or remaining macros.</p>`;
+      }
     } else {
       meals.forEach((m, mi) => {
         const items = m.items || [];
@@ -3495,12 +3520,82 @@
     });
   }
 
+  /** True after auth/status says we may load personal APIs (signed in, or legacy no-auth). */
+  let bootAllowsData = false;
+
+  function showLoginGate(message) {
+    bootAllowsData = false;
+    clearAlerts();
+    const gate = $("auth-gate");
+    const shell = $("app-shell");
+    const tabbar = $("mobile-tabbar");
+    if (gate) gate.hidden = false;
+    if (shell) shell.hidden = true;
+    if (tabbar) tabbar.hidden = true;
+    const err = $("auth-gate-error");
+    if (err) {
+      const params = new URLSearchParams(window.location.search);
+      err.textContent = message || params.get("auth_error") || "";
+    }
+  }
+
+  function showAppShell(user) {
+    const gate = $("auth-gate");
+    const shell = $("app-shell");
+    if (gate) gate.hidden = true;
+    if (shell) shell.hidden = false;
+    const line = $("auth-user-line");
+    if (line && user) {
+      line.textContent = user.email
+        ? `Signed in as ${user.display_name || user.email} · ${user.email}`
+        : `Signed in · ${user.display_name || user.id || ""}`;
+    }
+  }
+
+  function isAuthRequiredError(res, data, errMsg) {
+    if (res && res.status === 401) return true;
+    if (data && (data.error === "auth_required" || data.error === "unauthorized")) return true;
+    const m = String(errMsg || "");
+    return /HTTP 401|auth_required|unauthorized|session expired/i.test(m);
+  }
+
+  async function checkAuthAndBoot() {
+    try {
+      const res = await fetch("/api/auth/status", { cache: "no-store", credentials: "same-origin" });
+      const st = await res.json();
+      if (!st.auth_required) {
+        // Legacy mode: show app without Google login
+        bootAllowsData = true;
+        showAppShell({ display_name: "local", email: "" });
+        refreshAskAuthStatus();
+        loadDashboard(false);
+        return;
+      }
+      if (!st.authenticated) {
+        // Expected path when signed out — login only, no dashboard fetch
+        showLoginGate();
+        return;
+      }
+      bootAllowsData = true;
+      showAppShell(st.user);
+      refreshAskAuthStatus();
+      loadDashboard(false);
+    } catch (e) {
+      showLoginGate(`Auth check failed: ${e.message}`);
+    }
+  }
+
   async function loadDashboard(forceRefresh = false) {
     // Guard: if used as a raw click handler, first arg is an Event (truthy).
     if (forceRefresh && typeof forceRefresh !== "boolean") {
       forceRefresh = false;
     }
-    $("btn-refresh").disabled = true;
+    // Never hit /api/dashboard until boot confirmed auth (avoids 401 toast on cold open)
+    if (!bootAllowsData) {
+      showLoginGate();
+      return;
+    }
+    if ($("btn-refresh")) $("btn-refresh").disabled = true;
     // Don't wipe success toasts from inventory remove/add mid-action.
     const meta = $("meta-line");
     const started = Date.now();
@@ -3518,9 +3613,17 @@
     }, 500);
     try {
       const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
-      const res = await fetch(url, { cache: "no-store" });
+      const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
+      if (res.status === 401) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
+      if (isAuthRequiredError(res, data)) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       // Soft errors (partial data) live under meta.error — still render.
       if (data.error && !data.sessions && !data.meta) {
         throw new Error(data.error);
@@ -3530,12 +3633,16 @@
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
     } catch (e) {
+      if (isAuthRequiredError(null, null, e && e.message)) {
+        showLoginGate("Session expired — sign in again.");
+        return;
+      }
       clearAlerts();
       showAlert(`Failed to load dashboard: ${e.message}`, "err");
       if (meta) meta.textContent = `Load failed: ${e.message}`;
     } finally {
       clearInterval(tick);
-      $("btn-refresh").disabled = false;
+      if ($("btn-refresh")) $("btn-refresh").disabled = false;
     }
   }
 
@@ -3967,18 +4074,18 @@
   }
 
   function init() {
-    $("log-date").value = todayISO();
-    addExerciseRow();
+    if ($("log-date")) $("log-date").value = todayISO();
+    if ($("exercise-rows") && !$("exercise-rows").children.length) addExerciseRow();
     bindInventoryListOnce();
     initMobileShell();
     registerServiceWorker();
-    $("btn-add-ex").addEventListener("click", () => addExerciseRow());
-    $("log-form").addEventListener("submit", submitWorkout);
-    $("btn-refresh").addEventListener("click", () => loadDashboard(true));
+    if ($("btn-add-ex")) $("btn-add-ex").addEventListener("click", () => addExerciseRow());
+    if ($("log-form")) $("log-form").addEventListener("submit", submitWorkout);
+    if ($("btn-refresh")) $("btn-refresh").addEventListener("click", () => loadDashboard(true));
     if ($("btn-google-auth")) {
       $("btn-google-auth").addEventListener("click", () => refreshGoogleAuth());
     }
-    $("btn-focus-log").addEventListener("click", () => {
+    if ($("btn-focus-log")) $("btn-focus-log").addEventListener("click", () => {
       goMobileTab("log");
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();
@@ -4034,8 +4141,8 @@
     if ($("btn-ask-clear")) {
       $("btn-ask-clear").addEventListener("click", clearAskChat);
     }
-    refreshAskAuthStatus();
-    loadDashboard();
+    // Auth gate first — do not fetch /api/dashboard or /api/ask/* until signed in
+    checkAuthAndBoot();
   }
 
   if (document.readyState === "loading") {

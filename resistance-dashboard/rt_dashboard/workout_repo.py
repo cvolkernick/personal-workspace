@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from .crypto_box import open_str, seal_str
 from .models import ExerciseEntry, Session, SetEntry
 from .parse import parse_all_workouts
 
@@ -104,11 +105,29 @@ def _exercises_from_json(raw: str) -> List[ExerciseEntry]:
     return out
 
 
-def _row_to_session(row: sqlite3.Row) -> Session:
+def _seal_exercises(user_id: str, exercises: Sequence[ExerciseEntry]) -> str:
+    plain = _exercises_to_json(exercises)
+    return seal_str(plain, aad=f"user:{user_id}:workout")
+
+
+def _open_exercises(user_id: str, stored: str) -> List[ExerciseEntry]:
+    """Decrypt exercises_json; tolerate legacy plaintext JSON rows."""
+    raw = stored or "[]"
+    if raw.lstrip().startswith("["):
+        return _exercises_from_json(raw)
+    try:
+        plain = open_str(raw, aad=f"user:{user_id}:workout")
+        return _exercises_from_json(plain)
+    except ValueError:
+        # Wrong key / tampered — do not leak
+        return []
+
+
+def _row_to_session(row: sqlite3.Row, user_id: str) -> Session:
     return Session(
         date=str(row["date"]),
         session_type=str(row["session_type"]),
-        exercises=_exercises_from_json(str(row["exercises_json"] or "[]")),
+        exercises=_open_exercises(user_id, str(row["exercises_json"] or "[]")),
         notes=str(row["notes"] or ""),
         source_file=str(row["source_file"] or ""),
     )
@@ -162,12 +181,12 @@ class WorkoutRepository:
                 """,
                 (self.user_id,),
             ).fetchall()
-        return [_row_to_session(r) for r in rows]
+        return [_row_to_session(r, self.user_id) for r in rows]
 
     def upsert_session(self, session: Session) -> Dict[str, Any]:
         """Insert or replace by (user_id, date, session_type)."""
         now = _utc_now()
-        payload = _exercises_to_json(session.exercises)
+        payload = _seal_exercises(self.user_id, session.exercises)
         with self._connect() as conn:
             conn.execute(
                 """
@@ -245,7 +264,7 @@ class WorkoutRepository:
                         session.session_type,
                         session.notes or "",
                         session.source_file or "",
-                        _exercises_to_json(session.exercises),
+                        _seal_exercises(self.user_id, session.exercises),
                         now,
                         now,
                     ),
