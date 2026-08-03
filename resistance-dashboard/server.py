@@ -894,6 +894,17 @@ def parse_log_body(data: dict) -> Session:
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
+    # PWA manifest MIME (stdlib map often serves .webmanifest as octet-stream)
+    extensions_map = {
+        **getattr(SimpleHTTPRequestHandler, "extensions_map", {}),
+        ".webmanifest": "application/manifest+json",
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".json": "application/json; charset=utf-8",
+        ".png": "image/png",
+        ".html": "text/html; charset=utf-8",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 

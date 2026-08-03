@@ -389,13 +389,13 @@
     row.className = "set-row";
     row.innerHTML = `
       <label>Weight (lbs)
-        <input type="number" class="set-weight" required min="0" step="0.5" value="${prefill.weight_lbs ?? ""}" />
+        <input type="number" class="set-weight" required min="0" step="0.5" inputmode="decimal" value="${prefill.weight_lbs ?? ""}" />
       </label>
       <label>Reps
-        <input type="number" class="set-reps" required min="1" step="1" value="${prefill.reps ?? 10}" />
+        <input type="number" class="set-reps" required min="1" step="1" inputmode="numeric" value="${prefill.reps ?? 10}" />
       </label>
       <label>Sets
-        <input type="number" class="set-sets" required min="1" step="1" value="${prefill.sets ?? 1}" />
+        <input type="number" class="set-sets" required min="1" step="1" inputmode="numeric" value="${prefill.sets ?? 1}" />
       </label>
       <button type="button" class="set-remove" aria-label="Remove set">✕</button>
     `;
@@ -483,10 +483,19 @@
     if (c) c.destroy();
   }
 
+  function prefersReducedMotion() {
+    try {
+      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
   function chartDefaults() {
     return {
       responsive: true,
       maintainAspectRatio: false,
+      animation: prefersReducedMotion() ? false : undefined,
       plugins: {
         legend: { labels: { color: "#8b9bb4" } },
       },
@@ -2061,6 +2070,37 @@
       tgtPct.c
     );
     fillMacroSplit($("stat-fat"), c.fat_g, t.fat_g, "g", soFarPct.f, tgtPct.f);
+    updateMacroStrip(c, t, state && state.recovery);
+  }
+
+  function fmtNumShort(n) {
+    if (n == null || n === "" || Number.isNaN(Number(n))) return "—";
+    const x = Number(n);
+    return Number.isInteger(x) ? String(x) : x.toFixed(0);
+  }
+
+  /** Sticky phone strip: cals · protein · recovery */
+  function updateMacroStrip(consumed, targets, recovery) {
+    const strip = $("macro-strip");
+    if (!strip) return;
+    const c = consumed || {};
+    const t = targets || {};
+    const rec = recovery || {};
+    const calsEl = $("macro-strip-cals");
+    const pEl = $("macro-strip-protein");
+    const rEl = $("macro-strip-recovery");
+    if (calsEl) {
+      calsEl.textContent = `Cals ${fmtNumShort(c.calories)}/${fmtNumShort(t.calories)}`;
+    }
+    if (pEl) {
+      pEl.textContent = `P ${fmtNumShort(c.protein_g)}/${fmtNumShort(t.protein_g)}g`;
+    }
+    if (rEl) {
+      const label = rec.label || "—";
+      const score = rec.score != null ? rec.score : "—";
+      rEl.textContent = `${label} ${score}`;
+    }
+    strip.hidden = false;
   }
 
   function fmtBarWhen(iso) {
@@ -2696,6 +2736,10 @@
     renderNutritionStatTiles(data.nutrition_store);
     // Full-width pacing (above chips) + in/out delta (below chips)
     renderCalorieBars(data);
+    // Mirror cache meta onto mobile admin card
+    if ($("mobile-meta-line") && $("meta-line")) {
+      $("mobile-meta-line").textContent = $("meta-line").textContent;
+    }
 
     if (data.health && data.health.error) {
       const err = String(data.health.error || "");
@@ -3284,8 +3328,144 @@
     if (wrap) wrap.innerHTML = "";
     prefills.forEach((p) => addExerciseRow(p));
     if ($("log-date")) $("log-date").value = todayISO();
+    goMobileTab("log");
     $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
     showAlert(`Prefixed ${prefills.length} exercises from today’s plan — edit loads then Save.`, "ok");
+  }
+
+  /* ---------- Mobile tab shell (≤720px) ---------- */
+  const MOBILE_MQ = "(max-width: 720px)";
+  let mobileActiveTab = "today";
+
+  function isMobileShell() {
+    try {
+      return window.matchMedia(MOBILE_MQ).matches;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function goMobileTab(tab) {
+    mobileActiveTab = tab || "today";
+    if (!isMobileShell()) {
+      // Desktop: just scroll to a sensible anchor
+      const map = {
+        today: "today-hub",
+        log: "log-card",
+        trends: "charts-volume-strength",
+        kitchen: "inventory-section",
+        more: "ask-card",
+      };
+      const el = $(map[mobileActiveTab] || "today-hub");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    document.body.classList.add("m-shell");
+    document.body.dataset.mActive = mobileActiveTab;
+    const bar = $("mobile-tabbar");
+    if (bar) {
+      bar.hidden = false;
+      bar.querySelectorAll(".tab-btn").forEach((btn) => {
+        const on = btn.getAttribute("data-m-tab") === mobileActiveTab;
+        btn.classList.toggle("active", on);
+        if (on) btn.setAttribute("aria-current", "page");
+        else btn.removeAttribute("aria-current");
+      });
+    }
+    // Show mobile admin card only on More
+    const admin = $("mobile-admin-card");
+    if (admin) admin.hidden = false;
+    // When switching to More, catalog is inside workout-plan-section
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+  }
+
+  function setTodayPill(name) {
+    const pills = $("today-mobile-pills");
+    if (!pills) return;
+    pills.querySelectorAll(".pill").forEach((p) => {
+      const on = p.getAttribute("data-today-pill") === name;
+      p.classList.toggle("active", on);
+      p.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    document.querySelectorAll("#today-hub-grid .today-panel").forEach((panel) => {
+      panel.classList.toggle(
+        "today-panel-active",
+        panel.getAttribute("data-today-panel") === name
+      );
+    });
+  }
+
+  function syncMobileShell() {
+    const mobile = isMobileShell();
+    const bar = $("mobile-tabbar");
+    const pills = $("today-mobile-pills");
+    const admin = $("mobile-admin-card");
+    if (mobile) {
+      document.body.classList.add("m-shell");
+      if (bar) bar.hidden = false;
+      if (pills) pills.hidden = false;
+      if (admin) admin.hidden = false;
+      goMobileTab(mobileActiveTab);
+      // Default hub panel: Lift (training plan) — Meal/Targets via pills
+      const activePill = document.querySelector(
+        "#today-hub-grid .today-panel.today-panel-active"
+      );
+      setTodayPill(
+        (activePill && activePill.getAttribute("data-today-panel")) || "lift"
+      );
+    } else {
+      document.body.classList.remove("m-shell");
+      delete document.body.dataset.mActive;
+      if (bar) bar.hidden = true;
+      if (pills) pills.hidden = true;
+      if (admin) admin.hidden = true;
+      // Restore all today panels on desktop
+      document.querySelectorAll("#today-hub-grid .today-panel").forEach((p) => {
+        p.classList.add("today-panel-active");
+      });
+    }
+  }
+
+  function initMobileShell() {
+    syncMobileShell();
+    try {
+      window.matchMedia(MOBILE_MQ).addEventListener("change", syncMobileShell);
+    } catch (_) {
+      window.addEventListener("resize", syncMobileShell);
+    }
+    const bar = $("mobile-tabbar");
+    if (bar) {
+      bar.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-m-tab]");
+        if (!btn) return;
+        goMobileTab(btn.getAttribute("data-m-tab"));
+      });
+    }
+    const pills = $("today-mobile-pills");
+    if (pills) {
+      pills.addEventListener("click", (ev) => {
+        const btn = ev.target.closest("[data-today-pill]");
+        if (!btn) return;
+        setTodayPill(btn.getAttribute("data-today-pill"));
+      });
+    }
+    // Mobile admin mirrors desktop header buttons
+    if ($("btn-refresh-mobile")) {
+      $("btn-refresh-mobile").addEventListener("click", () => loadDashboard(true));
+    }
+    if ($("btn-google-auth-mobile")) {
+      $("btn-google-auth-mobile").addEventListener("click", () => refreshGoogleAuth());
+    }
+  }
+
+  function registerServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    // Only register on secure contexts / localhost / private IPs used over Tailscale
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {
+        /* offline shell is best-effort */
+      });
+    });
   }
 
   async function loadDashboard(forceRefresh = false) {
@@ -3763,6 +3943,8 @@
     $("log-date").value = todayISO();
     addExerciseRow();
     bindInventoryListOnce();
+    initMobileShell();
+    registerServiceWorker();
     $("btn-add-ex").addEventListener("click", () => addExerciseRow());
     $("log-form").addEventListener("submit", submitWorkout);
     $("btn-refresh").addEventListener("click", () => loadDashboard(true));
@@ -3770,6 +3952,7 @@
       $("btn-google-auth").addEventListener("click", () => refreshGoogleAuth());
     }
     $("btn-focus-log").addEventListener("click", () => {
+      goMobileTab("log");
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();
     });
@@ -3778,12 +3961,14 @@
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
+        goMobileTab("log");
         const el = $("workout-plan-card") || $("workout-plan-section");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
     if ($("btn-scroll-meal-plan")) {
       $("btn-scroll-meal-plan").addEventListener("click", () => {
+        goMobileTab("kitchen");
         const el = $("meal-plan-card") || $("meal-plan-result");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });

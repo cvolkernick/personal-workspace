@@ -2354,3 +2354,365 @@ footer {
   margin: 0.4rem 0 0;
   font-size: 0.72rem;
 }
+
+/* ==========================================================================
+   Mobile shell (M1–M3): tabs, sticky bar, gym-mode density
+   Desktop layout unchanged above 720px.
+   ========================================================================== */
+
+.mobile-help {
+  display: none;
+  margin-top: 0;
+  font-size: 0.85rem;
+}
+
+.macro-strip {
+  display: none;
+}
+
+.mobile-tabbar {
+  display: none;
+}
+
+.mobile-only-card {
+  display: none;
+}
+
+.today-mobile-pills {
+  display: none;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0.35rem;
+  flex-wrap: wrap;
+}
+
+.today-mobile-pills .pill {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 40px;
+}
+
+.today-mobile-pills .pill.active {
+  background: rgba(61, 156, 240, 0.18);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  :root {
+    font-size: 16px;
+  }
+
+  body {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.m-shell .wrap {
+    padding: 0.75rem 0.75rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .header-sub {
+    display: none;
+  }
+
+  header.app-header {
+    margin-bottom: 0.5rem;
+  }
+
+  header h1 {
+    font-size: 1.2rem;
+  }
+
+  /* Desktop header actions → bottom tabs / More admin */
+  .header-actions-desktop {
+    display: none !important;
+  }
+
+  .desktop-help {
+    display: none !important;
+  }
+
+  .mobile-help {
+    display: block;
+  }
+
+  .mobile-only-card {
+    display: block;
+  }
+
+  /* Sticky macro strip */
+  .macro-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    margin: 0 0 0.65rem;
+    padding: 0.45rem 0.7rem;
+    background: rgba(15, 20, 25, 0.92);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+
+  .macro-strip[hidden] {
+    display: none !important;
+  }
+
+  .macro-strip-dot {
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  #macro-strip-recovery {
+    color: var(--accent-2);
+  }
+
+  /* Panel visibility for tab shell */
+  body.m-shell [data-m-panel] {
+    display: none !important;
+  }
+
+  body.m-shell[data-m-active="today"] [data-m-panel="today"],
+  body.m-shell[data-m-active="log"] [data-m-panel="log"],
+  body.m-shell[data-m-active="trends"] [data-m-panel="trends"],
+  body.m-shell[data-m-active="kitchen"] [data-m-panel="kitchen"],
+  body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+    display: block !important;
+  }
+
+  /* Grid sections must remain grid when active */
+  body.m-shell[data-m-active="today"] section.grid[data-m-panel="today"],
+  body.m-shell[data-m-active="log"] section.grid[data-m-panel="log"],
+  body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"],
+  body.m-shell[data-m-active="kitchen"] section.grid[data-m-panel="kitchen"],
+  body.m-shell[data-m-active="more"] section.grid[data-m-panel="more"] {
+    display: grid !important;
+  }
+
+  /* Catalog lives under More on phone; hide from Log tab */
+  body.m-shell[data-m-active="log"] #exercise-catalog-card {
+    display: none !important;
+  }
+
+  body.m-shell[data-m-active="more"] #workout-plan-section {
+    display: grid !important;
+  }
+
+  body.m-shell[data-m-active="more"] #workout-plan-card {
+    display: none !important;
+  }
+
+  body.m-shell[data-m-active="more"] #exercise-catalog-card {
+    display: block !important;
+  }
+
+  /* Today hub: single panel via pills */
+  .today-mobile-pills {
+    display: flex;
+  }
+
+  .today-mobile-pills[hidden] {
+    display: none !important;
+  }
+
+  body.m-shell #today-hub-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.m-shell #today-hub-grid .today-panel {
+    display: none;
+  }
+
+  body.m-shell #today-hub-grid .today-panel.today-panel-active {
+    display: block;
+  }
+
+  /* Bottom tab bar */
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    gap: 0.15rem;
+    padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(15, 20, 25, 0.96);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .mobile-tabbar[hidden] {
+    display: none !important;
+  }
+
+  .mobile-tabbar .tab-btn {
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.1rem;
+    min-height: 48px;
+    padding: 0.35rem 0.2rem;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 12px;
+    font-size: 0.68rem;
+    font-weight: 600;
+  }
+
+  .mobile-tabbar .tab-btn .tab-ico {
+    font-size: 1.05rem;
+    line-height: 1;
+  }
+
+  .mobile-tabbar .tab-btn.active {
+    color: var(--text);
+    background: rgba(61, 156, 240, 0.14);
+  }
+
+  .mobile-tabbar .tab-btn-primary {
+    color: var(--accent);
+  }
+
+  .mobile-tabbar .tab-btn-primary.active {
+    color: #fff;
+    background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
+  }
+
+  /* Touch targets */
+  button,
+  .btn,
+  .btn-touch {
+    min-height: 44px;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+
+  .log-actions {
+    flex-direction: column;
+  }
+
+  .log-actions button {
+    width: 100%;
+  }
+
+  .btn-add-set,
+  #btn-add-ex {
+    width: 100%;
+    min-height: 48px;
+    font-weight: 600;
+  }
+
+  .set-row {
+    grid-template-columns: 1fr 1fr 1fr auto !important;
+    gap: 0.4rem;
+  }
+
+  .exercise-card {
+    padding: 0.75rem;
+  }
+
+  .exercise-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .exercise-card-actions .set-hint {
+    display: none;
+  }
+
+  /* Charts shorter on phone */
+  .chart-box {
+    min-height: 160px !important;
+    height: 180px;
+  }
+
+  .grid.equal-cards > .card-fill {
+    min-height: 0;
+  }
+
+  .grid.equal-cards > .card-fill .chart-box {
+    min-height: 160px;
+  }
+
+  /* Strength exercise tabs: horizontal scroll */
+  .tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: 0.35rem;
+    padding-bottom: 0.25rem;
+  }
+
+  .tabs button,
+  .tabs .tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  /* Stats: 2×2 on phone */
+  .grid.stats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  #nutrition-stats .macro-split-v {
+    font-size: 0.95rem;
+  }
+
+  .mobile-admin-actions {
+    flex-direction: column;
+  }
+
+  .mobile-admin-actions button {
+    width: 100%;
+  }
+
+  footer.app-footer {
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+
+  /* Prefer content order: strip → today first naturally via tabs */
+  #alerts {
+    position: sticky;
+    top: 2.6rem;
+    z-index: 35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

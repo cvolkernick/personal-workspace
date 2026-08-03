@@ -4,6 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#0f1419" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>💪 FitDash</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
@@ -15,9 +20,9 @@
       <header class="app-header">
         <div>
           <h1>💪 FitDash</h1>
-          <p>Live lift logs · Google Health recovery, nutrition &amp; hydration</p>
+          <p class="header-sub">Live lift logs · Google Health recovery, nutrition &amp; hydration</p>
         </div>
-        <div class="actions">
+        <div class="actions header-actions-desktop">
           <button
             type="button"
             id="btn-google-auth"
@@ -32,11 +37,20 @@
         </div>
       </header>
 
+      <!-- Sticky macro strip (filled by app.js) — most useful on phone -->
+      <div id="macro-strip" class="macro-strip" aria-live="polite" hidden>
+        <span id="macro-strip-cals">Cals —</span>
+        <span class="macro-strip-dot" aria-hidden="true">·</span>
+        <span id="macro-strip-protein">P —</span>
+        <span class="macro-strip-dot" aria-hidden="true">·</span>
+        <span id="macro-strip-recovery">Rec —</span>
+      </div>
+
       <div id="alerts"></div>
 
-      <section class="card" style="margin-top: 0" id="ask-card">
+      <section class="card" style="margin-top: 0" id="ask-card" data-m-panel="more">
         <h2>Ask Grok about your data</h2>
-        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Uses your SuperGrok / Grok Build login (<code>~/.grok/auth.json</code>).
           Your question and Grok’s reply show in the chat box below. Answers use a
           compact snapshot of this dashboard (lifts, recovery, nutrition, plans).
@@ -44,6 +58,9 @@
           You can also <strong>change config in plain English</strong> (instant, no model call):
           e.g. “set protein to 220”, “update calories to 2000”, “apply those recommendations”,
           “focus on chest and glutes”, “auto focus”, “mark chicken out of stock”, “refresh meal plan”.
+        </p>
+        <p class="muted mobile-help" hidden>
+          Ask about lifts, recovery, or macros. Config commands work too (e.g. “set protein to 220”).
         </p>
         <p class="muted" id="ask-auth-status" style="margin: 0.35rem 0 0.5rem; font-size: 0.85rem"></p>
         <div id="ask-messages" class="ask-messages" aria-live="polite"></div>
@@ -66,7 +83,7 @@
         </form>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="today-hub">
+      <section class="card" style="margin-top: 1rem" id="today-hub" data-m-panel="today">
         <div class="today-hub-header">
           <div>
             <h2>Today · full-day guide</h2>
@@ -78,25 +95,31 @@
             <button type="button" id="btn-scroll-meal-plan">Meal plan card</button>
           </div>
         </div>
+        <!-- Mobile: pill switcher for hub panels -->
+        <div class="today-mobile-pills" id="today-mobile-pills" hidden role="tablist" aria-label="Today sections">
+          <button type="button" class="pill active" data-today-pill="lift" role="tab" aria-selected="true">Lift</button>
+          <button type="button" class="pill" data-today-pill="meal" role="tab" aria-selected="false">Meal</button>
+          <button type="button" class="pill" data-today-pill="targets" role="tab" aria-selected="false">Targets</button>
+        </div>
         <p class="muted today-headline" id="today-headline" style="margin: 0.65rem 0 0; font-size: 0.92rem"></p>
         <p class="muted" id="today-overview" style="margin: 0.35rem 0 0; font-size: 0.82rem"></p>
 
         <div id="today-actions" class="today-actions" style="margin-top: 0.85rem"></div>
 
         <div class="today-sections" id="today-hub-grid">
-          <div class="today-panel">
+          <div class="today-panel" data-today-panel="targets">
             <h3 class="today-subh">Targets &amp; why</h3>
             <div id="today-targets"></div>
             <div id="today-recovery" style="margin-top: 0.75rem"></div>
             <div id="today-adherence" class="muted" style="margin-top: 0.65rem; font-size: 0.85rem"></div>
           </div>
-          <div class="today-panel">
+          <div class="today-panel" data-today-panel="meal">
             <h3 class="today-subh">Meal plan · in stock only</h3>
             <div id="today-meal" style="font-size: 0.9rem"></div>
             <div id="today-purchases" style="margin-top: 0.65rem; font-size: 0.88rem"></div>
             <div id="today-macros" class="muted" style="margin-top: 0.65rem; font-size: 0.88rem"></div>
           </div>
-          <div class="today-panel today-panel-wide">
+          <div class="today-panel today-panel-wide" data-today-panel="lift">
             <h3 class="today-subh">Training</h3>
             <div id="today-workout" style="font-size: 0.92rem"></div>
           </div>
@@ -105,7 +128,7 @@
         <div id="weekly-review" class="weekly-review" style="margin-top: 1rem"></div>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem">
+      <section class="grid two" style="margin-top: 1rem" id="charts-volume-strength" data-m-panel="trends">
         <article class="card">
           <h2>Monthly volume (daily)</h2>
           <div class="chart-box"><canvas id="chart-volume" aria-label="Monthly volume chart — daily bars"></canvas></div>
@@ -119,7 +142,7 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row">
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row" data-m-panel="today">
         <article class="card card-fill" id="recovery-card">
           <h2>Recovery status</h2>
           <div id="recovery-badge"></div>
@@ -143,6 +166,7 @@
         class="card calorie-bar-card"
         style="margin-top: 1rem"
         id="calorie-pacing-section"
+        data-m-panel="today"
         aria-label="Calorie pacing through eating window"
       >
         <div class="calorie-bar-header">
@@ -156,7 +180,7 @@
         <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
       </section>
 
-      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" aria-label="Nutrition summary">
+      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" data-m-panel="today" aria-label="Nutrition summary">
         <div class="card stat macro-stat macro-cals">
           <div class="label">Calories</div>
           <div class="macro-split" id="stat-calories" aria-live="polite">
@@ -220,6 +244,7 @@
         class="card calorie-bar-card"
         style="margin-top: 1rem"
         id="calorie-delta-section"
+        data-m-panel="today"
         aria-label="Today calories in versus out"
       >
         <div class="calorie-bar-header">
@@ -239,7 +264,7 @@
         <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
       </section>
 
-      <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts">
+      <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts" data-m-panel="trends">
         <article class="card">
           <h2>Calories intake vs burned · 30d</h2>
           <div class="chart-box"><canvas id="chart-calories" aria-label="Calories chart last 30 days"></canvas></div>
@@ -252,7 +277,7 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row">
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row" data-m-panel="trends">
         <article class="card card-fill">
           <h2>Body weight (90 days)</h2>
           <div class="chart-box"><canvas id="chart-weight" aria-label="Weight chart"></canvas></div>
@@ -265,9 +290,9 @@
         </article>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="food-coach-section">
+      <section class="card" style="margin-top: 1rem" id="food-coach-section" data-m-panel="kitchen">
         <h2>Nutrition Coach</h2>
-        <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Rolling assessment of logged foods, macros, and micronutrients — what is
           working and what to improve. When pantry stock blocks the meal plan,
           use <strong>DoorDash restock</strong> (via <code>dd-cli</code>) to order
@@ -278,10 +303,10 @@
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
       </section>
 
-      <section class="grid two equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section">
+      <section class="grid two equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section" data-m-panel="kitchen">
         <article class="card card-fill" id="meal-plan-card">
           <h2>Daily targets &amp; meal plan</h2>
-          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Targets in <code>fitness/nutrition/targets.json</code>. Remaining macros
             use Google Health intake. <strong>Next / Later / Evening</strong> meals
             only pick ingredients marked <strong>in stock</strong>. Use
@@ -309,7 +334,7 @@
 
         <article class="card card-fill" id="inventory-card">
           <h2>Ingredient inventory</h2>
-          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Matches the meal-plan column height — pantry list scrolls when long.
             Suggestions stay as a compact carousel. Data:
             <code>fitness/nutrition/inventory.json</code>.
@@ -352,10 +377,10 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="workout-plan-section">
-        <article class="card card-fill" id="exercise-catalog-card">
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="workout-plan-section" data-m-panel="log">
+        <article class="card card-fill" id="exercise-catalog-card" data-m-panel-item="more">
           <h2>Exercise catalog</h2>
-          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Library in <code>fitness/exercises/catalog.json</code> — muscles,
             session type (push/pull/legs), equipment. Toggle availability to
             control what the planner can pick.
@@ -400,7 +425,7 @@
 
         <article class="card card-fill" id="workout-plan-card">
           <h2>Today’s workout plan</h2>
-          <p class="muted" style="margin-top: 0; font-size: 0.85rem">
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Catalog + PPL rotation + last loads + recovery, guided by a
             <strong>≈4–8 hard sets / major muscle / week</strong> volume model
             (compound overlap counts; not 10–20+). Focus muscles are
@@ -439,7 +464,7 @@
         </article>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="log-card">
+      <section class="card" style="margin-top: 1rem" id="log-card" data-m-panel="log">
         <h2>Log workout</h2>
         <form class="log-form" id="log-form">
           <div class="row cols-3">
@@ -460,31 +485,65 @@
               <input type="text" name="notes" id="log-notes" placeholder="Optional" />
             </label>
           </div>
-          <p class="muted" style="margin: 0; font-size: 0.85rem">
+          <p class="muted desktop-help" style="margin: 0; font-size: 0.85rem">
             One card per exercise. Use <strong>+ Set</strong> for different weights/reps
             (saved as <code>50 lbs x 1 x 10, 45 lbs x 1 x 8</code>). Same load for all
             sets: one set row with Sets = 3. PR is auto-tagged from history on save.
             Use <strong>Log this plan</strong> on the Today card to prefill from today’s prescription.
           </p>
           <div id="exercise-rows"></div>
-          <div class="actions">
-            <button type="button" id="btn-add-ex">+ Exercise</button>
-            <button type="submit" class="primary" id="btn-save">Save to GitHub log</button>
+          <div class="actions log-actions">
+            <button type="button" id="btn-add-ex" class="btn-touch">+ Exercise</button>
+            <button type="submit" class="primary btn-touch" id="btn-save">Save workout</button>
           </div>
           <p class="muted" id="log-status" style="margin: 0"></p>
         </form>
       </section>
 
-      <section class="card" style="margin-top: 1rem" id="history-card">
+      <section class="card" style="margin-top: 1rem" id="history-card" data-m-panel="trends">
         <h2>Workout history</h2>
         <ul class="session-list" id="session-list"></ul>
       </section>
 
-      <footer>
+      <!-- Mobile-only admin actions (desktop uses header buttons) -->
+      <section class="card mobile-only-card" id="mobile-admin-card" data-m-panel="more" hidden>
+        <h2>Admin</h2>
+        <div class="actions mobile-admin-actions">
+          <button type="button" id="btn-refresh-mobile" class="btn-touch">Refresh remotes</button>
+          <button type="button" id="btn-google-auth-mobile" class="btn-touch">Refresh Google auth</button>
+        </div>
+        <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.8rem" id="mobile-meta-line"></p>
+      </section>
+
+      <footer class="app-footer">
         Data sources: GitHub lift logs · Google Health (weight, sleep, nutrition, hydration) ·
         SuperGrok ask ·
         <span id="meta-line"></span>
       </footer>
     </div>
+
+    <!-- Bottom tab bar: phone / narrow viewports -->
+    <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main" hidden>
+      <button type="button" class="tab-btn active" data-m-tab="today" aria-current="page">
+        <span class="tab-ico" aria-hidden="true">◎</span>
+        <span class="tab-lbl">Today</span>
+      </button>
+      <button type="button" class="tab-btn tab-btn-primary" data-m-tab="log">
+        <span class="tab-ico" aria-hidden="true">＋</span>
+        <span class="tab-lbl">Log</span>
+      </button>
+      <button type="button" class="tab-btn" data-m-tab="trends">
+        <span class="tab-ico" aria-hidden="true">↗</span>
+        <span class="tab-lbl">Trends</span>
+      </button>
+      <button type="button" class="tab-btn" data-m-tab="kitchen">
+        <span class="tab-ico" aria-hidden="true">🍽</span>
+        <span class="tab-lbl">Kitchen</span>
+      </button>
+      <button type="button" class="tab-btn" data-m-tab="more">
+        <span class="tab-ico" aria-hidden="true">···</span>
+        <span class="tab-lbl">More</span>
+      </button>
+    </nav>
   </body>
 </html>
