@@ -54,7 +54,15 @@
     "ssh": "prism-agent@192.168.100.98",
     "remote_root": "/home/prism-agent/personal-workspace",
     "connect_timeout_s": 5,
-    "max_age_hours": 12,
-    "notes": "Local FCC/rh_refresh: pull robinhood_latest.json from Pi first; if unreachable or stale, fall back to local Grok+Robinhood MCP. Override with TREASURY_PI_SSH / TREASURY_PI_ROOT."
+    "max_age_hours": 6,
+    "mcp_timeout_s": 240,
+    "push_enabled": true,
+    "push_files": [
+      "robinhood_latest.json",
+      "braiins_latest.json",
+      "fund_manager_latest.json",
+      "treasury_latest.json"
+    ],
+    "notes": "P0 2026-08-03: Mac is the live RH/Braiins producer. Mac launchd sets TREASURY_SKIP_PI=1 (local MCP primary). max_age_hours=6 matches FCC stale threshold if Pi pull is used. mcp_timeout_s=240 (was 90). After Mac success, push_files \u2192 Pi so offline FCC stays current. Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

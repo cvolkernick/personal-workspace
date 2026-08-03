@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Install (macOS user launchd) — Braiins Pool sync every 4 hours:
+    cp treasury/deploy/com.personalworkspace.braiins-refresh.plist ~/Library/LaunchAgents/
+    launchctl bootout gui/$(id -u)/com.personalworkspace.braiins-refresh 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.braiins-refresh.plist
+
+  Requires: ~/.config/braiins/token (or BRAIINS_POOL_TOKEN)
+
+  Unload:
+    launchctl bootout gui/$(id -u)/com.personalworkspace.braiins-refresh
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.personalworkspace.braiins-refresh</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/braiins_refresh.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/Users/cvolkernick/.grok/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>HOME</key>
+    <string>/Users/cvolkernick</string>
+    <key>FCC_HOST_TAG</key>
+    <string>mac</string>
+  </dict>
+  <!-- 4 hours — under FCC 6h stale threshold -->
+  <key>StartInterval</key>
+  <integer>14400</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/braiins_refresh_launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/braiins_refresh_launchd.err.log</string>
+</dict>
+</plist>

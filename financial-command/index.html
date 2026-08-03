@@ -2,7 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>Financial Command Center</title>
   <style>
     :root {
@@ -1249,6 +1254,161 @@
       color: var(--muted);
       margin-top: 0.25rem;
     }
+
+    /* ── Mobile-first refinements (phone / narrow browser) ── */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body {
+      overflow-x: hidden;
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    /* Touch targets + remove 300ms delay feel */
+    button, .btn, a.btn, .carousel-nav, summary {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(91, 159, 212, 0.25);
+    }
+    input, select, textarea {
+      font-size: 16px; /* iOS: avoid zoom-on-focus when <16px */
+      max-width: 100%;
+    }
+    .table-scroll, .pos-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+    }
+
+    @media (max-width: 720px) {
+      body { font-size: 14px; }
+      .sticky-top {
+        padding: 0.55rem 0.75rem;
+        padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+      }
+      .sticky-top .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+      }
+      .sticky-top .controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
+      }
+      .sticky-top .controls .primary {
+        grid-column: 1 / -1;
+      }
+      .sticky-top .controls .pill {
+        grid-column: 1 / -1;
+        justify-content: center;
+      }
+      .sticky-top .controls .poll-note {
+        display: none; /* reclaim chrome on phone */
+      }
+      .sticky-top .controls button,
+      .sticky-top .controls .btn,
+      .sticky-top .controls a.btn {
+        justify-content: center;
+        min-height: 2.5rem;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.8rem;
+      }
+      h1 { font-size: 1.05rem; }
+      .sub { font-size: 0.72rem; }
+      main {
+        padding: 0.5rem 0.7rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+        gap: 0.5rem;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.4rem;
+      }
+      .kpi .v { font-size: 0.95rem; }
+      .kpi .k, .kpi .s { white-space: normal; }
+      .bill-row {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+      .bill-when {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 0.5rem;
+        min-width: 0;
+      }
+      .metric {
+        flex-wrap: wrap;
+        font-size: 0.84rem;
+      }
+      .metric .val {
+        text-align: left;
+        width: 100%;
+      }
+      .manual-form.grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .manual-form input {
+        width: 100%;
+        min-height: 2.6rem;
+        padding: 0.55rem 0.65rem;
+      }
+      .manual-form label {
+        font-size: 0.8rem;
+      }
+      details.panel > summary {
+        padding: 0.75rem 0.85rem;
+        min-height: 2.75rem;
+      }
+      .advisor-head h2 .sub {
+        display: block;
+        margin-top: 0.15rem;
+      }
+      .advisor-row {
+        flex-direction: column;
+      }
+      .advisor-row button.ask {
+        width: 100%;
+        min-height: 2.75rem;
+      }
+      .carousel-nav {
+        min-width: 2.75rem;
+        min-height: 2.5rem;
+        padding: 0.35rem 0.65rem;
+      }
+      .pos-table {
+        font-size: 0.78rem;
+      }
+      .pos-table th,
+      .pos-table td {
+        padding: 0.4rem 0.3rem;
+      }
+      /* Hide secondary nav links on very tight chrome; keep Refresh + status */
+      #nav-orchestra,
+      #nav-capital-flows {
+        display: none;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      .sticky-top .controls {
+        grid-template-columns: 1fr;
+      }
+      #nav-watchlist { display: none; }
+    }
+
+    /* Coarse pointer (touch) — slightly larger hit targets even on tablets */
+    @media (pointer: coarse) {
+      button, .btn, a.btn, .carousel-nav {
+        min-height: 2.4rem;
+      }
+      .kpi { padding: 0.5rem 0.55rem; }
+    }
+
+    /* Optional body class set by JS when narrow / touch (for future JS layout) */
+    body.is-mobile .sticky-top .sub { display: none; }
   </style>
 </head>
 <body>
@@ -1474,6 +1634,10 @@
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
             <label>CB High Yield vault USDC</label>
             <input id="m-vault" type="number" step="any" placeholder="Morpho High Yield" />
+            <label>Morpho variable APR (0–1, e.g. 0.0487)</label>
+            <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.0487" />
+            <label>Morpho liquidation price (BTC USD)</label>
+            <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
           </div>
           <div>
             <label>RH USDG Earn (lent principal)</label>
@@ -1528,7 +1692,7 @@
       cb_card_float_usdc: 500,
       cb_loan_buffer_usdc: 1000,
       cb_bridge_dry_powder_usdc: 200,
-      rh_bp_floor: 500,
+      rh_bp_floor: 0,
       rh_margin_use_max: 0.4,
       excess_split_cb: 0.6,
       excess_split_rh: 0.4,
@@ -2351,24 +2515,52 @@
             "Morpho LTV unknown — set principal/collateral/LTV in Settings."
           );
         const lv = pct(ltvVal);
+        const manSnap = (data.snapshot || {}).coinbase_manual || {};
+        const apr =
+          inp.variable_apr != null
+            ? f(inp.variable_apr)
+            : manSnap.variable_apr != null
+              ? f(manSnap.variable_apr)
+              : null;
+        const liq =
+          inp.liquidation_price_btc_usd != null
+            ? f(inp.liquidation_price_btc_usd)
+            : manSnap.liquidation_price_btc_usd != null
+              ? f(manSnap.liquidation_price_btc_usd)
+              : null;
+        const btcPx = f(inp.btc_usd_price);
+        const extras = [];
+        if (apr != null && Number.isFinite(apr) && apr > 0)
+          extras.push(`var APR ${(apr * 100).toFixed(2)}%`);
+        if (liq != null && Number.isFinite(liq) && liq > 0) {
+          if (btcPx > 0 && btcPx > liq) {
+            const cushion = ((btcPx - liq) / btcPx) * 100;
+            extras.push(
+              `liq ${money(liq)} (~${cushion.toFixed(0)}% below spot)`
+            );
+          } else {
+            extras.push(`liq ${money(liq)}`);
+          }
+        }
+        const extraStr = extras.length ? ` · ${extras.join(" · ")}` : "";
         if (ltvVal >= ltvMax)
           return toneResult(
             "red",
-            `LTV ${lv} is at/above max ${pct(ltvMax)} — repay or add collateral.`
+            `LTV ${lv} is at/above max ${pct(ltvMax)} — repay or add collateral.${extraStr}`
           );
         if (ltvVal >= ltvAlert)
           return toneResult(
             "orange",
-            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).`
+            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).${extraStr}`
           );
         if (ltvVal >= ltvAlert * 0.85)
           return toneResult(
             "yellow",
-            `LTV ${lv} is approaching alert ${pct(ltvAlert)}.`
+            `LTV ${lv} is approaching alert ${pct(ltvAlert)}.${extraStr}`
           );
         return toneResult(
           "green",
-          `LTV ${lv} is comfortably under alert ${pct(ltvAlert)}.`
+          `LTV ${lv} is comfortably under alert ${pct(ltvAlert)}.${extraStr}`
         );
       }
       function asicHashTone() {
@@ -2643,6 +2835,7 @@
       ].join("");
 
       // Cash & credit stats — split evenly across two columns (no empty column)
+      const man = snap.coinbase_manual || {};
       const cashCreditRows = [
         metric(
           "Working USDC (spot+vault)",
@@ -2682,6 +2875,43 @@
               : "")
         ),
         metric("LTV", pct(inp.ltv)),
+        metric(
+          "Morpho var APR",
+          (() => {
+            const apr =
+              inp.variable_apr != null
+                ? f(inp.variable_apr)
+                : man.variable_apr != null
+                  ? f(man.variable_apr)
+                  : null;
+            if (apr == null || !Number.isFinite(apr)) return "— · set in Settings";
+            const principal =
+              f(inp.loan_principal_usdc) || f(man.loan_principal_usdc) || 0;
+            const yr =
+              principal > 0 && apr > 0
+                ? ` · ~${money(principal * apr)}/yr`
+                : "";
+            return (apr * 100).toFixed(2) + "%" + yr;
+          })()
+        ),
+        metric(
+          "Liq. price (BTC)",
+          (() => {
+            const liq =
+              inp.liquidation_price_btc_usd != null
+                ? f(inp.liquidation_price_btc_usd)
+                : man.liquidation_price_btc_usd != null
+                  ? f(man.liquidation_price_btc_usd)
+                  : null;
+            if (liq == null || !Number.isFinite(liq)) return "— · set in Settings";
+            const btcPx = f(inp.btc_usd_price);
+            if (btcPx > 0 && btcPx > liq) {
+              const cushion = ((btcPx - liq) / btcPx) * 100;
+              return money(liq) + ` · ${cushion.toFixed(0)}% below spot`;
+            }
+            return money(liq);
+          })()
+        ),
         metric("Bank cash (RH+X)", money(inp.bank_cash)),
         metric("Card source", inp.card_source || oc.source || "—"),
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
@@ -3002,7 +3232,7 @@
         )
         .join("");
 
-      const man = snap.coinbase_manual || {};
+      // man already set above for cash metrics
       const set = (id, v) => {
         const el = document.getElementById(id);
         if (el && v !== null && v !== undefined && v !== "") el.value = v;
@@ -3011,6 +3241,8 @@
       set("m-collateral", man.collateral_btc_usd);
       set("m-ltv", man.ltv);
       set("m-vault", man.vault_usdc);
+      set("m-var-apr", man.variable_apr);
+      set("m-liq-price", man.liquidation_price_btc_usd);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
       set(
@@ -3317,7 +3549,9 @@
 
     function readManualForm() {
       const num = (id) => {
-        const v = document.getElementById(id).value;
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const v = el.value;
         return v === "" ? null : v;
       };
       return {
@@ -3325,6 +3559,8 @@
         collateral_btc_usd: num("m-collateral"),
         ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
+        variable_apr: num("m-var-apr"),
+        liquidation_price_btc_usd: num("m-liq-price"),
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
@@ -3879,6 +4115,23 @@
     }
     renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
     loadAdvisorStatus();
+
+    /** Detect phone / narrow viewport for layout class hooks (CSS does most work). */
+    function syncMobileLayout() {
+      const narrow = window.matchMedia("(max-width: 720px)").matches;
+      const touchNarrow =
+        window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
+      document.body.classList.toggle("is-mobile", narrow || touchNarrow);
+    }
+    syncMobileLayout();
+    window.addEventListener("resize", syncMobileLayout, { passive: true });
+    try {
+      window
+        .matchMedia("(max-width: 720px)")
+        .addEventListener("change", syncMobileLayout);
+    } catch (_) {
+      /* Safari <14 */
+    }
 
     loadTreasury();
   </script>
