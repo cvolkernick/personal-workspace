@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Refresh Robinhood dual-account snapshot for local FCC.
 #
-# Strategy (low cost, resilient):
-#   1) Pull robinhood_latest.json from Pi if SSH reachable (Pi owns the 3h schedule)
-#   2) If Pi is down / file missing / too stale → local Grok + Robinhood MCP
+# P0 (2026-08-03) — Mac is the live producer:
+#   1) Local Grok + Robinhood MCP (Mac launchd sets TREASURY_SKIP_PI=1)
+#   2) Optional Pi pull only if TREASURY_SKIP_PI is unset and remote ≤ max_age
+#   3) On local MCP success, push snapshots → Pi (offline mobile FCC)
 #
 # Schedule every 3h (under FCC 6h stale threshold), e.g.:
 #   launchd: treasury/deploy/com.personalworkspace.rh-refresh.plist
@@ -12,7 +13,9 @@
 # Env:
 #   TREASURY_PI_SSH=prism-agent@192.168.100.98
 #   TREASURY_PI_ROOT=/home/prism-agent/personal-workspace
-#   TREASURY_SKIP_PI=1 / TREASURY_SKIP_LOCAL_MCP=1
+#   TREASURY_SKIP_PI=1 / TREASURY_SKIP_LOCAL_MCP=1 / TREASURY_SKIP_PUSH_PI=1
+#   TREASURY_RH_MCP_TIMEOUT_S=240
+#   TREASURY_RH_MAX_AGE_HOURS=6
 #
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,9 +25,9 @@ mkdir -p "$LOG_DIR"
 STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG="${LOG_DIR}/rh_refresh_${STAMP}.log"
 exec >>"$LOG" 2>&1
-echo "=== rh_refresh ${STAMP} (pi-first, local MCP fallback) ==="
+echo "=== rh_refresh ${STAMP} (mac MCP primary, push→Pi) ==="
 
-# Pi-first smart sync (also re-runs fund_manager + run_treasury offline on success)
+# Smart sync (fund_manager + run_treasury offline on success; push on local MCP)
 if python3 -m treasury.rh_snapshot_sync; then
   echo "=== rh_refresh done (ok) ==="
   ln -sfn "$LOG" "${LOG_DIR}/rh_refresh_latest.log" 2>/dev/null || cp "$LOG" "${LOG_DIR}/rh_refresh_latest.log"

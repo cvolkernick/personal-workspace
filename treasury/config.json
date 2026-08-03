@@ -54,7 +54,20 @@
     "ssh": "prism-agent@192.168.100.98",
     "remote_root": "/home/prism-agent/personal-workspace",
     "connect_timeout_s": 5,
-    "max_age_hours": 12,
-    "notes": "Local FCC/rh_refresh: pull robinhood_latest.json from Pi first; if unreachable or stale, fall back to local Grok+Robinhood MCP. Override with TREASURY_PI_SSH / TREASURY_PI_ROOT."
+    "max_age_hours": 6,
+    "mcp_timeout_s": 240,
+    "push_enabled": true,
+    "push_files": [
+      "robinhood_latest.json",
+      "braiins_latest.json",
+      "fund_manager_latest.json",
+      "treasury_latest.json",
+      "coinbase_latest.json",
+      "one_card_latest.json",
+      "rh_checking_latest.json",
+      "x_money_latest.json",
+      "expenses_latest.json"
+    ],
+    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots — no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

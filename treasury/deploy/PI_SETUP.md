@@ -1,5 +1,10 @@
 # Pi setup — unattended fund manager + RH refresh
 
+> **P0 2026-08-03 (see `FEEDS_P0.md`):** Mac is the **live** RH/Braiins producer.
+> Pi FCC runs **offline** and receives snapshots via Mac **push** after refresh.
+> Full Pi-side RH MCP timers below remain optional cutover if you later run grok+MCP on the Pi.
+> Prefer Mac launchd (`com.personalworkspace.rh-refresh` + `braiins-refresh`) for daily freshness.
+
 Run automation on the **Pi** so ntfy alerts and deploys do not depend on the Mac being awake/reauthed in launchd.
 
 ## Prerequisites

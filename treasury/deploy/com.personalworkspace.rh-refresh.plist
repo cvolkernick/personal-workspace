@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Install (macOS user launchd) — refresh RH every 3 hours:
+  Install (macOS user launchd) — refresh RH every 3 hours (Mac MCP primary):
     cp treasury/deploy/com.personalworkspace.rh-refresh.plist ~/Library/LaunchAgents/
-    # Edit WorkingDirectory + ProgramArguments path if needed
-    launchctl load ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+    launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh 2>/dev/null || true
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
 
   Unload:
-    launchctl unload ~/Library/LaunchAgents/com.personalworkspace.rh-refresh.plist
+    launchctl bootout gui/$(id -u)/com.personalworkspace.rh-refresh
 -->
 <plist version="1.0">
 <dict>
@@ -28,6 +28,13 @@
     <string>/Users/cvolkernick</string>
     <key>FCC_HOST_TAG</key>
     <string>mac</string>
+    <!-- Mac is live RH producer; do not re-copy stale Pi snapshots -->
+    <key>TREASURY_SKIP_PI</key>
+    <string>1</string>
+    <key>TREASURY_RH_MCP_TIMEOUT_S</key>
+    <string>240</string>
+    <key>TREASURY_RH_MAX_AGE_HOURS</key>
+    <string>6</string>
   </dict>
   <key>StartInterval</key>
   <integer>10800</integer>
@@ -39,4 +46,3 @@
   <string>/Users/cvolkernick/personal-workspace-worktrees/treasury/treasury/snapshots/rh_refresh_launchd.err.log</string>
 </dict>
 </plist>
-
