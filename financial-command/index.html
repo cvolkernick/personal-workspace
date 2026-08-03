@@ -1449,10 +1449,10 @@
 
     @media (max-width: 400px) {
       .kpi-grid { grid-template-columns: 1fr 1fr; }
+      /* Keep Watchlist | Refresh equal pair even on tiny phones */
       .sticky-top .controls {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
       }
-      #nav-watchlist { display: none; }
     }
 
     /* Coarse pointer (touch) — slightly larger hit targets even on tablets */
