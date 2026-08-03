@@ -142,6 +142,9 @@ def exchange_code(client_id: str, client_secret: str, code: str) -> dict:
 
 
 def build_auth_url(client_id: str) -> str:
+    # include_granted_scopes=false: do NOT re-attach Calendar (or other) scopes
+    # previously granted to this OAuth client. Google Health API rejects tokens
+    # that also carry calendar scopes (DISALLOWED_OAUTH_SCOPES).
     params = {
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
@@ -149,7 +152,7 @@ def build_auth_url(client_id: str) -> str:
         "scope": " ".join(SCOPES),
         "access_type": "offline",
         "prompt": "consent",
-        "include_granted_scopes": "true",
+        "include_granted_scopes": "false",
     }
     return AUTH_URL + "?" + urllib.parse.urlencode(params)
 

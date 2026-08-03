@@ -35,6 +35,16 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 HEALTH_BASE = "https://health.googleapis.com/v4/users/me"
 FIT_BASE = "https://www.googleapis.com/fitness/v1/users/me"
 
+# Google Health API rejects access tokens that also carry Calendar (and some other)
+# scopes — error DISALLOWED_OAUTH_SCOPES / cl_readonly. Refresh with this subset so
+# a multi-scope refresh token (Health + Calendar granted together) still works.
+HEALTH_OAUTH_SCOPES = (
+    "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly "
+    "https://www.googleapis.com/auth/googlehealth.sleep.readonly "
+    "https://www.googleapis.com/auth/googlehealth.nutrition.readonly "
+    "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+)
+
 # Legacy Fit data types (fallback only)
 WEIGHT_DATA_TYPE = "com.google.weight"
 SLEEP_DATA_TYPE = "com.google.sleep.segment"
@@ -115,12 +125,15 @@ class GoogleHealthClient:
                 "Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID, "
                 "GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN (or GOOGLE_ACCESS_TOKEN)."
             )
+        # Always mint a Health-only access token. Unrestricted refresh can return
+        # Calendar scopes that health.googleapis.com rejects with HTTP 403.
         body = urllib.parse.urlencode(
             {
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
                 "refresh_token": self.refresh_token,
                 "grant_type": "refresh_token",
+                "scope": HEALTH_OAUTH_SCOPES,
             }
         ).encode("utf-8")
         req = urllib.request.Request(
