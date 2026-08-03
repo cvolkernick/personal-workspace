@@ -1,21 +1,38 @@
 # Agent Instructions (personal-workspace)
 
 ## Git / remote sync (standing rule)
-- After **any and all** durable project changes that should persist, **commit and push** without waiting to be asked.
-- Prefer automation:
-  ```bash
-  python3 projects-dashboard/git_workflow.py sync
-  ```
-  This refreshes `ops/session-index/`, commits on a `work/<area>` branch if needed, and pushes to `origin`.
+
+**One-liner: auto-save keeps the lights on; PRs change the product.**
+
+| Kind of change | Branch | How to save |
+|----------------|--------|-------------|
+| Snapshots, journals, session-index, backlog JSON | `work/<area>` | bare `sync` / `protect` (**auto** mode — durable paths only) |
+| Reviewable product code (`.py`, features, fixes) | `feature/<slug>` or `fix/<slug>` | commit with a real message, push, **open PR** → `work/<area>` or `master` |
+| Intentional bulk save of mixed work | `work/<area>` | `sync "msg"` or dashboard **Protect & push** (**full** mode) |
+
+```bash
+# Survival only (default when no message) — will NOT commit .py / tests
+python3 projects-dashboard/git_workflow.py sync
+python3 projects-dashboard/git_workflow.py protect --auto
+
+# Product / reviewable work
+git checkout -b fix/my-fix work/treasury   # or feature/...
+# ... edit code ...
+python3 projects-dashboard/git_workflow.py protect "fix(area): short reason"   # full mode
+# open PR into work/<area> — do NOT commit the fix onto work/<area> then PR that tip
+```
+
+- **Never** put a reviewable fix on `work/<area>` and open a PR *into* that same branch — auto-push of durable state advances the base and GitHub can auto-close the PR as merged.
+- **Never** push `master` via protect (blocked).
 - Never commit secrets (`.env`, OAuth tokens, `~/.config/**`, credentials).
 - **Always check `git branch --show-current` before commit.** Do not land finance work on `work/iot` or `work/orchestra`.
 
 ## Branch conventions
 | Branch | Purpose |
 |--------|---------|
-| `master` | Integration only — keep green and pushed; merge work branches when stable |
-| `work/<area>` | Active work for a **domain** (see TLD map below) |
-| `feature/<slug>` | Optional longer-lived features |
+| `master` | Integration only — keep green and pushed; merge via PR when stable |
+| `work/<area>` | Long-lived domain branch + **auto-protect** target for durable ops |
+| `feature/<slug>` / `fix/<slug>` | Reviewable product slices — PR into `work/<area>` or `master` |
 
 ### Top-level directories → work branches
 

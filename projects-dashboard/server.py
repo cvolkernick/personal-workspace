@@ -186,19 +186,22 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
 
         try:
             if path == "/api/protect":
+                # Dashboard button is intentional full protect (not auto durable-only)
                 result = protect_work(
-                    message=body.get("message"),
+                    message=body.get("message") or "protect: dashboard Protect & push",
                     push=body.get("push", True),
                     include_snapshots=body.get("include_snapshots", True),
                     ensure_work_branch=body.get("ensure_work_branch", True),
+                    mode=body.get("mode") or "full",
                 )
                 self._json(200 if result.get("ok") else 500, result)
                 return
 
             if path == "/api/sync":
                 result = sync_after_work(
-                    message=body.get("message"),
+                    message=body.get("message") or "sync: dashboard Protect & push",
                     snapshot_sessions=body.get("snapshot_sessions", True),
+                    mode=body.get("mode") or "full",
                 )
                 self._json(200 if result.get("ok") else 500, result)
                 return

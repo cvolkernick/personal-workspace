@@ -5,11 +5,19 @@ Conventions
 - ``master`` — integration branch; keep green and pushed.
 - ``work/<area>`` — active work for a monorepo top-level area
   (e.g. work/treasury, work/projects-dashboard).
-- ``feature/<slug>`` — optional longer-lived features (legacy pattern OK).
+- ``feature/<slug>`` / ``fix/<slug>`` — reviewable product changes (PR).
 
-``protect_work`` commits dirty durable files and pushes the current branch.
-Agents should call this (or the dashboard button) when a unit of work completes
-instead of relying on memory.
+``protect_work`` has two modes:
+
+- **full** — intentional protect (dashboard button, or ``protect "msg"`` /
+  ``sync "msg"``). Stages non-secret dirty files; may push ``work/*`` or
+  ``feature/*`` / ``fix/*``. Never auto-pushes ``master``.
+- **auto** — survival save only (default when no message is given, or
+  ``protect --auto``). Stages **durable operational paths only** (snapshots,
+  journals, session-index, backlog state). Pushes **only** on ``work/*``.
+  Leaves product code dirty so it cannot ride an auto-push into a PR base.
+
+Policy one-liner: **auto-save keeps the lights on; PRs change the product.**
 """
 
 from __future__ import annotations
@@ -40,6 +48,30 @@ _SNAPSHOTISH = re.compile(
     re.I,
 )
 
+# Auto-protect allowlist: operational / reboot-survival only (not product code).
+# Matched against repo-relative paths with forward slashes.
+_DURABLE_PATH_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(^|/)snapshots?/", re.I),
+    re.compile(r"(^|/)session-index/", re.I),
+    re.compile(r"^ops/session-index/", re.I),
+    re.compile(r"^ops/backlog/(items|suggestions)\.json$", re.I),
+    re.compile(r"(^|/)journals?/", re.I),
+    re.compile(r"_journal\.md$", re.I),
+    re.compile(r"fund_manager_journal\.md$", re.I),
+    re.compile(r"treasury_latest\.json$", re.I),
+    re.compile(r"_latest\.json$", re.I),
+    re.compile(r"fund_manager_decisions\.jsonl$", re.I),
+    re.compile(r"ntfy_.*\.json$", re.I),
+    re.compile(r"^ops/backlog/seeds/.*\.(md|txt|goal\.txt|prompt\.txt)$", re.I),
+)
+
+# Product / reviewable code — never auto-committed (defense in depth)
+_PRODUCT_PATH_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\.(py|sh|js|ts|tsx|jsx|css|html|go|rs|java|swift)$", re.I),
+    re.compile(r"(^|/)tests?/", re.I),
+    re.compile(r"(^|/)static/", re.I),
+)
+
 
 def _run(
     repo: Path, *args: str, check: bool = False, timeout: float = 60.0
@@ -60,6 +92,57 @@ def _run(
         if check:
             raise
         return 1, "", str(e)
+
+
+def list_worktrees(repo: Path = WORKSPACE_ROOT) -> list[dict[str, str]]:
+    """Return [{path, branch, bare}] from ``git worktree list --porcelain``."""
+    repo = Path(repo).resolve()
+    code, out, _ = _run(repo, "worktree", "list", "--porcelain")
+    if code != 0 or not out:
+        return []
+    trees: list[dict[str, str]] = []
+    cur: dict[str, str] = {}
+    for line in out.splitlines():
+        if not line.strip():
+            if cur.get("path"):
+                trees.append(cur)
+            cur = {}
+            continue
+        if line.startswith("worktree "):
+            cur = {"path": line[len("worktree ") :].strip()}
+        elif line.startswith("branch "):
+            ref = line[len("branch ") :].strip()
+            if ref.startswith("refs/heads/"):
+                cur["branch"] = ref[len("refs/heads/") :]
+            else:
+                cur["branch"] = ref
+        elif line == "bare":
+            cur["bare"] = "1"
+        elif line.startswith("detached"):
+            cur["branch"] = cur.get("branch") or "(detached)"
+    if cur.get("path"):
+        trees.append(cur)
+    return trees
+
+
+def branch_worktree_path(repo: Path, branch: str) -> Optional[str]:
+    """If *branch* is checked out in another worktree, return that path; else None."""
+    repo = Path(repo).resolve()
+    want = (branch or "").strip()
+    if not want:
+        return None
+    for wt in list_worktrees(repo):
+        b = (wt.get("branch") or "").strip()
+        p = (wt.get("path") or "").strip()
+        if not b or not p:
+            continue
+        try:
+            elsewhere = Path(p).resolve() != repo
+        except OSError:
+            elsewhere = True
+        if b == want and elsewhere:
+            return p
+    return None
 
 
 def branch_name_for_area(area: str) -> str:
@@ -108,6 +191,52 @@ def should_skip_path(rel: str) -> bool:
         if rel.startswith(p):
             return True
     return False
+
+
+def is_durable_path(rel: str) -> bool:
+    """True if *rel* is operational state safe for auto-protect."""
+    rel = rel.replace("\\", "/").lstrip("./")
+    if should_skip_path(rel):
+        return False
+    if any(rx.search(rel) for rx in _PRODUCT_PATH_RES):
+        return False
+    return any(rx.search(rel) for rx in _DURABLE_PATH_RES)
+
+
+def is_work_branch(name: Optional[str]) -> bool:
+    return bool(name) and name.startswith("work/")
+
+
+def is_review_branch(name: Optional[str]) -> bool:
+    """feature/* or fix/* — PR slices, not long-lived auto-push bases."""
+    if not name:
+        return False
+    return name.startswith("feature/") or name.startswith("fix/")
+
+
+def is_master_branch(name: Optional[str]) -> bool:
+    return name in ("master", "main")
+
+
+def resolve_protect_mode(
+    mode: Optional[str],
+    message: Optional[str],
+) -> str:
+    """Return ``auto`` or ``full``.
+
+    Default: no message → auto (survival). Explicit message → full.
+    """
+    if mode in ("auto", "full"):
+        return mode
+    if mode is not None and mode not in ("auto", "full"):
+        raise ValueError(f"invalid protect mode: {mode!r} (use auto|full)")
+    if message is None or not str(message).strip():
+        return "auto"
+    # Generated-looking auto-save titles still count as auto if caller passed them
+    msg = str(message).strip()
+    if re.match(r"^protect\([^)]+\):\s*auto-save durable work", msg, re.I):
+        return "auto"
+    return "full"
 
 
 def collect_branch_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
@@ -218,8 +347,29 @@ def start_work(
     branch = branch_name_for_area(area)
     code, _existing, _ = _run(repo, "rev-parse", "--verify", branch)
     if code == 0:
+        elsewhere = branch_worktree_path(repo, branch)
+        if elsewhere:
+            return {
+                "ok": False,
+                "error": (
+                    f"Branch {branch} is already checked out in worktree "
+                    f"{elsewhere}. Stay on the current branch or run protect "
+                    f"from that worktree."
+                ),
+                "branch": branch,
+                "worktree": elsewhere,
+                "code": "worktree_busy",
+            }
         code2, _, err = _run(repo, "checkout", branch)
         if code2 != 0:
+            # Surface worktree errors clearly
+            if "already used by worktree" in (err or ""):
+                return {
+                    "ok": False,
+                    "error": err,
+                    "branch": branch,
+                    "code": "worktree_busy",
+                }
             return {"ok": False, "error": err or "checkout failed", "branch": branch}
         return {
             "ok": True,
@@ -307,25 +457,38 @@ def protect_work(
     include_snapshots: bool = True,
     paths: Optional[list[str]] = None,
     ensure_work_branch: bool = True,
+    mode: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Stage durable changes, commit on an appropriate branch, optionally push.
+    """Stage changes, commit on an appropriate branch, optionally push.
 
-    - Skips secrets.
+    Parameters
+    ----------
+    mode:
+        ``\"auto\"`` — durable paths only; push only on ``work/*``.
+        ``\"full\"`` — all non-secret dirty (product + durable); push on
+        ``work/*`` / ``feature/*`` / ``fix/*``; never ``master``.
+        ``None`` — resolved via :func:`resolve_protect_mode` (no message → auto).
+
+    - Skips secrets always.
     - If on master with dirty area-scoped files and ensure_work_branch, switches
       to work/<primary-area> first (creates if needed).
-    - Snapshot JSON can be included (default) so reboot-safe state is remote.
+    - Snapshot JSON included by default (unless ``include_snapshots=False``).
     """
     repo = Path(repo).resolve()
+    try:
+        resolved_mode = resolve_protect_mode(mode, message)
+    except ValueError as e:
+        return {"ok": False, "error": str(e), "committed": False, "pushed": False}
+
     all_dirty = dirty_paths(repo)
     if paths is not None:
-        candidates = [p for p in paths if p in all_dirty or True]
-        # still only stage if they exist as dirty or as files
         candidates = paths
     else:
         candidates = all_dirty
 
     to_stage: list[str] = []
     skipped: list[str] = []
+    skipped_product: list[str] = []
     for p in candidates:
         if should_skip_path(p):
             skipped.append(p)
@@ -333,18 +496,24 @@ def protect_work(
         if not include_snapshots and _SNAPSHOTISH.search(p):
             skipped.append(p)
             continue
+        if resolved_mode == "auto" and not is_durable_path(p):
+            skipped_product.append(p)
+            skipped.append(p)
+            continue
         to_stage.append(p)
 
     if not to_stage and not all_dirty:
-        # maybe only need push
+        # maybe only need push (respect branch policy)
         br = collect_branch_status(repo)
         if push and br.get("current"):
             return _push_current(
                 repo,
                 br,
+                mode=resolved_mode,
                 extra={
                     "staged": [],
                     "committed": False,
+                    "mode": resolved_mode,
                     "message": "Working tree clean — pushed if needed",
                 },
             )
@@ -352,17 +521,35 @@ def protect_work(
             "ok": True,
             "committed": False,
             "pushed": False,
+            "mode": resolved_mode,
             "message": "Nothing to protect — working tree clean",
             "branch": br.get("current"),
             "skipped": skipped,
         }
 
     if not to_stage:
+        # Auto mode with only product dirty is success (left alone), not failure
+        if resolved_mode == "auto" and skipped_product and all_dirty:
+            return {
+                "ok": True,
+                "committed": False,
+                "pushed": False,
+                "mode": resolved_mode,
+                "message": (
+                    "Auto-protect skipped product/code paths — "
+                    "use feature/* + protect \"msg\" for reviewable work"
+                ),
+                "skipped": skipped,
+                "skipped_product": skipped_product,
+                "dirty": all_dirty,
+            }
         return {
             "ok": False,
-            "error": "All dirty paths were skipped (secrets/snapshots filter)",
+            "error": "All dirty paths were skipped (secrets/snapshots/auto filter)",
             "skipped": skipped,
+            "skipped_product": skipped_product,
             "dirty": all_dirty,
+            "mode": resolved_mode,
             "message": "Nothing staged — dirty files remain",
         }
 
@@ -384,17 +571,39 @@ def protect_work(
     branch_actions: list[str] = []
 
     # Prefer the work/<area> that matches dirty paths (FCC → work/treasury, not work/iot).
+    # If that branch is checked out in another git worktree, stay put and commit here
+    # (cannot checkout the same branch in two worktrees).
     expected_branch = branch_name_for_area(primary_area)
     need_switch = ensure_work_branch and primary_area not in ("misc", "_root") and (
         current in ("master", "main", None)
         or (current and current.startswith("work/") and current != expected_branch)
     )
     if need_switch:
-        sw = start_work(primary_area, repo=repo, from_branch="HEAD")
-        branch_actions.append(sw.get("message") or str(sw))
-        if not sw.get("ok"):
-            return {"ok": False, "error": sw.get("error"), "branch_actions": branch_actions}
-        current = sw.get("branch")
+        elsewhere = branch_worktree_path(repo, expected_branch)
+        if elsewhere:
+            branch_actions.append(
+                f"stayed on {current or 'HEAD'}; {expected_branch} is checked out at "
+                f"{elsewhere} — committing here instead"
+            )
+        else:
+            sw = start_work(primary_area, repo=repo, from_branch="HEAD")
+            branch_actions.append(sw.get("message") or str(sw))
+            if not sw.get("ok"):
+                # Worktree race or other checkout failure: fall back to current branch
+                if sw.get("code") == "worktree_busy" or "worktree" in (
+                    sw.get("error") or ""
+                ).lower():
+                    branch_actions.append(
+                        f"checkout blocked ({sw.get('error')}); staying on {current}"
+                    )
+                else:
+                    return {
+                        "ok": False,
+                        "error": sw.get("error"),
+                        "branch_actions": branch_actions,
+                    }
+            else:
+                current = sw.get("branch")
 
     # Stage
     for p in to_stage:
@@ -425,9 +634,11 @@ def protect_work(
             return _push_current(
                 repo,
                 br,
+                mode=resolved_mode,
                 extra={
                     "staged": [],
                     "committed": False,
+                    "mode": resolved_mode,
                     "message": "Nothing to commit — already clean",
                     "skipped": skipped,
                     "branch_actions": branch_actions,
@@ -436,6 +647,7 @@ def protect_work(
         return {
             "ok": True,
             "committed": False,
+            "mode": resolved_mode,
             "message": "Nothing staged",
             "skipped": skipped,
             "branch_actions": branch_actions,
@@ -443,7 +655,35 @@ def protect_work(
 
     if not message:
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-        message = f"protect({primary_area}): auto-save durable work ({ts})"
+        if resolved_mode == "auto":
+            message = f"protect({primary_area}): auto-save durable work ({ts})"
+        else:
+            message = f"protect({primary_area}): save work ({ts})"
+
+    # Refresh branch after possible switch
+    code_br, head_now, _ = _run(repo, "branch", "--show-current")
+    if code_br == 0 and head_now:
+        current = head_now
+
+    # Auto mode only commits on work/* (survival bases — not PR slices / master)
+    if resolved_mode == "auto" and not is_work_branch(current):
+        if staged_list:
+            _run(repo, "reset", "HEAD", "--", *staged_list)
+        return {
+            "ok": True,
+            "committed": False,
+            "pushed": False,
+            "mode": resolved_mode,
+            "branch": current,
+            "message": (
+                f"Auto-protect refuses commit on {current or 'detached'} — "
+                "use work/<area> for survival saves, or full protect with a message"
+            ),
+            "staged": [],
+            "skipped": skipped,
+            "skipped_product": skipped_product,
+            "branch_actions": branch_actions,
+        }
 
     code, _, err = _run(repo, "commit", "-m", message)
     if code != 0:
@@ -452,6 +692,7 @@ def protect_work(
             "error": err or "commit failed",
             "staged": staged_list,
             "branch": current,
+            "mode": resolved_mode,
             "branch_actions": branch_actions,
         }
 
@@ -463,29 +704,67 @@ def protect_work(
         "message": message,
         "staged": staged_list,
         "skipped": skipped,
+        "skipped_product": skipped_product,
         "branch": current,
         "primary_area": primary_area,
         "branch_actions": branch_actions,
+        "mode": resolved_mode,
         "pushed": False,
     }
 
     if push:
         br = collect_branch_status(repo)
-        push_result = _push_current(repo, br)
+        push_result = _push_current(repo, br, mode=resolved_mode)
         result["pushed"] = push_result.get("pushed", False)
         result["push"] = push_result
-        if not push_result.get("ok"):
+        # Soft-skip push (policy) is still ok=True; hard push failure is not
+        if not push_result.get("ok") and not push_result.get("skipped_policy"):
             result["ok"] = False
             result["error"] = push_result.get("error")
     return result
 
 
+def _push_allowed(branch: Optional[str], mode: str) -> tuple[bool, str]:
+    """Whether protect may push *branch* in *mode*."""
+    if not branch:
+        return False, "detached HEAD — cannot push"
+    if is_master_branch(branch):
+        return False, "refusing to push master/main from protect (merge via PR)"
+    if mode == "auto":
+        if not is_work_branch(branch):
+            return (
+                False,
+                f"auto-protect only pushes work/* (not {branch})",
+            )
+        return True, ""
+    # full: work/* and review branches OK
+    if is_work_branch(branch) or is_review_branch(branch):
+        return True, ""
+    return False, f"refusing to push branch {branch} (not work/* or feature/*|fix/*)"
+
+
 def _push_current(
-    repo: Path, br: dict[str, Any], extra: Optional[dict] = None
+    repo: Path,
+    br: dict[str, Any],
+    *,
+    mode: str = "full",
+    extra: Optional[dict] = None,
 ) -> dict[str, Any]:
     current = br.get("current")
-    if not current:
-        return {"ok": False, "error": "detached HEAD — cannot push", "pushed": False}
+    allowed, reason = _push_allowed(current, mode)
+    if not allowed:
+        result = {
+            "ok": True,
+            "pushed": False,
+            "skipped_policy": True,
+            "branch": current,
+            "mode": mode,
+            "message": reason,
+            "error": None,
+        }
+        if extra:
+            result.update(extra)
+        return result
     # set upstream if missing
     local = next((b for b in br.get("branches") or [] if b["name"] == current), None)
     if local and not local.get("upstream"):
@@ -495,7 +774,9 @@ def _push_current(
     result = {
         "ok": code == 0,
         "pushed": code == 0,
+        "skipped_policy": False,
         "branch": current,
+        "mode": mode,
         "stdout": out,
         "stderr": err,
         "error": None if code == 0 else (err or out or "push failed"),
@@ -510,10 +791,13 @@ def sync_after_work(
     *,
     message: Optional[str] = None,
     snapshot_sessions: bool = True,
+    mode: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Full post-work automation: session index snapshot + protect_work + push.
+    """Session index snapshot + protect_work + push.
 
-    Intended CLI for agents when a task unit completes.
+    Without a message (or with ``mode=\"auto\"``), only durable paths are
+    committed — product code must use ``sync \"msg\"`` / full mode on a
+    feature or work branch.
     """
     repo = Path(repo).resolve()
     steps: list[dict[str, Any]] = []
@@ -528,7 +812,13 @@ def sync_after_work(
         except Exception as e:
             steps.append({"step": "session_index", "ok": False, "error": str(e)})
 
-    prot = protect_work(repo, message=message, push=True, ensure_work_branch=True)
+    prot = protect_work(
+        repo,
+        message=message,
+        push=True,
+        ensure_work_branch=True,
+        mode=mode,
+    )
     steps.append({"step": "protect_work", **prot})
     return {
         "ok": all(s.get("ok", True) for s in steps if "ok" in s),
@@ -536,6 +826,7 @@ def sync_after_work(
         "branch": prot.get("branch"),
         "committed": prot.get("committed"),
         "pushed": prot.get("pushed"),
+        "mode": prot.get("mode"),
     }
 
 
@@ -543,20 +834,40 @@ if __name__ == "__main__":
     import json
     import sys
 
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
+    args = sys.argv[1:]
+    cmd = args[0] if args else "status"
+    rest = args[1:]
+
+    def _parse_mode_msg(tokens: list[str]) -> tuple[Optional[str], Optional[str]]:
+        mode: Optional[str] = None
+        msg_parts: list[str] = []
+        for t in tokens:
+            if t in ("--auto", "-a"):
+                mode = "auto"
+            elif t in ("--full", "-f"):
+                mode = "full"
+            else:
+                msg_parts.append(t)
+        msg = " ".join(msg_parts) if msg_parts else None
+        return mode, msg
+
     if cmd == "status":
         json.dump(collect_branch_status(), sys.stdout, indent=2)
-    elif cmd == "start" and len(sys.argv) > 2:
-        json.dump(start_work(sys.argv[2]), sys.stdout, indent=2)
+    elif cmd == "start" and rest:
+        json.dump(start_work(rest[0]), sys.stdout, indent=2)
     elif cmd == "protect":
-        msg = sys.argv[2] if len(sys.argv) > 2 else None
-        json.dump(protect_work(message=msg), sys.stdout, indent=2)
+        mode, msg = _parse_mode_msg(rest)
+        json.dump(protect_work(message=msg, mode=mode), sys.stdout, indent=2)
     elif cmd == "sync":
-        msg = sys.argv[2] if len(sys.argv) > 2 else None
-        json.dump(sync_after_work(message=msg), sys.stdout, indent=2)
+        mode, msg = _parse_mode_msg(rest)
+        json.dump(sync_after_work(message=msg, mode=mode), sys.stdout, indent=2)
+    elif cmd == "durable" and rest:
+        # Debug helper: is path durable?
+        print(json.dumps({"path": rest[0], "durable": is_durable_path(rest[0])}))
     else:
         print(
-            "Usage: git_workflow.py [status|start <area>|protect [msg]|sync [msg]]",
+            "Usage: git_workflow.py [status|start <area>|"
+            "protect [--auto|--full] [msg]|sync [--auto|--full] [msg]]",
             file=sys.stderr,
         )
         raise SystemExit(2)

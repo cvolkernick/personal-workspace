@@ -39,8 +39,14 @@ python3 projects-dashboard/git_workflow.py sync
 ```bash
 python3 projects-dashboard/git_workflow.py start treasury
 python3 projects-dashboard/git_workflow.py status
-python3 projects-dashboard/git_workflow.py protect "msg"
+python3 projects-dashboard/git_workflow.py protect --auto          # durable only → work/*
+python3 projects-dashboard/git_workflow.py protect "feat: …"      # full (product + durable)
+python3 projects-dashboard/git_workflow.py sync "fix: …"         # session index + full protect
 ```
+
+**Protect modes:** bare `protect`/`sync` = **auto** (snapshots/journals/session-index only;
+push only on `work/*`). Explicit message or dashboard button = **full**. Never pushes
+`master`. See `Agents.md` — *auto-save keeps the lights on; PRs change the product.*
 
 ### Branch graph (gitk-style)
 

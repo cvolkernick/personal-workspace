@@ -15,10 +15,14 @@ sys.path.insert(0, str(DASH))
 
 from git_workflow import (  # noqa: E402
     branch_name_for_area,
+    branch_worktree_path,
     collect_branch_status,
     dirty_paths,
+    is_durable_path,
+    list_worktrees,
     parse_porcelain_path,
     protect_work,
+    resolve_protect_mode,
     start_work,
 )
 from session_backup import build_session_index, write_session_index  # noqa: E402
@@ -111,6 +115,77 @@ class TestGitWorkflow(unittest.TestCase):
         # remote has branch
         refs = _git(self.bare, "branch")
         self.assertIn("work/treasury", refs)
+
+    def test_protect_stays_when_branch_in_other_worktree(self) -> None:
+        """If work/<area> is checked out elsewhere, commit on current branch."""
+        (self.repo / "projects-dashboard").mkdir(exist_ok=True)
+        (self.repo / "projects-dashboard" / "x.txt").write_text("x\n", encoding="utf-8")
+        _git(self.repo, "checkout", "-b", "work/holistic")
+        # Create branch that will be "busy" in another worktree
+        _git(self.repo, "branch", "work/projects-dashboard")
+        wt = Path(self._td.name) / "other-wt"
+        _git(self.repo, "worktree", "add", str(wt), "work/projects-dashboard")
+        # Dirty projects-dashboard path while on work/holistic
+        (self.repo / "projects-dashboard" / "y.txt").write_text("y\n", encoding="utf-8")
+        r = protect_work(
+            self.repo,
+            message="test protect worktree busy",
+            push=True,
+            ensure_work_branch=True,
+        )
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["committed"])
+        # Must remain on holistic (cannot checkout projects-dashboard)
+        self.assertEqual(r["branch"], "work/holistic")
+        self.assertTrue(
+            any("worktree" in str(a).lower() or "stayed on" in str(a).lower()
+                for a in (r.get("branch_actions") or [])),
+            r.get("branch_actions"),
+        )
+
+    def test_durable_path_classifier(self) -> None:
+        self.assertTrue(is_durable_path("treasury/snapshots/fund_manager_latest.json"))
+        self.assertTrue(is_durable_path("ops/session-index/latest.json"))
+        self.assertTrue(is_durable_path("investment/fund_manager_journal.md"))
+        self.assertTrue(is_durable_path("ops/backlog/items.json"))
+        self.assertFalse(is_durable_path("treasury/fund_manager.py"))
+        self.assertFalse(is_durable_path("treasury/fund_manager_bp_poll.sh"))
+        self.assertFalse(is_durable_path("projects-dashboard/git_workflow.py"))
+
+    def test_resolve_mode(self) -> None:
+        self.assertEqual(resolve_protect_mode(None, None), "auto")
+        self.assertEqual(resolve_protect_mode(None, ""), "auto")
+        self.assertEqual(resolve_protect_mode(None, "feat: real change"), "full")
+        self.assertEqual(resolve_protect_mode("auto", "feat: x"), "auto")
+        self.assertEqual(resolve_protect_mode("full", None), "full")
+
+    def test_auto_skips_product_code(self) -> None:
+        """Bare protect (auto) must not commit .py — only durable paths."""
+        start_work("treasury", repo=self.repo)
+        (self.repo / "treasury" / "fund_manager.py").write_text("print(1)\n", encoding="utf-8")
+        snap = self.repo / "treasury" / "snapshots"
+        snap.mkdir(parents=True)
+        (snap / "latest.json").write_text('{"ok":true}\n', encoding="utf-8")
+        r = protect_work(self.repo, message=None, push=True, mode="auto")
+        self.assertTrue(r["ok"], r)
+        self.assertTrue(r["committed"], r)
+        self.assertEqual(r.get("mode"), "auto")
+        staged = r.get("staged") or []
+        self.assertTrue(any("snapshots" in s for s in staged), staged)
+        self.assertFalse(any(s.endswith(".py") for s in staged), staged)
+        # product still dirty
+        dirty = dirty_paths(self.repo)
+        self.assertTrue(any(p.endswith("fund_manager.py") for p in dirty), dirty)
+
+    def test_auto_refuses_feature_branch(self) -> None:
+        _git(self.repo, "checkout", "-b", "fix/ntfy-quiet")
+        snap = self.repo / "treasury" / "snapshots"
+        snap.mkdir(parents=True)
+        (snap / "x.json").write_text("{}\n", encoding="utf-8")
+        r = protect_work(self.repo, mode="auto", push=True)
+        self.assertTrue(r["ok"], r)
+        self.assertFalse(r.get("committed"), r)
+        self.assertIn("refuses", (r.get("message") or "").lower())
 
 
 class TestSessionIndex(unittest.TestCase):
