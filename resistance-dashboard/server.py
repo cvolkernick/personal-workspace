@@ -134,6 +134,10 @@ from rt_dashboard.workout_store import (  # noqa: E402
     write_catalog,
     write_goals,
 )
+from rt_dashboard.workout_repo import (  # noqa: E402
+    get_repo as get_workout_repo,
+    use_sqlite as workout_use_sqlite,
+)
 
 STATIC_DIR = ROOT / "static"
 DEFAULT_PORT = int(os.environ.get("PORT", "8787"))
@@ -201,10 +205,11 @@ def _call_with_timeout(
 
 def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftClient]:
     """
-    Pull from live GitHub and local workspace, then merge.
+    Load lift sessions.
 
-    Local is loaded first (fast). Remote GitHub is best-effort with a hard timeout
-    so a stalled network cannot freeze the dashboard.
+    Phase 1a default: **SQLite** is the primary store (auto-seed from local
+    markdown once). GitHub remote merge remains available when
+    ``FITDASH_USE_SQLITE=0`` (legacy path).
     """
     local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
     force_local = os.environ.get("GITHUB_PREFER_LOCAL", "").lower() in ("1", "true", "yes")
@@ -215,7 +220,36 @@ def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftCli
     local_sessions: List[Session] = []
     source_parts: List[str] = []
 
-    # Local first — this is what makes the UI fill quickly offline.
+    if workout_use_sqlite():
+        try:
+            repo = get_workout_repo()
+            if local_dir:
+                seed = repo.ensure_seeded_from_workspace(local_dir)
+                if seed.get("seeded"):
+                    source_parts.append("sqlite_seed")
+            local_sessions = repo.list_sessions()
+            source_parts.append("sqlite")
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"sqlite_pull: {e}")
+            # Fall through to markdown if SQLite fails
+            if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
+                try:
+                    local_client = GitHubLiftClient(
+                        prefer_local=True,
+                        local_fallback_dir=local_dir,
+                        token=token,
+                    )
+                    local_sessions = local_client.pull_sessions()
+                    source_parts.append("local_fallback")
+                except Exception as e2:  # noqa: BLE001
+                    errors.append(f"local_pull: {e2}")
+        sessions = local_sessions
+        source = "+".join(source_parts) if source_parts else "sqlite"
+        error = "; ".join(errors) if errors else None
+        meta_client = build_github_client(for_write=False)
+        return sessions, source, error, meta_client
+
+    # --- Legacy: markdown local + optional GitHub merge ---
     if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
         try:
             local_client = GitHubLiftClient(
@@ -248,7 +282,6 @@ def pull_merged_sessions() -> Tuple[List[Any], str, Optional[str], GitHubLiftCli
             remote_sessions = remote_sessions_or_none
             source_parts.append("github")
 
-    # Local wins on key collision so freshly logged (not-yet-pushed) workouts stick
     sessions = merge_sessions(local_sessions, remote_sessions, prefer_first=True)
     source = "+".join(source_parts) if source_parts else "none"
     error = "; ".join(errors) if errors else None
@@ -284,7 +317,29 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     local_sessions: List[Session] = []
     source_parts: List[str] = []
     errors: List[str] = []
-    if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
+    if workout_use_sqlite():
+        try:
+            repo = get_workout_repo()
+            if local_dir:
+                seed = repo.ensure_seeded_from_workspace(local_dir)
+                if seed.get("seeded"):
+                    source_parts.append("sqlite_seed")
+            local_sessions = repo.list_sessions()
+            source_parts.append("sqlite")
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"sqlite_pull: {e}")
+            if local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
+                try:
+                    local_client = GitHubLiftClient(
+                        prefer_local=True,
+                        local_fallback_dir=local_dir,
+                        token=token,
+                    )
+                    local_sessions = local_client.pull_sessions()
+                    source_parts.append("local_fallback")
+                except Exception as e2:  # noqa: BLE001
+                    errors.append(f"local_pull: {e2}")
+    elif local_dir and (Path(local_dir) / "fitness" / "workouts").is_dir():
         try:
             local_client = GitHubLiftClient(
                 prefer_local=True,
@@ -330,9 +385,19 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
     gh_fresh = bool(gh_cache_meta.get("hit") and is_fresh(gh_fetched_at, cache_ttl))
 
     need_health = force_refresh or not health_fresh
-    need_github = (not force_local) and (force_refresh or not gh_fresh)
+    # Phase 1a: SQLite is the workout source of truth — skip GitHub session merge
+    skip_github_workouts = workout_use_sqlite()
+    need_github = (
+        (not force_local)
+        and (not skip_github_workouts)
+        and (force_refresh or not gh_fresh)
+    )
 
-    remote_sessions: List[Session] = list(cached_remote) if gh_cache_meta.get("hit") else []
+    remote_sessions: List[Session] = (
+        []
+        if skip_github_workouts
+        else (list(cached_remote) if gh_cache_meta.get("hit") else [])
+    )
     health: HealthSnapshot
     if cached_health is not None:
         health = cached_health
@@ -351,7 +416,8 @@ def load_dashboard_data(*, force_refresh: bool = False) -> Dict[str, Any]:
             **gh_cache_meta,
             "used_cache": not need_github and bool(gh_cache_meta.get("hit")),
             "refreshed": False,
-            "skipped": force_local,
+            "skipped": force_local or skip_github_workouts,
+            "sqlite_primary": skip_github_workouts,
         },
     }
 
@@ -1075,8 +1141,22 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 history, _, _, _ = pull_merged_sessions()
                 apply_auto_prs(session, history)
                 pr_names = [e.name for e in session.exercises if e.is_pr]
-                client = build_github_client(for_write=True)
-                result = client.append_workout_safe(session)
+                if workout_use_sqlite():
+                    result = get_workout_repo().upsert_session(session)
+                    # Optional dual-write to markdown/GitHub for backup
+                    if os.environ.get("FITDASH_DUAL_WRITE", "").lower() in (
+                        "1",
+                        "true",
+                        "yes",
+                    ):
+                        try:
+                            gh = build_github_client(for_write=True)
+                            result["github"] = gh.append_workout_safe(session)
+                        except Exception as e:  # noqa: BLE001
+                            result["github_error"] = str(e)
+                else:
+                    client = build_github_client(for_write=True)
+                    result = client.append_workout_safe(session)
                 # Reload via merged pull so response matches subsequent GET /api/dashboard
                 sessions, source, _err, _gh = pull_merged_sessions()
                 self._send_json(
@@ -1102,6 +1182,29 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     },
                     status=502,
                 )
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/workouts/import":
+            # Seed/re-import from local fitness/workouts markdown into SQLite.
+            try:
+                body = (
+                    self._read_json()
+                    if int(self.headers.get("Content-Length") or 0)
+                    else {}
+                )
+                replace = bool(body.get("replace"))
+                local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
+                if not local_dir:
+                    self._send_json(
+                        {"ok": False, "error": "LOCAL_WORKSPACE_DIR not set"},
+                        status=400,
+                    )
+                    return
+                repo = get_workout_repo()
+                result = repo.import_from_markdown_dir(local_dir, replace=replace)
+                status = 200 if result.get("ok") else 400
+                self._send_json(result, status=status)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
