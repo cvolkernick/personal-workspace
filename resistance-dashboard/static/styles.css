@@ -2518,11 +2518,20 @@ footer {
     display: grid !important;
   }
 
-  /* Catalog lives under More on phone; hide from Log tab */
-  body.m-shell[data-m-active="log"] #exercise-catalog-card {
+  /* Workout plan (Save goals / Refresh / Push·Pull·Legs) sits on Today */
+  body.m-shell[data-m-active="today"] #exercise-catalog-card {
     display: none !important;
   }
 
+  body.m-shell[data-m-active="today"] #workout-plan-section {
+    display: grid !important;
+  }
+
+  body.m-shell[data-m-active="today"] #workout-plan-card {
+    display: block !important;
+  }
+
+  /* Catalog only under More — keep section visible, hide plan card */
   body.m-shell[data-m-active="more"] #workout-plan-section {
     display: grid !important;
   }
@@ -2533,6 +2542,13 @@ footer {
 
   body.m-shell[data-m-active="more"] #exercise-catalog-card {
     display: block !important;
+  }
+
+  /* Today hub header actions: one row */
+  .today-hub-actions.actions-row-single > button {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
   }
 
   /* Today hub: single panel via pills */
@@ -2620,10 +2636,17 @@ footer {
   }
 
   /* Keep plan action strip on one line (compact chips, horizontal scroll if needed) */
-  #workout-goals-form .actions.actions-row-single > button {
+  #workout-goals-form .actions.actions-row-single > button,
+  #workout-goals-actions > button {
     min-height: 40px;
     padding: 0.4rem 0.55rem;
     font-size: 0.8rem;
+  }
+
+  /* Extra insurance: never wrap these specific strips */
+  #workout-goals-actions,
+  .today-hub-actions {
+    flex-wrap: nowrap !important;
   }
 
   input,

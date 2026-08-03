@@ -3961,7 +3961,8 @@
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
-        goMobileTab("log");
+        // Plan card lives on Today tab (with Save goals / Push·Pull·Legs)
+        goMobileTab("today");
         const el = $("workout-plan-card") || $("workout-plan-section");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });

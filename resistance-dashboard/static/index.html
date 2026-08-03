@@ -89,7 +89,7 @@
             <h2>Today · full-day guide</h2>
             <p class="muted" style="margin: 0.25rem 0 0; font-size: 0.85rem" id="today-hub-date"></p>
           </div>
-          <div class="actions today-hub-actions">
+          <div class="actions actions-row-single today-hub-actions">
             <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
             <button type="button" id="btn-scroll-workout-plan">Edit workout</button>
             <button type="button" id="btn-scroll-meal-plan">Meal plan card</button>
@@ -377,7 +377,8 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="workout-plan-section" data-m-panel="log">
+      <!-- Plan controls live on Today (gym-day decisions); catalog under More -->
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="workout-plan-section" data-m-panel="today">
         <article class="card card-fill" id="exercise-catalog-card" data-m-panel-item="more">
           <h2>Exercise catalog</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
