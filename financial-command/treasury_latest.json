@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-03T17:51:45.222792+00:00",
+    "as_of": "2026-08-03T19:29:06.662508+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-07-29T18:13:11.419926+00:00",
@@ -1995,6 +1995,11 @@
         "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
       },
       "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot.",
+      "pulled_from_pi": {
+        "ssh": "prism-agent@192.168.100.98",
+        "remote_path": "/home/prism-agent/personal-workspace/treasury/snapshots/robinhood_latest.json",
+        "pulled_at": "2026-08-03T19:29:05.914967+00:00"
+      },
       "usdg_earn_usdg": null,
       "usdg_earn_apy_est": "0.07",
       "margin_loan_usd": null,
@@ -2193,18 +2198,18 @@
         "expenses_as_of": "2026-07-29T18:13:13.026496+00:00"
       },
       "stale": [
-        "coinbase data 119.6h old (>6.0h)",
-        "one_card data 119.6h old (>6.0h)",
-        "rh_checking data 119.6h old (>6.0h)",
-        "x_money data 119.6h old (>6.0h)",
-        "expenses data 119.6h old (>6.0h)"
+        "coinbase data 121.3h old (>6.0h)",
+        "one_card data 121.3h old (>6.0h)",
+        "rh_checking data 121.3h old (>6.0h)",
+        "x_money data 121.3h old (>6.0h)",
+        "expenses data 121.3h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 119.6h old (>6.0h)",
-        "one_card data 119.6h old (>6.0h)",
-        "rh_checking data 119.6h old (>6.0h)",
-        "x_money data 119.6h old (>6.0h)",
-        "expenses data 119.6h old (>6.0h)"
+        "coinbase data 121.3h old (>6.0h)",
+        "one_card data 121.3h old (>6.0h)",
+        "rh_checking data 121.3h old (>6.0h)",
+        "x_money data 121.3h old (>6.0h)",
+        "expenses data 121.3h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2379,12 +2384,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-03T17:51:45.226952+00:00",
+      "as_of": "2026-08-03T19:29:06.665837+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-03T17:51:45.223419+00:00",
+        "as_of": "2026-08-03T19:29:06.663058+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -5961,12 +5966,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-03T17:51:45.226952+00:00",
+    "as_of": "2026-08-03T19:29:06.665837+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-03T17:51:45.223419+00:00",
+      "as_of": "2026-08-03T19:29:06.663058+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
