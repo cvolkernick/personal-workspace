@@ -483,6 +483,25 @@
     if (c) c.destroy();
   }
 
+  /** Charts often measure wrong while their panel is display:none — fix on tab show. */
+  function resizeAllCharts() {
+    [
+      volumeChart,
+      strengthChart,
+      weightChart,
+      sleepChart,
+      caloriesChart,
+      macrosChart,
+      hydrationChart,
+    ].forEach((c) => {
+      try {
+        if (c && typeof c.resize === "function") c.resize();
+      } catch (_) {
+        /* ignore */
+      }
+    });
+  }
+
   function prefersReducedMotion() {
     try {
       return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2963,6 +2982,10 @@
     }
 
     renderCharts(data);
+    // Charts built while Trends is display:none measure wrong on phone — fix after paint
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resizeAllCharts());
+    });
     renderHistory(data.sessions || []);
     renderInventory(data.nutrition_store);
     renderInventorySuggestions(data.nutrition_store);
@@ -3377,6 +3400,10 @@
     if (admin) admin.hidden = false;
     // When switching to More, catalog is inside workout-plan-section
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
+    // After layout paints, resize charts that were built while hidden
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resizeAllCharts());
+    });
   }
 
   function setTodayPill(name) {
