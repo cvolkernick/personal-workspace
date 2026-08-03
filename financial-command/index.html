@@ -1465,6 +1465,101 @@
 
     /* Optional body class set by JS when narrow / touch (for future JS layout) */
     body.is-mobile .sticky-top .sub { display: none; }
+
+    /* ── Phase B: mobile tab shell (FitDash pattern) ── */
+    .mobile-tabbar {
+      display: none;
+    }
+    @media (max-width: 720px) {
+      main {
+        padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell .mobile-tabbar {
+        display: flex;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 50;
+        gap: 0.15rem;
+        padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+        background: rgba(11, 15, 20, 0.96);
+        border-top: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      body.m-shell .mobile-tabbar[hidden] {
+        display: none !important;
+      }
+      .mobile-tabbar .tab-btn {
+        flex: 1 1 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.1rem;
+        min-height: 48px;
+        padding: 0.35rem 0.15rem;
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 650;
+        letter-spacing: 0.02em;
+        cursor: pointer;
+      }
+      .mobile-tabbar .tab-btn .tab-ico {
+        font-size: 1.05rem;
+        line-height: 1;
+      }
+      .mobile-tabbar .tab-btn.active {
+        color: var(--text);
+        background: rgba(91, 159, 212, 0.16);
+      }
+      /* Hide inactive panels in shell mode */
+      body.m-shell [data-m-panel] {
+        display: none !important;
+      }
+      body.m-shell[data-m-active="glance"] [data-m-panel="glance"],
+      body.m-shell[data-m-active="cash"] [data-m-panel="cash"],
+      body.m-shell[data-m-active="mining"] [data-m-panel="mining"],
+      body.m-shell[data-m-active="coach"] [data-m-panel="coach"],
+      body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+        display: block !important;
+      }
+      body.m-shell[data-m-active="glance"] #status-split[data-m-panel="glance"] {
+        display: grid !important;
+      }
+      body.m-shell[data-m-active="glance"] #at-a-glance[data-m-panel="glance"] .kpi-grid {
+        display: grid !important;
+      }
+      /* Compact feeds strip on glance */
+      body.m-shell .feeds-compact {
+        font-size: 0.72rem;
+        gap: 0.25rem 0.45rem;
+      }
+      body.m-shell .feeds-compact span {
+        white-space: nowrap;
+      }
+      /* Mining panel: open details fully on tab */
+      body.m-shell[data-m-active="mining"] #braiins-card {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--panel);
+      }
+      body.m-shell[data-m-active="mining"] #braiins-card > summary {
+        pointer-events: none;
+        list-style: none;
+      }
+      body.m-shell[data-m-active="mining"] #braiins-card > summary::-webkit-details-marker {
+        display: none;
+      }
+      body.m-shell[data-m-active="mining"] #braiins-card[open] > .body,
+      body.m-shell[data-m-active="mining"] #braiins-card > .body {
+        display: block;
+      }
+    }
   </style>
 </head>
 <body>
@@ -1484,47 +1579,21 @@
       </div>
     </div>
     <div class="row" style="margin-top:0.4rem">
-      <div class="feeds" id="feeds-line">Feeds…</div>
+      <div class="feeds feeds-compact" id="feeds-line">Feeds…</div>
     </div>
     <div class="toast" id="toast"></div>
   </div>
 
   <main>
-    <div id="load-error" class="error hidden"></div>
+    <div id="load-error" data-m-panel="glance" class="error hidden"></div>
 
-    <section class="advisor" id="advisor-card" aria-label="Ask Grok financial advisor">
-      <div class="advisor-head">
-        <h2>
-          Ask Grok
-          <span class="sub">Financial advisor · grounded in this dashboard</span>
-        </h2>
-        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
-      </div>
-      <div class="advisor-row">
-        <textarea
-          id="advisor-question"
-          rows="2"
-          placeholder="e.g. What should I pay first with cash I actually have?"
-          maxlength="4000"
-        ></textarea>
-        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
-      </div>
-      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
-      <div class="advisor-error" id="advisor-error"></div>
-      <div class="advisor-answer" id="advisor-answer">
-        <div class="meta" id="advisor-answer-meta"></div>
-        <div class="body" id="advisor-answer-body"></div>
-      </div>
-    </section>
+    <div class="status-split" id="status-split" data-m-panel="glance"></div>
 
-    <section id="at-a-glance" aria-label="At a glance">
+    <section id="at-a-glance" data-m-panel="glance" aria-label="At a glance">
       <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
-
-    <div class="status-split" id="status-split"></div>
-
-    <section class="card" id="actions-card">
+    <section class="card" id="actions-card" data-m-panel="glance">
       <div class="card-head">
         <h2>Do now</h2>
         <div class="carousel-pager" id="actions-pager" hidden>
@@ -1538,8 +1607,7 @@
       </div>
       <div class="carousel-dots" id="actions-dots" role="tablist" aria-label="Action pages"></div>
     </section>
-
-    <section class="card" id="bills-coach-card">
+    <section class="card" id="bills-coach-card" data-m-panel="coach">
       <div class="bill-section-head">
         <div>
           <h2 style="margin:0">Bills &amp; cash coach</h2>
@@ -1573,7 +1641,34 @@
       </div>
     </section>
 
-    <section class="card compact-metrics" id="cash-credit">
+
+
+    <section class="advisor" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
+      <div class="advisor-head">
+        <h2>
+          Ask Grok
+          <span class="sub">Financial advisor · grounded in this dashboard</span>
+        </h2>
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
+      </div>
+      <div class="advisor-row">
+        <textarea
+          id="advisor-question"
+          rows="2"
+          placeholder="e.g. What should I pay first with cash I actually have?"
+          maxlength="4000"
+        ></textarea>
+        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+      </div>
+      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+      <div class="advisor-error" id="advisor-error"></div>
+      <div class="advisor-answer" id="advisor-answer">
+        <div class="meta" id="advisor-answer-meta"></div>
+        <div class="body" id="advisor-answer-body"></div>
+      </div>
+    </section>
+
+    <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
       <div class="card-head">
         <h2>Cash &amp; credit</h2>
       </div>
@@ -1584,7 +1679,7 @@
       </div>
     </section>
 
-    <section class="card" id="fund-manager-card">
+    <section class="card" id="fund-manager-card" data-m-panel="cash">
       <div class="card-head">
         <h2>Fund manager</h2>
         <span class="live-dot" id="fm-live-dot">Autopilot</span>
@@ -1604,7 +1699,7 @@
       <div id="fund-manager-decisions"></div>
     </section>
 
-    <details class="panel" id="braiins-card" open>
+    <details class="panel" id="braiins-card" data-m-panel="mining" open>
       <summary>
         ASIC · Braiins
         <span class="live-dot off" id="braiins-live-dot" style="margin-left:0.5rem">—</span>
@@ -1625,14 +1720,14 @@
       </div>
     </details>
 
-    <details class="panel" id="watchlist-preview-card">
+    <details class="panel" id="watchlist-preview-card" data-m-panel="more">
       <summary>Watchlist research <a class="btn" href="watchlist.html" id="link-watchlist-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
       <div class="body">
         <div id="watchlist-preview">Loading…</div>
       </div>
     </details>
 
-    <details class="panel" id="panel-brokerage">
+    <details class="panel" id="panel-brokerage" data-m-panel="cash">
       <summary>Brokerage detail (RH primary)</summary>
       <div class="body">
         <p class="hint">Primary margin = read-only for this agent · trades on agentic above</p>
@@ -1640,7 +1735,7 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-spend">
+    <details class="panel" id="panel-spend" data-m-panel="cash">
       <summary>Actual spend (YNAB)</summary>
       <div class="body">
         <div class="grid-2">
@@ -1660,7 +1755,7 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-capital">
+    <details class="panel" id="panel-capital" data-m-panel="more">
       <summary>Capital targets (not expenses)</summary>
       <div class="body">
         <p class="hint">Sheet Discretionary — where excess capital could go</p>
@@ -1668,7 +1763,7 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-missing" class="hidden">
+    <details class="panel hidden" id="panel-missing" data-m-panel="more">
       <summary>Missing data</summary>
       <div class="body">
         <div id="dq-metrics"></div>
@@ -1676,7 +1771,7 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-settings">
+    <details class="panel" id="panel-settings" data-m-panel="more">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
         <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
@@ -1732,6 +1827,29 @@
       </div>
     </details>
   </main>
+
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
+    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span>
+      <span class="tab-lbl">Glance</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="cash">
+      <span class="tab-ico" aria-hidden="true">$</span>
+      <span class="tab-lbl">Cash</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="mining">
+      <span class="tab-ico" aria-hidden="true">⛏</span>
+      <span class="tab-lbl">Mining</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="coach">
+      <span class="tab-ico" aria-hidden="true">✓</span>
+      <span class="tab-lbl">Coach</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="more">
+      <span class="tab-ico" aria-hidden="true">···</span>
+      <span class="tab-lbl">More</span>
+    </button>
+  </nav>
 
   <footer>
     Financial Command Center ·
@@ -2862,6 +2980,11 @@
           const id = el.getAttribute("data-target");
           const node = document.getElementById(id);
           if (!node) return;
+          // Phase B: jump to the tab that owns this target on phone
+          if (typeof setFccTab === "function" && document.body.classList.contains("m-shell")) {
+            const panel = node.getAttribute("data-m-panel");
+            if (panel) setFccTab(panel);
+          }
           if (node.tagName === "DETAILS") node.open = true;
           node.scrollIntoView({ behavior: "smooth", block: "start" });
         });
@@ -4172,26 +4295,84 @@
     renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
     loadAdvisorStatus();
 
-    /** Detect phone / narrow viewport for layout class hooks (CSS does most work). */
+    /** Detect phone / narrow viewport; Phase B tab shell on ≤720px. */
+    const FCC_MOBILE_MQ = "(max-width: 720px)";
+    const FCC_TABS = ["glance", "cash", "mining", "coach", "more"];
+    function fccIsMobileShell() {
+      return window.matchMedia(FCC_MOBILE_MQ).matches;
+    }
+    function fccActiveTab() {
+      return document.body.getAttribute("data-m-active") || "glance";
+    }
+    function setFccTab(tab) {
+      const t = FCC_TABS.includes(tab) ? tab : "glance";
+      document.body.setAttribute("data-m-active", t);
+      try {
+        localStorage.setItem("fcc.mTab", t);
+      } catch (_) {}
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        bar.querySelectorAll("[data-m-tab]").forEach((btn) => {
+          const on = btn.getAttribute("data-m-tab") === t;
+          btn.classList.toggle("active", on);
+          if (on) btn.setAttribute("aria-current", "page");
+          else btn.removeAttribute("aria-current");
+        });
+      }
+      if (t === "mining") {
+        const br = document.getElementById("braiins-card");
+        if (br) br.open = true;
+      }
+      try {
+        window.scrollTo(0, 0);
+      } catch (_) {}
+    }
     function syncMobileLayout() {
-      const narrow = window.matchMedia("(max-width: 720px)").matches;
+      const narrow = fccIsMobileShell();
       const touchNarrow =
         window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
       document.body.classList.toggle("is-mobile", narrow || touchNarrow);
+      document.body.classList.toggle("m-shell", narrow);
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        if (narrow) {
+          bar.hidden = false;
+          let tab = "glance";
+          try {
+            tab = localStorage.getItem("fcc.mTab") || "glance";
+          } catch (_) {}
+          setFccTab(document.body.getAttribute("data-m-active") || tab);
+        } else {
+          bar.hidden = true;
+          document.body.removeAttribute("data-m-active");
+        }
+      }
     }
-    syncMobileLayout();
-    window.addEventListener("resize", syncMobileLayout, { passive: true });
-    try {
-      window
-        .matchMedia("(max-width: 720px)")
-        .addEventListener("change", syncMobileLayout);
-    } catch (_) {
-      /* Safari <14 */
+    function initFccMobileShell() {
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        bar.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-m-tab]");
+          if (!btn || !bar.contains(btn)) return;
+          setFccTab(btn.getAttribute("data-m-tab"));
+        });
+      }
+      syncMobileLayout();
+      window.addEventListener("resize", syncMobileLayout, { passive: true });
+      try {
+        window
+          .matchMedia(FCC_MOBILE_MQ)
+          .addEventListener("change", syncMobileLayout);
+      } catch (_) {
+        /* Safari <14 */
+      }
     }
+    initFccMobileShell();
 
     loadTreasury();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="nav-orchestra.js"></script>
+
 </body>
 </html>
