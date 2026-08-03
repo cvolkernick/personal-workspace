@@ -117,6 +117,18 @@ else
   ssh "$REMOTE" "mkdir -p ~/.config/resistance-dashboard; touch ~/.config/resistance-dashboard/env; chmod 600 ~/.config/resistance-dashboard/env"
 fi
 
+# SuperGrok / Grok Build session for Ask Grok (short-lived JWT in auth.json).
+# Pi cannot run interactive `grok login` easily — copy from this Mac when present.
+LOCAL_GROK_AUTH="${HOME}/.grok/auth.json"
+if [[ -f "$LOCAL_GROK_AUTH" ]]; then
+  echo "→ Syncing ~/.grok/auth.json to Pi (Ask Grok SuperGrok session)…"
+  ssh "$REMOTE" "mkdir -p ~/.grok && chmod 700 ~/.grok"
+  scp "$LOCAL_GROK_AUTH" "$REMOTE:~/.grok/auth.json"
+  ssh "$REMOTE" "chmod 600 ~/.grok/auth.json"
+else
+  echo "NOTE: no $LOCAL_GROK_AUTH — Ask Grok needs \`grok login\` on this Mac then re-deploy, or XAI_API_KEY on the Pi."
+fi
+
 echo "→ Pinning FITDASH_PUBLIC_URL=$PUBLIC_URL on Pi (OAuth redirect base)…"
 # shellcheck disable=SC2087
 ssh "$REMOTE" bash -s -- "$REMOTE_DIR" "$PUBLIC_URL" <<'REMOTE'
