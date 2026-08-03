@@ -1,47 +1,47 @@
-# Fund manager research — 2026-08-03 (~12:17 ET mid-session)
+# Fund manager research — 2026-08-03 (~12:30 ET mid-session)
 
-**As of:** 2026-08-03 ~16:17Z (~12:17 ET, regular hours; mid-session style)  
+**As of:** 2026-08-03 ~16:31Z (~12:30 ET, regular hours; mid-session style)  
 **Account:** agentic ••••1752 only (`674601752`)  
-**Process:** Uniform research/rotate (size-invariant) — full team pass (user/scheduled fund-manager review)  
+**Process:** Uniform research/rotate (size-invariant) — full team pass (user-run fund-manager review)  
 **Live NAV (agentic RH total):** ~$177.24 (snapshot equity+cash)  
 **cash/BP:** ~$0.09 · **min_trade:** $1.00  
-**Equity (Yahoo live marks ~12:17 ET):** ~$177.38 · NAV+cash Yahoo ~$177.47  
-**RH snapshot as_of:** 2026-08-03T14:49:39.562252+00:00 (Pi pull ~16:16Z; age ~87m on holdings)  
+**Equity (Yahoo live marks ~12:30 ET):** ~$177.10 · NAV+cash Yahoo ~$177.19  
+**RH snapshot as_of:** 2026-08-03T14:49:39.562252+00:00 (Pi pull ~16:30Z; holdings age ~1.7h)  
 **MCP (this Grok session):** robinhood-trading tools **unavailable** (auth required; search_tool empty) — Executor cannot place  
 **Owner prefs (2026-07-27):** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**  
 **Trigger:** User-run fund-manager review; residual cash/BP $0.09 still fires full process  
-**Prior full team same day:** multiple HOLDs (dust + MCP outage) — book unchanged
+**Prior same day:** multiple HOLDs (dust + MCP outage) — book unchanged; rules path logged `need_llm` at 16:30Z
 
 ## 1) Scout snapshot
 
 | Field | Value |
 |-------|--------|
 | Held | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
-| Deployed sleeve mix (treasury policy / RH marks) | **40% / 60%** BTC-complex / stocks — **in ±5% band** |
-| Yahoo live of equity | **~39.6% / 60.4%** — in band |
+| Deployed sleeve mix (Yahoo live marks) | **~39.7% / 60.3%** BTC-complex / stocks — **in ±5% band** |
+| Of NAV (incl cash) | ~39.6% / 60.3% / cash 0.05% |
 | Idle cash | ~$0.09 (below min trade $1) |
 | Theme coverage | Digital credit (MSTR, BITA) · miners/infra (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
 | Gaps | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · pure AI mega-cap · energy (BE) |
 
-### Live market values (agentic qty × Yahoo ~12:17 ET)
+### Live market values (agentic qty × Yahoo ~12:30 ET)
 
 | Symbol | Sleeve | Theme | ~$ | % of equity (approx) |
 |--------|--------|-------|-----|----------------------|
 | MSTR | btc | digital credit | 27.89 | ~15.7% |
 | BITA | btc | BTC yield | 14.87 | ~8.4% |
-| MARA | btc | miner | 11.35 | ~6.4% |
-| IREN | btc | miner/power infra | 10.85 | ~6.1% |
-| CLSK | btc | miner | 5.29 | ~3.0% |
-| TSLA | stocks | growth | 62.90 | ~35.5% |
-| SPCX | stocks | growth | 44.23 | ~24.9% |
+| MARA | btc | miner | 11.36 | ~6.4% |
+| IREN | btc | miner/power infra | 10.84 | ~6.1% |
+| CLSK | btc | miner | 5.28 | ~3.0% |
+| TSLA | stocks | growth | 62.57 | ~35.3% |
+| SPCX | stocks | growth | 44.29 | ~25.0% |
 
-**Sub-sleeve notes (BTC complex ~$70.25 Yahoo):**
+**Sub-sleeve notes (BTC complex ~$70.24 Yahoo):**
 - Digital credit/yield (MSTR+BITA): ~$42.76 (~61% of complex) — **no STRC/SATA seat**
-- Miners/infra (MARA+IREN+CLSK): ~$27.49 (~39% of complex) — multi-miner stack OK per owner pref
-- Unheld digital credit: STRC ~$91.85 · SATA ~$97.48 · ASST ~$11.82
-- Unheld miners: RIOT ~$21.20 · WULF ~$18.86
-- Watchlist: BE ~$218.50 · GOOGL ~$375.36 · AAPL ~$304.31 · NVDA ~$207.28
-- BTC-USD ~$63,818
+- Miners/infra (MARA+IREN+CLSK): ~$27.48 (~39% of complex) — multi-miner stack OK per owner pref
+- Unheld digital credit: STRC ~$91.84 · SATA ~$97.50 · ASST ~$11.85
+- Unheld miners: RIOT ~$21.25 · WULF ~$18.81
+- Watchlist: BE ~$217.51 · GOOGL ~$375.48 · AAPL ~$306.54 · NVDA ~$207.01
+- BTC-USD ~$63,805
 
 ## 2) Research / rotate (REQUIRED)
 
@@ -79,7 +79,7 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 1. Maintain ~**40/60** of deploy notional.
 2. Within BTC-complex leg: allocate a **meaningful share to STRC and/or SATA** (owner elevated digital credit) — **not** MSTR-only by habit. MSTR/BITA may still receive residual credit capital.
 3. Miner leg: multi-miner OK (existing MARA/IREN/CLSK; RIOT/WULF eligible if diversifying further — do **not** block on “already have a miner”).
-4. Stocks leg: prefer core **TSLA/SPCX** unless a watchlist AI deep-dive is complete and quorum OK. Note TSLA ~35.5% of equity — elevated single-name but thesis primary; on next stocks deploy prefer SPCX tilt if adding without rebalance.
+4. Stocks leg: prefer core **TSLA/SPCX** unless a watchlist AI deep-dive is complete and quorum OK. Note TSLA ~35.3% of equity — elevated single-name but thesis primary; on next stocks deploy prefer SPCX tilt if adding without rebalance.
 5. Do **not** default to “only top up largest held.”
 6. **BE:** re-evaluate only after **post-print deep-dive** (earnings out 7/28; strong print does not auto-buy).
 
@@ -94,9 +94,9 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | Snapshot agentic ••••1752: NAV RH ~$177.24 / Yahoo ~$177.47; 7 names; cash/BP $0.09; sleeves policy 40/60 in band; Yahoo equity ~39.6/60.4; RH snapshot 2026-08-03T14:49:39Z; MCP tools unavailable; ~12:17 ET regular hours |
+| Scout | ok | Snapshot agentic ••••1752: NAV RH ~$177.24 / Yahoo equity ~$177.10; 7 names; cash/BP $0.09; sleeves ~39.7/60.3 in band; RH snapshot 2026-08-03T14:49:39Z; MCP tools unavailable; ~12:30 ET regular hours |
 | Thesis | ok (hold) | Book on target; plan next deploy with STRC/SATA seat in BTC complex; multi-miner retained; SPCX tilt on next stocks leg given TSLA weight |
-| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated (~35.5% Yahoo equity) but thesis primary — no forced cut while in band |
+| Risk | ok (hold) | No trade: BP dust; agentic-only; no leverage; TSLA elevated (~35.3% Yahoo equity) but thesis primary — no forced cut while in band |
 | Critic | ok (hold) + process flag | Force HOLD on residual dust. Flag STRC/SATA under-allocation for next capital. Reject false miner-overlap blocks. BE still not first-buy ready post-print without dive. Block undived AI first-buys |
 | Executor | hold | No MCP tools this session; even if live, $0.09 cannot fill min notional |
 
