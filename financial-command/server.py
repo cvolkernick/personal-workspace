@@ -39,6 +39,38 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
+def _ensure_tool_path() -> None:
+    """launchd/ensure often starts us with PATH=/usr/bin:/bin — restore homebrew CLIs.
+
+    Without this, `coinbase` / scp extras are invisible and Refresh silently keeps
+    stale CB ages while reporting coinbase_treasury=ok (file fallback).
+    """
+    extras = [
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+        str(Path.home() / ".local" / "bin"),
+        "/usr/bin",
+        "/bin",
+        "/usr/sbin",
+        "/sbin",
+    ]
+    cur = (os.environ.get("PATH") or "").split(":")
+    merged: list[str] = []
+    seen: set[str] = set()
+    for p in extras + cur:
+        p = (p or "").strip()
+        if not p or p in seen:
+            continue
+        if p in extras or Path(p).is_dir():
+            seen.add(p)
+            merged.append(p)
+    os.environ["PATH"] = ":".join(merged)
+
+
+_ensure_tool_path()
+
 from treasury.adapters import load_config, save_config  # noqa: E402
 from treasury.financial_advisor import (  # noqa: E402
     AdvisorError,
@@ -61,6 +93,35 @@ ORCHESTRA_URL = f"http://127.0.0.1:{ORCHESTRA_PORT}/"
 _ORCHESTRA_PID: int | None = None
 _YNAB_REFRESH_COOLDOWN_S = 300.0  # don't hammer YNAB more than once / 5 min
 _last_ynab_refresh_ts = 0.0
+# Set in main() from --offline / --consumer. Used for initial boot + consumer detect.
+_SERVER_STARTED_OFFLINE = False
+_SERVER_CONSUMER = False
+
+
+def _is_snapshot_consumer() -> bool:
+    """True when this host should not run live YNAB/CB (Pi phone FCC).
+
+    --offline alone is only a *boot* hint (Mac ensure uses it for fast start).
+    Consumer mode = explicit --consumer / FCC_OFFLINE_CONSUMER, or no live creds.
+    """
+    if _SERVER_CONSUMER:
+        return True
+    if os.environ.get("FCC_OFFLINE_CONSUMER", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    ):
+        return True
+    try:
+        from treasury.ynab_sync import load_ynab_token
+        from treasury.adapters import _resolve_coinbase_bin
+
+        tok, _ = load_ynab_token()
+        if not tok and not _resolve_coinbase_bin():
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _snapshot_age_hours(path: Path) -> float | None:
@@ -762,20 +823,30 @@ class FCCHandler(SimpleHTTPRequestHandler):
             return
 
         if path == "/api/refresh":
-            offline = False
             body = self._read_json()
-            if body.get("offline"):
+            # Pi phone FCC: no YNAB/CB creds — live Refresh would wipe Mac-pushed files.
+            # UI still posts offline:false; consumer mode forces snapshot re-read only.
+            # force_live=true opts into producer path when credentials exist.
+            offline = bool(body.get("offline"))
+            if _is_snapshot_consumer() and not body.get("force_live"):
                 offline = True
+            # Interactive UI Refresh defaults to Pi-only RH (fast). Local Grok+MCP
+            # can take 2–4 min and made the button look dead while YNAB/CB already
+            # finished. Opt in: body.rh_mcp=true or env FCC_REFRESH_RH_MCP=1.
+            rh_mcp = bool(body.get("rh_mcp")) or os.environ.get(
+                "FCC_REFRESH_RH_MCP", ""
+            ).strip() in ("1", "true", "yes")
             # Prefer live YNAB + Coinbase + Braiins unless offline.
-            # RH trade is MCP-written (rh_sync) — not pullable from this server alone.
             args = ["--offline"] if offline else []
             report: dict = {
+                "mode": "offline_consumer" if offline else "live_producer",
                 "ynab": "skipped" if offline else "pending",
                 "expenses": "skipped" if offline else "pending",
                 "coinbase_treasury": "pending",
                 "braiins": "skipped" if offline else "pending",
                 "robinhood": "skipped" if offline else "pending",
             }
+            code: int | None = 0
             try:
                 if not offline:
                     try:
@@ -819,16 +890,38 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 report["coinbase_treasury"] = (
                     "ok" if code in (0, None) else f"exit {code}"
                 )
+                # Surface CB live_error when CLI missing / failed (ages stay stale)
+                try:
+                    p_cb = ROOT / "treasury" / "snapshots" / "coinbase_latest.json"
+                    if p_cb.is_file():
+                        cb_snap = json.loads(p_cb.read_text(encoding="utf-8"))
+                    else:
+                        cb_snap = {}
+                    # Also read just-written treasury snapshot coinbase block
+                    p_t = ROOT / "financial-command" / "treasury_latest.json"
+                    if p_t.is_file():
+                        t_data = json.loads(p_t.read_text(encoding="utf-8"))
+                        cb_block = (t_data.get("snapshot") or {}).get("coinbase") or {}
+                        if cb_block.get("live_error"):
+                            report["coinbase_live_error"] = cb_block["live_error"]
+                        if cb_block.get("as_of"):
+                            report["coinbase_as_of"] = cb_block["as_of"]
+                        if cb_block.get("source"):
+                            report["coinbase_source"] = cb_block["source"]
+                    elif cb_snap.get("as_of"):
+                        report["coinbase_as_of"] = cb_snap.get("as_of")
+                        report["coinbase_source"] = cb_snap.get("source")
+                except Exception:
+                    pass
                 if not offline:
-                    # RH: Pi snapshot first, local Grok+MCP fallback (bounded)
+                    # RH: Pi snapshot first. Local MCP only when explicitly requested
+                    # (launchd rh_refresh owns the slow path by default).
                     try:
                         from treasury.rh_snapshot_sync import sync_rh_snapshot
 
-                        # Prefer Pi (fast). Local MCP is slow — still try, but
-                        # core feeds already refreshed above.
                         rh = sync_rh_snapshot(
                             prefer_pi=True,
-                            allow_local_mcp=True,
+                            allow_local_mcp=rh_mcp,
                             reevaluate=False,
                         )
                         if rh.get("ok"):
@@ -846,6 +939,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                             report["robinhood_detail"] = {
                                 "pi": (rh.get("pi") or {}).get("error"),
                                 "local_mcp": (rh.get("local_mcp") or {}).get("error"),
+                                "rh_mcp_enabled": rh_mcp,
                             }
                             sys.stderr.write(
                                 f"[fcc] rh_snapshot_sync failed: {report['robinhood']}\n"
@@ -853,6 +947,19 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     except Exception as rexc:
                         report["robinhood"] = f"error: {rexc}"
                         sys.stderr.write(f"[fcc] rh_snapshot_sync warning: {rexc}\n")
+                    # Always push venue snapshots to Pi so iPad offline FCC ages move
+                    try:
+                        from treasury.rh_snapshot_sync import push_snapshots_to_pi
+
+                        report["push_pi"] = push_snapshots_to_pi()
+                    except Exception as pe:
+                        report["push_pi"] = {"ok": False, "error": str(pe)}
+                        sys.stderr.write(f"[fcc] push_pi warning: {pe}\n")
+                else:
+                    report["note"] = (
+                        "offline_consumer: re-read snapshots only "
+                        "(live feeds produced on Mac and pushed to this host)"
+                    )
             except SystemExit as e:
                 code = e.code if e.code is not None else 0
                 report["coinbase_treasury"] = (
@@ -912,11 +1019,30 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--port", type=int, default=8000)
     parser.add_argument("--no-browser", action="store_true")
-    parser.add_argument("--offline", action="store_true", help="Initial refresh offline")
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Initial boot refresh offline only (does not force all POSTs offline)",
+    )
+    parser.add_argument(
+        "--consumer",
+        action="store_true",
+        help="Snapshot consumer (Pi/phone): Refresh re-reads files only, never live YNAB/CB",
+    )
     args = parser.parse_args(argv)
+
+    global _SERVER_STARTED_OFFLINE, _SERVER_CONSUMER
+    _SERVER_STARTED_OFFLINE = bool(args.offline)
+    _SERVER_CONSUMER = bool(args.consumer)
 
     print(f"[fcc] workspace_root={ROOT}", file=sys.stderr)
     print(f"[fcc] config={ROOT / 'treasury' / 'config.json'}", file=sys.stderr)
+    consumer = _is_snapshot_consumer()
+    print(
+        f"[fcc] mode={'offline_consumer' if consumer else 'live_producer'}"
+        f" (boot_offline={_SERVER_STARTED_OFFLINE}, flag_consumer={_SERVER_CONSUMER})",
+        file=sys.stderr,
+    )
 
     # Initial YNAB + treasury refresh
     try:

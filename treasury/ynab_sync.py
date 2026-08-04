@@ -709,13 +709,31 @@ def main(argv: Optional[List[str]] = None) -> int:
     one = bundle["one_card"]
     rh = bundle["rh_checking"]
     xm = bundle["x_money"]
-    p1 = write_one_card_snapshot(one)
-    p2 = write_rh_checking_snapshot(rh)
-    p3 = write_x_money_snapshot(xm)
+    # Never clobber Mac-pushed (or prior good) snapshots with empty error shells.
+    # Pi FCC has no YNAB token; Refresh used to wipe cash feeds to source=empty.
+    def _safe_write(writer, data: Dict[str, Any], name: str) -> Path:
+        path = SNAPSHOTS_DIR / name
+        bad = data.get("source") == "empty" or bool(data.get("live_error"))
+        if bad:
+            existing = load_json(path)
+            if (
+                existing
+                and existing.get("source") not in (None, "empty")
+                and not existing.get("live_error")
+            ):
+                return path  # preserve good file on disk
+        return writer(data)
+
+    p1 = _safe_write(write_one_card_snapshot, one, "one_card_latest.json")
+    p2 = _safe_write(write_rh_checking_snapshot, rh, "rh_checking_latest.json")
+    p3 = _safe_write(write_x_money_snapshot, xm, "x_money_latest.json")
+    one = load_json(p1) or one
+    rh = load_json(p2) or rh
+    xm = load_json(p3) or xm
     ok = (
-        (not one.get("live_error"))
-        or (not rh.get("live_error"))
-        or (not xm.get("live_error"))
+        (one.get("source") not in (None, "empty") and not one.get("live_error"))
+        or (rh.get("source") not in (None, "empty") and not rh.get("live_error"))
+        or (xm.get("source") not in (None, "empty") and not xm.get("live_error"))
     )
     print(
         json.dumps(

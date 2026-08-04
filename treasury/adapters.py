@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,6 +13,21 @@ from typing import Any, Dict, Optional, Tuple  # noqa: F401
 TREASURY_DIR = Path(__file__).resolve().parent
 SNAPSHOTS_DIR = TREASURY_DIR / "snapshots"
 CONFIG_PATH = TREASURY_DIR / "config.json"
+
+def _resolve_coinbase_bin() -> Optional[str]:
+    """Locate coinbase CLI even when PATH is stripped (launchd / ensure script)."""
+    found = shutil.which("coinbase")
+    if found:
+        return found
+    home = Path.home()
+    for cand in (
+        home / ".local" / "bin" / "coinbase",
+        Path("/opt/homebrew/bin/coinbase"),
+        Path("/usr/local/bin/coinbase"),
+    ):
+        if cand.is_file() and os.access(cand, os.X_OK):
+            return str(cand)
+    return None
 
 
 def _now() -> str:
@@ -61,9 +77,12 @@ def _parse_coinbase_balance_payload(payload: Dict[str, Any]) -> Dict[str, float]
 
 def fetch_btc_usd_price(*, timeout: float = 20.0) -> Tuple[Optional[float], Optional[str]]:
     """Fetch mid/last BTC-USD via coinbase products get."""
+    cb = _resolve_coinbase_bin()
+    if not cb:
+        return None, "coinbase CLI not found"
     try:
         proc = subprocess.run(
-            ["coinbase", "products", "get", "BTC-USD"],
+            [cb, "products", "get", "BTC-USD"],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -93,9 +112,12 @@ def fetch_coinbase_liquid_live(
 
     Returns (result, error). result has liquid_usdc, liquid_btc, raw_currencies, source.
     """
+    cb = _resolve_coinbase_bin()
+    if not cb:
+        return None, "coinbase CLI not found (PATH missing homebrew?)"
     try:
         proc = subprocess.run(
-            ["coinbase", "balance", "--paginate"],
+            [cb, "balance", "--paginate"],
             capture_output=True,
             text=True,
             timeout=timeout,
@@ -141,6 +163,7 @@ def fetch_coinbase_liquid_live(
         "liquid_btc_usd": (liquid_btc * btc_price) if btc_price is not None else None,
         "by_currency": totals,
         "account_count": len(accounts),
+        "coinbase_bin": cb,
     }
     if price_err:
         result["btc_price_error"] = price_err
@@ -163,9 +186,13 @@ def fetch_coinbase_liquid(
     file_data = load_json(snap)
     if file_data:
         out = dict(file_data)
-        out["source"] = out.get("source") or "snapshot"
+        # Live failed: demote misleading source="live" so feed ages show honestly.
         if err:
             out["live_error"] = err
+            if (out.get("source") or "").lower() in ("live", ""):
+                out["source"] = "snapshot"
+        else:
+            out["source"] = out.get("source") or "snapshot"
         return out
     return {
         "source": "empty",

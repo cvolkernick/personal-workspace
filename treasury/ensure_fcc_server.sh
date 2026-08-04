@@ -62,8 +62,16 @@ if [[ ! -f "$SERVER" ]]; then
 fi
 
 cd "$ROOT"
+# launchd/cron often starts with PATH=/usr/bin:/bin — coinbase CLI lives in homebrew.
+# Without this, FCC Refresh reports ok but CB ages never move (file fallback).
+export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:${HOME}/.local/bin:/usr/bin:/bin:/usr/sbin:/sbin${PATH:+:$PATH}"
+# Prefer python3 on PATH (homebrew), fall back to system
+PY="$(command -v python3 || true)"
+if [[ -z "${PY}" ]]; then
+  PY="/usr/bin/python3"
+fi
 # Detach so launchd/cron exit does not kill the server
-nohup /usr/bin/python3 "$SERVER" --port "$PORT" --no-browser --offline \
+nohup "$PY" "$SERVER" --port "$PORT" --no-browser --offline \
   >>"$LOG_DIR/fcc_server.out.log" 2>&1 &
 disown || true
 

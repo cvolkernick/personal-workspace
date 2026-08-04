@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "as_of": "2026-07-26",
+  "as_of": "2026-08-03",
   "purpose": "Thematic equities the agentic fund manager should monitor and consider — not auto-buy. Core allowlist remains preferred for default rebalances.",
   "policy": {
     "auto_buy": false,
@@ -84,6 +84,24 @@
       "last_verdict": null,
       "next_catalyst": null,
       "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy. Concentration / valuation risk is the main critic gate."
+    },
+    {
+      "symbol": "PLTR",
+      "name": "Palantir Technologies",
+      "theme": "ai_stack",
+      "themes": ["ai_stack", "harness", "applications", "enterprise_software", "gov_commercial"],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "medium",
+      "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology ≈ enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core. See RESEARCH/PALANTIR_THESIS_FIT_2026_08_03.md (Buzz nest).",
+      "added": "2026-08-03",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": "investment/research/PLTR_deep_dive.md",
+      "last_verdict": null,
+      "next_catalyst": null,
+      "notes": "Owner-requested 2026-08-03 (agentic-finance PLTR thesis thread). Monitor only — not auto-buy. Priority medium (below BE/GOOGL/AAPL/NVDA high and below engines/BTC). Run position-deep-dive before first size-in. Main critic gates: high multiple, tech-factor correlation, gov/politics concentration, capital stack residual priority."
     }
   ]
 }

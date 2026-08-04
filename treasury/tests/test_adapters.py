@@ -108,6 +108,35 @@ class TestSnapshotFallback(unittest.TestCase):
             self.assertEqual(r["liquid_usdc"], 1234.0)
             self.assertEqual(r["liquid_btc"], 0.5)
 
+    def test_coinbase_live_fail_demotes_source(self):
+        """When live CLI fails, do not keep source=live on a stale file fallback."""
+        with tempfile.TemporaryDirectory() as td:
+            p = Path(td) / "cb.json"
+            save_json(
+                p,
+                {
+                    "source": "live",
+                    "as_of": "2026-07-29T18:13:11+00:00",
+                    "liquid_usdc": 1.0,
+                    "liquid_btc": 0.0,
+                },
+            )
+            import treasury.adapters as ad
+
+            real = ad.fetch_coinbase_liquid_live
+
+            def boom(*, timeout: float = 30.0):
+                return None, "coinbase CLI not found (PATH missing homebrew?)"
+
+            ad.fetch_coinbase_liquid_live = boom  # type: ignore[assignment]
+            try:
+                r = fetch_coinbase_liquid(prefer_live=True, snapshot_path=p)
+            finally:
+                ad.fetch_coinbase_liquid_live = real  # type: ignore[assignment]
+            self.assertEqual(r["liquid_usdc"], 1.0)
+            self.assertEqual(r["source"], "snapshot")
+            self.assertIn("coinbase CLI not found", r.get("live_error") or "")
+
     def test_robinhood_file_and_build(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td) / "rh.json"

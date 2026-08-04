@@ -1463,101 +1463,161 @@
       .kpi { padding: 0.5rem 0.55rem; }
     }
 
-    /* Optional body class set by JS when narrow / touch (for future JS layout) */
+    /* Optional body class set by JS when narrow / touch */
     body.is-mobile .sticky-top .sub { display: none; }
 
-    /* ── Phase B: mobile tab shell (FitDash pattern) ── */
+    /* ── Tab shell (Glance / Cash / Mining / Coach / More) — all viewports ── */
     .mobile-tabbar {
       display: none;
     }
+    body.m-shell .mobile-tabbar {
+      display: flex;
+    }
+    body.m-shell .mobile-tabbar[hidden] {
+      display: none !important;
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.1rem;
+      min-height: 44px;
+      padding: 0.35rem 0.4rem;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .mobile-tabbar .tab-btn .tab-ico {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+    .mobile-tabbar .tab-btn.active {
+      color: var(--text);
+      background: rgba(91, 159, 212, 0.16);
+    }
+    /* Hide inactive panels in shell mode (web + mobile) */
+    body.m-shell [data-m-panel] {
+      display: none !important;
+    }
+    body.m-shell[data-m-active="glance"] [data-m-panel="glance"],
+    body.m-shell[data-m-active="cash"] [data-m-panel="cash"],
+    body.m-shell[data-m-active="mining"] [data-m-panel="mining"],
+    body.m-shell[data-m-active="coach"] [data-m-panel="coach"],
+    body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+      display: block !important;
+    }
+    body.m-shell[data-m-active="glance"] #status-split[data-m-panel="glance"] {
+      display: grid !important;
+    }
+    body.m-shell[data-m-active="glance"] #at-a-glance[data-m-panel="glance"] .kpi-grid {
+      display: grid !important;
+    }
+    body.m-shell .feeds-compact {
+      font-size: 0.72rem;
+      gap: 0.25rem 0.45rem;
+    }
+    body.m-shell .feeds-compact span {
+      white-space: nowrap;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card > summary {
+      pointer-events: none;
+      list-style: none;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card > summary::-webkit-details-marker {
+      display: none;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card[open] > .body,
+    body.m-shell[data-m-active="mining"] #braiins-card > .body {
+      display: block;
+    }
+
+    /*
+     * Placement:
+     * - Phone / narrow (≤720): fixed BOTTOM (must not be under .sticky-top —
+     *   backdrop-filter ancestors break fixed positioning).
+     * - Web / wide (≥721): sticky TOP strip under the header.
+     */
     @media (max-width: 720px) {
       main {
         padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
       }
       body.m-shell .mobile-tabbar {
-        display: flex;
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
+        top: auto;
         z-index: 50;
         gap: 0.15rem;
+        margin: 0;
+        max-width: none;
         padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
         background: rgba(11, 15, 20, 0.96);
+        border: none;
         border-top: 1px solid var(--border);
         backdrop-filter: blur(12px);
         -webkit-backdrop-filter: blur(12px);
       }
-      body.m-shell .mobile-tabbar[hidden] {
-        display: none !important;
-      }
-      .mobile-tabbar .tab-btn {
-        flex: 1 1 0;
-        display: flex;
+      body.m-shell .mobile-tabbar .tab-btn {
         flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: 0.1rem;
         min-height: 48px;
         padding: 0.35rem 0.15rem;
-        border: none;
-        background: transparent;
-        color: var(--muted);
-        border-radius: 12px;
         font-size: 0.65rem;
-        font-weight: 650;
-        letter-spacing: 0.02em;
-        cursor: pointer;
+        border: none;
       }
-      .mobile-tabbar .tab-btn .tab-ico {
-        font-size: 1.05rem;
-        line-height: 1;
+    }
+
+    @media (min-width: 721px) {
+      body.m-shell .mobile-tabbar {
+        position: sticky;
+        top: 0;
+        z-index: 35;
+        gap: 0.35rem;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0.45rem 1.25rem 0.55rem;
+        background: rgba(11, 15, 20, 0.94);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
       }
-      .mobile-tabbar .tab-btn.active {
-        color: var(--text);
-        background: rgba(91, 159, 212, 0.16);
+      /* Sit just under sticky-top: sticky-top is z-index 40; tabs scroll under it
+         then pin at top when header scrolls away — or pin below header height.
+         Use a small offset so both can stick: sticky-top stays top:0, tabs top
+         after header. Approximate header height ~5.5rem. */
+      body.m-shell .mobile-tabbar {
+        top: 0;
       }
-      /* Hide inactive panels in shell mode */
-      body.m-shell [data-m-panel] {
-        display: none !important;
+      body.m-shell .sticky-top {
+        z-index: 45;
       }
-      body.m-shell[data-m-active="glance"] [data-m-panel="glance"],
-      body.m-shell[data-m-active="cash"] [data-m-panel="cash"],
-      body.m-shell[data-m-active="mining"] [data-m-panel="mining"],
-      body.m-shell[data-m-active="coach"] [data-m-panel="coach"],
-      body.m-shell[data-m-active="more"] [data-m-panel="more"] {
-        display: block !important;
+      body.m-shell .mobile-tabbar .tab-btn {
+        flex-direction: row;
+        gap: 0.4rem;
+        min-height: 2.35rem;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.82rem;
+        border: 1px solid transparent;
       }
-      body.m-shell[data-m-active="glance"] #status-split[data-m-panel="glance"] {
-        display: grid !important;
+      body.m-shell .mobile-tabbar .tab-btn.active {
+        border-color: rgba(91, 159, 212, 0.45);
+        background: rgba(91, 159, 212, 0.14);
       }
-      body.m-shell[data-m-active="glance"] #at-a-glance[data-m-panel="glance"] .kpi-grid {
-        display: grid !important;
-      }
-      /* Compact feeds strip on glance */
-      body.m-shell .feeds-compact {
-        font-size: 0.72rem;
-        gap: 0.25rem 0.45rem;
-      }
-      body.m-shell .feeds-compact span {
-        white-space: nowrap;
-      }
-      /* Mining panel: open details fully on tab */
-      body.m-shell[data-m-active="mining"] #braiins-card {
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: var(--panel);
-      }
-      body.m-shell[data-m-active="mining"] #braiins-card > summary {
-        pointer-events: none;
-        list-style: none;
-      }
-      body.m-shell[data-m-active="mining"] #braiins-card > summary::-webkit-details-marker {
-        display: none;
-      }
-      body.m-shell[data-m-active="mining"] #braiins-card[open] > .body,
-      body.m-shell[data-m-active="mining"] #braiins-card > .body {
-        display: block;
+      body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+        font-size: 0.95rem;
       }
     }
   </style>
@@ -1583,6 +1643,33 @@
     </div>
     <div class="toast" id="toast"></div>
   </div>
+
+  <!--
+    Tab bar MUST stay outside .sticky-top: backdrop-filter on an ancestor
+    breaks position:fixed (tabs stuck to header instead of viewport bottom).
+  -->
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span>
+      <span class="tab-lbl">Glance</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="cash">
+      <span class="tab-ico" aria-hidden="true">$</span>
+      <span class="tab-lbl">Cash</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="mining">
+      <span class="tab-ico" aria-hidden="true">⛏</span>
+      <span class="tab-lbl">Mining</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="coach">
+      <span class="tab-ico" aria-hidden="true">✓</span>
+      <span class="tab-lbl">Coach</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="more">
+      <span class="tab-ico" aria-hidden="true">···</span>
+      <span class="tab-lbl">More</span>
+    </button>
+  </nav>
 
   <main>
     <div id="load-error" data-m-panel="glance" class="error hidden"></div>
@@ -1827,29 +1914,6 @@
       </div>
     </details>
   </main>
-
-  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
-    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
-      <span class="tab-ico" aria-hidden="true">◎</span>
-      <span class="tab-lbl">Glance</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="cash">
-      <span class="tab-ico" aria-hidden="true">$</span>
-      <span class="tab-lbl">Cash</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="mining">
-      <span class="tab-ico" aria-hidden="true">⛏</span>
-      <span class="tab-lbl">Mining</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="coach">
-      <span class="tab-ico" aria-hidden="true">✓</span>
-      <span class="tab-lbl">Coach</span>
-    </button>
-    <button type="button" class="tab-btn" data-m-tab="more">
-      <span class="tab-ico" aria-hidden="true">···</span>
-      <span class="tab-lbl">More</span>
-    </button>
-  </nav>
 
   <footer>
     Financial Command Center ·
@@ -3989,9 +4053,14 @@
         const r = body.refreshed || {};
         const bits = [];
         if (r.ynab === "ok") bits.push("YNAB");
+        else if (r.ynab && r.ynab !== "skipped") bits.push("YNAB⚠");
         if (r.expenses === "ok") bits.push("Sheet");
-        if (r.coinbase_treasury === "ok" || r.coinbase_treasury === "pending")
+        else if (r.expenses && r.expenses !== "skipped") bits.push("Sheet⚠");
+        if (r.coinbase_live_error) bits.push("CB⚠");
+        else if (r.coinbase_treasury === "ok" || r.coinbase_treasury === "pending")
           bits.push("CB");
+        else if (r.coinbase_treasury && r.coinbase_treasury !== "skipped")
+          bits.push("CB⚠");
         if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
         else if (r.braiins && r.braiins !== "skipped")
           bits.push("Braiins⚠");
@@ -4001,11 +4070,18 @@
         } else if (r.robinhood && r.robinhood !== "skipped") {
           bits.push("RH⚠");
         }
-        toast(
-          bits.length
-            ? "Refreshed: " + bits.join(" · ")
-            : "Treasury re-evaluated (see feed ages)"
-        );
+        let msg = bits.length
+          ? "Refreshed: " + bits.join(" · ")
+          : "Treasury re-evaluated (see feed ages)";
+        if (r.mode === "offline_consumer") {
+          msg =
+            "Offline (phone/Pi): reloaded last Mac-pushed snapshots" +
+            (bits.length ? " · " + bits.join(" · ") : "");
+        }
+        if (r.push_pi && r.push_pi.ok && (r.push_pi.pushed || []).length) {
+          msg += " · pushed→Pi";
+        }
+        toast(msg);
       } catch (e) {
         toast("Refresh failed — is the server running?");
         await loadTreasury();
@@ -4295,7 +4371,7 @@
     renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
     loadAdvisorStatus();
 
-    /** Detect phone / narrow viewport; Phase B tab shell on ≤720px. */
+    /** Tab shell on all viewports (web top strip / phone bottom bar). */
     const FCC_MOBILE_MQ = "(max-width: 720px)";
     const FCC_TABS = ["glance", "cash", "mining", "coach", "more"];
     function fccIsMobileShell() {
@@ -4332,20 +4408,16 @@
       const touchNarrow =
         window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
       document.body.classList.toggle("is-mobile", narrow || touchNarrow);
-      document.body.classList.toggle("m-shell", narrow);
+      // Tab shell always on (web + mobile) — same Glance/Cash/Mining/Coach/More
+      document.body.classList.add("m-shell");
       const bar = document.getElementById("mobile-tabbar");
       if (bar) {
-        if (narrow) {
-          bar.hidden = false;
-          let tab = "glance";
-          try {
-            tab = localStorage.getItem("fcc.mTab") || "glance";
-          } catch (_) {}
-          setFccTab(document.body.getAttribute("data-m-active") || tab);
-        } else {
-          bar.hidden = true;
-          document.body.removeAttribute("data-m-active");
-        }
+        bar.hidden = false;
+        let tab = "glance";
+        try {
+          tab = localStorage.getItem("fcc.mTab") || "glance";
+        } catch (_) {}
+        setFccTab(document.body.getAttribute("data-m-active") || tab);
       }
     }
     function initFccMobileShell() {
