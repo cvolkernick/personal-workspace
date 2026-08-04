@@ -164,8 +164,15 @@ class ScheduleTests(unittest.TestCase):
 
     def test_shipped_sunset_routine_is_magenta(self) -> None:
         sched = load_schedule(ROOT / "iot" / "schedule.json")
-        sunset = next(r for r in sched["routines"] if r["id"] == "sunset_all_on")
+        sunset = next(
+            r for r in sched["routines"] if r["id"] in ("sunset_lights_on", "sunset_all_on")
+        )
         self.assertEqual(sunset["color"], "magenta")
+        # Plant lights day cycle + office plug must stay in shipped schedule.
+        ids = {r["id"] for r in sched["routines"]}
+        self.assertIn("sunrise_plants_on", ids)
+        self.assertIn("sunrise_office_off", ids)
+        self.assertIn("sunset_plants_off", ids)
 
     def test_upcoming_has_both_triggers(self) -> None:
         items = upcoming_for_day(self._sched(), date(2026, 6, 21))
