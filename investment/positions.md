@@ -17,8 +17,8 @@
 |--------|--------|-------|-------|
 | **BTC** | ~40% complex | Bitcoin / hard money | Prefer Coinbase / self-custody stack where applicable; RH if available |
 | **MSTR** | ~40% complex | Digital credit | BTC-linked corporate proxy |
-| **STRC** | ~40% complex | Digital credit | **Elevated** digital credit / BTC-linked structure (prefer real sleeve weight) |
-| **SATA** | ~40% complex | Digital credit | **Elevated** digital credit sleeve (pair with STRC emphasis) |
+| **STRC** | ~40% complex | Digital credit | **Small bias** within 40% — BTC-fundamental high-yield / frequent dividends (prefer real seat; yield edge vs USDC/USDG cash) |
+| **SATA** | ~40% complex | Digital credit | **Small bias** within 40% — pair with STRC (same yield thesis; not cash) |
 | **ASST** | ~40% complex | Digital credit | Digital credit sleeve (held / thesis-aligned) |
 | **BITA** | ~40% complex | Digital credit / BTC yield | BTC-based yield / fixed income — **not** stocks sleeve |
 | **MARA** | ~40% complex | BTC infrastructure | Miner |

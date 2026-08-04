@@ -1,7 +1,7 @@
 {
   "version": 1,
   "name": "agentic_fund_manager",
-  "as_of": "2026-07-20",
+  "as_of": "2026-08-04",
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
@@ -49,10 +49,12 @@
       ],
       "deploy_where": "best_fit_at_time_per_themes_and_40_60",
       "owner_preferences": {
-        "as_of": "2026-07-27",
-        "digital_credit_emphasis": "Prefer allocating a meaningful share of BTC-complex deploys to STRC and/or SATA (digital credit), not only MSTR/BITA, unless Risk/Critic has a strong liquidity, structure, or thesis rebuttal.",
+        "as_of": "2026-08-04",
+        "digital_credit_bias": "small_within_40pct_stack",
+        "digital_credit_emphasis": "Within the ~40% BTC & digital credit complex, keep a small standing bias toward STRC and/or SATA (preferred digital-credit core). They are BTC-fundamentally based, high-yield, frequent-dividend expressions — not cash. Owner 2026-08-04: those yields are roughly ~2× typical USDC/USDG high-yield cash, so when residual dollars would otherwise sit in cash-like yield, prefer a real STRC/SATA seat over pure cash proxies. Do not make the entire 40% credit-only; still diversify miners/infra and allow MSTR/BITA/ASST. Skip STRC/SATA only with a strong, logged Risk/Critic rebuttal (liquidity, structure, ticket-size, or thesis).",
+        "yield_vs_cash": "STRC/SATA yield > USDC/USDG cash yields (~2× owner estimate) → digital credit is the preferred idle-capital expression inside the agentic BTC complex when free capital is being deployed into the 40% sleeve; cash is unallocated, not a competing long-term sleeve.",
         "miner_diversification": "Multiple miners (MARA, IREN, CLSK, RIOT, WULF, …) is desired diversification within the miner sleeve. Reject 'miner overlap' as a default no. Only concentrate or skip miners when credit/MSTR underweight, liquidity fails, or true single-name/book concentration risk.",
-        "notes": "Post-pass owner feedback after Mon 2026-07-27 deploy. Apply on next review/deploy; strong team rebuttal must be logged if overriding."
+        "notes": "2026-07-27 elevated STRC/SATA; 2026-08-04 reframes as small bias within 40% + yield-vs-cash rationale (USDC/USDG). Apply on next review/deploy; strong team rebuttal must be logged if overriding."
       },
       "output_required": [
         "names_considered",
@@ -156,7 +158,7 @@
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, give digital credit (esp. STRC/SATA) a real seat — not MSTR-only by habit."
+    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) — not MSTR-only by habit, not 40% all-credit."
   },
   "sleeves": {
     "btc_digital_credit": {
@@ -179,9 +181,10 @@
       "sub_sleeves": {
         "digital_credit": {
           "priority": "elevated",
+          "bias": "small_within_btc_complex",
           "symbols": ["STRC", "SATA", "ASST", "BITA", "MSTR"],
           "preferred_core": ["STRC", "SATA"],
-          "notes": "Owner 2026-07-27: more emphasis on digital credit, especially STRC/SATA (and ASST/BITA as credit/yield expressions). Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Prefer a real STRC/SATA presence when deploying BTC-complex capital."
+          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA — BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2× owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit."
         },
         "miners_infra": {
           "priority": "diversify_within_sleeve",
@@ -189,7 +192,7 @@
           "notes": "Owner 2026-07-27: multi-miner diversification is intentional. Do NOT reject RIOT/CLSK/WULF/etc. merely for 'miner overlap' or 'already have MARA+IREN'. Diversify mining beta across names; only block on true concentration (e.g. miners crowding out digital credit / MSTR / whole-book limits), liquidity, or thesis failure."
         }
       },
-      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Elevates STRC/SATA within credit; treats multi-miner book as diversification, not redundancy."
+      "notes": "BTC complex = digital credit + miners/infra + optional spot/metals. Small bias toward STRC/SATA within credit (yield > cash; BTC-fundamental dividends); multi-miner book is diversification, not redundancy."
     },
     "stocks_growth": {
       "target_pct": 0.6,
@@ -255,7 +258,7 @@
       "TSLA",
       "SPCX"
     ],
-    "notes": "strict=false: core preferred for routine rebalance; ready watchlist names MUST be in the consider set every deploy (owner 2026-08-04). Strong theme bias. Within BTC complex, do not underweight STRC/SATA by habit; multi-miner holds are OK."
+    "notes": "strict=false: core preferred for routine rebalance; ready watchlist names MUST be in the consider set every deploy (owner 2026-08-04). Strong theme bias. Within BTC complex, small bias to STRC/SATA (yield > cash; do not underweight by habit); multi-miner holds are OK."
   },
   "guardrails": {
     "block_if_agentic_bp_zero": true,
