@@ -3034,8 +3034,7 @@
     const coach = data.coach || {};
     const today = coach.today || {};
     const adh = coach.adherence_7d || {};
-    const brief = coach.brief || {};
-    const weekly = coach.weekly_review || {};
+    // coach.brief / coach.weekly_review still on payload for Ask Grok — not rendered on Today
     const nutStore = data.nutrition_store || {};
 
     if ($("today-hub-date")) {
@@ -3279,28 +3278,6 @@
         ${pace ? `<br/><span style="font-size:0.8rem">${pace}</span>` : ""}
         ${delta ? `<br/><span style="font-size:0.8rem">${delta}</span>` : ""}
       `;
-    }
-    if ($("coach-brief")) {
-      const md = brief.markdown || "";
-      if (!md) {
-        $("coach-brief").innerHTML = "";
-      } else if (typeof marked !== "undefined" && marked.parse) {
-        $("coach-brief").innerHTML =
-          `<h3 class="today-subh">${brief.title || "Coach brief"}</h3><div class="ask-md">${marked.parse(md)}</div>`;
-      } else {
-        $("coach-brief").textContent = md;
-      }
-    }
-    if ($("weekly-review")) {
-      const bullets = weekly.bullets || [];
-      if (!bullets.length) {
-        $("weekly-review").innerHTML = "";
-      } else {
-        $("weekly-review").innerHTML = `
-          <h3 class="today-subh">Weekly review</h3>
-          <ul class="reasons">${bullets.map((b) => `<li>${b}</li>`).join("")}</ul>
-        `;
-      }
     }
   }
 

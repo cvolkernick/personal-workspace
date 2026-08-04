@@ -1289,16 +1289,6 @@ footer {
   color: var(--text);
 }
 
-.coach-brief,
-.weekly-review {
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
-}
-
-.coach-brief .ask-md {
-  font-size: 0.92rem;
-}
-
 /* Standalone food coach card (above inventory / meal plan) */
 #food-coach-section .food-coach {
   border-top: none;
