@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     CaloriesBurnedDay,
+    FoodLogEntry,
     HealthSnapshot,
     HydrationDay,
     NutritionDay,
@@ -101,6 +102,7 @@ def health_cache_is_fresh(
             health.weight
             or health.sleep
             or health.nutrition
+            or health.food_logs
             or health.hydration
             or health.calories_burned
         )
@@ -117,15 +119,21 @@ def health_cache_is_fresh(
 # --- Health -----------------------------------------------------------------
 
 def health_from_dict(data: dict) -> HealthSnapshot:
+    from .health_metrics_store import coerce_weight_to_lbs, normalize_weight_samples
+
     weights = [
         WeightSample(
             date=str(w.get("date") or ""),
-            weight_lbs=float(w.get("weight_lbs") or 0),
+            weight_lbs=coerce_weight_to_lbs(
+                float(w.get("weight_lbs") or 0),
+                source=str(w.get("source") or "cache"),
+            ),
             source=str(w.get("source") or "cache"),
         )
         for w in (data.get("weight") or [])
         if isinstance(w, dict) and w.get("date")
     ]
+    normalize_weight_samples(weights)
     sleep = [
         SleepSample(
             date=str(s.get("date") or ""),
@@ -136,6 +144,19 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         for s in (data.get("sleep") or [])
         if isinstance(s, dict) and s.get("date")
     ]
+    sleep_intervals: List[dict] = []
+    for iv in data.get("sleep_intervals") or []:
+        if not isinstance(iv, dict):
+            continue
+        st, en = iv.get("start"), iv.get("end")
+        if st and en:
+            sleep_intervals.append(
+                {
+                    "start": str(st),
+                    "end": str(en),
+                    "source": str(iv.get("source") or "cache"),
+                }
+            )
     nutrition = [
         NutritionDay(
             date=str(n.get("date") or ""),
@@ -147,6 +168,29 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         )
         for n in (data.get("nutrition") or [])
         if isinstance(n, dict) and n.get("date")
+    ]
+    food_logs = [
+        FoodLogEntry(
+            date=str(f.get("date") or ""),
+            name=str(f.get("name") or "Logged food"),
+            calories=f.get("calories"),
+            protein_g=f.get("protein_g"),
+            carbs_g=f.get("carbs_g"),
+            fat_g=f.get("fat_g"),
+            meal_type=f.get("meal_type"),
+            serving_label=f.get("serving_label"),
+            time=f.get("time"),
+            nutrients={
+                str(k): float(v)
+                for k, v in (f.get("nutrients") or {}).items()
+                if v is not None
+            }
+            if isinstance(f.get("nutrients"), dict)
+            else {},
+            source=str(f.get("source") or "cache"),
+        )
+        for f in (data.get("food_logs") or [])
+        if isinstance(f, dict) and f.get("date")
     ]
     hydration = [
         HydrationDay(
@@ -169,7 +213,9 @@ def health_from_dict(data: dict) -> HealthSnapshot:
     return HealthSnapshot(
         weight=weights,
         sleep=sleep,
+        sleep_intervals=sleep_intervals,
         nutrition=nutrition,
+        food_logs=food_logs,
         hydration=hydration,
         calories_burned=burned,
         error=data.get("error"),
@@ -243,15 +289,53 @@ def merge_health_snapshots(
     n = _merge_dated(base.nutrition, update.nutrition)
     h = _merge_dated(base.hydration, update.hydration)
     b = _merge_dated(base.calories_burned, update.calories_burned)
+    # Food logs: keep all unique entries (date+name+time+cals), prefer update window
+    fl_by: Dict[str, Any] = {}
+    for item in list(base.food_logs or []) + list(update.food_logs or []):
+        d = item.to_dict() if hasattr(item, "to_dict") else item
+        if not isinstance(d, dict):
+            continue
+        key = "|".join(
+            [
+                str(d.get("date") or ""),
+                str(d.get("time") or ""),
+                str(d.get("name") or ""),
+                str(d.get("calories") or ""),
+                str(d.get("protein_g") or ""),
+            ]
+        )
+        fl_by[key] = d
+    fl = [fl_by[k] for k in sorted(fl_by.keys())]
+    # Prefer newer intervals; fall back to base history
+    siv = list(update.sleep_intervals or []) or list(base.sleep_intervals or [])
+    # Latest pull's error wins. A successful update with data clears stale
+    # auth errors left on the cached base (e.g. old HTTP 400 after re-auth).
+    has_update = bool(
+        update.weight
+        or update.sleep
+        or update.nutrition
+        or update.food_logs
+        or update.hydration
+        or update.calories_burned
+        or update.sleep_intervals
+    )
+    if update.error:
+        err = update.error
+    elif has_update:
+        err = None
+    else:
+        err = base.error
     # Rebuild typed snapshot
     return health_from_dict(
         {
             "weight": w,
             "sleep": s,
+            "sleep_intervals": siv,
             "nutrition": n,
+            "food_logs": fl,
             "hydration": h,
             "calories_burned": b,
-            "error": update.error or base.error,
+            "error": err,
         }
     )
 
@@ -278,6 +362,7 @@ def save_health_cache(
             hdict.get("weight")
             or hdict.get("sleep")
             or hdict.get("nutrition")
+            or hdict.get("food_logs")
             or hdict.get("hydration")
             or hdict.get("calories_burned")
         )
@@ -294,7 +379,15 @@ def save_health_cache(
         if error:
             hdict["error"] = error
     else:
-        hdict = {"weight": [], "sleep": [], "nutrition": [], "hydration": [], "calories_burned": [], "error": error}
+        hdict = {
+            "weight": [],
+            "sleep": [],
+            "nutrition": [],
+            "food_logs": [],
+            "hydration": [],
+            "calories_burned": [],
+            "error": error,
+        }
 
     payload = {
         "fetched_at": now,
@@ -312,6 +405,7 @@ def save_health_cache(
             hdict.get("weight")
             or hdict.get("sleep")
             or hdict.get("nutrition")
+            or hdict.get("food_logs")
             or hdict.get("hydration")
             or hdict.get("calories_burned")
         ),

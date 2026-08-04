@@ -139,9 +139,10 @@ class TestRecovery(unittest.TestCase):
             )
         ]
         # volume = 5000 — not extreme
+        # Full 7 calendar nights (unlogged nights count as 0h)
         good_sleep = [
-            SleepSample(date="2026-05-25", sleep_hours=8.0),
-            SleepSample(date="2026-05-26", sleep_hours=8.2),
+            SleepSample(date=f"2026-05-{d:02d}", sleep_hours=8.0 + (d % 3) * 0.1)
+            for d in range(20, 27)
         ]
         good_weight = [
             WeightSample(date="2026-05-19", weight_lbs=200.0),
@@ -157,8 +158,8 @@ class TestRecovery(unittest.TestCase):
         self.assertGreaterEqual(ready.score, 75)
 
         bad_sleep = [
-            SleepSample(date="2026-05-25", sleep_hours=4.5),
-            SleepSample(date="2026-05-26", sleep_hours=5.0),
+            SleepSample(date=f"2026-05-{d:02d}", sleep_hours=4.5)
+            for d in range(20, 27)
         ]
         heavy = [
             Session(

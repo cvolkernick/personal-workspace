@@ -15,6 +15,7 @@
 Usage:
   python3 holistic/server.py
   python3 holistic/server.py --port 8770 --no-browser
+  python3 holistic/server.py --backend http://pi-host:8770
 """
 
 from __future__ import annotations
@@ -25,13 +26,14 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
 from holistic.time_allocator.domain import (  # noqa: E402
     add_item,
     add_log,
@@ -62,8 +64,12 @@ from holistic.time_allocator.store import (  # noqa: E402
 
 HOLISTIC_DIR = Path(__file__).resolve().parent
 DEFAULT_PORT = 8770
+DEFAULT_BACKEND_CONFIG = HOLISTIC_DIR / "backend.json"
 
 _DATA_PATH: Path | None = None
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+_FRONTEND: str = ""
 
 
 def _data() -> Path | None:
@@ -120,6 +126,14 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
             return {}
 
     def do_GET(self) -> None:  # noqa: N802
+        if try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="GET",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+        ):
+            return
         path = urlparse(self.path).path
         if path == "/api/health":
             self._json(
@@ -128,6 +142,8 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "service": "time-allocator",
                     "data": str(resolve_data_path(_data())),
+                    "proxy": False,
+                    "backend": None,
                 },
             )
             return
@@ -142,6 +158,14 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
+        if try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="POST",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+        ):
+            return
         path = urlparse(self.path).path
         body = self._read_json()
 
@@ -342,19 +366,29 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
-    global _DATA_PATH
+    global _DATA_PATH, _BACKEND_URL, _BACKEND_LABEL, _FRONTEND
     parser = argparse.ArgumentParser(description="Time allocator local dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--data", type=Path, default=None)
     parser.add_argument("--no-browser", action="store_true")
+    add_backend_args(parser)
     args = parser.parse_args(argv)
     _DATA_PATH = args.data.resolve() if args.data else None
+    _BACKEND_URL, _BACKEND_LABEL = resolve_backend(
+        local=bool(args.local),
+        backend=args.backend,
+        config_path=DEFAULT_BACKEND_CONFIG,
+    )
+    url = f"http://{args.host}:{args.port}/"
+    _FRONTEND = url
 
     server = ThreadingHTTPServer((args.host, args.port), TimeAllocatorHandler)
-    url = f"http://{args.host}:{args.port}/"
     print(f"Time allocator dashboard → {url}")
-    print(f"data → {resolve_data_path(_DATA_PATH)}")
+    if _BACKEND_URL:
+        print(f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]")
+    else:
+        print(f"data → {resolve_data_path(_DATA_PATH)}")
     if not args.no_browser:
         try:
             webbrowser.open(url)

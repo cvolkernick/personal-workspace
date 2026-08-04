@@ -3,21 +3,24 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from statistics import mean
 from typing import List, Optional, Sequence
 
 from .models import RecoveryStatus, Session, SleepSample, WeightSample
 from .analytics import recent_training_volume
+from .sleep_series import calendar_avg_sleep_hours
 
 
-def _avg_sleep_hours(sleep: Sequence[SleepSample], days: int = 7) -> Optional[float]:
-    if not sleep:
-        return None
-    # most recent `days` samples by date
-    ordered = sorted(sleep, key=lambda s: s.date, reverse=True)[:days]
-    if not ordered:
-        return None
-    return mean(s.sleep_hours for s in ordered)
+def _avg_sleep_hours(
+    sleep: Sequence[SleepSample],
+    days: int = 7,
+    as_of: Optional[str] = None,
+) -> Optional[float]:
+    """Mean sleep over the last ``days`` *calendar* days (unlogged = 0h)."""
+    if as_of is None:
+        from .timeutil import local_today_iso
+
+        as_of = local_today_iso()
+    return calendar_avg_sleep_hours(sleep, as_of=as_of, days=days)
 
 
 def _latest_weight(weight: Sequence[WeightSample]) -> Optional[float]:
@@ -66,7 +69,7 @@ def compute_recovery_status(
 
         as_of = local_today_iso()
 
-    avg_sleep = _avg_sleep_hours(sleep, days=7)
+    avg_sleep = _avg_sleep_hours(sleep, days=7, as_of=as_of)
     latest_w = _latest_weight(weight)
     w_delta = _weight_delta_7d(weight)
     vol_7d = recent_training_volume(sessions, as_of=as_of, window_days=7)
@@ -74,21 +77,32 @@ def compute_recovery_status(
     score = 70.0  # neutral baseline when sparse data
     reasons: List[str] = []
 
+    # Unlogged nights count as 0h (sleep debt) — always have a 7d calendar mean.
     if avg_sleep is None:
-        reasons.append("No recent sleep data — score starts from neutral baseline")
+        reasons.append("No sleep window available — score starts from neutral baseline")
     else:
+        from .sleep_series import expand_sleep_calendar
+
+        filled7 = expand_sleep_calendar(sleep, as_of=as_of, window_days=7)
+        zero_nights = sum(1 for s in filled7 if float(s.sleep_hours or 0) <= 0)
+
         if avg_sleep >= 8.0:
             score += 15
-            reasons.append(f"Strong sleep avg {avg_sleep:.1f}h (7d)")
+            reasons.append(f"Strong sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
         elif avg_sleep >= 7.0:
             score += 8
-            reasons.append(f"Adequate sleep avg {avg_sleep:.1f}h (7d)")
+            reasons.append(f"Adequate sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
         elif avg_sleep >= 6.0:
             score -= 10
-            reasons.append(f"Borderline sleep avg {avg_sleep:.1f}h (7d)")
+            reasons.append(f"Borderline sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
         else:
             score -= 25
-            reasons.append(f"Low sleep avg {avg_sleep:.1f}h (7d)")
+            reasons.append(f"Low sleep avg {avg_sleep:.1f}h (7 calendar days; unlogged=0)")
+        if zero_nights:
+            score -= min(15, zero_nights * 5)
+            reasons.append(
+                f"{zero_nights} night(s) with no sleep log counted as 0h (sleep debt)"
+            )
 
     if vol_7d >= high_volume_threshold * 1.25:
         score -= 18

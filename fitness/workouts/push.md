@@ -3,6 +3,11 @@
 ![Push Day Progress](../charts/push-chart.png)
 
 
+## July 12, 2026 - Session Complete
+- DB Flat Press: 35 lbs x 1 x 12, 40 lbs x 1 x 10, 45 lbs x 1 x 8
+- Triceps Pushdown: 42.5 lbs x 1 x 12, 42.5 lbs x 1 x 8, 40 lbs x 1 x 10 (PR!)
+- DB Shoulder Press: 30 lbs x 1 x 8, 30 lbs x 1 x 10, 25 lbs x 1 x 8
+- Lateral Raises: 12 lbs x 1 x 8, 10 lbs x 1 x 10, 10 lbs x 1 x 8
 ## May 26, 2026 - Session Complete
 - DB Flat Press: 50 lbs x 1 x 12, 45 lbs x 1 x 12, 40 lbs x 1 x 12
 - Tricep Pushdowns: 47.5 lbs x 3 x 12 (PR!)

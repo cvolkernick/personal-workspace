@@ -4,9 +4,11 @@ Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/hea
 
 Surfaces:
 
+- **Recommended next actions** (primary) — automated merge of hygiene, high/medium synergies, and priorities
 - Multi-domain status (file-based; optional live port probe)
-- Cross-domain **overlaps, connections, relationships, synergies**
-- Coordinated **action plan / priorities** synthesized from `strategy/today.md`, initiatives, backlog, and treasury actions
+- Cross-domain **synergies** (high preferred; medium fallback when none are high)
+- Supporting streams: attention, raw priorities, day bridge
+- **Source freshness** ages for treasury snapshot and ops backlog
 - Deep-links / launch commands for every subordinate dashboard
 
 ## Launch (recommended)
@@ -23,9 +25,13 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 
 - UI: http://127.0.0.1:8790/
 - Full payload: http://127.0.0.1:8790/api/orchestra
+- Recommended actions: http://127.0.0.1:8790/api/recommendations
+- Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health
 
 Add `?probe=1` to probe child server ports for live badges.
+
+See `REVIEW.md` for architecture review and prioritized roadmap.
 
 ## Subordinate dashboards
 

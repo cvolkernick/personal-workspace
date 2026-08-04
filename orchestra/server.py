@@ -2,15 +2,18 @@
 """Local server for the Orchestra top-level command center.
 
   GET  /api/health
-  GET  /api/orchestra   — full orchestration payload (domains, synergies, priorities)
+  GET  /api/orchestra   — full payload (recommendations primary; domains, synergies, …)
   GET  /api/domains
   GET  /api/synergies
   GET  /api/priorities
+  GET  /api/attention   — attention digest + freshness
+  GET  /api/recommendations — automated recommended next actions (primary)
   GET  /                — unified UI
 
 Usage:
   python3 orchestra/server.py
   python3 orchestra/server.py --port 8790 --no-browser
+  python3 orchestra/server.py --backend http://pi-host:8790
   python3 launch.py
 """
 
@@ -22,6 +25,7 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Optional
 from urllib.parse import parse_qs, urlparse
 
 ORCHESTRA_DIR = Path(__file__).resolve().parent
@@ -32,6 +36,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
+from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
+
+DEFAULT_BACKEND_CONFIG = ORCHESTRA_DIR / "backend.json"
+_BACKEND_URL: Optional[str] = None
+_BACKEND_LABEL: str = ""
+_FRONTEND: str = ""
 
 
 class OrchestraHandler(SimpleHTTPRequestHandler):
@@ -52,6 +62,14 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        if try_proxy_api(
+            self,
+            _BACKEND_URL,
+            method="GET",
+            backend_label=_BACKEND_LABEL,
+            frontend=_FRONTEND,
+        ):
+            return
         parsed = urlparse(self.path)
         path = parsed.path
         qs = parse_qs(parsed.query)
@@ -64,6 +82,8 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "ok": True,
                     "service": "orchestra",
                     "workspace": str(WORKSPACE_ROOT),
+                    "proxy": False,
+                    "backend": None,
                 },
             )
             return
@@ -133,21 +153,79 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             )
             return
 
+        if path == "/api/attention":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "attention": payload.get("attention") or [],
+                    "freshness": payload.get("freshness") or {},
+                    "counts": {
+                        "attention": (payload.get("counts") or {}).get("attention"),
+                        "stale_sources": (payload.get("counts") or {}).get(
+                            "stale_sources"
+                        ),
+                    },
+                },
+            )
+            return
+
+        if path in ("/api/recommendations", "/api/actions", "/api/next"):
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            rec = payload.get("recommendations") or {}
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "recommendations": rec,
+                    "recommended_actions": payload.get("recommended_actions") or [],
+                    "summary": rec.get("summary"),
+                    "mode": rec.get("mode"),
+                    "focus": rec.get("focus") or [],
+                },
+            )
+            return
+
         if path in ("/", "/index.html", "/orchestra", "/orchestra/"):
             self.path = "/index.html"
         return super().do_GET()
 
 
 def main(argv: list[str] | None = None) -> int:
+    global _BACKEND_URL, _BACKEND_LABEL, _FRONTEND
     parser = argparse.ArgumentParser(description="Orchestra top-level dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--no-browser", action="store_true")
+    add_backend_args(parser)
     args = parser.parse_args(argv)
+
+    _BACKEND_URL, _BACKEND_LABEL = resolve_backend(
+        local=bool(args.local),
+        backend=args.backend,
+        config_path=DEFAULT_BACKEND_CONFIG,
+    )
+    _FRONTEND = f"http://{args.host}:{args.port}/"
 
     server = ThreadingHTTPServer((args.host, args.port), OrchestraHandler)
     url = f"http://{args.host}:{args.port}/"
+    _FRONTEND = url
     print(f"Orchestra Command Center: {url}")
+    if _BACKEND_URL:
+        print(f"backend  → {_BACKEND_URL} ({_BACKEND_LABEL or 'remote'}) [proxy mode]")
     print(f"API: {url}api/orchestra")
     print("Press Ctrl+C to stop.")
     if not args.no_browser:
