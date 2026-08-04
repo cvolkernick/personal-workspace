@@ -3034,8 +3034,7 @@
     const coach = data.coach || {};
     const today = coach.today || {};
     const adh = coach.adherence_7d || {};
-    const brief = coach.brief || {};
-    const weekly = coach.weekly_review || {};
+    // coach.brief / coach.weekly_review still on payload for Ask Grok — not rendered on Today
     const nutStore = data.nutrition_store || {};
 
     if ($("today-hub-date")) {
@@ -3213,6 +3212,7 @@
       }
     }
 
+    // Lead only — full exercise list lives in #workout-plan-result (single source)
     if ($("today-workout")) {
       const w =
         today.workout ||
@@ -3232,41 +3232,21 @@
       const why = w.motivation
         ? `<p class="muted" style="font-size:0.8rem;margin:0.25rem 0 0.4rem">${w.motivation}</p>`
         : "";
-      if (w.is_rest_day || today.recommendation === "rest") {
+      const rec = today.recommendation || w.recommendation || "train";
+      if (w.is_rest_day || rec === "rest") {
         $("today-workout").innerHTML = `
           ${why}
           <p><strong>Rest day</strong> — ${w.message || "Recovery below threshold."}</p>
           ${focusLine}
         `;
       } else {
-        const ex = w.exercises || [];
-        const lines = ex
-          .map((e) => {
-            const rx = e.prescription || e;
-            const wt =
-              rx.weight_lbs != null && rx.weight_lbs !== ""
-                ? `${rx.weight_lbs} lb`
-                : "load TBD";
-            const muscles = (e.primary_muscles || []).join(", ");
-            return `<li><strong>${e.name}</strong> — ${wt} × ${rx.sets || "?"} × ${
-              rx.reps || "?"
-            }${muscles ? ` · ${muscles}` : ""}${
-              e.rationale
-                ? `<div class="muted" style="font-size:0.78rem">${e.rationale}</div>`
-                : ""
-            }</li>`;
-          })
-          .join("");
         $("today-workout").innerHTML = `
           ${why}
-          <p><strong>${(w.session_type || "session").toUpperCase()}</strong>
-            · ${ex.length} lifts
-            · mode: ${today.recommendation || w.recommendation || "train"}</p>
+          <p class="muted" style="margin:0;font-size:0.85rem">
+            Mode: <strong>${rec}</strong>
+            · prescription below · use <em>Plan controls</em> to refresh or force session
+          </p>
           ${focusLine}
-          <ul style="margin:0.35rem 0 0;padding-left:1.1rem">${
-            lines || "<li class='muted'>No exercises</li>"
-          }</ul>
-          <p class="muted" style="font-size:0.85rem;margin-top:0.4rem">${w.message || ""}</p>
         `;
       }
     }
@@ -3298,28 +3278,6 @@
         ${pace ? `<br/><span style="font-size:0.8rem">${pace}</span>` : ""}
         ${delta ? `<br/><span style="font-size:0.8rem">${delta}</span>` : ""}
       `;
-    }
-    if ($("coach-brief")) {
-      const md = brief.markdown || "";
-      if (!md) {
-        $("coach-brief").innerHTML = "";
-      } else if (typeof marked !== "undefined" && marked.parse) {
-        $("coach-brief").innerHTML =
-          `<h3 class="today-subh">${brief.title || "Coach brief"}</h3><div class="ask-md">${marked.parse(md)}</div>`;
-      } else {
-        $("coach-brief").textContent = md;
-      }
-    }
-    if ($("weekly-review")) {
-      const bullets = weekly.bullets || [];
-      if (!bullets.length) {
-        $("weekly-review").innerHTML = "";
-      } else {
-        $("weekly-review").innerHTML = `
-          <h3 class="today-subh">Weekly review</h3>
-          <ul class="reasons">${bullets.map((b) => `<li>${b}</li>`).join("")}</ul>
-        `;
-      }
     }
   }
 
@@ -4084,9 +4042,13 @@
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
-        // Plan card lives on Today tab (with Save goals / Push·Pull·Legs)
+        // Plan controls live inside Today hub → Training
         goMobileTab("today");
-        const el = $("workout-plan-card") || $("workout-plan-section");
+        setTodayPill("lift");
+        const el =
+          $("today-plan-controls") ||
+          $("workout-plan-result") ||
+          $("today-hub");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
