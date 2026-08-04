@@ -88,6 +88,13 @@ rsync "${RSYNC_ARGS[@]}" \
 # Pi must not ship Mac's backend.json (would proxy to itself)
 # secrets.json is excluded so rsync --delete never wipes VeSync credentials
 
+# server.py imports monorepo-root remote_backend (proxy helpers). Ship it next to
+# PYTHONPATH=$REMOTE_DIR so --local Pi deploys start without the full monorepo.
+if [[ -f "$ROOT/remote_backend.py" ]]; then
+  echo "→ Ship remote_backend.py for server import…"
+  rsync -az "$ROOT/remote_backend.py" "$REMOTE:$REMOTE_DIR/remote_backend.py"
+fi
+
 echo "→ Create venv + install deps (PEP 668-safe)…"
 ssh "$REMOTE" "python3 -m venv '$REMOTE_DIR/.venv' && \
   '$REMOTE_DIR/.venv/bin/pip' install -q --upgrade pip && \
