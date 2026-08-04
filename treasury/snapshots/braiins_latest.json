@@ -1,40 +1,40 @@
 {
   "ok": true,
-  "as_of": "2026-08-04T10:50:28.315158+00:00",
+  "as_of": "2026-08-04T14:50:50.082647+00:00",
   "source": "braiins_pool_api",
   "coin": "btc",
   "username": "cvolkernick",
   "hash_rate_unit": "Gh/s",
   "hash_rate_5m": 390311.967705443,
-  "hash_rate_60m": 392813.9674984266,
-  "hash_rate_24h": 380447.31227164826,
+  "hash_rate_60m": 365917.4697238528,
+  "hash_rate_24h": 379281.01549314806,
   "hash_rate_yesterday": 378388.3749420055,
   "ok_workers": 2,
   "low_workers": 0,
   "off_workers": 0,
   "dis_workers": 0,
   "current_balance_btc": 0.00208444,
-  "today_reward_btc": 8.363e-05,
-  "estimated_reward_btc": 0.00018628,
+  "today_reward_btc": 0.00011426,
+  "estimated_reward_btc": 0.00018565,
   "all_time_reward_btc": 0.01723974,
   "workers": [
     {
       "name": "cvolkernick.s211",
       "state": "ok",
       "hash_rate_5m": 217673.981989574,
-      "hash_rate_60m": 206414.98292114772,
-      "hash_rate_24h": 190269.2655070504,
+      "hash_rate_60m": 186398.98457727887,
+      "hash_rate_24h": 189989.0936552319,
       "hash_rate_unit": "Gh/s",
-      "last_share": 1785840278
+      "last_share": 1785854685
     },
     {
       "name": "cvolkernick.s212",
       "state": "ok",
       "hash_rate_5m": 172637.985715869,
-      "hash_rate_60m": 186398.98457727887,
-      "hash_rate_24h": 190178.04676459785,
+      "hash_rate_60m": 179518.48514657395,
+      "hash_rate_24h": 189291.92183791616,
       "hash_rate_unit": "Gh/s",
-      "last_share": 1785840290
+      "last_share": 1785854689
     }
   ],
   "worker_count": 2,
