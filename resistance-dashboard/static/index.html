@@ -10,10 +10,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=today-ia-1" />
+    <link rel="stylesheet" href="/styles.css?v=trends-order-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=today-ia-1" defer></script>
+    <script src="/app.js?v=trends-order-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -238,20 +238,6 @@
         </div>
         <div id="coach-brief" class="coach-brief" style="margin-top: 1rem"></div>
         <div id="weekly-review" class="weekly-review" style="margin-top: 1rem"></div>
-      </section>
-
-      <section class="grid two" style="margin-top: 1rem" id="charts-volume-strength" data-m-panel="trends">
-        <article class="card">
-          <h2>Monthly volume (daily)</h2>
-          <div class="chart-box"><canvas id="chart-volume" aria-label="Monthly volume chart — daily bars"></canvas></div>
-          <p class="muted" id="volume-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
-        </article>
-        <article class="card">
-          <h2>Strength trend</h2>
-          <div class="tabs" id="exercise-tabs"></div>
-          <div class="chart-box"><canvas id="chart-strength" aria-label="Strength chart"></canvas></div>
-          <p class="muted" id="strength-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
-        </article>
       </section>
 
       <!-- Recovery detail + sleep chart: multi-day / deep status → Trends.
@@ -578,6 +564,21 @@
           </div>
           <p class="muted" id="log-status" style="margin: 0"></p>
         </form>
+      </section>
+
+      <!-- Lift charts sit above history (after body composition / hydration) -->
+      <section class="grid two" style="margin-top: 1rem" id="charts-volume-strength" data-m-panel="trends">
+        <article class="card">
+          <h2>Monthly volume (daily)</h2>
+          <div class="chart-box"><canvas id="chart-volume" aria-label="Monthly volume chart — daily bars"></canvas></div>
+          <p class="muted" id="volume-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
+        <article class="card">
+          <h2>Strength trend</h2>
+          <div class="tabs" id="exercise-tabs"></div>
+          <div class="chart-box"><canvas id="chart-strength" aria-label="Strength chart"></canvas></div>
+          <p class="muted" id="strength-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
+        </article>
       </section>
 
       <section class="card" style="margin-top: 1rem" id="history-card" data-m-panel="trends">
