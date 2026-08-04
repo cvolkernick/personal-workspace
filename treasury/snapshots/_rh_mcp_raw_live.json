@@ -60,8 +60,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "179.86856741",
-      "equity_value": "179.77856741",
+      "total_value": "180.7881559944",
+      "equity_value": "180.6981559944",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -185,6 +185,5 @@
   },
   "primary_account": "5QW39737",
   "agentic_account": "674601752",
-  "session_id": "3M3YWWA446SMXRQFEQ767WMYSA",
-  "fetched_at": "2026-08-04T06:04:25.644291+00:00"
+  "fetched_at": "2026-08-04T12:10:09Z"
 }
