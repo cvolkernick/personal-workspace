@@ -2578,15 +2578,9 @@ footer {
 }
 
 /* —— Shared shell (all viewports when body.m-shell) —— */
-body.m-shell {
-  padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
-}
+/* Bottom dock padding only on phone — see max-width:720 media query */
 
-body.m-shell .wrap {
-  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
-}
-
-/* Sticky macro strip */
+/* Sticky macro strip (under top tabs on web; under header on phone) */
 body.m-shell .macro-strip {
   display: flex;
   align-items: center;
@@ -2689,20 +2683,17 @@ body.m-shell #today-hub-grid .today-panel.today-panel-active {
   display: block;
 }
 
-/* Bottom tab bar (all viewports) */
+/*
+ * Tab bar (FCC placement model):
+ * - Phone / narrow (≤720): fixed BOTTOM dock
+ * - Web / wide (≥721): sticky TOP strip under the header
+ */
+.mobile-tabbar {
+  display: none;
+}
+
 body.m-shell .mobile-tabbar {
   display: flex;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
-  gap: 0.15rem;
-  padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
-  background: rgba(15, 20, 25, 0.96);
-  border-top: 1px solid var(--border);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
 }
 
 body.m-shell .mobile-tabbar[hidden] {
@@ -2712,23 +2703,19 @@ body.m-shell .mobile-tabbar[hidden] {
 body.m-shell .mobile-tabbar .tab-btn {
   flex: 1 1 0;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   gap: 0.1rem;
-  min-height: 48px;
-  padding: 0.35rem 0.2rem;
   border: none;
   background: transparent;
   color: var(--muted);
   border-radius: 12px;
-  font-size: 0.68rem;
   font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
 }
 
 body.m-shell .mobile-tabbar .tab-btn .tab-ico {
-  font-size: 1.05rem;
   line-height: 1;
 }
 
@@ -2746,14 +2733,16 @@ body.m-shell .mobile-tabbar .tab-btn-primary.active {
   background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
 }
 
-body.m-shell,
-body.m-shell .wrap {
+/* overflow-x on body only — not on .wrap — so fixed bottom tabs (phone)
+   stay viewport-relative (same lesson as FCC sticky-top vs tabbar). */
+body.m-shell {
   overflow-x: hidden;
   max-width: 100vw;
 }
 
 body.m-shell .wrap {
   width: 100%;
+  max-width: 100vw;
   box-sizing: border-box;
 }
 
@@ -2771,12 +2760,17 @@ body.m-shell #alerts {
   z-index: 35;
 }
 
-/* —— Desktop shell polish (≥721px) —— */
+/* —— Desktop / web: FCC-style TOP tabs (≥721px) —— */
 @media (min-width: 721px) {
+  body.m-shell {
+    padding-bottom: 0;
+  }
+
   body.m-shell .wrap {
     max-width: 1100px;
     margin-left: auto;
     margin-right: auto;
+    padding-bottom: 2rem;
   }
 
   /* Keep header Refresh / Sign out on desktop */
@@ -2796,32 +2790,58 @@ body.m-shell #alerts {
     display: none !important;
   }
 
-  /* Wider tabs, slightly larger labels */
+  /* Sticky top strip — same idea as FCC web tabs */
   body.m-shell .mobile-tabbar {
-    left: 50%;
-    right: auto;
-    transform: translateX(-50%);
-    width: min(720px, 100%);
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    gap: 0.35rem;
+    width: 100%;
     max-width: 100%;
-    border-radius: 16px 16px 0 0;
-    border-left: 1px solid var(--border);
-    border-right: 1px solid var(--border);
-    box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.35);
+    margin: 0 0 0.65rem;
+    padding: 0.4rem 0.35rem 0.5rem;
+    background: rgba(15, 20, 25, 0.94);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transform: none;
   }
 
   body.m-shell .mobile-tabbar .tab-btn {
-    min-height: 52px;
-    font-size: 0.75rem;
-    gap: 0.15rem;
+    flex-direction: row;
+    gap: 0.4rem;
+    min-height: 2.4rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    border: 1px solid transparent;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn.active {
+    border-color: rgba(61, 156, 240, 0.45);
+    background: rgba(61, 156, 240, 0.14);
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn-primary.active {
+    border-color: transparent;
   }
 
   body.m-shell .mobile-tabbar .tab-btn .tab-ico {
-    font-size: 1.15rem;
+    font-size: 0.95rem;
   }
 
+  /* Macro strip sticks just under the top tab strip */
   body.m-shell .macro-strip {
+    top: 3.1rem;
+    z-index: 40;
     font-size: 0.88rem;
     padding: 0.5rem 0.85rem;
+  }
+
+  body.m-shell #alerts {
+    top: 6.2rem;
   }
 
   /* Two-column grids stay two-col on desktop tabs */
@@ -2837,7 +2857,7 @@ body.m-shell #alerts {
   }
 }
 
-/* —— Phone density (≤720px) —— */
+/* —— Phone density (≤720px): FCC-style BOTTOM tabs —— */
 @media (max-width: 720px) {
   :root {
     font-size: 16px;
@@ -2847,8 +2867,55 @@ body.m-shell #alerts {
     padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
   }
 
+  body.m-shell {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
   body.m-shell .wrap {
     padding: 0.75rem 0.75rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Fixed bottom dock — must not sit under a backdrop-filter ancestor */
+  body.m-shell .mobile-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 50;
+    gap: 0.15rem;
+    margin: 0;
+    max-width: none;
+    width: auto;
+    transform: none;
+    padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(15, 20, 25, 0.96);
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn {
+    flex-direction: column;
+    min-height: 48px;
+    padding: 0.35rem 0.15rem;
+    font-size: 0.65rem;
+    border: none;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+    font-size: 1.05rem;
+  }
+
+  body.m-shell .macro-strip {
+    top: 0;
+  }
+
+  body.m-shell #alerts {
+    top: 2.6rem;
   }
 
   .header-sub {
@@ -3025,8 +3092,12 @@ body.m-shell #alerts {
     flex-direction: column;
   }
 
-  .mobile-admin-actions button {
+  .mobile-admin-actions button,
+  .mobile-admin-actions a.btn {
     width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    text-decoration: none;
   }
 
   footer.app-footer {

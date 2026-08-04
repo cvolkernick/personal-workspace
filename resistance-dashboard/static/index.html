@@ -10,10 +10,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=desktop-tabs-1" />
+    <link rel="stylesheet" href="/styles.css?v=tabs-fcc-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=desktop-tabs-1" defer></script>
+    <script src="/app.js?v=tabs-fcc-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -79,6 +79,36 @@
           <a class="btn" id="btn-logout" href="/api/auth/logout">Sign out</a>
         </div>
       </header>
+
+      <!--
+        Tab bar (Today / Log / Trends / Kitchen / More).
+        Same placement model as FCC:
+        - web (≥721px): sticky TOP strip
+        - phone (≤720px): fixed BOTTOM dock
+        Kept outside the sticky macro-strip so backdrop-filter does not break fixed.
+      -->
+      <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
+        <button type="button" class="tab-btn active" data-m-tab="today" aria-current="page">
+          <span class="tab-ico" aria-hidden="true">◎</span>
+          <span class="tab-lbl">Today</span>
+        </button>
+        <button type="button" class="tab-btn tab-btn-primary" data-m-tab="log">
+          <span class="tab-ico" aria-hidden="true">＋</span>
+          <span class="tab-lbl">Log</span>
+        </button>
+        <button type="button" class="tab-btn" data-m-tab="trends">
+          <span class="tab-ico" aria-hidden="true">↗</span>
+          <span class="tab-lbl">Trends</span>
+        </button>
+        <button type="button" class="tab-btn" data-m-tab="kitchen">
+          <span class="tab-ico" aria-hidden="true">🍽</span>
+          <span class="tab-lbl">Kitchen</span>
+        </button>
+        <button type="button" class="tab-btn" data-m-tab="more">
+          <span class="tab-ico" aria-hidden="true">···</span>
+          <span class="tab-lbl">More</span>
+        </button>
+      </nav>
 
       <!-- Sticky macro strip (filled by app.js) — tab shell, all viewports -->
       <div id="macro-strip" class="macro-strip" aria-live="polite" hidden>
@@ -555,6 +585,7 @@
         <div class="actions mobile-admin-actions">
           <button type="button" id="btn-refresh-mobile" class="btn-touch">Refresh remotes</button>
           <button type="button" id="btn-google-auth-mobile" class="btn-touch">Refresh Google auth</button>
+          <a class="btn btn-touch" id="btn-logout-mobile" href="/api/auth/logout">Sign out</a>
         </div>
         <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.8rem" id="mobile-meta-line"></p>
       </section>
@@ -565,29 +596,5 @@
         <span id="meta-line"></span>
       </footer>
     </div>
-
-    <!-- Bottom tab bar: Today / Log / Trends / Kitchen / More (web + phone) -->
-    <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections" hidden>
-      <button type="button" class="tab-btn active" data-m-tab="today" aria-current="page">
-        <span class="tab-ico" aria-hidden="true">◎</span>
-        <span class="tab-lbl">Today</span>
-      </button>
-      <button type="button" class="tab-btn tab-btn-primary" data-m-tab="log">
-        <span class="tab-ico" aria-hidden="true">＋</span>
-        <span class="tab-lbl">Log</span>
-      </button>
-      <button type="button" class="tab-btn" data-m-tab="trends">
-        <span class="tab-ico" aria-hidden="true">↗</span>
-        <span class="tab-lbl">Trends</span>
-      </button>
-      <button type="button" class="tab-btn" data-m-tab="kitchen">
-        <span class="tab-ico" aria-hidden="true">🍽</span>
-        <span class="tab-lbl">Kitchen</span>
-      </button>
-      <button type="button" class="tab-btn" data-m-tab="more">
-        <span class="tab-ico" aria-hidden="true">···</span>
-        <span class="tab-lbl">More</span>
-      </button>
-    </nav>
   </body>
 </html>
