@@ -201,7 +201,9 @@ async def execute_control(
     groups: Optional[dict] = None,
     transport: Optional[LightTransport] = None,
 ) -> dict[str, Any]:
-    """Build intent and run network control via transport."""
+    """Build intent and run network control via transport (Wiz) or plug adapters."""
+    from iot.plugs import control_plug_device, is_plug_type
+
     reg = registry if registry is not None else load_bulbs()
     gmap = groups if groups is not None else load_groups()
     intent = build_control_intent(
@@ -216,14 +218,23 @@ async def execute_control(
         ip = dev.get("ip")
         mac = dev.get("mac")
         name = dev.get("name")
-        if not ip:
-            results.append({"ok": False, "name": name, "error": "missing ip"})
-            continue
+        dtype = str(dev.get("type") or "wiz").lower()
         try:
+            if is_plug_type(dtype):
+                r = await control_plug_device(dev, action=intent["action"])
+                r = dict(r)
+                r.setdefault("name", name)
+                results.append(r)
+                continue
+            if not ip:
+                results.append({"ok": False, "name": name, "error": "missing ip"})
+                continue
             if intent["action"] == "off":
                 r = await t.turn_off(ip, mac)
             else:
-                r = await t.turn_on(ip, mac, intent["rgb"], intent["brightness"] or DEFAULT_BRIGHTNESS)
+                r = await t.turn_on(
+                    ip, mac, intent["rgb"], intent["brightness"] or DEFAULT_BRIGHTNESS
+                )
             r = dict(r)
             r.setdefault("name", name)
             results.append(r)
@@ -241,18 +252,43 @@ async def fetch_device_statuses(
     timeout_each: float = 4.0,
 ) -> list[dict[str, Any]]:
     """List configured devices with live status when possible."""
+    from iot.plugs import is_plug_type, status_plug_device
+
     reg = registry if registry is not None else load_bulbs()
     devices = list_configured_devices(reg)
     t = transport or get_default_transport()
 
     async def one(dev: dict[str, Any]) -> dict[str, Any]:
         out = dict(dev)
+        dtype = str(dev.get("type") or "wiz").lower()
+        if is_plug_type(dtype):
+            try:
+                to = 12.0 if dtype == "vesync" else timeout_each
+                info = dict(reg.get(dev.get("id") or dev.get("name") or "", {}) or {})
+                info.setdefault("name", dev.get("id") or dev.get("name"))
+                info.setdefault("type", dtype)
+                if dev.get("ip"):
+                    info.setdefault("ip", dev.get("ip"))
+                for k in ("device_name", "cid", "mac", "label"):
+                    if dev.get(k) is not None:
+                        info.setdefault(k, dev.get(k))
+                st = await asyncio.wait_for(status_plug_device(info), timeout=to)
+                out["status"] = st
+            except Exception as e:  # noqa: BLE001
+                out["status"] = {
+                    "ok": False,
+                    "ip": dev.get("ip"),
+                    "error": f"{type(e).__name__}: {e}",
+                }
+            return out
         ip = dev.get("ip")
         if not ip:
             out["status"] = {"ok": False, "error": "missing ip"}
             return out
         try:
-            st = await asyncio.wait_for(t.get_state(ip, dev.get("mac")), timeout=timeout_each)
+            st = await asyncio.wait_for(
+                t.get_state(ip, dev.get("mac")), timeout=timeout_each
+            )
             out["status"] = st
         except Exception as e:  # noqa: BLE001
             out["status"] = {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}
@@ -292,6 +328,49 @@ async def discover_and_merge(
     }
 
 
-def run_async(coro):
-    """Run coroutine from sync code (CLI / HTTP handlers)."""
-    return asyncio.run(coro)
+# Persistent loop for HTTP handlers — pyvesync/aiohttp break if asyncio.run()
+# creates a new loop every request while sessions are still referenced.
+_BG_LOOP: Optional[asyncio.AbstractEventLoop] = None
+_BG_THREAD = None  # type: ignore
+_BG_LOCK = None  # type: ignore
+
+
+def _ensure_bg_loop() -> asyncio.AbstractEventLoop:
+    """Start (once) a background event loop used by run_async."""
+    global _BG_LOOP, _BG_THREAD, _BG_LOCK
+    import threading
+
+    if _BG_LOCK is None:
+        _BG_LOCK = threading.Lock()
+    with _BG_LOCK:
+        if _BG_LOOP is not None and _BG_LOOP.is_running():
+            return _BG_LOOP
+        loop = asyncio.new_event_loop()
+
+        def _runner() -> None:
+            asyncio.set_event_loop(loop)
+            loop.run_forever()
+
+        t = threading.Thread(target=_runner, name="iot-asyncio", daemon=True)
+        t.start()
+        _BG_LOOP = loop
+        _BG_THREAD = t
+        return loop
+
+
+def run_async(coro, timeout: float = 120.0):
+    """Run coroutine from sync code (CLI / HTTP handlers).
+
+    Uses a process-wide background loop so cloud clients (VeSync) keep a
+    stable event loop across requests.
+    """
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is not None:
+        # Already inside async — caller should await; fallback blocks badly.
+        raise RuntimeError("run_async called from within a running event loop")
+    loop = _ensure_bg_loop()
+    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+    return fut.result(timeout=timeout)

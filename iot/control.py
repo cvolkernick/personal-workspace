@@ -10,7 +10,8 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Mapping, MutableMapping, Optional, Sequence
 
-# Color presets (name → RGB or off)
+# Color presets (name → RGB or off).
+# "keep" / "brightness" = change brightness only (no RGB channel write).
 COLORS: dict[str, Optional[tuple[int, int, int]]] = {
     "white": (255, 255, 255),
     "red": (255, 0, 0),
@@ -23,7 +24,12 @@ COLORS: dict[str, Optional[tuple[int, int, int]]] = {
     "purple": (128, 0, 255),
     "warm": (255, 180, 100),
     "off": None,
+    "keep": None,  # on + brightness only; not a real RGB (see build_control_intent)
+    "brightness": None,
 }
+
+# Color keys that mean "on, brightness only — leave bulb color unchanged".
+BRIGHTNESS_ONLY_COLORS = frozenset({"keep", "brightness", "brightness_only"})
 
 DEFAULT_BRIGHTNESS = 200
 DEFAULT_PORT = 38899
@@ -130,8 +136,14 @@ def list_color_presets() -> list[str]:
 
 
 def resolve_rgb(color: str) -> Optional[tuple[int, int, int]]:
-    """Map a color name to RGB, or None for off. Unknown names → white."""
+    """Map a color name to RGB, or None for off / brightness-only.
+
+    Unknown names → white. ``keep`` / ``brightness`` return None (caller must
+    treat those as on + brightness-only, not off).
+    """
     key = (color or "").strip().lower()
+    if key in BRIGHTNESS_ONLY_COLORS:
+        return None
     if key not in COLORS:
         return COLORS["white"]
     return COLORS[key]
@@ -210,8 +222,10 @@ def build_control_intent(
     gmap = dict(groups) if groups is not None else load_groups()
     name = (target or "").strip()
     color_key = (color or "").strip().lower() or "white"
+    brightness_only = color_key in BRIGHTNESS_ONLY_COLORS
     action = "off" if color_key == "off" else "on"
-    rgb = resolve_rgb(color_key)
+    # brightness-only: rgb stays None but action is still on (Wiz PilotBuilder brightness only)
+    rgb = None if (brightness_only or color_key == "off") else resolve_rgb(color_key)
     bright = max(1, min(255, int(brightness)))
 
     member_names = expand_target_members(name, registry=reg, groups=gmap)
@@ -241,6 +255,7 @@ def build_control_intent(
         "action": action,
         "rgb": list(rgb) if rgb is not None else None,
         "brightness": bright if action == "on" else None,
+        "brightness_only": brightness_only,
         "targets": targets,
         "ok": bool(targets),
         "error": None if targets else f"unknown device: {name}",

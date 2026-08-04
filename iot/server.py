@@ -58,12 +58,18 @@ from iot.schedule import (  # noqa: E402
     DEFAULT_SCHEDULE_PATH,
     DEFAULT_STATE_PATH,
     load_schedule,
+    load_state,
     location_from_schedule,
     resolve_timezone,
     run_due,
     run_routine_now,
     save_schedule,
     schedule_status,
+)
+from iot.sleep_follow import (  # noqa: E402
+    DEFAULT_FOLLOW_STATE_KEY,
+    follow_config,
+    tick_sleep_follow,
 )
 from iot.wiz_adapter import (  # noqa: E402
     discover_and_merge,
@@ -145,6 +151,20 @@ def _scheduler_loop(stop: threading.Event) -> None:
                     rid = (r.get("routine") or {}).get("id")
                     ok = (r.get("control") or {}).get("ok")
                     sys.stderr.write(f"[iot] routine fired {rid} ok={ok}\n")
+                try:
+                    sf = tick_sleep_follow(
+                        control=_control_sync,
+                        schedule_path=_sched_path(),
+                        state_path=_state_path(),
+                    )
+                    if not sf.get("skipped"):
+                        sys.stderr.write(
+                            f"[iot] sleep_follow ok={sf.get('ok')} "
+                            f"pct={sf.get('pct_charged')} "
+                            f"err={sf.get('error')}\n"
+                        )
+                except Exception as e:  # noqa: BLE001
+                    sys.stderr.write(f"[iot] sleep_follow error: {e}\n")
         except Exception as e:  # noqa: BLE001
             sys.stderr.write(f"[iot] schedule error: {e}\n")
         stop.wait(SCHEDULE_POLL_SECONDS)
@@ -258,6 +278,22 @@ class IoTHandler(SimpleHTTPRequestHandler):
                     schedule_status(
                         load_schedule(_sched_path()),
                     ),
+                )
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/sleep-follow":
+            try:
+                sched = load_schedule(_sched_path())
+                st = load_state(_state_path())
+                self._json(
+                    200,
+                    {
+                        "ok": True,
+                        "config": follow_config(sched),
+                        "state": st.get(DEFAULT_FOLLOW_STATE_KEY) or {},
+                    },
                 )
             except Exception as e:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(e)})
@@ -462,6 +498,17 @@ class IoTHandler(SimpleHTTPRequestHandler):
                     200,
                     {"ok": True, "fired": len(results), "results": results},
                 )
+                return
+
+            if path == "/api/sleep-follow/tick":
+                force = bool(body.get("force", False))
+                result = tick_sleep_follow(
+                    control=_control_sync,
+                    schedule_path=_sched_path(),
+                    state_path=_state_path(),
+                    force=force,
+                )
+                self._json(200 if result.get("ok") or result.get("skipped") else 502, result)
                 return
 
             if path == "/api/schedule/run":

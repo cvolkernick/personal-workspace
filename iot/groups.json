@@ -14,5 +14,30 @@
   "masterbathroom": {
     "label": "Master Bathroom",
     "members": ["masterbathroom1"]
+  },
+  "office": {
+    "label": "Office",
+    "members": ["officelights"]
+  },
+  "plantlights": {
+    "label": "Plant lights",
+    "members": ["plantlight", "smallplantlight"]
+  },
+  "plugs": {
+    "label": "Plugs",
+    "members": ["plantlight", "smallplantlight", "officelights"]
+  },
+  "lights": {
+    "label": "All lights",
+    "members": [
+      "entryway1",
+      "entryway2",
+      "entryway3",
+      "entryway4",
+      "livingroom1",
+      "livingroom2",
+      "masterbathroom1",
+      "masterbedroom1"
+    ]
   }
 }
