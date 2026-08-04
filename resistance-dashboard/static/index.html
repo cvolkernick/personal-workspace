@@ -10,10 +10,10 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="apple-touch-icon" href="/icon-192.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=tabs-fcc-1" />
+    <link rel="stylesheet" href="/styles.css?v=today-ia-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=tabs-fcc-1" defer></script>
+    <script src="/app.js?v=today-ia-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -164,7 +164,7 @@
           </div>
           <div class="actions actions-row-single today-hub-actions">
             <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
-            <button type="button" id="btn-scroll-workout-plan">Edit workout</button>
+            <button type="button" id="btn-scroll-workout-plan">Plan controls</button>
             <button type="button" id="btn-scroll-meal-plan">Meal plan card</button>
           </div>
         </div>
@@ -193,8 +193,47 @@
             <div id="today-macros" class="muted" style="margin-top: 0.65rem; font-size: 0.88rem"></div>
           </div>
           <div class="today-panel today-panel-wide" data-today-panel="lift">
-            <h3 class="today-subh">Training</h3>
+            <h3 class="today-subh">Training · today’s plan</h3>
+            <!-- Lead: recommendation / rest / focus (no second exercise list) -->
             <div id="today-workout" style="font-size: 0.92rem"></div>
+            <!-- Full prescription + volume balance (single source of truth) -->
+            <div id="workout-plan-result" class="today-plan-result" style="margin-top: 0.5rem"></div>
+            <!-- Plan controls live here (was orphaned bottom card) -->
+            <div class="today-plan-controls" id="today-plan-controls">
+              <h4 class="today-plan-controls-title">Plan controls</h4>
+              <p class="muted desktop-help" style="margin: 0 0 0.5rem; font-size: 0.82rem">
+                ≈4–8 hard sets / major muscle / week (compound overlap). Catalog edits live under
+                <strong>More</strong>.
+              </p>
+              <form class="log-form" id="workout-goals-form">
+                <div class="row cols-3">
+                  <label>
+                    Split
+                    <select id="wg-split">
+                      <option value="ppl">Push / Pull / Legs</option>
+                    </select>
+                  </label>
+                  <label>
+                    Exercises / session
+                    <input type="number" id="wg-count" min="3" max="8" value="5" />
+                  </label>
+                  <label>
+                    Rest if recovery &lt;
+                    <input type="number" id="wg-rest" min="0" max="100" value="40" />
+                  </label>
+                </div>
+                <div class="actions actions-row-single" id="workout-goals-actions">
+                  <button type="submit">Save goals</button>
+                  <button type="button" class="primary" id="btn-generate-workout">
+                    Refresh plan
+                  </button>
+                  <button type="button" id="btn-force-session-push">Push</button>
+                  <button type="button" id="btn-force-session-pull">Pull</button>
+                  <button type="button" id="btn-force-session-legs">Legs</button>
+                </div>
+                <p class="muted" id="workout-goals-status" style="margin: 0"></p>
+              </form>
+            </div>
           </div>
         </div>
         <div id="coach-brief" class="coach-brief" style="margin-top: 1rem"></div>
@@ -215,7 +254,9 @@
         </article>
       </section>
 
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row" data-m-panel="today">
+      <!-- Recovery detail + sleep chart: multi-day / deep status → Trends.
+           Today keeps the recovery chip inside full-day guide (targets panel). -->
+      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row" data-m-panel="trends">
         <article class="card card-fill" id="recovery-card">
           <h2>Recovery status</h2>
           <div id="recovery-badge"></div>
@@ -253,7 +294,8 @@
         <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
       </section>
 
-      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" data-m-panel="today" aria-label="Nutrition summary">
+      <!-- Macro tiles: detail for Trends (sticky strip + hub targets cover Today) -->
+      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" data-m-panel="trends" aria-label="Nutrition summary">
         <div class="card stat macro-stat macro-cals">
           <div class="label">Calories</div>
           <div class="macro-split" id="stat-calories" aria-live="polite">
@@ -450,14 +492,18 @@
         </article>
       </section>
 
-      <!-- Plan controls live on Today (gym-day decisions); catalog under More -->
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="workout-plan-section" data-m-panel="today">
-        <article class="card card-fill" id="exercise-catalog-card" data-m-panel-item="more">
+      <!-- Exercise catalog: admin library under More only (plan controls live in Today hub) -->
+      <section class="card" style="margin-top: 1rem" id="exercise-catalog-section" data-m-panel="more">
+        <article class="card-fill" id="exercise-catalog-card">
           <h2>Exercise catalog</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Library in <code>fitness/exercises/catalog.json</code> — muscles,
             session type (push/pull/legs), equipment. Toggle availability to
-            control what the planner can pick.
+            control what the planner can pick. Today’s prescription lives on
+            the <strong>Today</strong> tab (Training).
+          </p>
+          <p class="muted mobile-help" hidden>
+            Enable/disable lifts the planner can pick. Today’s workout is on the Today tab.
           </p>
           <form class="log-form" id="exercise-form">
             <div class="row cols-3">
@@ -495,46 +541,6 @@
             <p class="muted" id="excat-status" style="margin: 0"></p>
           </form>
           <ul class="session-list exercise-catalog-scroll" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
-        </article>
-
-        <article class="card card-fill" id="workout-plan-card">
-          <h2>Today’s workout plan</h2>
-          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Catalog + PPL rotation + last loads + recovery, guided by a
-            <strong>≈4–8 hard sets / major muscle / week</strong> volume model
-            (compound overlap counts; not 10–20+). Focus muscles are
-            <strong>auto-picked</strong> from weekly volume gaps (coach logic on
-            each plan). Goals in <code>fitness/exercises/goals.json</code>.
-          </p>
-          <form class="log-form" id="workout-goals-form">
-            <div class="row cols-3">
-              <label>
-                Split
-                <select id="wg-split">
-                  <option value="ppl">Push / Pull / Legs</option>
-                </select>
-              </label>
-              <label>
-                Exercises / session
-                <input type="number" id="wg-count" min="3" max="8" value="5" />
-              </label>
-              <label>
-                Rest if recovery &lt;
-                <input type="number" id="wg-rest" min="0" max="100" value="40" />
-              </label>
-            </div>
-            <div class="actions actions-row-single" id="workout-goals-actions">
-              <button type="submit">Save goals</button>
-              <button type="button" class="primary" id="btn-generate-workout">
-                Refresh plan
-              </button>
-              <button type="button" id="btn-force-session-push">Push</button>
-              <button type="button" id="btn-force-session-pull">Pull</button>
-              <button type="button" id="btn-force-session-legs">Legs</button>
-            </div>
-            <p class="muted" id="workout-goals-status" style="margin: 0"></p>
-          </form>
-          <div id="workout-plan-result" style="margin-top: 0.75rem"></div>
         </article>
       </section>
 
