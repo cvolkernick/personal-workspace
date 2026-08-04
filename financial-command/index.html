@@ -1124,6 +1124,141 @@
     .status-tile.yellow .val { color: var(--yellow); }
     .status-tile.green { border-color: #1e4a32; }
     .status-tile.green .val { color: var(--green); }
+    .status-tile .micro-dots {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .status-tile .micro-dots span {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid var(--border);
+    }
+    .status-tile .micro-dots span.green { background: var(--green); border-color: #245c42; }
+    .status-tile .micro-dots span.yellow { background: var(--yellow); border-color: #6b5a1e; }
+    .status-tile .micro-dots span.red { background: var(--red); border-color: #6b2e2e; }
+    .status-tile .micro-dots span.muted { background: #2a3540; }
+
+    /* SNR hero strip */
+    .glance-hero {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      background: var(--panel);
+    }
+    .glance-hero.red { border-color: #5a2a2a; background: linear-gradient(135deg, #1a1010 0%, var(--panel) 70%); }
+    .glance-hero.yellow { border-color: #5a4a1a; }
+    .glance-hero.green { border-color: #1e4a32; }
+    .glance-hero .hero-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.4rem 0.75rem;
+      margin-bottom: 0.45rem;
+    }
+    .glance-hero .hero-state {
+      font-size: 1.15rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .glance-hero.red .hero-state { color: var(--red); }
+    .glance-hero.yellow .hero-state { color: var(--yellow); }
+    .glance-hero.green .hero-state { color: var(--green); }
+    .glance-hero .hero-why {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .glance-hero .hero-cta {
+      font-size: 0.95rem;
+      font-weight: 650;
+      margin: 0.15rem 0 0.45rem;
+    }
+    .glance-hero .hero-bars { display: grid; gap: 0.35rem; }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr auto;
+      gap: 0.4rem;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .bar-track {
+      height: 0.45rem;
+      border-radius: 99px;
+      background: #1a2836;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .bar-fill.bad { background: var(--red); }
+    .bar-fill.warn { background: var(--orange); }
+    .bar-fill.ok { background: var(--green); }
+    .bar-amt { font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; color: var(--text); }
+
+    /* Compact feeds: dots; expand labels */
+    .feeds-compact.feeds-dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.5rem;
+      align-items: center;
+      font-size: 0.75rem;
+    }
+    .feeds-compact .feed-dot {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .feeds-compact .feed-dot.ok { background: var(--green); border-color: #245c42; }
+    .feeds-compact .feed-dot.warn { background: var(--yellow); border-color: #6b5a1e; }
+    .feeds-compact .feed-dot.bad { background: var(--red); border-color: #6b2e2e; }
+    .feeds-compact .feed-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .feeds-compact .feed-chip.ok { color: var(--green); }
+    .feeds-compact .feed-chip.warn { color: var(--yellow); }
+    .feeds-compact .feed-chip.bad { color: var(--red); }
+    .feeds-compact .feed-meta { color: var(--muted); font-size: 0.72rem; }
+    .feeds-compact .host-badge {
+      font-size: 0.68rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      background: rgba(91, 159, 212, 0.1);
+    }
+    .action.cash-stack .stack-bars { margin-top: 0.45rem; display: grid; gap: 0.3rem; }
+    .action .do, .action .why { font-size: 0.8rem; }
+    .action.compact .why { display: none; }
+    .action.compact .do { color: var(--muted); }
+    details.advisor-fold > summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 650;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 0.35rem 0;
+    }
+    details.advisor-fold > summary::-webkit-details-marker { display: none; }
     .feeds span[title] { cursor: help; border-bottom: 1px dotted #3a4a5a; }
     .card-head {
       display: flex;
@@ -1674,10 +1809,11 @@
   <main>
     <div id="load-error" data-m-panel="glance" class="error hidden"></div>
 
+    <div id="glance-hero" class="glance-hero" data-m-panel="glance" hidden></div>
+
     <div class="status-split" id="status-split" data-m-panel="glance"></div>
 
     <section id="at-a-glance" data-m-panel="glance" aria-label="At a glance">
-      <h2 style="margin:0 0 0.3rem;font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
     <section class="card" id="actions-card" data-m-panel="glance">
@@ -1730,30 +1866,31 @@
 
 
 
-    <section class="advisor" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
-      <div class="advisor-head">
-        <h2>
-          Ask Grok
-          <span class="sub">Financial advisor · grounded in this dashboard</span>
-        </h2>
-        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth">auth…</span>
+    <details class="panel advisor-fold" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
+      <summary>
+        Ask Grok
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
+      </summary>
+      <div class="body">
+        <div class="advisor">
+          <div class="advisor-row">
+            <textarea
+              id="advisor-question"
+              rows="2"
+              placeholder="e.g. What should I pay first with cash I actually have?"
+              maxlength="4000"
+            ></textarea>
+            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+          </div>
+          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+          <div class="advisor-error" id="advisor-error"></div>
+          <div class="advisor-answer" id="advisor-answer">
+            <div class="meta" id="advisor-answer-meta"></div>
+            <div class="body" id="advisor-answer-body"></div>
+          </div>
+        </div>
       </div>
-      <div class="advisor-row">
-        <textarea
-          id="advisor-question"
-          rows="2"
-          placeholder="e.g. What should I pay first with cash I actually have?"
-          maxlength="4000"
-        ></textarea>
-        <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
-      </div>
-      <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
-      <div class="advisor-error" id="advisor-error"></div>
-      <div class="advisor-answer" id="advisor-answer">
-        <div class="meta" id="advisor-answer-meta"></div>
-        <div class="body" id="advisor-answer-body"></div>
-      </div>
-    </section>
+    </details>
 
     <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
       <div class="card-head">
@@ -1782,8 +1919,10 @@
           <div id="fm-holdings"></div>
         </div>
       </div>
-      <div class="hint" style="margin-top:0.55rem">Decision log</div>
-      <div id="fund-manager-decisions"></div>
+      <details style="margin-top:0.55rem">
+        <summary class="hint" style="cursor:pointer">Decision log</summary>
+        <div id="fund-manager-decisions" style="margin-top:0.35rem"></div>
+      </details>
     </section>
 
     <details class="panel" id="braiins-card" data-m-panel="mining" open>
@@ -2309,18 +2448,77 @@
       return "Background";
     }
 
+    function barRowHtml(label, pct, amtLabel, fillClass) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0));
+      return (
+        `<div class="bar-row"><span>${escapeHtml(label)}</span>` +
+        `<div class="bar-track"><div class="bar-fill ${fillClass || ""}" style="width:${p}%"></div></div>` +
+        `<span class="bar-amt">${escapeHtml(amtLabel || "")}</span></div>`
+      );
+    }
+
+    function renderCashStackBars(meta) {
+      if (!meta || typeof meta !== "object") return "";
+      const bal = Number(meta.card_balance) || 0;
+      const dep = Number(meta.card_deposit) || 0;
+      const work = Number(meta.working_usdc) || 0;
+      const floors = Number(meta.floors_required) || 0;
+      const util = dep > 0 ? (bal / dep) * 100 : 0;
+      const fill = floors > 0 ? (work / floors) * 100 : 0;
+      const utilCls = util >= 90 ? "bad" : util >= 70 ? "warn" : "ok";
+      const fillCls = fill < 40 ? "bad" : fill < 80 ? "warn" : "ok";
+      let html = `<div class="stack-bars">`;
+      if (dep > 0) {
+        html += barRowHtml(
+          "Card",
+          util,
+          `${money(bal)} / ${money(dep)}`,
+          utilCls
+        );
+      }
+      if (floors > 0) {
+        html += barRowHtml(
+          "USDC",
+          fill,
+          `${money(work)} / ${money(floors)}`,
+          fillCls
+        );
+      }
+      if (meta.vault_pull > 0) {
+        html += `<div class="hint" style="margin:0.15rem 0 0">Vault pull ≤ ${money(
+          meta.vault_pull
+        )} (app)</div>`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
     function renderAction(a, stress) {
       const sev = actionSeverity(a, stress);
-      return `<div class="action sev-${sev}">
-        <div class="top">
-          <span class="tag p">P${a.priority}</span>
-          <span class="tag ${actorClass(a.actor)}">${actorLabel(a.actor)}</span>
-          <span class="tag ${a.api_reachable ? "auto" : "app"}">${a.api_reachable ? "Auto" : "App only"}</span>
-        </div>
-        <div class="title">${a.title}</div>
-        <div class="why">${a.detail || ""}</div>
-        <div class="do">${actionDoHint(a)}</div>
-      </div>`;
+      const isStack = a.kind === "cash_stack";
+      const compact = !isStack;
+      let body = "";
+      if (isStack) {
+        body = renderCashStackBars(a.meta || {});
+      }
+      return (
+        `<div class="action sev-${sev}${isStack ? " cash-stack" : ""}${
+          compact ? " compact" : ""
+        }">` +
+        `<div class="top">` +
+        `<span class="tag p">P${a.priority}</span>` +
+        `<span class="tag ${actorClass(a.actor)}">${actorLabel(a.actor)}</span>` +
+        `<span class="tag ${a.api_reachable ? "auto" : "app"}">${
+          a.api_reachable ? "Auto" : "App"
+        }</span>` +
+        `</div>` +
+        `<div class="title">${escapeHtml(a.title || "")}</div>` +
+        body +
+        (compact
+          ? `<div class="do">${escapeHtml(actionDoHint(a))}</div>`
+          : `<div class="do">${escapeHtml(actionDoHint(a))}</div>`) +
+        `</div>`
+      );
     }
 
     function setActionsCarouselIndex(i, n) {
@@ -2461,6 +2659,52 @@
       </div>`;
     }
 
+    function renderGlanceHero(overall, sortedActions, stress, snap, inp, ev) {
+      const el = document.getElementById("glance-hero");
+      if (!el) return;
+      const primary =
+        (sortedActions || []).find((a) => a.kind === "cash_stack") ||
+        (sortedActions || [])[0];
+      if (!primary && overall === "green") {
+        el.hidden = true;
+        el.innerHTML = "";
+        return;
+      }
+      el.hidden = false;
+      el.className = "glance-hero " + (overall || "yellow");
+      const meta = (primary && primary.meta) || {};
+      const whyBits = [];
+      if (stress.coinbase_card === "red" || stress.coinbase_card === "yellow")
+        whyBits.push("card");
+      if (stress.coinbase_liquid === "red" || stress.coinbase_liquid === "yellow")
+        whyBits.push("USDC");
+      if (stress.coinbase_ltv === "red" || stress.coinbase_ltv === "yellow")
+        whyBits.push("LTV");
+      const why =
+        whyBits.length > 0
+          ? whyBits.join(" · ")
+          : primary
+            ? (primary.title || "").slice(0, 72)
+            : "check feeds";
+      const bars =
+        primary && primary.kind === "cash_stack"
+          ? `<div class="hero-bars">${renderCashStackBars(meta)}</div>`
+          : "";
+      el.innerHTML =
+        `<div class="hero-top"><span class="hero-state">${escapeHtml(
+          (overall || "?").toUpperCase()
+        )}</span>` +
+        `<span class="hero-why">${escapeHtml(why)}</span></div>` +
+        (primary
+          ? `<div class="hero-cta"><span class="tag ${actorClass(
+              primary.actor
+            )}">${actorLabel(primary.actor)}</span> ${escapeHtml(
+              primary.title || ""
+            )}</div>`
+          : "") +
+        bars;
+    }
+
     function render(data) {
       const ev = data.evaluation || {};
       const snap = data.snapshot || {};
@@ -2506,61 +2750,81 @@
           fmHealthLabel = "Paused (live:false)";
         }
       }
+      const microDot = (cls, tip) =>
+        `<span class="${cls || "muted"}" title="${escapeHtml(tip || "")}"></span>`;
       document.getElementById("status-split").innerHTML = [
-        `<div class="status-tile ${overall}"><div class="lab">Liquidity / ops stress</div>` +
+        `<div class="status-tile ${overall}"><div class="lab">Ops</div>` +
           `<div class="val">${overall.toUpperCase()}</div>` +
-          `<div class="hint" style="margin:0.25rem 0 0">Buffers · LTV · bills · One Card</div></div>`,
-        `<div class="status-tile ${fmHealth}"><div class="lab">Fund manager book</div>` +
+          `<div class="micro-dots">` +
+          microDot(stress.coinbase_ltv || "muted", "LTV " + (stress.coinbase_ltv || "?")) +
+          microDot(stress.coinbase_liquid || "muted", "USDC " + (stress.coinbase_liquid || "?")) +
+          microDot(stress.coinbase_card || "muted", "Card " + (stress.coinbase_card || "?")) +
+          `</div></div>`,
+        `<div class="status-tile ${fmHealth}"><div class="lab">Agentic</div>` +
           `<div class="val">${escapeHtml(fmHealthLabel)}</div>` +
-          `<div class="hint" style="margin:0.25rem 0 0">Agentic NAV ${money(
+          `<div class="hint" style="margin:0.25rem 0 0;font-size:0.72rem">NAV ${money(
             fmaEarly.nav_usd
-          )} · separate capital</div></div>`,
+          )}</div></div>`,
       ].join("");
 
-      // Feeds line (hover for age)
-      const meta = snap.meta || {};
+      // Feeds: compact dots (expand bad labels)
       const src = (ev.data_quality && ev.data_quality.sources) || {};
       const brFeed = data.braiins || {};
-      // staleH: hours until yellow. RH trade is agent MCP only (not FCC Refresh).
       const feeds = [
         ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of, 6],
-        ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of, 6],
-        ["RH check", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of, 6],
-        ["X Money", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of, 6],
+        ["Card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of, 6],
+        ["RH✓", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of, 6],
+        ["X$", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of, 6],
         ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of, 12],
-        ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of, 6],
+        ["RH", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of, 6],
         [
-          "Braiins",
+          "⛏",
           brFeed.ok ? brFeed.source || "live" : brFeed.status || "empty",
           brFeed.as_of,
           12,
         ],
       ];
-      const ages = feeds.map(([, , asOf]) => ageLabel(asOf)).filter(Boolean);
-      const newest = ages[0] || "—";
+      const feedItems = feeds.map(([label, s, asOf, staleH]) => {
+        const cls = feedClass(s, asOf, staleH || 6);
+        const age = ageLabel(asOf);
+        const tip = asOf
+          ? `${label}: ${s || "—"} · ${age || "?"}`
+          : `${label}: no as_of`;
+        return { label, cls, tip, age, bad: cls !== "ok" };
+      });
+      const badFeeds = feedItems.filter((x) => x.bad);
+      const hostBadge =
+        window.__fccHostMode === "offline_consumer"
+          ? `<span class="host-badge" title="Pi / phone: last Mac push">Pi · push</span>`
+          : "";
       document.getElementById("feeds-line").innerHTML =
-        `<span>Refreshed ${ageLabel(snap.as_of) || newest}</span>` +
-        feeds
-          .map(([label, s, asOf, staleH]) => {
-            const cls = feedClass(s, asOf, staleH || 6);
-            const mark = cls === "ok" ? "✓" : cls === "warn" ? "⚠" : "✗";
-            const age = ageLabel(asOf);
-            let tip = asOf
-              ? `${label}: source=${s || "—"} · ${age || "age ?"} · warn if >${staleH || 6}h`
-              : `${label}: no as_of`;
-            if (label === "RH trade") {
-              tip +=
-                " · Refresh: pull from Pi schedule first, else local Robinhood MCP";
-            }
-            if (label === "Braiins") {
-              tip += " · refreshed via braiins_sync on full Refresh";
-            }
-            return `<span class="${cls}" title="${escapeHtml(tip)}">${label} ${mark}</span>`;
-          })
-          .join("");
+        `<span class="feed-meta">${ageLabel(snap.as_of) || "—"}</span>` +
+        hostBadge +
+        feedItems
+          .map(
+            (x) =>
+              `<span class="feed-dot ${x.cls}" title="${escapeHtml(x.tip)}"></span>`
+          )
+          .join("") +
+        (badFeeds.length
+          ? badFeeds
+              .map(
+                (x) =>
+                  `<span class="feed-chip ${x.cls}" title="${escapeHtml(x.tip)}">${escapeHtml(
+                    x.label
+                  )} ${x.age || ""}</span>`
+              )
+              .join("")
+          : `<span class="feed-meta">feeds ok</span>`);
+      document.getElementById("feeds-line").classList.add("feeds-dots");
 
-      // Actions: single-slide carousel (pager + dots) to save vertical space
-      const sorted = [...actions].sort((a, b) => a.priority - b.priority);
+      // Actions: single-slide carousel; cash_stack first
+      const sorted = [...actions].sort((a, b) => {
+        if (a.kind === "cash_stack" && b.kind !== "cash_stack") return -1;
+        if (b.kind === "cash_stack" && a.kind !== "cash_stack") return 1;
+        return a.priority - b.priority;
+      });
+      renderGlanceHero(overall, sorted, stress, snap, inp, ev);
       renderActionsCarousel(sorted, stress);
 
       // KPIs — 10 chips in a 5-col grid (2 even rows); tone = attention shading
@@ -2589,7 +2853,7 @@
       const ltvVal = inp.ltv == null || inp.ltv === "" ? null : f(inp.ltv);
       const ltvMax = f(pol.cb_target_ltv_max) || 0.5;
       const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
-      const bpFloor = f(pol.rh_bp_floor) || 25;
+      const bpFloor = f(pol.rh_bp_floor); // MO: may be 0
 
       const toneWord = {
         red: "Critical",
@@ -2853,24 +3117,35 @@
       function rhBpTone() {
         if (!Number.isFinite(rhBp))
           return toneResult("muted", "Buying power not loaded.");
+        // MO: floor 0 — any BP deployable; dust is min-trade HOLD, not a red floor miss
+        if (bpFloor <= 0) {
+          if (rhBp < 1)
+            return toneResult(
+              "yellow",
+              `RH BP ${money(rhBp)} is dust — below typical min trade.`
+            );
+          if (rhBp < 25)
+            return toneResult("yellow", `RH BP ${money(rhBp)} is small.`);
+          return toneResult("green", `RH BP ${money(rhBp)} deployable (no floor).`);
+        }
         if (rhBp < bpFloor)
           return toneResult(
             "red",
-            `RH BP ${money(rhBp)} is under floor ${money(bpFloor)} — agentic deploy blocked.`
+            `RH BP ${money(rhBp)} under floor ${money(bpFloor)}.`
           );
         if (rhBp < bpFloor * 3)
           return toneResult(
             "orange",
-            `RH BP ${money(rhBp)} is low (floor ${money(bpFloor)}).`
+            `RH BP ${money(rhBp)} low vs floor ${money(bpFloor)}.`
           );
         if (rhBp < bpFloor * 8)
           return toneResult(
             "yellow",
-            `RH BP ${money(rhBp)} is moderate vs floor ${money(bpFloor)}.`
+            `RH BP ${money(rhBp)} moderate vs floor ${money(bpFloor)}.`
           );
         return toneResult(
           "green",
-          `RH BP ${money(rhBp)} is healthy vs floor ${money(bpFloor)}.`
+          `RH BP ${money(rhBp)} healthy vs floor ${money(bpFloor)}.`
         );
       }
 
@@ -2891,135 +3166,59 @@
       const tAsic = asicHashTone();
       const tPay = nextPayTone();
 
+      // Glance: primary 5 only (SNR). Secondary cash/mining live on other tabs.
+      const cardUtilPct =
+        cardDeposit > 0 && Number.isFinite(cardOwed)
+          ? Math.round((cardOwed / cardDeposit) * 100) + "%"
+          : money(cardOwed);
       const kpis = [
         {
-          k: "USDC working",
+          k: "USDC",
           v: money(workingUsdc),
           s:
-            "spot " +
-            money(inp.liquid_usdc) +
-            " + vault " +
-            (inp.vault_known === false || inp.vault_usdc == null ? "?" : money(inp.vault_usdc)),
+            inp.vault_known === false || inp.vault_usdc == null
+              ? "spot+vault?"
+              : "w/ vault",
           target: "cash-credit",
           tone: tWorking.tone,
           why: tWorking.why,
         },
         {
-          k: "One Card owed",
-          v: money(cardOwed),
-          s: oc.account_name ? "YNAB" : "—",
+          k: "Card",
+          v: cardUtilPct,
+          s: money(cardOwed) + " owed",
           target: "cash-credit",
           tone: tCard.tone,
           why: tCard.why,
         },
         {
-          k: "RH Checking",
-          v: money(rhCheck),
-          s: "bill-pay float",
-          target: "cash-credit",
-          tone: tRhCheck.tone,
-          why: tRhCheck.why,
-        },
-        {
-          k: "X Money",
-          v: money(xMoney),
-          s: (() => {
-            const name = (inp.x_money_account || xm.account_name || "YNAB")
-              .toString()
-              .slice(0, 18);
-            const apy = inp.x_money_apy_est ?? xm.apy_est;
-            return apy != null
-              ? `${name} · ~${(Number(apy) * 100).toFixed(0)}% APY`
-              : name;
-          })(),
-          target: "cash-credit",
-          tone: tXMoney.tone,
-          why: tXMoney.why,
-        },
-        {
-          k: "Agentic NAV",
-          v: money(agentNav),
-          s: (() => {
-            if (wDepK.btc_digital_credit == null) return "fund manager";
-            return (
-              Math.round(wDepK.btc_digital_credit * 100) +
-              "/" +
-              Math.round((wDepK.stocks_growth || 0) * 100) +
-              " deploy"
-            );
-          })(),
-          target: "fund-manager-card",
-          tone: tAgent.tone,
-          why: tAgent.why,
-        },
-        {
-          k: "RH BP",
-          v: money(rhBp),
-          s: "primary brokerage",
-          target: "panel-brokerage",
-          tone: tBp.tone,
-          why: tBp.why,
-        },
-        {
-          k: "Bills / mo est.",
-          v: money(billsMo),
-          s: "sheet Personal",
-          target: "bills-coach-card",
-          tone: tBills.tone,
-          why: tBills.why,
-        },
-        {
           k: "LTV",
           v: pct(ltvVal),
-          s: stress.coinbase_ltv || (ltvVal == null ? "set in Settings" : "Morpho"),
+          s: stress.coinbase_ltv || "Morpho",
           target: "panel-settings",
           tone: tLtv.tone,
           why: tLtv.why,
         },
         {
-          k: "ASICs 24h",
-          v: br.ok ? formatHashrate(br.hash_rate_24h, br.hash_rate_unit) : "—",
-          s: (() => {
-            if (!br.ok) return br.error ? "sync needed" : "Braiins";
-            const ok = br.ok_workers != null ? br.ok_workers : "?";
-            const off = br.off_workers || 0;
-            return `${ok} ok` + (off ? ` · ${off} off` : "") + " · Braiins";
-          })(),
-          target: "braiins-card",
-          tone: tAsic.tone,
-          why: tAsic.why,
+          k: "NAV",
+          v: money(agentNav),
+          s:
+            wDepK.btc_digital_credit == null
+              ? "agentic"
+              : Math.round(wDepK.btc_digital_credit * 100) +
+                "/" +
+                Math.round((wDepK.stocks_growth || 0) * 100),
+          target: "fund-manager-card",
+          tone: tAgent.tone,
+          why: tAgent.why,
         },
         {
-          k: "Next ASIC pay",
-          v: (() => {
-            if (!br.ok) return "—";
-            if (br.days_to_next_payout_est != null) {
-              return "~" + Number(br.days_to_next_payout_est).toFixed(0) + "d";
-            }
-            return "—";
-          })(),
-          s: (() => {
-            if (!br.ok) return "Braiins";
-            const bits = [];
-            if (br.next_payout_progress_pct != null) {
-              bits.push(Number(br.next_payout_progress_pct).toFixed(0) + "% thr");
-            }
-            if (br.next_payout_est_at) {
-              const t = Date.parse(br.next_payout_est_at);
-              if (Number.isFinite(t)) {
-                bits.push(
-                  new Date(t).toLocaleDateString(undefined, {
-                    month: "short",
-                    day: "numeric",
-                  })
-                );
-              }
-            }
-            return bits.join(" · ") || "est. threshold";
-          })(),
-          target: "braiins-card",
-          tone: tPay.tone,
-          why: tPay.why,
+          k: "BP",
+          v: money(rhBp),
+          s: bpFloor > 0 ? "floor " + money(bpFloor) : "no floor",
+          target: "panel-brokerage",
+          tone: tBp.tone,
+          why: tBp.why,
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
@@ -4073,6 +4272,7 @@
         let msg = bits.length
           ? "Refreshed: " + bits.join(" · ")
           : "Treasury re-evaluated (see feed ages)";
+        window.__fccHostMode = r.mode || window.__fccHostMode;
         if (r.mode === "offline_consumer") {
           msg =
             "Offline (phone/Pi): reloaded last Mac-pushed snapshots" +

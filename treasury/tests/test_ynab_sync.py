@@ -202,7 +202,7 @@ class TestPolicyUsesOneCard(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["bill_pay_cash"], 2.43)
         self.assertNotIn("card_balance", ev["data_quality"]["missing_manual_fields"])
         kinds = [a["kind"] for a in ev["actions"]]
-        self.assertIn("card_paydown", kinds)
+        self.assertIn("cash_stack", kinds)
 
 
 if __name__ == "__main__":

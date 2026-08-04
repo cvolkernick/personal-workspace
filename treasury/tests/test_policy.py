@@ -183,14 +183,19 @@ class TestEvaluateTreasury(unittest.TestCase):
         }
         ev = evaluate_treasury(snap)
         kinds = [a["kind"] for a in ev["actions"]]
-        self.assertIn("card_float", kinds)
-        self.assertIn("dca_pause", kinds)
-        self.assertIn("vault_pull", kinds)
+        # SNR: one cash_stack hero (not card_float + vault_pull + card_paydown)
+        self.assertIn("cash_stack", kinds)
+        self.assertNotIn("card_float", kinds)
+        self.assertNotIn("vault_pull", kinds)
+        # MO: rh_bp_floor=0 → dust BP is deployable, not DCA pause
+        self.assertNotIn("dca_pause", kinds)
+        self.assertTrue(ev["dca"]["allow_dca"])
+        stack = [a for a in ev["actions"] if a["kind"] == "cash_stack"][0]
+        self.assertEqual(stack["actor"], "human")
+        self.assertIn("meta", stack)
+        self.assertGreater(stack["meta"]["shortfall"], 0)
         self.assertEqual(ev["buckets"]["status"], "red")
         self.assertAlmostEqual(ev["inputs"]["working_usdc"], 150.0)
-        dca = [a for a in ev["actions"] if a["kind"] == "dca_pause"][0]
-        self.assertTrue(dca["api_reachable"])
-        self.assertEqual(dca["actor"], "agent")
         self.assertIn("data_quality", ev)
         self.assertIn("agent_brief", ev)
         self.assertTrue(ev["agent_brief"])
@@ -241,16 +246,28 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertTrue(ev["dca"]["allow_dca"])
 
     def test_bridge_recommend_cb_to_rh(self):
+        # Explicit BP floor still enables CB→RH bridge recommend
         snap = {
             "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0},
             "coinbase_manual": {"ltv": 0.25, "card_balance": 0},
             "robinhood": {"buying_power": 100, "cash": 50, "equity_value": 10000},
         }
-        ev = evaluate_treasury(snap)
+        ev = evaluate_treasury(snap, policy={"rh_bp_floor": 500})
         bridges = [a for a in ev["actions"] if a["kind"] == "bridge_cb_to_rh"]
         self.assertTrue(bridges)
         self.assertFalse(bridges[0]["api_reachable"])
         self.assertIn("Recommend", bridges[0]["title"])
+
+    def test_no_bp_floor_skips_cb_to_rh_bridge(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0},
+            "coinbase_manual": {"ltv": 0.25, "card_balance": 0, "vault_usdc": 0},
+            "robinhood": {"buying_power": 0.09, "cash": 0.09, "equity_value": 10000},
+        }
+        ev = evaluate_treasury(snap)  # default floor 0
+        bridges = [a for a in ev["actions"] if a["kind"] == "bridge_cb_to_rh"]
+        self.assertEqual(bridges, [])
+        self.assertTrue(ev["dca"]["allow_dca"])
 
     def test_derive_ltv_from_principal_collateral(self):
         snap = {

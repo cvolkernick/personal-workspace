@@ -16,7 +16,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "cb_card_float_usdc": 500.0,
     "cb_loan_buffer_usdc": 1000.0,
     "cb_bridge_dry_powder_usdc": 200.0,
-    "rh_bp_floor": 500.0,
+    "rh_bp_floor": 0.0,  # MO 2026-08-02: no RH BP floor — any in-account BP deployable
     "rh_margin_use_max": 0.40,
     "excess_split_cb": 0.60,
     "excess_split_rh": 0.40,
@@ -635,44 +635,78 @@ def evaluate_treasury(
             ),
             api_reachable=False,
         )
-    if buckets["gaps"]["card_float"] > 0:
-        add(
-            2,
-            "card_float",
-            f"USDC float short ${buckets['gaps']['card_float']:.2f} (spot + High Yield vault)",
-            actor="either",
-            detail=(
-                "Buffers use working USDC: Advanced Trade spot + Morpho High Yield vault. "
-                "Idle spot may be ~$0 by design if vault holds the float."
-            ),
-            api_reachable=False,
-        )
-    if card_balance > 0:
-        add(
-            2,
-            "card_paydown",
-            f"One Card balance ${card_balance:.2f} — pay down in app / confirm autopay",
-            actor="human",
-            detail="Autopay + manual paydown only. Maximize available credit in-app.",
-            api_reachable=False,
-        )
-    elif _is_missing(card_balance_raw):
+    # --- Cash stack (SNR): one hero for card + CB buffer gaps (not five prose cards)
+    card_dep = _f(
+        man.get("one_card_security_deposit_usdc")
+        or p.get("one_card_security_deposit_usdc"),
+        500.0,
+    )
+    card_util = (card_balance / card_dep) if card_dep > 0 and card_balance > 0 else None
+    need_cash_stack = (
+        buckets["gaps"]["card_float"] > 0
+        or buckets["gaps"]["loan_buffer"] > 0
+        or (buckets["gaps"]["bridge_dry_powder"] > 0 and buckets["shortfall"] > 0)
+        or card_balance > 0
+        or (vault_known and vault_usdc > 0 and buckets["shortfall"] > 0)
+    )
+    if _is_missing(card_balance_raw) and not (card_balance > 0):
         add(
             2,
             "card_unknown",
-            "Enter One Card balance & available credit from app",
+            "Enter One Card balance",
             actor="human",
-            detail="Card metrics are unknown — stress cannot be green until filled.",
+            detail="Card unknown — stress cannot go green until filled (YNAB or Settings).",
             api_reachable=False,
+        )
+    elif need_cash_stack and (
+        buckets["shortfall"] > 0 or card_balance > 0 or stress["coinbase_card"] in ("red", "yellow")
+    ):
+        vault_pull = (
+            min(vault_usdc, buckets["shortfall"])
+            if vault_known and vault_usdc > 0 and buckets["shortfall"] > 0
+            else 0.0
+        )
+        bits: List[str] = []
+        if card_balance > 0:
+            bits.append(f"Card ${card_balance:.0f}")
+            if card_util is not None:
+                bits.append(f"{card_util:.0%} util")
+        if buckets["shortfall"] > 0:
+            bits.append(f"USDC −${buckets['shortfall']:.0f} floors")
+        title = "Restore cash stack · " + " · ".join(bits) if bits else "Restore cash stack"
+        actions.append(
+            {
+                "priority": 2,
+                "kind": "cash_stack",
+                "title": title,
+                "actor": "human",
+                "detail": (
+                    "One Card paydown + working USDC vs floors (spot+vault). "
+                    "App: card pay / vault withdraw. Morpho keep-open; manage LTV only."
+                ),
+                "api_reachable": False,
+                "meta": {
+                    "card_balance": card_balance,
+                    "card_deposit": card_dep,
+                    "card_util": card_util,
+                    "working_usdc": working_usdc,
+                    "floors_required": buckets["required_total"],
+                    "shortfall": buckets["shortfall"],
+                    "vault_usdc": vault_usdc if vault_known else None,
+                    "vault_pull": vault_pull,
+                    "gaps": dict(buckets["gaps"]),
+                },
+            }
         )
 
     if not dca["allow_dca"]:
+        # Floor=0: only margin-heat (or explicit floor) should pause — not dust BP
         add(
             3,
             "dca_pause",
             f"Pause DCA: {dca['reason']}",
             actor="agent",
-            detail="API-reachable: do not place equity DCA buys while paused. Review RH portfolio/BP.",
+            detail="Do not place equity DCA while paused (margin heat or BP floor).",
             api_reachable=True,
         )
     elif dca["throttle"] == "slow":
@@ -681,31 +715,13 @@ def evaluate_treasury(
             "dca_slow",
             f"Throttle DCA: {dca['reason']}",
             actor="agent",
-            detail="Allow only reduced DCA size until BP recovers.",
+            detail="Reduced DCA size until BP recovers above floor band.",
             api_reachable=True,
         )
 
-    if buckets["gaps"]["loan_buffer"] > 0:
-        add(
-            4,
-            "loan_buffer",
-            f"Loan buffer short ${buckets['gaps']['loan_buffer']:.2f} working USDC",
-            actor="either",
-            detail="Vault or free BTC/USDC for Morpho top-up; loan protection in app.",
-            api_reachable=False,
-        )
-
-    if buckets["gaps"]["bridge_dry_powder"] > 0 and buckets["shortfall"] > 0:
-        add(
-            4,
-            "bridge_powder",
-            f"Bridge dry powder short ${buckets['gaps']['bridge_dry_powder']:.2f} working USDC",
-            actor="either",
-            detail="Small USDC sleeve (often pulled from vault when needed) for CB↔RH moves.",
-            api_reachable=False,
-        )
-
-    bridge_gap_rh = max(0.0, _f(p["rh_bp_floor"]) - bp)
+    bp_floor = _f(p["rh_bp_floor"])
+    # With MO floor=0, never invent CB→RH bridge just to pad BP
+    bridge_gap_rh = max(0.0, bp_floor - bp) if bp_floor > 0 else 0.0
     if bridge_gap_rh > 0 and buckets["excess"] > 0:
         amt = min(
             bridge_gap_rh,
@@ -721,8 +737,14 @@ def evaluate_treasury(
                 detail="Recommend-only. Advanced Trade transfer is portfolio-internal only.",
                 api_reachable=False,
             )
-    elif bp > _f(p["rh_bp_floor"]) * 1.5 and cash > _f(p["rh_bp_floor"]) and (
-        buckets["shortfall"] > 0 or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
+    elif (
+        bp_floor > 0
+        and bp > bp_floor * 1.5
+        and cash > bp_floor
+        and (
+            buckets["shortfall"] > 0
+            or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
+        )
     ):
         amt = min(cash * 0.5, _f(p["bridge_max_recommend_usdc"]), max(buckets["shortfall"], 100.0))
         add(
@@ -733,6 +755,25 @@ def evaluate_treasury(
             detail="Recommend-only to refill CB card/loan buffers or LTV defense.",
             api_reachable=False,
         )
+    elif (
+        bp_floor <= 0
+        and cash >= 100
+        and (
+            buckets["shortfall"] > 0
+            or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
+        )
+    ):
+        # No BP floor: still allow RH→CB recommend when CB stack is short / LTV hot
+        amt = min(cash * 0.5, _f(p["bridge_max_recommend_usdc"]), max(buckets["shortfall"], 100.0))
+        if amt >= 50:
+            add(
+                5,
+                "bridge_rh_to_cb",
+                f"Recommend bridge ~${amt:.2f} RH → Coinbase",
+                actor="human",
+                detail="Recommend-only — refill card/loan buffers or LTV defense.",
+                api_reachable=False,
+            )
 
     if buckets["excess"] > 0 and stress["coinbase_ltv"] == "green" and stress["robinhood"] != "red":
         to_cb = buckets["excess"] * _f(p["excess_split_cb"])
@@ -755,29 +796,32 @@ def evaluate_treasury(
                 api_reachable=True,
             )
 
-    if vault_known and vault_usdc > 0 and buckets["shortfall"] > 0:
-        add(
-            4,
-            "vault_pull",
-            f"Pull up to ${min(vault_usdc, buckets['shortfall']):.2f} from High Yield vault for card/buffers (app)",
-            actor="human",
-            detail="Primary USDC home is High Yield (~variable, often higher than idle rewards). Withdraw when paying card or topping Morpho.",
-            api_reachable=False,
-        )
+    # vault_pull folded into cash_stack meta when shortfall > 0
     exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
     # Upcoming estimates only (Personal tab) — not Discretionary capital targets
     cb_burn = exp_sum.get("coinbase_funded_monthly")
     rh_checking_burn = exp_sum.get("rh_funded_monthly") or exp_sum.get("rh_checking_funded_monthly")
-    if cb_burn and working_usdc < float(cb_burn) * 0.25:
+    # Demote bill-runway noise when cash_stack already owns the red (SNR)
+    if (
+        cb_burn
+        and working_usdc < float(cb_burn) * 0.25
+        and not any(a.get("kind") == "cash_stack" for a in actions)
+    ):
         add(
             3,
             "expense_burn",
-            f"Est. Coinbase-funded bills ~${float(cb_burn):.0f}/mo vs working USDC ${working_usdc:.2f} (spot+vault)",
+            f"Bills ~${float(cb_burn):.0f}/mo vs USDC ${working_usdc:.0f}",
             actor="either",
-            detail=(
-                "Working USDC = idle spot + High Yield vault. Spot often ~$0 by design. "
-                "Ensure vault (or borrow capacity) covers Coinbase-paid obligations."
-            ),
+            detail="Working USDC (spot+vault) thin vs Coinbase-funded sheet bills.",
+            api_reachable=False,
+        )
+    elif cb_burn and working_usdc < float(cb_burn) * 0.25:
+        add(
+            5,
+            "expense_burn",
+            f"Bills ~${float(cb_burn):.0f}/mo vs USDC ${working_usdc:.0f}",
+            actor="either",
+            detail="Secondary to cash stack — vault/spot runway vs sheet bills.",
             api_reachable=False,
         )
     if rh_checking_burn and bill_pay_cash is not None and float(bill_pay_cash) < float(rh_checking_burn) * 0.15:
