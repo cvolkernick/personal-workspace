@@ -1,14 +1,15 @@
 {
   "source": "live",
-  "as_of": "2026-07-29T18:13:11.419926+00:00",
-  "liquid_usdc": 0.0006861255613999999,
-  "liquid_btc": 5.8977294815e-06,
-  "btc_usd_price": 64315.75,
-  "liquid_btc_usd": 0.37931689489978365,
+  "as_of": "2026-08-04T00:39:12.211614+00:00",
+  "liquid_usdc": 0.0022281255614,
+  "liquid_btc": 0.0088676477294815,
+  "btc_usd_price": 63312.0,
+  "liquid_btc_usd": 561.4285130489328,
   "by_currency": {
-    "USDC": 1.904e-07,
+    "USDC": 0.0015421904,
     "USD": 0.0006859351614,
-    "BTC": 5.8977294815e-06
+    "BTC": 0.0088676477294815
   },
-  "account_count": 19
+  "account_count": 19,
+  "coinbase_bin": "/opt/homebrew/bin/coinbase"
 }

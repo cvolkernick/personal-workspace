@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-07-29T18:13:11.930166+00:00",
+  "as_of": "2026-08-04T00:39:12.908218+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -499.23,
-  "balance_owed": 499.23,
-  "card_balance": 499.23,
+  "balance_raw": -465.18,
+  "balance_owed": 465.18,
+  "card_balance": 465.18,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -499.23,
+  "cleared_balance": -465.18,
   "uncleared_balance": 0.0,
-  "spend_30d": 403.78,
-  "payments_30d": 370.42,
-  "transaction_count": 36,
+  "spend_30d": 404.77,
+  "payments_30d": 405.46,
+  "transaction_count": 38,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -98,7 +98,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
+      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -109,7 +109,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
+      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -230,7 +230,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -241,7 +241,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -415,9 +415,31 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "19829e4d-8b94-416d-ae64-8e16adcdccc7",
+      "date": "2026-07-31",
+      "payee": "Payment",
+      "amount": 35.04,
+      "amount_display": 35.04,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "bd22ee65-d200-40af-8cea-05cb49ac22ac",
+      "date": "2026-08-01",
+      "payee": "Amazon",
+      "amount": -0.99,
+      "amount_display": -0.99,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-04-30"
+  "since": "2026-05-05"
 }
