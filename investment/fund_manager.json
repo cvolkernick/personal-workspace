@@ -194,27 +194,31 @@
     "stocks_growth": {
       "target_pct": 0.6,
       "symbols": ["TSLA", "SPCX"],
-      "watchlist_symbols": ["GOOGL", "AAPL"],
+      "watchlist_symbols": ["GOOGL", "AAPL", "NVDA", "PLTR"],
       "themes": ["growth_equity", "ai_stack", "energy_adjacent"],
-      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (e.g. GOOGL, AAPL) via investment/watchlist.json — deep-dive before first buy."
+      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) via investment/watchlist.json — owner-add triggers auto deep-dive → ready for consider set each deploy; never auto-buy."
     },
     "energy_opportunistic": {
       "target_pct": null,
       "symbols": [],
       "watchlist_symbols": ["BE"],
       "open": true,
-      "notes": "No core mandate. Candidates live in investment/watchlist.json (e.g. BE). Monitor/consider only — deep-dive before first buy."
+      "notes": "No core mandate. BE on watchlist is active interest: deep-dive + ready for consideration each deploy; never auto-buy."
     }
   },
   "watchlist": {
     "path": "investment/watchlist.json",
     "auto_buy": false,
+    "owner_watchlist_means_active_interest": true,
+    "on_owner_add": "queue_position_deep_dive_immediately",
+    "post_deep_dive_default_status": "ready",
+    "deep_dive_refresh_days": 90,
     "deep_dive_workflow": "position-deep-dive",
     "portfolio_research_workflow": "fund-manager-research",
     "deep_dive_report_dir": "investment/research",
-    "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance.",
+    "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor → auto-queue dive → ready). Never auto-buy.",
     "agent_may_propose_additions": true,
-    "notes": "Thematic monitor list (not holdings). Owner or research workflow may add candidates (e.g. BE energy; GOOGL/AAPL AI stack). Discovery does not equal order authority."
+    "notes": "Owner 2026-08-04: watchlist = active allocation interest. Auto deep-dive on add; default status ready after dive (pass only if explicit); periodic refresh. Discovery/proposal ≠ order authority."
   },
   "research": {
     "enabled": true,
@@ -228,11 +232,11 @@
       "portfolio_latest": "investment/research/fund_manager_research_latest.md"
     },
     "when_to_run": {
-      "position_deep_dive": "Before first buy of watchlist/non-core name; on owner request; on material news/drawdown for monitored names",
+      "position_deep_dive": "IMMEDIATELY on owner watchlist add; on agent-proposed add after merge; when last_deep_dive older than deep_dive_refresh_days (default 90); before first buy if stale; on material news/earnings/drawdown; on owner request",
       "portfolio_research": "On need_llm reviews, capital step-changes, periodic thematic scan, or when watchlist empty/stale; may propose new candidates"
     },
     "verbose_reports": true,
-    "notes": "Native Grok .rhai workflows under .grok/workflows/. position-deep-dive follows Grok Build /deep-research shape: Plan → parallel claim research → adversarial Verify (fail-closed) → Report (Partial if drops) plus fund Critic/verdict. If host lacks workflow tool, emulate the same phases inline and still write research files. Never place trades from research alone."
+    "notes": "Native Grok .rhai workflows under .grok/workflows/. position-deep-dive follows Grok Build /deep-research shape: Plan → parallel claim research → adversarial Verify (fail-closed) → Report (Partial if drops) plus fund Critic/verdict. If host lacks workflow tool, emulate the same phases inline and still write research files. After a successful dive, set watchlist status to ready (unless explicit pass). Never place trades from research alone."
   },
   "allowlist": {
     "strict": false,
@@ -251,7 +255,7 @@
       "TSLA",
       "SPCX"
     ],
-    "notes": "strict=false: core preferred; watchlist/energy/AI names only after consideration (and deep-dive when required). Prefer core for default rebalances. Within BTC complex, do not underweight STRC/SATA by habit; multi-miner holds are OK."
+    "notes": "strict=false: core preferred for routine rebalance; ready watchlist names MUST be in the consider set every deploy (owner 2026-08-04). Strong theme bias. Within BTC complex, do not underweight STRC/SATA by habit; multi-miner holds are OK."
   },
   "guardrails": {
     "block_if_agentic_bp_zero": true,

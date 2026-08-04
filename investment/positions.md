@@ -37,22 +37,25 @@
 | **Energy** | Overarching theme (mining power, AI electricity, electrification). **No mandated core tickers.** Candidates on **watchlist** (below); deep-dive before first buy |
 | **AI stack (broad)** | Infra (hardware), foundation models, application software—additions should still fit modernized 60/40 and FCC floors |
 
-## Thematic watchlist (monitor / consider — not holdings)
+## Thematic watchlist (ready for consideration — not holdings)
 
-Machine source: [`watchlist.json`](./watchlist.json). FCC/fund manager analysis surfaces these as **candidates**, not auto-buys.
+Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlist = **active allocation interest** → auto deep-dive → **`ready`** for each systemic deploy consider set. Still **not** auto-buys.
 
 | Symbol | Theme | Status | Notes |
 |--------|-------|--------|-------|
-| **BE** | Energy (Bloom Energy) | monitor | Verbose re-dive 2026-07-23: thesis OK, **no buy** (val + ~$8 NAV + Q2 7/28). `research/BE_deep_dive.md` |
-| **GOOGL** | AI stack (Alphabet / Google) | monitor | Owner-added 2026-07-24. Cloud + models + ads. Deep-dive before size-in. Class A preferred. |
-| **AAPL** | AI stack (Apple) | monitor | Owner-added 2026-07-24. Devices + services + on-device AI. Deep-dive before size-in. |
+| **BE** | Energy (Bloom Energy) | ready | Post-Q2 refresh 2026-08-04. Thesis strong; val/beta harsh. `research/BE_deep_dive.md` |
+| **GOOGL** | AI stack (Alphabet / Google) | ready | Dive 2026-08-04. Liquid AI + cash compounder. Class A preferred. |
+| **AAPL** | AI stack (Apple) | ready | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
+| **NVDA** | AI stack (NVIDIA) | ready | Dive 2026-08-04. Pure AI infra; next print ~2026-08-26 event risk. |
+| **PLTR** | AI harness/apps (Palantir) | ready | Dive 2026-08-04. Medium priority; high multiple / gov gates. |
 
 **Rules**
-1. Prefer **core allowlist** for routine rebalances toward 40/60.
-2. Scout/Thesis scan the watchlist each review; may propose size only if status is `ready` (or after a fresh deep-dive).
-3. Run **`/position-deep-dive symbol=TICKER`** before first buy when `deep_dive_required_before_buy` is true.
-4. Run **`/fund-manager-research`** periodically / on need_llm to refresh book+strategy view and **propose new watchlist candidates** (not auto-added buys).
-5. Reports land in [`research/`](./research/). Promote to core only deliberately (update `fund_manager.json` + this table).
+1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.
+2. Scout/Thesis **must** include every `ready` watchlist name each allocation assessment; reject with reasons if not sized.
+3. **Owner add** → immediately run **`/position-deep-dive symbol=TICKER`** → set `ready` (unless explicit `pass`). Do not leave owner names parked on `monitor`.
+4. Refresh deep-dives on ~**90-day** age, material news/earnings/drawdown, or before first buy if stale.
+5. Run **`/fund-manager-research`** periodically / on need_llm; agents may propose candidates (start `monitor` → dive → `ready`). Never auto-buy.
+6. Reports land in [`research/`](./research/). Promote to core only deliberately (update `fund_manager.json` + this table).
 
 ## Out of scope
 

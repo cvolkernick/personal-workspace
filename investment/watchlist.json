@@ -1,16 +1,32 @@
 {
-  "version": 1,
-  "as_of": "2026-08-03",
-  "purpose": "Thematic equities the agentic fund manager should monitor and consider — not auto-buy. Core allowlist remains preferred for default rebalances.",
+  "version": 2,
+  "as_of": "2026-08-04",
+  "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys — not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
     "prefer_core_allowlist_for_rebalance": true,
+    "strong_theme_bias_at_allocation": true,
+    "owner_watchlist_means_active_interest": true,
+    "on_owner_add": "Immediately queue position-deep-dive; do not leave stuck on monitor without homework.",
+    "post_deep_dive_default_status": "ready",
+    "pass_only_if_explicit_verdict": true,
     "deep_dive_before_first_buy": true,
     "deep_dive_workflow": "position-deep-dive",
     "deep_dive_report_dir": "investment/research",
+    "deep_dive_refresh_days": 90,
+    "refresh_triggers": [
+      "periodic_age_gt_refresh_days",
+      "material_news_or_earnings",
+      "material_drawdown",
+      "owner_request",
+      "before_first_buy_if_stale"
+    ],
     "agent_may_propose_additions": true,
+    "agent_proposed_initial_status": "monitor",
+    "agent_proposed_promotion_to_ready": "After deep-dive completes (same path as owner-added).",
     "portfolio_research_workflow": "fund-manager-research",
-    "notes": "Watchlist names may enter the book only after Thesis+Risk+Critic and (when deep_dive_required) a position-deep-dive report. Energy/AI opportunistic sleeve. Agents may propose NEW monitors via fund-manager-research; never auto-buy."
+    "on_each_allocation_assessment": "Scout/Thesis must include every status=ready watchlist name in the consider set alongside held + unheld core allowlist. Reject with reasons if not sized. Status=monitor only for agent-proposed names still awaiting first dive (or mid-dive).",
+    "notes": "Owner 2026-08-04: anything the owner puts on the watchlist is active allocation interest — auto deep-dive, then ready for consideration each deploy, with periodic refresh. Still never auto-buy. Energy/AI opportunistic sleeve. Agents may propose NEW names (start monitor → dive → ready)."
   },
   "entries": [
     {
@@ -19,17 +35,17 @@
       "theme": "energy",
       "themes": ["energy", "electrification", "distributed_generation", "ai_power"],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "high",
       "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification — fits open energy theme under stocks/growth.",
       "added": "2026-07-22",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": "2026-07-23",
+      "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/BE_deep_dive.md",
-      "last_verdict": "monitor_no_buy",
-      "next_catalyst": "Post Q2 2026 print — deep-dive refresh before first buy",
-      "notes": "Q2 2026 reported 2026-07-28 AMC: record rev ~$1.065B (+166% YoY), non-GAAP EPS ~$0.78, raised FY26 rev guidance $3.9–4.2B. Prior dive 2026-07-23 still blocks first buy until post-print deep-dive refresh (valuation/beta/NAV). Not core; not auto-buy."
+      "last_verdict": "ready_consider_no_size_until_free_capital",
+      "next_catalyst": "Next earnings est. ~2026-10-27; or >25% drawdown refresh",
+      "notes": "Post-Q2'26 refresh 2026-08-04. Print strong (rev ~$1.07B; prior guide raise). Status ready for consideration. Valuation/beta still harsh; BP dust blocks size today. Not core; not auto-buy."
     },
     {
       "symbol": "GOOGL",
@@ -37,17 +53,17 @@
       "theme": "ai_stack",
       "themes": ["ai_stack", "growth_equity", "cloud", "foundation_models", "advertising"],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "high",
-      "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap core candidate — not yet on agentic core allowlist.",
+      "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap candidate — not on agentic core allowlist.",
       "added": "2026-07-24",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
+      "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
-      "last_verdict": null,
-      "next_catalyst": null,
-      "notes": "Owner-added. Prefer Class A (GOOGL) for watchlist tracking; GOOG is economic equivalent. Run position-deep-dive before first agentic size-in. Not auto-buy."
+      "last_verdict": "ready_consider",
+      "next_catalyst": "Next earnings est. ~2026-10-28; FCF/capex guide",
+      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. BP dust today."
     },
     {
       "symbol": "AAPL",
@@ -55,17 +71,17 @@
       "theme": "ai_stack",
       "themes": ["ai_stack", "growth_equity", "consumer_hardware", "services", "devices"],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "high",
-      "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth — liquid candidate, not yet on agentic core allowlist.",
+      "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth — liquid candidate, not on agentic core allowlist.",
       "added": "2026-07-24",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
+      "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/AAPL_deep_dive.md",
-      "last_verdict": null,
-      "next_catalyst": null,
-      "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy."
+      "last_verdict": "ready_consider",
+      "next_catalyst": "Next earnings est. ~2026-10-29; Services/iPhone guide",
+      "notes": "Deep-dive 2026-08-04. Quality compounder; AI purity behind GOOGL/NVDA. Ready for consider set; not auto-buy."
     },
     {
       "symbol": "NVDA",
@@ -73,17 +89,17 @@
       "theme": "ai_stack",
       "themes": ["ai_stack", "semiconductors", "data_center", "gpus", "ai_infra"],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "high",
       "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default.",
       "added": "2026-07-26",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
+      "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
-      "last_verdict": null,
-      "next_catalyst": null,
-      "notes": "Owner-added. Run position-deep-dive before first agentic size-in. Not auto-buy. Concentration / valuation risk is the main critic gate."
+      "last_verdict": "ready_consider",
+      "next_catalyst": "Earnings est. ~2026-08-26 — event risk for any new size into print",
+      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. Ready for consider set; not auto-buy."
     },
     {
       "symbol": "PLTR",
@@ -91,17 +107,17 @@
       "theme": "ai_stack",
       "themes": ["ai_stack", "harness", "applications", "enterprise_software", "gov_commercial"],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "medium",
-      "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology ≈ enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core. See RESEARCH/PALANTIR_THESIS_FIT_2026_08_03.md (Buzz nest).",
+      "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology ≈ enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core.",
       "added": "2026-08-03",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
+      "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/PLTR_deep_dive.md",
-      "last_verdict": null,
-      "next_catalyst": null,
-      "notes": "Owner-requested 2026-08-03 (agentic-finance PLTR thesis thread). Monitor only — not auto-buy. Priority medium (below BE/GOOGL/AAPL/NVDA high and below engines/BTC). Run position-deep-dive before first size-in. Main critic gates: high multiple, tech-factor correlation, gov/politics concentration, capital stack residual priority."
+      "last_verdict": "ready_consider_lower_priority",
+      "next_catalyst": "Next quarter print; commercial growth durability vs multiple",
+      "notes": "Deep-dive 2026-08-04. Ready for consider set at medium priority — high multiple + politics/gov gates. Behind mega-cap AI for scarce residual capital. Not auto-buy."
     }
   ]
 }

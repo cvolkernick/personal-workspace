@@ -101,10 +101,17 @@ python3 -m treasury.fund_manager --rules-review --notify
 
 | Artifact | Role |
 |----------|------|
-| [`watchlist.json`](./watchlist.json) | Thematic candidates (e.g. BE) — not auto-buy |
+| [`watchlist.json`](./watchlist.json) | Owner active-interest candidates — not auto-buy |
 | [`research/`](./research/) | Deep-dives + portfolio research |
 | `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive (**deep-research** pattern: Plan → Research claims → Verify → Report + Critic) |
 | `.grok/workflows/fund-manager-research.rhai` | Book + themes + candidates |
+
+**Owner policy (2026-08-04):** Watchlist entry = active interest for systemic deploys.  
+1. **On owner add** → auto-queue deep-dive (no stuck `monitor`).  
+2. **After dive** → status **`ready`** (default) unless explicit **`pass`**.  
+3. **Each allocation assessment** → every `ready` name in the consider set; reject with reasons if not sized.  
+4. **Refresh** deep-dives on ~90-day age / earnings / material news / drawdown.  
+5. **Still never auto-buy**; strong theme bias; core allowlist preferred when RV favors it.
 
 ## Strategy reminder
 

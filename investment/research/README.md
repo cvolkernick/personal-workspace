@@ -31,12 +31,15 @@ Optional args:
 
 ### Automation hooks
 
-Documented in `investment/fund_manager.json` → `research` and in the daily prompt:
+Documented in `investment/fund_manager.json` → `research` / `watchlist` and in the daily prompt:
 
-1. **Each daily review:** read latest research + watchlist (always).  
-2. **When need_llm / thematic scan / capital change:** run `/fund-manager-research` (or inline equivalent).  
-3. **Before first buy of non-core / watchlist name:** `/position-deep-dive symbol=SYM` required if `deep_dive_required_before_buy`.  
-4. **Candidate adds:** research may **propose** watchlist symbols; merge into `watchlist.json` with status `monitor` only after Thesis/Risk agree (still **not** auto-buy).
+1. **Each allocation assessment / daily review:** read latest research + watchlist; include every **`ready`** name in the consider set (reject with reasons if not sized).  
+2. **Owner adds a watchlist name:** immediately queue `/position-deep-dive symbol=SYM` (or inline equivalent); on completion set status **`ready`** unless explicit **`pass`**. Do **not** leave owner names stuck on `monitor` without homework.  
+3. **When need_llm / thematic scan / capital change:** run `/fund-manager-research` (or inline equivalent).  
+4. **Refresh:** re-run deep-dive when `last_deep_dive` is older than `deep_dive_refresh_days` (default **90**), or on material news/earnings/drawdown, or before first buy if stale.  
+5. **Agent-proposed candidates:** may merge as `monitor` → auto-queue dive → `ready` (still **not** auto-buy).
+
+**Owner policy (2026-08-04):** Watchlist = active interest for systemic deploys. Strong theme bias at size time; core allowlist still preferred when relative value favors it. Research ≠ order.
 
 ## Outputs
 
@@ -50,14 +53,15 @@ Documented in `investment/fund_manager.json` → `research` and in the daily pro
 
 | Status | Meaning |
 |--------|---------|
-| `monitor` | On watchlist; no size yet |
-| `ready` | Deep-dive done; eligible for Thesis/Risk **proposal** only |
-| `pass` | Researched; do not buy for now |
+| `monitor` | Awaiting first deep-dive (agent-proposed or mid-dive). **Not** the steady state for owner-added names. |
+| `ready` | Deep-dive done; **must** be in Thesis/Risk consider set each deploy; proposal-eligible only (not an order) |
+| `pass` | Researched; do **not** propose size for now (explicit negative verdict) |
 | `held` | Already in agentic book |
 | `promoted` | Moved toward core allowlist (rare; update `fund_manager.json`) |
 
 ## Cadence
 
+- **On owner add:** position-deep-dive immediately → `ready` (default).  
+- **Periodic refresh:** deep-dive age &gt; 90 days or catalyst-driven.  
 - **Recurring:** fund-manager-research on a periodic / need_llm basis.  
-- **On demand:** position-deep-dive for any name under consideration (owner-added or agent-discovered).  
-- Prefer before first buy when `deep_dive_required_before_buy` is true.
+- **Every deploy:** consider all `ready` watchlist names + core allowlist; never auto-buy.
