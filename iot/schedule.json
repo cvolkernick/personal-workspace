@@ -5,6 +5,14 @@
     "timezone": "America/New_York",
     "label": "Approx. Lehigh Acres, FL (IP geolocation \u2014 refine with Use browser location)"
   },
+  "sleep_battery_follow": {
+    "enabled": true,
+    "poll_minutes": 15,
+    "target": "masterbedroom",
+    "fitdash_url": "http://127.0.0.1:8787",
+    "fitdash_path": "/api/sleep_battery",
+    "note": "After local sunset: poll FitDash Sleep Battery every 15m; set bedroom brightness only (color keep). At 0% turn off and stop until next day. Auth: FITDASH_SERVICE_TOKEN or FitDash loopback service allowlist."
+  },
   "routines": [
     {
       "id": "sunset_all_on",

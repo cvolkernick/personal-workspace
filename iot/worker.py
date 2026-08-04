@@ -37,6 +37,7 @@ from iot.schedule import (  # noqa: E402
     run_due,
     schedule_status,
 )
+from iot.sleep_follow import tick_sleep_follow  # noqa: E402
 from iot.wiz_adapter import execute_control, run_async  # noqa: E402
 
 log = logging.getLogger("iot.worker")
@@ -97,6 +98,25 @@ def tick(
         )
         if not cr.get("ok"):
             log.error("control result: %s", cr)
+
+    # After sunset routines: dim master bedroom to FitDash Sleep Battery %
+    try:
+        sf = tick_sleep_follow(
+            control=_control,
+            schedule_path=schedule_path,
+            state_path=state_path,
+        )
+        if not sf.get("skipped"):
+            log.info(
+                "sleep_follow ok=%s pct=%s bri=%s reason=%s",
+                sf.get("ok"),
+                sf.get("pct_charged"),
+                (sf.get("action") or {}).get("brightness"),
+                sf.get("error") or sf.get("reason"),
+            )
+    except Exception:
+        log.exception("sleep_follow tick failed")
+
     return len(results)
 
 
