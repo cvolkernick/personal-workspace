@@ -1941,6 +1941,32 @@
   <main>
     <div id="load-error" data-m-panel="glance" class="error hidden"></div>
 
+    <details class="panel advisor-fold" id="advisor-card" data-m-panel="glance" aria-label="Ask Grok financial advisor">
+      <summary>
+        Ask Grok
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
+      </summary>
+      <div class="body">
+        <div class="advisor">
+          <div class="advisor-row">
+            <textarea
+              id="advisor-question"
+              rows="2"
+              placeholder="e.g. What should I pay first with cash I actually have?"
+              maxlength="4000"
+            ></textarea>
+            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+          </div>
+          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+          <div class="advisor-error" id="advisor-error"></div>
+          <div class="advisor-answer" id="advisor-answer">
+            <div class="meta" id="advisor-answer-meta"></div>
+            <div class="body" id="advisor-answer-body"></div>
+          </div>
+        </div>
+      </div>
+    </details>
+
     <div id="glance-hero" class="glance-hero" data-m-panel="glance" hidden></div>
 
     <div class="status-split" id="status-split" data-m-panel="glance"></div>
@@ -1963,7 +1989,7 @@
       <div class="carousel-dots" id="actions-dots" role="tablist" aria-label="Action pages"></div>
     </section>
 
-    <section class="card" id="alloc-guide-card" data-m-panel="glance" aria-label="Cashflow allocation guidance">
+    <section class="card" id="alloc-guide-card" data-m-panel="coach" aria-label="Cashflow allocation guidance">
       <div class="card-head">
         <h2>Cashflow allocation</h2>
         <span class="hint" id="alloc-guide-asof">priority stack</span>
@@ -2012,32 +2038,6 @@
     </section>
 
 
-
-    <details class="panel advisor-fold" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
-      <summary>
-        Ask Grok
-        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
-      </summary>
-      <div class="body">
-        <div class="advisor">
-          <div class="advisor-row">
-            <textarea
-              id="advisor-question"
-              rows="2"
-              placeholder="e.g. What should I pay first with cash I actually have?"
-              maxlength="4000"
-            ></textarea>
-            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
-          </div>
-          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
-          <div class="advisor-error" id="advisor-error"></div>
-          <div class="advisor-answer" id="advisor-answer">
-            <div class="meta" id="advisor-answer-meta"></div>
-            <div class="body" id="advisor-answer-body"></div>
-          </div>
-        </div>
-      </div>
-    </details>
 
     <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
       <div class="card-head">
