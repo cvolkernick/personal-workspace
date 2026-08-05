@@ -263,7 +263,7 @@
 
     const tip =
       b.summary ||
-      "Full at wake · drains over awake budget · empty = time to sleep & recharge";
+      "Charge at wake scales with last night vs 8h target (capped ≤2h earlier empty) · drains over awake budget · empty = wind-down";
     el.title = tip;
 
     // Compact awake-window timeline (wake → bedtime empty)

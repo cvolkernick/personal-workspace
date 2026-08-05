@@ -1,7 +1,12 @@
 """Sleep battery for FitDash recovery (ported from holistic time allocator).
 
-Model: 100% at last wake, linear drain over awake budget (default 16h =
-24 − 8h sleep target). Unlogged / zero nights do not create wake cycles.
+Model: proportional charge at last wake from last-night sleep vs target, then
+linear drain at full-budget rate (100% / awake_budget per hour). Short nights
+start below 100% so empty_at arrives earlier — soft-capped so one bad night
+cannot pull bedtime more than ``max_earlier_hours`` (default 2h) early.
+
+Multi-day sleep debt stays in recovery/coach (zero-filled nights), not here.
+Unlogged / zero nights do not create wake cycles.
 """
 
 from __future__ import annotations
@@ -10,6 +15,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 from .models import SleepSample
+
+# Soft cap: never empty more than this many hours earlier than a full charge.
+DEFAULT_MAX_EARLIER_HOURS = 2.0
 
 
 def _parse_dt(value: Any) -> Optional[datetime]:
@@ -130,7 +138,8 @@ def _active_sleep(intervals: List[dict], now: datetime) -> Optional[dict]:
             continue
         st_l = st.astimezone(now.tzinfo)
         en_l = en.astimezone(now.tzinfo)
-        if st_l <= now <= en_l:
+        # End exclusive: at wake timestamp the cycle is complete (awake).
+        if st_l <= now < en_l:
             return {
                 "start": st_l,
                 "end": en_l,
@@ -141,14 +150,53 @@ def _active_sleep(intervals: List[dict], now: datetime) -> Optional[dict]:
     return None
 
 
+def start_charge_fraction(
+    last_sleep_hours: float,
+    *,
+    sleep_target_hours: float = 8.0,
+    awake_budget_hours: float = 16.0,
+    max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
+) -> Dict[str, float]:
+    """Map last-night sleep to start-of-day charge fraction (0–1).
+
+    Proportional to last_sleep / target, floored so empty cannot arrive more
+    than ``max_earlier_hours`` sooner than a full charge (same drain rate).
+    """
+    target = max(0.5, float(sleep_target_hours))
+    awake = max(1.0, float(awake_budget_hours))
+    last = max(0.0, float(last_sleep_hours))
+    max_earlier = max(0.0, float(max_earlier_hours))
+
+    proportional = min(1.0, last / target)
+    # Floor: start_frac * awake >= awake - max_earlier
+    if max_earlier <= 0:
+        floor_frac = 0.0
+    else:
+        floor_frac = max(0.0, 1.0 - (max_earlier / awake))
+    start_frac = max(proportional, floor_frac) if last < target else 1.0
+    # Over-target still full
+    if last >= target:
+        start_frac = 1.0
+        proportional = 1.0
+
+    return {
+        "start_frac": start_frac,
+        "proportional_frac": proportional,
+        "floor_frac": floor_frac,
+        "max_earlier_hours": max_earlier,
+        "budget_hours_at_start": start_frac * awake,
+    }
+
+
 def compute_sleep_battery(
     intervals: Optional[List[dict]],
     *,
     now: Optional[datetime] = None,
     sleep_target_hours: float = 8.0,
     awake_hours: Optional[float] = None,
+    max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
 ) -> Dict[str, Any]:
-    """Wake-full / drain-over-awake battery (same model as holistic)."""
+    """Partial-charge-at-wake / drain-over-awake battery."""
     if now is None:
         now = datetime.now(timezone.utc).astimezone()
     elif now.tzinfo is None:
@@ -172,6 +220,11 @@ def compute_sleep_battery(
     pct = 0.0
     level = "critical"
     summary = "No sleep cycle — sync Google Health"
+    start_frac = 1.0
+    proportional_frac = 1.0
+    floor_frac = 0.0
+    charge_hours = awake_hours  # awake hours of battery at wake
+    empty_at_dt: Optional[datetime] = None
 
     if active is not None:
         mode = "sleeping"
@@ -190,31 +243,61 @@ def compute_sleep_battery(
         last_wake_at = last["end"]
         last_sleep_hours = float(last["hours"])
         hours_awake = max(0.0, (now - last_wake_at).total_seconds() / 3600.0)
-        remaining_frac = 1.0 - (hours_awake / awake_hours)
+
+        ch = start_charge_fraction(
+            last_sleep_hours,
+            sleep_target_hours=sleep_target,
+            awake_budget_hours=awake_hours,
+            max_earlier_hours=max_earlier_hours,
+        )
+        start_frac = float(ch["start_frac"])
+        proportional_frac = float(ch["proportional_frac"])
+        floor_frac = float(ch["floor_frac"])
+        charge_hours = float(ch["budget_hours_at_start"])
+
+        # Same drain rate as full battery: 100%/awake_hours per hour of wall time
+        # from start_frac*100 down to 0.
+        remaining_frac = start_frac - (hours_awake / awake_hours)
         pct = max(0.0, min(100.0, remaining_frac * 100.0))
-        hours_until_empty = max(0.0, awake_hours - hours_awake)
+        hours_until_empty = max(0.0, charge_hours - hours_awake)
+        empty_at_dt = last_wake_at + timedelta(hours=charge_hours)
+
+        short = last_sleep_hours < sleep_target - 0.05
+        partial_note = ""
+        if short and start_frac < 0.999:
+            partial_note = f" · started {start_frac * 100:.0f}% after {last_sleep_hours:.1f}h sleep"
+
         if pct <= 0:
             level = "critical"
             summary = f"Empty · {hours_awake:.1f}h awake — sleep soon"
         elif pct < 25:
             level = "critical"
-            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h left"
+            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h left{partial_note}"
         elif pct < 50:
             level = "low"
-            summary = f"{pct:.0f}% · {hours_awake:.1f}h awake"
+            summary = f"{pct:.0f}% · {hours_awake:.1f}h awake{partial_note}"
         elif pct < 85:
             level = "ok"
-            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h until empty"
+            summary = f"{pct:.0f}% · {hours_until_empty:.1f}h until empty{partial_note}"
         else:
             level = "full"
-            summary = f"{pct:.0f}% · woke {last_wake_at.strftime('%H:%M')}"
+            summary = f"{pct:.0f}% · woke {last_wake_at.strftime('%H:%M')}{partial_note}"
 
     return {
-        "model": "wake_full_drain_awake",
+        "model": "wake_partial_drain_awake",
         "mode": mode,
         "awake_budget_hours": round(awake_hours, 2),
         "sleep_target_hours": round(sleep_target, 2),
         "pct_charged": round(pct, 1),
+        "start_pct_charged": round(start_frac * 100.0, 1) if mode == "awake" else None,
+        "proportional_start_pct": (
+            round(proportional_frac * 100.0, 1) if mode == "awake" else None
+        ),
+        "max_earlier_hours": round(float(max_earlier_hours), 2),
+        "earlier_floor_pct": (
+            round(floor_frac * 100.0, 1) if mode == "awake" else None
+        ),
+        "charge_budget_hours": round(charge_hours, 2) if mode == "awake" else None,
         "level": level,
         "hours_awake": round(hours_awake, 2),
         "hours_until_empty": round(hours_until_empty, 2),
@@ -223,9 +306,15 @@ def compute_sleep_battery(
         if last_sleep_hours is not None
         else None,
         "empty_at": (
-            (last_wake_at + timedelta(hours=awake_hours)).isoformat(timespec="seconds")
-            if last_wake_at and mode == "awake"
-            else None
+            empty_at_dt.isoformat(timespec="seconds")
+            if empty_at_dt is not None
+            else (
+                (last_wake_at + timedelta(hours=awake_hours)).isoformat(
+                    timespec="seconds"
+                )
+                if last_wake_at and mode == "awake"
+                else None
+            )
         ),
         "summary": summary,
         "interval_count": len(intervals_n),
@@ -238,6 +327,7 @@ def sleep_battery_from_fitdash_sleep(
     now: Optional[datetime] = None,
     sleep_target_hours: float = 8.0,
     sleep_intervals: Optional[List[dict]] = None,
+    max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
 ) -> Dict[str, Any]:
     """Build battery preferring timed Google intervals (Time Allocator style).
 
@@ -275,7 +365,10 @@ def sleep_battery_from_fitdash_sleep(
             intervals = normalize_intervals(intervals)
             source = "sleep_intervals+daily_fill"
     bat = compute_sleep_battery(
-        intervals, now=now, sleep_target_hours=sleep_target_hours
+        intervals,
+        now=now,
+        sleep_target_hours=sleep_target_hours,
+        max_earlier_hours=max_earlier_hours,
     )
     bat["data_source"] = source
     bat["interval_count"] = len(intervals)
