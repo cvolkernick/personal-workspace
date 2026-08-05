@@ -113,8 +113,12 @@ def run_pipeline(
         "source_modes": modes,
         "node_total": (state.get("meta") or {}).get("node_total"),
         "linkage_count": len(linkages),
-        "regime_primary": (regime.get("primary") or {}).get("id"),
-        "regime_confidence": regime.get("confidence"),
+        "regime_primary": (regime.get("primary") or {}).get("label")
+        or (regime.get("primary") or {}).get("scenario_id")
+        or (regime.get("primary") or {}).get("id"),
+        "regime_confidence": regime.get("confidence_overall")
+        if regime.get("confidence_overall") is not None
+        else regime.get("confidence"),
         "strategy_paths_exist": strategy.get("paths_exist"),
         "paths": {
             "data_dir": str(data_dir),
