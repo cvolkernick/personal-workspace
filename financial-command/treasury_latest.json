@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-05T06:26:59.149528+00:00",
+    "as_of": "2026-08-05T09:28:31.531158+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-05T06:00:59.014651+00:00",
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-05T06:00:59.583635+00:00",
+      "as_of": "2026-08-05T09:11:15.734011+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -487,7 +487,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-05T06:00:59.763741+00:00",
+      "as_of": "2026-08-05T09:11:15.924991+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -534,7 +534,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-05T06:01:00.044152+00:00",
+      "as_of": "2026-08-05T09:11:16.110968+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -543,14 +543,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 635.14,
-      "cash": 635.14,
-      "available": 635.14,
-      "cleared_balance": 635.14,
+      "balance_raw": 604.71,
+      "cash": 604.71,
+      "available": 604.71,
+      "cleared_balance": 604.71,
       "uncleared_balance": 0.0,
-      "spend_30d": 918.89,
+      "spend_30d": 949.32,
       "inflow_30d": 1554.03,
-      "transaction_count": 98,
+      "transaction_count": 99,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -751,7 +751,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
           "date": "2026-07-23",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -762,7 +762,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+          "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
           "date": "2026-07-23",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -1110,7 +1110,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-05T06:01:02.749067+00:00",
+      "as_of": "2026-08-05T09:11:16.816866+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1127,7 +1127,7 @@
             "weekly": 4373.47,
             "biweekly": 8746.93,
             "monthly": 18952.86,
-            "annually": 65148.69
+            "annually": 66348.69
           },
           "by_source_monthly": {
             "Coinbase": 12937.9,
@@ -1370,7 +1370,7 @@
               "weekly": 2456.71,
               "biweekly": 4913.42,
               "monthly": 10675.0,
-              "annually": 22800.0,
+              "annually": 24000.0,
               "budget_allocation": 0.5617
             },
             {
@@ -1698,11 +1698,11 @@
           "role": "excess_capital_targets",
           "item_count": 8,
           "totals": {
-            "daily": 84.93,
-            "weekly": 594.53,
-            "biweekly": 1189.07,
-            "monthly": 2548.0,
-            "annually": 30576.0
+            "daily": 18.27,
+            "weekly": 127.87,
+            "biweekly": 255.73,
+            "monthly": 548.0,
+            "annually": 548.0
           },
           "top_targets": [
             {
@@ -1713,8 +1713,8 @@
               "budget_allocation": null
             },
             {
-              "item": "Tesla TPMS",
-              "monthly": 115.0,
+              "item": "Tesla Rims Repair / Replace",
+              "monthly": 500.0,
               "from": null,
               "date": "9/1/2026",
               "budget_allocation": null
@@ -1736,8 +1736,8 @@
               "budget_allocation": null
             },
             {
-              "item": "Tesla TPMS",
-              "monthly": 115.0,
+              "item": "Tesla Rims Repair / Replace",
+              "monthly": 500.0,
               "from": null,
               "date": "9/1/2026",
               "budget_allocation": null
@@ -1752,68 +1752,13 @@
           ],
           "items": [
             {
-              "item": "Tesla TPMS",
-              "date": "9/1/2026",
-              "daily": 3.83,
-              "weekly": 26.83,
-              "biweekly": 53.67,
-              "monthly": 115.0,
-              "annually": 1380.0,
-              "from": null,
-              "to": null
-            },
-            {
-              "item": "Tesla Balance & Rotation",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": null,
-              "annually": 0.0,
-              "from": null,
-              "to": null
-            },
-            {
-              "item": "Tesla Wiper Blades",
-              "date": "9/1/2026",
-              "daily": 1.6,
-              "weekly": 11.2,
-              "biweekly": 22.4,
-              "monthly": 48.0,
-              "annually": 576.0,
-              "from": null,
-              "to": null
-            },
-            {
               "item": "ASIC",
               "date": "9/1/2026",
               "daily": 83.33,
               "weekly": 583.33,
               "biweekly": 1166.67,
               "monthly": 2500.0,
-              "annually": 30000.0,
-              "from": null,
-              "to": null
-            },
-            {
-              "item": "Glow",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": null,
-              "annually": 0.0,
-              "from": null,
-              "to": null
-            },
-            {
-              "item": "Fractals",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": null,
-              "annually": 0.0,
+              "annually": 2500.0,
               "from": null,
               "to": null
             },
@@ -1838,6 +1783,61 @@
               "annually": 0.0,
               "from": null,
               "to": null
+            },
+            {
+              "item": "Fractals",
+              "date": "9/1/2026",
+              "daily": 0.0,
+              "weekly": 0.0,
+              "biweekly": 0.0,
+              "monthly": null,
+              "annually": 0.0,
+              "from": null,
+              "to": null
+            },
+            {
+              "item": "Glow",
+              "date": "9/1/2026",
+              "daily": 0.0,
+              "weekly": 0.0,
+              "biweekly": 0.0,
+              "monthly": null,
+              "annually": 0.0,
+              "from": null,
+              "to": null
+            },
+            {
+              "item": "Tesla Balance & Rotation",
+              "date": "9/1/2026",
+              "daily": 0.0,
+              "weekly": 0.0,
+              "biweekly": 0.0,
+              "monthly": null,
+              "annually": 0.0,
+              "from": null,
+              "to": null
+            },
+            {
+              "item": "Tesla Rims Repair / Replace",
+              "date": "9/1/2026",
+              "daily": 16.67,
+              "weekly": 116.67,
+              "biweekly": 233.33,
+              "monthly": 500.0,
+              "annually": 500.0,
+              "from": null,
+              "to": null
+            },
+            {
+              "item": "Tesla Wiper Blades",
+              "date": "9/1/2026",
+              "daily": 1.6,
+              "weekly": 11.2,
+              "biweekly": 22.4,
+              "monthly": 48.0,
+              "annually": 48.0,
+              "from": null,
+              "to": null
             }
           ]
         }
@@ -1847,10 +1847,10 @@
         "personal_monthly": 18952.86,
         "personal_daily": 624.78,
         "personal_weekly": 4373.47,
-        "personal_annually": 65148.69,
-        "capital_targets_monthly": 2548.0,
-        "discretionary_monthly": 2548.0,
-        "discretionary_daily": 84.93,
+        "personal_annually": 66348.69,
+        "capital_targets_monthly": 548.0,
+        "discretionary_monthly": 548.0,
+        "discretionary_daily": 18.27,
         "combined_monthly": 18952.86,
         "combined_daily": 624.78,
         "coinbase_funded_monthly": 12937.9,
@@ -1861,7 +1861,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-05T06:26:59.003763+00:00",
+      "as_of": "2026-08-05T09:28:31.369937+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -1875,9 +1875,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-05T06:26:59.003759+00:00",
-        "total_value": 182.09082619,
-        "equity_value": 182.00082619,
+        "as_of": "2026-08-05T09:28:31.369933+00:00",
+        "total_value": 179.59950941,
+        "equity_value": 179.50950941,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -2069,7 +2069,7 @@
         "one_card": "ynab/plaid (balance + txs)",
         "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
         "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking \u2013 ####)",
-        "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
+        "expenses": "google sheet: Personal=upcoming; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
         "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
@@ -2113,8 +2113,10 @@
       "one_card_account": "Coinbase One Card \u2013 5361",
       "expenses_upcoming_monthly": 18952.86,
       "expenses_personal_monthly": 18952.86,
-      "expenses_capital_targets_monthly": 2548.0,
-      "expenses_discretionary_monthly": 2548.0,
+      "expenses_capital_targets_monthly": 548.0,
+      "expenses_discretionary_monthly": 548.0,
+      "expenses_productive_discretionary_monthly": 548.0,
+      "expenses_consumer_discretionary_monthly": null,
       "expenses_combined_monthly": 18952.86,
       "expenses_coinbase_funded_monthly": 12937.9,
       "expenses_rh_funded_monthly": 0,
@@ -2123,11 +2125,11 @@
       "rh_checking_cash": 0.0,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 2.43,
-      "x_money_cash": 635.14,
+      "x_money_cash": 604.71,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 918.89,
+      "x_money_spend_30d": 949.32,
       "x_money_apy_est": 0.06,
-      "bank_cash": 635.14,
+      "bank_cash": 604.71,
       "bill_pay_cash": 0.0,
       "rh_equity": 0.0,
       "rh_total_value": 0.094046,
@@ -2137,7 +2139,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 182.09082619,
+      "rh_agentic_total_value": 179.59950941,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2213,11 +2215,11 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-05T06:00:59.014651+00:00",
-        "robinhood_as_of": "2026-08-05T06:26:59.003763+00:00",
-        "one_card_as_of": "2026-08-05T06:00:59.583635+00:00",
-        "rh_checking_as_of": "2026-08-05T06:00:59.763741+00:00",
-        "x_money_as_of": "2026-08-05T06:01:00.044152+00:00",
-        "expenses_as_of": "2026-08-05T06:01:02.749067+00:00"
+        "robinhood_as_of": "2026-08-05T09:28:31.369937+00:00",
+        "one_card_as_of": "2026-08-05T09:11:15.734011+00:00",
+        "rh_checking_as_of": "2026-08-05T09:11:15.924991+00:00",
+        "x_money_as_of": "2026-08-05T09:11:16.110968+00:00",
+        "expenses_as_of": "2026-08-05T09:11:16.816866+00:00"
       },
       "stale": [],
       "warnings": [],
@@ -2294,7 +2296,146 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.4992\nUSDC working: $128.00 (spot $1.00 + vault $127.00) | BTC liquid: 0.00000003 (~$0.00)\nOne Card owed: $440.18 (source=ynab) | 30d spend $404.77\nUpcoming expense estimates (sheet Personal): $18952.86/mo | CB-funded est $12937.90 | RH-checking est $0.00 | Capital targets (Discretionary, not burn) $2548.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $635.14 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [either|manual] LTV 49.9% above alert 45% \u2014 prepare buffer\n  P2 [human|manual] Restore cash stack \u00b7 Card $440 \u00b7 88% util \u00b7 USDC \u2212$1572 floors\n  P5 [either|manual] Bills ~$12938/mo vs USDC $128\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.4992\nUSDC working: $128.00 (spot $1.00 + vault $127.00) | BTC liquid: 0.00000003 (~$0.00)\nOne Card owed: $440.18 (source=ynab) | 30d spend $404.77\nUpcoming expense estimates (sheet Personal): $18952.86/mo | CB-funded est $12937.90 | RH-checking est $0.00 | Productive Discretionary (capital, not burn) $548.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $604.71 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [either|manual] LTV 49.9% above alert 45% \u2014 prepare buffer\n  P2 [human|manual] Restore cash stack \u00b7 Card $440 \u00b7 88% util \u00b7 USDC \u2212$1572 floors\n  P5 [either|manual] Bills ~$12938/mo vs USDC $128\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "cashflow_allocation": {
+      "version": 1,
+      "priority_order": [
+        "expenses_paid_current",
+        "card_paydown",
+        "cash_buffers",
+        "collateral_excess",
+        "capex_from_margin"
+      ],
+      "free_liquid_start": 732.71,
+      "free_liquid_residual": 0.0,
+      "working_usdc": 128.0,
+      "bank_cash": 604.71,
+      "free_dollar_red": true,
+      "active_step_id": "expenses",
+      "next_free_dollar": "Pay Personal sheet obligations (overdue / due soon)",
+      "steps": [
+        {
+          "rank": 1,
+          "id": "expenses",
+          "title": "Expenses paid & current",
+          "status": "partial",
+          "need": 15816.78,
+          "allocated": 732.71,
+          "gap": 15084.07,
+          "detail": "4 overdue \u00b7 3 due \u22647d \u00b7 critical $15,817",
+          "fund_from": "venue_cash",
+          "meta": {
+            "overdue_count": 4,
+            "due_soon_count": 3,
+            "overdue_total": 14200.73,
+            "due_soon_total": 1616.05
+          }
+        },
+        {
+          "rank": 2,
+          "id": "card_paydown",
+          "title": "Coinbase One Card paydown",
+          "status": "gap",
+          "need": 440.18,
+          "allocated": 0.0,
+          "gap": 440.18,
+          "detail": "Owed $440.18 \u2014 pay down before buffer residual risk",
+          "fund_from": "free_dollar",
+          "meta": {
+            "card_balance": 440.18
+          }
+        },
+        {
+          "rank": 3,
+          "id": "cash_buffers",
+          "title": "Cash stack buffers",
+          "status": "gap",
+          "need": 1572.0,
+          "allocated": 0.0,
+          "gap": 1572.0,
+          "detail": "Floors $1,700 \u00b7 working USDC $128 \u00b7 shortfall $1,572",
+          "fund_from": "free_dollar",
+          "meta": {
+            "floors_required": 1700.0,
+            "working_usdc": 128.0,
+            "shortfall": 1572.0,
+            "gaps": {
+              "card_float": 372.0,
+              "loan_buffer": 1000.0,
+              "bridge_dry_powder": 200.0
+            }
+          }
+        },
+        {
+          "rank": 4,
+          "id": "collateral",
+          "title": "Collateral (excess free dollars)",
+          "status": "blocked",
+          "need": 0.0,
+          "allocated": 0.0,
+          "gap": 17096.25,
+          "detail": "Blocked until expenses, card, and buffers are clear",
+          "fund_from": "free_dollar_excess",
+          "meta": {
+            "to_btc_collateral": 0.0,
+            "to_rh_securities": 0.0,
+            "split_cb": 0.6,
+            "split_rh": 0.4,
+            "priors_clear": false
+          }
+        },
+        {
+          "rank": 5,
+          "id": "capex_margin",
+          "title": "Capex \u00b7 Productive Discretionary (margin)",
+          "status": "no_bp",
+          "need": 548.0,
+          "allocated": 0.0,
+          "gap": 547.91,
+          "detail": "Productive ~$548/mo \u00b7 RH BP $0.09 \u00b7 no BP",
+          "fund_from": "collateralized_margin",
+          "meta": {
+            "rh_buying_power": 0.09,
+            "dca_allow": true,
+            "dca_reason": "buying power 0.09 above floor 0.00",
+            "items": [
+              {
+                "item": "ASIC",
+                "monthly": 2500.0
+              },
+              {
+                "item": "Tesla Rims Repair / Replace",
+                "monthly": 500.0
+              },
+              {
+                "item": "Tesla Wiper Blades",
+                "monthly": 48.0
+              }
+            ],
+            "consumer_items": [],
+            "productive_monthly": 548.0,
+            "consumer_monthly": 0.0,
+            "priority_order": [
+              "productive",
+              "consumer"
+            ]
+          }
+        }
+      ],
+      "expense_window": {
+        "critical_total": 15816.78,
+        "overdue_count": 4,
+        "due_soon_count": 3,
+        "as_of_date": "2026-08-05"
+      },
+      "capex": {
+        "fund_from": "collateralized_margin",
+        "monthly": 548.0,
+        "rh_buying_power": 0.09,
+        "status": "no_bp",
+        "note": "Productive Discretionary = capital outlay growing productive assets (priority over Consumer). Consumer Discretionary = wishlist / qualitative. Fund from collateralized margin (RH BP), not free-dollar cash stack."
+      }
+    },
     "sleeves": {
       "card_float": {
         "target": 500.0,
@@ -2331,15 +2472,13 @@
       "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
       "usdc_model": "CB: BTC \u2192 Morpho collateral \u2192 borrow USDC \u2192 One Card + High Yield vault. RH: equity/margin \u2192 cash \u2192 USDG \u2192 Robinhood Earn (Morpho ~7% est.). X Money: spend/float cash at ~6% APY (product rate). Idle broker cash intentionally low vs Morpho yield sleeves + X Money.",
       "priority_order": [
-        "Protect CB Morpho LTV (<50% target)",
-        "Card / buffers from working USDC (vault + spot)",
-        "RH margin heat if funding USDG Earn from equity collateral",
-        "RH Checking float for ACH bills",
-        "X Money cash (~6% APY) as spend/float sleeve",
-        "USDG Earn (manual track) as RH yield sleeve",
-        "Agentic equity 40/60 (separate from yield sleeves)",
-        "Bridge recommend CB\u2194RH",
-        "Excess \u2192 vault / USDG Earn / capital targets"
+        "Personal expenses paid & current (sheet)",
+        "Coinbase One Card balance paid down",
+        "Cash stack buffers filled (card float \u00b7 loan \u00b7 bridge)",
+        "Excess free dollars \u2192 collateral (BTC path / RH securities)",
+        "Capex \u00b7 Productive Discretionary from margin (priority over Consumer wishlist)",
+        "Protect CB Morpho LTV (<50% target) \u2014 keep loan open, manage LTV",
+        "RH margin heat cap still binds deployment of BP"
       ],
       "double_leverage_warning": "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities often dump together \u2014 dual Morpho loops stack liquidation risk.",
       "in_app_only": [
@@ -2353,25 +2492,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-05T06:26:59.152826+00:00",
+      "as_of": "2026-08-05T09:28:31.536775+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-05T06:26:59.150022+00:00",
+        "as_of": "2026-08-05T09:28:31.533764+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 182.0908,
+        "nav_usd": 179.5995,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3833,
-          "stocks_growth": 0.575,
+          "btc_digital_credit": 0.3886,
+          "stocks_growth": 0.583,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -5647,25 +5786,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-05T06:26:59.152826+00:00",
+    "as_of": "2026-08-05T09:28:31.536775+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-05T06:26:59.150022+00:00",
+      "as_of": "2026-08-05T09:28:31.533764+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 182.0908,
+      "nav_usd": 179.5995,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3833,
-        "stocks_growth": 0.575,
+        "btc_digital_credit": 0.3886,
+        "stocks_growth": 0.583,
         "other": 0.0,
         "cash": 0.0005
       },

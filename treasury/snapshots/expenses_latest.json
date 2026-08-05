@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-05T06:01:02.749067+00:00",
+  "as_of": "2026-08-05T09:11:16.816866+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -17,7 +17,7 @@
         "weekly": 4373.47,
         "biweekly": 8746.93,
         "monthly": 18952.86,
-        "annually": 65148.69
+        "annually": 66348.69
       },
       "by_source_monthly": {
         "Coinbase": 12937.9,
@@ -260,7 +260,7 @@
           "weekly": 2456.71,
           "biweekly": 4913.42,
           "monthly": 10675.0,
-          "annually": 22800.0,
+          "annually": 24000.0,
           "budget_allocation": 0.5617
         },
         {
@@ -588,11 +588,11 @@
       "role": "excess_capital_targets",
       "item_count": 8,
       "totals": {
-        "daily": 84.93,
-        "weekly": 594.53,
-        "biweekly": 1189.07,
-        "monthly": 2548.0,
-        "annually": 30576.0
+        "daily": 18.27,
+        "weekly": 127.87,
+        "biweekly": 255.73,
+        "monthly": 548.0,
+        "annually": 548.0
       },
       "top_targets": [
         {
@@ -603,8 +603,8 @@
           "budget_allocation": null
         },
         {
-          "item": "Tesla TPMS",
-          "monthly": 115.0,
+          "item": "Tesla Rims Repair / Replace",
+          "monthly": 500.0,
           "from": null,
           "date": "9/1/2026",
           "budget_allocation": null
@@ -626,8 +626,8 @@
           "budget_allocation": null
         },
         {
-          "item": "Tesla TPMS",
-          "monthly": 115.0,
+          "item": "Tesla Rims Repair / Replace",
+          "monthly": 500.0,
           "from": null,
           "date": "9/1/2026",
           "budget_allocation": null
@@ -642,68 +642,13 @@
       ],
       "items": [
         {
-          "item": "Tesla TPMS",
-          "date": "9/1/2026",
-          "daily": 3.83,
-          "weekly": 26.83,
-          "biweekly": 53.67,
-          "monthly": 115.0,
-          "annually": 1380.0,
-          "from": null,
-          "to": null
-        },
-        {
-          "item": "Tesla Balance & Rotation",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null
-        },
-        {
-          "item": "Tesla Wiper Blades",
-          "date": "9/1/2026",
-          "daily": 1.6,
-          "weekly": 11.2,
-          "biweekly": 22.4,
-          "monthly": 48.0,
-          "annually": 576.0,
-          "from": null,
-          "to": null
-        },
-        {
           "item": "ASIC",
           "date": "9/1/2026",
           "daily": 83.33,
           "weekly": 583.33,
           "biweekly": 1166.67,
           "monthly": 2500.0,
-          "annually": 30000.0,
-          "from": null,
-          "to": null
-        },
-        {
-          "item": "Glow",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null
-        },
-        {
-          "item": "Fractals",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
+          "annually": 2500.0,
           "from": null,
           "to": null
         },
@@ -728,6 +673,61 @@
           "annually": 0.0,
           "from": null,
           "to": null
+        },
+        {
+          "item": "Fractals",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": null,
+          "annually": 0.0,
+          "from": null,
+          "to": null
+        },
+        {
+          "item": "Glow",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": null,
+          "annually": 0.0,
+          "from": null,
+          "to": null
+        },
+        {
+          "item": "Tesla Balance & Rotation",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": null,
+          "annually": 0.0,
+          "from": null,
+          "to": null
+        },
+        {
+          "item": "Tesla Rims Repair / Replace",
+          "date": "9/1/2026",
+          "daily": 16.67,
+          "weekly": 116.67,
+          "biweekly": 233.33,
+          "monthly": 500.0,
+          "annually": 500.0,
+          "from": null,
+          "to": null
+        },
+        {
+          "item": "Tesla Wiper Blades",
+          "date": "9/1/2026",
+          "daily": 1.6,
+          "weekly": 11.2,
+          "biweekly": 22.4,
+          "monthly": 48.0,
+          "annually": 48.0,
+          "from": null,
+          "to": null
         }
       ]
     }
@@ -737,10 +737,10 @@
     "personal_monthly": 18952.86,
     "personal_daily": 624.78,
     "personal_weekly": 4373.47,
-    "personal_annually": 65148.69,
-    "capital_targets_monthly": 2548.0,
-    "discretionary_monthly": 2548.0,
-    "discretionary_daily": 84.93,
+    "personal_annually": 66348.69,
+    "capital_targets_monthly": 548.0,
+    "discretionary_monthly": 548.0,
+    "discretionary_daily": 18.27,
     "combined_monthly": 18952.86,
     "combined_daily": 624.78,
     "coinbase_funded_monthly": 12937.9,
