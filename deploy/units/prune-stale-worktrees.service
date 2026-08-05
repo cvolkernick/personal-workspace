@@ -1,0 +1,14 @@
+[Unit]
+Description=Prune stale personal-workspace git worktrees
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PERSONAL_WORKSPACE=%h/personal-workspace
+Environment=PERSONAL_WORKSPACE_LOG_DIR=%h/personal-workspace/ops/logs
+ExecStart=/bin/bash %h/personal-workspace/ops/prune_stale_worktrees.sh
+Nice=10
+
+[Install]
+WantedBy=default.target
