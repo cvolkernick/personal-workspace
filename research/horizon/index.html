@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>🌅 Horizon — Global Macro Intelligence</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  <style>
+    :root {
+      --bg: #060a10;
+      --bg2: #0a1018;
+      --panel: #0f1620;
+      --panel2: #121c28;
+      --panel3: #162230;
+      --border: #1c2a3a;
+      --border2: #2a3d52;
+      --text: #e8eef6;
+      --muted: #7f96ad;
+      --dim: #5a7085;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --orange: #f0a060;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --cyan: #4fd1c5;
+      --purple: #a78bfa;
+      --pink: #f472b6;
+      --blue: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(1100px 600px at 90% -15%, rgba(88, 28, 135, 0.22) 0%, transparent 55%),
+        radial-gradient(900px 500px at -5% 10%, rgba(14, 90, 140, 0.2) 0%, transparent 50%),
+        radial-gradient(700px 400px at 50% 100%, rgba(15, 80, 70, 0.12) 0%, transparent 45%),
+        var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+      font-size: 14.5px;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    header.top {
+      position: sticky; top: 0; z-index: 50;
+      background: rgba(6, 10, 16, 0.88);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.4rem;
+    }
+    .top-inner {
+      max-width: 1440px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+      align-items: center; justify-content: space-between;
+    }
+    .brand { display: flex; flex-direction: column; gap: 0.15rem; min-width: 200px; }
+    .brand h1 {
+      margin: 0; font-size: 1.35rem; font-weight: 750; letter-spacing: -0.03em;
+      display: flex; align-items: center; gap: 0.4rem;
+    }
+    /* Gradient clip makes emoji invisible — keep emoji outside the clip */
+    .brand h1 .logo-emoji {
+      color: initial;
+      background: none;
+      -webkit-background-clip: border-box;
+      background-clip: border-box;
+      font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", "Twemoji Mozilla", sans-serif;
+      font-style: normal;
+      font-weight: 400;
+      line-height: 1;
+      font-size: 1.25em;
+      flex-shrink: 0;
+    }
+    .brand h1 .logo-text {
+      background: linear-gradient(100deg, #e8eef6 0%, #a78bfa 42%, #4fd1c5 78%, #5b9fd4 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .brand .sub { color: var(--muted); font-size: 0.8rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      padding: 0.28rem 0.65rem; border-radius: 999px;
+      font-weight: 700; font-size: 0.72rem; letter-spacing: 0.04em;
+      text-transform: uppercase; border: 1px solid var(--border); background: var(--panel);
+      color: var(--muted);
+    }
+    .pill.live { color: var(--cyan); border-color: #1a5a55; }
+    .pill.ok { color: var(--green); border-color: #245c42; }
+    .pill.warn { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.crit { color: var(--red); border-color: #6b2e2e; }
+    button, .btn {
+      cursor: pointer; border: 1px solid var(--border); background: var(--panel2);
+      color: var(--text); border-radius: 9px; padding: 0.42rem 0.85rem;
+      font-weight: 650; font-size: 0.85rem;
+    }
+    button:hover, .btn:hover { border-color: var(--accent); color: var(--accent); }
+    button.primary { background: linear-gradient(180deg, #1a3f5c, #152f45); border-color: #2d6a9f; }
+    button.primary:hover { color: #9fd0ff; }
+    button:disabled { opacity: 0.5; cursor: wait; }
+
+    main { max-width: 1440px; margin: 0 auto; padding: 1.15rem 1.4rem 3.5rem; }
+
+    .error-banner {
+      display: none; background: #2a1515; border: 1px solid #6b2e2e; color: var(--red);
+      padding: 0.75rem 1rem; border-radius: 10px; margin-bottom: 1rem;
+    }
+    .error-banner.show { display: block; }
+
+    /* KPI strip */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 0.6rem; margin-bottom: 1.15rem;
+    }
+    .kpi {
+      background: linear-gradient(165deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.7rem 0.85rem; position: relative; overflow: hidden;
+    }
+    .kpi::after {
+      content: ""; position: absolute; inset: auto -20% -40% auto;
+      width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(91,159,212,0.12), transparent 70%);
+      pointer-events: none;
+    }
+    .kpi .n { font-size: 1.5rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.1; }
+    .kpi .l { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 0.2rem; }
+    .kpi .n.green { color: var(--green); }
+    .kpi .n.cyan { color: var(--cyan); }
+    .kpi .n.purple { color: var(--purple); }
+    .kpi .n.orange { color: var(--orange); }
+    .kpi .n.yellow { color: var(--yellow); }
+
+    /* Nav tabs — top on web, bottom dock on phone (FitDash / Workflow / IoT pattern) */
+    body.m-shell { padding-bottom: 0; }
+    .tabs, .top-tabs {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.1rem;
+      border-bottom: 1px solid var(--border); padding-bottom: 0.55rem;
+    }
+    .tab, .top-tabs .tab-btn {
+      background: transparent; border: 1px solid transparent; color: var(--muted);
+      border-radius: 8px; padding: 0.4rem 0.75rem; font-weight: 650; font-size: 0.84rem;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;
+      font-family: inherit;
+    }
+    .tab:hover, .top-tabs .tab-btn:hover { color: var(--text); border-color: var(--border); }
+    .tab.active, .top-tabs .tab-btn.active {
+      color: var(--text); background: var(--panel2); border-color: var(--border2);
+    }
+    .tab .tab-ico, .top-tabs .tab-btn .tab-ico { font-size: 0.95rem; line-height: 1; opacity: 0.95; }
+    .mobile-tabbar {
+      display: none;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      background: rgba(6, 10, 16, 0.97);
+      border-top: 1px solid var(--border);
+      padding: 0.35rem 0.3rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+      justify-content: space-around; gap: 0.1rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.35);
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      background: transparent; border: none; color: var(--muted);
+      padding: 0.3rem 0.1rem; font-size: 0.62rem; font-weight: 650; cursor: pointer;
+      border-radius: 10px; min-height: 48px; font-family: inherit; min-width: 0;
+    }
+    .mobile-tabbar .tab-btn .tab-ico { font-size: 1.05rem; line-height: 1; }
+    .mobile-tabbar .tab-btn .tab-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .mobile-tabbar .tab-btn.active { color: var(--accent); background: rgba(91, 159, 212, 0.12); }
+
+    section.panel { display: none; margin-bottom: 1.5rem; }
+    section.panel.active { display: block; }
+
+    @media (max-width: 720px) {
+      :root { font-size: 16px; }
+      body.m-shell { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+      body.m-shell main {
+        padding: 0.85rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell header.top { padding: 0.7rem 0.85rem; }
+      body.m-shell .brand .sub { display: none; }
+      body.m-shell .brand h1 { font-size: 1.15rem; }
+      body.m-shell .controls .btn { display: none; }
+      body.m-shell .tabs, body.m-shell .top-tabs { display: none; }
+      body.m-shell .mobile-tabbar { display: flex; }
+      body.m-shell .kpis { grid-template-columns: repeat(3, 1fr); gap: 0.45rem; }
+      body.m-shell .kpi .n { font-size: 1.2rem; }
+      body.m-shell table.watch { min-width: 560px; }
+    }
+    @media (min-width: 721px) {
+      body.m-shell { padding-bottom: 0; }
+      body.m-shell .mobile-tabbar { display: none; }
+    }
+    section h2 {
+      margin: 0 0 0.85rem; font-size: 1.05rem; font-weight: 700;
+      display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
+    }
+    section h2 .hint { font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+
+    /* Domain heat map */
+    .domain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.65rem;
+    }
+    .domain-tile {
+      border-radius: 14px; padding: 0.9rem 1rem; border: 1px solid var(--border);
+      background: var(--panel); cursor: pointer; transition: transform 0.12s, border-color 0.12s;
+      position: relative; overflow: hidden; min-height: 118px;
+      display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .domain-tile:hover { transform: translateY(-2px); border-color: var(--border2); }
+    .domain-tile .heat {
+      position: absolute; inset: 0; pointer-events: none; opacity: 0.55;
+      background: radial-gradient(120% 100% at 100% 0%, var(--heat, transparent), transparent 65%);
+    }
+    .domain-tile .label { font-weight: 700; font-size: 0.92rem; position: relative; z-index: 1; }
+    .domain-tile .sum {
+      color: var(--muted); font-size: 0.78rem; flex: 1; position: relative; z-index: 1;
+      display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .domain-tile .meta {
+      display: flex; gap: 0.35rem; flex-wrap: wrap; position: relative; z-index: 1;
+    }
+    .chip {
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.03em;
+      padding: 0.12rem 0.4rem; border-radius: 6px; background: rgba(0,0,0,0.25);
+      border: 1px solid var(--border); color: var(--muted);
+    }
+    .chip.score { color: var(--cyan); }
+    .chip.nodes { color: var(--purple); }
+
+    /* Ranked cards */
+    .rank-list { display: flex; flex-direction: column; gap: 0.7rem; }
+    .rank-card {
+      display: grid; grid-template-columns: 52px 1fr; gap: 0.85rem;
+      background: linear-gradient(120deg, var(--panel2), var(--panel));
+      border: 1px solid var(--border); border-radius: 14px; padding: 0.9rem 1rem;
+    }
+    .rank-num {
+      width: 52px; height: 52px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.35rem; font-weight: 800; letter-spacing: -0.03em;
+      background: var(--panel3); border: 1px solid var(--border2); color: var(--accent);
+    }
+    .rank-num.top { background: linear-gradient(145deg, #2a1f4a, #1a3048); color: var(--purple); border-color: #4a3a7a; }
+    .rank-body h3 { margin: 0 0 0.35rem; font-size: 0.98rem; font-weight: 700; line-height: 1.3; }
+    .rank-meta { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.45rem; }
+    .tag {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+      padding: 0.15rem 0.45rem; border-radius: 999px; border: 1px solid currentColor;
+    }
+    .tag.domain { color: var(--blue); }
+    .tag.impact-critical { color: var(--red); }
+    .tag.impact-high { color: var(--orange); }
+    .tag.impact-medium { color: var(--accent); }
+    .tag.impact-low { color: var(--dim); }
+    .split {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem;
+    }
+    @media (max-width: 720px) { .split { grid-template-columns: 1fr; } .rank-card { grid-template-columns: 40px 1fr; } }
+    .fact-box, .interp-box {
+      border-radius: 10px; padding: 0.55rem 0.7rem; font-size: 0.84rem;
+      border: 1px solid var(--border);
+    }
+    .fact-box { background: rgba(61, 214, 140, 0.06); border-color: #1e4a35; }
+    .interp-box { background: rgba(167, 139, 250, 0.06); border-color: #3d2f66; }
+    .fact-box .lbl, .interp-box .lbl {
+      font-size: 0.65rem; font-weight: 800; letter-spacing: 0.07em;
+      text-transform: uppercase; margin-bottom: 0.2rem;
+    }
+    .fact-box .lbl { color: var(--green); }
+    .interp-box .lbl { color: var(--purple); }
+    .meters { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.5rem; }
+    .meter-row { display: grid; grid-template-columns: 72px 1fr 40px; gap: 0.4rem; align-items: center; font-size: 0.72rem; color: var(--muted); }
+    .bar {
+      height: 7px; border-radius: 999px; background: #1a2532; overflow: hidden;
+    }
+    .bar > i {
+      display: block; height: 100%; border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent), var(--cyan));
+    }
+    .bar.conf > i { background: linear-gradient(90deg, var(--purple), var(--pink)); }
+    .bar.score > i { background: linear-gradient(90deg, var(--orange), var(--yellow)); }
+    .bar.aff > i { background: linear-gradient(90deg, var(--green), var(--cyan)); }
+    .why { color: var(--dim); font-size: 0.78rem; margin-top: 0.4rem; }
+
+    /* Strategy columns */
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 0.75rem;
+    }
+    .strat-col {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 0.9rem; display: flex; flex-direction: column; gap: 0.55rem;
+    }
+    .strat-col h3 {
+      margin: 0; font-size: 0.95rem; font-weight: 750;
+      display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+    }
+    .strat-col h3 .count {
+      font-size: 0.7rem; color: var(--muted); font-weight: 700;
+      background: var(--panel3); border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.1rem 0.45rem;
+    }
+    .link-item {
+      background: var(--panel2); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.6rem 0.7rem; font-size: 0.84rem;
+    }
+    .link-item .t { font-weight: 650; margin-bottom: 0.25rem; }
+    .link-item .r { color: var(--muted); font-size: 0.76rem; margin-top: 0.3rem; }
+    .intent-banner {
+      background: linear-gradient(100deg, rgba(167,139,250,0.12), rgba(79,209,197,0.08));
+      border: 1px solid #3d3a6a; border-radius: 14px; padding: 0.9rem 1.1rem;
+      margin-bottom: 0.9rem;
+    }
+    .intent-banner .lbl { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--purple); }
+    .intent-banner .txt { font-size: 1rem; font-weight: 600; margin-top: 0.25rem; }
+    .positions { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.55rem; }
+    .pos {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.45rem;
+      border-radius: 6px; background: #15202c; border: 1px solid var(--border2); color: var(--cyan);
+    }
+
+    /* Watchlist table */
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 14px; }
+    table.watch {
+      width: 100%; border-collapse: collapse; min-width: 720px;
+    }
+    table.watch th, table.watch td {
+      text-align: left; padding: 0.65rem 0.8rem; border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    table.watch th {
+      background: var(--panel2); color: var(--muted); font-size: 0.72rem;
+      text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700;
+      position: sticky; top: 0;
+    }
+    table.watch tr:last-child td { border-bottom: none; }
+    table.watch tr:hover td { background: rgba(255,255,255,0.02); }
+    table.watch .title { font-weight: 650; }
+    .score-cell { min-width: 110px; }
+    .score-cell .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+    /* Graph / edges */
+    .graph-layout {
+      display: grid; grid-template-columns: 1.2fr 1fr; gap: 0.9rem;
+    }
+    @media (max-width: 960px) { .graph-layout { grid-template-columns: 1fr; } }
+    .svg-box {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 0.75rem; min-height: 360px;
+    }
+    .svg-box svg { width: 100%; height: auto; display: block; }
+    .edge-list { display: flex; flex-direction: column; gap: 0.45rem; max-height: 420px; overflow: auto; }
+    .edge-item {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+      padding: 0.55rem 0.7rem; font-size: 0.82rem;
+    }
+    .edge-item .rel { color: var(--cyan); font-weight: 700; font-size: 0.72rem; text-transform: uppercase; }
+    .edge-item .ids { color: var(--muted); font-size: 0.78rem; margin-top: 0.15rem; word-break: break-word; }
+
+    /* Overview two-col */
+    .overview-grid {
+      display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 0.9rem;
+    }
+    @media (max-width: 1000px) { .overview-grid { grid-template-columns: 1fr; } }
+    .card-block {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 14px;
+      padding: 0.9rem 1rem;
+    }
+    .card-block h3 { margin: 0 0 0.65rem; font-size: 0.92rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+    footer.note {
+      margin-top: 2rem; color: var(--dim); font-size: 0.78rem; text-align: center;
+    }
+    .empty { color: var(--muted); padding: 1.5rem; text-align: center; }
+    .loading { color: var(--muted); padding: 2rem; text-align: center; }
+  </style>
+</head>
+<body class="m-shell" data-m-active="overview">
+  <header class="top">
+    <div class="top-inner">
+      <div class="brand">
+        <h1><span class="logo-emoji" role="img" aria-label="sunrise">🌅</span><span class="logo-text">Horizon</span></h1>
+        <div class="sub">Global macro &amp; geopolitical intelligence · world-state · strategy linkage · port 8795</div>
+      </div>
+      <div class="controls">
+        <span class="pill" id="pill-version">—</span>
+        <span class="pill" id="pill-mode">—</span>
+        <span class="pill" id="pill-status">loading</span>
+        <button type="button" class="primary" id="btn-refresh" title="Re-run offline pipeline">↻ Refresh</button>
+        <button type="button" id="btn-live" title="Refresh with live RSS if available">Live sources</button>
+        <a class="btn" id="link-seasonal" href="http://127.0.0.1:8791/" title="Seasonal themes (different app)">Seasonal plan</a>
+        <a class="btn" id="link-orchestra" href="http://127.0.0.1:8790/" title="Orchestrator">Orchestrator</a>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="error-banner" id="error"></div>
+
+    <div class="kpis" id="kpis">
+      <div class="kpi"><div class="n" id="k-domains">—</div><div class="l">Domains</div></div>
+      <div class="kpi"><div class="n cyan" id="k-nodes">—</div><div class="l">Active nodes</div></div>
+      <div class="kpi"><div class="n orange" id="k-high">—</div><div class="l">High / critical</div></div>
+      <div class="kpi"><div class="n purple" id="k-links">—</div><div class="l">Strategy links</div></div>
+      <div class="kpi"><div class="n yellow" id="k-conf">—</div><div class="l">Avg confidence</div></div>
+      <div class="kpi"><div class="n green" id="k-watch">—</div><div class="l">Watchlist</div></div>
+    </div>
+
+    <!-- Web: top tabs -->
+    <nav class="tabs top-tabs" id="tabs" aria-label="Horizon sections">
+      <button type="button" class="tab active" data-tab="overview"><span class="tab-ico">◉</span> Overview</button>
+      <button type="button" class="tab" data-tab="brief"><span class="tab-ico">📋</span> Brief</button>
+      <button type="button" class="tab" data-tab="world"><span class="tab-ico">🌐</span> World</button>
+      <button type="button" class="tab" data-tab="strategy"><span class="tab-ico">🎯</span> Strategy</button>
+      <button type="button" class="tab" data-tab="watchlist"><span class="tab-ico">📡</span> Watch</button>
+      <button type="button" class="tab" data-tab="graph"><span class="tab-ico">🔗</span> Graph</button>
+    </nav>
+
+    <section class="panel active" id="panel-overview">
+      <div class="overview-grid">
+        <div>
+          <h2>Domain heat map <span class="hint">intensity = top priority score</span></h2>
+          <div class="domain-grid" id="domain-heat"></div>
+        </div>
+        <div>
+          <div class="card-block" style="margin-bottom:0.9rem">
+            <h3>Top signals</h3>
+            <div class="rank-list" id="overview-top"></div>
+          </div>
+          <div class="card-block">
+            <h3>Strategy hotspots</h3>
+            <div id="overview-strat"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-brief">
+      <h2>Executive brief <span class="hint">facts separated from interpretation</span></h2>
+      <div class="rank-list" id="brief-list"></div>
+    </section>
+
+    <section class="panel" id="panel-world">
+      <h2>Current world state <span class="hint">all required domains</span></h2>
+      <div class="domain-grid" id="world-domains"></div>
+    </section>
+
+    <section class="panel" id="panel-strategy">
+      <h2>Implications for my strategy <span class="hint">from Orchestrator thesis</span></h2>
+      <div id="strategy-head"></div>
+      <div class="strategy-grid" id="strategy-grid"></div>
+    </section>
+
+    <section class="panel" id="panel-watchlist">
+      <h2>Watchlist / radar <span class="hint">ranked by priority_score</span></h2>
+      <div class="table-wrap">
+        <table class="watch">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Variable / event</th>
+              <th>Domain</th>
+              <th>Impact</th>
+              <th>Confidence</th>
+              <th>Score</th>
+              <th>Why watch</th>
+            </tr>
+          </thead>
+          <tbody id="watch-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-graph">
+      <h2>Cross-domain connections <span class="hint">shared-tag edges</span></h2>
+      <div class="graph-layout">
+        <div class="svg-box" id="graph-svg"></div>
+        <div class="edge-list" id="edge-list"></div>
+      </div>
+    </section>
+
+    <footer class="note">
+      Horizon · objective synthesis · fact / interpretation split · confidence explicit ·
+      data from <code>research/horizon/data/</code>
+    </footer>
+  </main>
+
+  <!-- Mobile: bottom tab dock -->
+  <nav class="mobile-tabbar" id="mobile-tabs" aria-label="Horizon sections (mobile)">
+    <button type="button" class="tab-btn active" data-tab="overview"><span class="tab-ico">◉</span><span class="tab-lbl">Overview</span></button>
+    <button type="button" class="tab-btn" data-tab="brief"><span class="tab-ico">📋</span><span class="tab-lbl">Brief</span></button>
+    <button type="button" class="tab-btn" data-tab="world"><span class="tab-ico">🌐</span><span class="tab-lbl">World</span></button>
+    <button type="button" class="tab-btn" data-tab="strategy"><span class="tab-ico">🎯</span><span class="tab-lbl">Strategy</span></button>
+    <button type="button" class="tab-btn" data-tab="watchlist"><span class="tab-ico">📡</span><span class="tab-lbl">Watch</span></button>
+    <button type="button" class="tab-btn" data-tab="graph"><span class="tab-ico">🔗</span><span class="tab-lbl">Graph</span></button>
+  </nav>
+
+  <script>
+    const DOMAIN_COLORS = {
+      geopolitics: "#f472b6",
+      macroeconomics: "#60a5fa",
+      energy: "#f0a060",
+      technology_ai: "#a78bfa",
+      military: "#ff6b6b",
+      demographics: "#f5c542",
+      supply_chains: "#4fd1c5",
+      capital_flows: "#3dd68c",
+      climate_resources: "#34d399",
+      narrative_information: "#94a3b8",
+    };
+
+    let DATA = null;
+
+    function $(id) { return document.getElementById(id); }
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, c => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+      })[c]);
+    }
+    function pct(x) { return Math.round(Math.max(0, Math.min(1, Number(x) || 0)) * 100); }
+    function confColor(c) {
+      if (c >= 0.75) return "var(--green)";
+      if (c >= 0.55) return "var(--yellow)";
+      return "var(--orange)";
+    }
+
+    function meter(label, value, max, cls) {
+      const p = max > 0 ? Math.min(100, (value / max) * 100) : 0;
+      return `<div class="meter-row"><span>${esc(label)}</span>
+        <div class="bar ${cls || ""}"><i style="width:${p}%"></i></div>
+        <span>${typeof value === "number" ? value.toFixed(2) : esc(value)}</span></div>`;
+    }
+
+    function setError(msg) {
+      const el = $("error");
+      if (!msg) { el.classList.remove("show"); el.textContent = ""; return; }
+      el.textContent = msg;
+      el.classList.add("show");
+    }
+
+    const TAB_IDS = ["overview", "brief", "world", "strategy", "watchlist", "graph"];
+
+    function switchTab(name) {
+      if (!TAB_IDS.includes(name)) name = "overview";
+      document.querySelectorAll(".tab, .mobile-tabbar .tab-btn").forEach((t) => {
+        t.classList.toggle("active", t.dataset.tab === name);
+      });
+      document.querySelectorAll("section.panel").forEach((p) => {
+        p.classList.toggle("active", p.id === "panel-" + name);
+      });
+      document.body.dataset.mActive = name;
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("tab", name);
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      } catch (_) { /* ignore */ }
+    }
+
+    function bindTabNav(root) {
+      if (!root) return;
+      root.addEventListener("click", (e) => {
+        const t = e.target.closest("[data-tab]");
+        if (t && t.dataset.tab) switchTab(t.dataset.tab);
+      });
+    }
+    bindTabNav(document.getElementById("tabs"));
+    bindTabNav(document.getElementById("mobile-tabs"));
+
+    // Same-host deep links (LAN / Tailscale / localhost)
+    (function wirePeerLinks() {
+      const host = window.location.hostname || "127.0.0.1";
+      const seasonal = document.getElementById("link-seasonal");
+      const orchestra = document.getElementById("link-orchestra");
+      if (seasonal) seasonal.href = `http://${host}:8791/`;
+      if (orchestra) orchestra.href = `http://${host}:8790/`;
+    })();
+
+    function renderKpis(payload) {
+      const brief = payload.brief || {};
+      const ws = payload.world_state || {};
+      const domains = (ws.domains) || {};
+      const allNodes = Object.values(domains).flatMap(b => b.nodes || []);
+      const high = allNodes.filter(n => ["high","critical"].includes(String(n.impact||"").toLowerCase())).length;
+      const avgConf = allNodes.length
+        ? allNodes.reduce((s,n) => s + (Number(n.confidence)||0), 0) / allNodes.length
+        : 0;
+      const links = (brief.implications_for_my_strategy || {}).linkage_count
+        ?? ((brief.implications_for_my_strategy || {}).sections || []).reduce((s, sec) => s + (sec.items||[]).length, 0);
+      const watch = ((brief.watchlist || {}).items || []).length;
+      const covered = Object.values(domains).filter(b => (b.nodes||[]).length > 0).length;
+
+      $("k-domains").textContent = `${covered}/${Object.keys(domains).length || 10}`;
+      $("k-nodes").textContent = allNodes.length || (ws.meta && ws.meta.node_total) || "—";
+      $("k-high").textContent = high;
+      $("k-links").textContent = links || "—";
+      $("k-conf").textContent = allNodes.length ? avgConf.toFixed(2) : "—";
+      $("k-watch").textContent = watch || "—";
+
+      $("pill-version").textContent = "v " + (payload.version_id || "—");
+      const modes = (ws.meta && ws.meta.source_modes) || [];
+      $("pill-mode").textContent = modes.length ? modes.join(" · ") : "offline";
+      $("pill-mode").className = "pill live";
+      $("pill-status").textContent = payload.has_brief ? "ready" : "empty";
+      $("pill-status").className = "pill " + (payload.has_brief ? "ok" : "warn");
+    }
+
+    function domainTile(d, clickable) {
+      const color = DOMAIN_COLORS[d.id] || "#5b9fd4";
+      const intensity = d.intensity != null ? d.intensity : Math.min(1, (d.top_score || 0) / 3.5);
+      return `<div class="domain-tile" data-domain="${esc(d.id)}" style="--heat:${color}${Math.round(30 + intensity * 90).toString(16).padStart(2,"0")}">
+        <div class="heat"></div>
+        <div class="label">${esc(d.label || d.id)}</div>
+        <div class="sum">${esc(d.summary || "No summary")}</div>
+        <div class="meta">
+          <span class="chip nodes">${d.node_count || 0} nodes</span>
+          <span class="chip score">score ${(d.top_score || 0).toFixed(2)}</span>
+          <span class="chip">conf ${((d.avg_confidence || 0)).toFixed(2)}</span>
+        </div>
+      </div>`;
+    }
+
+    function rankCard(item, i) {
+      const conf = Number(item.confidence) || 0;
+      const score = Number(item.priority_score) || 0;
+      const impact = String(item.impact || "medium").toLowerCase();
+      const fact = item.fact || (item.facts && item.facts[0]) || "";
+      const interp = item.interpretation || "";
+      return `<article class="rank-card">
+        <div class="rank-num ${i < 3 ? "top" : ""}">${item.rank || (i+1)}</div>
+        <div class="rank-body">
+          <h3>${esc(item.title || item.variable_or_event || "")}</h3>
+          <div class="rank-meta">
+            <span class="tag domain">${esc(item.domain || "")}</span>
+            <span class="tag impact-${esc(impact)}">${esc(impact)}</span>
+          </div>
+          <div class="split">
+            <div class="fact-box"><div class="lbl">Fact</div>${esc(fact) || "—"}</div>
+            <div class="interp-box"><div class="lbl">Interpretation</div>${esc(interp) || "—"}</div>
+          </div>
+          <div class="meters">
+            ${meter("Confidence", conf, 1, "conf")}
+            ${score ? meter("Score", score, 5, "score") : ""}
+          </div>
+          ${item.priority_rationale || item.why_watch
+            ? `<div class="why">${esc(item.priority_rationale || item.why_watch)}</div>` : ""}
+        </div>
+      </article>`;
+    }
+
+    function renderOverview(payload) {
+      const stats = payload.domain_stats || [];
+      $("domain-heat").innerHTML = stats.map(d => domainTile(d)).join("") || '<div class="empty">No domains</div>';
+      $("domain-heat").querySelectorAll(".domain-tile").forEach(el => {
+        el.addEventListener("click", () => { switchTab("world"); });
+      });
+
+      const items = ((payload.brief || {}).executive_brief || {}).items || [];
+      $("overview-top").innerHTML = items.slice(0, 3).map((it, i) => {
+        return `<div style="margin-bottom:0.55rem;padding-bottom:0.55rem;border-bottom:1px solid var(--border)">
+          <div style="font-weight:700;font-size:0.88rem"><span style="color:var(--purple)">#${it.rank||i+1}</span> ${esc(it.title)}</div>
+          <div style="color:var(--muted);font-size:0.78rem;margin-top:0.2rem">${esc(it.domain)} · conf ${esc(it.confidence)}</div>
+        </div>`;
+      }).join("") || '<div class="empty">No brief items</div>';
+
+      const sections = ((payload.brief || {}).implications_for_my_strategy || {}).sections || [];
+      $("overview-strat").innerHTML = sections.slice(0, 5).map(sec => {
+        const top = (sec.items || [])[0];
+        const aff = top ? Number(top.affinity) || 0 : 0;
+        return `<div style="margin-bottom:0.55rem">
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.85rem;font-weight:650">
+            <span>${esc(sec.priority_label)}</span><span style="color:var(--cyan)">${aff.toFixed(2)}</span>
+          </div>
+          <div class="bar aff" style="margin-top:0.25rem"><i style="width:${pct(aff)}%"></i></div>
+          ${top ? `<div style="color:var(--muted);font-size:0.76rem;margin-top:0.25rem">${esc(top.title)}</div>` : ""}
+        </div>`;
+      }).join("") || '<div class="empty">No strategy linkages</div>';
+    }
+
+    function renderBrief(payload) {
+      const items = ((payload.brief || {}).executive_brief || {}).items || [];
+      // Enrich with impact/score from world state if available
+      const nodeMap = {};
+      const domains = ((payload.world_state || {}).domains) || {};
+      Object.values(domains).forEach(b => (b.nodes||[]).forEach(n => { nodeMap[n.id] = n; }));
+      $("brief-list").innerHTML = items.map((it, i) => {
+        const n = nodeMap[it.id] || {};
+        return rankCard({
+          ...it,
+          impact: n.impact || it.impact || "high",
+          priority_score: n.priority_score || it.priority_score,
+          facts: it.facts || (it.fact ? [it.fact] : n.facts),
+        }, i);
+      }).join("") || '<div class="empty">No executive brief — run Refresh</div>';
+    }
+
+    function renderWorld(payload) {
+      const domains = ((payload.brief || {}).current_world_state || {}).domains
+        || ((payload.world_state || {}).domains) || {};
+      const tiles = Object.entries(domains).map(([id, b]) => {
+        const nodes = b.nodes || b.top_nodes || [];
+        const topScore = Math.max(0, ...nodes.map(n => Number(n.priority_score)||0), 0);
+        const avgConf = nodes.length ? nodes.reduce((s,n)=>s+(Number(n.confidence)||0),0)/nodes.length : 0;
+        return domainTile({
+          id,
+          label: b.label || id,
+          summary: b.summary || (nodes[0] && nodes[0].title) || "",
+          node_count: b.node_count != null ? b.node_count : nodes.length,
+          top_score: topScore,
+          avg_confidence: avgConf,
+          intensity: Math.min(1, topScore / 3.5),
+        });
+      });
+      // Expandable detail cards under grid
+      let detail = "";
+      Object.entries(domains).forEach(([id, b]) => {
+        const nodes = b.top_nodes || b.nodes || [];
+        if (!nodes.length) return;
+        detail += `<div class="card-block" style="margin-top:0.75rem;grid-column:1/-1">
+          <h3 style="color:${DOMAIN_COLORS[id]||'var(--accent)'}">${esc(b.label || id)}</h3>
+          <div class="rank-list">
+            ${nodes.slice(0,3).map((n,i) => rankCard({
+              rank: i+1,
+              title: n.title,
+              domain: id,
+              impact: n.impact,
+              confidence: n.confidence,
+              priority_score: n.priority_score,
+              facts: n.facts,
+              interpretation: n.interpretation,
+              priority_rationale: n.priority_score != null ? `priority_score=${n.priority_score}` : "",
+            }, i)).join("")}
+          </div>
+        </div>`;
+      });
+      $("world-domains").innerHTML = (tiles.join("") || '<div class="empty">No world state</div>') + detail;
+      $("world-domains").style.display = "grid";
+    }
+
+    function renderStrategy(payload) {
+      const impl = (payload.brief || {}).implications_for_my_strategy || {};
+      let head = "";
+      if (impl.intent_accomplishing) {
+        head += `<div class="intent-banner"><div class="lbl">Current intent</div>
+          <div class="txt">${esc(impl.intent_accomplishing)}</div></div>`;
+      }
+      if ((impl.thematic_bets || []).length) {
+        head += `<div style="margin-bottom:0.75rem;color:var(--muted);font-size:0.85rem">
+          <strong style="color:var(--text)">Thematic bets:</strong> ${impl.thematic_bets.map(esc).join(" · ")}
+        </div>`;
+      }
+      if ((impl.positions_symbols || []).length) {
+        head += `<div class="positions" style="margin-bottom:0.9rem">
+          ${impl.positions_symbols.slice(0,24).map(s => `<span class="pos">${esc(s)}</span>`).join("")}
+        </div>`;
+      }
+      $("strategy-head").innerHTML = head || "";
+
+      const sections = impl.sections || [];
+      $("strategy-grid").innerHTML = sections.map(sec => {
+        const items = sec.items || [];
+        return `<div class="strat-col">
+          <h3>${esc(sec.priority_label)} <span class="count">${items.length}</span></h3>
+          ${items.map(it => {
+            const aff = Number(it.affinity) || 0;
+            return `<div class="link-item">
+              <div class="t">${esc(it.title)}</div>
+              <div class="bar aff" style="margin:0.3rem 0"><i style="width:${pct(aff)}%"></i></div>
+              <div style="display:flex;gap:0.35rem;flex-wrap:wrap;font-size:0.72rem;color:var(--muted)">
+                <span>${esc(it.domain)}</span>
+                <span>affinity ${aff.toFixed(2)}</span>
+                <span>conf ${esc(it.confidence)}</span>
+              </div>
+              ${it.facts && it.facts[0] ? `<div class="fact-box" style="margin-top:0.4rem"><div class="lbl">Fact</div>${esc(it.facts[0])}</div>` : ""}
+              ${it.interpretation ? `<div class="interp-box" style="margin-top:0.35rem"><div class="lbl">Interpretation</div>${esc(it.interpretation)}</div>` : ""}
+              <div class="r">${esc(it.rationale || "")}</div>
+            </div>`;
+          }).join("") || '<div class="empty">No links</div>'}
+        </div>`;
+      }).join("") || '<div class="empty">No strategy implications — check strategy sources</div>';
+    }
+
+    function renderWatchlist(payload) {
+      const items = ((payload.brief || {}).watchlist || {}).items || [];
+      const maxScore = Math.max(1, ...items.map(i => Number(i.priority_score)||0));
+      $("watch-body").innerHTML = items.map(it => {
+        const conf = Number(it.confidence) || 0;
+        const score = Number(it.priority_score) || 0;
+        const impact = String(it.impact || "").toLowerCase();
+        return `<tr>
+          <td><strong>${esc(it.rank)}</strong></td>
+          <td class="title">${esc(it.variable_or_event)}</td>
+          <td><span class="tag domain">${esc(it.domain)}</span></td>
+          <td><span class="tag impact-${esc(impact)}">${esc(impact)}</span></td>
+          <td>
+            <div class="bar conf"><i style="width:${pct(conf)}%"></i></div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:0.15rem">${conf.toFixed(2)}</div>
+          </td>
+          <td class="score-cell">
+            <div class="bar score"><i style="width:${(score/maxScore)*100}%"></i></div>
+            <div class="v">${score.toFixed(2)}</div>
+          </td>
+          <td style="color:var(--muted);font-size:0.8rem;max-width:280px">${esc(it.why_watch || "")}</td>
+        </tr>`;
+      }).join("") || '<tr><td colspan="7" class="empty">No watchlist</td></tr>';
+    }
+
+    function renderGraph(payload) {
+      const ws = payload.world_state || {};
+      const edges = ws.edges || [];
+      const stats = payload.domain_stats || [];
+      const labels = {};
+      stats.forEach(d => { labels[d.id] = d.label; });
+      // Also map from world state
+      Object.entries(ws.domains || {}).forEach(([id, b]) => { labels[id] = b.label || id; });
+
+      // Build domain graph from edges + related_domains on nodes
+      const domainLinks = new Map(); // key a|b
+      const nodeDomain = {};
+      Object.entries(ws.domains || {}).forEach(([d, b]) => {
+        (b.nodes || []).forEach(n => {
+          nodeDomain[n.id] = d;
+          (n.related_domains || []).forEach(rd => {
+            if (rd === d) return;
+            const a = [d, rd].sort();
+            const k = a.join("|");
+            domainLinks.set(k, (domainLinks.get(k) || 0) + 1);
+          });
+        });
+      });
+      edges.forEach(e => {
+        const d1 = nodeDomain[e.from_id];
+        const d2 = nodeDomain[e.to_id];
+        if (d1 && d2 && d1 !== d2) {
+          const a = [d1, d2].sort();
+          const k = a.join("|");
+          domainLinks.set(k, (domainLinks.get(k) || 0) + 1);
+        }
+      });
+
+      const domainIds = Object.keys(ws.domains || {});
+      const N = domainIds.length || 10;
+      const cx = 280, cy = 220, R = 160;
+      const pos = {};
+      domainIds.forEach((id, i) => {
+        const ang = (Math.PI * 2 * i) / N - Math.PI / 2;
+        pos[id] = { x: cx + R * Math.cos(ang), y: cy + R * Math.sin(ang) };
+      });
+
+      let lines = "";
+      domainLinks.forEach((w, k) => {
+        const [a, b] = k.split("|");
+        if (!pos[a] || !pos[b]) return;
+        const op = Math.min(0.85, 0.25 + w * 0.2);
+        lines += `<line x1="${pos[a].x}" y1="${pos[a].y}" x2="${pos[b].x}" y2="${pos[b].y}"
+          stroke="rgba(79,209,197,${op})" stroke-width="${1 + Math.min(4, w)}" />`;
+      });
+
+      let nodes = "";
+      domainIds.forEach(id => {
+        const p = pos[id];
+        const st = stats.find(s => s.id === id) || {};
+        const r = 14 + Math.min(18, (st.node_count || 1) * 3);
+        const color = DOMAIN_COLORS[id] || "#5b9fd4";
+        nodes += `<circle cx="${p.x}" cy="${p.y}" r="${r}" fill="${color}33" stroke="${color}" stroke-width="2"/>
+          <text x="${p.x}" y="${p.y + r + 14}" text-anchor="middle" fill="#8aa0b5" font-size="11" font-weight="600">${esc((labels[id]||id).slice(0,18))}</text>`;
+      });
+
+      $("graph-svg").innerHTML = `<svg viewBox="0 0 560 440" xmlns="http://www.w3.org/2000/svg">
+        <rect width="560" height="440" fill="transparent"/>
+        ${lines}${nodes}
+      </svg>`;
+
+      $("edge-list").innerHTML = edges.length
+        ? edges.map(e => `<div class="edge-item">
+            <div class="rel">${esc(e.relation || "affects")}</div>
+            <div class="ids">${esc(e.from_id)} → ${esc(e.to_id)}</div>
+            ${e.note ? `<div style="color:var(--dim);font-size:0.76rem;margin-top:0.2rem">${esc(e.note)}</div>` : ""}
+          </div>`).join("")
+        : Array.from(domainLinks.entries()).map(([k, w]) => {
+            const [a,b] = k.split("|");
+            return `<div class="edge-item">
+              <div class="rel">related</div>
+              <div class="ids">${esc(labels[a]||a)} ↔ ${esc(labels[b]||b)}</div>
+              <div style="color:var(--dim);font-size:0.76rem;margin-top:0.2rem">weight ${w}</div>
+            </div>`;
+          }).join("") || '<div class="empty">No cross-domain edges yet</div>';
+    }
+
+    function renderAll(payload) {
+      DATA = payload;
+      renderKpis(payload);
+      renderOverview(payload);
+      renderBrief(payload);
+      renderWorld(payload);
+      renderStrategy(payload);
+      renderWatchlist(payload);
+      renderGraph(payload);
+    }
+
+    async function loadDashboard() {
+      setError("");
+      $("pill-status").textContent = "loading";
+      $("pill-status").className = "pill warn";
+      try {
+        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+        if (!data.has_brief && !data.has_world_state) {
+          setError("No data yet. Click Refresh to generate the world-state and brief.");
+        }
+        renderAll(data);
+      } catch (e) {
+        setError("Failed to load dashboard: " + e.message);
+        $("pill-status").textContent = "error";
+        $("pill-status").className = "pill crit";
+      }
+    }
+
+    async function refresh(offline) {
+      const btn = $("btn-refresh");
+      const btn2 = $("btn-live");
+      btn.disabled = true; btn2.disabled = true;
+      btn.textContent = "Running…";
+      setError("");
+      try {
+        const res = await fetch("/api/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ offline: !!offline }),
+        });
+        const data = await res.json();
+        if (!res.ok || data.ok === false) throw new Error(data.error || res.statusText);
+        renderAll(data);
+      } catch (e) {
+        setError("Refresh failed: " + e.message);
+      } finally {
+        btn.disabled = false; btn2.disabled = false;
+        btn.textContent = "↻ Refresh";
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", () => refresh(true));
+    $("btn-live").addEventListener("click", () => refresh(false));
+
+    // Deep-link ?tab=
+    try {
+      const initial = new URLSearchParams(window.location.search).get("tab");
+      if (initial) switchTab(initial);
+    } catch (_) { /* ignore */ }
+
+    loadDashboard();
+    // Auto-refresh payload every 60s (read-only)
+    setInterval(loadDashboard, 60000);
+  </script>
+</body>
+</html>

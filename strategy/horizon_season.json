@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "updated_at": null,
+  "season_label": "2026-Q3",
+  "primary_themes": [
+    "AI/Autonomy leverage",
+    "Systems that compound"
+  ],
+  "secondary_themes": [
+    "Embodied energy",
+    "Wealth optionality hygiene"
+  ],
+  "underweight": [
+    "Pure dashboard exploration",
+    "Non-bet research rabbit holes"
+  ],
+  "capacity_notes": "Deep-work blocks protected; batch hygiene.",
+  "initiative_slugs": [],
+  "notes": "Editable via Horizon dashboard (:8791)."
+}
