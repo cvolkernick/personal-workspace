@@ -46,3 +46,26 @@ class TestGoogleAuth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RemotePublicUrlAuthTests(unittest.TestCase):
+    def test_start_auth_flow_uses_login_when_public_url_remote(self):
+        import os
+        from rt_dashboard import google_auth as ga
+
+        prev = os.environ.get("FITDASH_PUBLIC_URL")
+        try:
+            os.environ["FITDASH_PUBLIC_URL"] = "https://prism-gateway.tailb1085a.ts.net"
+            out = ga.start_auth_flow(force=True)
+            self.assertTrue(out.get("ok"))
+            self.assertEqual(out.get("status"), "use_login")
+            self.assertTrue(out.get("use_same_window"))
+            self.assertEqual(out.get("auth_url"), "/api/auth/google/start")
+            self.assertIn("/api/auth/google/callback", out.get("redirect_uri") or "")
+            self.assertNotIn("8788", out.get("redirect_uri") or "")
+        finally:
+            if prev is None:
+                os.environ.pop("FITDASH_PUBLIC_URL", None)
+            else:
+                os.environ["FITDASH_PUBLIC_URL"] = prev
+

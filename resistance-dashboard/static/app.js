@@ -3962,6 +3962,20 @@
     if (btn) btn.disabled = true;
     showAlert("Starting Google Health sign-in…", "ok");
     try {
+      // Remote FitDash (Pi / Tailscale): localhost:8788 callback is unreachable from
+      // the phone/Mac browser. Use the same public login OAuth (Health scopes) that
+      // already redirects to FITDASH_PUBLIC_URL/api/auth/google/callback.
+      const host = (location.hostname || "").toLowerCase();
+      const isLocalHost =
+        host === "localhost" || host === "127.0.0.1" || host === "::1";
+      if (!isLocalHost) {
+        showAlert(
+          "Opening Google sign-in… you’ll return to FitDash over Tailscale HTTPS.",
+          "ok"
+        );
+        window.location.assign("/api/auth/google/start");
+        return;
+      }
       const res = await fetch("/api/google-health/auth/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -3980,6 +3994,11 @@
       }
       if (!res.ok || !data.ok) {
         throw new Error(data.error || data.message || `HTTP ${res.status}`);
+      }
+      // Server may force public login path (remote deploy)
+      if (data.use_same_window || data.status === "use_login") {
+        window.location.assign(data.auth_url || "/api/auth/google/start");
+        return;
       }
       if (data.auth_url) {
         window.open(data.auth_url, "_blank", "noopener,noreferrer");
