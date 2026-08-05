@@ -85,7 +85,7 @@ DEFAULT_FEEDS: list[dict[str, str]] = [
         "domain": "macroeconomics",
         "tags": "world-bank,development,em,fiscal",
     },
-    # --- Geopolitics / trade policy (official US) ---
+    # --- Geopolitics / trade / security (official US) ---
     {
         "name": "US State Department Press",
         "url": "https://www.state.gov/rss-feed/press-releases/feed/",
@@ -97,6 +97,24 @@ DEFAULT_FEEDS: list[dict[str, str]] = [
         "url": "https://ustr.gov/about-us/policy-offices/press-office/press-releases/rss.xml",
         "domain": "geopolitics",
         "tags": "trade,tariff,ustr,industrial-policy",
+    },
+    {
+        "name": "US DoD News",
+        "url": "https://www.defense.gov/DesktopModules/ArticleCS/RSS.ashx?ContentType=1&Site=945&max=10",
+        "domain": "military",
+        "tags": "defense,military,indo-pacific",
+    },
+    {
+        "name": "White House News",
+        "url": "https://www.whitehouse.gov/news/feed/",
+        "domain": "geopolitics",
+        "tags": "fiscal,policy,white-house,us",
+    },
+    {
+        "name": "SEC Press Releases",
+        "url": "https://www.sec.gov/news/pressreleases.rss",
+        "domain": "capital_flows",
+        "tags": "regulation,sec,markets,crypto",
     },
 ]
 
