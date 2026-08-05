@@ -14,6 +14,8 @@ from research.horizon import REQUIRED_DOMAINS
 
 # High-credibility official / primary feeds (titles only; domain inferred heuristically).
 # Prefer government and multilaterals over wire narrative. Social excluded by design.
+# HTTP probe 2026-08-05 (HorizonMacroBot/0.1): keep 200s; drop 404/timeout; IMF 403 best-effort.
+# See docs/SOURCE_CATALOG.md for deferred / dead URLs.
 DEFAULT_FEEDS: list[dict[str, str]] = [
     # --- Monetary / rates ---
     {
@@ -35,8 +37,8 @@ DEFAULT_FEEDS: list[dict[str, str]] = [
         "tags": "rates,boe,monetary-policy,uk",
     },
     {
-        "name": "BIS Press Releases",
-        "url": "https://www.bis.org/doclist/rss_all_pressrel.rss",
+        "name": "BIS Publications",
+        "url": "https://www.bis.org/doclist/rss_all_categories.rss",
         "domain": "macroeconomics",
         "tags": "bis,rates,liquidity,banking",
     },
@@ -53,50 +55,26 @@ DEFAULT_FEEDS: list[dict[str, str]] = [
         "domain": "macroeconomics",
         "tags": "gdp,bea,growth,pce",
     },
-    {
-        "name": "US Treasury Press",
-        "url": "https://home.treasury.gov/system/files/136/treasury-press-releases.xml",
-        "domain": "capital_flows",
-        "tags": "treasury,fiscal,debt,auction",
-    },
-    # --- Energy / commodities ---
+    # --- Energy ---
     {
         "name": "EIA Today in Energy",
         "url": "https://www.eia.gov/rss/todayinenergy.xml",
         "domain": "energy",
         "tags": "energy,oil,gas,power",
     },
-    {
-        "name": "EIA What's New",
-        "url": "https://www.eia.gov/rss/press_release.xml",
-        "domain": "energy",
-        "tags": "energy,oil,gas,eia",
-    },
-    # --- Multilateral / systemic ---
+    # --- Multilateral (best-effort; may 403 depending on edge) ---
     {
         "name": "IMF News",
         "url": "https://www.imf.org/en/News/RSS",
         "domain": "macroeconomics",
         "tags": "imf,sovereign,emerging-markets,fiscal",
     },
-    {
-        "name": "World Bank News",
-        "url": "https://www.worldbank.org/en/news/all.rss",
-        "domain": "macroeconomics",
-        "tags": "world-bank,development,em,fiscal",
-    },
-    # --- Geopolitics / trade / security (official US) ---
+    # --- Geopolitics / security / markets (official US) ---
     {
         "name": "US State Department Press",
         "url": "https://www.state.gov/rss-feed/press-releases/feed/",
         "domain": "geopolitics",
         "tags": "diplomacy,sanctions,geopolitics,us",
-    },
-    {
-        "name": "USTR Press",
-        "url": "https://ustr.gov/about-us/policy-offices/press-office/press-releases/rss.xml",
-        "domain": "geopolitics",
-        "tags": "trade,tariff,ustr,industrial-policy",
     },
     {
         "name": "US DoD News",
