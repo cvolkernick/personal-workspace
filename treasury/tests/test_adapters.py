@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import (  # noqa: E402
+    _merge_manual_with_one_card,
     _parse_coinbase_balance_payload,
     build_robinhood_dual_snapshot,
     build_snapshot,
@@ -154,6 +155,25 @@ class TestSnapshotFallback(unittest.TestCase):
             r = fetch_robinhood(snapshot_path=p)
             self.assertAlmostEqual(r["buying_power"], 2500)
             self.assertTrue(p.is_file())
+
+
+class TestMergeManualWithOneCard(unittest.TestCase):
+    def test_ynab_overrides_stale_manual_card_balance(self):
+        merged = _merge_manual_with_one_card(
+            {"card_balance": 499.23, "vault_usdc": 127},
+            {"source": "ynab", "card_balance": 440.18, "balance_owed": 440.18},
+        )
+        self.assertEqual(merged["card_balance"], 440.18)
+        self.assertEqual(merged["card_balance_source"], "ynab")
+        self.assertEqual(merged["vault_usdc"], 127)
+
+    def test_empty_ynab_keeps_manual(self):
+        merged = _merge_manual_with_one_card(
+            {"card_balance": 100.0},
+            {"source": "empty", "live_error": "no YNAB token"},
+        )
+        self.assertEqual(merged["card_balance"], 100.0)
+        self.assertIsNone(merged.get("card_balance_source"))
 
 
 if __name__ == "__main__":

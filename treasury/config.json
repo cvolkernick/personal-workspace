@@ -18,10 +18,10 @@
     "collateral_btc_usd": "1478.93",
     "ltv": ".4992",
     "vault_usdc": "127",
-    "card_balance": "499.23",
+    "card_balance": null,
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance.",
+    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. card_balance left null so live YNAB (one_card_latest) always wins \u2014 do not re-save a stale app figure here.",
     "variable_apr": ".0486",
     "liquidation_price_btc_usd": "37152"
   },
@@ -53,7 +53,7 @@
   },
   "braiins": {
     "payout_threshold_btc": 0.01,
-    "notes": "Owner 2026-08-05: raised pool payout threshold from 0.005 → 0.01 BTC (Braiins UI). FCC next-payout ETA / progress read this override — do not re-infer from payout history alone (history still clusters at old 0.005 until the first 0.01 payout lands). Braiins free on-chain floor remains 0.005; this is our account rule, not the pool minimum."
+    "notes": "Owner 2026-08-05: raised pool payout threshold from 0.005 \u2192 0.01 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer from payout history alone (history still clusters at old 0.005 until the first 0.01 payout lands). Braiins free on-chain floor remains 0.005; this is our account rule, not the pool minimum."
   },
   "pi_sync": {
     "enabled": true,
