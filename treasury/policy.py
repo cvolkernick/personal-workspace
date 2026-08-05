@@ -399,11 +399,31 @@ def evaluate_treasury(
     count_vault = bool(p.get("count_vault_toward_buffers", True))
     # Working USDC = idle Advanced Trade USDC + High Yield vault (when known & enabled)
     working_usdc = liquid_usdc + (vault_usdc if count_vault and vault_known else 0.0)
-    card_balance_raw = man.get("card_balance")
-    if _is_missing(card_balance_raw):
-        card_balance_raw = one_card.get("card_balance")
+    # Prefer YNAB/snapshot one_card over manual card_balance so a stale UI/config
+    # override cannot pin owed balance (2026-08-05: $499.23 manual beat live $440.18).
+    ynab_card_raw = one_card.get("card_balance")
+    if _is_missing(ynab_card_raw):
+        ynab_card_raw = one_card.get("balance_owed")
+    ynab_card_ok = (
+        one_card.get("source") in ("ynab", "snapshot")
+        and not one_card.get("live_error")
+        and not _is_missing(ynab_card_raw)
+    )
+    if ynab_card_ok:
+        card_balance_raw = ynab_card_raw
+        card_source = "ynab"
+    else:
+        card_balance_raw = man.get("card_balance")
         if _is_missing(card_balance_raw):
-            card_balance_raw = one_card.get("balance_owed")
+            card_balance_raw = ynab_card_raw
+        if man.get("card_balance_source"):
+            card_source = man.get("card_balance_source")
+        elif not _is_missing(man.get("card_balance")):
+            card_source = "manual"
+        elif one_card.get("source") in ("ynab", "snapshot") and not _is_missing(card_balance_raw):
+            card_source = "ynab"
+        else:
+            card_source = None
     card_avail_raw = man.get("card_available_credit")
     if _is_missing(card_avail_raw):
         card_avail_raw = one_card.get("card_available_credit")
@@ -411,11 +431,6 @@ def evaluate_treasury(
             card_avail_raw = one_card.get("available_credit")
     card_balance = _f(card_balance_raw) if not _is_missing(card_balance_raw) else 0.0
     card_avail = None if _is_missing(card_avail_raw) else _f(card_avail_raw)
-    card_source = man.get("card_balance_source") or (
-        "ynab" if one_card.get("source") in ("ynab", "snapshot") and not _is_missing(card_balance_raw) else None
-    )
-    if card_source is None and not _is_missing(man.get("card_balance")):
-        card_source = "manual"
 
     # Secured One Card available credit ≈ USDC security deposit − balance owed
     deposit_raw = man.get("one_card_security_deposit_usdc")

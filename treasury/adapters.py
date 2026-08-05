@@ -440,7 +440,12 @@ def _merge_manual_with_one_card(
     manual: Dict[str, Any],
     one_card: Dict[str, Any],
 ) -> Dict[str, Any]:
-    """Overlay YNAB One Card fields onto manual when manual card fields are empty."""
+    """Overlay YNAB One Card fields onto manual.
+
+    Live/snapshot YNAB **wins** over a non-empty manual ``card_balance`` so a
+    saved FCC UI override (or stale config) cannot pin a frozen owed amount.
+    Available credit still only fills when manual is empty (YNAB rarely has it).
+    """
     out = dict(manual)
     if one_card.get("source") in (None, "empty") or one_card.get("live_error"):
         # Still allow partial overlay if balance present
@@ -456,7 +461,13 @@ def _merge_manual_with_one_card(
     def _empty(v: Any) -> bool:
         return v is None or v == ""
 
-    if _empty(out.get("card_balance")) and bal is not None:
+    ynab_healthy = (
+        one_card.get("source") in ("ynab", "snapshot")
+        and not one_card.get("live_error")
+        and bal is not None
+    )
+    # Prefer YNAB when healthy; otherwise only fill empty manual (legacy path)
+    if ynab_healthy or (_empty(out.get("card_balance")) and bal is not None):
         out["card_balance"] = bal
         out["card_balance_source"] = "ynab"
     if _empty(out.get("card_available_credit")) and avail is not None:

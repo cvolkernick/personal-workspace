@@ -87,6 +87,54 @@ class TestOneCardAvailableCredit(unittest.TestCase):
         self.assertEqual(ev["inputs"]["card_available_credit_source"], "deposit_minus_balance")
         self.assertAlmostEqual(ev["inputs"]["card_security_deposit_usdc"], 500.0)
 
+    def test_ynab_card_balance_beats_stale_manual(self):
+        """Stale config/UI card_balance must not pin owed when YNAB is live."""
+        snap = {
+            "coinbase": {"liquid_usdc": 0, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 200,
+                "one_card_security_deposit_usdc": 500,
+                "card_balance": 499.23,  # stale override
+            },
+            "one_card": {
+                "source": "ynab",
+                "card_balance": 440.18,
+                "balance_owed": 440.18,
+            },
+            "rh_checking": {"source": "ynab", "cash": 10},
+            "robinhood": {
+                "buying_power": 1000,
+                "cash": 10,
+                "equity_value": 5000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["card_balance"], 440.18, places=2)
+        self.assertEqual(ev["inputs"]["card_source"], "ynab")
+        self.assertAlmostEqual(ev["inputs"]["card_available_credit"], 59.82, places=2)
+
+    def test_manual_card_balance_used_when_ynab_empty(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "source": "live"},
+            "coinbase_manual": {
+                "vault_usdc": 200,
+                "one_card_security_deposit_usdc": 500,
+                "card_balance": 100.0,
+            },
+            "one_card": {"source": "empty"},
+            "rh_checking": {"source": "ynab", "cash": 10},
+            "robinhood": {
+                "buying_power": 1000,
+                "cash": 10,
+                "equity_value": 5000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertAlmostEqual(ev["inputs"]["card_balance"], 100.0, places=2)
+        self.assertEqual(ev["inputs"]["card_source"], "manual")
+
 
 class TestVaultWorkingUsdc(unittest.TestCase):
     def test_zero_spot_vault_covers_buffers(self):
