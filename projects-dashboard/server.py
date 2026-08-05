@@ -12,6 +12,7 @@
   POST /api/session-index  — write ops/session-index only
   POST /api/start-work     — body {"area":"treasury"} → work/treasury
   GET  /api/health
+  GET  /api/sprint         — ceremony state + optional Buzz Board columns
 
 Usage:
   python3 projects-dashboard/server.py
@@ -71,6 +72,7 @@ from recommendations import (  # noqa: E402
     generate_recommendations,
 )
 from session_backup import write_full_archive, write_session_index  # noqa: E402
+from sprint import sprint_payload  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
 DEFAULT_PORT = 8765
@@ -257,6 +259,20 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             refresh = (qs.get("refresh") or ["0"])[0] in ("1", "true", "yes")
             try:
                 self._json(200, recommendations_payload(refresh=refresh))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/sprint":
+            qs = parse_qs(parsed.query)
+            live = (qs.get("live") or qs.get("board") or ["1"])[0] not in (
+                "0",
+                "false",
+                "no",
+            )
+            try:
+                payload = sprint_payload(live_board=live)
+                self._json(200 if payload.get("ok") else 500, payload)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -569,7 +585,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.local:
         print("Mode: local API (Pi backend)")
     print(
-        "API: GET /api/projects /api/branch-graph /api/tasks | "
+        "API: GET /api/projects /api/branch-graph /api/tasks /api/sprint | "
         "POST /api/sync /api/protect /api/start-work /api/tasks/*"
     )
     httpd = ThreadingHTTPServer((bind, args.port), ProjectsHandler)

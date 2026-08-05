@@ -398,10 +398,78 @@
     .mobile-tabbar .tab-btn.active { color: var(--accent); background: rgba(91,159,212,0.12); }
     body.m-shell [data-m-panel] { display: none !important; }
     body.m-shell[data-m-active="status"] [data-m-panel="status"],
+    body.m-shell[data-m-active="sprint"] [data-m-panel="sprint"],
     body.m-shell[data-m-active="plan"] [data-m-panel="plan"],
     body.m-shell[data-m-active="tasks"] [data-m-panel="tasks"],
     body.m-shell[data-m-active="repo"] [data-m-panel="repo"] {
       display: block !important;
+    }
+    /* —— Sprint tab —— */
+    .sprint-header {
+      display: grid; gap: 0.75rem;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1rem;
+    }
+    .sprint-header-top {
+      display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+      align-items: flex-start; justify-content: space-between;
+    }
+    .sprint-goal { font-size: 1.05rem; font-weight: 650; margin: 0.15rem 0 0; }
+    .sprint-goal.empty { color: var(--muted); font-weight: 500; font-style: italic; }
+    .wip-meter {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); background: #0e151c;
+      font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .wip-meter.ok { color: var(--green); border-color: #245c42; }
+    .wip-meter.warn { color: var(--yellow); border-color: #6b5a1e; }
+    .wip-meter.over { color: var(--red); border-color: #6b2e2e; background: #2a1515; }
+    .sprint-grid {
+      display: grid; gap: 0.85rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 900px) {
+      .sprint-grid { grid-template-columns: 1.2fr 1fr; }
+    }
+    .sprint-card-list { display: grid; gap: 0.55rem; }
+    .sprint-item {
+      display: grid; gap: 0.3rem;
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.85rem;
+    }
+    .sprint-item a { color: var(--text); text-decoration: none; font-weight: 650; }
+    .sprint-item a:hover { color: var(--accent); }
+    .sprint-item .meta-row {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+      font-size: 0.78rem; color: var(--muted);
+    }
+    .sprint-lifecycle {
+      display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.5rem;
+    }
+    .sprint-lifecycle .col-chip {
+      flex: 1 1 100px; min-width: 90px;
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.55rem 0.65rem; text-align: center;
+    }
+    .sprint-lifecycle .col-chip .n { font-size: 1.15rem; font-weight: 700; }
+    .sprint-lifecycle .col-chip .l { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .ceremony-strip {
+      display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+      margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+    }
+    details.sprint-details {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 0.85rem;
+    }
+    details.sprint-details summary {
+      cursor: pointer; font-weight: 650; color: var(--muted);
+      list-style: none;
+    }
+    details.sprint-details summary::-webkit-details-marker { display: none; }
+    .sprint-disclaimer {
+      color: var(--muted); font-size: 0.82rem; margin: 0.75rem 0 0;
+      line-height: 1.4;
     }
     @media (max-width: 720px) {
       .top-tabs { display: none; }
@@ -535,6 +603,10 @@
     <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
       <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
     </button>
+    <button type="button" class="tab-btn" data-m-tab="sprint">
+      <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
+      <span class="tab-count" id="sprint-tab-count" hidden>0</span>
+    </button>
     <button type="button" class="tab-btn" data-m-tab="plan">
       <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
     </button>
@@ -554,6 +626,10 @@
       <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
       <div class="summary" id="summary"></div>
       <div id="strategy-focus"></div>
+    </section>
+
+    <section data-m-panel="sprint">
+      <div id="sprint-root"><div class="empty">Loading sprint…</div></div>
     </section>
 
     <section data-m-panel="plan">
@@ -579,6 +655,9 @@
   <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
     <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
       <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="sprint">
+      <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
     </button>
     <button type="button" class="tab-btn" data-m-tab="plan">
       <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
@@ -1559,6 +1638,7 @@
 
     // ── Tab shell (FitDash/FCC-style) ───────────────────────────────────
     window.__activeTab = window.__activeTab || "status";
+    const MAIN_TABS = ["status", "sprint", "plan", "tasks", "repo"];
     function goTab(tab) {
       const t = tab || "status";
       window.__activeTab = t;
@@ -1576,13 +1656,14 @@
         history.replaceState(null, "", u.toString());
       } catch (_) {}
       if (t === "tasks") loadTasks();
+      if (t === "sprint") loadSprint();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function initTabShell() {
       document.body.classList.add("m-shell");
       const params = new URLSearchParams(location.search);
       const fromUrl = params.get("tab");
-      const initial = ["status", "plan", "tasks", "repo"].includes(fromUrl)
+      const initial = MAIN_TABS.includes(fromUrl)
         ? fromUrl
         : (window.__activeTab || "status");
       goTab(initial);
@@ -1594,6 +1675,163 @@
           goTab(btn.getAttribute("data-m-tab"));
         });
       });
+    }
+
+    // ── Sprint tab (ceremony file + optional Buzz Board) ────────────────
+    window.__sprintState = window.__sprintState || { data: null, loading: false };
+
+    function sprintCardHtml(card) {
+      const num = card.number != null ? `#${esc(card.number)}` : "";
+      const title = esc(card.title || "(untitled)");
+      const href = card.url ? esc(card.url) : "";
+      const titleHtml = href
+        ? `<a href="${href}" target="_blank" rel="noopener">${num ? num + " · " : ""}${title}</a>`
+        : `<strong>${num ? num + " · " : ""}${title}</strong>`;
+      const bits = [];
+      if (card.size != null && card.size !== "") bits.push(`<span class="pill muted">size ${esc(card.size)}</span>`);
+      if (card.priority) bits.push(`<span class="pill">${esc(card.priority)}</span>`);
+      if (card.owner) bits.push(`<span class="pill session">${esc(card.owner)}</span>`);
+      return `<div class="sprint-item">${titleHtml}<div class="meta-row">${bits.join("") || '<span class="sub">—</span>'}</div></div>`;
+    }
+
+    function renderSprint(data) {
+      const root = $("sprint-root");
+      if (!root) return;
+      if (!data || data.ok === false) {
+        root.innerHTML = `<div class="error-banner show">${esc(data?.error || "Failed to load sprint")}</div>`;
+        return;
+      }
+      const c = data.ceremony || {};
+      const wip = data.wip || {};
+      const board = data.board || {};
+      const cols = board.columns || {};
+      const limit = wip.limit ?? c.wip_limit ?? 3;
+      const cur = wip.current ?? 0;
+      const meterClass = wip.over ? "over" : (cur >= limit ? "warn" : "ok");
+      const goal = (c.goal && String(c.goal).trim()) || null;
+      const boardUrl = c.board_url || board.url || "https://github.com/users/cvolkernick/projects/1";
+      const sourceLabel = board.source === "github_project_v2"
+        ? "Board live"
+        : board.source === "ceremony_only"
+          ? "Ceremony file"
+          : (board.source || "—");
+
+      // Prefer ceremony lists for primary columns; fall back to board
+      let ip = (c.in_progress && c.in_progress.length) ? c.in_progress : (cols["In Progress"] || []);
+      let ready = (c.ready && c.ready.length) ? c.ready : (cols["Ready"] || []);
+      // If board is live and ceremony empty, use board
+      if (board.source === "github_project_v2") {
+        if (!(c.in_progress && c.in_progress.length)) ip = cols["In Progress"] || [];
+        if (!(c.ready && c.ready.length)) ready = cols["Ready"] || [];
+      }
+
+      const notSprint = c.not_this_sprint || [];
+      const countEl = $("sprint-tab-count");
+      if (countEl) {
+        if (cur > 0) { countEl.hidden = false; countEl.textContent = String(cur); }
+        else countEl.hidden = true;
+      }
+
+      const ipHtml = ip.length
+        ? `<div class="sprint-card-list">${ip.map(sprintCardHtml).join("")}</div>`
+        : `<div class="empty">No sprint commitment — run planning or approve pull set.</div>`;
+      const readyHtml = ready.length
+        ? `<div class="sprint-card-list">${ready.map(sprintCardHtml).join("")}</div>`
+        : `<div class="empty">Ready queue empty.</div>`;
+      const notHtml = notSprint.length
+        ? `<div class="sprint-card-list" style="margin-top:0.5rem">${notSprint.map(sprintCardHtml).join("")}</div>`
+        : "";
+
+      const lifeKeys = ["Parked", "Validate", "Ready", "In Progress", "Done"];
+      const lifeHtml = lifeKeys.map((k) => {
+        const n = (cols[k] || []).length;
+        // ceremony-only fallback for Ready / In Progress
+        const nShow = (k === "In Progress" && !n && ip.length) ? ip.length
+          : (k === "Ready" && !n && ready.length) ? ready.length
+          : n;
+        return `<div class="col-chip"><div class="n">${nShow}</div><div class="l">${esc(k)}</div></div>`;
+      }).join("");
+
+      const boardErr = board.error && board.source !== "github_project_v2"
+        ? `<div class="sub" style="color:var(--yellow);margin-top:0.35rem">Board: ${esc(board.error)} · showing ceremony file</div>`
+        : "";
+
+      const kickoff = "@Cadence run backlog grooming now";
+      root.innerHTML = `
+        <div class="sprint-header">
+          <div class="sprint-header-top">
+            <div>
+              <div class="sub">${esc(c.sprint_id || "No active sprint id")} · updated ${esc(fmtWhen(c.updated_at))} ${c.updated_by ? "· " + esc(c.updated_by) : ""}</div>
+              <p class="sprint-goal${goal ? "" : " empty"}">${goal ? esc(goal) : "No sprint goal yet — set after first planning ceremony."}</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+              <span class="wip-meter ${meterClass}" title="In Progress / WIP limit">WIP ${cur}/${limit}</span>
+              <span class="pill muted">cap ${esc(c.committed_points ?? 0)}/${esc(c.capacity_points ?? 13)}</span>
+              <a class="btn-bl-orch" href="${esc(boardUrl)}" target="_blank" rel="noopener">Buzz Board ↗</a>
+            </div>
+          </div>
+          <div class="sub">Source: ${esc(sourceLabel)} · meter from ${esc(wip.source || "ceremony")}</div>
+          ${boardErr}
+          <div class="ceremony-strip">
+            <span class="pill muted">Groom Wed 16:00</span>
+            <span class="pill muted">Plan Mon 16:00</span>
+            <button type="button" id="btn-sprint-copy-kickoff" title="Copy kickoff mention">Copy grooming kickoff</button>
+            <button type="button" id="btn-sprint-refresh">Refresh sprint</button>
+          </div>
+        </div>
+        <div class="sprint-grid">
+          <div class="card">
+            <h3>In Progress · current commitment</h3>
+            ${ipHtml}
+          </div>
+          <div class="card">
+            <h3>Ready · pull candidates</h3>
+            ${readyHtml}
+            ${notHtml ? `<h3 style="margin-top:0.75rem">Not this sprint</h3>${notHtml}` : ""}
+          </div>
+        </div>
+        <details class="sprint-details">
+          <summary>Lifecycle counts (Board snapshot)</summary>
+          <div class="sprint-lifecycle">${lifeHtml}</div>
+        </details>
+        <p class="sprint-disclaimer">${esc(data.disclaimer || "ops/backlog is not the sprint board.")}</p>
+      `;
+      const copyBtn = $("btn-sprint-copy-kickoff");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(kickoff);
+            copyBtn.textContent = "Copied";
+            setTimeout(() => { copyBtn.textContent = "Copy grooming kickoff"; }, 1500);
+          } catch {
+            copyBtn.textContent = "Copy failed";
+          }
+        });
+      }
+      const refBtn = $("btn-sprint-refresh");
+      if (refBtn) refBtn.addEventListener("click", () => loadSprint(true));
+    }
+
+    async function loadSprint(force) {
+      const root = $("sprint-root");
+      if (!root) return;
+      if (window.__sprintState.loading) return;
+      if (!force && window.__sprintState.data) {
+        renderSprint(window.__sprintState.data);
+        return;
+      }
+      window.__sprintState.loading = true;
+      if (!window.__sprintState.data) root.innerHTML = `<div class="empty">Loading sprint…</div>`;
+      try {
+        const res = await fetch("/api/sprint");
+        const data = await res.json();
+        window.__sprintState.data = data;
+        renderSprint(data);
+      } catch (e) {
+        root.innerHTML = `<div class="error-banner show">${esc(e.message || e)}</div>`;
+      } finally {
+        window.__sprintState.loading = false;
+      }
     }
 
     // ── Google Tasks ────────────────────────────────────────────────────

@@ -1,0 +1,14 @@
+{
+  "sprint_id": null,
+  "goal": null,
+  "wip_limit": 3,
+  "capacity_points": 13,
+  "committed_points": 0,
+  "in_progress": [],
+  "ready": [],
+  "not_this_sprint": [],
+  "notes": ["Seeded by Cadence 2026-08-05 — empty until first planning ceremony."],
+  "updated_at": "2026-08-05T07:55:00Z",
+  "updated_by": "cadence",
+  "board_url": "https://github.com/users/cvolkernick/projects/1"
+}
