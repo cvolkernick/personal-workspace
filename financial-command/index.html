@@ -1999,7 +1999,7 @@
       </div>
       <p class="alloc-guide ag-note" id="alloc-guide-note" style="margin-top:0.45rem">
         Free dollars: expenses → card → buffers → collateral.
-        Capex (Discretionary) from collateralized margin only.
+        Capex: Productive Discretionary first (margin), then Consumer wishlist.
       </p>
     </section>
 
@@ -2131,8 +2131,10 @@
     <details class="panel" id="panel-capital" data-m-panel="more">
       <summary>Capital targets (not expenses)</summary>
       <div class="body">
-        <p class="hint">Sheet Discretionary — where excess capital could go</p>
+        <p class="hint">Productive Discretionary (priority) — capital outlay growing productive assets</p>
         <div id="expenses-top-disc"></div>
+        <p class="hint" style="margin-top:0.75rem">Consumer Discretionary — wishlist / qualitative (lower priority)</p>
+        <div id="expenses-top-consumer"></div>
       </div>
     </details>
 
@@ -2967,12 +2969,21 @@
               g.loan_buffer
             )} · bridge ${money(g.bridge_dry_powder)}</div>`;
         }
-        if (s.id === "capex_margin" && s.meta && Array.isArray(s.meta.items) && s.meta.items.length) {
-          const top = s.meta.items
-            .slice(0, 3)
-            .map((it) => escapeHtml(it.item || "") + " " + money(it.monthly))
-            .join(" · ");
-          extra = `<div class="ag-meta">${top}</div>`;
+        if (s.id === "capex_margin" && s.meta) {
+          const bits = [];
+          if (s.meta.productive_monthly != null)
+            bits.push("Productive " + money(s.meta.productive_monthly));
+          if (s.meta.consumer_monthly != null && Number(s.meta.consumer_monthly) > 0)
+            bits.push("Consumer " + money(s.meta.consumer_monthly));
+          if (Array.isArray(s.meta.items) && s.meta.items.length) {
+            bits.push(
+              s.meta.items
+                .slice(0, 3)
+                .map((it) => escapeHtml(it.item || "") + " " + money(it.monthly))
+                .join(" · ")
+            );
+          }
+          if (bits.length) extra = `<div class="ag-meta">${bits.join(" · ")}</div>`;
         }
         html +=
           `<div class="${cls}" data-step="${escapeHtml(s.id)}">` +
@@ -3666,7 +3677,13 @@
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
       const persTab = (ex.tabs && ex.tabs.Personal) || {};
-      const discTab = (ex.tabs && ex.tabs.Discretionary) || {};
+      const discTab =
+        (ex.tabs &&
+          (ex.tabs["Productive Discretionary"] ||
+            ex.tabs.Discretionary)) ||
+        {};
+      const consumerTab =
+        (ex.tabs && ex.tabs["Consumer Discretionary"]) || {};
       const allItems = persTab.items || persTab.upcoming_by_date || [];
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
       // Fallback list until /api/coach returns (same urgency colors)
@@ -3686,7 +3703,18 @@
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
         metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
         metric("RH Checking / mo", money(es.rh_funded_monthly)),
-        metric("Capital targets", money(es.capital_targets_monthly ?? es.discretionary_monthly)),
+        metric(
+          "Productive / mo",
+          money(
+            es.productive_discretionary_monthly ??
+              es.capital_targets_monthly ??
+              es.discretionary_monthly
+          )
+        ),
+        metric(
+          "Consumer / mo",
+          money(es.consumer_discretionary_monthly)
+        ),
       ].join("");
 
       const bySrc = persTab.by_source_monthly || {};
@@ -3924,7 +3952,23 @@
               r.monthly
             )}</span></div>`
         )
-        .join("") || `<p class="hint">No capital targets</p>`;
+        .join("") || `<p class="hint">No productive capital targets</p>`;
+      const consEl = document.getElementById("expenses-top-consumer");
+      if (consEl) {
+        consEl.innerHTML = (
+          consumerTab.top_targets ||
+          consumerTab.top_monthly ||
+          []
+        )
+          .slice(0, 8)
+          .map(
+            (r) =>
+              `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(
+                r.monthly
+              )}</span></div>`
+          )
+          .join("") || `<p class="hint">No consumer wishlist items</p>`;
+      }
 
       // Missing data panel only if needed
       const dq = ev.data_quality || {};

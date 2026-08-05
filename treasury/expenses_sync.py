@@ -2,9 +2,13 @@
 """Sync Personal Expense Google Sheet into treasury snapshots for FCC.
 
 Sheet: Personal Expense Sheet
-  Personal     — estimated *upcoming* expenses (may be ballpark), with due dates
-                 and funding account (From). Forward-looking, not actual spend.
-  Discretionary — hypothetical destinations for *excess capital* (not expenses).
+  Personal                   — estimated *upcoming* expenses (ballpark OK), due dates
+                               and funding account (From). Forward-looking, not actual spend.
+  Productive Discretionary   — capital outlay that grows productive asset base (priority).
+                               Quantitative ops expansion; not expense burn.
+  Consumer Discretionary     — consumer goods / personal wishlist (qualitative; lower priority).
+
+Legacy tab name "Discretionary" is accepted as an alias for Productive Discretionary.
 
 YNAB is the source of *actual* spending (esp. Coinbase One Card). Do not double-count.
 
@@ -37,7 +41,11 @@ if str(ROOT) not in sys.path:
 from treasury.adapters import SNAPSHOTS_DIR, load_config, save_json  # noqa: E402
 
 DEFAULT_SHEET_ID = "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ"
-DEFAULT_TABS = ("Personal", "Discretionary")
+DEFAULT_TABS = ("Personal", "Productive Discretionary", "Consumer Discretionary")
+LEGACY_PRODUCTIVE_TAB = "Discretionary"
+PRODUCTIVE_TAB = "Productive Discretionary"
+CONSUMER_TAB = "Consumer Discretionary"
+
 
 
 def _now() -> str:
@@ -250,20 +258,68 @@ def _upcoming_sorted(items: List[Dict[str, Any]], n: int = 20) -> List[Dict[str,
     ]
 
 
+def _tab_block(
+    *,
+    role: str,
+    items: List[Dict[str, Any]],
+    totals: Dict[str, float],
+    kind: str = "targets",
+) -> Dict[str, Any]:
+    top = top_items(items, 12)
+    block: Dict[str, Any] = {
+        "role": role,
+        "item_count": len(items),
+        "totals": {k: round(v, 2) for k, v in totals.items()},
+        "items": items,
+    }
+    if kind == "personal":
+        block["by_source_monthly"] = by_source(items)
+        block["top_monthly"] = top
+        block["upcoming_by_date"] = _upcoming_sorted(items, 20)
+    else:
+        block["top_targets"] = top
+        block["top_monthly"] = top  # alias for older UI
+    return block
+
+
 def build_expenses_snapshot(
     personal_csv: str,
-    discretionary_csv: str,
+    productive_csv: str = "",
+    consumer_csv: Optional[str] = None,
     *,
     sheet_id: str,
     source: str = "google_sheets",
+    # Backward-compat keyword used by older callers/tests
+    discretionary_csv: Optional[str] = None,
 ) -> Dict[str, Any]:
-    personal_items, personal_totals = parse_personal_rows(rows_from_csv(personal_csv))
-    disc_items, disc_totals = parse_discretionary_rows(rows_from_csv(discretionary_csv))
+    """Build expenses snapshot from Personal + Productive (+ optional Consumer) CSVs.
 
-    # Personal only = estimated upcoming obligations (NOT actual spend; YNAB owns actuals)
+    ``productive_csv`` is preferred; ``discretionary_csv`` remains as a legacy alias
+    for the productive tab content.
+    """
+    if discretionary_csv is not None and not productive_csv:
+        productive_csv = discretionary_csv
+    # Positional 2nd arg historically was Discretionary CSV
+    personal_items, personal_totals = parse_personal_rows(rows_from_csv(personal_csv))
+    prod_items, prod_totals = parse_discretionary_rows(
+        rows_from_csv(productive_csv or "")
+    )
+    cons_items: List[Dict[str, Any]] = []
+    cons_totals: Dict[str, float] = {
+        "daily": 0.0,
+        "weekly": 0.0,
+        "biweekly": 0.0,
+        "monthly": 0.0,
+        "annually": 0.0,
+    }
+    if consumer_csv:
+        cons_items, cons_totals = parse_discretionary_rows(rows_from_csv(consumer_csv))
+
     personal_monthly = personal_totals.get("monthly") or 0.0
-    # Discretionary = capital allocation targets for excess — NOT expenses / burn
-    capital_target_monthly = disc_totals.get("monthly") or 0.0
+    productive_monthly = prod_totals.get("monthly") or 0.0
+    consumer_monthly = cons_totals.get("monthly") or 0.0
+    # Capital targets for ops expansion = Productive only (not consumer wishlist)
+    capital_target_monthly = productive_monthly
 
     cb_monthly = sum(
         float(i.get("monthly") or 0)
@@ -276,6 +332,30 @@ def build_expenses_snapshot(
         if "rh" in (i.get("from") or "").lower() or "robinhood" in (i.get("from") or "").lower()
     )
 
+    productive_block = _tab_block(
+        role="productive_capital_outlay",
+        items=prod_items,
+        totals=prod_totals,
+    )
+    productive_block["priority"] = 1
+    productive_block["label"] = PRODUCTIVE_TAB
+    productive_block["description"] = (
+        "Capital outlay that grows productive asset base (quantitative). "
+        "Priority over Consumer Discretionary. Fund from collateralized margin."
+    )
+
+    consumer_block = _tab_block(
+        role="consumer_wishlist",
+        items=cons_items,
+        totals=cons_totals,
+    )
+    consumer_block["priority"] = 2
+    consumer_block["label"] = CONSUMER_TAB
+    consumer_block["description"] = (
+        "Consumer goods / personal wishlist (qualitative). "
+        "Lower priority than Productive Discretionary. Not expense burn."
+    )
+
     return {
         "source": source,
         "as_of": _now(),
@@ -286,44 +366,56 @@ def build_expenses_snapshot(
                 "Estimated upcoming expenses (ballpark OK) with due dates and funding account. "
                 "Forward-looking plan — not a record of what already spent."
             ),
+            "productive_discretionary": (
+                "Capital outlay that grows productive asset base. Quantitative targets. "
+                "Priority over consumer wishlist. Not expense burn."
+            ),
+            "consumer_discretionary": (
+                "Consumer goods / personal wishlist (qualitative). Lower priority. "
+                "Not expense burn and not ops expansion capital targets."
+            ),
+            # Legacy key kept for older consumers
             "discretionary": (
-                "Hypothetical destinations for excess capital (assets / goals). "
-                "Not a spending plan and not included in expense burn."
+                "Alias for Productive Discretionary (legacy name). "
+                "Capital outlay that grows productive asset base — not expense burn."
             ),
             "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal.",
+            "priority_order": [
+                "Personal expenses paid & current",
+                "Productive Discretionary (margin-funded capex)",
+                "Consumer Discretionary (wishlist; after productive)",
+            ],
         },
         "tabs": {
-            "Personal": {
-                "role": "upcoming_expense_estimates",
-                "item_count": len(personal_items),
-                "totals": {k: round(v, 2) for k, v in personal_totals.items()},
-                "by_source_monthly": by_source(personal_items),
-                "top_monthly": top_items(personal_items, 12),
-                "upcoming_by_date": _upcoming_sorted(personal_items, 20),
-                "items": personal_items,
-            },
-            "Discretionary": {
-                "role": "excess_capital_targets",
-                "item_count": len(disc_items),
-                "totals": {k: round(v, 2) for k, v in disc_totals.items()},
-                "top_targets": top_items(disc_items, 12),
-                # keep top_monthly alias for older UI
-                "top_monthly": top_items(disc_items, 12),
-                "items": disc_items,
+            "Personal": _tab_block(
+                role="upcoming_expense_estimates",
+                items=personal_items,
+                totals=personal_totals,
+                kind="personal",
+            ),
+            PRODUCTIVE_TAB: productive_block,
+            CONSUMER_TAB: consumer_block,
+            # Backward-compatible alias → productive data (same object shape)
+            LEGACY_PRODUCTIVE_TAB: {
+                **productive_block,
+                "role": "excess_capital_targets",  # legacy role string
+                "alias_of": PRODUCTIVE_TAB,
             },
         },
         "summary": {
-            # Expense estimates (Personal only)
             "upcoming_expense_monthly": round(personal_monthly, 2),
-            "personal_monthly": round(personal_monthly, 2),  # alias
+            "personal_monthly": round(personal_monthly, 2),
             "personal_daily": round(personal_totals.get("daily") or 0.0, 2),
             "personal_weekly": round(personal_totals.get("weekly") or 0.0, 2),
             "personal_annually": round(personal_totals.get("annually") or 0.0, 2),
-            # Capital targets (Discretionary) — not burn
+            # Productive = capital targets for ops expansion
             "capital_targets_monthly": round(capital_target_monthly, 2),
-            "discretionary_monthly": round(capital_target_monthly, 2),  # alias
-            "discretionary_daily": round(disc_totals.get("daily") or 0.0, 2),
-            # Burn / funding pressure = Personal only (never + discretionary)
+            "productive_discretionary_monthly": round(productive_monthly, 2),
+            "discretionary_monthly": round(productive_monthly, 2),  # legacy alias → productive
+            "discretionary_daily": round(prod_totals.get("daily") or 0.0, 2),
+            "consumer_discretionary_monthly": round(consumer_monthly, 2),
+            "consumer_discretionary_daily": round(cons_totals.get("daily") or 0.0, 2),
+            # Burn = Personal only
             "combined_monthly": round(personal_monthly, 2),
             "combined_daily": round(personal_totals.get("daily") or 0.0, 2),
             "coinbase_funded_monthly": round(cb_monthly, 2),
@@ -332,10 +424,46 @@ def build_expenses_snapshot(
         },
         "notes": (
             "Personal = estimated future bills by pay-from account. "
-            "Discretionary = theoretical excess-capital targets (not expenses). "
-            "Actual card/spend history comes from YNAB, not this sheet."
+            "Productive Discretionary = capital outlay growing productive assets "
+            "(priority; margin-funded). "
+            "Consumer Discretionary = wishlist / consumer goods (lower priority). "
+            "Neither discretionary tab is expense burn. Actual spend = YNAB."
         ),
     }
+
+
+def _resolve_tab_names(tabs: List[str]) -> Dict[str, str]:
+    """Map logical roles → configured sheet tab names (with legacy fallbacks)."""
+    personal = "Personal"
+    productive = PRODUCTIVE_TAB
+    consumer = CONSUMER_TAB
+    for t in tabs:
+        tl = (t or "").strip()
+        low = tl.lower()
+        if low == "personal":
+            personal = tl
+        elif "productive" in low and "discretionary" in low:
+            productive = tl
+        elif low == "discretionary" or (
+            "discretionary" in low and "consumer" not in low and "productive" not in low
+        ):
+            # bare "Discretionary" = productive (legacy)
+            productive = tl
+        elif "consumer" in low and "discretionary" in low:
+            consumer = tl
+    return {
+        "personal": personal,
+        "productive": productive,
+        "consumer": consumer,
+    }
+
+
+def _fetch_tab_optional(sheet_id: str, name: str) -> Tuple[Optional[str], Optional[str]]:
+    """Return (csv, error). Missing tab → (None, err) without raising."""
+    try:
+        return fetch_sheet_csv(sheet_id, name), None
+    except Exception as e:
+        return None, str(e)
 
 
 def sync_expenses(
@@ -346,7 +474,8 @@ def sync_expenses(
     cfg = load_config()
     gcfg = cfg.get("expenses_sheet") or cfg.get("google_sheet") or {}
     sid = sheet_id or gcfg.get("sheet_id") or DEFAULT_SHEET_ID
-    tabs = gcfg.get("tabs") or list(DEFAULT_TABS)
+    tabs = list(gcfg.get("tabs") or list(DEFAULT_TABS))
+    names = _resolve_tab_names(tabs)
 
     if not prefer_live:
         from treasury.adapters import load_json
@@ -363,12 +492,32 @@ def sync_expenses(
         }
 
     try:
-        personal_csv = fetch_sheet_csv(sid, tabs[0] if tabs else "Personal")
-        disc_name = tabs[1] if len(tabs) > 1 else "Discretionary"
-        discretionary_csv = fetch_sheet_csv(sid, disc_name)
+        personal_csv = fetch_sheet_csv(sid, names["personal"])
+        # Productive: try configured name, then legacy "Discretionary"
+        productive_csv, prod_err = _fetch_tab_optional(sid, names["productive"])
+        if productive_csv is None and names["productive"] != LEGACY_PRODUCTIVE_TAB:
+            productive_csv, prod_err2 = _fetch_tab_optional(sid, LEGACY_PRODUCTIVE_TAB)
+            if productive_csv is not None:
+                prod_err = None
+            else:
+                prod_err = prod_err or prod_err2
+        if productive_csv is None:
+            raise RuntimeError(
+                prod_err
+                or f"Productive Discretionary tab not found ({names['productive']!r})"
+            )
+        consumer_csv, cons_err = _fetch_tab_optional(sid, names["consumer"])
         snap = build_expenses_snapshot(
-            personal_csv, discretionary_csv, sheet_id=sid, source="google_sheets"
+            personal_csv,
+            productive_csv,
+            consumer_csv=consumer_csv,
+            sheet_id=sid,
+            source="google_sheets",
         )
+        if cons_err and consumer_csv is None:
+            snap.setdefault("tab_warnings", []).append(
+                f"Consumer Discretionary tab unavailable: {cons_err}"
+            )
         return snap
     except Exception as e:
         from treasury.adapters import load_json
@@ -426,8 +575,14 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "coinbase_funded_monthly": s.get("coinbase_funded_monthly"),
                 "rh_checking_funded_monthly": s.get("rh_funded_monthly"),
                 "items_upcoming": (data.get("tabs") or {}).get("Personal", {}).get("item_count"),
+                "items_productive": (data.get("tabs") or {})
+                .get(PRODUCTIVE_TAB, (data.get("tabs") or {}).get("Discretionary", {}))
+                .get("item_count"),
+                "items_consumer": (data.get("tabs") or {})
+                .get(CONSUMER_TAB, {})
+                .get("item_count"),
                 "items_capital_targets": (data.get("tabs") or {})
-                .get("Discretionary", {})
+                .get(PRODUCTIVE_TAB, (data.get("tabs") or {}).get("Discretionary", {}))
                 .get("item_count"),
             },
             indent=2,
