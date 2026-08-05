@@ -48,9 +48,30 @@ python3 projects-dashboard/git_workflow.py sync "fix: …"         # session ind
 push only on `work/*`). Explicit message or dashboard button = **full**. Never pushes
 `master`. See `Agents.md` — *auto-save keeps the lights on; PRs change the product.*
 
+### Branch matrix (origin × clones)
+
+Repo tab default view: a color-coded matrix of every branch vs **origin** and
+each local clone (this machine live; peer machines via
+`ops/branch-clones/*.json`).
+
+| Dot | Meaning |
+|-----|---------|
+| ● green | present / synced |
+| ↑ / ↓ yellow | ahead / behind origin |
+| ↕ orange | diverged |
+| L purple | local only (not on origin) |
+| R blue | origin only (not on this clone) |
+| × red | upstream gone |
+| · muted | absent |
+
+```bash
+python3 projects-dashboard/git_workflow.py status   # includes matrix JSON
+# Peer hosts: write ops/branch-clones/<machine>.json (see ops/branch-clones/README.md)
+```
+
 ### Branch graph (gitk-style)
 
-The dashboard **Branches** section draws a linked-list / DAG view of commits
+The dashboard **Branches** section also draws a linked-list / DAG view of commits
 (same topology as `gitk` / `git log --graph`), from local git — no GitHub API.
 
 ```bash

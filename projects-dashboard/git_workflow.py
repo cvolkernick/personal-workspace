@@ -22,8 +22,10 @@ Policy one-liner: **auto-save keeps the lights on; PRs change the product.**
 
 from __future__ import annotations
 
+import json
 import os
 import re
+import socket
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -239,7 +241,359 @@ def resolve_protect_mode(
     return "full"
 
 
-def collect_branch_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
+def _short_hostname() -> str:
+    try:
+        name = socket.gethostname() or "local"
+    except OSError:
+        name = "local"
+    # strip domain: MacBookPro.home.local → MacBookPro
+    return name.split(".")[0] or name
+
+
+def _clone_reports_dir(repo: Path) -> Path:
+    """Optional multi-machine branch reports under ops/branch-clones/."""
+    return Path(repo).resolve() / "ops" / "branch-clones"
+
+
+def load_remote_clone_reports(repo: Path = WORKSPACE_ROOT) -> list[dict[str, Any]]:
+    """Load peer-machine branch inventories from ``ops/branch-clones/*.json``.
+
+    Each file::
+
+        {
+          "machine": "pi",          # column id (stable)
+          "label": "Pi",            # display name (optional)
+          "hostname": "prism",      # optional
+          "updated_at": "ISO-8601", # optional
+          "branches": [
+            {"name": "master", "sha": "abc1234", "current": true}
+          ]
+        }
+
+    This machine is always built live from git; files here are *other* clones.
+    """
+    d = _clone_reports_dir(repo)
+    if not d.is_dir():
+        return []
+    reports: list[dict[str, Any]] = []
+    for path in sorted(d.glob("*.json")):
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeError):
+            continue
+        if not isinstance(raw, dict):
+            continue
+        machine = str(raw.get("machine") or path.stem).strip()
+        if not machine or machine in ("origin", "local"):
+            continue
+        branches_in = raw.get("branches") or []
+        if not isinstance(branches_in, list):
+            continue
+        cleaned: list[dict[str, Any]] = []
+        for b in branches_in:
+            if not isinstance(b, dict):
+                continue
+            name = str(b.get("name") or "").strip()
+            if not name:
+                continue
+            cleaned.append(
+                {
+                    "name": name,
+                    "sha": (str(b.get("sha") or "")[:12] or None),
+                    "current": bool(b.get("current")),
+                }
+            )
+        reports.append(
+            {
+                "id": machine,
+                "label": str(raw.get("label") or raw.get("hostname") or machine),
+                "hostname": raw.get("hostname"),
+                "updated_at": raw.get("updated_at"),
+                "source": str(path.relative_to(Path(repo).resolve()))
+                if path.is_relative_to(Path(repo).resolve())
+                else str(path),
+                "branches": cleaned,
+            }
+        )
+    return reports
+
+
+def build_branch_matrix(
+    repo: Path = WORKSPACE_ROOT,
+    *,
+    branches: Optional[list[dict[str, Any]]] = None,
+    remote_branches: Optional[list[dict[str, str]]] = None,
+    current: Optional[str] = None,
+    peer_reports: Optional[list[dict[str, Any]]] = None,
+) -> dict[str, Any]:
+    """Color-coded origin × local-clone presence matrix.
+
+    Columns: ``origin`` always first, then this machine (live git), then any
+    peer clone reports under ``ops/branch-clones/``.
+
+    Cell states (for UI color)::
+
+        present  — exists, no drift info (origin or peer)
+        synced   — local matches origin tip (or both absent N/A)
+        ahead    — local has commits not on origin
+        behind   — origin has commits not local
+        diverged — ahead and behind
+        local_only — on clone, not on origin
+        remote_only — on origin, not on this clone
+        gone     — upstream tracked but deleted on origin
+        absent   — not present on that column
+    """
+    repo = Path(repo).resolve()
+    host = _short_hostname()
+    local_id = f"local:{host}"
+
+    if branches is None or remote_branches is None or current is None:
+        # Allow standalone use without double-collect when caller already has data
+        st = collect_branch_status(repo, include_matrix=False)
+        branches = branches if branches is not None else st.get("branches") or []
+        remote_branches = (
+            remote_branches
+            if remote_branches is not None
+            else st.get("remote_branches") or []
+        )
+        current = current if current is not None else st.get("current")
+
+    if peer_reports is None:
+        peer_reports = load_remote_clone_reports(repo)
+
+    # Map origin short name → sha
+    origin_map: dict[str, str] = {}
+    for rb in remote_branches or []:
+        name = rb.get("name") or ""
+        if name.startswith("origin/"):
+            short = name[len("origin/") :]
+        else:
+            short = name
+        if short in ("HEAD",) or short.endswith("/HEAD"):
+            continue
+        origin_map[short] = rb.get("sha") or ""
+
+    local_map: dict[str, dict[str, Any]] = {
+        b["name"]: b for b in (branches or []) if b.get("name")
+    }
+
+    # Worktree checkouts on this machine
+    wt_by_branch: dict[str, list[str]] = {}
+    for wt in list_worktrees(repo):
+        b = (wt.get("branch") or "").strip()
+        p = (wt.get("path") or "").strip()
+        if not b or not p or b == "(detached)":
+            continue
+        # shorten path for display
+        try:
+            home = str(Path.home())
+            disp = p.replace(home, "~") if p.startswith(home) else p
+        except OSError:
+            disp = p
+        wt_by_branch.setdefault(b, []).append(disp)
+
+    peer_maps: list[tuple[dict[str, Any], dict[str, dict[str, Any]]]] = []
+    for rep in peer_reports or []:
+        pm: dict[str, dict[str, Any]] = {}
+        for b in rep.get("branches") or []:
+            n = b.get("name")
+            if n:
+                pm[n] = b
+        peer_maps.append((rep, pm))
+
+    all_names = set(origin_map) | set(local_map)
+    for _, pm in peer_maps:
+        all_names |= set(pm)
+
+    def _sort_key(n: str) -> tuple:
+        if n in ("master", "main"):
+            return (0, n)
+        if n.startswith("work/"):
+            return (1, n)
+        if n.startswith("feature/") or n.startswith("fix/"):
+            return (2, n)
+        return (3, n)
+
+    columns: list[dict[str, Any]] = [
+        {
+            "id": "origin",
+            "kind": "origin",
+            "label": "origin",
+            "subtitle": "remote",
+        },
+        {
+            "id": local_id,
+            "kind": "local",
+            "label": host,
+            "subtitle": "this machine",
+            "hostname": host,
+            "live": True,
+        },
+    ]
+    for rep, _ in peer_maps:
+        columns.append(
+            {
+                "id": f"clone:{rep['id']}",
+                "kind": "clone",
+                "label": rep.get("label") or rep["id"],
+                "subtitle": rep.get("hostname") or rep["id"],
+                "hostname": rep.get("hostname"),
+                "updated_at": rep.get("updated_at"),
+                "source": rep.get("source"),
+                "live": False,
+            }
+        )
+
+    rows: list[dict[str, Any]] = []
+    for name in sorted(all_names, key=_sort_key):
+        loc = local_map.get(name)
+        on_origin = name in origin_map
+        on_local = loc is not None
+        ahead = (loc or {}).get("ahead")
+        behind = (loc or {}).get("behind")
+        upstream = (loc or {}).get("upstream")
+        gone = bool(upstream and "(gone)" in str(upstream))
+
+        # Origin cell
+        origin_cell: dict[str, Any] = {
+            "present": on_origin,
+            "sha": origin_map.get(name) or None,
+            "state": "present" if on_origin else "absent",
+        }
+
+        # Local cell state
+        if on_local and not on_origin:
+            local_state = "gone" if gone else "local_only"
+        elif on_origin and not on_local:
+            local_state = "remote_only"
+        elif on_local and on_origin:
+            a = int(ahead or 0)
+            b = int(behind or 0)
+            if a > 0 and b > 0:
+                local_state = "diverged"
+            elif a > 0:
+                local_state = "ahead"
+            elif b > 0:
+                local_state = "behind"
+            else:
+                local_state = "synced"
+        else:
+            local_state = "absent"
+
+        local_cell: dict[str, Any] = {
+            "present": on_local,
+            "sha": (loc or {}).get("sha"),
+            "state": local_state,
+            "ahead": ahead,
+            "behind": behind,
+            "current": bool((loc or {}).get("current")),
+            "worktrees": wt_by_branch.get(name) or [],
+        }
+
+        cells: dict[str, dict[str, Any]] = {
+            "origin": origin_cell,
+            local_id: local_cell,
+        }
+
+        for rep, pm in peer_maps:
+            pb = pm.get(name)
+            col_id = f"clone:{rep['id']}"
+            if pb:
+                # Compare peer sha to origin when both exist
+                psha = (pb.get("sha") or "")[:7]
+                osha = (origin_map.get(name) or "")[:7]
+                if on_origin and psha and osha and psha == osha:
+                    pstate = "synced"
+                elif on_origin and psha and osha and psha != osha:
+                    pstate = "diverged"
+                elif not on_origin:
+                    pstate = "local_only"
+                else:
+                    pstate = "present"
+                cells[col_id] = {
+                    "present": True,
+                    "sha": pb.get("sha"),
+                    "state": pstate,
+                    "current": bool(pb.get("current")),
+                }
+            else:
+                cells[col_id] = {
+                    "present": False,
+                    "sha": None,
+                    "state": "remote_only" if on_origin else "absent",
+                }
+
+        # Rollup status for filtering / row tint
+        if local_state in ("local_only", "gone"):
+            rollup = local_state
+        elif local_state == "remote_only" and not any(
+            cells[c["id"]].get("present")
+            for c in columns
+            if c["kind"] != "origin"
+        ):
+            rollup = "remote_only"
+        elif local_state in ("ahead", "behind", "diverged"):
+            rollup = local_state
+        elif on_origin and on_local:
+            rollup = "synced"
+        elif on_origin:
+            rollup = "remote_only"
+        else:
+            rollup = "local_only"
+
+        rows.append(
+            {
+                "name": name,
+                "is_work": name.startswith("work/"),
+                "is_feature": name.startswith("feature/") or name.startswith("fix/"),
+                "is_master": name in ("master", "main"),
+                "current": name == current,
+                "rollup": rollup,
+                "cells": cells,
+            }
+        )
+
+    counts = {
+        "total": len(rows),
+        "on_origin": sum(1 for r in rows if r["cells"]["origin"]["present"]),
+        "on_local": sum(1 for r in rows if r["cells"][local_id]["present"]),
+        "local_only": sum(1 for r in rows if r["rollup"] == "local_only"),
+        "remote_only": sum(1 for r in rows if r["rollup"] == "remote_only"),
+        "diverged": sum(
+            1 for r in rows if r["rollup"] in ("ahead", "behind", "diverged")
+        ),
+        "synced": sum(1 for r in rows if r["rollup"] == "synced"),
+    }
+
+    return {
+        "columns": columns,
+        "rows": rows,
+        "counts": counts,
+        "machine": host,
+        "local_column_id": local_id,
+        "legend": [
+            {"state": "synced", "label": "synced", "color": "green"},
+            {"state": "ahead", "label": "ahead of origin", "color": "yellow"},
+            {"state": "behind", "label": "behind origin", "color": "yellow"},
+            {"state": "diverged", "label": "diverged", "color": "orange"},
+            {"state": "local_only", "label": "local only", "color": "purple"},
+            {"state": "remote_only", "label": "origin only", "color": "blue"},
+            {"state": "gone", "label": "upstream gone", "color": "red"},
+            {"state": "present", "label": "present", "color": "green"},
+            {"state": "absent", "label": "absent", "color": "muted"},
+        ],
+        "note": (
+            "Origin vs clones on each machine. Peer columns load from "
+            "ops/branch-clones/*.json when other hosts publish reports."
+        ),
+    }
+
+
+def collect_branch_status(
+    repo: Path = WORKSPACE_ROOT,
+    *,
+    include_matrix: bool = True,
+) -> dict[str, Any]:
     """Current branch + local/remote branch inventory with ahead/behind."""
     repo = Path(repo).resolve()
     code, head, _ = _run(repo, "branch", "--show-current")
@@ -283,7 +637,7 @@ def collect_branch_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
                     "sha": sha,
                     "committerdate": cdate,
                     "is_work": name.startswith("work/"),
-                    "is_feature": name.startswith("feature/"),
+                    "is_feature": name.startswith("feature/") or name.startswith("fix/"),
                     "is_master": name in ("master", "main"),
                 }
             )
@@ -306,11 +660,8 @@ def collect_branch_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
             remote_branches.append({"name": name, "sha": sha})
 
     work_branches = [b for b in branches if b["is_work"] or b["is_feature"]]
-    unpushed = [
-        b for b in branches if b.get("ahead") and b["ahead"] > 0
-    ] + [b for b in branches if b.get("upstream") is None and not b["is_master"]]
 
-    return {
+    result: dict[str, Any] = {
         "current": current,
         "dirty": dirty,
         "branches": branches,
@@ -328,6 +679,14 @@ def collect_branch_status(repo: Path = WORKSPACE_ROOT) -> dict[str, Any]:
             "feature/<slug>": "Longer-lived features (optional)",
         },
     }
+    if include_matrix:
+        result["matrix"] = build_branch_matrix(
+            repo,
+            branches=branches,
+            remote_branches=remote_branches,
+            current=current,
+        )
+    return result
 
 
 def start_work(

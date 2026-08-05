@@ -16,10 +16,12 @@ sys.path.insert(0, str(DASH))
 from git_workflow import (  # noqa: E402
     branch_name_for_area,
     branch_worktree_path,
+    build_branch_matrix,
     collect_branch_status,
     dirty_paths,
     is_durable_path,
     list_worktrees,
+    load_remote_clone_reports,
     parse_porcelain_path,
     protect_work,
     resolve_protect_mode,
@@ -186,6 +188,77 @@ class TestGitWorkflow(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         self.assertFalse(r.get("committed"), r)
         self.assertIn("refuses", (r.get("message") or "").lower())
+
+    def test_branch_matrix_origin_vs_local(self) -> None:
+        # local-only branch
+        _git(self.repo, "checkout", "-b", "feature/local-only")
+        (self.repo / "treasury" / "local.txt").write_text("L\n", encoding="utf-8")
+        _git(self.repo, "add", ".")
+        _git(self.repo, "commit", "-m", "local only")
+        # remote-only branch (on origin, not local)
+        _git(self.repo, "checkout", "master")
+        _git(self.repo, "checkout", "-b", "work/remote-only")
+        (self.repo / "treasury" / "remote.txt").write_text("R\n", encoding="utf-8")
+        _git(self.repo, "add", ".")
+        _git(self.repo, "commit", "-m", "remote only")
+        _git(self.repo, "push", "-u", "origin", "work/remote-only")
+        _git(self.repo, "checkout", "master")
+        _git(self.repo, "branch", "-D", "work/remote-only")
+        # fetch so origin/work/remote-only exists locally as remote ref
+        _git(self.repo, "fetch", "origin")
+
+        st = collect_branch_status(self.repo)
+        self.assertIn("matrix", st)
+        m = st["matrix"]
+        self.assertGreaterEqual(len(m["columns"]), 2)
+        self.assertEqual(m["columns"][0]["id"], "origin")
+        self.assertEqual(m["columns"][0]["kind"], "origin")
+        self.assertEqual(m["columns"][1]["kind"], "local")
+        by_name = {r["name"]: r for r in m["rows"]}
+        self.assertIn("feature/local-only", by_name)
+        self.assertEqual(by_name["feature/local-only"]["rollup"], "local_only")
+        self.assertFalse(by_name["feature/local-only"]["cells"]["origin"]["present"])
+        self.assertTrue(
+            by_name["feature/local-only"]["cells"][m["local_column_id"]]["present"]
+        )
+        self.assertIn("work/remote-only", by_name)
+        self.assertEqual(by_name["work/remote-only"]["rollup"], "remote_only")
+        self.assertTrue(by_name["work/remote-only"]["cells"]["origin"]["present"])
+        self.assertFalse(
+            by_name["work/remote-only"]["cells"][m["local_column_id"]]["present"]
+        )
+        self.assertIn("master", by_name)
+        self.assertEqual(by_name["master"]["cells"]["origin"]["state"], "present")
+
+    def test_branch_matrix_peer_clone_report(self) -> None:
+        clones = self.repo / "ops" / "branch-clones"
+        clones.mkdir(parents=True)
+        (clones / "pi.json").write_text(
+            json.dumps(
+                {
+                    "machine": "pi",
+                    "label": "Pi",
+                    "hostname": "prism",
+                    "updated_at": "2026-08-05T00:00:00Z",
+                    "branches": [
+                        {"name": "master", "sha": "deadbee", "current": True},
+                        {"name": "work/iot", "sha": "cafebabe"},
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        reports = load_remote_clone_reports(self.repo)
+        self.assertEqual(len(reports), 1)
+        self.assertEqual(reports[0]["id"], "pi")
+        m = build_branch_matrix(self.repo, peer_reports=reports)
+        col_ids = [c["id"] for c in m["columns"]]
+        self.assertIn("clone:pi", col_ids)
+        by_name = {r["name"]: r for r in m["rows"]}
+        self.assertIn("work/iot", by_name)
+        self.assertTrue(by_name["work/iot"]["cells"]["clone:pi"]["present"])
+        self.assertEqual(by_name["work/iot"]["cells"]["clone:pi"]["state"], "local_only")
+        self.assertTrue(by_name["master"]["cells"]["clone:pi"]["current"])
 
 
 class TestSessionIndex(unittest.TestCase):

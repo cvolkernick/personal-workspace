@@ -200,6 +200,102 @@
     .graph-meta { color: var(--muted); font-size: 0.78rem; }
     .graph-meta a { color: var(--accent); text-decoration: none; }
     .branch-list-compact { max-height: 12rem; overflow: auto; }
+    /* Branch environment matrix (origin × local clones) */
+    .bmx-wrap {
+      overflow: auto; max-height: 28rem; border: 1px solid var(--border);
+      border-radius: 10px; background: #0a1016; margin-top: 0.45rem;
+    }
+    .bmx {
+      width: 100%; border-collapse: collapse; font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .bmx th, .bmx td {
+      padding: 0.38rem 0.55rem; border-bottom: 1px solid #15202a;
+      text-align: center; white-space: nowrap;
+    }
+    .bmx th {
+      position: sticky; top: 0; z-index: 2;
+      background: #0e151c; color: var(--muted);
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+      font-weight: 650; border-bottom: 1px solid var(--border);
+    }
+    .bmx th.bmx-branch, .bmx td.bmx-branch {
+      text-align: left; position: sticky; left: 0; z-index: 1;
+      background: #0a1016; max-width: 16rem;
+      overflow: hidden; text-overflow: ellipsis;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.74rem;
+    }
+    .bmx th.bmx-branch { z-index: 3; background: #0e151c; }
+    .bmx tr:hover td { background: rgba(91,159,212,0.06); }
+    .bmx tr:hover td.bmx-branch { background: #101820; }
+    .bmx tr.bmx-current td.bmx-branch { color: var(--green); font-weight: 650; }
+    .bmx .bmx-col-sub {
+      display: block; font-size: 0.62rem; font-weight: 500;
+      text-transform: none; letter-spacing: 0; color: #5a6f82; margin-top: 0.1rem;
+    }
+    .bmx-dot {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.35rem; height: 1.35rem; border-radius: 999px;
+      border: 1.5px solid var(--border); background: transparent;
+      font-size: 0.62rem; font-weight: 700; color: var(--muted);
+    }
+    .bmx-dot.st-present, .bmx-dot.st-synced {
+      background: rgba(61,214,140,0.18); border-color: #245c42; color: var(--green);
+    }
+    .bmx-dot.st-ahead {
+      background: rgba(245,197,66,0.18); border-color: #6b5a1e; color: var(--yellow);
+    }
+    .bmx-dot.st-behind {
+      background: rgba(245,197,66,0.12); border-color: #6b5a1e; color: var(--yellow);
+    }
+    .bmx-dot.st-diverged {
+      background: rgba(255,140,66,0.18); border-color: #7a4520; color: #ff9f5a;
+    }
+    .bmx-dot.st-local_only {
+      background: rgba(192,132,252,0.16); border-color: #5b3a7a; color: var(--purple);
+    }
+    .bmx-dot.st-remote_only {
+      background: rgba(91,159,212,0.14); border-color: #2a4a66; color: var(--accent);
+    }
+    .bmx-dot.st-gone {
+      background: rgba(255,107,107,0.14); border-color: #6b2e2e; color: var(--red);
+    }
+    .bmx-dot.st-absent {
+      background: transparent; border-color: #1a2530; color: #3a4a58;
+    }
+    .bmx-dot.st-current-ring {
+      box-shadow: 0 0 0 2px rgba(61,214,140,0.45);
+    }
+    .bmx-meta {
+      display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem;
+      align-items: center; margin-top: 0.55rem;
+      color: var(--muted); font-size: 0.75rem;
+    }
+    .bmx-legend {
+      display: flex; flex-wrap: wrap; gap: 0.35rem 0.55rem;
+      align-items: center; margin-top: 0.4rem;
+    }
+    .bmx-legend span {
+      display: inline-flex; align-items: center; gap: 0.28rem;
+      color: var(--muted); font-size: 0.7rem;
+    }
+    .bmx-wt {
+      display: block; margin-top: 0.15rem; color: #5a6f82;
+      font-size: 0.62rem; font-weight: 500;
+      max-width: 7rem; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bmx-filter {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+      margin-top: 0.35rem;
+    }
+    .bmx-filter button {
+      padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 600;
+    }
+    .bmx-filter button.active {
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(91,159,212,0.25);
+    }
     /* Recommendation priority + press rank */
     .pill.pri-critical { color: #ff6b6b; border-color: #6b2e2e; background: #2a1515; }
     .pill.pri-high { color: #f5a623; border-color: #6b4a1e; background: #2a1f10; }
@@ -1000,20 +1096,26 @@
           ${blBody}
         </div>`;
 
-      // Branches panel: gitk-style graph + list (graph loaded async)
+      // Branches panel: matrix (origin × clones) + graph + list
       const branchList = br.branches || [];
-      const graphMode = (window.__branchGraphMode || "graph");
+      const matrix = br.matrix || null;
+      window.__branchMatrix = matrix;
+      const graphMode = (window.__branchGraphMode || "matrix");
       $("branches").innerHTML = `
-        <div class="section-title">Branches <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· gitk-style graph + inventory</span></div>
+        <div class="section-title">Branches <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· origin × local clones · graph · list</span></div>
         <div class="card">
           <div class="graph-controls">
+            <button type="button" id="btn-matrix-view" class="${graphMode === "matrix" ? "active" : ""}" title="Origin vs local clones by machine">Matrix</button>
             <button type="button" id="btn-graph-view" class="${graphMode === "graph" ? "active" : ""}" title="Commit topology (linked list / DAG)">Graph</button>
             <button type="button" id="btn-list-view" class="${graphMode === "list" ? "active" : ""}" title="Branch inventory">List</button>
             <button type="button" id="btn-graph-refresh" title="Reload graph from local git">Refresh graph</button>
             <label class="toggle" style="padding:0.3rem 0.55rem;font-size:0.8rem">
               <input type="checkbox" id="graph-remotes" ${window.__branchGraphRemotes === false ? "" : "checked"} /> remotes
             </label>
-            <span class="graph-meta" id="graph-meta">Loading graph…</span>
+            <span class="graph-meta" id="graph-meta">${graphMode === "matrix" ? "Environment matrix" : "Loading graph…"}</span>
+          </div>
+          <div id="branch-matrix-panel" style="${graphMode === "matrix" ? "" : "display:none"}">
+            ${renderBranchMatrix(matrix)}
           </div>
           <div id="branch-graph-panel" style="${graphMode === "graph" ? "" : "display:none"}">
             <div class="graph-wrap" id="branch-graph-mount"><div class="empty" style="margin:0.5rem;border:none">Fetching commit graph…</div></div>
@@ -1111,26 +1213,133 @@
     /** Lane palette for graph columns (cycles). */
     const LANE_COLORS = ["#7c9cff", "#c084fc", "#3dd68c", "#5b9fd4", "#f5c542", "#ff8fab", "#64d2ff", "#a78bfa"];
 
+    function bmxDotGlyph(state, cell) {
+      if (state === "absent") return "·";
+      if (state === "ahead") return "↑";
+      if (state === "behind") return "↓";
+      if (state === "diverged") return "↕";
+      if (state === "local_only") return "L";
+      if (state === "remote_only") return "R";
+      if (state === "gone") return "×";
+      if (cell && cell.current) return "●";
+      return "●";
+    }
+    function bmxCellTitle(col, cell) {
+      if (!cell) return "";
+      const bits = [col.label || col.id, cell.state || ""];
+      if (cell.sha) bits.push(String(cell.sha).slice(0, 7));
+      if (cell.ahead) bits.push(`ahead ${cell.ahead}`);
+      if (cell.behind) bits.push(`behind ${cell.behind}`);
+      if (cell.current) bits.push("HEAD");
+      if (cell.worktrees && cell.worktrees.length) bits.push(cell.worktrees.join(", "));
+      return bits.filter(Boolean).join(" · ");
+    }
+    function renderBranchMatrix(matrix, filter) {
+      if (!matrix || !matrix.rows || !matrix.columns) {
+        return `<div class="empty" style="margin:0.5rem;border:none">No branch matrix (git inventory empty).</div>`;
+      }
+      const filt = filter || window.__branchMatrixFilter || "all";
+      window.__branchMatrixFilter = filt;
+      const cols = matrix.columns;
+      const rows = matrix.rows.filter((r) => {
+        if (filt === "all") return true;
+        if (filt === "drift") return ["ahead", "behind", "diverged", "local_only", "remote_only", "gone"].includes(r.rollup);
+        if (filt === "local_only") return r.rollup === "local_only" || r.rollup === "gone";
+        if (filt === "remote_only") return r.rollup === "remote_only";
+        if (filt === "work") return r.is_work;
+        return true;
+      });
+      const counts = matrix.counts || {};
+      const legend = (matrix.legend || []).filter((l) =>
+        ["synced", "ahead", "behind", "diverged", "local_only", "remote_only", "gone", "absent"].includes(l.state)
+      );
+      const head = cols.map((c) =>
+        `<th title="${esc(c.subtitle || c.kind || "")}"><span>${esc(c.label)}</span>` +
+        `<span class="bmx-col-sub">${esc(c.subtitle || c.kind || "")}</span></th>`
+      ).join("");
+      const body = rows.length ? rows.map((r) => {
+        const tds = cols.map((c) => {
+          const cell = (r.cells && r.cells[c.id]) || { state: "absent", present: false };
+          const st = cell.state || "absent";
+          const ring = cell.current ? " st-current-ring" : "";
+          const wt = (cell.worktrees && cell.worktrees[0])
+            ? `<span class="bmx-wt" title="${esc((cell.worktrees || []).join(", "))}">${esc(cell.worktrees[0].split("/").slice(-2).join("/"))}</span>`
+            : "";
+          return `<td><span class="bmx-dot st-${esc(st)}${ring}" title="${esc(bmxCellTitle(c, cell))}">${bmxDotGlyph(st, cell)}</span>${wt}</td>`;
+        }).join("");
+        const headMark = r.current
+          ? ' <span class="pill active" style="font-size:0.6rem;padding:0.1rem 0.35rem">HEAD</span>'
+          : "";
+        return `<tr class="${r.current ? "bmx-current" : ""}" data-rollup="${esc(r.rollup || "")}">` +
+          `<td class="bmx-branch" title="${esc(r.name)}">${esc(r.name)}${headMark}</td>${tds}</tr>`;
+      }).join("") : `<tr><td class="bmx-branch" colspan="${cols.length + 1}" style="text-align:center;color:var(--muted)">No branches match filter</td></tr>`;
+
+      return `
+        <div class="bmx-filter" id="bmx-filter">
+          <button type="button" data-bmx-filter="all" class="${filt === "all" ? "active" : ""}">All (${counts.total ?? rows.length})</button>
+          <button type="button" data-bmx-filter="drift" class="${filt === "drift" ? "active" : ""}">Drift (${(counts.diverged || 0) + (counts.local_only || 0) + (counts.remote_only || 0)})</button>
+          <button type="button" data-bmx-filter="local_only" class="${filt === "local_only" ? "active" : ""}">Local only (${counts.local_only || 0})</button>
+          <button type="button" data-bmx-filter="remote_only" class="${filt === "remote_only" ? "active" : ""}">Origin only (${counts.remote_only || 0})</button>
+          <button type="button" data-bmx-filter="work" class="${filt === "work" ? "active" : ""}">work/*</button>
+        </div>
+        <div class="bmx-wrap">
+          <table class="bmx">
+            <thead><tr><th class="bmx-branch">Branch</th>${head}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+        <div class="bmx-legend">
+          ${legend.map((l) =>
+            `<span><span class="bmx-dot st-${esc(l.state)}" style="width:0.95rem;height:0.95rem;font-size:0.55rem">${bmxDotGlyph(l.state, {})}</span>${esc(l.label)}</span>`
+          ).join("")}
+        </div>
+        <div class="bmx-meta">
+          <span>${esc(matrix.machine || "local")} · origin ${counts.on_origin || 0} · local ${counts.on_local || 0}</span>
+          ${cols.length <= 2
+            ? `<span title="Drop JSON reports on other hosts">Peer clones: add ops/branch-clones/&lt;machine&gt;.json</span>`
+            : `<span>${cols.length - 1} clone column(s)</span>`}
+        </div>`;
+    }
+    function wireBranchMatrixFilters() {
+      const root = $("bmx-filter");
+      if (!root) return;
+      root.querySelectorAll("[data-bmx-filter]").forEach((btn) => {
+        btn.onclick = () => {
+          window.__branchMatrixFilter = btn.getAttribute("data-bmx-filter") || "all";
+          const panel = $("branch-matrix-panel");
+          if (panel) panel.innerHTML = renderBranchMatrix(window.__branchMatrix, window.__branchMatrixFilter);
+          wireBranchMatrixFilters();
+        };
+      });
+    }
+    function setBranchView(mode) {
+      window.__branchGraphMode = mode;
+      const m = $("branch-matrix-panel");
+      const g = $("branch-graph-panel");
+      const l = $("branch-list-panel");
+      if (m) m.style.display = mode === "matrix" ? "" : "none";
+      if (g) g.style.display = mode === "graph" ? "" : "none";
+      if (l) l.style.display = mode === "list" ? "" : "none";
+      const mBtn = $("btn-matrix-view");
+      const gBtn = $("btn-graph-view");
+      const lBtn = $("btn-list-view");
+      if (mBtn) mBtn.classList.toggle("active", mode === "matrix");
+      if (gBtn) gBtn.classList.toggle("active", mode === "graph");
+      if (lBtn) lBtn.classList.toggle("active", mode === "list");
+      const meta = $("graph-meta");
+      if (mode === "matrix" && meta) meta.textContent = "Environment matrix";
+      if (mode === "graph") loadBranchGraph();
+    }
     function wireBranchPanel() {
+      const mBtn = $("btn-matrix-view");
       const gBtn = $("btn-graph-view");
       const lBtn = $("btn-list-view");
       const rBtn = $("btn-graph-refresh");
       const rem = $("graph-remotes");
-      if (gBtn) gBtn.onclick = () => {
-        window.__branchGraphMode = "graph";
-        if ($("branch-graph-panel")) $("branch-graph-panel").style.display = "";
-        if ($("branch-list-panel")) $("branch-list-panel").style.display = "none";
-        gBtn.classList.add("active");
-        if (lBtn) lBtn.classList.remove("active");
-        loadBranchGraph();
-      };
-      if (lBtn) lBtn.onclick = () => {
-        window.__branchGraphMode = "list";
-        if ($("branch-graph-panel")) $("branch-graph-panel").style.display = "none";
-        if ($("branch-list-panel")) $("branch-list-panel").style.display = "";
-        lBtn.classList.add("active");
-        if (gBtn) gBtn.classList.remove("active");
-      };
+      if (mBtn) mBtn.onclick = () => setBranchView("matrix");
+      if (gBtn) gBtn.onclick = () => setBranchView("graph");
+      if (lBtn) lBtn.onclick = () => setBranchView("list");
+      wireBranchMatrixFilters();
       if (rBtn) rBtn.onclick = () => loadBranchGraph(true);
       if (rem) rem.onchange = () => {
         window.__branchGraphRemotes = !!rem.checked;
