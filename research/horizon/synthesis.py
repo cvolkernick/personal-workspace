@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from research.horizon import DOMAIN_LABELS, REQUIRED_DOMAINS
+from research.horizon.regime import assess_regime, regime_brief_block, regime_headline
 from research.horizon.world_state import query_nodes
 
 # Mild boost so strategy-relevant nodes surface when scores are close (does not
@@ -279,10 +280,15 @@ def synthesize(
     world_summary = build_world_state_summary(state)
     implications = build_strategy_implications(linkages, strategy)
     watchlist = build_watchlist(state, linkages=linkages)
+    regime = state.get("regime") if isinstance(state.get("regime"), dict) else None
+    if not regime:
+        regime = assess_regime(state)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "version_id": state.get("version_id"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "regime": regime,
+        "regime_brief": regime_brief_block(regime),
         "executive_brief": exec_brief,
         "current_world_state": world_summary,
         "implications_for_my_strategy": implications,
@@ -298,6 +304,71 @@ def render_markdown(brief: dict[str, Any]) -> str:
     lines.append("")
     lines.append(f"_Generated: {brief.get('generated_at')}_")
     lines.append("")
+
+    regime = brief.get("regime") or {}
+    if regime:
+        lines.append("## 0. Regime Assessment")
+        lines.append("")
+        lines.append(f"**{regime_headline(regime)}**")
+        lines.append("")
+        primary = regime.get("primary") or {}
+        if primary.get("summary"):
+            lines.append(f"- **Primary:** {primary.get('summary')}")
+        secondary = regime.get("secondary") or {}
+        if secondary.get("label"):
+            try:
+                sp = f"{float(secondary.get('probability') or 0):.0%}"
+            except (TypeError, ValueError):
+                sp = str(secondary.get("probability"))
+            lines.append(
+                f"- **Secondary:** {secondary.get('label')} "
+                f"({sp}) — {secondary.get('summary')}"
+            )
+        probs = regime.get("probabilities") or {}
+        if probs:
+            ordered = sorted(
+                probs.values(),
+                key=lambda x: float(x.get("probability") or 0),
+                reverse=True,
+            )
+            lines.append("- **Distribution:**")
+            for pr in ordered:
+                try:
+                    pct = f"{float(pr.get('probability') or 0):.0%}"
+                except (TypeError, ValueError):
+                    pct = str(pr.get("probability"))
+                lines.append(f"  - {pr.get('label') or pr.get('id')}: {pct}")
+        axes = regime.get("axes") or []
+        if axes:
+            lines.append("")
+            lines.append("| Axis | Dominant | p | conf |")
+            lines.append("|------|----------|---|------|")
+            for ax in axes:
+                lines.append(
+                    f"| {ax.get('label') or ax.get('id')} | "
+                    f"{ax.get('dominant_label') or ax.get('dominant')} | "
+                    f"{ax.get('probability')} | {ax.get('confidence')} |"
+                )
+        drivers = regime.get("drivers") or []
+        if drivers:
+            lines.append("")
+            lines.append("- **Key drivers:**")
+            for d in drivers[:5]:
+                lines.append(
+                    f"  - [{d.get('domain')}] {d.get('title')} "
+                    f"(w={d.get('weight')}, supports={d.get('supports')})"
+                )
+        cov = regime.get("coverage") or {}
+        lines.append("")
+        lines.append(
+            f"- **Method:** {regime.get('method')} · "
+            f"nodes={cov.get('node_total')} · "
+            f"fixture_share={cov.get('fixture_share')} · "
+            f"conf={regime.get('confidence')}"
+        )
+        for note in regime.get("notes") or []:
+            lines.append(f"- _Note:_ {note}")
+        lines.append("")
 
     eb = brief.get("executive_brief") or {}
     lines.append("## 1. Executive Brief")

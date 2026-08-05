@@ -40,10 +40,15 @@ class TestSynthesis(unittest.TestCase):
         state, strategy, linkages = self._state_and_links()
         brief = synthesize(state, strategy, linkages)
 
+        self.assertIn("regime", brief)
+        self.assertIn("primary", brief["regime"])
         self.assertIn("executive_brief", brief)
         self.assertIn("current_world_state", brief)
         self.assertIn("implications_for_my_strategy", brief)
         self.assertIn("watchlist", brief)
+        self.assertIn("regime", brief)
+        self.assertIn("primary", brief["regime"])
+        self.assertIn("probabilities", brief["regime"])
 
         eb = brief["executive_brief"]
         self.assertGreater(len(eb["items"]), 0)
@@ -99,6 +104,7 @@ class TestSynthesis(unittest.TestCase):
         state, strategy, linkages = self._state_and_links()
         brief = synthesize(state, strategy, linkages)
         md = render_markdown(brief)
+        self.assertIn("## 0. Regime Assessment", md)
         self.assertIn("## 1. Executive Brief", md)
         self.assertIn("## 2. Current World State", md)
         self.assertIn("## 3. Implications for My Strategy", md)

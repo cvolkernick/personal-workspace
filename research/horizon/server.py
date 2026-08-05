@@ -77,6 +77,12 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         )
     domain_stats.sort(key=lambda x: x["top_score"], reverse=True)
 
+    regime = None
+    if isinstance(brief, dict) and isinstance(brief.get("regime"), dict):
+        regime = brief["regime"]
+    elif isinstance(state, dict) and isinstance(state.get("regime"), dict):
+        regime = state["regime"]
+
     return {
         "ok": True,
         "service": "horizon",
@@ -87,6 +93,7 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         "version_id": (brief or state or {}).get("version_id"),
         "generated_at": (brief or {}).get("generated_at") or (state or {}).get("updated_at"),
         "domain_stats": domain_stats,
+        "regime": regime,
         "world_state": state,
         "brief": brief,
         "paths": {

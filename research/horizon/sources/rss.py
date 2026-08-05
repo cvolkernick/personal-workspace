@@ -12,8 +12,10 @@ from urllib.request import Request, urlopen
 
 from research.horizon import REQUIRED_DOMAINS
 
-# High-credibility public feeds (titles only; domain inferred heuristically)
+# High-credibility official / primary feeds (titles only; domain inferred heuristically).
+# Prefer government and multilaterals over wire narrative. Social excluded by design.
 DEFAULT_FEEDS: list[dict[str, str]] = [
+    # --- Monetary / rates ---
     {
         "name": "Federal Reserve Press",
         "url": "https://www.federalreserve.gov/feeds/press_all.xml",
@@ -21,10 +23,80 @@ DEFAULT_FEEDS: list[dict[str, str]] = [
         "tags": "rates,fed,monetary-policy",
     },
     {
+        "name": "ECB Press",
+        "url": "https://www.ecb.europa.eu/rss/press.html",
+        "domain": "macroeconomics",
+        "tags": "rates,ecb,monetary-policy,europe",
+    },
+    {
+        "name": "Bank of England News",
+        "url": "https://www.bankofengland.co.uk/rss/news",
+        "domain": "macroeconomics",
+        "tags": "rates,boe,monetary-policy,uk",
+    },
+    {
+        "name": "BIS Press Releases",
+        "url": "https://www.bis.org/doclist/rss_all_pressrel.rss",
+        "domain": "macroeconomics",
+        "tags": "bis,rates,liquidity,banking",
+    },
+    # --- Growth / labor / prices (US official) ---
+    {
+        "name": "BLS News Releases",
+        "url": "https://www.bls.gov/feed/bls_latest.rss",
+        "domain": "macroeconomics",
+        "tags": "labor,cpi,payroll,inflation,bls",
+    },
+    {
+        "name": "BEA News",
+        "url": "https://apps.bea.gov/rss/rss.xml",
+        "domain": "macroeconomics",
+        "tags": "gdp,bea,growth,pce",
+    },
+    {
+        "name": "US Treasury Press",
+        "url": "https://home.treasury.gov/system/files/136/treasury-press-releases.xml",
+        "domain": "capital_flows",
+        "tags": "treasury,fiscal,debt,auction",
+    },
+    # --- Energy / commodities ---
+    {
         "name": "EIA Today in Energy",
         "url": "https://www.eia.gov/rss/todayinenergy.xml",
         "domain": "energy",
         "tags": "energy,oil,gas,power",
+    },
+    {
+        "name": "EIA What's New",
+        "url": "https://www.eia.gov/rss/press_release.xml",
+        "domain": "energy",
+        "tags": "energy,oil,gas,eia",
+    },
+    # --- Multilateral / systemic ---
+    {
+        "name": "IMF News",
+        "url": "https://www.imf.org/en/News/RSS",
+        "domain": "macroeconomics",
+        "tags": "imf,sovereign,emerging-markets,fiscal",
+    },
+    {
+        "name": "World Bank News",
+        "url": "https://www.worldbank.org/en/news/all.rss",
+        "domain": "macroeconomics",
+        "tags": "world-bank,development,em,fiscal",
+    },
+    # --- Geopolitics / trade policy (official US) ---
+    {
+        "name": "US State Department Press",
+        "url": "https://www.state.gov/rss-feed/press-releases/feed/",
+        "domain": "geopolitics",
+        "tags": "diplomacy,sanctions,geopolitics,us",
+    },
+    {
+        "name": "USTR Press",
+        "url": "https://ustr.gov/about-us/policy-offices/press-office/press-releases/rss.xml",
+        "domain": "geopolitics",
+        "tags": "trade,tariff,ustr,industrial-policy",
     },
 ]
 
