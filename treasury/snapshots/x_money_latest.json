@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-04T18:01:37.905647+00:00",
+  "as_of": "2026-08-05T02:40:08.845288+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 433.98,
-  "cash": 433.98,
-  "available": 433.98,
-  "cleared_balance": 433.98,
+  "balance_raw": 635.14,
+  "cash": 635.14,
+  "available": 635.14,
+  "cleared_balance": 635.14,
   "uncleared_balance": 0.0,
-  "spend_30d": 872.05,
-  "inflow_30d": 1306.03,
-  "transaction_count": 93,
+  "spend_30d": 918.89,
+  "inflow_30d": 1554.03,
+  "transaction_count": 98,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -217,7 +217,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -228,7 +228,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+      "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
       "date": "2026-07-23",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -560,7 +560,7 @@
     {
       "id": "602d4a2b-6fe9-4567-acba-56c28531358e",
       "date": "2026-07-28",
-      "payee": "Funds",
+      "payee": "Transfer : Coinbase One Card \u2013 5361",
       "amount": -25.0,
       "amount_display": -25.0,
       "memo": null,
