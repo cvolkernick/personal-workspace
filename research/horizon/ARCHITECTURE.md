@@ -235,3 +235,11 @@ python3 research/horizon/run_horizon.py --link-only --offline
 - New sources: implement `SourceAdapter.fetch`.
 - Smarter linkage: swap keyword scorer for embeddings later without changing artifact schema.
 - Dashboards / agents: consume `data/world_state_latest.json` and `data/briefs/brief_latest.json`.
+
+---
+
+## 9. Enhancement log
+
+| When | Change |
+|------|--------|
+| 2026-08-05 (#20) | Strategy-aware ranking on executive brief + watchlist (`synthesis.py`): mild affinity boost + `strategy_priorities` / `strategy_links` on items. Assessment: `ASSESSMENT_ISSUE_20.md`. |
