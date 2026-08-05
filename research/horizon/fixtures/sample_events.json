@@ -1,0 +1,155 @@
+{
+  "description": "Multi-domain seed events for offline Horizon runs. Facts are illustrative structural markers for pipeline testing and baseline world-state coverage — not live news.",
+  "events": [
+    {
+      "id": "geo-great-power-competition",
+      "domain": "geopolitics",
+      "title": "US–China strategic competition remains the primary geopolitical axis",
+      "facts": [
+        "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
+        "Both sides continue to deepen security partnerships with regional partners."
+      ],
+      "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
+      "confidence": 0.85,
+      "impact": "high",
+      "tags": ["china", "us", "semiconductors", "geopolitics", "export-controls"],
+      "related_domains": ["technology_ai", "supply_chains", "military"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "macro-rates-regime",
+      "domain": "macroeconomics",
+      "title": "Global policy rates remain elevated vs 2010s baseline",
+      "facts": [
+        "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
+        "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+      ],
+      "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
+      "confidence": 0.8,
+      "impact": "high",
+      "tags": ["rates", "inflation", "fed", "macro", "liquidity"],
+      "related_domains": ["capital_flows"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "energy-nuclear-renaissance",
+      "domain": "energy",
+      "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+      "facts": [
+        "Hyperscalers have announced long-dated power purchase interest including nuclear-linked supply.",
+        "Uranium fuel-cycle capacity remains tight relative to announced reactor and SMR ambitions."
+      ],
+      "interpretation": "Energy scarcity becomes a binding constraint on AI scale-out; nuclear miners/utilities and grid equipment sit at the intersection of Energy and AI bets.",
+      "confidence": 0.75,
+      "impact": "high",
+      "tags": ["nuclear", "uranium", "ai", "data-centers", "power", "energy"],
+      "related_domains": ["technology_ai", "climate_resources"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "tech-ai-compute-race",
+      "domain": "technology_ai",
+      "title": "Frontier AI remains compute- and energy-constrained",
+      "facts": [
+        "Leading labs continue multi-billion-dollar training and inference buildouts.",
+        "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+      ],
+      "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
+      "confidence": 0.8,
+      "impact": "high",
+      "tags": ["ai", "gpus", "nvidia", "compute", "semiconductors"],
+      "related_domains": ["energy", "supply_chains", "capital_flows"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "mil-indo-pacific-posture",
+      "domain": "military",
+      "title": "Indo-Pacific force posture and industrial base remain priority theaters",
+      "facts": [
+        "Allied exercises and basing arrangements in the Indo-Pacific continue to expand in tempo.",
+        "Defense industrial capacity (munitions, shipbuilding, missiles) is a stated bottleneck for multiple governments."
+      ],
+      "interpretation": "Military posture reinforces export-control and dual-use tech regimes; watch for escalation risk premiums in Asia supply chains.",
+      "confidence": 0.7,
+      "impact": "medium",
+      "tags": ["indo-pacific", "defense", "alliances", "military"],
+      "related_domains": ["geopolitics", "supply_chains"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "demo-aging-advanced-economies",
+      "domain": "demographics",
+      "title": "Advanced-economy aging and tight labor markets constrain growth potential",
+      "facts": [
+        "Working-age population growth is slow or negative in several major economies.",
+        "Labor force participation and immigration policy remain central political variables."
+      ],
+      "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
+      "confidence": 0.75,
+      "impact": "medium",
+      "tags": ["demographics", "labor", "aging", "automation"],
+      "related_domains": ["technology_ai", "macroeconomics"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "supply-chip-geography",
+      "domain": "supply_chains",
+      "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+      "facts": [
+        "Leading-edge logic capacity is highly concentrated in a small number of firms and locations.",
+        "Friend-shoring and subsidy programs aim to diversify capacity over multi-year horizons."
+      ],
+      "interpretation": "Concentration is a systemic risk node linking geopolitics, AI compute, and capital expenditure cycles.",
+      "confidence": 0.85,
+      "impact": "high",
+      "tags": ["semiconductors", "taiwan", "tsm", "supply-chain", "chips"],
+      "related_domains": ["geopolitics", "technology_ai"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "capital-btc-liquidity",
+      "domain": "capital_flows",
+      "title": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
+      "facts": [
+        "Spot BTC ETFs and corporate treasury narratives have expanded institutional access channels.",
+        "BTC drawdowns and rallies remain correlated with broader risk-asset and real-rate moves in many regimes."
+      ],
+      "interpretation": "For a Bitcoin accumulation thesis, watch real rates, USD liquidity, ETF flows, and regulatory clarity as first-order drivers.",
+      "confidence": 0.7,
+      "impact": "high",
+      "tags": ["bitcoin", "btc", "etf", "liquidity", "risk-assets", "mstr"],
+      "related_domains": ["macroeconomics", "narrative_information"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "climate-critical-minerals",
+      "domain": "climate_resources",
+      "title": "Critical minerals and water stress bind energy transition and industrial policy",
+      "facts": [
+        "Copper, lithium, and rare earths face multi-year project lead times relative to demand forecasts.",
+        "Regional drought and heat events increasingly affect hydro and thermal power reliability."
+      ],
+      "interpretation": "Resource bottlenecks interact with AI power demand and defense industrial needs; not purely a green-narrative story.",
+      "confidence": 0.65,
+      "impact": "medium",
+      "tags": ["copper", "lithium", "minerals", "water", "climate"],
+      "related_domains": ["energy", "supply_chains"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "narrative-ai-hype-cycle",
+      "domain": "narrative_information",
+      "title": "AI and crypto narratives oscillate between euphoria and disillusionment in media cycles",
+      "facts": [
+        "Coverage volume of generative AI remains elevated across business and tech media.",
+        "Retail and institutional narratives around Bitcoin flip with price regimes."
+      ],
+      "interpretation": "Narrative intensity is a sentiment input, not a fundamental; use low confidence unless corroborated by capital-flow or policy facts.",
+      "confidence": 0.55,
+      "impact": "medium",
+      "tags": ["narrative", "ai", "bitcoin", "sentiment", "media"],
+      "related_domains": ["technology_ai", "capital_flows"],
+      "sources": [{"name": "fixture", "url": ""}]
+    }
+  ]
+}
