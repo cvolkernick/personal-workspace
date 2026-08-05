@@ -1,0 +1,17 @@
+[Unit]
+Description=Horizon Macro dashboard backend (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/prism-agent/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/prism-agent/personal-workspace
+# Bind all interfaces so phones/Mac can open via LAN or Tailscale
+ExecStart=/usr/bin/python3 /home/prism-agent/personal-workspace/research/horizon/server.py --host 0.0.0.0 --port 8795 --no-browser --bootstrap --local
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

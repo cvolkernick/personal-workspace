@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Horizon visual dashboard server.
+"""Horizon visual dashboard server (Global Macro Intelligence).
 
   GET  /                 — dashboard UI
   GET  /api/health
@@ -8,9 +8,12 @@
   GET  /api/dashboard    — combined payload for UI
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
 
-Usage:
-  python3 research/horizon/server.py
+Usage (Mac dev):
+  python3 research/horizon/server.py --bootstrap
   python3 research/horizon/server.py --port 8795 --no-browser
+
+Usage (Pi prod — LAN + Tailscale):
+  python3 research/horizon/server.py --host 0.0.0.0 --port 8795 --no-browser --bootstrap
 """
 
 from __future__ import annotations
@@ -38,6 +41,7 @@ from research.horizon.store import (  # noqa: E402
 )
 
 DEFAULT_PORT = 8795
+DEFAULT_BIND = "127.0.0.1"
 
 
 def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None = None) -> dict:
@@ -139,6 +143,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
                     "service": "horizon-macro",
                     "label": "Horizon Macro",
                     "port": DEFAULT_PORT,
+                    "workspace": str(ROOT),
                     "note": "Global macro intelligence — seasonal plan is horizon/ on :8791",
                 },
             )
@@ -170,8 +175,19 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, "world_state": state})
             return
 
-        if path in ("/", "/index.html"):
-            # Prefer index.html explicitly
+        if path in ("/favicon.svg", "/favicon.ico"):
+            fav = HORIZON_DIR / "favicon.svg"
+            if fav.is_file():
+                body = fav.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.end_headers()
+                self.wfile.write(body)
+                return
+
+        if path in ("/", "/index.html", "/horizon", "/horizon/"):
             self.path = "/index.html"
         return super().do_GET()
 
@@ -204,26 +220,49 @@ class HorizonHandler(SimpleHTTPRequestHandler):
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Horizon visual dashboard")
+    parser = argparse.ArgumentParser(description="Horizon Macro visual dashboard")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--no-browser", action="store_true")
+    parser.add_argument(
+        "--bind",
+        default=DEFAULT_BIND,
+        help="Bind address. Use 0.0.0.0 on the Pi for LAN/Tailscale access.",
+    )
+    parser.add_argument(
+        "--host",
+        default=None,
+        help="Alias for --bind (matches other dashboard units).",
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Pi systemd unit flag (informational; API is always local).",
+    )
     parser.add_argument(
         "--bootstrap",
         action="store_true",
         help="Run offline pipeline once before serving if no brief exists",
     )
     args = parser.parse_args(argv)
+    bind = args.host if args.host is not None else args.bind
 
     brief_path, _ = brief_latest_paths(DEFAULT_DATA_DIR)
     if args.bootstrap or not brief_path.is_file():
         print("[horizon] bootstrapping offline world-state + brief…", flush=True)
         run_pipeline(workspace=ROOT, data_dir=DEFAULT_DATA_DIR, offline=True)
 
-    server = ThreadingHTTPServer(("127.0.0.1", args.port), HorizonHandler)
-    url = f"http://127.0.0.1:{args.port}/"
-    print(f"[horizon] dashboard at {url}", flush=True)
+    server = ThreadingHTTPServer((bind, args.port), HorizonHandler)
+    display_host = "127.0.0.1" if bind in ("0.0.0.0", "::") else bind
+    url = f"http://{display_host}:{args.port}/"
+    print(f"[horizon] dashboard at {url} (bind {bind})", flush=True)
+    print(f"[horizon] workspace: {ROOT}", flush=True)
+    if args.local:
+        print("[horizon] mode: local API (Pi backend)", flush=True)
     if not args.no_browser:
-        webbrowser.open(url)
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
     try:
         server.serve_forever()
     except KeyboardInterrupt:

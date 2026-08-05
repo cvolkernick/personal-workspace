@@ -7,13 +7,30 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for design.
 ## Visual dashboard (primary UX)
 
 ```bash
+# Mac dev (localhost only)
 python3 research/horizon/server.py --bootstrap
 # → http://127.0.0.1:8795/
+
+# Pi prod (LAN + Tailscale) — or use the unit below
+python3 research/horizon/server.py --host 0.0.0.0 --port 8795 --no-browser --bootstrap
 ```
 
 Or double-click `research/horizon/start.command`.
 
-Dashboard tabs: **Overview** (domain heat + top signals), **Executive brief**, **World state**, **My strategy**, **Watchlist**, **Connections**. Refresh re-runs the offline pipeline; **Live sources** tries RSS.
+**Prod (Pi `prism-gateway`):**
+
+| Surface | URL |
+|---------|-----|
+| LAN | http://192.168.100.98:8795/ |
+| Tailscale (off-LAN) | http://100.67.114.2:8795/ |
+| Health | http://192.168.100.98:8795/api/health |
+
+```bash
+bash research/horizon/deploy/install_remote.sh prism-agent@192.168.100.98
+# unit: horizon-dashboard.service (user systemd, Restart=always)
+```
+
+Dashboard tabs (web top / mobile bottom dock): **Overview**, **Brief**, **World**, **Strategy**, **Watch**, **Graph**. Browser tab favicon is the header 🌅 mark (`favicon.svg`). Refresh re-runs the offline pipeline; **Live sources** tries RSS.
 
 ### Not the seasonal planner
 

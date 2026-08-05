@@ -2,8 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#060a10" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <title>🌅 Horizon — Global Macro Intelligence</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
   <style>
     :root {
       --bg: #060a10;
@@ -135,20 +141,67 @@
     .kpi .n.orange { color: var(--orange); }
     .kpi .n.yellow { color: var(--yellow); }
 
-    /* Nav tabs */
-    .tabs {
+    /* Nav tabs — top on web, bottom dock on phone (FitDash / Workflow / IoT pattern) */
+    body.m-shell { padding-bottom: 0; }
+    .tabs, .top-tabs {
       display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 1.1rem;
       border-bottom: 1px solid var(--border); padding-bottom: 0.55rem;
     }
-    .tab {
+    .tab, .top-tabs .tab-btn {
       background: transparent; border: 1px solid transparent; color: var(--muted);
       border-radius: 8px; padding: 0.4rem 0.75rem; font-weight: 650; font-size: 0.84rem;
+      cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem;
+      font-family: inherit;
     }
-    .tab:hover { color: var(--text); border-color: var(--border); }
-    .tab.active { color: var(--text); background: var(--panel2); border-color: var(--border2); }
+    .tab:hover, .top-tabs .tab-btn:hover { color: var(--text); border-color: var(--border); }
+    .tab.active, .top-tabs .tab-btn.active {
+      color: var(--text); background: var(--panel2); border-color: var(--border2);
+    }
+    .tab .tab-ico, .top-tabs .tab-btn .tab-ico { font-size: 0.95rem; line-height: 1; opacity: 0.95; }
+    .mobile-tabbar {
+      display: none;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      background: rgba(6, 10, 16, 0.97);
+      border-top: 1px solid var(--border);
+      padding: 0.35rem 0.3rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+      justify-content: space-around; gap: 0.1rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.35);
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      background: transparent; border: none; color: var(--muted);
+      padding: 0.3rem 0.1rem; font-size: 0.62rem; font-weight: 650; cursor: pointer;
+      border-radius: 10px; min-height: 48px; font-family: inherit; min-width: 0;
+    }
+    .mobile-tabbar .tab-btn .tab-ico { font-size: 1.05rem; line-height: 1; }
+    .mobile-tabbar .tab-btn .tab-lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .mobile-tabbar .tab-btn.active { color: var(--accent); background: rgba(91, 159, 212, 0.12); }
 
     section.panel { display: none; margin-bottom: 1.5rem; }
     section.panel.active { display: block; }
+
+    @media (max-width: 720px) {
+      :root { font-size: 16px; }
+      body.m-shell { padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px)); }
+      body.m-shell main {
+        padding: 0.85rem 0.85rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell header.top { padding: 0.7rem 0.85rem; }
+      body.m-shell .brand .sub { display: none; }
+      body.m-shell .brand h1 { font-size: 1.15rem; }
+      body.m-shell .controls .btn { display: none; }
+      body.m-shell .tabs, body.m-shell .top-tabs { display: none; }
+      body.m-shell .mobile-tabbar { display: flex; }
+      body.m-shell .kpis { grid-template-columns: repeat(3, 1fr); gap: 0.45rem; }
+      body.m-shell .kpi .n { font-size: 1.2rem; }
+      body.m-shell table.watch { min-width: 560px; }
+    }
+    @media (min-width: 721px) {
+      body.m-shell { padding-bottom: 0; }
+      body.m-shell .mobile-tabbar { display: none; }
+    }
     section h2 {
       margin: 0 0 0.85rem; font-size: 1.05rem; font-weight: 700;
       display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
@@ -338,7 +391,7 @@
     .loading { color: var(--muted); padding: 2rem; text-align: center; }
   </style>
 </head>
-<body>
+<body class="m-shell" data-m-active="overview">
   <header class="top">
     <div class="top-inner">
       <div class="brand">
@@ -351,8 +404,8 @@
         <span class="pill" id="pill-status">loading</span>
         <button type="button" class="primary" id="btn-refresh" title="Re-run offline pipeline">↻ Refresh</button>
         <button type="button" id="btn-live" title="Refresh with live RSS if available">Live sources</button>
-        <a class="btn" href="http://127.0.0.1:8791/" title="Seasonal themes (different app)">Seasonal plan</a>
-        <a class="btn" href="http://127.0.0.1:8790/" title="Orchestrator">Orchestrator</a>
+        <a class="btn" id="link-seasonal" href="http://127.0.0.1:8791/" title="Seasonal themes (different app)">Seasonal plan</a>
+        <a class="btn" id="link-orchestra" href="http://127.0.0.1:8790/" title="Orchestrator">Orchestrator</a>
       </div>
     </div>
   </header>
@@ -369,13 +422,14 @@
       <div class="kpi"><div class="n green" id="k-watch">—</div><div class="l">Watchlist</div></div>
     </div>
 
-    <nav class="tabs" id="tabs">
-      <button type="button" class="tab active" data-tab="overview">Overview</button>
-      <button type="button" class="tab" data-tab="brief">Executive brief</button>
-      <button type="button" class="tab" data-tab="world">World state</button>
-      <button type="button" class="tab" data-tab="strategy">My strategy</button>
-      <button type="button" class="tab" data-tab="watchlist">Watchlist</button>
-      <button type="button" class="tab" data-tab="graph">Connections</button>
+    <!-- Web: top tabs -->
+    <nav class="tabs top-tabs" id="tabs" aria-label="Horizon sections">
+      <button type="button" class="tab active" data-tab="overview"><span class="tab-ico">◉</span> Overview</button>
+      <button type="button" class="tab" data-tab="brief"><span class="tab-ico">📋</span> Brief</button>
+      <button type="button" class="tab" data-tab="world"><span class="tab-ico">🌐</span> World</button>
+      <button type="button" class="tab" data-tab="strategy"><span class="tab-ico">🎯</span> Strategy</button>
+      <button type="button" class="tab" data-tab="watchlist"><span class="tab-ico">📡</span> Watch</button>
+      <button type="button" class="tab" data-tab="graph"><span class="tab-ico">🔗</span> Graph</button>
     </nav>
 
     <section class="panel active" id="panel-overview">
@@ -447,6 +501,16 @@
     </footer>
   </main>
 
+  <!-- Mobile: bottom tab dock -->
+  <nav class="mobile-tabbar" id="mobile-tabs" aria-label="Horizon sections (mobile)">
+    <button type="button" class="tab-btn active" data-tab="overview"><span class="tab-ico">◉</span><span class="tab-lbl">Overview</span></button>
+    <button type="button" class="tab-btn" data-tab="brief"><span class="tab-ico">📋</span><span class="tab-lbl">Brief</span></button>
+    <button type="button" class="tab-btn" data-tab="world"><span class="tab-ico">🌐</span><span class="tab-lbl">World</span></button>
+    <button type="button" class="tab-btn" data-tab="strategy"><span class="tab-ico">🎯</span><span class="tab-lbl">Strategy</span></button>
+    <button type="button" class="tab-btn" data-tab="watchlist"><span class="tab-ico">📡</span><span class="tab-lbl">Watch</span></button>
+    <button type="button" class="tab-btn" data-tab="graph"><span class="tab-ico">🔗</span><span class="tab-lbl">Graph</span></button>
+  </nav>
+
   <script>
     const DOMAIN_COLORS = {
       geopolitics: "#f472b6",
@@ -490,17 +554,42 @@
       el.classList.add("show");
     }
 
+    const TAB_IDS = ["overview", "brief", "world", "strategy", "watchlist", "graph"];
+
     function switchTab(name) {
-      document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
-      document.querySelectorAll("section.panel").forEach(p => {
+      if (!TAB_IDS.includes(name)) name = "overview";
+      document.querySelectorAll(".tab, .mobile-tabbar .tab-btn").forEach((t) => {
+        t.classList.toggle("active", t.dataset.tab === name);
+      });
+      document.querySelectorAll("section.panel").forEach((p) => {
         p.classList.toggle("active", p.id === "panel-" + name);
       });
+      document.body.dataset.mActive = name;
+      try {
+        const u = new URL(window.location.href);
+        u.searchParams.set("tab", name);
+        history.replaceState(null, "", u.pathname + u.search + u.hash);
+      } catch (_) { /* ignore */ }
     }
 
-    document.getElementById("tabs").addEventListener("click", (e) => {
-      const t = e.target.closest(".tab");
-      if (t) switchTab(t.dataset.tab);
-    });
+    function bindTabNav(root) {
+      if (!root) return;
+      root.addEventListener("click", (e) => {
+        const t = e.target.closest("[data-tab]");
+        if (t && t.dataset.tab) switchTab(t.dataset.tab);
+      });
+    }
+    bindTabNav(document.getElementById("tabs"));
+    bindTabNav(document.getElementById("mobile-tabs"));
+
+    // Same-host deep links (LAN / Tailscale / localhost)
+    (function wirePeerLinks() {
+      const host = window.location.hostname || "127.0.0.1";
+      const seasonal = document.getElementById("link-seasonal");
+      const orchestra = document.getElementById("link-orchestra");
+      if (seasonal) seasonal.href = `http://${host}:8791/`;
+      if (orchestra) orchestra.href = `http://${host}:8790/`;
+    })();
 
     function renderKpis(payload) {
       const brief = payload.brief || {};
@@ -868,6 +957,12 @@
 
     $("btn-refresh").addEventListener("click", () => refresh(true));
     $("btn-live").addEventListener("click", () => refresh(false));
+
+    // Deep-link ?tab=
+    try {
+      const initial = new URLSearchParams(window.location.search).get("tab");
+      if (initial) switchTab(initial);
+    } catch (_) { /* ignore */ }
 
     loadDashboard();
     // Auto-refresh payload every 60s (read-only)
