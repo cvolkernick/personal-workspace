@@ -560,7 +560,7 @@ def build_snapshot(
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking – ####)",
-                "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",
+                "expenses": "google sheet: Personal=upcoming; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",
             },

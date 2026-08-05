@@ -48,7 +48,8 @@
     "sheet_name": "Personal Expense Sheet",
     "tabs": [
       "Personal",
-      "Discretionary"
+      "Productive Discretionary",
+      "Consumer Discretionary"
     ]
   },
   "braiins": {

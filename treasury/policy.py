@@ -452,36 +452,75 @@ def expense_due_window(
     }
 
 
-def discretionary_capex_targets(snapshot: Dict[str, Any]) -> Dict[str, Any]:
-    """Discretionary sheet = ops expansion / capital targets (not burn)."""
-    ex = snapshot.get("expenses") or {}
-    tabs = ex.get("tabs") or {}
-    disc = tabs.get("Discretionary") or {}
-    summary = ex.get("summary") or {}
-    items_out: List[Dict[str, Any]] = []
-    monthly_sum = 0.0
-    for raw in disc.get("items") or disc.get("top_targets") or []:
+def _sheet_items_monthly(tab: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Normalize discretionary-style sheet items with monthly > 0."""
+    out: List[Dict[str, Any]] = []
+    for raw in tab.get("items") or tab.get("top_targets") or []:
         if not isinstance(raw, dict):
             continue
-        amt = _f(raw.get("monthly"), _f(raw.get("annually")) / 12.0 if raw.get("annually") else 0.0)
+        amt = _f(
+            raw.get("monthly"),
+            _f(raw.get("annually")) / 12.0 if raw.get("annually") else 0.0,
+        )
         name = raw.get("item") or raw.get("name") or "—"
-        # Skip pure labels with no $ (e.g. empty collateral lines)
         if amt <= 0:
             continue
-        items_out.append({"item": name, "monthly": round(amt, 2)})
-        monthly_sum += amt
-    monthly = _f(
-        summary.get("capital_targets_monthly"),
-        _f(summary.get("discretionary_monthly"), monthly_sum),
+        out.append({"item": name, "monthly": round(amt, 2)})
+    return out
+
+
+def discretionary_capex_targets(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Productive + Consumer discretionary tabs (not expense burn).
+
+    Productive Discretionary = capital outlay growing productive assets (priority).
+    Consumer Discretionary = wishlist / consumer goods (lower priority).
+    Both fund from collateralized margin when deployed — not free-dollar residual.
+    Legacy tab key ``Discretionary`` maps to productive.
+    """
+    ex = snapshot.get("expenses") or {}
+    tabs = ex.get("tabs") or {}
+    summary = ex.get("summary") or {}
+    productive = (
+        tabs.get("Productive Discretionary")
+        or tabs.get("Discretionary")
+        or {}
     )
-    if monthly <= 0 and monthly_sum > 0:
-        monthly = monthly_sum
+    consumer = tabs.get("Consumer Discretionary") or {}
+
+    prod_items = _sheet_items_monthly(productive)
+    cons_items = _sheet_items_monthly(consumer)
+    prod_sum = sum(i["monthly"] for i in prod_items)
+    cons_sum = sum(i["monthly"] for i in cons_items)
+
+    productive_monthly = _f(
+        summary.get("productive_discretionary_monthly"),
+        _f(
+            summary.get("capital_targets_monthly"),
+            _f(summary.get("discretionary_monthly"), prod_sum),
+        ),
+    )
+    if productive_monthly <= 0 and prod_sum > 0:
+        productive_monthly = prod_sum
+    consumer_monthly = _f(
+        summary.get("consumer_discretionary_monthly"),
+        cons_sum,
+    )
+    if consumer_monthly <= 0 and cons_sum > 0:
+        consumer_monthly = cons_sum
+
+    # Capex guidance primary need = productive (ops expansion)
+    monthly = productive_monthly
     return {
         "monthly": round(monthly, 2),
-        "item_count": len(items_out) or int(disc.get("item_count") or 0),
-        "items": items_out[:12],
+        "productive_monthly": round(productive_monthly, 2),
+        "consumer_monthly": round(consumer_monthly, 2),
+        "item_count": len(prod_items) or int(productive.get("item_count") or 0),
+        "items": prod_items[:12],
+        "consumer_items": cons_items[:12],
+        "priority_order": ["productive", "consumer"],
         "note": (
-            "Sheet Discretionary = theoretical excess-capital / ops expansion targets. "
+            "Productive Discretionary = capital outlay growing productive assets "
+            "(priority over Consumer). Consumer Discretionary = wishlist / qualitative. "
             "Fund from collateralized margin (RH BP), not free-dollar cash stack."
         ),
     }
@@ -509,8 +548,8 @@ def cashflow_allocation_guidance(
       3. Cash stack buffers (card float, loan buffer, bridge powder)
       4. Excess beyond floors → collateral (BTC path / RH securities)
 
-    Capex (Discretionary sheet) is **not** free-dollar residual — fund from
-    collateralized margin (RH buying power) only.
+    Capex (Productive Discretionary first, then Consumer) is **not** free-dollar
+    residual — fund from collateralized margin (RH buying power) only.
     """
     free_start = max(0.0, _f(working_usdc)) + max(0.0, _f(bank_cash))
     remaining = free_start
@@ -580,8 +619,14 @@ def cashflow_allocation_guidance(
     to_btc = round(coll_amt * (split_cb / split_sum), 2) if coll_amt > 0 else 0.0
     to_rh = round(coll_amt * (split_rh / split_sum), 2) if coll_amt > 0 else 0.0
 
-    # Capex from margin BP only (not free dollars)
-    capex_monthly = max(0.0, _f(discretionary.get("monthly")))
+    # Capex from margin BP only (not free dollars).
+    # Productive Discretionary is the primary need; Consumer is secondary/wishlist.
+    productive_monthly = max(
+        0.0,
+        _f(discretionary.get("productive_monthly"), _f(discretionary.get("monthly"))),
+    )
+    consumer_monthly = max(0.0, _f(discretionary.get("consumer_monthly")))
+    capex_monthly = productive_monthly  # guidance primary = productive
     bp = max(0.0, _f(rh_buying_power))
     dca_ok = bool((dca or {}).get("allow_dca", True))
     margin_heat = (not dca_ok) and "margin" in str((dca or {}).get("reason") or "").lower()
@@ -715,13 +760,15 @@ def cashflow_allocation_guidance(
         step(
             5,
             "capex_margin",
-            "Capex / ops expansion (Discretionary)",
+            "Capex · Productive Discretionary (margin)",
             capex_status,
             need=capex_monthly,
             allocated=min(bp, capex_monthly) if capex_status == "available" else 0.0,
             gap=max(0.0, capex_monthly - bp) if capex_monthly > 0 else 0.0,
             detail=(
-                f"Sheet Discretionary ~${capex_monthly:,.0f}/mo · RH BP ${bp:,.2f} · "
+                f"Productive ~${productive_monthly:,.0f}/mo"
+                + (f" · Consumer wishlist ~${consumer_monthly:,.0f}/mo" if consumer_monthly > 0 else "")
+                + f" · RH BP ${bp:,.2f} · "
                 + (
                     "margin heat — pause"
                     if capex_status == "blocked_margin"
@@ -729,9 +776,9 @@ def cashflow_allocation_guidance(
                         "no BP"
                         if capex_status == "no_bp"
                         else (
-                            "no discretionary targets"
+                            "no productive targets"
                             if capex_status == "none"
-                            else "fund from collateralized margin only (not free cash)"
+                            else "productive first, then consumer — margin only (not free cash)"
                         )
                     )
                 )
@@ -742,6 +789,11 @@ def cashflow_allocation_guidance(
                 "dca_allow": dca_ok,
                 "dca_reason": (dca or {}).get("reason"),
                 "items": (discretionary.get("items") or [])[:8],
+                "consumer_items": (discretionary.get("consumer_items") or [])[:6],
+                "productive_monthly": round(productive_monthly, 2),
+                "consumer_monthly": round(consumer_monthly, 2),
+                "priority_order": discretionary.get("priority_order")
+                or ["productive", "consumer"],
             },
         ),
     ]
@@ -1349,8 +1401,10 @@ def evaluate_treasury(
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" | CB-funded est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}"
         + f" | RH-checking est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('rh_funded_monthly') or 0:.2f}"
-        + f" | Capital targets (Discretionary, not burn) "
-        f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('capital_targets_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f}/mo"
+        + f" | Productive Discretionary (capital, not burn) "
+        f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('capital_targets_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('productive_discretionary_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f}/mo"
+        + f" | Consumer Discretionary $"
+        f"{((snapshot.get('expenses') or {}).get('summary') or {}).get('consumer_discretionary_monthly') or 0:.2f}/mo"
         + " | Actual spend: YNAB",
         f"RH Checking (YNAB): ${rh_checking_cash if rh_checking_cash is not None else 'n/a'}"
         + (f" | 30d spend ${rh_checking.get('spend_30d')}" if rh_checking.get("spend_30d") is not None else "")
@@ -1403,7 +1457,19 @@ def evaluate_treasury(
             or (snapshot.get("expenses") or {}).get("summary", {}).get("discretionary_monthly"),
             "expenses_discretionary_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
-            .get("discretionary_monthly"),
+            .get("discretionary_monthly")
+            or (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("productive_discretionary_monthly"),
+            "expenses_productive_discretionary_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("productive_discretionary_monthly")
+            or (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("capital_targets_monthly"),
+            "expenses_consumer_discretionary_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("consumer_discretionary_monthly"),
             # combined = upcoming only (Personal); discretionary excluded from burn
             "expenses_combined_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
@@ -1512,7 +1578,7 @@ def evaluate_treasury(
                 "Coinbase One Card balance paid down",
                 "Cash stack buffers filled (card float · loan · bridge)",
                 "Excess free dollars → collateral (BTC path / RH securities)",
-                "Capex / Discretionary ops expansion from collateralized margin only",
+                "Capex · Productive Discretionary from margin (priority over Consumer wishlist)",
                 "Protect CB Morpho LTV (<50% target) — keep loan open, manage LTV",
                 "RH margin heat cap still binds deployment of BP",
             ],

@@ -33,6 +33,11 @@ Tesla TPMS,8/1/2026,$3.83,$26.83,$53.67,$115.00,"$1,380.00",,
 Total,,$84.93,$594.53,"$1,189.07","$2,548.00","$30,576.00",,
 """
 
+CONSUMER_CSV = """Item,Date,Daily,Weekly,Bi-Weekly,Monthly,Annually,From,To
+Noise Cancelling Headphones,9/1/2026,$1.00,$7.00,$14.00,$30.00,$360.00,,
+Total,,$1.00,$7.00,$14.00,$30.00,$360.00,,
+"""
+
 
 class TestParseMoney(unittest.TestCase):
     def test_money(self):
@@ -86,11 +91,38 @@ class TestSnapshot(unittest.TestCase):
         self.assertGreater(s["coinbase_funded_monthly"], 8000)
         self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
-        self.assertEqual(snap["tabs"]["Discretionary"]["role"], "excess_capital_targets")
+        self.assertEqual(
+            snap["tabs"]["Productive Discretionary"]["role"], "productive_capital_outlay"
+        )
+        # Legacy alias still present
+        self.assertEqual(snap["tabs"]["Discretionary"]["alias_of"], "Productive Discretionary")
+        self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
         # Chronological order: Rent (4/1) before Gym (7/17) before Fleet (7/21)
         by_date = snap["tabs"]["Personal"]["upcoming_by_date"]
         self.assertEqual(by_date[0]["item"], "Rent")
         self.assertEqual(by_date[1]["item"], "Gym")
+
+
+    def test_productive_and_consumer(self):
+        snap = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            consumer_csv=CONSUMER_CSV,
+            sheet_id="abc",
+            source="test",
+        )
+        s = snap["summary"]
+        self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
+        self.assertAlmostEqual(s["consumer_discretionary_monthly"], 30.0)
+        # Capital targets / burn aliases
+        self.assertAlmostEqual(s["capital_targets_monthly"], 2548.0)
+        self.assertAlmostEqual(s["discretionary_monthly"], 2548.0)  # productive alias
+        self.assertAlmostEqual(s["combined_monthly"], 16211.68)  # personal only
+        self.assertEqual(
+            snap["tabs"]["Consumer Discretionary"]["role"], "consumer_wishlist"
+        )
+        self.assertEqual(snap["tabs"]["Productive Discretionary"]["priority"], 1)
+        self.assertEqual(snap["tabs"]["Consumer Discretionary"]["priority"], 2)
 
 
 class TestPolicyExpenses(unittest.TestCase):

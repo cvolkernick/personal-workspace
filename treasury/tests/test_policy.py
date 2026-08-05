@@ -395,6 +395,58 @@ class TestCashflowAllocationGuidance(unittest.TestCase):
         self.assertEqual(capex["fund_from"], "collateralized_margin")
         self.assertEqual(capex["status"], "available")
         self.assertGreater(capex["need"], 0)
+        self.assertIn("Productive", capex["title"])
+
+    def test_productive_priority_over_consumer_in_capex(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.30,
+                "vault_usdc": 5000,
+                "card_balance": 0,
+                "one_card_security_deposit_usdc": 500,
+            },
+            "one_card": {"source": "ynab", "card_balance": 0, "balance_owed": 0},
+            "rh_checking": {"source": "ynab", "cash": 0},
+            "robinhood": {
+                "buying_power": 3000,
+                "cash": 100,
+                "equity_value": 20000,
+                "margin_use": 0.1,
+                "source": "live",
+            },
+            "expenses": {
+                "source": "google_sheets",
+                "summary": {
+                    "capital_targets_monthly": 2500,
+                    "productive_discretionary_monthly": 2500,
+                    "discretionary_monthly": 2500,
+                    "consumer_discretionary_monthly": 200,
+                },
+                "tabs": {
+                    "Personal": {"items": []},
+                    "Productive Discretionary": {
+                        "items": [{"item": "ASIC", "monthly": 2500}]
+                    },
+                    "Consumer Discretionary": {
+                        "items": [{"item": "Headphones", "monthly": 200}]
+                    },
+                },
+            },
+        }
+        from treasury.policy import discretionary_capex_targets
+
+        d = discretionary_capex_targets(snap)
+        self.assertAlmostEqual(d["productive_monthly"], 2500)
+        self.assertAlmostEqual(d["consumer_monthly"], 200)
+        self.assertAlmostEqual(d["monthly"], 2500)  # primary = productive
+        self.assertEqual(d["priority_order"], ["productive", "consumer"])
+        self.assertEqual(d["items"][0]["item"], "ASIC")
+        self.assertEqual(d["consumer_items"][0]["item"], "Headphones")
+        ev = evaluate_treasury(snap)
+        capex = next(s for s in ev["cashflow_allocation"]["steps"] if s["id"] == "capex_margin")
+        self.assertAlmostEqual(capex["meta"]["productive_monthly"], 2500)
+        self.assertAlmostEqual(capex["meta"]["consumer_monthly"], 200)
 
     def test_excess_to_collateral_when_stack_clear(self):
         buckets = classify_liquid_usdc(
