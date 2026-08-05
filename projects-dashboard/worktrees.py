@@ -23,6 +23,8 @@ Usage
   python3 projects-dashboard/worktrees.py ensure
   python3 projects-dashboard/worktrees.py list
   python3 projects-dashboard/worktrees.py path resistance-dashboard
+  python3 projects-dashboard/worktrees.py prune-stale [--apply] [--force]
+  python3 projects-dashboard/worktrees.py repair-areas [--apply]
 """
 
 from __future__ import annotations
@@ -35,6 +37,31 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 WORKSPACE_ROOT = Path(__file__).resolve().parent.parent
+
+def monorepo_root() -> Path:
+    """Primary clone root (not a linked worktree path).
+
+    ``WORKSPACE_ROOT`` follows this file, so inside an area worktree it points at
+    the worktree. Prune/repair must use the shared main checkout instead.
+    """
+    try:
+        p = subprocess.run(
+            ["git", "-C", str(WORKSPACE_ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+        common = Path((p.stdout or "").strip())
+        if p.returncode == 0 and common.name == ".git":
+            return common.parent.resolve()
+        if p.returncode == 0 and str(common).endswith("/.git"):
+            return common.parent.resolve()
+        # bare or unusual — fall back
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        pass
+    return WORKSPACE_ROOT.resolve()
+
 
 # area slug → (branch, description)
 AREA_WORKTREES: Dict[str, Tuple[str, str]] = {
@@ -246,6 +273,337 @@ def resolve_dashboard_root(area: str, subdir: str) -> Path:
     return fallback
 
 
+
+def _worktree_is_dirty(path: Path) -> bool:
+    try:
+        p = subprocess.run(
+            ["git", "-C", str(path), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+        )
+        return bool((p.stdout or "").strip())
+    except (subprocess.TimeoutExpired, OSError):
+        return True  # treat unknown as dirty (safe)
+
+
+def _branch_remote_exists(branch: str) -> bool:
+    code, _, _ = _run("ls-remote", "--exit-code", "--heads", "origin", branch)
+    return code == 0
+
+
+def _branch_merged_into(branch: str, into: str = "origin/master") -> bool:
+    """True if every commit on branch is reachable from *into*."""
+    code, _, _ = _run("merge-base", "--is-ancestor", branch, into)
+    return code == 0
+
+
+def _area_for_path(path: Path) -> Optional[str]:
+    try:
+        path = path.resolve()
+        base = worktree_base()
+        if path.parent.resolve() != base:
+            return None
+        name = path.name
+        return name if name in AREA_WORKTREES else None
+    except OSError:
+        return None
+
+
+def classify_worktree(wt: dict) -> dict:
+    """Classify a git worktree for prune / repair decisions."""
+    path = Path(wt.get("path") or "")
+    branch = (wt.get("branch") or "").replace("refs/heads/", "")
+    detached = bool(wt.get("detached"))
+    try:
+        is_main = path.resolve() == monorepo_root()
+    except OSError:
+        is_main = False
+
+    area = None if is_main else _area_for_path(path)
+    dirty = False if is_main else _worktree_is_dirty(path)
+    remote_ok = None
+    merged_master = None
+    if branch and not detached:
+        remote_ok = _branch_remote_exists(branch)
+        # Prefer origin/master; fall back to master
+        if _run("rev-parse", "--verify", "origin/master")[0] == 0:
+            merged_master = _branch_merged_into(branch, "origin/master")
+        elif _run("rev-parse", "--verify", "master")[0] == 0:
+            merged_master = _branch_merged_into(branch, "master")
+
+    expected_branch = AREA_WORKTREES[area][0] if area else None
+    wrong_area_branch = bool(
+        area and branch and expected_branch and branch != expected_branch
+    )
+
+    # Stale non-area feature worktree
+    stale_feature = (
+        (not is_main)
+        and (area is None)
+        and (not dirty)
+        and branch
+        and not detached
+        and (
+            remote_ok is False
+            or (merged_master is True and branch not in {b for b, _ in AREA_WORKTREES.values()})
+        )
+    )
+    # Area worktree on dead/wrong branch and clean → repair candidate
+    repair_area = (
+        (not is_main)
+        and (area is not None)
+        and (not dirty)
+        and (
+            wrong_area_branch
+            or (branch and remote_ok is False and expected_branch and branch != expected_branch)
+            or (branch and remote_ok is False and expected_branch and branch == expected_branch)
+        )
+    )
+
+    return {
+        "path": str(path),
+        "branch": branch or ("detached" if detached else "?"),
+        "is_main": is_main,
+        "area": area,
+        "dirty": dirty,
+        "remote_ok": remote_ok,
+        "merged_master": merged_master,
+        "expected_branch": expected_branch,
+        "wrong_area_branch": wrong_area_branch,
+        "stale_feature": stale_feature,
+        "repair_area": repair_area,
+    }
+
+
+def prune_stale(*, apply: bool = False, force: bool = False) -> dict:
+    """Remove clean stale feature worktrees (not main, not area-correct).
+
+    Safety:
+    - Never removes the main monorepo checkout
+    - Never removes dirty worktrees unless force=True
+    - Never removes a clean area worktree on its *correct* branch
+    - Area worktrees on wrong/dead branches are reported for repair-areas
+    """
+    _run("fetch", "origin", "--prune")
+    results = []
+    for wt in list_worktrees():
+        c = classify_worktree(wt)
+        action = "keep"
+        reason = "active or protected"
+
+        if c["is_main"]:
+            action, reason = "keep", "main monorepo"
+        elif c["dirty"] and not force:
+            action, reason = "skip_dirty", "has uncommitted changes"
+        elif c["area"] and not c["wrong_area_branch"] and c["remote_ok"] is not False:
+            action, reason = "keep", f"area worktree on {c['branch']}"
+        elif c["area"] and (c["wrong_area_branch"] or c["remote_ok"] is False):
+            action, reason = "needs_repair", "area worktree on stale/wrong branch — use repair-areas"
+        elif c["stale_feature"] or (
+            force and c["area"] is None and not c["is_main"] and (c["remote_ok"] is False or c["merged_master"])
+        ):
+            action, reason = "prune", (
+                "remote gone" if c["remote_ok"] is False else "merged into origin/master"
+            )
+        elif c["area"] is None and c["remote_ok"] is False and (force or not c["dirty"]):
+            if c["dirty"] and not force:
+                action, reason = "skip_dirty", "remote gone but dirty"
+            else:
+                action, reason = "prune", "remote gone (feature/temp worktree)"
+
+        entry = {**c, "action": action, "reason": reason, "applied": False}
+        if apply and action == "prune":
+            args = ["worktree", "remove"]
+            if force:
+                args.append("--force")
+            args.append(c["path"])
+            # Prefer main repo for worktree admin commands
+            root = monorepo_root()
+            try:
+                cmd = ["git", "-C", str(root), *args]
+                p = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                )
+                code, out, err = p.returncode, (p.stdout or "").strip(), (p.stderr or "").strip()
+            except (subprocess.TimeoutExpired, OSError) as e:
+                code, out, err = 1, "", str(e)
+            if code == 0:
+                entry["applied"] = True
+                # Drop local branch if remote gone and not an area target
+                br = c["branch"]
+                area_branches = {b for b, _ in AREA_WORKTREES.values()}
+                if br and br not in area_branches and c["remote_ok"] is False:
+                    try:
+                        subprocess.run(
+                            ["git", "-C", str(root), "branch", "-D", br],
+                            capture_output=True,
+                            text=True,
+                            timeout=30,
+                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                        )
+                    except (subprocess.TimeoutExpired, OSError):
+                        pass
+            else:
+                entry["action"] = "error"
+                entry["reason"] = err or out or "worktree remove failed"
+                entry["applied"] = False
+        results.append(entry)
+
+    return {
+        "ok": all(r["action"] != "error" for r in results),
+        "apply": apply,
+        "results": results,
+    }
+
+
+def repair_areas(*, apply: bool = False) -> dict:
+    """Point configured area worktrees at their expected branches.
+
+    If the expected branch is missing on origin, create/update it from origin/master
+    (workflow area often lands on master after merge).
+    """
+    _run("fetch", "origin", "--prune")
+    # Ensure origin/master exists
+    _run("fetch", "origin", "master")
+    results = []
+    base = worktree_base()
+    for area, (branch, desc) in AREA_WORKTREES.items():
+        path = base / area
+        item = {
+            "area": area,
+            "branch": branch,
+            "path": str(path),
+            "description": desc,
+            "action": "missing",
+            "applied": False,
+        }
+        if not path.is_dir():
+            item["action"] = "missing_worktree"
+            item["reason"] = "path not present — run ensure"
+            results.append(item)
+            continue
+
+        # current branch in that worktree
+        try:
+            p = subprocess.run(
+                ["git", "-C", str(path), "branch", "--show-current"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            )
+            current = (p.stdout or "").strip()
+        except (subprocess.TimeoutExpired, OSError) as e:
+            item["action"] = "error"
+            item["reason"] = str(e)
+            results.append(item)
+            continue
+
+        dirty = _worktree_is_dirty(path)
+        item["current_branch"] = current
+        item["dirty"] = dirty
+
+        if dirty:
+            item["action"] = "skip_dirty"
+            item["reason"] = "uncommitted changes — not switching"
+            results.append(item)
+            continue
+
+        if current == branch and _branch_remote_exists(branch):
+            item["action"] = "ok"
+            item["reason"] = "already on expected branch with remote"
+            results.append(item)
+            continue
+
+        # Ensure local branch exists: prefer origin/<branch>, else origin/master
+        if _branch_remote_exists(branch):
+            start_point = f"origin/{branch}"
+        else:
+            start_point = "origin/master"
+
+        if not apply:
+            item["action"] = "would_repair"
+            item["reason"] = f"{current or '?'} → {branch} (from {start_point})"
+            results.append(item)
+            continue
+
+        # Create/reset local branch and check it out in the worktree
+        code, out, err = _run("branch", "-f", branch, start_point)
+        if code != 0:
+            # branch may be checked out — force update from within worktree
+            try:
+                p = subprocess.run(
+                    ["git", "-C", str(path), "fetch", "origin"],
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                )
+                p2 = subprocess.run(
+                    ["git", "-C", str(path), "checkout", "-B", branch, start_point],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                )
+                if p2.returncode != 0:
+                    item["action"] = "error"
+                    item["reason"] = (p2.stderr or p2.stdout or err or out).strip()
+                    results.append(item)
+                    continue
+            except (subprocess.TimeoutExpired, OSError) as e:
+                item["action"] = "error"
+                item["reason"] = str(e)
+                results.append(item)
+                continue
+        else:
+            try:
+                p2 = subprocess.run(
+                    ["git", "-C", str(path), "checkout", branch],
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                )
+                if p2.returncode != 0:
+                    # try -B
+                    p2 = subprocess.run(
+                        ["git", "-C", str(path), "checkout", "-B", branch, start_point],
+                        capture_output=True,
+                        text=True,
+                        timeout=60,
+                        env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+                    )
+                if p2.returncode != 0:
+                    item["action"] = "error"
+                    item["reason"] = (p2.stderr or p2.stdout or "").strip()
+                    results.append(item)
+                    continue
+            except (subprocess.TimeoutExpired, OSError) as e:
+                item["action"] = "error"
+                item["reason"] = str(e)
+                results.append(item)
+                continue
+
+        item["action"] = "repaired"
+        item["applied"] = True
+        item["reason"] = f"now on {branch} from {start_point}"
+        results.append(item)
+
+    return {
+        "ok": all(r.get("action") not in ("error",) for r in results),
+        "apply": apply,
+        "results": results,
+    }
+
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -265,6 +623,33 @@ def main(argv: Optional[List[str]] = None) -> int:
         default="",
         help="Optional package subdir (e.g. resistance-dashboard)",
     )
+
+    pr = sub.add_parser(
+        "prune-stale",
+        help="Remove clean stale feature/temp worktrees (dry-run by default)",
+    )
+    pr.add_argument(
+        "--apply",
+        action="store_true",
+        help="Actually remove worktrees (default: report only)",
+    )
+    pr.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow removing dirty worktrees (dangerous)",
+    )
+    pr.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit JSON summary",
+    )
+
+    rp = sub.add_parser(
+        "repair-areas",
+        help="Point area worktrees at expected work/<area> branches (dry-run default)",
+    )
+    rp.add_argument("--apply", action="store_true", help="Apply branch repairs")
+    rp.add_argument("--json", action="store_true", help="Emit JSON summary")
 
     args = p.parse_args(argv)
 
@@ -317,6 +702,51 @@ def main(argv: Optional[List[str]] = None) -> int:
         path = resolve_dashboard_root(area, subdir) if subdir else worktree_path(area)
         print(path)
         return 0 if path.exists() or path.parent.exists() else 1
+
+    if args.cmd == "prune-stale":
+        import json as _json
+
+        report = prune_stale(apply=bool(args.apply), force=bool(args.force))
+        if args.json:
+            print(_json.dumps(report, indent=2))
+        else:
+            mode = "APPLY" if args.apply else "DRY-RUN"
+            print(f"prune-stale [{mode}] base={worktree_base()}")
+            for r in report["results"]:
+                mark = {
+                    "prune": "PRUNE",
+                    "keep": "keep ",
+                    "skip_dirty": "DIRTY",
+                    "needs_repair": "REPAIR",
+                    "error": "ERR  ",
+                }.get(r["action"], r["action"][:5])
+                applied = " ✓" if r.get("applied") else ""
+                print(f"  [{mark}] {r['path']}")
+                print(
+                    f"         branch={r['branch']} area={r['area'] or '-'} "
+                    f"remote={'ok' if r['remote_ok'] else ('gone' if r['remote_ok'] is False else '?')} "
+                    f"— {r['reason']}{applied}"
+                )
+            pruned = sum(1 for r in report["results"] if r["action"] == "prune")
+            print(f"Summary: {pruned} prune candidate(s); apply={args.apply}")
+        return 0 if report.get("ok") else 1
+
+    if args.cmd == "repair-areas":
+        import json as _json
+
+        report = repair_areas(apply=bool(args.apply))
+        if args.json:
+            print(_json.dumps(report, indent=2))
+        else:
+            mode = "APPLY" if args.apply else "DRY-RUN"
+            print(f"repair-areas [{mode}]")
+            for r in report["results"]:
+                print(
+                    f"  [{r['action']:14}] {r['area']:22} "
+                    f"{r.get('current_branch') or '?'} → {r['branch']}  "
+                    f"{r.get('reason') or ''}"
+                )
+        return 0 if report.get("ok") else 1
 
     return 2
 

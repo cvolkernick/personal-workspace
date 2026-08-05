@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cvolkernick.prune-stale-worktrees</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/cvolkernick/personal-workspace/ops/prune_stale_worktrees.sh</string>
+  </array>
+  <key>WorkingDirectory</key>
+  <string>/Users/cvolkernick/personal-workspace</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PERSONAL_WORKSPACE</key>
+    <string>/Users/cvolkernick/personal-workspace</string>
+    <key>PERSONAL_WORKSPACE_LOG_DIR</key>
+    <string>/Users/cvolkernick/Library/Logs/personal-workspace</string>
+    <key>PATH</key>
+    <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>4</integer>
+    <key>Minute</key>
+    <integer>30</integer>
+  </dict>
+  <key>StandardOutPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/prune-stale-worktrees.launchd.out.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/cvolkernick/Library/Logs/personal-workspace/prune-stale-worktrees.launchd.err.log</string>
+  <key>Nice</key>
+  <integer>10</integer>
+</dict>
+</plist>
