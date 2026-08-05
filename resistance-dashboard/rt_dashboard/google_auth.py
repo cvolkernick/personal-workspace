@@ -1,10 +1,11 @@
 """In-app Google Health OAuth (re-auth from the dashboard).
 
-Starts a short-lived callback server on http://127.0.0.1:8788/ (must match
-the Web OAuth client's authorized redirect URI), opens the consent URL via
-the browser (caller opens it), exchanges the code, and writes tokens to
-~/.config/resistance-dashboard/env plus os.environ so the running server
-picks them up without a full process restart.
+Local Mac dev: short-lived callback on http://127.0.0.1:8788/ (must match the
+Web OAuth client's authorized redirect URI).
+
+Remote Pi / Tailscale: when FITDASH_PUBLIC_URL is set to a non-localhost base,
+start_auth_flow() returns use_login so the browser uses FitDash login OAuth
+({public}/api/auth/google/callback) instead of unreachable localhost:8788.
 """
 
 from __future__ import annotations
@@ -334,6 +335,23 @@ def _run_listener(client_id: str, client_secret: str) -> None:
 
 def start_auth_flow(*, force: bool = False) -> dict:
     """Begin OAuth; return auth_url for the browser. Idempotent while pending."""
+    # Remote prod (FITDASH_PUBLIC_URL) cannot use 127.0.0.1:8788 — the browser
+    # runs on phone/Mac, while the listener would be on the Pi. Route through
+    # FitDash login OAuth which uses the public /api/auth/google/callback.
+    public = (os.environ.get("FITDASH_PUBLIC_URL") or "").strip().rstrip("/")
+    if public and "127.0.0.1" not in public and "localhost" not in public.lower():
+        return {
+            "ok": True,
+            "status": "use_login",
+            "use_same_window": True,
+            "auth_url": "/api/auth/google/start",
+            "redirect_uri": f"{public}/api/auth/google/callback",
+            "message": (
+                "Remote FitDash: Google Health re-auth uses sign-in callback "
+                f"({public}/api/auth/google/callback), not localhost:8788."
+            ),
+        }
+
     with _lock:
         if _state.get("status") == "pending" and not force:
             return {
