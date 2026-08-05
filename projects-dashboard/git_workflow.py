@@ -27,6 +27,7 @@ import os
 import re
 import socket
 import subprocess
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -450,16 +451,49 @@ def refresh_ssh_clone_reports(
     return results
 
 
+def _ssh_clone_refresh_needed(
+    repo: Path,
+    hosts: list[dict[str, Any]],
+    *,
+    max_age_sec: float = 60.0,
+) -> bool:
+    """Return True if any peer cache is missing or older than ``max_age_sec``.
+
+    Avoids blocking every dashboard refresh on SSH — concurrent page loads were
+    stacking 8s+ probes and making Graph/other APIs look dead.
+    """
+    if not hosts:
+        return False
+    d = _clone_reports_dir(repo)
+    now = time.time()
+    age_limit = max(5.0, float(max_age_sec))
+    for h in hosts:
+        path = d / f"{h['machine']}.json"
+        try:
+            if not path.is_file():
+                return True
+            if (now - path.stat().st_mtime) > age_limit:
+                return True
+        except OSError:
+            return True
+    return False
+
+
 def load_remote_clone_reports(
     repo: Path = WORKSPACE_ROOT,
     *,
     refresh_ssh: bool = True,
+    refresh_max_age_sec: float = 60.0,
 ) -> list[dict[str, Any]]:
     """Load peer-machine branch inventories from ``ops/branch-clones/*.json``.
 
     Optionally refreshes peers listed in ``ops/branch-clones/hosts.json`` via SSH
     first (writes/updates ``<machine>.json`` cache files). This machine is always
     built live from local git; files here are *other* clones.
+
+    SSH refresh is **TTL-gated** (default 60s): if every configured host already
+    has a fresh ``<machine>.json``, the probe is skipped so Matrix rebuilds stay
+    local and the commit Graph API stays responsive.
 
     Each report file::
 
@@ -474,10 +508,13 @@ def load_remote_clone_reports(
         }
     """
     repo = Path(repo).resolve()
-    if refresh_ssh and _load_clone_hosts(repo):
+    hosts = _load_clone_hosts(repo) if refresh_ssh else []
+    if refresh_ssh and hosts and _ssh_clone_refresh_needed(
+        repo, hosts, max_age_sec=refresh_max_age_sec
+    ):
         # Best-effort; keep last cache on failure
         try:
-            refresh_ssh_clone_reports(repo)
+            refresh_ssh_clone_reports(repo, hosts=hosts)
         except Exception:
             pass
 

@@ -1427,12 +1427,35 @@
       </svg>`;
     }
 
+    function paintBranchGraphMeta(g) {
+      const meta = $("graph-meta");
+      if (!meta || !g) return;
+      const links = g.links || {};
+      const parts = [
+        "newest at top",
+        `${g.commit_count} commits`,
+        `${g.lane_count} lanes`,
+        g.current_branch ? `HEAD ${g.current_branch}` : "",
+      ].filter(Boolean);
+      let extra = "";
+      if (links.github_network) {
+        extra = ` · <a href="${esc(links.github_network)}" target="_blank" rel="noopener">GitHub Network</a>`;
+        if (links.github_branches) {
+          extra += ` · <a href="${esc(links.github_branches)}" target="_blank" rel="noopener">Branches</a>`;
+        }
+      }
+      meta.innerHTML = esc(parts.join(" · ")) + extra;
+    }
+
     async function loadBranchGraph(force) {
       const mount = $("branch-graph-mount");
       const meta = $("graph-meta");
       if (!mount) return;
-      if (!force && window.__branchGraphCache && window.__branchGraphMode !== "list") {
-        // still re-render from cache when panel rebuilt
+      // Instant paint when panel is rebuilt (full dashboard refresh) while Graph is active.
+      if (!force && window.__branchGraphCache) {
+        mount.innerHTML = renderBranchGraphSvg(window.__branchGraphCache);
+        paintBranchGraphMeta(window.__branchGraphCache);
+        return;
       }
       const remotes = window.__branchGraphRemotes === false ? "0" : "1";
       try {
@@ -1443,21 +1466,7 @@
         if (!g.ok) throw new Error(g.error || "graph error");
         window.__branchGraphCache = g;
         mount.innerHTML = renderBranchGraphSvg(g);
-        const links = g.links || {};
-        const parts = [
-          "newest at top",
-          `${g.commit_count} commits`,
-          `${g.lane_count} lanes`,
-          g.current_branch ? `HEAD ${g.current_branch}` : "",
-        ].filter(Boolean);
-        let extra = "";
-        if (links.github_network) {
-          extra = ` · <a href="${esc(links.github_network)}" target="_blank" rel="noopener">GitHub Network</a>`;
-          if (links.github_branches) {
-            extra += ` · <a href="${esc(links.github_branches)}" target="_blank" rel="noopener">Branches</a>`;
-          }
-        }
-        if (meta) meta.innerHTML = esc(parts.join(" · ")) + extra;
+        paintBranchGraphMeta(g);
       } catch (e) {
         mount.innerHTML = `<div class="empty" style="margin:0.5rem;border:none">Graph failed: ${esc(e.message)}</div>`;
         if (meta) meta.textContent = "Graph error";

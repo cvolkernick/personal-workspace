@@ -248,7 +248,7 @@ class TestGitWorkflow(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        reports = load_remote_clone_reports(self.repo)
+        reports = load_remote_clone_reports(self.repo, refresh_ssh=False)
         self.assertEqual(len(reports), 1)
         self.assertEqual(reports[0]["id"], "pi")
         m = build_branch_matrix(self.repo, peer_reports=reports)
@@ -259,6 +259,42 @@ class TestGitWorkflow(unittest.TestCase):
         self.assertTrue(by_name["work/iot"]["cells"]["clone:pi"]["present"])
         self.assertEqual(by_name["work/iot"]["cells"]["clone:pi"]["state"], "local_only")
         self.assertTrue(by_name["master"]["cells"]["clone:pi"]["current"])
+
+    def test_ssh_clone_refresh_ttl_skips_fresh_cache(self) -> None:
+        from git_workflow import _ssh_clone_refresh_needed
+
+        clones = self.repo / "ops" / "branch-clones"
+        clones.mkdir(parents=True)
+        cache = clones / "prism.json"
+        cache.write_text(
+            json.dumps({"machine": "prism", "branches": []}),
+            encoding="utf-8",
+        )
+        hosts = [
+            {
+                "machine": "prism",
+                "label": "Pi",
+                "ssh": "prism-agent@example",
+                "path": "/tmp/ws",
+                "timeout_sec": 8,
+            }
+        ]
+        self.assertFalse(
+            _ssh_clone_refresh_needed(self.repo, hosts, max_age_sec=3600)
+        )
+        # Missing cache for another host → refresh needed
+        hosts2 = hosts + [
+            {
+                "machine": "other",
+                "label": "Other",
+                "ssh": "other@example",
+                "path": "/tmp/ws",
+                "timeout_sec": 8,
+            }
+        ]
+        self.assertTrue(
+            _ssh_clone_refresh_needed(self.repo, hosts2, max_age_sec=3600)
+        )
 
 
 class TestSessionIndex(unittest.TestCase):
