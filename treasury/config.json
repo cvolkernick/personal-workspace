@@ -14,14 +14,16 @@
     "one_card_security_deposit_usdc": "500"
   },
   "coinbase_manual": {
-    "loan_principal_usdc": "167",
-    "collateral_btc_usd": "861.98",
-    "ltv": ".1936",
-    "vault_usdc": "147.43",
+    "loan_principal_usdc": "738.35",
+    "collateral_btc_usd": "1478.93",
+    "ltv": ".4992",
+    "vault_usdc": "127",
     "card_balance": "499.23",
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance."
+    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. Prefer YNAB for live card balance.",
+    "variable_apr": ".0486",
+    "liquidation_price_btc_usd": "37152"
   },
   "robinhood": {
     "account_number": "5QW39737",
@@ -49,6 +51,10 @@
       "Discretionary"
     ]
   },
+  "braiins": {
+    "payout_threshold_btc": 0.01,
+    "notes": "Owner 2026-08-05: raised pool payout threshold from 0.005 → 0.01 BTC (Braiins UI). FCC next-payout ETA / progress read this override — do not re-infer from payout history alone (history still clusters at old 0.005 until the first 0.01 payout lands). Braiins free on-chain floor remains 0.005; this is our account rule, not the pool minimum."
+  },
   "pi_sync": {
     "enabled": true,
     "ssh": "prism-agent@192.168.100.98",
@@ -68,6 +74,6 @@
       "x_money_latest.json",
       "expenses_latest.json"
     ],
-    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots — no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
+    "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots \u2014 no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."
   }
 }

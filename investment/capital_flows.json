@@ -32,19 +32,21 @@
       "label": "ASICs (mining revenue)",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins.",
+      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins. Owner threshold 0.01 BTC (was 0.005; raised 2026-08-05).",
       "typical_landing": "coinbase",
-      "cadence": "approx_monthly",
-      "pool": "braiins"
+      "cadence": "approx_monthly_to_bimonthly_at_0.01_threshold",
+      "pool": "braiins",
+      "payout_threshold_btc": 0.01
     }
   ],
   "integrations": {
     "braiins_pool": {
       "status": "ready",
       "purpose": "Read ASIC hashrate / payout stats directly instead of inferring from Coinbase deposits",
-      "notes": "Sync via treasury/braiins_sync.py → treasury/snapshots/braiins_latest.json. Token: ~/.config/braiins/token or BRAIINS_POOL_TOKEN. Create at pool.braiins.com → Settings → Access Profiles → Allow web APIs → Generate token.",
+      "notes": "Sync via treasury/braiins_sync.py → treasury/snapshots/braiins_latest.json. Token: ~/.config/braiins/token or BRAIINS_POOL_TOKEN. Create at pool.braiins.com → Settings → Access Profiles → Allow web APIs → Generate token. Account payout threshold: treasury/config.json braiins.payout_threshold_btc (0.01 as of 2026-08-05).",
       "sync_command": "python3 treasury/braiins_sync.py",
-      "cadence_hint": "Poll daily or after expected payout window; FCC capital-flows reads braiins_latest.json live strip"
+      "cadence_hint": "Poll daily or after expected payout window; FCC capital-flows reads braiins_latest.json live strip",
+      "payout_threshold_btc": 0.01
     }
   },
   "channels": [

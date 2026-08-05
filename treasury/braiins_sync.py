@@ -211,10 +211,15 @@ def _infer_payout_outlook(
 
     Braiins does not expose payout-rule settings via public API. The web UI shows
     progress toward threshold / schedule; we reconstruct from:
-      - confirmed payout amounts (threshold ≈ median amount, often 0.005 free onchain)
+      - config override: treasury/config.json → braiins.payout_threshold_btc (preferred when set)
+      - confirmed payout amounts (threshold ≈ median; lag after owner changes UI rule)
       - intervals between payouts
       - current balance + avg daily rewards
     Actual send runs at the next 09:00 UTC evaluation after the rule is met.
+
+    Owner 2026-08-05: account threshold raised 0.005 → 0.01 BTC. Set via config so
+    FCC ETA/progress do not stay stuck on historical ~0.005 medians until the first
+    0.01 payout confirms. Pool free on-chain floor is still 0.005 (Braiins docs).
     """
     rows = _payout_rows(payouts)
     confirmed = [r for r in rows if (r.get("status") or "").lower() == "confirmed"]
@@ -232,14 +237,16 @@ def _infer_payout_outlook(
     for a, b in zip(timestamps, timestamps[1:]):
         intervals_d.append((b - a) / 86400.0)
 
-    # Free on-chain payout starts at 0.005 BTC (Braiins docs); history often clusters there.
+    # Pool free on-chain floor (Braiins docs). Account rule may be higher — use config.
     FREE_ONCHAIN = 0.005
     thr: Optional[float] = threshold_override
     if thr is None and amounts:
         med = float(median(amounts))
-        # Snap to free threshold when history is clearly ~0.005
+        # Snap common pool defaults when history clearly clusters there
         if 0.0045 <= med <= 0.0055:
             thr = FREE_ONCHAIN
+        elif 0.0095 <= med <= 0.0105:
+            thr = 0.01
         else:
             thr = round(med, 8)
     if thr is None:
