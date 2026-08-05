@@ -362,6 +362,449 @@ def assess_data_quality(
     }
 
 
+
+def _parse_sheet_due(value: Any) -> Optional[datetime]:
+    """Parse expense sheet due dates (ISO or M/D/YYYY). Pure — no expenses_sync import."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        return value
+    s = str(value).strip()
+    if not s:
+        return None
+    if "T" in s:
+        s_iso = s.replace("Z", "+00:00")
+        try:
+            return datetime.fromisoformat(s_iso)
+        except ValueError:
+            s = s.split("T", 1)[0]
+    try:
+        return datetime.fromisoformat(s[:10])
+    except ValueError:
+        pass
+    for fmt in ("%m/%d/%Y", "%m/%d/%y", "%Y/%m/%d"):
+        try:
+            return datetime.strptime(s[:10] if len(s) >= 8 else s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def expense_due_window(
+    snapshot: Dict[str, Any],
+    *,
+    today: Optional[datetime] = None,
+    due_within_days: int = 7,
+) -> Dict[str, Any]:
+    """Personal-sheet pressure: overdue + due-soon line items (not Discretionary)."""
+    now = today or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    today_d = now.date()
+    ex = snapshot.get("expenses") or {}
+    tabs = ex.get("tabs") or {}
+    personal = tabs.get("Personal") or {}
+    items = personal.get("items") or personal.get("upcoming_by_date") or []
+    critical: List[Dict[str, Any]] = []
+    overdue_total = 0.0
+    due_soon_total = 0.0
+    overdue_count = 0
+    due_soon_count = 0
+    for raw in items:
+        if not isinstance(raw, dict):
+            continue
+        amt = abs(_f(raw.get("amount_due"), _f(raw.get("monthly"))))
+        if amt <= 0:
+            continue
+        due_dt = _parse_sheet_due(raw.get("due_date") or raw.get("date"))
+        if due_dt is None:
+            continue
+        due_d = due_dt.date() if hasattr(due_dt, "date") else due_dt
+        days = (due_d - today_d).days
+        if days > due_within_days:
+            continue
+        row = {
+            "item": raw.get("item") or raw.get("name") or "—",
+            "amount": round(amt, 2),
+            "due_date": due_d.isoformat(),
+            "days_until_due": days,
+            "overdue": days < 0,
+            "from": raw.get("from") or raw.get("pay_from"),
+        }
+        critical.append(row)
+        if days < 0:
+            overdue_total += amt
+            overdue_count += 1
+        else:
+            due_soon_total += amt
+            due_soon_count += 1
+    critical_total = overdue_total + due_soon_total
+    return {
+        "as_of_date": today_d.isoformat(),
+        "due_within_days": due_within_days,
+        "overdue_count": overdue_count,
+        "due_soon_count": due_soon_count,
+        "overdue_total": round(overdue_total, 2),
+        "due_soon_total": round(due_soon_total, 2),
+        "critical_total": round(critical_total, 2),
+        "items": critical[:12],
+        "sheet_source": ex.get("source"),
+    }
+
+
+def discretionary_capex_targets(snapshot: Dict[str, Any]) -> Dict[str, Any]:
+    """Discretionary sheet = ops expansion / capital targets (not burn)."""
+    ex = snapshot.get("expenses") or {}
+    tabs = ex.get("tabs") or {}
+    disc = tabs.get("Discretionary") or {}
+    summary = ex.get("summary") or {}
+    items_out: List[Dict[str, Any]] = []
+    monthly_sum = 0.0
+    for raw in disc.get("items") or disc.get("top_targets") or []:
+        if not isinstance(raw, dict):
+            continue
+        amt = _f(raw.get("monthly"), _f(raw.get("annually")) / 12.0 if raw.get("annually") else 0.0)
+        name = raw.get("item") or raw.get("name") or "—"
+        # Skip pure labels with no $ (e.g. empty collateral lines)
+        if amt <= 0:
+            continue
+        items_out.append({"item": name, "monthly": round(amt, 2)})
+        monthly_sum += amt
+    monthly = _f(
+        summary.get("capital_targets_monthly"),
+        _f(summary.get("discretionary_monthly"), monthly_sum),
+    )
+    if monthly <= 0 and monthly_sum > 0:
+        monthly = monthly_sum
+    return {
+        "monthly": round(monthly, 2),
+        "item_count": len(items_out) or int(disc.get("item_count") or 0),
+        "items": items_out[:12],
+        "note": (
+            "Sheet Discretionary = theoretical excess-capital / ops expansion targets. "
+            "Fund from collateralized margin (RH BP), not free-dollar cash stack."
+        ),
+    }
+
+
+def cashflow_allocation_guidance(
+    *,
+    expense_window: Dict[str, Any],
+    card_balance: float,
+    buckets: Dict[str, Any],
+    working_usdc: float,
+    bank_cash: float,
+    rh_buying_power: float,
+    dca: Dict[str, Any],
+    discretionary: Dict[str, Any],
+    excess_split_cb: float = 0.60,
+    excess_split_rh: float = 0.40,
+    free_dollar_red: bool = False,
+) -> Dict[str, Any]:
+    """Simplified free-dollar waterfall + margin-only capex guidance.
+
+    Priority (free dollars):
+      1. Personal expenses paid & current (overdue / ≤7d window)
+      2. Coinbase One Card balance paid down
+      3. Cash stack buffers (card float, loan buffer, bridge powder)
+      4. Excess beyond floors → collateral (BTC path / RH securities)
+
+    Capex (Discretionary sheet) is **not** free-dollar residual — fund from
+    collateralized margin (RH buying power) only.
+    """
+    free_start = max(0.0, _f(working_usdc)) + max(0.0, _f(bank_cash))
+    remaining = free_start
+
+    exp_need = max(0.0, _f(expense_window.get("critical_total")))
+    exp_overdue = int(expense_window.get("overdue_count") or 0)
+    exp_soon = int(expense_window.get("due_soon_count") or 0)
+    exp_alloc = min(remaining, exp_need)
+    exp_gap = max(0.0, exp_need - exp_alloc)
+    remaining = max(0.0, remaining - exp_alloc)
+    if exp_need <= 0.01 and exp_overdue == 0 and exp_soon == 0:
+        exp_status = "met"
+    elif exp_gap <= 0.01 and exp_overdue == 0:
+        exp_status = "met" if exp_soon == 0 else "partial"
+    elif exp_alloc > 0 and exp_gap > 0:
+        exp_status = "partial"
+    else:
+        exp_status = "gap"
+
+    card_need = max(0.0, _f(card_balance))
+    card_alloc = min(remaining, card_need)
+    card_gap = max(0.0, card_need - card_alloc)
+    remaining = max(0.0, remaining - card_alloc)
+    if card_need <= 0.01:
+        card_status = "met"
+    elif card_gap <= 0.01:
+        card_status = "met"
+    elif card_alloc > 0:
+        card_status = "partial"
+    else:
+        card_status = "gap"
+
+    floors_required = max(0.0, _f(buckets.get("required_total")))
+    buffer_shortfall = max(0.0, _f(buckets.get("shortfall")))
+    buffer_excess = max(0.0, _f(buckets.get("excess")))
+    gaps = buckets.get("gaps") or {}
+    # Residual free after expenses+card should still cover buffer shortfall
+    buf_need = buffer_shortfall
+    # If floors already met in working USDC, no free-dollar need for buffers
+    if buffer_shortfall <= 0.01:
+        buf_need = 0.0
+    buf_alloc = min(remaining, buf_need)
+    buf_gap = max(0.0, buf_need - buf_alloc)
+    remaining = max(0.0, remaining - buf_alloc)
+    if buf_need <= 0.01:
+        buf_status = "met"
+    elif buf_gap <= 0.01:
+        buf_status = "met"
+    elif buf_alloc > 0:
+        buf_status = "partial"
+    else:
+        buf_status = "gap"
+
+    priors_clear = exp_status == "met" and card_status == "met" and buf_status == "met"
+    # Excess for collateral: residual free after stack OR classified bucket excess when priors clear
+    if priors_clear:
+        coll_amt = max(remaining, buffer_excess)
+        coll_status = "ready" if coll_amt > 0.01 else "met"
+    else:
+        coll_amt = 0.0
+        coll_status = "blocked"
+    split_cb = max(0.0, _f(excess_split_cb))
+    split_rh = max(0.0, _f(excess_split_rh))
+    split_sum = split_cb + split_rh
+    if split_sum <= 0:
+        split_cb, split_rh, split_sum = 0.6, 0.4, 1.0
+    to_btc = round(coll_amt * (split_cb / split_sum), 2) if coll_amt > 0 else 0.0
+    to_rh = round(coll_amt * (split_rh / split_sum), 2) if coll_amt > 0 else 0.0
+
+    # Capex from margin BP only (not free dollars)
+    capex_monthly = max(0.0, _f(discretionary.get("monthly")))
+    bp = max(0.0, _f(rh_buying_power))
+    dca_ok = bool((dca or {}).get("allow_dca", True))
+    margin_heat = (not dca_ok) and "margin" in str((dca or {}).get("reason") or "").lower()
+    if capex_monthly <= 0.01:
+        capex_status = "none"
+    elif margin_heat:
+        capex_status = "blocked_margin"
+    elif bp < 1:
+        capex_status = "no_bp"
+    elif free_dollar_red and not dca_ok:
+        # free-dollar red does not block existing BP; only margin heat does above
+        capex_status = "available"
+    else:
+        capex_status = "available"
+
+    def step(
+        rank: int,
+        sid: str,
+        title: str,
+        status: str,
+        *,
+        need: float = 0.0,
+        allocated: float = 0.0,
+        gap: float = 0.0,
+        detail: str = "",
+        fund_from: str = "free_dollar",
+        meta: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        return {
+            "rank": rank,
+            "id": sid,
+            "title": title,
+            "status": status,
+            "need": round(need, 2),
+            "allocated": round(allocated, 2),
+            "gap": round(gap, 2),
+            "detail": detail,
+            "fund_from": fund_from,
+            "meta": meta or {},
+        }
+
+    steps = [
+        step(
+            1,
+            "expenses",
+            "Expenses paid & current",
+            exp_status,
+            need=exp_need,
+            allocated=exp_alloc,
+            gap=exp_gap,
+            detail=(
+                f"{exp_overdue} overdue · {exp_soon} due ≤{expense_window.get('due_within_days', 7)}d · "
+                f"critical ${exp_need:,.0f}"
+                if exp_need > 0
+                else "No overdue / due-soon Personal sheet lines"
+            ),
+            fund_from="venue_cash",
+            meta={
+                "overdue_count": exp_overdue,
+                "due_soon_count": exp_soon,
+                "overdue_total": expense_window.get("overdue_total"),
+                "due_soon_total": expense_window.get("due_soon_total"),
+            },
+        ),
+        step(
+            2,
+            "card_paydown",
+            "Coinbase One Card paydown",
+            card_status,
+            need=card_need,
+            allocated=card_alloc,
+            gap=card_gap,
+            detail=(
+                f"Owed ${card_need:,.2f} — pay down before buffer residual risk"
+                if card_need > 0
+                else "Card balance clear"
+            ),
+            fund_from="free_dollar",
+            meta={"card_balance": round(card_need, 2)},
+        ),
+        step(
+            3,
+            "cash_buffers",
+            "Cash stack buffers",
+            buf_status,
+            need=buf_need,
+            allocated=buf_alloc,
+            gap=buf_gap,
+            detail=(
+                f"Floors ${floors_required:,.0f} · working USDC ${working_usdc:,.0f} · "
+                f"shortfall ${buffer_shortfall:,.0f}"
+            ),
+            fund_from="free_dollar",
+            meta={
+                "floors_required": round(floors_required, 2),
+                "working_usdc": round(_f(working_usdc), 2),
+                "shortfall": round(buffer_shortfall, 2),
+                "gaps": {
+                    "card_float": round(_f(gaps.get("card_float")), 2),
+                    "loan_buffer": round(_f(gaps.get("loan_buffer")), 2),
+                    "bridge_dry_powder": round(_f(gaps.get("bridge_dry_powder")), 2),
+                },
+            },
+        ),
+        step(
+            4,
+            "collateral",
+            "Collateral (excess free dollars)",
+            coll_status,
+            need=coll_amt,
+            allocated=coll_amt if coll_status == "ready" else 0.0,
+            gap=0.0 if priors_clear else max(exp_gap + card_gap + buf_gap, 0.0),
+            detail=(
+                f"Deploy ~${to_btc:,.0f} BTC path · ~${to_rh:,.0f} RH securities"
+                if coll_status == "ready" and coll_amt > 0
+                else (
+                    "Floors full — no excess free dollars yet"
+                    if coll_status == "met"
+                    else "Blocked until expenses, card, and buffers are clear"
+                )
+            ),
+            fund_from="free_dollar_excess",
+            meta={
+                "to_btc_collateral": to_btc,
+                "to_rh_securities": to_rh,
+                "split_cb": split_cb / split_sum,
+                "split_rh": split_rh / split_sum,
+                "priors_clear": priors_clear,
+            },
+        ),
+        step(
+            5,
+            "capex_margin",
+            "Capex / ops expansion (Discretionary)",
+            capex_status,
+            need=capex_monthly,
+            allocated=min(bp, capex_monthly) if capex_status == "available" else 0.0,
+            gap=max(0.0, capex_monthly - bp) if capex_monthly > 0 else 0.0,
+            detail=(
+                f"Sheet Discretionary ~${capex_monthly:,.0f}/mo · RH BP ${bp:,.2f} · "
+                + (
+                    "margin heat — pause"
+                    if capex_status == "blocked_margin"
+                    else (
+                        "no BP"
+                        if capex_status == "no_bp"
+                        else (
+                            "no discretionary targets"
+                            if capex_status == "none"
+                            else "fund from collateralized margin only (not free cash)"
+                        )
+                    )
+                )
+            ),
+            fund_from="collateralized_margin",
+            meta={
+                "rh_buying_power": round(bp, 2),
+                "dca_allow": dca_ok,
+                "dca_reason": (dca or {}).get("reason"),
+                "items": (discretionary.get("items") or [])[:8],
+            },
+        ),
+    ]
+
+    # Active free-dollar step = first incomplete among 1–4
+    active_id = None
+    for s in steps:
+        if s["id"] == "capex_margin":
+            continue
+        if s["status"] not in ("met", "ready"):
+            active_id = s["id"]
+            break
+    if active_id is None:
+        active_id = "collateral" if coll_status == "ready" else "expenses"
+
+    # Next free dollar label
+    next_map = {
+        "expenses": "Pay Personal sheet obligations (overdue / due soon)",
+        "card_paydown": "Pay down Coinbase One Card balance",
+        "cash_buffers": "Fill cash stack buffers (float · loan · bridge)",
+        "collateral": "Deploy excess to collateral (BTC or RH securities)",
+    }
+    next_free = next_map.get(active_id, next_map["expenses"])
+    if free_dollar_red and active_id == "collateral":
+        next_free = "Red-mode: do not add new free-dollar risk — hold excess for stack defense"
+        for s in steps:
+            if s["id"] == "collateral" and s["status"] == "ready":
+                s["status"] = "hold_red"
+                s["detail"] = "Excess exists but overall free-dollar stress is red — prefer stack defense"
+
+    return {
+        "version": 1,
+        "priority_order": [
+            "expenses_paid_current",
+            "card_paydown",
+            "cash_buffers",
+            "collateral_excess",
+            "capex_from_margin",
+        ],
+        "free_liquid_start": round(free_start, 2),
+        "free_liquid_residual": round(remaining, 2),
+        "working_usdc": round(_f(working_usdc), 2),
+        "bank_cash": round(_f(bank_cash), 2),
+        "free_dollar_red": bool(free_dollar_red),
+        "active_step_id": active_id,
+        "next_free_dollar": next_free,
+        "steps": steps,
+        "expense_window": {
+            "critical_total": expense_window.get("critical_total"),
+            "overdue_count": exp_overdue,
+            "due_soon_count": exp_soon,
+            "as_of_date": expense_window.get("as_of_date"),
+        },
+        "capex": {
+            "fund_from": "collateralized_margin",
+            "monthly": round(capex_monthly, 2),
+            "rh_buying_power": round(bp, 2),
+            "status": capex_status,
+            "note": discretionary.get("note"),
+        },
+    }
+
+
 def evaluate_treasury(
     snapshot: Dict[str, Any],
     policy: Optional[Dict[str, Any]] = None,
@@ -865,6 +1308,25 @@ def evaluate_treasury(
 
     actions.sort(key=lambda a: a["priority"])
 
+    # Simplified cashflow allocation guidance (free-dollar waterfall + margin capex)
+    _exp_window = expense_due_window(snapshot)
+    _disc = discretionary_capex_targets(snapshot)
+    _free_dollar_red = overall == "red"
+    cashflow_allocation = cashflow_allocation_guidance(
+        expense_window=_exp_window,
+        card_balance=card_balance,
+        buckets=buckets,
+        working_usdc=working_usdc,
+        bank_cash=bank_cash if bank_cash_known else (bank_cash or 0.0),
+        rh_buying_power=bp,
+        dca=dca,
+        discretionary=_disc,
+        excess_split_cb=_f(p["excess_split_cb"]),
+        excess_split_rh=_f(p["excess_split_rh"]),
+        free_dollar_red=_free_dollar_red,
+    )
+
+
     next_steps = [
         {
             "n": i + 1,
@@ -1004,6 +1466,7 @@ def evaluate_treasury(
         "actions": actions,
         "next_steps": next_steps,
         "agent_brief": "\n".join(agent_brief_lines),
+        "cashflow_allocation": cashflow_allocation,
         "sleeves": {
             "card_float": {
                 "target": _f(p["cb_card_float_usdc"]),
@@ -1045,15 +1508,13 @@ def evaluate_treasury(
                 "Idle broker cash intentionally low vs Morpho yield sleeves + X Money."
             ),
             "priority_order": [
-                "Protect CB Morpho LTV (<50% target)",
-                "Card / buffers from working USDC (vault + spot)",
-                "RH margin heat if funding USDG Earn from equity collateral",
-                "RH Checking float for ACH bills",
-                "X Money cash (~6% APY) as spend/float sleeve",
-                "USDG Earn (manual track) as RH yield sleeve",
-                "Agentic equity 40/60 (separate from yield sleeves)",
-                "Bridge recommend CB↔RH",
-                "Excess → vault / USDG Earn / capital targets",
+                "Personal expenses paid & current (sheet)",
+                "Coinbase One Card balance paid down",
+                "Cash stack buffers filled (card float · loan · bridge)",
+                "Excess free dollars → collateral (BTC path / RH securities)",
+                "Capex / Discretionary ops expansion from collateralized margin only",
+                "Protect CB Morpho LTV (<50% target) — keep loan open, manage LTV",
+                "RH margin heat cap still binds deployment of BP",
             ],
             "double_leverage_warning": (
                 "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly "

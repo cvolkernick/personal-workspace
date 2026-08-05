@@ -12,9 +12,11 @@ if str(ROOT) not in sys.path:
 
 from treasury.policy import (  # noqa: E402
     DEFAULT_POLICY,
+    cashflow_allocation_guidance,
     classify_liquid_usdc,
     dca_governor,
     evaluate_treasury,
+    expense_due_window,
 )
 
 
@@ -329,6 +331,149 @@ class TestEvaluateTreasury(unittest.TestCase):
         ev = evaluate_treasury(snap)
         self.assertAlmostEqual(ev["inputs"]["ltv"], 0.4)
         self.assertEqual(ev["stress"]["coinbase_ltv"], "green")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+
+class TestCashflowAllocationGuidance(unittest.TestCase):
+    def test_waterfall_expenses_first_when_critical_due(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 100, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.30,
+                "vault_usdc": 2000,
+                "card_balance": 200,
+                "card_available_credit": 300,
+                "one_card_security_deposit_usdc": 500,
+            },
+            "one_card": {"source": "ynab", "card_balance": 200, "balance_owed": 200},
+            "rh_checking": {"source": "ynab", "cash": 50},
+            "x_money": {"source": "ynab", "cash": 0},
+            "robinhood": {
+                "buying_power": 5000,
+                "cash": 100,
+                "equity_value": 20000,
+                "margin_use": 0.1,
+                "source": "live",
+            },
+            "expenses": {
+                "source": "google_sheets",
+                "summary": {
+                    "capital_targets_monthly": 500,
+                    "discretionary_monthly": 500,
+                },
+                "tabs": {
+                    "Personal": {
+                        "items": [
+                            {
+                                "item": "Overdue bill",
+                                "date": "1/1/2026",
+                                "monthly": 400,
+                                "from": "Coinbase",
+                            }
+                        ]
+                    },
+                    "Discretionary": {
+                        "items": [
+                            {"item": "ASIC", "monthly": 500},
+                        ]
+                    },
+                },
+            },
+        }
+        ev = evaluate_treasury(snap)
+        ca = ev["cashflow_allocation"]
+        self.assertIn("steps", ca)
+        self.assertEqual(ca["active_step_id"], "expenses")
+        self.assertEqual(ca["steps"][0]["id"], "expenses")
+        self.assertIn(ca["steps"][0]["status"], ("gap", "partial"))
+        # Capex is margin-sourced, not free-dollar residual
+        capex = next(s for s in ca["steps"] if s["id"] == "capex_margin")
+        self.assertEqual(capex["fund_from"], "collateralized_margin")
+        self.assertEqual(capex["status"], "available")
+        self.assertGreater(capex["need"], 0)
+
+    def test_excess_to_collateral_when_stack_clear(self):
+        buckets = classify_liquid_usdc(
+            3000,
+            card_float=500,
+            loan_buffer=1000,
+            bridge_dry_powder=200,
+        )
+        exp = {
+            "critical_total": 0,
+            "overdue_count": 0,
+            "due_soon_count": 0,
+            "overdue_total": 0,
+            "due_soon_total": 0,
+            "as_of_date": "2026-08-05",
+            "due_within_days": 7,
+        }
+        ca = cashflow_allocation_guidance(
+            expense_window=exp,
+            card_balance=0,
+            buckets=buckets,
+            working_usdc=3000,
+            bank_cash=0,
+            rh_buying_power=2000,
+            dca={"allow_dca": True, "reason": "ok"},
+            discretionary={"monthly": 100, "items": [{"item": "ASIC", "monthly": 100}]},
+            free_dollar_red=False,
+        )
+        self.assertEqual(ca["active_step_id"], "collateral")
+        coll = next(s for s in ca["steps"] if s["id"] == "collateral")
+        self.assertEqual(coll["status"], "ready")
+        self.assertGreater(coll["meta"]["to_btc_collateral"], 0)
+        self.assertGreater(coll["meta"]["to_rh_securities"], 0)
+
+    def test_capex_blocked_on_margin_heat(self):
+        buckets = classify_liquid_usdc(
+            2000,
+            card_float=500,
+            loan_buffer=1000,
+            bridge_dry_powder=200,
+        )
+        ca = cashflow_allocation_guidance(
+            expense_window={
+                "critical_total": 0,
+                "overdue_count": 0,
+                "due_soon_count": 0,
+                "as_of_date": "2026-08-05",
+                "due_within_days": 7,
+            },
+            card_balance=0,
+            buckets=buckets,
+            working_usdc=2000,
+            bank_cash=0,
+            rh_buying_power=8000,
+            dca={"allow_dca": False, "reason": "margin use 50% exceeds max 40%"},
+            discretionary={"monthly": 2500, "items": []},
+            free_dollar_red=False,
+        )
+        capex = next(s for s in ca["steps"] if s["id"] == "capex_margin")
+        self.assertEqual(capex["status"], "blocked_margin")
+
+    def test_expense_due_window_counts_overdue(self):
+        snap = {
+            "expenses": {
+                "source": "google_sheets",
+                "tabs": {
+                    "Personal": {
+                        "items": [
+                            {"item": "A", "date": "1/1/2020", "monthly": 100},
+                            {"item": "B", "date": "1/1/2099", "monthly": 999},
+                        ]
+                    }
+                },
+            }
+        }
+        w = expense_due_window(snap)
+        self.assertEqual(w["overdue_count"], 1)
+        self.assertAlmostEqual(w["overdue_total"], 100)
+        self.assertLess(w["critical_total"], 999)
 
 
 if __name__ == "__main__":
