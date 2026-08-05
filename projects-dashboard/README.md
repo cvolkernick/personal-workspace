@@ -121,6 +121,26 @@ python3 projects-dashboard/recommendations.py reject <id>
 
 Persisted in `ops/backlog/suggestions.json`.
 
+## Google Tasks tab
+
+FitDash/FCC-style tab shell: **Status · Plan · Tasks · Repo**.
+
+| | |
+|--|--|
+| UI | **Tasks** tab — all lists, create/edit/complete/delete/move, due dates, notes, list CRUD |
+| API | `GET /api/tasks`, `GET /api/tasks/lists`, `POST /api/tasks/*` (create/update/complete/delete/move), `POST /api/tasks/from-issue` |
+| Auth | Same OAuth as MCP: `~/.config/google-tasks-mcp/{client_secret,token}.json` |
+| GitHub bridge | Notes with `owner/repo#N` or `gh:owner/repo#N` render as chips; `POST /api/tasks/from-issue` mirrors a board issue into a task |
+| Grok / Rock | Agents use MCP `gtasks` (Mac stdio or Pi `:18800/mcp`); dashboards/chat hit this HTTP API on `:8765` |
+
+```bash
+python3 projects-dashboard/google_tasks.py status
+python3 projects-dashboard/google_tasks.py overview
+# deps: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+```
+
+Deep-link: `http://127.0.0.1:8765/?tab=tasks`
+
 ## Launch dashboard
 
 ```bash

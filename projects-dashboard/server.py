@@ -3,6 +3,10 @@
 
   GET  /api/projects       — readiness + branches + resume kit + areas
   GET  /api/branch-graph   — gitk-style commit lane graph (SVG data)
+  GET  /api/tasks          — Google Tasks overview (lists + open tasks)
+  GET  /api/tasks/lists    — task lists only
+  GET  /api/tasks/list     — tasks in one list (?list_id=)
+  POST /api/tasks          — create / update / complete / delete / move
   POST /api/protect        — commit durable dirty work + push (auto branch)
   POST /api/sync           — session index + protect + push
   POST /api/session-index  — write ops/session-index only
@@ -44,6 +48,22 @@ from bridge import (  # noqa: E402
     send_top_to_allocator,
 )
 from git_workflow import protect_work, start_work, sync_after_work  # noqa: E402
+from google_tasks import (  # noqa: E402
+    complete_task,
+    create_task,
+    create_task_from_github_issue,
+    create_tasklist,
+    credentials_status as gtasks_credentials_status,
+    delete_task,
+    delete_tasklist,
+    get_task,
+    list_tasklists,
+    list_tasks,
+    move_task,
+    overview as gtasks_overview,
+    update_task,
+    update_tasklist,
+)
 from recommendations import (  # noqa: E402
     approve_suggestion,
     recommendations_payload,
@@ -88,14 +108,79 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
         path = parsed.path
 
         if path == "/api/health":
+            auth = gtasks_credentials_status()
             self._json(
                 200,
                 {
                     "ok": True,
                     "service": "projects-dashboard",
                     "workspace": str(WORKSPACE_ROOT),
+                    "google_tasks": {
+                        "ok": bool(auth.get("ok")),
+                        "refresh_token_present": bool(
+                            auth.get("refresh_token_present")
+                        ),
+                    },
                 },
             )
+            return
+
+        if path in ("/api/tasks", "/api/tasks/overview"):
+            qs = parse_qs(parsed.query)
+            show_completed = (qs.get("completed") or qs.get("show_completed") or ["0"])[
+                0
+            ] in ("1", "true", "yes")
+            try:
+                max_per = int((qs.get("max") or ["100"])[0])
+            except ValueError:
+                max_per = 100
+            try:
+                payload = gtasks_overview(
+                    show_completed=show_completed, max_per_list=max_per
+                )
+                self._json(200 if payload.get("ok") else 503, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/tasks/auth":
+            try:
+                self._json(200, gtasks_credentials_status())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/tasks/lists":
+            try:
+                self._json(200, list_tasklists())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path in ("/api/tasks/list", "/api/tasks/items"):
+            qs = parse_qs(parsed.query)
+            list_id = (qs.get("list_id") or qs.get("list") or [""])[0]
+            show_completed = (qs.get("completed") or ["0"])[0] in (
+                "1",
+                "true",
+                "yes",
+            )
+            try:
+                payload = list_tasks(list_id, show_completed=show_completed)
+                self._json(200 if payload.get("ok") else 400, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/tasks/get":
+            qs = parse_qs(parsed.query)
+            list_id = (qs.get("list_id") or [""])[0]
+            task_id = (qs.get("task_id") or qs.get("id") or [""])[0]
+            try:
+                payload = get_task(list_id, task_id)
+                self._json(200 if payload.get("ok") else 400, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path == "/api/projects":
@@ -330,6 +415,118 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
                 result = reject_suggestion(str(sid))
                 self._json(200 if result.get("ok") else 400, result)
                 return
+
+            # ── Google Tasks CRUD ─────────────────────────────────────────
+            if path in ("/api/tasks", "/api/tasks/create"):
+                result = create_task(
+                    str(body.get("list_id") or body.get("list") or ""),
+                    str(body.get("title") or ""),
+                    notes=str(body.get("notes") or ""),
+                    due=body.get("due"),
+                    parent=body.get("parent"),
+                    previous=body.get("previous"),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/update":
+                tid = body.get("task_id") or body.get("id")
+                lid = body.get("list_id") or body.get("list")
+                if not tid or not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id or task_id"})
+                    return
+                result = update_task(
+                    str(lid),
+                    str(tid),
+                    title=body.get("title"),
+                    notes=body.get("notes"),
+                    due=body.get("due"),
+                    status=body.get("status"),
+                    clear_due=bool(body.get("clear_due")),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/complete":
+                tid = body.get("task_id") or body.get("id")
+                lid = body.get("list_id") or body.get("list")
+                if not tid or not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id or task_id"})
+                    return
+                completed = body.get("completed", True)
+                if isinstance(completed, str):
+                    completed = completed.lower() not in ("0", "false", "no")
+                result = complete_task(str(lid), str(tid), completed=bool(completed))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/delete":
+                tid = body.get("task_id") or body.get("id")
+                lid = body.get("list_id") or body.get("list")
+                if not tid or not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id or task_id"})
+                    return
+                result = delete_task(str(lid), str(tid))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/move":
+                tid = body.get("task_id") or body.get("id")
+                lid = body.get("list_id") or body.get("list")
+                if not tid or not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id or task_id"})
+                    return
+                result = move_task(
+                    str(lid),
+                    str(tid),
+                    parent=body.get("parent"),
+                    previous=body.get("previous"),
+                    destination_list=body.get("destination_list")
+                    or body.get("destination"),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/lists/create":
+                result = create_tasklist(str(body.get("title") or ""))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/lists/update":
+                lid = body.get("list_id") or body.get("id")
+                if not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id"})
+                    return
+                result = update_tasklist(str(lid), str(body.get("title") or ""))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/lists/delete":
+                lid = body.get("list_id") or body.get("id")
+                if not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id"})
+                    return
+                result = delete_tasklist(str(lid))
+                self._json(200 if result.get("ok") else 400, result)
+                return
+
+            if path == "/api/tasks/from-issue":
+                # Mirror GitHub / Buzz board issue → Google Task (link in notes)
+                lid = body.get("list_id") or body.get("list")
+                if not lid:
+                    self._json(400, {"ok": False, "error": "missing list_id"})
+                    return
+                result = create_task_from_github_issue(
+                    str(lid),
+                    owner=str(body.get("owner") or ""),
+                    repo=str(body.get("repo") or ""),
+                    number=body.get("number") or body.get("issue_number") or "",
+                    title=str(body.get("title") or ""),
+                    html_url=str(body.get("html_url") or body.get("url") or ""),
+                    body=str(body.get("body") or body.get("notes") or ""),
+                )
+                self._json(200 if result.get("ok") else 400, result)
+                return
         except Exception as e:
             self._json(500, {"ok": False, "error": str(e)})
             return
@@ -372,8 +569,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.local:
         print("Mode: local API (Pi backend)")
     print(
-        "API: GET /api/projects /api/branch-graph | "
-        "POST /api/sync /api/protect /api/start-work"
+        "API: GET /api/projects /api/branch-graph /api/tasks | "
+        "POST /api/sync /api/protect /api/start-work /api/tasks/*"
     )
     httpd = ThreadingHTTPServer((bind, args.port), ProjectsHandler)
     if not args.no_browser:

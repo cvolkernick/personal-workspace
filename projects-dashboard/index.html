@@ -252,6 +252,170 @@
     .legend-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
     .view-toggle { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .view-toggle button.active { border-color: var(--accent); color: var(--accent); }
+
+    /* —— Tab shell (FitDash/FCC-style) —— */
+    body.m-shell { padding-bottom: 4.5rem; }
+    .top-tabs {
+      display: flex; gap: 0.35rem; flex-wrap: wrap;
+      padding: 0.55rem 1.5rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .top-tabs .tab-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: transparent; border: 1px solid transparent;
+      color: var(--muted); border-radius: 999px;
+      padding: 0.4rem 0.85rem; font-size: 0.85rem; font-weight: 650;
+      cursor: pointer;
+    }
+    .top-tabs .tab-btn:hover { color: var(--text); border-color: var(--border); }
+    .top-tabs .tab-btn.active {
+      color: var(--text); border-color: var(--accent);
+      background: rgba(91,159,212,0.14); box-shadow: 0 0 0 1px rgba(91,159,212,0.2);
+    }
+    .top-tabs .tab-ico { font-size: 0.95rem; opacity: 0.9; }
+    .top-tabs .tab-count {
+      font-size: 0.7rem; font-weight: 700; min-width: 1.25rem;
+      padding: 0.05rem 0.35rem; border-radius: 999px;
+      background: #1a3a55; color: var(--accent); border: 1px solid #2d6a9f;
+    }
+    .mobile-tabbar {
+      display: none;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      background: rgba(12,16,22,0.96);
+      border-top: 1px solid var(--border);
+      padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom));
+      justify-content: space-around; gap: 0.15rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      background: transparent; border: none; color: var(--muted);
+      padding: 0.35rem 0.2rem; font-size: 0.68rem; font-weight: 650; cursor: pointer;
+      border-radius: 10px; min-height: 48px;
+    }
+    .mobile-tabbar .tab-btn .tab-ico { font-size: 1.15rem; line-height: 1; }
+    .mobile-tabbar .tab-btn.active { color: var(--accent); background: rgba(91,159,212,0.12); }
+    body.m-shell [data-m-panel] { display: none !important; }
+    body.m-shell[data-m-active="status"] [data-m-panel="status"],
+    body.m-shell[data-m-active="plan"] [data-m-panel="plan"],
+    body.m-shell[data-m-active="tasks"] [data-m-panel="tasks"],
+    body.m-shell[data-m-active="repo"] [data-m-panel="repo"] {
+      display: block !important;
+    }
+    @media (max-width: 720px) {
+      .top-tabs { display: none; }
+      .mobile-tabbar { display: flex; }
+      header { padding: 0.75rem 1rem; }
+      main { padding: 1rem 1rem 1.5rem; }
+    }
+    @media (min-width: 721px) {
+      body.m-shell { padding-bottom: 0; }
+    }
+    /* —— Google Tasks panel —— */
+    .tasks-layout {
+      display: grid; gap: 0.85rem;
+    }
+    @media (min-width: 900px) {
+      .tasks-layout { grid-template-columns: 14rem 1fr; align-items: start; }
+    }
+    .tasks-lists {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.65rem; display: grid; gap: 0.25rem;
+      max-height: min(70vh, 36rem); overflow: auto;
+    }
+    .tasks-lists .list-btn {
+      display: flex; justify-content: space-between; align-items: center; gap: 0.4rem;
+      width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+      border-radius: 8px; padding: 0.45rem 0.55rem; color: var(--text); font: inherit;
+      cursor: pointer; font-weight: 600; font-size: 0.88rem;
+    }
+    .tasks-lists .list-btn:hover { border-color: var(--border); background: #0e151c; }
+    .tasks-lists .list-btn.active {
+      border-color: var(--accent); background: rgba(91,159,212,0.12); color: var(--accent);
+    }
+    .tasks-lists .list-btn .cnt {
+      font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums;
+    }
+    .tasks-lists .list-btn.active .cnt { color: var(--accent); }
+    .tasks-main {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.85rem 1rem; display: grid; gap: 0.65rem;
+      min-height: 16rem;
+    }
+    .tasks-toolbar {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      justify-content: space-between;
+    }
+    .tasks-toolbar .left, .tasks-toolbar .right {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+    }
+    .task-compose {
+      display: grid; gap: 0.4rem;
+      padding: 0.65rem; border: 1px solid var(--border); border-radius: 10px;
+      background: #0e151c;
+    }
+    .task-compose input, .task-compose textarea, .task-compose select,
+    .task-edit input, .task-edit textarea, .task-edit select,
+    .tasks-lists-create input {
+      background: #0a1016; border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.88rem;
+      font-family: inherit; width: 100%; box-sizing: border-box;
+    }
+    .task-compose textarea, .task-edit textarea { resize: vertical; min-height: 3rem; }
+    .task-row {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem 0.65rem;
+      align-items: start; padding: 0.55rem 0.45rem; border-radius: 10px;
+      border: 1px solid transparent; border-bottom-color: var(--border);
+    }
+    .task-row:hover { background: #0e151c; border-color: var(--border); }
+    .task-row.completed .task-title { text-decoration: line-through; opacity: 0.65; }
+    .task-row.child { margin-left: 1.25rem; }
+    .task-check {
+      width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; cursor: pointer;
+      accent-color: var(--green);
+    }
+    .task-title { font-weight: 650; font-size: 0.95rem; }
+    .task-meta {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    .task-notes {
+      color: var(--muted); font-size: 0.82rem; margin-top: 0.25rem;
+      white-space: pre-wrap; max-height: 6rem; overflow: auto;
+    }
+    .task-actions { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; }
+    .task-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+    .gh-chip {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 650;
+      border: 1px solid #3a4570; background: #121c28; color: var(--blue);
+      text-decoration: none;
+    }
+    .gh-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .due-soon { color: var(--yellow); font-weight: 650; }
+    .due-over { color: var(--red); font-weight: 700; }
+    .tasks-summary {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .task-edit {
+      grid-column: 1 / -1; display: grid; gap: 0.4rem;
+      margin-top: 0.35rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
+    }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+    .btn-primary {
+      background: #1a3a55; border-color: #2d6a9f;
+    }
+    .btn-primary:hover { border-color: var(--accent); color: var(--accent); }
+    .auth-warn {
+      background: #2a2410; border: 1px solid #6b5a1e; color: var(--yellow);
+      padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
@@ -271,22 +435,65 @@
       <button type="button" id="btn-refresh">Refresh</button>
     </div>
   </header>
+  <nav class="top-tabs" id="top-tabs" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="plan">
+      <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="tasks">
+      <span class="tab-ico" aria-hidden="true">☑</span><span class="tab-lbl">Tasks</span>
+      <span class="tab-count" id="tasks-tab-count" hidden>0</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="repo">
+      <span class="tab-ico" aria-hidden="true">⎇</span><span class="tab-lbl">Repo</span>
+    </button>
+  </nav>
   <main>
     <div id="err" class="error-banner" role="alert"></div>
     <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
-    <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
-    <div class="summary" id="summary"></div>
-    <div id="strategy-focus"></div>
-    <div id="bridge"></div>
-    <div id="recommendations"></div>
-    <div id="backlog"></div>
-    <div id="branches"></div>
-    <div id="resume"></div>
-    <div class="section-title">Projects (exit readiness by area)</div>
-    <div id="list"><div class="empty">Loading…</div></div>
-    <div id="listeners"></div>
-    <footer id="footer"></footer>
+
+    <section data-m-panel="status">
+      <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
+      <div class="summary" id="summary"></div>
+      <div id="strategy-focus"></div>
+    </section>
+
+    <section data-m-panel="plan">
+      <div id="bridge"></div>
+      <div id="recommendations"></div>
+      <div id="backlog"></div>
+    </section>
+
+    <section data-m-panel="tasks">
+      <div class="section-title">Google Tasks <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· lists · create · edit · complete · GitHub issue chips</span></div>
+      <div id="tasks-root"><div class="empty">Loading tasks…</div></div>
+    </section>
+
+    <section data-m-panel="repo">
+      <div id="branches"></div>
+      <div id="resume"></div>
+      <div class="section-title">Projects (exit readiness by area)</div>
+      <div id="list"><div class="empty">Loading…</div></div>
+      <div id="listeners"></div>
+      <footer id="footer"></footer>
+    </section>
   </main>
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="plan">
+      <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="tasks">
+      <span class="tab-ico" aria-hidden="true">☑</span><span class="tab-lbl">Tasks</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="repo">
+      <span class="tab-ico" aria-hidden="true">⎇</span><span class="tab-lbl">Repo</span>
+    </button>
+  </nav>
   <script>
     const $ = (id) => document.getElementById(id);
     function esc(s) {
@@ -1071,6 +1278,7 @@
         $("err").classList.add("show");
       } finally {
         btn.disabled = false;
+        if (window.__activeTab === "tasks") loadTasks();
       }
     }
 
@@ -1129,6 +1337,457 @@
         $("err").classList.add("show");
       }
     }
+
+
+    // ── Tab shell (FitDash/FCC-style) ───────────────────────────────────
+    window.__activeTab = window.__activeTab || "status";
+    function goTab(tab) {
+      const t = tab || "status";
+      window.__activeTab = t;
+      document.body.classList.add("m-shell");
+      document.body.dataset.mActive = t;
+      document.querySelectorAll("[data-m-tab]").forEach((btn) => {
+        const on = btn.getAttribute("data-m-tab") === t;
+        btn.classList.toggle("active", on);
+        if (on) btn.setAttribute("aria-current", "page");
+        else btn.removeAttribute("aria-current");
+      });
+      try {
+        const u = new URL(location.href);
+        u.searchParams.set("tab", t);
+        history.replaceState(null, "", u.toString());
+      } catch (_) {}
+      if (t === "tasks") loadTasks();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function initTabShell() {
+      document.body.classList.add("m-shell");
+      const params = new URLSearchParams(location.search);
+      const fromUrl = params.get("tab");
+      const initial = ["status", "plan", "tasks", "repo"].includes(fromUrl)
+        ? fromUrl
+        : (window.__activeTab || "status");
+      goTab(initial);
+      document.querySelectorAll("#top-tabs, #mobile-tabbar").forEach((bar) => {
+        if (!bar) return;
+        bar.addEventListener("click", (ev) => {
+          const btn = ev.target.closest("[data-m-tab]");
+          if (!btn) return;
+          goTab(btn.getAttribute("data-m-tab"));
+        });
+      });
+    }
+
+    // ── Google Tasks ────────────────────────────────────────────────────
+    window.__tasksState = window.__tasksState || {
+      data: null,
+      listId: null,
+      showCompleted: false,
+      editId: null,
+      loading: false,
+    };
+
+    function fmtDue(iso) {
+      if (!iso) return "";
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+        return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      } catch { return String(iso).slice(0, 10); }
+    }
+    function dueClass(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dd = new Date(d);
+      dd.setHours(0, 0, 0, 0);
+      const diff = (dd - today) / 86400000;
+      if (diff < 0) return "due-over";
+      if (diff <= 2) return "due-soon";
+      return "";
+    }
+    function dueInputValue(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toISOString().slice(0, 10);
+      } catch { return String(iso).slice(0, 10); }
+    }
+
+    async function tasksPost(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    async function loadTasks(force) {
+      const st = window.__tasksState;
+      const root = $("tasks-root");
+      if (!root) return;
+      if (st.loading && !force) return;
+      st.loading = true;
+      if (!st.data) root.innerHTML = `<div class="empty">Loading tasks…</div>`;
+      try {
+        const qs = st.showCompleted ? "?completed=1" : "";
+        const res = await fetch(`/api/tasks${qs}`, { cache: "no-store" });
+        const data = await res.json();
+        st.data = data;
+        if (!data.ok) {
+          root.innerHTML = `
+            <div class="auth-warn">
+              <strong>Google Tasks unavailable.</strong>
+              ${esc(data.error || "Not authenticated")}
+              ${data.auth && data.auth.hint ? `<br/><span class="id">${esc(data.auth.hint)}</span>` : ""}
+              <br/><span class="id">Creds: ~/.config/google-tasks-mcp/ · Pi unit: google-tasks-mcp.service</span>
+            </div>`;
+          const cnt = $("tasks-tab-count");
+          if (cnt) { cnt.hidden = true; }
+          return;
+        }
+        const lists = data.lists || [];
+        if (!st.listId || !lists.some((l) => l.id === st.listId)) {
+          st.listId = lists[0] ? lists[0].id : null;
+        }
+        const openN = (data.summary && data.summary.open) || (data.all_open || []).length || 0;
+        const cnt = $("tasks-tab-count");
+        if (cnt) {
+          cnt.textContent = String(openN);
+          cnt.hidden = openN <= 0;
+        }
+        renderTasks();
+      } catch (e) {
+        root.innerHTML = `<div class="empty">Failed to load tasks: ${esc(e.message)}</div>`;
+      } finally {
+        st.loading = false;
+      }
+    }
+
+    function tasksForActiveList() {
+      const st = window.__tasksState;
+      const data = st.data || {};
+      const by = data.tasks_by_list || {};
+      const pack = by[st.listId] || {};
+      return pack.tasks || [];
+    }
+
+    function renderTasks() {
+      const st = window.__tasksState;
+      const root = $("tasks-root");
+      if (!root || !st.data) return;
+      const data = st.data;
+      const lists = data.lists || [];
+      const tasks = tasksForActiveList();
+      const activeList = lists.find((l) => l.id === st.listId);
+      const openCount = tasks.filter((t) => t.status === "needsAction").length;
+      const doneCount = tasks.filter((t) => t.status === "completed").length;
+
+      // Build parent/child map for indent
+      const byParent = {};
+      tasks.forEach((t) => {
+        const p = t.parent || "";
+        if (!byParent[p]) byParent[p] = [];
+        byParent[p].push(t);
+      });
+      function walk(parentId, depth) {
+        const kids = byParent[parentId || ""] || [];
+        let out = [];
+        kids.forEach((t) => {
+          out.push({ task: t, depth });
+          out = out.concat(walk(t.id, depth + 1));
+        });
+        return out;
+      }
+      // Roots = no parent or parent not in set
+      const idSet = new Set(tasks.map((t) => t.id));
+      const ordered = [];
+      const seen = new Set();
+      function addTree(t, depth) {
+        if (seen.has(t.id)) return;
+        seen.add(t.id);
+        ordered.push({ task: t, depth });
+        (byParent[t.id] || []).forEach((c) => addTree(c, depth + 1));
+      }
+      tasks.forEach((t) => {
+        if (!t.parent || !idSet.has(t.parent)) addTree(t, 0);
+      });
+
+      const listBtns = lists.map((l) => {
+        const pack = (data.tasks_by_list || {})[l.id] || {};
+        const n = pack.open_count != null ? pack.open_count : ((pack.tasks || []).filter((x) => x.status === "needsAction").length);
+        return `<button type="button" class="list-btn${l.id === st.listId ? " active" : ""}" data-task-list="${esc(l.id)}">
+          <span>${esc(l.title || "Untitled")}</span>
+          <span class="cnt">${n}</span>
+        </button>`;
+      }).join("");
+
+      function renderTaskRow(item) {
+        const t = item.task;
+        const depth = item.depth;
+        const editing = st.editId === t.id;
+        const completed = t.status === "completed";
+        const gh = (t.github || []).map((g) =>
+          `<a class="gh-chip" href="${esc(g.url)}" target="_blank" rel="noopener" title="GitHub / Buzz board issue">${esc(g.label)}</a>`
+        ).join(" ");
+        const dcls = dueClass(t.due);
+        const dueLabel = t.due ? `<span class="${dcls}">due ${esc(fmtDue(t.due))}</span>` : "";
+        const listLabel = t.list_title && st.listId === "__all__" ? `<span class="pill muted">${esc(t.list_title)}</span>` : "";
+        return `
+          <div class="task-row${completed ? " completed" : ""}${depth ? " child" : ""}" data-task-id="${esc(t.id)}" data-list-id="${esc(t.list_id)}" style="${depth ? `margin-left:${Math.min(depth, 4) * 1.1}rem` : ""}">
+            <input type="checkbox" class="task-check" data-task-complete ${completed ? "checked" : ""} title="${completed ? "Mark incomplete" : "Mark complete"}" />
+            <div>
+              <div class="task-title">${esc(t.title || "(no title)")}</div>
+              <div class="task-meta">
+                ${dueLabel}
+                ${listLabel}
+                ${t.updated ? `<span>upd ${esc(fmtWhen(t.updated))}</span>` : ""}
+                ${gh}
+              </div>
+              ${t.notes && !editing ? `<div class="task-notes">${esc(t.notes)}</div>` : ""}
+              ${editing ? `
+                <div class="task-edit">
+                  <input class="te-title" value="${esc(t.title || "")}" placeholder="Title" />
+                  <textarea class="te-notes" rows="3" placeholder="Notes (use owner/repo#123 or gh:owner/repo#123 for GitHub chips)">${esc(t.notes || "")}</textarea>
+                  <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+                    <label class="id">Due <input type="date" class="te-due" value="${esc(dueInputValue(t.due))}" style="width:auto;margin-left:0.35rem" /></label>
+                    <label class="toggle"><input type="checkbox" class="te-clear-due" /> clear due</label>
+                    <select class="te-move-list" style="width:auto;min-width:10rem" title="Move to list">
+                      ${lists.map((l) => `<option value="${esc(l.id)}"${l.id === t.list_id ? " selected" : ""}>${esc(l.title)}</option>`).join("")}
+                    </select>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+                    <button type="button" class="btn-primary" data-task-save>Save</button>
+                    <button type="button" data-task-cancel-edit>Cancel</button>
+                    <button type="button" class="btn-danger" data-task-delete>Delete</button>
+                  </div>
+                </div>
+              ` : ""}
+            </div>
+            <div class="task-actions">
+              ${!editing ? `<button type="button" data-task-edit>Edit</button>` : ""}
+              ${!editing && !completed ? `<button type="button" data-task-complete-btn title="Complete">Done</button>` : ""}
+              ${!editing && completed ? `<button type="button" data-task-reopen>Reopen</button>` : ""}
+            </div>
+          </div>`;
+      }
+
+      const rows = ordered.length
+        ? ordered.map(renderTaskRow).join("")
+        : `<div class="empty">No tasks in this list${st.showCompleted ? "" : " (open)"}. Add one below.</div>`;
+
+      root.innerHTML = `
+        <div class="tasks-summary">
+          <span class="pill clean">${esc(String((data.summary && data.summary.open) || 0))} open total</span>
+          <span class="pill branch">${esc(String(lists.length))} lists</span>
+          ${activeList ? `<span class="pill muted">${esc(activeList.title)} · ${openCount} open${st.showCompleted ? ` · ${doneCount} done shown` : ""}</span>` : ""}
+          <span class="id" style="margin-left:auto">API · Grok MCP · Rock chat via same tokens</span>
+        </div>
+        <div class="tasks-layout">
+          <aside class="tasks-lists">
+            <div class="id" style="padding:0.25rem 0.4rem;margin-bottom:0.2rem">Lists</div>
+            ${listBtns || `<div class="empty" style="padding:0.5rem;border:none">No lists</div>`}
+            <div class="tasks-lists-create" style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);display:grid;gap:0.35rem">
+              <input id="new-list-title" placeholder="New list name" />
+              <button type="button" id="btn-list-create" class="btn-primary">Create list</button>
+            </div>
+          </aside>
+          <div class="tasks-main">
+            <div class="tasks-toolbar">
+              <div class="left">
+                <strong>${esc((activeList && activeList.title) || "Tasks")}</strong>
+              </div>
+              <div class="right">
+                <label class="toggle"><input type="checkbox" id="tasks-show-completed" ${st.showCompleted ? "checked" : ""} /> Show completed</label>
+                <button type="button" id="btn-tasks-refresh">Refresh</button>
+              </div>
+            </div>
+            <div class="task-compose">
+              <input id="new-task-title" placeholder="New task title" />
+              <textarea id="new-task-notes" rows="2" placeholder="Notes (optional) — paste owner/repo#123 to link GitHub/Buzz board issues"></textarea>
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+                <label class="id">Due <input type="date" id="new-task-due" style="width:auto;margin-left:0.35rem" /></label>
+                <button type="button" id="btn-task-add" class="btn-primary">Add task</button>
+              </div>
+            </div>
+            <div id="tasks-list">${rows}</div>
+          </div>
+        </div>`;
+    }
+
+    async function afterTaskMutation(msg) {
+      if (msg) {
+        $("action-msg").textContent = msg;
+        $("action-msg").classList.add("show");
+      }
+      $("err").classList.remove("show");
+      window.__tasksState.editId = null;
+      await loadTasks(true);
+    }
+
+    document.addEventListener("click", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      // List select
+      const listBtn = t.closest && t.closest("[data-task-list]");
+      if (listBtn) {
+        window.__tasksState.listId = listBtn.getAttribute("data-task-list");
+        window.__tasksState.editId = null;
+        renderTasks();
+        return;
+      }
+      if (t.id === "btn-tasks-refresh") {
+        await loadTasks(true);
+        return;
+      }
+      if (t.id === "btn-list-create") {
+        const title = ($("new-list-title") && $("new-list-title").value) || "";
+        if (!title.trim()) {
+          $("err").textContent = "List title required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          const r = await tasksPost("/api/tasks/lists/create", { title: title.trim() });
+          window.__tasksState.listId = r.list && r.list.id;
+          await afterTaskMutation(`List created: ${title.trim()}`);
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.id === "btn-task-add") {
+        const st = window.__tasksState;
+        if (!st.listId) {
+          $("err").textContent = "Select a list first";
+          $("err").classList.add("show");
+          return;
+        }
+        const title = ($("new-task-title") && $("new-task-title").value) || "";
+        if (!title.trim()) {
+          $("err").textContent = "Task title required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          await tasksPost("/api/tasks", {
+            list_id: st.listId,
+            title: title.trim(),
+            notes: ($("new-task-notes") && $("new-task-notes").value) || "",
+            due: ($("new-task-due") && $("new-task-due").value) || null,
+          });
+          if ($("new-task-title")) $("new-task-title").value = "";
+          if ($("new-task-notes")) $("new-task-notes").value = "";
+          if ($("new-task-due")) $("new-task-due").value = "";
+          await afterTaskMutation("Task created");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+
+      const row = t.closest && t.closest(".task-row");
+      if (!row) return;
+      const taskId = row.getAttribute("data-task-id");
+      const listId = row.getAttribute("data-list-id");
+      if (!taskId || !listId) return;
+
+      if (t.matches && (t.matches("[data-task-complete]") || t.matches("[data-task-complete-btn]"))) {
+        const completed = t.matches("[data-task-complete]") ? !!t.checked : true;
+        try {
+          await tasksPost("/api/tasks/complete", { list_id: listId, task_id: taskId, completed });
+          await afterTaskMutation(completed ? "Marked complete" : "Reopened");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+          await loadTasks(true);
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-reopen]")) {
+        try {
+          await tasksPost("/api/tasks/complete", { list_id: listId, task_id: taskId, completed: false });
+          await afterTaskMutation("Reopened");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-edit]")) {
+        window.__tasksState.editId = taskId;
+        renderTasks();
+        return;
+      }
+      if (t.matches && t.matches("[data-task-cancel-edit]")) {
+        window.__tasksState.editId = null;
+        renderTasks();
+        return;
+      }
+      if (t.matches && t.matches("[data-task-delete]")) {
+        if (!confirm("Delete this task permanently?")) return;
+        try {
+          await tasksPost("/api/tasks/delete", { list_id: listId, task_id: taskId });
+          await afterTaskMutation("Task deleted");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-save]")) {
+        const title = (row.querySelector(".te-title") || {}).value || "";
+        const notes = (row.querySelector(".te-notes") || {}).value || "";
+        const due = (row.querySelector(".te-due") || {}).value || "";
+        const clearDue = !!(row.querySelector(".te-clear-due") || {}).checked;
+        const dest = (row.querySelector(".te-move-list") || {}).value || listId;
+        if (!String(title).trim()) {
+          $("err").textContent = "Title is required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          await tasksPost("/api/tasks/update", {
+            list_id: listId,
+            task_id: taskId,
+            title: String(title).trim(),
+            notes,
+            due: clearDue ? null : (due || null),
+            clear_due: clearDue,
+          });
+          if (dest && dest !== listId) {
+            await tasksPost("/api/tasks/move", {
+              list_id: listId,
+              task_id: taskId,
+              destination_list: dest,
+            });
+            window.__tasksState.listId = dest;
+          }
+          await afterTaskMutation("Task updated");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+    });
+
+    document.addEventListener("change", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === "tasks-show-completed") {
+        window.__tasksState.showCompleted = !!t.checked;
+        await loadTasks(true);
+      }
+    });
 
     $("btn-refresh").addEventListener("click", load);
     $("only-touched").addEventListener("change", load);
@@ -1282,6 +1941,7 @@
         await postAction("/api/backlog/delete", { id });
       }
     });
+    initTabShell();
     load();
   </script>
 </body>
