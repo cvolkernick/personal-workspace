@@ -1,0 +1,12 @@
+{
+  "hosts": [
+    {
+      "machine": "prism",
+      "label": "Pi",
+      "hostname": "prism-gateway",
+      "ssh": "prism-agent@192.168.100.98",
+      "path": "/home/prism-agent/personal-workspace",
+      "timeout_sec": 8
+    }
+  ]
+}

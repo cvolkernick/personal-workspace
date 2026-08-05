@@ -1,0 +1,67 @@
+{
+  "machine": "prism",
+  "label": "Pi",
+  "hostname": "prism-gateway",
+  "updated_at": "2026-08-05T04:17:27Z",
+  "head": "2d4aaf0",
+  "current_branch": "(detached)",
+  "path": "/home/prism-agent/personal-workspace",
+  "ssh": "prism-agent@192.168.100.98",
+  "branches": [
+    {
+      "name": "master",
+      "sha": "970ef4d",
+      "current": false
+    },
+    {
+      "name": "work/auto/canary-autonomy-smoke",
+      "sha": "1cf1dc0",
+      "current": false
+    },
+    {
+      "name": "work/auto/improve-command-center-daily-action-plan-221fb04f",
+      "sha": "cea4e27",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-56a031d8",
+      "sha": "c26b091",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-8ebc9831",
+      "sha": "1b0a1f0",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-9edf8296",
+      "sha": "2606461",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-a0fc7b2a",
+      "sha": "49f61c5",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-smoketes",
+      "sha": "46eca8d",
+      "current": false
+    },
+    {
+      "name": "work/auto/panamerica-auto-website-test123",
+      "sha": "46eca8d",
+      "current": false
+    },
+    {
+      "name": "work/holistic",
+      "sha": "e9825b5",
+      "current": false
+    },
+    {
+      "name": "work/projects-dashboard",
+      "sha": "3ffe479",
+      "current": false
+    }
+  ]
+}

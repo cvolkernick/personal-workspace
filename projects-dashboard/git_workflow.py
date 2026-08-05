@@ -255,33 +255,247 @@ def _clone_reports_dir(repo: Path) -> Path:
     return Path(repo).resolve() / "ops" / "branch-clones"
 
 
-def load_remote_clone_reports(repo: Path = WORKSPACE_ROOT) -> list[dict[str, Any]]:
+_SKIP_CLONE_JSON = frozenset({"hosts.json"})
+
+_SSH_REMOTE_SCRIPT = r"""
+import json, socket, subprocess
+from datetime import datetime, timezone
+from pathlib import Path
+repo = Path(__import__("os").environ.get("CLONE_PATH", "")).expanduser()
+if not repo.is_dir():
+    raise SystemExit(f"missing clone path: {repo}")
+
+def run(*a):
+    return subprocess.check_output(
+        ["git", "-C", str(repo), *a], text=True, stderr=subprocess.DEVNULL
+    ).strip()
+
+host = socket.gethostname().split(".")[0]
+try:
+    current = run("branch", "--show-current") or None
+except Exception:
+    current = None
+lines = run(
+    "for-each-ref",
+    "--format=%(refname:short)|%(objectname:short)",
+    "refs/heads",
+).splitlines()
+branches = []
+for line in lines:
+    if "|" not in line:
+        continue
+    name, sha = line.split("|", 1)
+    branches.append(
+        {"name": name, "sha": sha, "current": bool(current and name == current)}
+    )
+try:
+    head = run("rev-parse", "--short", "HEAD")
+except Exception:
+    head = None
+print(
+    json.dumps(
+        {
+            "hostname": host,
+            "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "head": head,
+            "current_branch": current or "(detached)",
+            "path": str(repo),
+            "branches": branches,
+        }
+    )
+)
+"""
+
+
+def _load_clone_hosts(repo: Path) -> list[dict[str, Any]]:
+    """SSH peers listed in ``ops/branch-clones/hosts.json`` (optional)."""
+    path = _clone_reports_dir(repo) / "hosts.json"
+    if not path.is_file():
+        return []
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError, UnicodeError):
+        return []
+    hosts = raw.get("hosts") if isinstance(raw, dict) else raw
+    if not isinstance(hosts, list):
+        return []
+    out: list[dict[str, Any]] = []
+    for h in hosts:
+        if not isinstance(h, dict):
+            continue
+        ssh = str(h.get("ssh") or "").strip()
+        if not ssh:
+            continue
+        machine = str(h.get("machine") or ssh.split("@")[-1]).strip()
+        if not machine or machine in ("origin", "local"):
+            continue
+        out.append(
+            {
+                "machine": machine,
+                "label": str(h.get("label") or machine),
+                "ssh": ssh,
+                "path": str(
+                    h.get("path") or "~/personal-workspace"
+                ).strip(),
+                "timeout_sec": float(h.get("timeout_sec") or 8),
+            }
+        )
+    return out
+
+
+def refresh_ssh_clone_reports(
+    repo: Path = WORKSPACE_ROOT,
+    *,
+    hosts: Optional[list[dict[str, Any]]] = None,
+) -> list[dict[str, Any]]:
+    """Probe peer clones over SSH and cache results under ops/branch-clones/.
+
+    Returns list of per-host results: ``{machine, ok, error?, path?}``.
+    Failures leave any prior cache file intact.
+    """
+    repo = Path(repo).resolve()
+    d = _clone_reports_dir(repo)
+    d.mkdir(parents=True, exist_ok=True)
+    hosts = hosts if hosts is not None else _load_clone_hosts(repo)
+    results: list[dict[str, Any]] = []
+    for h in hosts:
+        machine = h["machine"]
+        ssh_target = h["ssh"]
+        remote_path = h["path"]
+        timeout = max(2.0, float(h.get("timeout_sec") or 8))
+        try:
+            proc = subprocess.run(
+                [
+                    "ssh",
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    f"ConnectTimeout={int(min(timeout, 15))}",
+                    "-o",
+                    "StrictHostKeyChecking=accept-new",
+                    ssh_target,
+                    f"CLONE_PATH={remote_path} python3 -",
+                ],
+                input=_SSH_REMOTE_SCRIPT,
+                capture_output=True,
+                text=True,
+                timeout=timeout + 2,
+                env={**os.environ, "GIT_TERMINAL_PROMPT": "0"},
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as e:
+            results.append(
+                {"machine": machine, "ok": False, "error": str(e), "ssh": ssh_target}
+            )
+            continue
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or "ssh failed").strip()
+            results.append(
+                {
+                    "machine": machine,
+                    "ok": False,
+                    "error": err[:400],
+                    "ssh": ssh_target,
+                }
+            )
+            continue
+        try:
+            payload = json.loads((proc.stdout or "").strip())
+        except json.JSONDecodeError as e:
+            results.append(
+                {
+                    "machine": machine,
+                    "ok": False,
+                    "error": f"bad json: {e}",
+                    "ssh": ssh_target,
+                }
+            )
+            continue
+        if not isinstance(payload, dict):
+            results.append(
+                {"machine": machine, "ok": False, "error": "payload not object"}
+            )
+            continue
+        report = {
+            "machine": machine,
+            "label": h.get("label") or machine,
+            "hostname": payload.get("hostname"),
+            "updated_at": payload.get("updated_at"),
+            "head": payload.get("head"),
+            "current_branch": payload.get("current_branch"),
+            "path": payload.get("path") or remote_path,
+            "ssh": ssh_target,
+            "branches": payload.get("branches") or [],
+        }
+        out_path = d / f"{machine}.json"
+        try:
+            out_path.write_text(
+                json.dumps(report, indent=2) + "\n", encoding="utf-8"
+            )
+        except OSError as e:
+            results.append(
+                {"machine": machine, "ok": False, "error": f"write failed: {e}"}
+            )
+            continue
+        results.append(
+            {
+                "machine": machine,
+                "ok": True,
+                "path": str(out_path.relative_to(repo))
+                if out_path.is_relative_to(repo)
+                else str(out_path),
+                "branch_count": len(report["branches"]),
+                "ssh": ssh_target,
+            }
+        )
+    return results
+
+
+def load_remote_clone_reports(
+    repo: Path = WORKSPACE_ROOT,
+    *,
+    refresh_ssh: bool = True,
+) -> list[dict[str, Any]]:
     """Load peer-machine branch inventories from ``ops/branch-clones/*.json``.
 
-    Each file::
+    Optionally refreshes peers listed in ``ops/branch-clones/hosts.json`` via SSH
+    first (writes/updates ``<machine>.json`` cache files). This machine is always
+    built live from local git; files here are *other* clones.
+
+    Each report file::
 
         {
-          "machine": "pi",          # column id (stable)
-          "label": "Pi",            # display name (optional)
-          "hostname": "prism",      # optional
-          "updated_at": "ISO-8601", # optional
+          "machine": "pi",
+          "label": "Pi",
+          "hostname": "prism-gateway",
+          "updated_at": "ISO-8601",
           "branches": [
             {"name": "master", "sha": "abc1234", "current": true}
           ]
         }
-
-    This machine is always built live from git; files here are *other* clones.
     """
+    repo = Path(repo).resolve()
+    if refresh_ssh and _load_clone_hosts(repo):
+        # Best-effort; keep last cache on failure
+        try:
+            refresh_ssh_clone_reports(repo)
+        except Exception:
+            pass
+
     d = _clone_reports_dir(repo)
     if not d.is_dir():
         return []
     reports: list[dict[str, Any]] = []
     for path in sorted(d.glob("*.json")):
+        if path.name in _SKIP_CLONE_JSON:
+            continue
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError, UnicodeError):
             continue
         if not isinstance(raw, dict):
+            continue
+        # hosts.json shape has "hosts" key — skip even if renamed
+        if "hosts" in raw and "branches" not in raw:
             continue
         machine = str(raw.get("machine") or path.stem).strip()
         if not machine or machine in ("origin", "local"):
@@ -309,8 +523,8 @@ def load_remote_clone_reports(repo: Path = WORKSPACE_ROOT) -> list[dict[str, Any
                 "label": str(raw.get("label") or raw.get("hostname") or machine),
                 "hostname": raw.get("hostname"),
                 "updated_at": raw.get("updated_at"),
-                "source": str(path.relative_to(Path(repo).resolve()))
-                if path.is_relative_to(Path(repo).resolve())
+                "source": str(path.relative_to(repo))
+                if path.is_relative_to(repo)
                 else str(path),
                 "branches": cleaned,
             }

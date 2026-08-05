@@ -5,7 +5,41 @@ The Workflow Management **Repo → Matrix** view always includes:
 1. **origin** — remote branches from `git fetch` / `refs/remotes/origin`
 2. **this machine** — live local heads + worktree checkouts
 
-To show additional clones (Pi, laptop B, VPS, …), drop a JSON file here:
+It does **not** magically discover every network machine. Extra columns come from
+peer clone reports (cached JSON), optionally refreshed over SSH.
+
+## Preferred: SSH hosts config (auto-refresh)
+
+```text
+ops/branch-clones/hosts.json
+```
+
+```json
+{
+  "hosts": [
+    {
+      "machine": "prism",
+      "label": "Pi",
+      "ssh": "prism-agent@192.168.100.98",
+      "path": "/home/prism-agent/personal-workspace",
+      "timeout_sec": 8
+    }
+  ]
+}
+```
+
+On each matrix build the dashboard SSHes (BatchMode, short timeout), inventories
+`refs/heads` on that clone, and writes `ops/branch-clones/<machine>.json`.
+If SSH fails, the last good cache is still shown.
+
+```bash
+# Manual refresh only:
+python3 -c "from git_workflow import refresh_ssh_clone_reports; print(refresh_ssh_clone_reports())"
+```
+
+Requires passwordless SSH (key already authorized on the peer).
+
+## Manual: drop a JSON report
 
 ```text
 ops/branch-clones/<machine-id>.json
