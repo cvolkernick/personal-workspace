@@ -97,6 +97,10 @@ from rt_dashboard.google_auth import (  # noqa: E402
 )
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
+from rt_dashboard.hidrate_client import (  # noqa: E402
+    hidrate_credentials_present,
+    overlay_hidrate_hydration,
+)
 from rt_dashboard.models import ExerciseEntry, HealthSnapshot, Session, SetEntry  # noqa: E402
 from rt_dashboard.labs_store import load_labs  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
@@ -540,6 +544,10 @@ def load_dashboard_data(
             workspace_dir=local_dir,
             github_token=token,
         )
+        # Hidrate cloud Day totals are SoT for water when HIDRATE_* is set.
+        # Overlapping GH dates (partial HC / Fitbit) are replaced — no double-count.
+        resolved, hidrate_meta = overlay_hidrate_hydration(resolved, days=days)
+        cache_notes.setdefault("hidrate", {}).update(hidrate_meta)
         if not use_full and cached_health is not None:
             return merge_health_snapshots(cached_health, resolved)
         if use_full and cached_health is not None:
@@ -643,6 +651,20 @@ def load_dashboard_data(
             health.error = None
         except Exception:
             pass
+
+    # Always re-apply Hidrate on the assembled snapshot (including cache hits).
+    # Series is process-cached ~5 min so bottle totals stay current without a full GH pull.
+    if hidrate_credentials_present():
+        try:
+            health, hidrate_meta = overlay_hidrate_hydration(
+                health, days=90 if force_refresh else max(14, incremental_days)
+            )
+            cache_notes.setdefault("hidrate", {}).update(hidrate_meta)
+            if hidrate_meta.get("applied") and not cache_notes["health"].get("refreshed"):
+                # Persist overlay so next cold read already has source=hidrate days.
+                save_health_cache(health, error=health.error)
+        except Exception as e:  # noqa: BLE001
+            cache_notes.setdefault("hidrate", {})["error"] = str(e)
 
     # Unlogged nights = 0h sleep debt for charts, recovery, and coach.
     from rt_dashboard.sleep_series import expand_sleep_calendar
@@ -823,6 +845,7 @@ def load_dashboard_data(
         "github_branch": gh.branch,
         "prefer_local": gh.prefer_local,
         "health_credentials": health_client.credentials_present(),
+        "hidrate_credentials": hidrate_credentials_present(),
         "health_weight_points": len(health.weight),
         "health_sleep_points": len(health.sleep),
         "health_nutrition_days": len(health.nutrition),
