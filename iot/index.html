@@ -3,9 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>IoT Control</title>
-  <meta name="iot-ui" content="v2-oncount" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>💡 IoT Control</title>
+  <meta name="iot-ui" content="v5-brand-icon" />
+  <!-- Simple light-bulb favicon (emoji-adjacent mark for the browser tab) -->
+  <link
+    rel="icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f14'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-size='40'%3E%F0%9F%92%A1%3C/text%3E%3C/svg%3E"
+  />
+  <link
+    rel="apple-touch-icon"
+    href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0f14'/%3E%3Ctext x='32' y='44' text-anchor='middle' font-size='40'%3E%F0%9F%92%A1%3C/text%3E%3C/svg%3E"
+  />
   <style>
     :root {
       --bg: #0b0f14;
@@ -28,22 +41,43 @@
       color: var(--text);
       min-height: 100vh;
       line-height: 1.45;
+      overflow-x: hidden;
+      max-width: 100vw;
     }
     header {
-      padding: 1.1rem 1.5rem;
+      padding: 0.85rem 1.1rem;
       border-bottom: 1px solid var(--border);
       display: flex;
       flex-wrap: wrap;
-      gap: 1rem;
+      gap: 0.75rem;
       align-items: center;
       justify-content: space-between;
-      position: sticky;
-      top: 0;
-      background: rgba(11,15,20,0.92);
+      background: rgba(11,15,20,0.94);
       backdrop-filter: blur(8px);
-      z-index: 20;
+      z-index: 30;
     }
-    header h1 { margin: 0; font-size: 1.3rem; font-weight: 650; letter-spacing: -0.02em; }
+    header h1 {
+      margin: 0;
+      font-size: 1.3rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+    }
+    header h1 .brand-ico {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 1.65rem;
+      height: 1.65rem;
+      border-radius: 0.45rem;
+      background: linear-gradient(145deg, rgba(245, 197, 66, 0.22), rgba(91, 159, 212, 0.18));
+      border: 1px solid rgba(245, 197, 66, 0.35);
+      font-size: 1.05rem;
+      line-height: 1;
+      flex-shrink: 0;
+    }
     header .sub { color: var(--muted); font-size: 0.88rem; }
     main {
       max-width: 1100px;
@@ -186,6 +220,18 @@
       font-weight: 600;
     }
     .badge.ok { border-color: #3a5a40; color: var(--green); }
+    .badge.bri {
+      border-color: #3a4a6a;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
+      min-width: 2.6rem;
+      text-align: center;
+    }
+    .bri-pct {
+      color: var(--accent);
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
     .badge.warn { border-color: #6a5020; color: var(--yellow); }
     .badge.err { border-color: #5a3030; color: var(--red); }
     .presets { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.45rem; }
@@ -253,84 +299,328 @@
       border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -2px; }
     @keyframes spin { to { transform: rotate(360deg); } }
     .footer-note { color: var(--muted); font-size: 0.78rem; margin: 0.6rem 0 0; }
+    .command-bar {
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 0.65rem 1.1rem 0.75rem;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+    .command-bar form {
+      display: flex;
+      gap: 0.5rem;
+      align-items: stretch;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .command-bar input[type="text"] {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--fill);
+      padding: 0.7rem 0.9rem;
+      font: inherit;
+      font-size: 1rem;
+    }
+    .command-bar input[type="text"]:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(100, 140, 255, 0.2);
+    }
+    .command-bar button {
+      flex-shrink: 0;
+      padding: 0.7rem 1.1rem;
+      font-size: 0.95rem;
+    }
+    .command-reply {
+      max-width: 960px;
+      margin: 0.4rem auto 0;
+      font-size: 0.85rem;
+      color: var(--muted);
+      min-height: 1.2em;
+    }
+    .command-reply.ok { color: var(--green); }
+    .command-reply.err { color: var(--red); }
+    .command-examples {
+      max-width: 960px;
+      margin: 0.35rem auto 0;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .command-examples code {
+      display: inline-block;
+      margin: 0.15rem 0.25rem 0 0;
+      padding: 0.1rem 0.35rem;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--fill);
+      font-size: 0.72rem;
+      cursor: pointer;
+    }
+
+    /* —— FitDash/FCC tab shell: top tabs on web, bottom dock on phone —— */
+    .mobile-tabbar {
+      display: none;
+    }
+    body.m-shell .mobile-tabbar {
+      display: flex;
+      align-items: stretch;
+      gap: 0.2rem;
+      background: rgba(11, 15, 20, 0.96);
+      border-bottom: 1px solid var(--border);
+      z-index: 45;
+    }
+    body.m-shell .mobile-tabbar .tab-btn {
+      flex: 1 1 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.25rem;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 12px;
+      font-weight: 600;
+      font-family: inherit;
+      cursor: pointer;
+      min-width: 0;
+    }
+    body.m-shell .mobile-tabbar .tab-btn .tab-ico { line-height: 1; }
+    body.m-shell .mobile-tabbar .tab-btn .tab-lbl { white-space: nowrap; }
+    body.m-shell .mobile-tabbar .tab-btn.active {
+      color: var(--text);
+      background: rgba(91, 159, 212, 0.18);
+    }
+    body.m-shell [data-m-panel] { display: none !important; }
+    body.m-shell[data-m-active="control"] [data-m-panel="control"],
+    body.m-shell[data-m-active="routines"] [data-m-panel="routines"],
+    body.m-shell[data-m-active="status"] [data-m-panel="status"],
+    body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+      display: block !important;
+    }
+
+    @media (min-width: 721px) {
+      body.m-shell .mobile-tabbar {
+        position: sticky;
+        top: 0;
+        margin: 0 auto;
+        max-width: 1100px;
+        padding: 0.4rem 0.5rem 0.5rem;
+        gap: 0.35rem;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      body.m-shell .mobile-tabbar .tab-btn {
+        flex-direction: row;
+        min-height: 2.4rem;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.82rem;
+        border: 1px solid transparent;
+      }
+      body.m-shell .mobile-tabbar .tab-btn.active {
+        border-color: rgba(91, 159, 212, 0.45);
+      }
+      body.m-shell .mobile-tabbar .tab-btn .tab-ico { font-size: 0.95rem; }
+      body.m-shell .command-examples { display: block; }
+    }
+
+    @media (max-width: 720px) {
+      :root { font-size: 16px; }
+      body.m-shell {
+        padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell main {
+        padding: 0.75rem 0.75rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell header {
+        padding: 0.7rem 0.85rem;
+      }
+      body.m-shell header .sub { display: none; }
+      body.m-shell header h1 { font-size: 1.15rem; }
+      body.m-shell .header-actions .meta { font-size: 0.75rem; }
+      body.m-shell .command-bar {
+        padding: 0.55rem 0.75rem 0.6rem;
+      }
+      body.m-shell .command-examples { display: none; }
+      body.m-shell .mobile-tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        z-index: 50;
+        margin: 0;
+        max-width: none;
+        width: auto;
+        gap: 0.1rem;
+        padding: 0.35rem 0.3rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+        border-bottom: none;
+        border-top: 1px solid var(--border);
+        background: rgba(11, 15, 20, 0.97);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 -6px 24px rgba(0, 0, 0, 0.35);
+      }
+      body.m-shell .mobile-tabbar .tab-btn {
+        flex-direction: column;
+        min-height: 48px;
+        padding: 0.3rem 0.1rem;
+        font-size: 0.65rem;
+        border-radius: 10px;
+      }
+      body.m-shell .mobile-tabbar .tab-btn .tab-ico { font-size: 1.1rem; }
+      body.m-shell .command-bar form { gap: 0.4rem; }
+      body.m-shell .command-bar input[type="text"] {
+        font-size: 16px; /* avoid iOS zoom */
+        padding: 0.65rem 0.75rem;
+      }
+    }
   </style>
 </head>
-<body>
+<body class="m-shell" data-m-active="control">
   <header>
     <div>
-      <h1>IoT Control</h1>
-      <div class="sub">Rooms · devices · sunrise/sunset routines</div>
+      <h1><span class="brand-ico" aria-hidden="true">💡</span>IoT Control</h1>
+      <div class="sub">Rooms · devices · sunrise/sunset · sleep dim</div>
     </div>
-    <div class="row">
+    <div class="row header-actions">
       <label class="meta" style="margin:0;display:flex;align-items:center;gap:0.35rem">
         Bri
-        <input type="range" id="global-bri" min="10" max="255" value="180" style="width:7rem" title="Brightness for next On/color actions" />
-        <span id="bri-val">180</span>
+        <input type="range" id="global-bri" min="10" max="255" value="180" style="width:7rem" title="Default brightness for commands / On / color (shown as %)" />
+        <span id="bri-val" class="bri-pct">71%</span>
       </label>
       <button type="button" class="primary" id="btn-refresh">Refresh</button>
       <button type="button" class="danger off" id="btn-all-off">All off</button>
     </div>
   </header>
+
+  <div class="command-bar" id="command-bar">
+    <form id="command-form" autocomplete="off">
+      <input
+        type="text"
+        id="command-input"
+        name="command"
+        placeholder="Command: bedroom 40% · entryway magenta · all off · living room warm 50% · run sunset"
+        maxlength="400"
+        enterkeyhint="send"
+        aria-label="IoT command"
+      />
+      <button type="submit" class="primary" id="btn-command">Run</button>
+    </form>
+    <div class="command-reply" id="command-reply" aria-live="polite"></div>
+    <div class="command-examples" id="command-examples">
+      Examples:
+      <code data-cmd="all off">all off</code>
+      <code data-cmd="entryway magenta">entryway magenta</code>
+      <code data-cmd="bedroom 40%">bedroom 40%</code>
+      <code data-cmd="living room warm 50%">living room warm 50%</code>
+      <code data-cmd="run sunset">run sunset</code>
+      <code data-cmd="status">status</code>
+    </div>
+  </div>
+
+  <!--
+    Tab bar — same placement as FitDash/FCC:
+    web (≥721px): sticky TOP · phone (≤720px): fixed BOTTOM dock
+  -->
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="control" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">💡</span>
+      <span class="tab-lbl">Control</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="routines">
+      <span class="tab-ico" aria-hidden="true">⏱</span>
+      <span class="tab-lbl">Routines</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="status">
+      <span class="tab-ico" aria-hidden="true">◎</span>
+      <span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="more">
+      <span class="tab-ico" aria-hidden="true">···</span>
+      <span class="tab-lbl">More</span>
+    </button>
+  </nav>
+
   <main>
-    <section class="card">
-      <h2>Overview</h2>
-      <div class="stats">
-        <div class="stat"><div class="label">Devices</div><div class="value" id="stat-count">—</div></div>
-        <div class="stat"><div class="label">Online</div><div class="value" id="stat-online">—</div></div>
-        <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
-        <div class="stat"><div class="label">Backend</div><div class="value" id="stat-backend" style="font-size:0.85rem">—</div></div>
-        <div class="stat"><div class="label">Next routine</div><div class="value" id="stat-next" style="font-size:0.92rem">—</div></div>
-        <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.88rem">—</div></div>
-      </div>
-      <div id="backend-banner" class="next-banner" style="display:none;margin-top:0.75rem"></div>
-    </section>
+    <div data-m-panel="control">
+      <section class="card">
+        <h2>Rooms <span class="hint">group toggles</span></h2>
+        <div class="groups" id="groups"><div class="meta">Loading…</div></div>
+        <h2 style="margin-top:1.25rem">Devices <span class="hint" id="devices-hint"></span></h2>
+        <div id="devices-by-room"><div class="meta">Loading…</div></div>
+      </section>
+      <section class="card">
+        <h2>All lights</h2>
+        <div class="global-presets" id="global-presets"></div>
+      </section>
+    </div>
 
-    <section class="card">
-      <h2>Rooms <span class="hint">group toggles</span></h2>
-      <div class="groups" id="groups"><div class="meta">Loading…</div></div>
-      <h2 style="margin-top:1.25rem">Devices <span class="hint" id="devices-hint"></span></h2>
-      <div id="devices-by-room"><div class="meta">Loading…</div></div>
-    </section>
+    <div data-m-panel="routines">
+      <section class="card">
+        <h2>Routines <span class="hint">sunrise / sunset</span></h2>
+        <div id="next-banner" class="next-banner" style="display:none"></div>
+        <div id="schedule-summary" class="meta">Loading schedule…</div>
+        <div id="schedule-table"></div>
+        <div class="loc-form" id="loc-form">
+          <label>Latitude <input type="number" step="any" id="loc-lat" placeholder="26.57" /></label>
+          <label>Longitude <input type="number" step="any" id="loc-lon" placeholder="-81.59" /></label>
+          <label>Timezone <input type="text" id="loc-tz" placeholder="America/New_York" style="width:10rem" /></label>
+          <button type="button" class="primary" id="btn-save-loc">Save location</button>
+          <button type="button" id="btn-geo">Use browser location</button>
+        </div>
+        <p class="footer-note">
+          Dashboard process must keep running for automatic routines.
+          Sunset default color is <strong style="color:var(--magenta)">magenta</strong>.
+        </p>
+      </section>
+    </div>
 
-    <section class="card">
-      <h2>All lights</h2>
-      <div class="global-presets" id="global-presets"></div>
-    </section>
+    <div data-m-panel="status">
+      <section class="card">
+        <h2>Overview</h2>
+        <div class="stats">
+          <div class="stat"><div class="label">Devices</div><div class="value" id="stat-count">—</div></div>
+          <div class="stat"><div class="label">Online</div><div class="value" id="stat-online">—</div></div>
+          <div class="stat"><div class="label">Service</div><div class="value" id="stat-svc">—</div></div>
+          <div class="stat"><div class="label">Backend</div><div class="value" id="stat-backend" style="font-size:0.85rem">—</div></div>
+          <div class="stat"><div class="label">Next routine</div><div class="value" id="stat-next" style="font-size:0.92rem">—</div></div>
+          <div class="stat"><div class="label">Last action</div><div class="value" id="stat-last" style="font-size:0.88rem">—</div></div>
+        </div>
+        <div id="backend-banner" class="next-banner" style="display:none;margin-top:0.75rem"></div>
+      </section>
+      <section class="card">
+        <h2>Sleep battery dim <span class="hint">post-sunset</span></h2>
+        <div id="sleep-follow-status" class="meta">Loading sleep-follow…</div>
+      </section>
+    </div>
 
-    <section class="card">
-      <h2>Routines <span class="hint">sunrise / sunset</span></h2>
-      <div id="next-banner" class="next-banner" style="display:none"></div>
-      <div id="schedule-summary" class="meta">Loading schedule…</div>
-      <div id="schedule-table"></div>
-      <div class="loc-form" id="loc-form">
-        <label>Latitude <input type="number" step="any" id="loc-lat" placeholder="26.57" /></label>
-        <label>Longitude <input type="number" step="any" id="loc-lon" placeholder="-81.59" /></label>
-        <label>Timezone <input type="text" id="loc-tz" placeholder="America/New_York" style="width:10rem" /></label>
-        <button type="button" class="primary" id="btn-save-loc">Save location</button>
-        <button type="button" id="btn-geo">Use browser location</button>
-      </div>
-      <p class="footer-note">
-        Dashboard process must keep running for automatic routines.
-        Sunset default color is <strong style="color:var(--magenta)">magenta</strong>.
-      </p>
-    </section>
-
-    <section class="card">
-      <details class="advanced" id="discover-details">
-        <summary>▸ Network discovery</summary>
+    <div data-m-panel="more">
+      <section class="card">
+        <h2>Network discovery</h2>
         <div class="row" style="margin-bottom:0.5rem">
           <button type="button" id="btn-discover">Scan network</button>
         </div>
         <div id="discovery-notes" class="meta">Scan for Wiz bulbs and mDNS services.</div>
-      </details>
-    </section>
-
-    <section class="card">
-      <details class="advanced">
-        <summary>▸ Activity log</summary>
+      </section>
+      <section class="card">
+        <h2>Activity log</h2>
         <div id="log"></div>
-      </details>
-    </section>
+      </section>
+      <section class="card">
+        <h2>Access</h2>
+        <p class="meta" style="margin:0">
+          <strong>LAN:</strong> <code>http://192.168.100.98:8780/</code><br />
+          <strong>Off-LAN (Tailscale):</strong> <code>http://100.67.114.2:8780/</code><br />
+          <strong>MagicDNS:</strong> <code>http://prism-gateway:8780/</code>
+        </p>
+        <p class="footer-note">Phone needs Tailscale connected to reach the Pi off home Wi‑Fi.</p>
+      </section>
+    </div>
   </main>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
@@ -442,6 +732,36 @@
       return `${sec}s`;
     }
 
+    /** Wiz pilot brightness 0–255 → integer percent 0–100. */
+    function brightnessPct(bri) {
+      if (bri == null || bri === "") return null;
+      const n = Number(bri);
+      if (Number.isNaN(n)) return null;
+      return Math.round((Math.max(0, Math.min(255, n)) / 255) * 100);
+    }
+
+    function formatBrightnessPct(bri) {
+      const pct = brightnessPct(bri);
+      return pct == null ? null : `${pct}%`;
+    }
+
+    /** For a room group: single % or min–max range from on members with brightness. */
+    function groupBrightnessLabel(g) {
+      const pcts = [];
+      for (const mid of g.members || []) {
+        const d = devices.find(x => x.id === mid);
+        const st = d && d.status;
+        if (!st || !st.ok || st.brightness == null) continue;
+        // Show level even when off (last reported), but only for lights that report bri
+        const pct = brightnessPct(st.brightness);
+        if (pct != null) pcts.push(pct);
+      }
+      if (!pcts.length) return null;
+      const lo = Math.min(...pcts);
+      const hi = Math.max(...pcts);
+      return lo === hi ? `${lo}%` : `${lo}–${hi}%`;
+    }
+
     function presetButtons(controlTarget, presets) {
       return (presets || PRESETS).map(p => {
         const sw = `<span class="swatch" style="background:${PRESET_COLORS[p]}"></span>`;
@@ -465,9 +785,13 @@
           st === "mixed" ? '<span class="badge warn">mixed</span>' :
           st === "err" ? '<span class="badge err">error</span>' :
           '<span class="badge">—</span>';
+        const briLabel = groupBrightnessLabel(g);
+        const briBadge = briLabel
+          ? ` <span class="badge bri" title="Current brightness">${esc(briLabel)}</span>`
+          : "";
         const dotCls = st === "on" ? "on" : st === "off" ? "off" : st === "mixed" ? "mixed" : st === "err" ? "err" : "";
         return `<div class="group" data-group="${esc(g.id)}">
-          <h3><span class="dot ${dotCls}"></span>${esc(g.label || g.id)} ${badge}</h3>
+          <h3><span class="dot ${dotCls}"></span>${esc(g.label || g.id)} ${badge}${briBadge}</h3>
           <div class="meta">${(g.members || []).length} lights · ${(g.members || []).map(esc).join(", ")}</div>
           <div class="toggles">
             <button type="button" class="on-btn primary" data-group-on="${esc(g.id)}">On</button>
@@ -530,15 +854,20 @@
         const cards = buckets[gid].map(d => {
           const st = d.status;
           let stLine = "";
+          let briBadge = "";
           if (st && st.ok) {
+            const pct = formatBrightnessPct(st.brightness);
             stLine = ` · ${st.on ? "ON" : "OFF"}` +
-              (st.brightness != null ? ` · bri ${st.brightness}` : "");
+              (pct ? ` · <span class="bri-pct">${esc(pct)}</span>` : "");
+            if (pct) {
+              briBadge = ` <span class="badge bri" title="Brightness ${esc(pct)} (Wiz ${st.brightness}/255)">${esc(pct)}</span>`;
+            }
           } else if (st && !st.ok) {
             stLine = ` · ${st.error || "unreachable"}`;
           }
           const t = controlTargetForDevice(d);
           return `<div class="device" data-id="${esc(d.id)}">
-            <h3>${statusDot(d)}${esc(d.name || d.id)}</h3>
+            <h3>${statusDot(d)}${esc(d.name || d.id)}${briBadge}</h3>
             <div class="meta"><code>${esc(d.ip || "—")}</code>${stLine}</div>
             <div class="presets">${presetButtons(t, QUICK_PRESETS)}</div>
           </div>`;
@@ -726,6 +1055,49 @@
       }
     }
 
+    function setCommandReply(text, ok) {
+      const el = document.getElementById("command-reply");
+      if (!el) return;
+      el.textContent = text || "";
+      el.className = "command-reply" + (ok === true ? " ok" : ok === false ? " err" : "");
+    }
+
+    async function runCommand(raw) {
+      const message = (raw || "").trim();
+      const input = document.getElementById("command-input");
+      if (!message) {
+        setCommandReply("Type a command — e.g. bedroom 40% or all off.", false);
+        return;
+      }
+      if (controlBusy) return;
+      controlBusy = true;
+      setCommandReply("Running…", null);
+      document.getElementById("stat-last").textContent = `cmd: ${message.slice(0, 48)}`;
+      try {
+        const { status, data } = await api("POST", "/api/assistant", {
+          message,
+          brightness: bri(),
+        });
+        const reply = (data && (data.reply || data.error)) || `HTTP ${status}`;
+        const clean = String(reply).replace(/\*\*([^*]+)\*\*/g, "$1");
+        const ok = !!(data && data.ok);
+        setCommandReply(clean, ok);
+        toast(clean, ok);
+        log(`cmd ${ok ? "OK" : "FAIL"}: ${message} → ${clean}`);
+        // status action: just refresh; control/routines already applied server-side
+        await refresh(true);
+        if (input && ok) {
+          input.select();
+        }
+      } catch (e) {
+        setCommandReply(String(e), false);
+        toast(String(e), false);
+        log(`cmd ERROR: ${e}`);
+      } finally {
+        controlBusy = false;
+      }
+    }
+
     async function refresh(withStatus) {
       const hint = document.getElementById("devices-hint");
       const prev = hint ? hint.textContent : "";
@@ -764,6 +1136,8 @@
         const schedRes = await api("GET", "/api/schedule", undefined, 15000);
         if (schedRes.data && schedRes.data.ok) renderSchedule(schedRes.data);
         else log("schedule error: " + ((schedRes.data && schedRes.data.error) || schedRes.status));
+
+        await refreshSleepFollow();
       } catch (e) {
         log("refresh error: " + e);
         toast("Refresh failed: " + e, false);
@@ -772,10 +1146,52 @@
       }
     }
 
+    function setActiveTab(tabId) {
+      const id = tabId || "control";
+      document.body.dataset.mActive = id;
+      document.querySelectorAll("#mobile-tabbar .tab-btn").forEach((btn) => {
+        const on = btn.getAttribute("data-m-tab") === id;
+        btn.classList.toggle("active", on);
+        if (on) btn.setAttribute("aria-current", "page");
+        else btn.removeAttribute("aria-current");
+      });
+      try {
+        history.replaceState(null, "", "#" + id);
+      } catch (_) {}
+    }
+
+    async function refreshSleepFollow() {
+      const el = document.getElementById("sleep-follow-status");
+      if (!el) return;
+      try {
+        const { data } = await api("GET", "/api/sleep-follow", undefined, 12000);
+        if (!data || !data.ok) {
+          el.textContent = (data && data.error) || "sleep-follow unavailable";
+          return;
+        }
+        const cfg = data.config || {};
+        const st = data.state || {};
+        const targets = cfg.targets || (cfg.target ? [cfg.target] : []);
+        const bits = [
+          cfg.enabled === false ? "disabled" : "enabled",
+          "targets: " + (targets.join(", ") || "—"),
+          "poll " + (cfg.poll_minutes || "?") + "m after sunset",
+          st.active ? "active" : "idle",
+          st.done ? "done for day" : "not done",
+          st.last_pct != null ? ("last " + st.last_pct + "%") : "no poll yet",
+          st.last_error ? ("error: " + st.last_error) : null,
+          st.last_poll_at ? ("polled " + st.last_poll_at) : null,
+        ].filter(Boolean);
+        el.innerHTML = bits.map((b) => `<div>${esc(String(b))}</div>`).join("");
+      } catch (e) {
+        el.textContent = String(e);
+      }
+    }
+
     async function discover() {
       const notes = document.getElementById("discovery-notes");
       notes.textContent = "Scanning…";
-      document.getElementById("discover-details").open = true;
+      setActiveTab("more");
       try {
         const { data } = await api("GET", "/api/discover?wait=4&mdns=1");
         const mdns = (data.lan && data.lan.mdns) || [];
@@ -829,7 +1245,36 @@
       try { renderGlobalPresets(); } catch (e) { log("presets: " + e); }
       const bri = document.getElementById("global-bri");
       if (bri) {
-        bri.addEventListener("input", (e) => setText("bri-val", e.target.value));
+        const syncBriLabel = () => {
+          const pct = formatBrightnessPct(bri.value);
+          setText("bri-val", pct || String(bri.value));
+        };
+        bri.addEventListener("input", syncBriLabel);
+        syncBriLabel();
+      }
+      const cmdForm = document.getElementById("command-form");
+      if (cmdForm) {
+        cmdForm.addEventListener("submit", (e) => {
+          e.preventDefault();
+          const input = document.getElementById("command-input");
+          runCommand(input ? input.value : "");
+        });
+      }
+      document.querySelectorAll("#command-examples [data-cmd]").forEach((el) => {
+        el.addEventListener("click", () => {
+          const input = document.getElementById("command-input");
+          if (input) input.value = el.getAttribute("data-cmd") || "";
+          runCommand(el.getAttribute("data-cmd") || "");
+        });
+      });
+      document.querySelectorAll("#mobile-tabbar [data-m-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => setActiveTab(btn.getAttribute("data-m-tab")));
+      });
+      const hashTab = (location.hash || "").replace(/^#/, "");
+      if (["control", "routines", "status", "more"].includes(hashTab)) {
+        setActiveTab(hashTab);
+      } else {
+        setActiveTab("control");
       }
       try {
         const { data } = await api("GET", "/api/health", undefined, 10000);

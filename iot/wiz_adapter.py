@@ -50,7 +50,21 @@ def _normalize_pilot(state: Any) -> Optional[Any]:
 
 
 class PyWizTransport:
-    """Real pywizlight-backed transport."""
+    """Real pywizlight-backed transport.
+
+    Always close the UDP transport after each call. pywizlight's wizlight holds
+    an open datagram socket; without async_close we leak FDs until EMFILE and
+    the HTTP server can no longer open index.html (404).
+    """
+
+    @staticmethod
+    async def _wiz_close(wl: Any) -> None:
+        try:
+            close = getattr(wl, "async_close", None)
+            if close is not None:
+                await close()
+        except Exception:  # noqa: BLE001
+            pass
 
     async def turn_on(
         self, ip: str, mac: Optional[str], rgb: Optional[Sequence[int]], brightness: int
@@ -58,50 +72,61 @@ class PyWizTransport:
         from pywizlight import PilotBuilder, wizlight
 
         wl = wizlight(ip, DEFAULT_PORT, mac)
-        if rgb is None:
-            await wl.turn_on(PilotBuilder(brightness=brightness))
-        else:
-            await wl.turn_on(
-                PilotBuilder(rgb=tuple(int(c) for c in rgb), brightness=int(brightness))
-            )
-        return {"ok": True, "ip": ip, "action": "on"}
+        try:
+            if rgb is None:
+                await wl.turn_on(PilotBuilder(brightness=brightness))
+            else:
+                await wl.turn_on(
+                    PilotBuilder(
+                        rgb=tuple(int(c) for c in rgb), brightness=int(brightness)
+                    )
+                )
+            return {"ok": True, "ip": ip, "action": "on"}
+        finally:
+            await self._wiz_close(wl)
 
     async def turn_off(self, ip: str, mac: Optional[str]) -> dict[str, Any]:
         from pywizlight import wizlight
 
         wl = wizlight(ip, DEFAULT_PORT, mac)
-        await wl.turn_off()
-        return {"ok": True, "ip": ip, "action": "off"}
+        try:
+            await wl.turn_off()
+            return {"ok": True, "ip": ip, "action": "off"}
+        finally:
+            await self._wiz_close(wl)
 
     async def get_state(self, ip: str, mac: Optional[str]) -> dict[str, Any]:
         from pywizlight import wizlight
 
         wl = wizlight(ip, DEFAULT_PORT, mac)
         try:
-            raw = await asyncio.wait_for(wl.updateState(), timeout=4.0)
-        except Exception as e:  # noqa: BLE001
-            return {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}
-        pilot = _normalize_pilot(raw)
-        if pilot is None:
-            # fall back to wl.state
-            pilot = _normalize_pilot(getattr(wl, "state", None))
-        if pilot is None:
-            return {"ok": False, "ip": ip, "error": "no state returned"}
-        try:
-            on = bool(pilot.get_state())
-            brightness = pilot.get_brightness()
-            rgb = pilot.get_rgb()
-            mac_out = pilot.get_mac() if hasattr(pilot, "get_mac") else mac
-            return {
-                "ok": True,
-                "ip": ip,
-                "mac": mac_out,
-                "on": on,
-                "brightness": brightness,
-                "rgb": list(rgb) if rgb else None,
-            }
-        except Exception as e:  # noqa: BLE001
-            return {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}
+            try:
+                raw = await asyncio.wait_for(wl.updateState(), timeout=4.0)
+            except Exception as e:  # noqa: BLE001
+                return {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}
+            pilot = _normalize_pilot(raw)
+            if pilot is None:
+                # fall back to wl.state
+                pilot = _normalize_pilot(getattr(wl, "state", None))
+            if pilot is None:
+                return {"ok": False, "ip": ip, "error": "no state returned"}
+            try:
+                on = bool(pilot.get_state())
+                brightness = pilot.get_brightness()
+                rgb = pilot.get_rgb()
+                mac_out = pilot.get_mac() if hasattr(pilot, "get_mac") else mac
+                return {
+                    "ok": True,
+                    "ip": ip,
+                    "mac": mac_out,
+                    "on": on,
+                    "brightness": brightness,
+                    "rgb": list(rgb) if rgb else None,
+                }
+            except Exception as e:  # noqa: BLE001
+                return {"ok": False, "ip": ip, "error": f"{type(e).__name__}: {e}"}
+        finally:
+            await self._wiz_close(wl)
 
     async def discover(
         self, broadcast: str = "255.255.255.255", wait_time: float = 5.0
@@ -112,23 +137,27 @@ class PyWizTransport:
             broadcast_space=broadcast, wait_time=wait_time
         )
         out: list[dict[str, Any]] = []
-        for b in bulbs or []:
-            ip = getattr(b, "ip", None)
-            mac = getattr(b, "mac", None)
-            port = getattr(b, "port", DEFAULT_PORT) or DEFAULT_PORT
-            out.append(
-                {
-                    "id": f"wiz-{ip}",
-                    "name": f"wiz-{ip}",
-                    "ip": ip,
-                    "mac": str(mac).replace(":", "").lower() if mac else None,
-                    "port": int(port),
-                    "type": "wiz",
-                    "source": "discovery",
-                    "controllable": True,
-                }
-            )
-        return out
+        try:
+            for b in bulbs or []:
+                ip = getattr(b, "ip", None)
+                mac = getattr(b, "mac", None)
+                port = getattr(b, "port", DEFAULT_PORT) or DEFAULT_PORT
+                out.append(
+                    {
+                        "id": f"wiz-{ip}",
+                        "name": f"wiz-{ip}",
+                        "ip": ip,
+                        "mac": str(mac).replace(":", "").lower() if mac else None,
+                        "port": int(port),
+                        "type": "wiz",
+                        "source": "discovery",
+                        "controllable": True,
+                    }
+                )
+            return out
+        finally:
+            for b in bulbs or []:
+                await self._wiz_close(b)
 
 
 class FakeTransport:
