@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version_id": "20260727T001437Z",
-  "updated_at": "2026-07-27T00:14:37.346479+00:00",
+  "version_id": "20260805T234722Z",
+  "updated_at": "2026-08-05T23:47:22.724315+00:00",
   "domains": {
     "geopolitics": {
       "label": "Geopolitics",
@@ -36,10 +36,42 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346491+00:00"
+          "updated_at": "2026-08-05T23:47:22.724327+00:00"
+        },
+        {
+          "id": "geo-industrial-policy-race",
+          "domain": "geopolitics",
+          "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+          "facts": [
+            "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+            "Tariff and export-control toolkits are used with higher frequency in bilateral disputes."
+          ],
+          "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+          "confidence": 0.8,
+          "impact": "high",
+          "priority_score": 2.8,
+          "tags": [
+            "tariff",
+            "industrial-policy",
+            "subsidy",
+            "export-controls",
+            "fragmentation"
+          ],
+          "related_domains": [
+            "supply_chains",
+            "technology_ai",
+            "energy"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.724972+00:00"
         }
       ],
-      "summary": "1 node(s). Top: US–China strategic competition remains the primary geopolitical axis"
+      "summary": "2 node(s). Top: US–China strategic competition remains the primary geopolitical axis; Industrial policy and tariff tools are now standing instruments, not emergency exceptions"
     },
     "macroeconomics": {
       "label": "Macroeconomics",
@@ -72,10 +104,71 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346559+00:00"
+          "updated_at": "2026-08-05T23:47:22.724395+00:00"
+        },
+        {
+          "id": "macro-fiscal-impulse-us",
+          "domain": "macroeconomics",
+          "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+          "facts": [
+            "Federal deficits remain large as a share of GDP versus the 2010s expansion baseline.",
+            "Interest outlays as a share of outlays have risen with the stock of debt and higher coupon resets."
+          ],
+          "interpretation": "Fiscal impulse supports nominal growth and complicates disinflation; higher-for-longer is partially a fiscal-monetary interaction story.",
+          "confidence": 0.75,
+          "impact": "high",
+          "priority_score": 2.625,
+          "tags": [
+            "fiscal",
+            "deficit",
+            "debt",
+            "treasury",
+            "inflation"
+          ],
+          "related_domains": [
+            "capital_flows"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.724847+00:00"
+        },
+        {
+          "id": "macro-labor-cooling-not-collapse",
+          "domain": "macroeconomics",
+          "title": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+          "facts": [
+            "Job openings and quits have retreated from peaks while unemployment has only gradually risen in most recent cycles.",
+            "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series."
+          ],
+          "interpretation": "A soft landing needs labor rebalancing without demand destruction; a sharp unemployment jump would reweight toward growth-scare.",
+          "confidence": 0.7,
+          "impact": "high",
+          "priority_score": 2.45,
+          "tags": [
+            "labor",
+            "payroll",
+            "unemployment",
+            "wages",
+            "soft-landing"
+          ],
+          "related_domains": [
+            "demographics",
+            "capital_flows"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.724798+00:00"
         }
       ],
-      "summary": "1 node(s). Top: Global policy rates remain elevated vs 2010s baseline"
+      "summary": "3 node(s). Top: Global policy rates remain elevated vs 2010s baseline; US fiscal stance remains expansionary relative to pre-2020 norms; US labor market cooling without a collapse remains the soft-landing fulcrum"
     },
     "energy": {
       "label": "Energy",
@@ -110,10 +203,40 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346605+00:00"
+          "updated_at": "2026-08-05T23:47:22.724442+00:00"
+        },
+        {
+          "id": "energy-oil-buffer",
+          "domain": "energy",
+          "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+          "facts": [
+            "OPEC+ continues to use coordinated output management as a price-support tool.",
+            "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+          ],
+          "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
+          "confidence": 0.7,
+          "impact": "high",
+          "priority_score": 2.45,
+          "tags": [
+            "oil",
+            "opec",
+            "energy",
+            "inflation"
+          ],
+          "related_domains": [
+            "macroeconomics",
+            "geopolitics"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.725015+00:00"
         }
       ],
-      "summary": "1 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives"
+      "summary": "2 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives; Oil balances hinge on OPEC+ discipline and non-OPEC supply growth"
     },
     "technology_ai": {
       "label": "Technology / AI",
@@ -148,10 +271,42 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346648+00:00"
+          "updated_at": "2026-08-05T23:47:22.724489+00:00"
+        },
+        {
+          "id": "tech-export-controls-ai",
+          "domain": "technology_ai",
+          "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+          "facts": [
+            "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+            "Advanced packaging and HBM capacity are cited as bottlenecks alongside raw GPU supply."
+          ],
+          "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
+          "confidence": 0.8,
+          "impact": "high",
+          "priority_score": 2.8,
+          "tags": [
+            "ai",
+            "gpus",
+            "export-controls",
+            "semiconductors",
+            "hbm"
+          ],
+          "related_domains": [
+            "geopolitics",
+            "supply_chains",
+            "energy"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.725062+00:00"
         }
       ],
-      "summary": "1 node(s). Top: Frontier AI remains compute- and energy-constrained"
+      "summary": "2 node(s). Top: Frontier AI remains compute- and energy-constrained; Advanced AI compute remains gated by export controls and packaging capacity"
     },
     "military": {
       "label": "Military",
@@ -184,7 +339,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346692+00:00"
+          "updated_at": "2026-08-05T23:47:22.724537+00:00"
         }
       ],
       "summary": "1 node(s). Top: Indo-Pacific force posture and industrial base remain priority theaters"
@@ -220,7 +375,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346731+00:00"
+          "updated_at": "2026-08-05T23:47:22.724578+00:00"
         }
       ],
       "summary": "1 node(s). Top: Advanced-economy aging and tight labor markets constrain growth potential"
@@ -257,7 +412,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346768+00:00"
+          "updated_at": "2026-08-05T23:47:22.724619+00:00"
         }
       ],
       "summary": "1 node(s). Top: Advanced semiconductor manufacturing remains geographically concentrated"
@@ -295,10 +450,71 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346809+00:00"
+          "updated_at": "2026-08-05T23:47:22.724665+00:00"
+        },
+        {
+          "id": "capital-usd-funding",
+          "domain": "capital_flows",
+          "title": "USD funding conditions and the dollar remain a global transmission channel",
+          "facts": [
+            "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+            "Periods of USD strength often coincide with tighter global financial conditions outside the US."
+          ],
+          "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+          "confidence": 0.7,
+          "impact": "high",
+          "priority_score": 2.45,
+          "tags": [
+            "usd",
+            "dxy",
+            "funding",
+            "liquidity",
+            "carry-trade"
+          ],
+          "related_domains": [
+            "macroeconomics",
+            "geopolitics"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.724924+00:00"
+        },
+        {
+          "id": "capital-credit-spreads-calm",
+          "domain": "capital_flows",
+          "title": "IG/HY credit spreads are not pricing acute funding stress",
+          "facts": [
+            "Investment-grade and high-yield spreads remain tighter than crisis-period peaks in most recent calm windows.",
+            "Primary market issuance has periodically reopened after risk-off pauses without prolonged shutdown."
+          ],
+          "interpretation": "Absence of credit stress keeps liquidity-stress regime secondary unless bank/funding nodes flip.",
+          "confidence": 0.65,
+          "impact": "medium",
+          "priority_score": 1.3,
+          "tags": [
+            "credit",
+            "spreads",
+            "ig",
+            "hy",
+            "risk-assets"
+          ],
+          "related_domains": [
+            "macroeconomics"
+          ],
+          "sources": [
+            {
+              "name": "fixture",
+              "url": ""
+            }
+          ],
+          "updated_at": "2026-08-05T23:47:22.724885+00:00"
         }
       ],
-      "summary": "1 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite"
+      "summary": "3 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite; USD funding conditions and the dollar remain a global transmission channel; IG/HY credit spreads are not pricing acute funding stress"
     },
     "climate_resources": {
       "label": "Climate / Resources",
@@ -332,7 +548,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346851+00:00"
+          "updated_at": "2026-08-05T23:47:22.724712+00:00"
         }
       ],
       "summary": "1 node(s). Top: Critical minerals and water stress bind energy transition and industrial policy"
@@ -369,7 +585,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:14:37.346891+00:00"
+          "updated_at": "2026-08-05T23:47:22.724754+00:00"
         }
       ],
       "summary": "1 node(s). Top: AI and crypto narratives oscillate between euphoria and disillusionment in media cycles"
@@ -447,14 +663,527 @@
       "to_id": "narrative-ai-hype-cycle",
       "relation": "affects",
       "note": "shared tags: bitcoin"
+    },
+    {
+      "from_id": "macro-labor-cooling-not-collapse",
+      "to_id": "demo-aging-advanced-economies",
+      "relation": "affects",
+      "note": "shared tags: labor"
+    },
+    {
+      "from_id": "capital-usd-funding",
+      "to_id": "macro-rates-regime",
+      "relation": "affects",
+      "note": "shared tags: liquidity"
+    },
+    {
+      "from_id": "energy-oil-buffer",
+      "to_id": "macro-rates-regime",
+      "relation": "affects",
+      "note": "shared tags: inflation"
+    },
+    {
+      "from_id": "tech-export-controls-ai",
+      "to_id": "geo-great-power-competition",
+      "relation": "affects",
+      "note": "shared tags: export-controls, semiconductors"
+    },
+    {
+      "from_id": "tech-export-controls-ai",
+      "to_id": "supply-chip-geography",
+      "relation": "affects",
+      "note": "shared tags: semiconductors"
+    },
+    {
+      "from_id": "tech-export-controls-ai",
+      "to_id": "energy-nuclear-renaissance",
+      "relation": "affects",
+      "note": "shared tags: ai"
     }
   ],
   "meta": {
     "source_modes": [
       "fixture"
     ],
-    "event_count": 10,
-    "run_id": "20260727T001437Z",
-    "node_total": 10
+    "event_count": 17,
+    "run_id": "20260805T234722Z",
+    "node_total": 17,
+    "regime_primary": "geopolitical_risk_premium",
+    "regime_confidence": 0.5
+  },
+  "regime": {
+    "schema_version": 1,
+    "assessed_at": "2026-08-05T23:47:22.726248+00:00",
+    "version_id": "20260805T234722Z",
+    "method": "multi-axis keyword+domain-prior (impact×confidence)",
+    "primary": {
+      "id": "geopolitical_risk_premium",
+      "label": "Geopolitical risk-premium",
+      "probability": 0.3819,
+      "summary": "Great-power competition and export controls dominate risk premia and industrial policy."
+    },
+    "secondary": {
+      "id": "stagflation_or_supply_shock",
+      "label": "Stagflation / supply shock",
+      "probability": 0.2446,
+      "summary": "Energy/supply/wage shocks keep inflation sticky while growth softens."
+    },
+    "probabilities": {
+      "restrictive_soft_landing": {
+        "label": "Restrictive / soft landing",
+        "probability": 0.2339
+      },
+      "higher_for_longer_slowdown": {
+        "label": "Higher-for-longer + slowdown",
+        "probability": 0.0737
+      },
+      "easing_reacceleration": {
+        "label": "Easing + reacceleration",
+        "probability": 0.0659
+      },
+      "stagflation_or_supply_shock": {
+        "label": "Stagflation / supply shock",
+        "probability": 0.2446
+      },
+      "geopolitical_risk_premium": {
+        "label": "Geopolitical risk-premium",
+        "probability": 0.3819
+      }
+    },
+    "axes": [
+      {
+        "id": "monetary",
+        "label": "Monetary policy",
+        "dominant": "higher_for_longer",
+        "dominant_label": "Higher for longer",
+        "probability": 0.6544,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "higher_for_longer",
+            "label": "Higher for longer",
+            "probability": 0.6544
+          },
+          {
+            "id": "easing",
+            "label": "Easing bias",
+            "probability": 0.2956
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "growth",
+        "label": "Growth / activity",
+        "dominant": "stagflation_risk",
+        "dominant_label": "Stagflation risk",
+        "probability": 0.3294,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "soft_landing",
+            "label": "Soft landing",
+            "probability": 0.325
+          },
+          {
+            "id": "slowdown",
+            "label": "Slowdown",
+            "probability": 0.0758
+          },
+          {
+            "id": "reacceleration",
+            "label": "Reacceleration",
+            "probability": 0.2198
+          },
+          {
+            "id": "stagflation_risk",
+            "label": "Stagflation risk",
+            "probability": 0.3294
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "liquidity",
+        "label": "Liquidity / credit",
+        "dominant": "loose",
+        "dominant_label": "Loose",
+        "probability": 0.461,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "tight",
+            "label": "Tight",
+            "probability": 0.2521
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.2369
+          },
+          {
+            "id": "loose",
+            "label": "Loose",
+            "probability": 0.461
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "risk_appetite",
+        "label": "Risk appetite",
+        "dominant": "mixed",
+        "dominant_label": "Mixed",
+        "probability": 0.4691,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "risk_on",
+            "label": "Risk-on",
+            "probability": 0.1829
+          },
+          {
+            "id": "mixed",
+            "label": "Mixed",
+            "probability": 0.4691
+          },
+          {
+            "id": "risk_off",
+            "label": "Risk-off",
+            "probability": 0.298
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "geopolitics",
+        "label": "Geopolitics",
+        "dominant": "elevated_competition",
+        "dominant_label": "Elevated competition",
+        "probability": 0.5061,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "elevated_competition",
+            "label": "Elevated competition",
+            "probability": 0.5061
+          },
+          {
+            "id": "multipolar_fragmentation",
+            "label": "Multipolar fragmentation",
+            "probability": 0.4439
+          },
+          {
+            "id": "deescalation",
+            "label": "De-escalation",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "energy_tech",
+        "label": "Energy / tech constraint",
+        "dominant": "power_constrained_ai",
+        "dominant_label": "Power-constrained AI",
+        "probability": 0.8444,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "power_constrained_ai",
+            "label": "Power-constrained AI",
+            "probability": 0.8444
+          },
+          {
+            "id": "commodity_shock",
+            "label": "Commodity shock risk",
+            "probability": 0.1056
+          },
+          {
+            "id": "transition_smooth",
+            "label": "Smooth energy transition",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "geopolitical_risk_premium",
+        "label": "Geopolitical risk-premium",
+        "description": "Great-power competition and export controls dominate risk premia and industrial policy.",
+        "probability": 0.3819
+      },
+      {
+        "id": "stagflation_or_supply_shock",
+        "label": "Stagflation / supply shock",
+        "description": "Energy/supply/wage shocks keep inflation sticky while growth softens.",
+        "probability": 0.2446
+      },
+      {
+        "id": "restrictive_soft_landing",
+        "label": "Restrictive / soft landing",
+        "description": "Policy stays restrictive vs 2010s baseline while growth avoids deep contraction.",
+        "probability": 0.2339
+      },
+      {
+        "id": "higher_for_longer_slowdown",
+        "label": "Higher-for-longer + slowdown",
+        "description": "Elevated real rates and/or tight credit slow activity; easing delayed.",
+        "probability": 0.0737
+      },
+      {
+        "id": "easing_reacceleration",
+        "label": "Easing + reacceleration",
+        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up.",
+        "probability": 0.0659
+      }
+    ],
+    "active_forces": [
+      {
+        "node_id": "geo-great-power-competition",
+        "title": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "supply-chip-geography",
+        "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "domain": "supply_chains",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "geo-industrial-policy-race",
+        "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-export-controls-ai",
+        "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-fiscal-impulse-us",
+        "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      },
+      {
+        "node_id": "energy-nuclear-renaissance",
+        "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      }
+    ],
+    "drivers": [
+      {
+        "node_id": "geo-great-power-competition",
+        "title": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "supply-chip-geography",
+        "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "domain": "supply_chains",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "geo-industrial-policy-race",
+        "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-export-controls-ai",
+        "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-fiscal-impulse-us",
+        "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      },
+      {
+        "node_id": "energy-nuclear-renaissance",
+        "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      }
+    ],
+    "inflection_watch": [
+      "Labor/services inflation path — branch between soft landing and slowdown.",
+      "Export-control / Indo-Pacific escalation could reprice risk premia abruptly.",
+      "Grid/power delivery vs AI capex plans — binding constraint on reacceleration.",
+      "Credit/funding stress can force growth scare without rate cuts."
+    ],
+    "confidence": 0.5,
+    "confidence_overall": 0.5,
+    "coverage": {
+      "node_total": 17,
+      "evidence_weight": 17.1,
+      "source_modes": [
+        "fixture"
+      ]
+    },
+    "data_vintage": {
+      "node_count": 17,
+      "source_modes": [
+        "fixture"
+      ],
+      "fixture_scaffold_dominant": true,
+      "as_of": "2026-08-05T23:47:22.724315+00:00"
+    },
+    "notes": [
+      "Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.",
+      "Fixture-only source mode on this run."
+    ],
+    "dimensions": {
+      "monetary": {
+        "label": "higher_for_longer",
+        "probabilities": {
+          "higher_for_longer": 0.6544,
+          "easing": 0.2956,
+          "neutral": 0.0,
+          "unknown": 0.05
+        }
+      },
+      "growth": {
+        "label": "stagflation_risk",
+        "probabilities": {
+          "soft_landing": 0.325,
+          "slowdown": 0.0758,
+          "reacceleration": 0.2198,
+          "stagflation_risk": 0.3294,
+          "unknown": 0.05
+        }
+      },
+      "liquidity": {
+        "label": "loose",
+        "probabilities": {
+          "tight": 0.2521,
+          "neutral": 0.2369,
+          "loose": 0.461,
+          "unknown": 0.05
+        }
+      },
+      "risk_appetite": {
+        "label": "mixed",
+        "probabilities": {
+          "risk_on": 0.1829,
+          "mixed": 0.4691,
+          "risk_off": 0.298,
+          "unknown": 0.05
+        }
+      },
+      "geopolitics": {
+        "label": "elevated_competition",
+        "probabilities": {
+          "elevated_competition": 0.5061,
+          "multipolar_fragmentation": 0.4439,
+          "deescalation": 0.0,
+          "unknown": 0.05
+        }
+      },
+      "energy_tech": {
+        "label": "power_constrained_ai",
+        "probabilities": {
+          "power_constrained_ai": 0.8444,
+          "commodity_shock": 0.1056,
+          "transition_smooth": 0.0,
+          "unknown": 0.05
+        }
+      }
+    }
   }
 }

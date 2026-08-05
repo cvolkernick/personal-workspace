@@ -1,87 +1,1037 @@
 {
-  "schema_version": 1,
-  "version_id": "20260727T001437Z",
-  "generated_at": "2026-07-27T00:14:37.350366+00:00",
+  "schema_version": 2,
+  "version_id": "20260805T234722Z",
+  "generated_at": "2026-08-05T23:47:22.732148+00:00",
+  "regime": {
+    "schema_version": 1,
+    "assessed_at": "2026-08-05T23:47:22.726248+00:00",
+    "version_id": "20260805T234722Z",
+    "method": "multi-axis keyword+domain-prior (impact×confidence)",
+    "primary": {
+      "id": "geopolitical_risk_premium",
+      "label": "Geopolitical risk-premium",
+      "probability": 0.3819,
+      "summary": "Great-power competition and export controls dominate risk premia and industrial policy."
+    },
+    "secondary": {
+      "id": "stagflation_or_supply_shock",
+      "label": "Stagflation / supply shock",
+      "probability": 0.2446,
+      "summary": "Energy/supply/wage shocks keep inflation sticky while growth softens."
+    },
+    "probabilities": {
+      "restrictive_soft_landing": {
+        "label": "Restrictive / soft landing",
+        "probability": 0.2339
+      },
+      "higher_for_longer_slowdown": {
+        "label": "Higher-for-longer + slowdown",
+        "probability": 0.0737
+      },
+      "easing_reacceleration": {
+        "label": "Easing + reacceleration",
+        "probability": 0.0659
+      },
+      "stagflation_or_supply_shock": {
+        "label": "Stagflation / supply shock",
+        "probability": 0.2446
+      },
+      "geopolitical_risk_premium": {
+        "label": "Geopolitical risk-premium",
+        "probability": 0.3819
+      }
+    },
+    "axes": [
+      {
+        "id": "monetary",
+        "label": "Monetary policy",
+        "dominant": "higher_for_longer",
+        "dominant_label": "Higher for longer",
+        "probability": 0.6544,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "higher_for_longer",
+            "label": "Higher for longer",
+            "probability": 0.6544
+          },
+          {
+            "id": "easing",
+            "label": "Easing bias",
+            "probability": 0.2956
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "growth",
+        "label": "Growth / activity",
+        "dominant": "stagflation_risk",
+        "dominant_label": "Stagflation risk",
+        "probability": 0.3294,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "soft_landing",
+            "label": "Soft landing",
+            "probability": 0.325
+          },
+          {
+            "id": "slowdown",
+            "label": "Slowdown",
+            "probability": 0.0758
+          },
+          {
+            "id": "reacceleration",
+            "label": "Reacceleration",
+            "probability": 0.2198
+          },
+          {
+            "id": "stagflation_risk",
+            "label": "Stagflation risk",
+            "probability": 0.3294
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "liquidity",
+        "label": "Liquidity / credit",
+        "dominant": "loose",
+        "dominant_label": "Loose",
+        "probability": 0.461,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "tight",
+            "label": "Tight",
+            "probability": 0.2521
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.2369
+          },
+          {
+            "id": "loose",
+            "label": "Loose",
+            "probability": 0.461
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "risk_appetite",
+        "label": "Risk appetite",
+        "dominant": "mixed",
+        "dominant_label": "Mixed",
+        "probability": 0.4691,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "risk_on",
+            "label": "Risk-on",
+            "probability": 0.1829
+          },
+          {
+            "id": "mixed",
+            "label": "Mixed",
+            "probability": 0.4691
+          },
+          {
+            "id": "risk_off",
+            "label": "Risk-off",
+            "probability": 0.298
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "geopolitics",
+        "label": "Geopolitics",
+        "dominant": "elevated_competition",
+        "dominant_label": "Elevated competition",
+        "probability": 0.5061,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "elevated_competition",
+            "label": "Elevated competition",
+            "probability": 0.5061
+          },
+          {
+            "id": "multipolar_fragmentation",
+            "label": "Multipolar fragmentation",
+            "probability": 0.4439
+          },
+          {
+            "id": "deescalation",
+            "label": "De-escalation",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "energy_tech",
+        "label": "Energy / tech constraint",
+        "dominant": "power_constrained_ai",
+        "dominant_label": "Power-constrained AI",
+        "probability": 0.8444,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "power_constrained_ai",
+            "label": "Power-constrained AI",
+            "probability": 0.8444
+          },
+          {
+            "id": "commodity_shock",
+            "label": "Commodity shock risk",
+            "probability": 0.1056
+          },
+          {
+            "id": "transition_smooth",
+            "label": "Smooth energy transition",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "geopolitical_risk_premium",
+        "label": "Geopolitical risk-premium",
+        "description": "Great-power competition and export controls dominate risk premia and industrial policy.",
+        "probability": 0.3819
+      },
+      {
+        "id": "stagflation_or_supply_shock",
+        "label": "Stagflation / supply shock",
+        "description": "Energy/supply/wage shocks keep inflation sticky while growth softens.",
+        "probability": 0.2446
+      },
+      {
+        "id": "restrictive_soft_landing",
+        "label": "Restrictive / soft landing",
+        "description": "Policy stays restrictive vs 2010s baseline while growth avoids deep contraction.",
+        "probability": 0.2339
+      },
+      {
+        "id": "higher_for_longer_slowdown",
+        "label": "Higher-for-longer + slowdown",
+        "description": "Elevated real rates and/or tight credit slow activity; easing delayed.",
+        "probability": 0.0737
+      },
+      {
+        "id": "easing_reacceleration",
+        "label": "Easing + reacceleration",
+        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up.",
+        "probability": 0.0659
+      }
+    ],
+    "active_forces": [
+      {
+        "node_id": "geo-great-power-competition",
+        "title": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "supply-chip-geography",
+        "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "domain": "supply_chains",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "geo-industrial-policy-race",
+        "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-export-controls-ai",
+        "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-fiscal-impulse-us",
+        "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      },
+      {
+        "node_id": "energy-nuclear-renaissance",
+        "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      }
+    ],
+    "drivers": [
+      {
+        "node_id": "geo-great-power-competition",
+        "title": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "supply-chip-geography",
+        "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "domain": "supply_chains",
+        "impact": "high",
+        "confidence": 0.85,
+        "weight": 1.275
+      },
+      {
+        "node_id": "geo-industrial-policy-race",
+        "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "tech-export-controls-ai",
+        "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.8,
+        "weight": 1.2
+      },
+      {
+        "node_id": "macro-fiscal-impulse-us",
+        "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      },
+      {
+        "node_id": "energy-nuclear-renaissance",
+        "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.75,
+        "weight": 1.125
+      }
+    ],
+    "inflection_watch": [
+      "Labor/services inflation path — branch between soft landing and slowdown.",
+      "Export-control / Indo-Pacific escalation could reprice risk premia abruptly.",
+      "Grid/power delivery vs AI capex plans — binding constraint on reacceleration.",
+      "Credit/funding stress can force growth scare without rate cuts."
+    ],
+    "confidence": 0.5,
+    "confidence_overall": 0.5,
+    "coverage": {
+      "node_total": 17,
+      "evidence_weight": 17.1,
+      "source_modes": [
+        "fixture"
+      ]
+    },
+    "data_vintage": {
+      "node_count": 17,
+      "source_modes": [
+        "fixture"
+      ],
+      "fixture_scaffold_dominant": true,
+      "as_of": "2026-08-05T23:47:22.724315+00:00"
+    },
+    "notes": [
+      "Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.",
+      "Fixture-only source mode on this run."
+    ],
+    "dimensions": {
+      "monetary": {
+        "label": "higher_for_longer",
+        "probabilities": {
+          "higher_for_longer": 0.6544,
+          "easing": 0.2956,
+          "neutral": 0.0,
+          "unknown": 0.05
+        }
+      },
+      "growth": {
+        "label": "stagflation_risk",
+        "probabilities": {
+          "soft_landing": 0.325,
+          "slowdown": 0.0758,
+          "reacceleration": 0.2198,
+          "stagflation_risk": 0.3294,
+          "unknown": 0.05
+        }
+      },
+      "liquidity": {
+        "label": "loose",
+        "probabilities": {
+          "tight": 0.2521,
+          "neutral": 0.2369,
+          "loose": 0.461,
+          "unknown": 0.05
+        }
+      },
+      "risk_appetite": {
+        "label": "mixed",
+        "probabilities": {
+          "risk_on": 0.1829,
+          "mixed": 0.4691,
+          "risk_off": 0.298,
+          "unknown": 0.05
+        }
+      },
+      "geopolitics": {
+        "label": "elevated_competition",
+        "probabilities": {
+          "elevated_competition": 0.5061,
+          "multipolar_fragmentation": 0.4439,
+          "deescalation": 0.0,
+          "unknown": 0.05
+        }
+      },
+      "energy_tech": {
+        "label": "power_constrained_ai",
+        "probabilities": {
+          "power_constrained_ai": 0.8444,
+          "commodity_shock": 0.1056,
+          "transition_smooth": 0.0,
+          "unknown": 0.05
+        }
+      }
+    }
+  },
+  "regime_brief": {
+    "title": "Regime Assessment",
+    "primary": {
+      "id": "geopolitical_risk_premium",
+      "label": "Geopolitical risk-premium",
+      "probability": 0.3819,
+      "summary": "Great-power competition and export controls dominate risk premia and industrial policy."
+    },
+    "secondary": {
+      "id": "stagflation_or_supply_shock",
+      "label": "Stagflation / supply shock",
+      "probability": 0.2446,
+      "summary": "Energy/supply/wage shocks keep inflation sticky while growth softens."
+    },
+    "axes": [
+      {
+        "id": "monetary",
+        "label": "Monetary policy",
+        "dominant": "higher_for_longer",
+        "dominant_label": "Higher for longer",
+        "probability": 0.6544,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "higher_for_longer",
+            "label": "Higher for longer",
+            "probability": 0.6544
+          },
+          {
+            "id": "easing",
+            "label": "Easing bias",
+            "probability": 0.2956
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "growth",
+        "label": "Growth / activity",
+        "dominant": "stagflation_risk",
+        "dominant_label": "Stagflation risk",
+        "probability": 0.3294,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "soft_landing",
+            "label": "Soft landing",
+            "probability": 0.325
+          },
+          {
+            "id": "slowdown",
+            "label": "Slowdown",
+            "probability": 0.0758
+          },
+          {
+            "id": "reacceleration",
+            "label": "Reacceleration",
+            "probability": 0.2198
+          },
+          {
+            "id": "stagflation_risk",
+            "label": "Stagflation risk",
+            "probability": 0.3294
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "liquidity",
+        "label": "Liquidity / credit",
+        "dominant": "loose",
+        "dominant_label": "Loose",
+        "probability": 0.461,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "tight",
+            "label": "Tight",
+            "probability": 0.2521
+          },
+          {
+            "id": "neutral",
+            "label": "Neutral",
+            "probability": 0.2369
+          },
+          {
+            "id": "loose",
+            "label": "Loose",
+            "probability": 0.461
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "risk_appetite",
+        "label": "Risk appetite",
+        "dominant": "mixed",
+        "dominant_label": "Mixed",
+        "probability": 0.4691,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "risk_on",
+            "label": "Risk-on",
+            "probability": 0.1829
+          },
+          {
+            "id": "mixed",
+            "label": "Mixed",
+            "probability": 0.4691
+          },
+          {
+            "id": "risk_off",
+            "label": "Risk-off",
+            "probability": 0.298
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "geopolitics",
+        "label": "Geopolitics",
+        "dominant": "elevated_competition",
+        "dominant_label": "Elevated competition",
+        "probability": 0.5061,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "elevated_competition",
+            "label": "Elevated competition",
+            "probability": 0.5061
+          },
+          {
+            "id": "multipolar_fragmentation",
+            "label": "Multipolar fragmentation",
+            "probability": 0.4439
+          },
+          {
+            "id": "deescalation",
+            "label": "De-escalation",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      },
+      {
+        "id": "energy_tech",
+        "label": "Energy / tech constraint",
+        "dominant": "power_constrained_ai",
+        "dominant_label": "Power-constrained AI",
+        "probability": 0.8444,
+        "confidence": 0.55,
+        "states": [
+          {
+            "id": "power_constrained_ai",
+            "label": "Power-constrained AI",
+            "probability": 0.8444
+          },
+          {
+            "id": "commodity_shock",
+            "label": "Commodity shock risk",
+            "probability": 0.1056
+          },
+          {
+            "id": "transition_smooth",
+            "label": "Smooth energy transition",
+            "probability": 0.0
+          },
+          {
+            "id": "unknown",
+            "label": "Unknown",
+            "probability": 0.05
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "id": "geopolitical_risk_premium",
+        "label": "Geopolitical risk-premium",
+        "description": "Great-power competition and export controls dominate risk premia and industrial policy.",
+        "probability": 0.3819
+      },
+      {
+        "id": "stagflation_or_supply_shock",
+        "label": "Stagflation / supply shock",
+        "description": "Energy/supply/wage shocks keep inflation sticky while growth softens.",
+        "probability": 0.2446
+      },
+      {
+        "id": "restrictive_soft_landing",
+        "label": "Restrictive / soft landing",
+        "description": "Policy stays restrictive vs 2010s baseline while growth avoids deep contraction.",
+        "probability": 0.2339
+      },
+      {
+        "id": "higher_for_longer_slowdown",
+        "label": "Higher-for-longer + slowdown",
+        "description": "Elevated real rates and/or tight credit slow activity; easing delayed.",
+        "probability": 0.0737
+      },
+      {
+        "id": "easing_reacceleration",
+        "label": "Easing + reacceleration",
+        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up.",
+        "probability": 0.0659
+      }
+    ],
+    "inflection_watch": [
+      "Labor/services inflation path — branch between soft landing and slowdown.",
+      "Export-control / Indo-Pacific escalation could reprice risk premia abruptly.",
+      "Grid/power delivery vs AI capex plans — binding constraint on reacceleration.",
+      "Credit/funding stress can force growth scare without rate cuts."
+    ],
+    "confidence_overall": 0.5,
+    "data_vintage": {
+      "node_count": 17,
+      "source_modes": [
+        "fixture"
+      ],
+      "fixture_scaffold_dominant": true,
+      "as_of": "2026-08-05T23:47:22.724315+00:00"
+    },
+    "notes": [
+      "Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.",
+      "Fixture-only source mode on this run."
+    ]
+  },
   "executive_brief": {
     "title": "Executive Brief",
-    "generated_at": "2026-07-27T00:14:37.350301+00:00",
-    "version_id": "20260727T001437Z",
+    "generated_at": "2026-08-05T23:47:22.731910+00:00",
+    "version_id": "20260805T234722Z",
     "items": [
       {
         "rank": 1,
-        "title": "US–China strategic competition remains the primary geopolitical axis",
-        "domain": "geopolitics",
-        "fact": "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
-        "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
-        "confidence": 0.85,
-        "priority_rationale": "Ranked #1 by priority_score=2.975 (impact=high, confidence=0.85)."
-      },
-      {
-        "rank": 2,
         "title": "Advanced semiconductor manufacturing remains geographically concentrated",
         "domain": "supply_chains",
         "fact": "Leading-edge logic capacity is highly concentrated in a small number of firms and locations.",
         "interpretation": "Concentration is a systemic risk node linking geopolitics, AI compute, and capital expenditure cycles.",
         "confidence": 0.85,
-        "priority_rationale": "Ranked #2 by priority_score=2.975 (impact=high, confidence=0.85)."
+        "priority_rationale": "Ranked #1 by priority_score=2.975 (impact=high, confidence=0.85, strategy_boost=0.15). Linked strategy: AI / Compute, Geopolitical Risk Management.",
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "ai",
+              "chip",
+              "compute",
+              "semiconductor",
+              "tsm"
+            ]
+          },
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.6574,
+            "matched_keywords": [
+              "geopolitics",
+              "taiwan"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Geopolitical Risk Management"
+        ]
+      },
+      {
+        "rank": 2,
+        "title": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "fact": "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
+        "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
+        "confidence": 0.85,
+        "priority_rationale": "Ranked #2 by priority_score=2.975 (impact=high, confidence=0.85, strategy_boost=0.15). Linked strategy: Geopolitical Risk Management, AI / Compute.",
+        "strategy_links": [
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "china",
+              "export-control",
+              "geopolitics",
+              "military"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.5469,
+            "matched_keywords": [
+              "ai",
+              "semiconductor"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Geopolitical Risk Management",
+          "AI / Compute"
+        ]
       },
       {
         "rank": 3,
-        "title": "Global policy rates remain elevated vs 2010s baseline",
-        "domain": "macroeconomics",
-        "fact": "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-        "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
-        "confidence": 0.8,
-        "priority_rationale": "Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8)."
-      },
-      {
-        "rank": 4,
         "title": "Frontier AI remains compute- and energy-constrained",
         "domain": "technology_ai",
         "fact": "Leading labs continue multi-billion-dollar training and inference buildouts.",
         "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
         "confidence": 0.8,
-        "priority_rationale": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8)."
+        "priority_rationale": "Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: AI / Compute, Energy, Treasury / Liquidity.",
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "ai",
+              "compute",
+              "gpu",
+              "model",
+              "nvidia",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.4825,
+            "matched_keywords": [
+              "energy",
+              "power"
+            ]
+          },
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.2623,
+            "matched_keywords": [
+              "dollar"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Energy",
+          "Treasury / Liquidity"
+        ]
+      },
+      {
+        "rank": 4,
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "fact": "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
+        "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
+        "confidence": 0.8,
+        "priority_rationale": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute.",
+        "strategy_links": [
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "fed",
+              "inflation",
+              "liquidity",
+              "macro",
+              "rates",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "bitcoin",
+            "priority_label": "Bitcoin",
+            "affinity": 0.8197,
+            "matched_keywords": [
+              "btc",
+              "liquidity",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1765,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Treasury / Liquidity",
+          "Bitcoin",
+          "AI / Compute"
+        ]
       },
       {
         "rank": 5,
+        "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "fact": "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+        "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
+        "confidence": 0.8,
+        "priority_rationale": "Ranked #5 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.143). Linked strategy: AI / Compute, Geopolitical Risk Management, Energy.",
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.9559,
+            "matched_keywords": [
+              "ai",
+              "compute",
+              "gpu",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.4013,
+            "matched_keywords": [
+              "export-control"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.2335,
+            "matched_keywords": [
+              "power"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Geopolitical Risk Management",
+          "Energy"
+        ]
+      },
+      {
+        "rank": 6,
+        "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "fact": "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+        "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+        "confidence": 0.8,
+        "priority_rationale": "Ranked #6 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.113). Linked strategy: Geopolitical Risk Management, AI / Compute, Energy.",
+        "strategy_links": [
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.7525,
+            "matched_keywords": [
+              "export-control",
+              "geopolitics"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.5147,
+            "matched_keywords": [
+              "ai",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.249,
+            "matched_keywords": [
+              "energy"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Geopolitical Risk Management",
+          "AI / Compute",
+          "Energy"
+        ]
+      },
+      {
+        "rank": 7,
         "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
         "domain": "energy",
         "fact": "Hyperscalers have announced long-dated power purchase interest including nuclear-linked supply.",
         "interpretation": "Energy scarcity becomes a binding constraint on AI scale-out; nuclear miners/utilities and grid equipment sit at the intersection of Energy and AI bets.",
         "confidence": 0.75,
-        "priority_rationale": "Ranked #5 by priority_score=2.625 (impact=high, confidence=0.75)."
-      },
-      {
-        "rank": 6,
-        "title": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
-        "domain": "capital_flows",
-        "fact": "Spot BTC ETFs and corporate treasury narratives have expanded institutional access channels.",
-        "interpretation": "For a Bitcoin accumulation thesis, watch real rates, USD liquidity, ETF flows, and regulatory clarity as first-order drivers.",
-        "confidence": 0.7,
-        "priority_rationale": "Ranked #6 by priority_score=2.45 (impact=high, confidence=0.7)."
-      },
-      {
-        "rank": 7,
-        "title": "Advanced-economy aging and tight labor markets constrain growth potential",
-        "domain": "demographics",
-        "fact": "Working-age population growth is slow or negative in several major economies.",
-        "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
-        "confidence": 0.75,
-        "priority_rationale": "Ranked #7 by priority_score=1.5 (impact=medium, confidence=0.75)."
+        "priority_rationale": "Ranked #7 by priority_score=2.625 (impact=high, confidence=0.75, strategy_boost=0.15). Linked strategy: Energy, AI / Compute.",
+        "strategy_links": [
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "data-centers",
+              "energy",
+              "grid",
+              "nuclear",
+              "power",
+              "uranium"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1654,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Energy",
+          "AI / Compute"
+        ]
       }
     ],
-    "note": "Facts are listed separately from interpretation; confidence is explicit."
+    "note": "Facts are listed separately from interpretation; confidence is explicit. Items with strategy_links match personal priorities (bets/intent keywords)."
   },
   "current_world_state": {
     "title": "Current World State",
-    "version_id": "20260727T001437Z",
-    "updated_at": "2026-07-27T00:14:37.346479+00:00",
+    "version_id": "20260805T234722Z",
+    "updated_at": "2026-08-05T23:47:22.724315+00:00",
     "domains": {
       "geopolitics": {
         "label": "Geopolitics",
-        "summary": "1 node(s). Top: US–China strategic competition remains the primary geopolitical axis",
-        "node_count": 1,
+        "summary": "2 node(s). Top: US–China strategic competition remains the primary geopolitical axis; Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "node_count": 2,
         "top_nodes": [
           {
             "id": "geo-great-power-competition",
@@ -94,13 +1044,25 @@
             "confidence": 0.85,
             "impact": "high",
             "priority_score": 2.975
+          },
+          {
+            "id": "geo-industrial-policy-race",
+            "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+            "facts": [
+              "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+              "Tariff and export-control toolkits are used with higher frequency in bilateral disputes."
+            ],
+            "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+            "confidence": 0.8,
+            "impact": "high",
+            "priority_score": 2.8
           }
         ]
       },
       "macroeconomics": {
         "label": "Macroeconomics",
-        "summary": "1 node(s). Top: Global policy rates remain elevated vs 2010s baseline",
-        "node_count": 1,
+        "summary": "3 node(s). Top: Global policy rates remain elevated vs 2010s baseline; US fiscal stance remains expansionary relative to pre-2020 norms; US labor market cooling without a collapse remains the soft-landing fulcrum",
+        "node_count": 3,
         "top_nodes": [
           {
             "id": "macro-rates-regime",
@@ -113,13 +1075,37 @@
             "confidence": 0.8,
             "impact": "high",
             "priority_score": 2.8
+          },
+          {
+            "id": "macro-fiscal-impulse-us",
+            "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+            "facts": [
+              "Federal deficits remain large as a share of GDP versus the 2010s expansion baseline.",
+              "Interest outlays as a share of outlays have risen with the stock of debt and higher coupon resets."
+            ],
+            "interpretation": "Fiscal impulse supports nominal growth and complicates disinflation; higher-for-longer is partially a fiscal-monetary interaction story.",
+            "confidence": 0.75,
+            "impact": "high",
+            "priority_score": 2.625
+          },
+          {
+            "id": "macro-labor-cooling-not-collapse",
+            "title": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+            "facts": [
+              "Job openings and quits have retreated from peaks while unemployment has only gradually risen in most recent cycles.",
+              "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series."
+            ],
+            "interpretation": "A soft landing needs labor rebalancing without demand destruction; a sharp unemployment jump would reweight toward growth-scare.",
+            "confidence": 0.7,
+            "impact": "high",
+            "priority_score": 2.45
           }
         ]
       },
       "energy": {
         "label": "Energy",
-        "summary": "1 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives",
-        "node_count": 1,
+        "summary": "2 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives; Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+        "node_count": 2,
         "top_nodes": [
           {
             "id": "energy-nuclear-renaissance",
@@ -132,13 +1118,25 @@
             "confidence": 0.75,
             "impact": "high",
             "priority_score": 2.625
+          },
+          {
+            "id": "energy-oil-buffer",
+            "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+            "facts": [
+              "OPEC+ continues to use coordinated output management as a price-support tool.",
+              "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+            ],
+            "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
+            "confidence": 0.7,
+            "impact": "high",
+            "priority_score": 2.45
           }
         ]
       },
       "technology_ai": {
         "label": "Technology / AI",
-        "summary": "1 node(s). Top: Frontier AI remains compute- and energy-constrained",
-        "node_count": 1,
+        "summary": "2 node(s). Top: Frontier AI remains compute- and energy-constrained; Advanced AI compute remains gated by export controls and packaging capacity",
+        "node_count": 2,
         "top_nodes": [
           {
             "id": "tech-ai-compute-race",
@@ -148,6 +1146,18 @@
               "Advanced GPU/accelerator supply and packaging remain bottlenecks."
             ],
             "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
+            "confidence": 0.8,
+            "impact": "high",
+            "priority_score": 2.8
+          },
+          {
+            "id": "tech-export-controls-ai",
+            "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+            "facts": [
+              "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+              "Advanced packaging and HBM capacity are cited as bottlenecks alongside raw GPU supply."
+            ],
+            "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
             "confidence": 0.8,
             "impact": "high",
             "priority_score": 2.8
@@ -213,8 +1223,8 @@
       },
       "capital_flows": {
         "label": "Capital Flows",
-        "summary": "1 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite",
-        "node_count": 1,
+        "summary": "3 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite; USD funding conditions and the dollar remain a global transmission channel; IG/HY credit spreads are not pricing acute funding stress",
+        "node_count": 3,
         "top_nodes": [
           {
             "id": "capital-btc-liquidity",
@@ -227,6 +1237,30 @@
             "confidence": 0.7,
             "impact": "high",
             "priority_score": 2.45
+          },
+          {
+            "id": "capital-usd-funding",
+            "title": "USD funding conditions and the dollar remain a global transmission channel",
+            "facts": [
+              "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+              "Periods of USD strength often coincide with tighter global financial conditions outside the US."
+            ],
+            "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+            "confidence": 0.7,
+            "impact": "high",
+            "priority_score": 2.45
+          },
+          {
+            "id": "capital-credit-spreads-calm",
+            "title": "IG/HY credit spreads are not pricing acute funding stress",
+            "facts": [
+              "Investment-grade and high-yield spreads remain tighter than crisis-period peaks in most recent calm windows.",
+              "Primary market issuance has periodically reopened after risk-off pauses without prolonged shutdown."
+            ],
+            "interpretation": "Absence of credit stress keeps liquidity-stress regime secondary unless bank/funding nodes flip.",
+            "confidence": 0.65,
+            "impact": "medium",
+            "priority_score": 1.3
           }
         ]
       },
@@ -269,39 +1303,40 @@
         ]
       }
     },
-    "edges_count": 12,
+    "edges_count": 18,
     "meta": {
       "source_modes": [
         "fixture"
       ],
-      "event_count": 10,
-      "run_id": "20260727T001437Z",
-      "node_total": 10
+      "event_count": 17,
+      "run_id": "20260805T234722Z",
+      "node_total": 17,
+      "regime_primary": "geopolitical_risk_premium",
+      "regime_confidence": 0.5
     }
   },
   "implications_for_my_strategy": {
     "title": "Implications for My Strategy",
     "strategy_paths": {
-      "bets": "/Users/cvolkernick/personal-workspace/strategy/bets.md",
-      "intent": "/Users/cvolkernick/personal-workspace/strategy/intent.json",
-      "today": "/Users/cvolkernick/personal-workspace/strategy/today.md",
-      "positions": "/Users/cvolkernick/personal-workspace/investment/positions.md"
+      "bets": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/bets.md",
+      "intent": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/intent.json",
+      "today": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/today.md",
+      "positions": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/investment/positions.md"
     },
     "paths_exist": {
       "bets": true,
-      "intent": true,
+      "intent": false,
       "today": true,
       "positions": true
     },
     "thematic_bets": [
-      "nest under Ikigai",
       "Energy",
       "Bitcoin",
       "AI",
       "Autonomy",
       "Robotics"
     ],
-    "intent_accomplishing": "Build wealth and optionality via Energy, Bitcoin, and AI/Autonomy leverage while keeping health and systems sustainable.",
+    "intent_accomplishing": "",
     "positions_symbols": [
       "BTC",
       "STRC",
@@ -324,81 +1359,6 @@
       "SPCX"
     ],
     "sections": [
-      {
-        "priority_id": "intent_north_star",
-        "priority_label": "Current intent",
-        "items": [
-          {
-            "node_id": "tech-ai-compute-race",
-            "title": "Frontier AI remains compute- and energy-constrained",
-            "domain": "technology_ai",
-            "affinity": 0.716,
-            "facts": [
-              "Leading labs continue multi-billion-dollar training and inference buildouts.",
-              "Advanced GPU/accelerator supply and packaging remain bottlenecks."
-            ],
-            "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
-            "confidence": 0.8,
-            "rationale": "Affinity 0.72 with Current intent via energy, leverage, ai; node impact=high, confidence=0.8.",
-            "matched_keywords": [
-              "energy",
-              "leverage",
-              "ai"
-            ]
-          },
-          {
-            "node_id": "energy-nuclear-renaissance",
-            "title": "AI data-center load and grid constraints lift nuclear and firm power narratives",
-            "domain": "energy",
-            "affinity": 0.4086,
-            "facts": [
-              "Hyperscalers have announced long-dated power purchase interest including nuclear-linked supply.",
-              "Uranium fuel-cycle capacity remains tight relative to announced reactor and SMR ambitions."
-            ],
-            "interpretation": "Energy scarcity becomes a binding constraint on AI scale-out; nuclear miners/utilities and grid equipment sit at the intersection of Energy and AI bets.",
-            "confidence": 0.75,
-            "rationale": "Affinity 0.41 with Current intent via energy, ai; node impact=high, confidence=0.75.",
-            "matched_keywords": [
-              "energy",
-              "ai"
-            ]
-          },
-          {
-            "node_id": "capital-btc-liquidity",
-            "title": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
-            "domain": "capital_flows",
-            "affinity": 0.3949,
-            "facts": [
-              "Spot BTC ETFs and corporate treasury narratives have expanded institutional access channels.",
-              "BTC drawdowns and rallies remain correlated with broader risk-asset and real-rate moves in many regimes."
-            ],
-            "interpretation": "For a Bitcoin accumulation thesis, watch real rates, USD liquidity, ETF flows, and regulatory clarity as first-order drivers.",
-            "confidence": 0.7,
-            "rationale": "Affinity 0.39 with Current intent via bitcoin, ai; node impact=high, confidence=0.7.",
-            "matched_keywords": [
-              "bitcoin",
-              "ai"
-            ]
-          },
-          {
-            "node_id": "demo-aging-advanced-economies",
-            "title": "Advanced-economy aging and tight labor markets constrain growth potential",
-            "domain": "demographics",
-            "affinity": 0.3502,
-            "facts": [
-              "Working-age population growth is slow or negative in several major economies.",
-              "Labor force participation and immigration policy remain central political variables."
-            ],
-            "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
-            "confidence": 0.75,
-            "rationale": "Affinity 0.35 with Current intent via leverage, ai; node impact=medium, confidence=0.75.",
-            "matched_keywords": [
-              "leverage",
-              "ai"
-            ]
-          }
-        ]
-      },
       {
         "priority_id": "energy",
         "priority_label": "Energy",
@@ -439,6 +1399,23 @@
             "matched_keywords": [
               "energy",
               "power"
+            ]
+          },
+          {
+            "node_id": "energy-oil-buffer",
+            "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+            "domain": "energy",
+            "affinity": 0.3949,
+            "facts": [
+              "OPEC+ continues to use coordinated output management as a price-support tool.",
+              "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+            ],
+            "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
+            "confidence": 0.7,
+            "rationale": "Affinity 0.39 with Energy via energy, oil; node impact=high, confidence=0.7.",
+            "matched_keywords": [
+              "energy",
+              "oil"
             ]
           },
           {
@@ -505,20 +1482,38 @@
             ]
           },
           {
-            "node_id": "narrative-ai-hype-cycle",
-            "title": "AI and crypto narratives oscillate between euphoria and disillusionment in media cycles",
-            "domain": "narrative_information",
-            "affinity": 0.2975,
+            "node_id": "capital-usd-funding",
+            "title": "USD funding conditions and the dollar remain a global transmission channel",
+            "domain": "capital_flows",
+            "affinity": 0.7172,
             "facts": [
-              "Coverage volume of generative AI remains elevated across business and tech media.",
-              "Retail and institutional narratives around Bitcoin flip with price regimes."
+              "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+              "Periods of USD strength often coincide with tighter global financial conditions outside the US."
             ],
-            "interpretation": "Narrative intensity is a sentiment input, not a fundamental; use low confidence unless corroborated by capital-flow or policy facts.",
-            "confidence": 0.55,
-            "rationale": "Affinity 0.30 with Bitcoin via bitcoin, crypto; node impact=medium, confidence=0.55.",
+            "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+            "confidence": 0.7,
+            "rationale": "Affinity 0.72 with Bitcoin via btc, liquidity, treasury; node impact=high, confidence=0.7.",
             "matched_keywords": [
-              "bitcoin",
-              "crypto"
+              "btc",
+              "liquidity",
+              "treasury"
+            ]
+          },
+          {
+            "node_id": "capital-credit-spreads-calm",
+            "title": "IG/HY credit spreads are not pricing acute funding stress",
+            "domain": "capital_flows",
+            "affinity": 0.4262,
+            "facts": [
+              "Investment-grade and high-yield spreads remain tighter than crisis-period peaks in most recent calm windows.",
+              "Primary market issuance has periodically reopened after risk-off pauses without prolonged shutdown."
+            ],
+            "interpretation": "Absence of credit stress keeps liquidity-stress regime secondary unless bank/funding nodes flip.",
+            "confidence": 0.65,
+            "rationale": "Affinity 0.43 with Bitcoin via liquidity, risk-assets; node impact=medium, confidence=0.65.",
+            "matched_keywords": [
+              "liquidity",
+              "risk-assets"
             ]
           }
         ]
@@ -569,36 +1564,39 @@
             ]
           },
           {
+            "node_id": "tech-export-controls-ai",
+            "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+            "domain": "technology_ai",
+            "affinity": 0.9559,
+            "facts": [
+              "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+              "Advanced packaging and HBM capacity are cited as bottlenecks alongside raw GPU supply."
+            ],
+            "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
+            "confidence": 0.8,
+            "rationale": "Affinity 0.96 with AI / Compute via ai, compute, gpu, semiconductor; node impact=high, confidence=0.8.",
+            "matched_keywords": [
+              "ai",
+              "compute",
+              "gpu",
+              "semiconductor"
+            ]
+          },
+          {
             "node_id": "geo-great-power-competition",
             "title": "US–China strategic competition remains the primary geopolitical axis",
             "domain": "geopolitics",
-            "affinity": 0.54,
+            "affinity": 0.5469,
             "facts": [
               "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
               "Both sides continue to deepen security partnerships with regional partners."
             ],
             "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
             "confidence": 0.85,
-            "rationale": "Affinity 0.54 with AI / Compute via ai, semiconductor; node impact=high, confidence=0.85.",
+            "rationale": "Affinity 0.55 with AI / Compute via ai, semiconductor; node impact=high, confidence=0.85.",
             "matched_keywords": [
               "ai",
               "semiconductor"
-            ]
-          },
-          {
-            "node_id": "macro-rates-regime",
-            "title": "Global policy rates remain elevated vs 2010s baseline",
-            "domain": "macroeconomics",
-            "affinity": 0.1743,
-            "facts": [
-              "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-              "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
-            ],
-            "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
-            "confidence": 0.8,
-            "rationale": "Affinity 0.17 with AI / Compute via ai; node impact=high, confidence=0.8.",
-            "matched_keywords": [
-              "ai"
             ]
           }
         ]
@@ -672,35 +1670,40 @@
             ]
           },
           {
-            "node_id": "tech-ai-compute-race",
-            "title": "Frontier AI remains compute- and energy-constrained",
-            "domain": "technology_ai",
-            "affinity": 0.2623,
+            "node_id": "macro-fiscal-impulse-us",
+            "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+            "domain": "macroeconomics",
+            "affinity": 0.999,
             "facts": [
-              "Leading labs continue multi-billion-dollar training and inference buildouts.",
-              "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+              "Federal deficits remain large as a share of GDP versus the 2010s expansion baseline.",
+              "Interest outlays as a share of outlays have risen with the stock of debt and higher coupon resets."
             ],
-            "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
-            "confidence": 0.8,
-            "rationale": "Affinity 0.26 with Treasury / Liquidity via dollar; node impact=high, confidence=0.8.",
+            "interpretation": "Fiscal impulse supports nominal growth and complicates disinflation; higher-for-longer is partially a fiscal-monetary interaction story.",
+            "confidence": 0.75,
+            "rationale": "Affinity 1.00 with Treasury / Liquidity via fed, inflation, macro, treasury; node impact=high, confidence=0.75.",
             "matched_keywords": [
-              "dollar"
+              "fed",
+              "inflation",
+              "macro",
+              "treasury"
             ]
           },
           {
-            "node_id": "demo-aging-advanced-economies",
-            "title": "Advanced-economy aging and tight labor markets constrain growth potential",
-            "domain": "demographics",
-            "affinity": 0.2336,
+            "node_id": "capital-usd-funding",
+            "title": "USD funding conditions and the dollar remain a global transmission channel",
+            "domain": "capital_flows",
+            "affinity": 0.7602,
             "facts": [
-              "Working-age population growth is slow or negative in several major economies.",
-              "Labor force participation and immigration policy remain central political variables."
+              "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+              "Periods of USD strength often coincide with tighter global financial conditions outside the US."
             ],
-            "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
-            "confidence": 0.75,
-            "rationale": "Affinity 0.23 with Treasury / Liquidity via inflation; node impact=medium, confidence=0.75.",
+            "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+            "confidence": 0.7,
+            "rationale": "Affinity 0.76 with Treasury / Liquidity via dollar, liquidity, treasury; node impact=high, confidence=0.7.",
             "matched_keywords": [
-              "inflation"
+              "dollar",
+              "liquidity",
+              "treasury"
             ]
           }
         ]
@@ -726,6 +1729,23 @@
               "export-control",
               "geopolitics",
               "military"
+            ]
+          },
+          {
+            "node_id": "geo-industrial-policy-race",
+            "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+            "domain": "geopolitics",
+            "affinity": 0.7525,
+            "facts": [
+              "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+              "Tariff and export-control toolkits are used with higher frequency in bilateral disputes."
+            ],
+            "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+            "confidence": 0.8,
+            "rationale": "Affinity 0.75 with Geopolitical Risk Management via export-control, geopolitics; node impact=high, confidence=0.8.",
+            "matched_keywords": [
+              "export-control",
+              "geopolitics"
             ]
           },
           {
@@ -766,37 +1786,16 @@
         ]
       }
     ],
-    "linkage_count": 32
+    "linkage_count": 42
   },
   "watchlist": {
     "title": "Watchlist / Radar",
     "items": [
       {
         "rank": 1,
-        "variable_or_event": "US–China strategic competition remains the primary geopolitical axis",
-        "domain": "geopolitics",
-        "why_watch": "Ranked #1 by priority_score=2.975 (impact=high, confidence=0.85).",
-        "facts": [
-          "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
-          "Both sides continue to deepen security partnerships with regional partners."
-        ],
-        "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
-        "confidence": 0.85,
-        "impact": "high",
-        "priority_score": 2.975,
-        "tags": [
-          "china",
-          "us",
-          "semiconductors",
-          "geopolitics",
-          "export-controls"
-        ]
-      },
-      {
-        "rank": 2,
         "variable_or_event": "Advanced semiconductor manufacturing remains geographically concentrated",
         "domain": "supply_chains",
-        "why_watch": "Ranked #2 by priority_score=2.975 (impact=high, confidence=0.85).",
+        "why_watch": "Ranked #1 by priority_score=2.975 (impact=high, confidence=0.85, strategy_boost=0.15). Linked strategy: AI / Compute, Geopolitical Risk Management. Watch because it touches: AI / Compute, Geopolitical Risk Management.",
         "facts": [
           "Leading-edge logic capacity is highly concentrated in a small number of firms and locations.",
           "Friend-shoring and subsidy programs aim to diversify capacity over multi-year horizons."
@@ -805,6 +1804,34 @@
         "confidence": 0.85,
         "impact": "high",
         "priority_score": 2.975,
+        "rank_score": 3.125,
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "ai",
+              "chip",
+              "compute",
+              "semiconductor",
+              "tsm"
+            ]
+          },
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.6574,
+            "matched_keywords": [
+              "geopolitics",
+              "taiwan"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Geopolitical Risk Management"
+        ],
         "tags": [
           "semiconductors",
           "taiwan",
@@ -814,31 +1841,58 @@
         ]
       },
       {
-        "rank": 3,
-        "variable_or_event": "Global policy rates remain elevated vs 2010s baseline",
-        "domain": "macroeconomics",
-        "why_watch": "Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8).",
+        "rank": 2,
+        "variable_or_event": "US–China strategic competition remains the primary geopolitical axis",
+        "domain": "geopolitics",
+        "why_watch": "Ranked #2 by priority_score=2.975 (impact=high, confidence=0.85, strategy_boost=0.15). Linked strategy: Geopolitical Risk Management, AI / Compute. Watch because it touches: Geopolitical Risk Management, AI / Compute.",
         "facts": [
-          "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-          "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+          "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
+          "Both sides continue to deepen security partnerships with regional partners."
         ],
-        "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
-        "confidence": 0.8,
+        "interpretation": "This axis transmits into tech supply chains, capital allocation, and military posture; second-order effects dominate most other domains.",
+        "confidence": 0.85,
         "impact": "high",
-        "priority_score": 2.8,
+        "priority_score": 2.975,
+        "rank_score": 3.125,
+        "strategy_links": [
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "china",
+              "export-control",
+              "geopolitics",
+              "military"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.5469,
+            "matched_keywords": [
+              "ai",
+              "semiconductor"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Geopolitical Risk Management",
+          "AI / Compute"
+        ],
         "tags": [
-          "rates",
-          "inflation",
-          "fed",
-          "macro",
-          "liquidity"
+          "china",
+          "us",
+          "semiconductors",
+          "geopolitics",
+          "export-controls"
         ]
       },
       {
-        "rank": 4,
+        "rank": 3,
         "variable_or_event": "Frontier AI remains compute- and energy-constrained",
         "domain": "technology_ai",
-        "why_watch": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8).",
+        "why_watch": "Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: AI / Compute, Energy, Treasury / Liquidity. Watch because it touches: AI / Compute, Energy, Treasury / Liquidity.",
         "facts": [
           "Leading labs continue multi-billion-dollar training and inference buildouts.",
           "Advanced GPU/accelerator supply and packaging remain bottlenecks."
@@ -847,6 +1901,44 @@
         "confidence": 0.8,
         "impact": "high",
         "priority_score": 2.8,
+        "rank_score": 2.95,
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "ai",
+              "compute",
+              "gpu",
+              "model",
+              "nvidia",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.4825,
+            "matched_keywords": [
+              "energy",
+              "power"
+            ]
+          },
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.2623,
+            "matched_keywords": [
+              "dollar"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Energy",
+          "Treasury / Liquidity"
+        ],
         "tags": [
           "ai",
           "gpus",
@@ -856,10 +1948,181 @@
         ]
       },
       {
+        "rank": 4,
+        "variable_or_event": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "why_watch": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, AI / Compute.",
+        "facts": [
+          "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
+          "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+        ],
+        "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
+        "confidence": 0.8,
+        "impact": "high",
+        "priority_score": 2.8,
+        "rank_score": 2.95,
+        "strategy_links": [
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "fed",
+              "inflation",
+              "liquidity",
+              "macro",
+              "rates",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "bitcoin",
+            "priority_label": "Bitcoin",
+            "affinity": 0.8197,
+            "matched_keywords": [
+              "btc",
+              "liquidity",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1765,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Treasury / Liquidity",
+          "Bitcoin",
+          "AI / Compute"
+        ],
+        "tags": [
+          "rates",
+          "inflation",
+          "fed",
+          "macro",
+          "liquidity"
+        ]
+      },
+      {
         "rank": 5,
+        "variable_or_event": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "domain": "technology_ai",
+        "why_watch": "Ranked #5 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.143). Linked strategy: AI / Compute, Geopolitical Risk Management, Energy. Watch because it touches: AI / Compute, Geopolitical Risk Management, Energy.",
+        "facts": [
+          "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+          "Advanced packaging and HBM capacity are cited as bottlenecks alongside raw GPU supply."
+        ],
+        "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
+        "confidence": 0.8,
+        "impact": "high",
+        "priority_score": 2.8,
+        "rank_score": 2.9434,
+        "strategy_links": [
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.9559,
+            "matched_keywords": [
+              "ai",
+              "compute",
+              "gpu",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.4013,
+            "matched_keywords": [
+              "export-control"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.2335,
+            "matched_keywords": [
+              "power"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "AI / Compute",
+          "Geopolitical Risk Management",
+          "Energy"
+        ],
+        "tags": [
+          "ai",
+          "gpus",
+          "export-controls",
+          "semiconductors",
+          "hbm"
+        ]
+      },
+      {
+        "rank": 6,
+        "variable_or_event": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "domain": "geopolitics",
+        "why_watch": "Ranked #6 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.113). Linked strategy: Geopolitical Risk Management, AI / Compute, Energy. Watch because it touches: Geopolitical Risk Management, AI / Compute, Energy.",
+        "facts": [
+          "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+          "Tariff and export-control toolkits are used with higher frequency in bilateral disputes."
+        ],
+        "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+        "confidence": 0.8,
+        "impact": "high",
+        "priority_score": 2.8,
+        "rank_score": 2.9129,
+        "strategy_links": [
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.7525,
+            "matched_keywords": [
+              "export-control",
+              "geopolitics"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.5147,
+            "matched_keywords": [
+              "ai",
+              "semiconductor"
+            ]
+          },
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.249,
+            "matched_keywords": [
+              "energy"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Geopolitical Risk Management",
+          "AI / Compute",
+          "Energy"
+        ],
+        "tags": [
+          "tariff",
+          "industrial-policy",
+          "subsidy",
+          "export-controls",
+          "fragmentation"
+        ]
+      },
+      {
+        "rank": 7,
         "variable_or_event": "AI data-center load and grid constraints lift nuclear and firm power narratives",
         "domain": "energy",
-        "why_watch": "Ranked #5 by priority_score=2.625 (impact=high, confidence=0.75).",
+        "why_watch": "Ranked #7 by priority_score=2.625 (impact=high, confidence=0.75, strategy_boost=0.15). Linked strategy: Energy, AI / Compute. Watch because it touches: Energy, AI / Compute.",
         "facts": [
           "Hyperscalers have announced long-dated power purchase interest including nuclear-linked supply.",
           "Uranium fuel-cycle capacity remains tight relative to announced reactor and SMR ambitions."
@@ -868,6 +2131,34 @@
         "confidence": 0.75,
         "impact": "high",
         "priority_score": 2.625,
+        "rank_score": 2.775,
+        "strategy_links": [
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "data-centers",
+              "energy",
+              "grid",
+              "nuclear",
+              "power",
+              "uranium"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1654,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Energy",
+          "AI / Compute"
+        ],
         "tags": [
           "nuclear",
           "uranium",
@@ -878,10 +2169,66 @@
         ]
       },
       {
-        "rank": 6,
+        "rank": 8,
+        "variable_or_event": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "domain": "macroeconomics",
+        "why_watch": "Ranked #8 by priority_score=2.625 (impact=high, confidence=0.75, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, AI / Compute.",
+        "facts": [
+          "Federal deficits remain large as a share of GDP versus the 2010s expansion baseline.",
+          "Interest outlays as a share of outlays have risen with the stock of debt and higher coupon resets."
+        ],
+        "interpretation": "Fiscal impulse supports nominal growth and complicates disinflation; higher-for-longer is partially a fiscal-monetary interaction story.",
+        "confidence": 0.75,
+        "impact": "high",
+        "priority_score": 2.625,
+        "rank_score": 2.7748,
+        "strategy_links": [
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.999,
+            "matched_keywords": [
+              "fed",
+              "inflation",
+              "macro",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "bitcoin",
+            "priority_label": "Bitcoin",
+            "affinity": 0.2766,
+            "matched_keywords": [
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1654,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Treasury / Liquidity",
+          "Bitcoin",
+          "AI / Compute"
+        ],
+        "tags": [
+          "fiscal",
+          "deficit",
+          "debt",
+          "treasury",
+          "inflation"
+        ]
+      },
+      {
+        "rank": 9,
         "variable_or_event": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
         "domain": "capital_flows",
-        "why_watch": "Ranked #6 by priority_score=2.45 (impact=high, confidence=0.7).",
+        "why_watch": "Ranked #9 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.15). Linked strategy: Bitcoin, Treasury / Liquidity, AI / Compute. Watch because it touches: Bitcoin, Treasury / Liquidity, AI / Compute.",
         "facts": [
           "Spot BTC ETFs and corporate treasury narratives have expanded institutional access channels.",
           "BTC drawdowns and rallies remain correlated with broader risk-asset and real-rate moves in many regimes."
@@ -890,6 +2237,46 @@
         "confidence": 0.7,
         "impact": "high",
         "priority_score": 2.45,
+        "rank_score": 2.6,
+        "strategy_links": [
+          {
+            "priority_id": "bitcoin",
+            "priority_label": "Bitcoin",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "bitcoin",
+              "btc",
+              "etf",
+              "liquidity",
+              "mstr",
+              "risk-assets"
+            ]
+          },
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 1.0,
+            "matched_keywords": [
+              "liquidity",
+              "rates",
+              "real rates",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1544,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Bitcoin",
+          "Treasury / Liquidity",
+          "AI / Compute"
+        ],
         "tags": [
           "bitcoin",
           "btc",
@@ -900,89 +2287,170 @@
         ]
       },
       {
-        "rank": 7,
-        "variable_or_event": "Advanced-economy aging and tight labor markets constrain growth potential",
-        "domain": "demographics",
-        "why_watch": "Ranked #7 by priority_score=1.5 (impact=medium, confidence=0.75).",
-        "facts": [
-          "Working-age population growth is slow or negative in several major economies.",
-          "Labor force participation and immigration policy remain central political variables."
-        ],
-        "interpretation": "Demographics support structurally higher wage/inflation volatility and automation demand (AI/robotics leverage thesis).",
-        "confidence": 0.75,
-        "impact": "medium",
-        "priority_score": 1.5,
-        "tags": [
-          "demographics",
-          "labor",
-          "aging",
-          "automation"
-        ]
-      },
-      {
-        "rank": 8,
-        "variable_or_event": "Indo-Pacific force posture and industrial base remain priority theaters",
-        "domain": "military",
-        "why_watch": "Ranked #8 by priority_score=1.4 (impact=medium, confidence=0.7).",
-        "facts": [
-          "Allied exercises and basing arrangements in the Indo-Pacific continue to expand in tempo.",
-          "Defense industrial capacity (munitions, shipbuilding, missiles) is a stated bottleneck for multiple governments."
-        ],
-        "interpretation": "Military posture reinforces export-control and dual-use tech regimes; watch for escalation risk premiums in Asia supply chains.",
-        "confidence": 0.7,
-        "impact": "medium",
-        "priority_score": 1.4,
-        "tags": [
-          "indo-pacific",
-          "defense",
-          "alliances",
-          "military"
-        ]
-      },
-      {
-        "rank": 9,
-        "variable_or_event": "Critical minerals and water stress bind energy transition and industrial policy",
-        "domain": "climate_resources",
-        "why_watch": "Ranked #9 by priority_score=1.3 (impact=medium, confidence=0.65).",
-        "facts": [
-          "Copper, lithium, and rare earths face multi-year project lead times relative to demand forecasts.",
-          "Regional drought and heat events increasingly affect hydro and thermal power reliability."
-        ],
-        "interpretation": "Resource bottlenecks interact with AI power demand and defense industrial needs; not purely a green-narrative story.",
-        "confidence": 0.65,
-        "impact": "medium",
-        "priority_score": 1.3,
-        "tags": [
-          "copper",
-          "lithium",
-          "minerals",
-          "water",
-          "climate"
-        ]
-      },
-      {
         "rank": 10,
-        "variable_or_event": "AI and crypto narratives oscillate between euphoria and disillusionment in media cycles",
-        "domain": "narrative_information",
-        "why_watch": "Ranked #10 by priority_score=1.1 (impact=medium, confidence=0.55).",
+        "variable_or_event": "USD funding conditions and the dollar remain a global transmission channel",
+        "domain": "capital_flows",
+        "why_watch": "Ranked #10 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.114). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, AI / Compute.",
         "facts": [
-          "Coverage volume of generative AI remains elevated across business and tech media.",
-          "Retail and institutional narratives around Bitcoin flip with price regimes."
+          "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+          "Periods of USD strength often coincide with tighter global financial conditions outside the US."
         ],
-        "interpretation": "Narrative intensity is a sentiment input, not a fundamental; use low confidence unless corroborated by capital-flow or policy facts.",
-        "confidence": 0.55,
-        "impact": "medium",
-        "priority_score": 1.1,
+        "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+        "confidence": 0.7,
+        "impact": "high",
+        "priority_score": 2.45,
+        "rank_score": 2.564,
+        "strategy_links": [
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.7602,
+            "matched_keywords": [
+              "dollar",
+              "liquidity",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "bitcoin",
+            "priority_label": "Bitcoin",
+            "affinity": 0.7172,
+            "matched_keywords": [
+              "btc",
+              "liquidity",
+              "treasury"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1544,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Treasury / Liquidity",
+          "Bitcoin",
+          "AI / Compute"
+        ],
         "tags": [
-          "narrative",
-          "ai",
-          "bitcoin",
-          "sentiment",
-          "media"
+          "usd",
+          "dxy",
+          "funding",
+          "liquidity",
+          "carry-trade"
+        ]
+      },
+      {
+        "rank": 11,
+        "variable_or_event": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+        "domain": "energy",
+        "why_watch": "Ranked #11 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.059). Linked strategy: Energy, Treasury / Liquidity, AI / Compute. Watch because it touches: Energy, Treasury / Liquidity, AI / Compute.",
+        "facts": [
+          "OPEC+ continues to use coordinated output management as a price-support tool.",
+          "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+        ],
+        "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
+        "confidence": 0.7,
+        "impact": "high",
+        "priority_score": 2.45,
+        "rank_score": 2.5092,
+        "strategy_links": [
+          {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.3949,
+            "matched_keywords": [
+              "energy",
+              "oil"
+            ]
+          },
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.2725,
+            "matched_keywords": [
+              "inflation"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1544,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Energy",
+          "Treasury / Liquidity",
+          "AI / Compute"
+        ],
+        "tags": [
+          "oil",
+          "opec",
+          "energy",
+          "inflation"
+        ]
+      },
+      {
+        "rank": 12,
+        "variable_or_event": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+        "domain": "macroeconomics",
+        "why_watch": "Ranked #12 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.032). Linked strategy: Treasury / Liquidity, Geopolitical Risk Management, AI / Compute. Watch because it touches: Treasury / Liquidity, Geopolitical Risk Management, AI / Compute.",
+        "facts": [
+          "Job openings and quits have retreated from peaks while unemployment has only gradually risen in most recent cycles.",
+          "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series."
+        ],
+        "interpretation": "A soft landing needs labor rebalancing without demand destruction; a sharp unemployment jump would reweight toward growth-scare.",
+        "confidence": 0.7,
+        "impact": "high",
+        "priority_score": 2.45,
+        "rank_score": 2.4823,
+        "strategy_links": [
+          {
+            "priority_id": "treasury_liquidity",
+            "priority_label": "Treasury / Liquidity",
+            "affinity": 0.2152,
+            "matched_keywords": [
+              "macro"
+            ]
+          },
+          {
+            "priority_id": "geopolitical_risk",
+            "priority_label": "Geopolitical Risk Management",
+            "affinity": 0.1902,
+            "matched_keywords": [
+              "war"
+            ]
+          },
+          {
+            "priority_id": "ai",
+            "priority_label": "AI / Compute",
+            "affinity": 0.1544,
+            "matched_keywords": [
+              "ai"
+            ]
+          }
+        ],
+        "strategy_priorities": [
+          "Treasury / Liquidity",
+          "Geopolitical Risk Management",
+          "AI / Compute"
+        ],
+        "tags": [
+          "labor",
+          "payroll",
+          "unemployment",
+          "wages",
+          "soft-landing"
         ]
       }
     ],
-    "ranking_field": "priority_score",
-    "note": "Ordered by priority_score (impact × confidence × recency)."
+    "ranking_field": "priority_score+strategy_affinity",
+    "note": "Ordered by priority_score (impact × confidence × recency) with a mild boost when the node links to personal strategy priorities."
   }
 }
