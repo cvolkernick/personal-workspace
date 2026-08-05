@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-05T02:40:08.845288+00:00",
+  "as_of": "2026-08-05T06:01:00.044152+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -571,5 +571,5 @@
   ],
   "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-06"
+  "since": "2026-05-07"
 }
