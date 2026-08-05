@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-08-04T21:19:45.508710+00:00",
+  "as_of": "2026-08-05T00:23:22.595984+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-04T21:19:45.505774+00:00",
+    "as_of": "2026-08-05T00:23:22.593294+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 180.9821,
+    "nav_usd": 180.767,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 174.5,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3857,
-      "stocks_growth": 0.5785,
+      "btc_digital_credit": 0.3861,
+      "stocks_growth": 0.5792,
       "other": 0.0,
       "cash": 0.0005
     },
@@ -120,11 +120,11 @@
           "symbol": "BE",
           "name": "Bloom Energy",
           "theme": "energy",
-          "status": "monitor",
+          "status": "ready",
           "priority": "high",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": "2026-07-23",
+          "last_deep_dive": "2026-08-04",
           "held": false,
           "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth."
         },
@@ -132,35 +132,35 @@
           "symbol": "GOOGL",
           "name": "Alphabet (Google)",
           "theme": "ai_stack",
-          "status": "monitor",
+          "status": "ready",
           "priority": "high",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": null,
+          "last_deep_dive": "2026-08-04",
           "held": false,
-          "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap core candidate \u2014 not yet on agentic core allowlist."
+          "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap candidate \u2014 not on agentic core allowlist."
         },
         {
           "symbol": "AAPL",
           "name": "Apple",
           "theme": "ai_stack",
-          "status": "monitor",
+          "status": "ready",
           "priority": "high",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": null,
+          "last_deep_dive": "2026-08-04",
           "held": false,
-          "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not yet on agentic core allowlist."
+          "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not on agentic core allowlist."
         },
         {
           "symbol": "NVDA",
           "name": "NVIDIA",
           "theme": "ai_stack",
-          "status": "monitor",
+          "status": "ready",
           "priority": "high",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": null,
+          "last_deep_dive": "2026-08-04",
           "held": false,
           "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default."
         },
@@ -168,16 +168,16 @@
           "symbol": "PLTR",
           "name": "Palantir Technologies",
           "theme": "ai_stack",
-          "status": "monitor",
+          "status": "ready",
           "priority": "medium",
           "sleeve_if_owned": "stocks_growth",
           "deep_dive_required_before_buy": true,
-          "last_deep_dive": null,
+          "last_deep_dive": "2026-08-04",
           "held": false,
-          "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core. See RESEARCH/PALANTIR_THESIS_FIT_2026_08_03.md (Buzz nest)."
+          "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core."
         }
       ],
-      "on_review": "Scout/Thesis scan watchlist + latest research each review. Prefer native workflows: /fund-manager-research (book/strategy/candidates) and /position-deep-dive symbol=X before first buy. Agents may PROPOSE new watchlist names (status monitor only); never auto-buy. Prefer core allowlist for routine rebalance."
+      "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
     },
     "approval": {
       "require_user_confirm": false,
@@ -3263,7 +3263,7 @@
       "stocks_growth_pct": 0.6,
       "band_pct": 0.05,
       "cash_is_unallocated": true,
-      "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, give digital credit (esp. STRC/SATA) a real seat \u2014 not MSTR-only by habit."
+      "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) \u2014 not MSTR-only by habit, not 40% all-credit."
     },
     "cadence": {
       "scheduled_reviews_per_day": 1,
