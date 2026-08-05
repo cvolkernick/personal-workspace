@@ -18,6 +18,7 @@ from .dashboard_cache import (
 from .github_client import GitHubLiftClient
 from .google_health import GoogleHealthClient
 from .health_metrics_store import resolve_health_snapshot
+from .hidrate_client import overlay_hidrate_hydration
 
 log = logging.getLogger("resistance-dashboard.refresh")
 
@@ -81,16 +82,24 @@ def maybe_schedule_background_refresh(
 
 def _refresh_health(*, local_dir: str, token: str, incremental: bool) -> None:
     client = GoogleHealthClient()
-    if not client.credentials_present():
-        return
     days = _incremental_days() if incremental else 90
     cached, _, _ = load_health_cache()
-    fresh = client.fetch_health(days=days)
-    resolved = resolve_health_snapshot(
-        fresh,
-        workspace_dir=local_dir,
-        github_token=token,
-    )
+    if client.credentials_present():
+        fresh = client.fetch_health(days=days)
+        resolved = resolve_health_snapshot(
+            fresh,
+            workspace_dir=local_dir,
+            github_token=token,
+        )
+    elif cached is not None:
+        # Still refresh Hidrate water onto the last good GH snapshot.
+        resolved = cached
+    else:
+        from .models import HealthSnapshot
+
+        resolved = HealthSnapshot()
+    # Hidrate Day totals win over GH hydration when credentials are set.
+    resolved, _hidrate_meta = overlay_hidrate_hydration(resolved, days=days)
     if incremental and cached is not None:
         merged = merge_health_snapshots(cached, resolved)
     else:
