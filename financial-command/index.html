@@ -1204,6 +1204,138 @@
     .bar-fill.ok { background: var(--green); }
     .bar-amt { font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; color: var(--text); }
 
+    /* Cashflow allocation guidance waterfall */
+    .alloc-guide {
+      display: grid;
+      gap: 0.45rem;
+    }
+    .alloc-guide .ag-next {
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid #2a4a6a;
+      background: linear-gradient(135deg, #152033 0%, #121a22 70%);
+    }
+    .alloc-guide .ag-next .lab {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 0.15rem;
+    }
+    .alloc-guide .ag-step {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr auto;
+      gap: 0.45rem 0.55rem;
+      align-items: start;
+      padding: 0.5rem 0.55rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0e1620;
+    }
+    .alloc-guide .ag-step.active {
+      border-color: #2a6aa3;
+      box-shadow: 0 0 0 1px rgba(91, 159, 212, 0.25);
+    }
+    .alloc-guide .ag-step.met { opacity: 0.78; }
+    .alloc-guide .ag-step.blocked,
+    .alloc-guide .ag-step.hold_red { opacity: 0.72; }
+    .alloc-guide .ag-rank {
+      width: 1.45rem;
+      height: 1.45rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 750;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: #15202c;
+      margin-top: 0.05rem;
+    }
+    .alloc-guide .ag-step.active .ag-rank {
+      color: #fff;
+      background: #1e4d7a;
+      border-color: #2a6aa3;
+    }
+    .alloc-guide .ag-step.met .ag-rank {
+      color: var(--green);
+      border-color: #245c42;
+    }
+    .alloc-guide .ag-step.gap .ag-rank,
+    .alloc-guide .ag-step.partial .ag-rank {
+      color: var(--red);
+      border-color: #6b2e2e;
+    }
+    .alloc-guide .ag-title {
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+      line-height: 1.25;
+    }
+    .alloc-guide .ag-detail {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+      line-height: 1.35;
+    }
+    .alloc-guide .ag-meta {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    .alloc-guide .ag-meta code {
+      font-size: 0.65rem;
+      color: var(--accent);
+    }
+    .alloc-guide .ag-amt {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.78rem;
+      font-weight: 650;
+      min-width: 4.5rem;
+    }
+    .alloc-guide .ag-amt .gap-amt { color: var(--red); }
+    .alloc-guide .ag-amt .ok-amt { color: var(--green); }
+    .alloc-guide .ag-amt .hold-amt { color: var(--yellow); }
+    .alloc-guide .ag-amt .sub {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+    .alloc-guide .ag-track {
+      grid-column: 2 / -1;
+      height: 0.35rem;
+      border-radius: 99px;
+      background: #1a2836;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-top: -0.1rem;
+    }
+    .alloc-guide .ag-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .alloc-guide .ag-fill.bad { background: var(--red); }
+    .alloc-guide .ag-fill.warn { background: var(--orange); }
+    .alloc-guide .ag-fill.ok { background: var(--green); }
+    .alloc-guide .ag-fill.hold { background: var(--yellow); }
+    .alloc-guide .ag-fill.muted { background: #3a4a5a; }
+    .alloc-guide .ag-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0.15rem 0 0;
+    }
+
     /* Compact feeds: dots; expand labels */
     .feeds-compact.feeds-dots {
       display: flex;
@@ -1809,6 +1941,32 @@
   <main>
     <div id="load-error" data-m-panel="glance" class="error hidden"></div>
 
+    <details class="panel advisor-fold" id="advisor-card" data-m-panel="glance" aria-label="Ask Grok financial advisor">
+      <summary>
+        Ask Grok
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
+      </summary>
+      <div class="body">
+        <div class="advisor">
+          <div class="advisor-row">
+            <textarea
+              id="advisor-question"
+              rows="2"
+              placeholder="e.g. What should I pay first with cash I actually have?"
+              maxlength="4000"
+            ></textarea>
+            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+          </div>
+          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+          <div class="advisor-error" id="advisor-error"></div>
+          <div class="advisor-answer" id="advisor-answer">
+            <div class="meta" id="advisor-answer-meta"></div>
+            <div class="body" id="advisor-answer-body"></div>
+          </div>
+        </div>
+      </div>
+    </details>
+
     <div id="glance-hero" class="glance-hero" data-m-panel="glance" hidden></div>
 
     <div class="status-split" id="status-split" data-m-panel="glance"></div>
@@ -1830,6 +1988,21 @@
       </div>
       <div class="carousel-dots" id="actions-dots" role="tablist" aria-label="Action pages"></div>
     </section>
+
+    <section class="card" id="alloc-guide-card" data-m-panel="coach" aria-label="Cashflow allocation guidance">
+      <div class="card-head">
+        <h2>Cashflow allocation</h2>
+        <span class="hint" id="alloc-guide-asof">priority stack</span>
+      </div>
+      <div id="alloc-guide" class="alloc-guide">
+        <p class="hint">Loading allocation guidance…</p>
+      </div>
+      <p class="alloc-guide ag-note" id="alloc-guide-note" style="margin-top:0.45rem">
+        Free dollars: expenses → card → buffers → collateral.
+        Capex (Discretionary) from collateralized margin only.
+      </p>
+    </section>
+
     <section class="card" id="bills-coach-card" data-m-panel="coach">
       <div class="bill-section-head">
         <div>
@@ -1865,32 +2038,6 @@
     </section>
 
 
-
-    <details class="panel advisor-fold" id="advisor-card" data-m-panel="coach" aria-label="Ask Grok financial advisor">
-      <summary>
-        Ask Grok
-        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
-      </summary>
-      <div class="body">
-        <div class="advisor">
-          <div class="advisor-row">
-            <textarea
-              id="advisor-question"
-              rows="2"
-              placeholder="e.g. What should I pay first with cash I actually have?"
-              maxlength="4000"
-            ></textarea>
-            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
-          </div>
-          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
-          <div class="advisor-error" id="advisor-error"></div>
-          <div class="advisor-answer" id="advisor-answer">
-            <div class="meta" id="advisor-answer-meta"></div>
-            <div class="body" id="advisor-answer-body"></div>
-          </div>
-        </div>
-      </div>
-    </details>
 
     <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
       <div class="card-head">
@@ -2705,6 +2852,153 @@
         bars;
     }
 
+
+    function renderAllocGuide(ev) {
+      const root = document.getElementById("alloc-guide");
+      const asof = document.getElementById("alloc-guide-asof");
+      if (!root) return;
+      const ca = (ev && ev.cashflow_allocation) || null;
+      if (!ca || !Array.isArray(ca.steps) || !ca.steps.length) {
+        root.innerHTML = `<p class="hint">No allocation guidance in evaluation — refresh treasury.</p>`;
+        if (asof) asof.textContent = "priority stack";
+        return;
+      }
+      if (asof) {
+        const active = ca.active_step_id || "—";
+        asof.textContent =
+          "next · " +
+          String(active).replace(/_/g, " ") +
+          (ca.free_dollar_red ? " · free-dollar red" : "");
+      }
+      const statusLabel = {
+        met: "Met",
+        partial: "Partial",
+        gap: "Gap",
+        ready: "Ready",
+        blocked: "Blocked",
+        hold_red: "Hold",
+        available: "Margin OK",
+        no_bp: "No BP",
+        blocked_margin: "Margin heat",
+        none: "None",
+      };
+      const fillClass = (st) => {
+        if (st === "met" || st === "ready" || st === "available") return "ok";
+        if (st === "partial" || st === "hold_red") return "warn";
+        if (st === "gap" || st === "blocked_margin" || st === "no_bp") return "bad";
+        if (st === "blocked" || st === "none") return "muted";
+        return "warn";
+      };
+      const amtHtml = (s) => {
+        const st = s.status;
+        if (st === "met" && !(s.need > 0)) {
+          return `<span class="ok-amt">✓</span><span class="sub">clear</span>`;
+        }
+        if (st === "blocked") {
+          return `<span class="hold-amt">—</span><span class="sub">blocked</span>`;
+        }
+        if (st === "ready") {
+          return (
+            `<span class="ok-amt">${money(s.need || s.allocated)}</span>` +
+            `<span class="sub">deploy</span>`
+          );
+        }
+        if (st === "hold_red") {
+          return (
+            `<span class="hold-amt">${money(s.need || s.allocated)}</span>` +
+            `<span class="sub">hold</span>`
+          );
+        }
+        if (s.gap > 0) {
+          return (
+            `<span class="gap-amt">${money(s.gap)}</span>` +
+            `<span class="sub">gap</span>`
+          );
+        }
+        if (st === "available") {
+          return (
+            `<span class="ok-amt">${money(s.need)}</span>` +
+            `<span class="sub">from margin</span>`
+          );
+        }
+        if (st === "none") {
+          return `<span class="ok-amt">—</span><span class="sub">n/a</span>`;
+        }
+        return (
+          `<span>${money(s.need)}</span>` +
+          `<span class="sub">${escapeHtml(statusLabel[st] || st)}</span>`
+        );
+      };
+      const barPct = (s) => {
+        const need = Number(s.need) || 0;
+        const alloc = Number(s.allocated) || 0;
+        if (s.status === "met" && need <= 0) return 100;
+        if (s.status === "ready") return 100;
+        if (s.status === "blocked" || s.status === "none") return 0;
+        if (need <= 0) return s.status === "met" ? 100 : 0;
+        return Math.max(0, Math.min(100, (alloc / need) * 100));
+      };
+      let html = "";
+      html +=
+        `<div class="ag-next"><span class="lab">Next free dollar</span>` +
+        `${escapeHtml(ca.next_free_dollar || "—")}</div>`;
+      for (const s of ca.steps) {
+        const st = s.status || "";
+        const active = ca.active_step_id === s.id ? " active" : "";
+        const cls = `ag-step ${st}${active}`;
+        const fund =
+          s.fund_from === "collateralized_margin"
+            ? "margin BP"
+            : s.fund_from === "venue_cash"
+              ? "venue cash"
+              : s.fund_from === "free_dollar_excess"
+                ? "excess free $"
+                : "free $";
+        let extra = "";
+        if (s.id === "collateral" && s.meta && (s.meta.to_btc_collateral || s.meta.to_rh_securities)) {
+          extra =
+            `<div class="ag-meta">BTC path ${money(s.meta.to_btc_collateral)} · ` +
+            `RH securities ${money(s.meta.to_rh_securities)}</div>`;
+        }
+        if (s.id === "cash_buffers" && s.meta && s.meta.gaps) {
+          const g = s.meta.gaps;
+          extra =
+            `<div class="ag-meta">float ${money(g.card_float)} · loan ${money(
+              g.loan_buffer
+            )} · bridge ${money(g.bridge_dry_powder)}</div>`;
+        }
+        if (s.id === "capex_margin" && s.meta && Array.isArray(s.meta.items) && s.meta.items.length) {
+          const top = s.meta.items
+            .slice(0, 3)
+            .map((it) => escapeHtml(it.item || "") + " " + money(it.monthly))
+            .join(" · ");
+          extra = `<div class="ag-meta">${top}</div>`;
+        }
+        html +=
+          `<div class="${cls}" data-step="${escapeHtml(s.id)}">` +
+          `<div class="ag-rank">${s.rank}</div>` +
+          `<div>` +
+          `<div class="ag-title">${escapeHtml(s.title || s.id)}</div>` +
+          `<div class="ag-detail">${escapeHtml(s.detail || "")}</div>` +
+          `<div class="ag-meta"><code>${escapeHtml(fund)}</code> · ${escapeHtml(
+            statusLabel[st] || st
+          )}</div>` +
+          extra +
+          `</div>` +
+          `<div class="ag-amt">${amtHtml(s)}</div>` +
+          `<div class="ag-track"><div class="ag-fill ${fillClass(st)}" style="width:${barPct(
+            s
+          )}%"></div></div>` +
+          `</div>`;
+      }
+      html +=
+        `<p class="ag-note">Free liquid start ${money(ca.free_liquid_start)} ` +
+        `(USDC ${money(ca.working_usdc)} + bank ${money(ca.bank_cash)}) · residual ${money(
+          ca.free_liquid_residual
+        )}</p>`;
+      root.innerHTML = html;
+    }
+
     function render(data) {
       const ev = data.evaluation || {};
       const snap = data.snapshot || {};
@@ -2716,6 +3010,8 @@
       const pill = document.getElementById("overall-pill");
       pill.textContent = overall + " · " + actions.length + " acts";
       pill.className = "pill " + overall;
+
+      renderAllocGuide(ev);
 
       // Split: liquidity stress vs fund manager health (detail lives on At a glance chips)
       const fmEarly = data.fund_manager || ev.fund_manager || {};
