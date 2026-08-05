@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-05T09:11:16.110968+00:00",
+  "as_of": "2026-08-05T23:40:31.576833+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 604.71,
-  "cash": 604.71,
-  "available": 604.71,
-  "cleared_balance": 604.71,
+  "balance_raw": 652.04,
+  "cash": 652.04,
+  "available": 652.04,
+  "cleared_balance": 652.04,
   "uncleared_balance": 0.0,
-  "spend_30d": 949.32,
-  "inflow_30d": 1554.03,
-  "transaction_count": 99,
+  "spend_30d": 971.92,
+  "inflow_30d": 1623.96,
+  "transaction_count": 103,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -437,7 +437,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
+      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -448,7 +448,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
+      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
