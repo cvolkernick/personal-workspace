@@ -1680,6 +1680,47 @@
     // ── Sprint tab (ceremony file + optional Buzz Board) ────────────────
     window.__sprintState = window.__sprintState || { data: null, loading: false };
 
+    function sprintStaleDays(iso, days = 7) {
+      if (!iso) return null;
+      try {
+        const t = new Date(iso).getTime();
+        if (Number.isNaN(t)) return null;
+        const age = (Date.now() - t) / 86400000;
+        return age > days ? Math.floor(age) : null;
+      } catch { return null; }
+    }
+
+    function ceremonyByNumber(lists) {
+      const map = new Map();
+      for (const list of lists) {
+        for (const it of list || []) {
+          if (it && it.number != null) map.set(Number(it.number), it);
+        }
+      }
+      return map;
+    }
+
+    /** Board columns for membership; ceremony file overlays size/priority/owner/notes. */
+    function mergeSprintCards(boardList, ceremonyList, cerMap) {
+      const board = boardList || [];
+      const ceremony = ceremonyList || [];
+      if (board.length) {
+        return board.map((b) => {
+          const c = cerMap.get(Number(b.number)) || {};
+          return {
+            ...b,
+            size: c.size != null ? c.size : (b.size != null ? b.size : b.size_hint),
+            priority: c.priority || b.priority || b.priority_hint,
+            owner: c.owner || b.owner,
+            notes: c.notes || b.notes,
+            url: b.url || c.url,
+            title: b.title || c.title,
+          };
+        });
+      }
+      return ceremony;
+    }
+
     function sprintCardHtml(card) {
       const num = card.number != null ? `#${esc(card.number)}` : "";
       const title = esc(card.title || "(untitled)");
@@ -1691,7 +1732,10 @@
       if (card.size != null && card.size !== "") bits.push(`<span class="pill muted">size ${esc(card.size)}</span>`);
       if (card.priority) bits.push(`<span class="pill">${esc(card.priority)}</span>`);
       if (card.owner) bits.push(`<span class="pill session">${esc(card.owner)}</span>`);
-      return `<div class="sprint-item">${titleHtml}<div class="meta-row">${bits.join("") || '<span class="sub">—</span>'}</div></div>`;
+      const stale = sprintStaleDays(card.updated_at, 7);
+      if (stale != null) bits.push(`<span class="pill" style="color:var(--yellow);border-color:#6b5a1e" title="No board update in ${stale}d">stale ${stale}d</span>`);
+      const notes = card.notes ? `<div class="sub" style="margin-top:0.2rem">${esc(card.notes)}</div>` : "";
+      return `<div class="sprint-item">${titleHtml}<div class="meta-row">${bits.join("") || '<span class="sub">—</span>'}</div>${notes}</div>`;
     }
 
     function renderSprint(data) {
@@ -1707,7 +1751,7 @@
       const cols = board.columns || {};
       const limit = wip.limit ?? c.wip_limit ?? 3;
       const cur = wip.current ?? 0;
-      const meterClass = wip.over ? "over" : (cur >= limit ? "warn" : "ok");
+      const meterClass = wip.over ? "over" : (cur >= limit ? "warn" : (cur === 0 ? "warn" : "ok"));
       const goal = (c.goal && String(c.goal).trim()) || null;
       const boardUrl = c.board_url || board.url || "https://github.com/users/cvolkernick/projects/1";
       const sourceLabel = board.source === "github_project_v2"
@@ -1716,16 +1760,15 @@
           ? "Ceremony file"
           : (board.source || "—");
 
-      // Prefer ceremony lists for primary columns; fall back to board
-      let ip = (c.in_progress && c.in_progress.length) ? c.in_progress : (cols["In Progress"] || []);
-      let ready = (c.ready && c.ready.length) ? c.ready : (cols["Ready"] || []);
-      // If board is live and ceremony empty, use board
-      if (board.source === "github_project_v2") {
-        if (!(c.in_progress && c.in_progress.length)) ip = cols["In Progress"] || [];
-        if (!(c.ready && c.ready.length)) ready = cols["Ready"] || [];
-      }
-
+      const cerMap = ceremonyByNumber([c.in_progress, c.ready, c.not_this_sprint]);
+      // Board = column membership; ceremony = sizes / not-this-sprint / goal
+      let ip = mergeSprintCards(cols["In Progress"], c.in_progress, cerMap);
+      let ready = mergeSprintCards(cols["Ready"], c.ready, cerMap);
       const notSprint = c.not_this_sprint || [];
+      // Hide Ready cards flagged not-this-sprint
+      const notSet = new Set(notSprint.map((x) => Number(x.number)).filter((n) => !Number.isNaN(n)));
+      if (notSet.size) ready = ready.filter((x) => !notSet.has(Number(x.number)));
+
       const countEl = $("sprint-tab-count");
       if (countEl) {
         if (cur > 0) { countEl.hidden = false; countEl.textContent = String(cur); }
@@ -1745,7 +1788,6 @@
       const lifeKeys = ["Parked", "Validate", "Ready", "In Progress", "Done"];
       const lifeHtml = lifeKeys.map((k) => {
         const n = (cols[k] || []).length;
-        // ceremony-only fallback for Ready / In Progress
         const nShow = (k === "In Progress" && !n && ip.length) ? ip.length
           : (k === "Ready" && !n && ready.length) ? ready.length
           : n;
@@ -1756,6 +1798,14 @@
         ? `<div class="sub" style="color:var(--yellow);margin-top:0.35rem">Board: ${esc(board.error)} · showing ceremony file</div>`
         : "";
 
+      const playbookHref = "https://github.com/cvolkernick/personal-workspace/blob/master/GUIDES/CADENCE_SCRUM_CEREMONIES.md";
+      // Prefer last plan path from ceremony if present later; fallback playbook
+      const lastPlan = c.last_plan_url || c.last_plan_path || null;
+      const lastPlanLabel = lastPlan ? "Last plan" : "Playbook";
+      const lastPlanHref = lastPlan
+        ? (String(lastPlan).startsWith("http") ? lastPlan : `https://github.com/cvolkernick/personal-workspace/blob/master/${String(lastPlan).replace(/^\/+/, "")}`)
+        : playbookHref;
+
       const kickoff = "@Cadence run backlog grooming now";
       root.innerHTML = `
         <div class="sprint-header">
@@ -1765,16 +1815,17 @@
               <p class="sprint-goal${goal ? "" : " empty"}">${goal ? esc(goal) : "No sprint goal yet — set after first planning ceremony."}</p>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
-              <span class="wip-meter ${meterClass}" title="In Progress / WIP limit">WIP ${cur}/${limit}</span>
+              <span class="wip-meter ${meterClass}" title="In Progress / WIP limit (red = over)">WIP ${cur}/${limit}</span>
               <span class="pill muted">cap ${esc(c.committed_points ?? 0)}/${esc(c.capacity_points ?? 13)}</span>
               <a class="btn-bl-orch" href="${esc(boardUrl)}" target="_blank" rel="noopener">Buzz Board ↗</a>
             </div>
           </div>
-          <div class="sub">Source: ${esc(sourceLabel)} · meter from ${esc(wip.source || "ceremony")}</div>
+          <div class="sub">Source: ${esc(sourceLabel)} · meter from ${esc(wip.source || "ceremony")} · Board membership + ceremony sizes</div>
           ${boardErr}
           <div class="ceremony-strip">
             <span class="pill muted">Groom Wed 16:00</span>
             <span class="pill muted">Plan Mon 16:00</span>
+            <a class="btn-bl-orch" href="${esc(lastPlanHref)}" target="_blank" rel="noopener">${esc(lastPlanLabel)} ↗</a>
             <button type="button" id="btn-sprint-copy-kickoff" title="Copy kickoff mention">Copy grooming kickoff</button>
             <button type="button" id="btn-sprint-refresh">Refresh sprint</button>
           </div>
