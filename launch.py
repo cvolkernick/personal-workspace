@@ -15,7 +15,7 @@ REPO_ROOT = os.path.dirname(os.path.abspath(__file__))
 def main():
     server = os.path.join(REPO_ROOT, "orchestra", "server.py")
     cmd = [sys.executable, server, *sys.argv[1:]]
-    print("Starting Orchestra Command Center…")
+    print("Starting Orchestrator…")
     raise SystemExit(subprocess.call(cmd, cwd=REPO_ROOT))
 
 

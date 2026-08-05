@@ -219,6 +219,9 @@ def add_item(
     priority: int = 1,
     minutes: int = 0,
     item_id: str | None = None,
+    notes: str = "",
+    source: str = "",
+    backlog_id: str | None = None,
 ) -> dict[str, Any]:
     title = (title or "").strip()
     if not title:
@@ -233,19 +236,42 @@ def add_item(
     new_id = (item_id or _slug_id(title)).strip()
     if get_item(state, new_id) is not None:
         raise ValueError(f"item already exists with id: {new_id}")
+    if backlog_id:
+        existing = get_item_by_backlog_id(state, backlog_id)
+        if existing is not None:
+            raise ValueError(
+                f"item already linked to backlog_id {backlog_id}: {existing.get('id')}"
+            )
     out = normalize_state(state)
     items = list(out.get("items") or [])
-    items.append(
-        {
-            "id": new_id,
-            "title": title,
-            "kind": kind,
-            "priority": priority,
-            "minutes": minutes,
-        }
-    )
+    entry: dict[str, Any] = {
+        "id": new_id,
+        "title": title,
+        "kind": kind,
+        "priority": priority,
+        "minutes": minutes,
+    }
+    if (notes or "").strip():
+        entry["notes"] = notes.strip()
+    if (source or "").strip():
+        entry["source"] = source.strip()
+    if backlog_id:
+        entry["backlog_id"] = str(backlog_id).strip()
+    items.append(entry)
     out["items"] = items
     return out
+
+
+def get_item_by_backlog_id(
+    state: dict[str, Any], backlog_id: str
+) -> dict[str, Any] | None:
+    bid = (backlog_id or "").strip()
+    if not bid:
+        return None
+    for it in normalize_state(state).get("items") or []:
+        if str(it.get("backlog_id") or "") == bid:
+            return it
+    return None
 
 
 def remove_item(state: dict[str, Any], key: str) -> dict[str, Any]:

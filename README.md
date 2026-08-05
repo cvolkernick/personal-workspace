@@ -103,8 +103,15 @@ python3 treasury/run_treasury.py
 ```
 
 ## Editing workflow
-1. Check out the correct `work/<area>` for the domain you are changing.
-2. Edit files; refresh Orchestra or the subordinate dashboard.
-3. `git_workflow.py sync` (or Protect & push) so work is on the remote.
+1. Prefer a **worktree** per domain so multiple dashboards can run at once without
+   overwriting each other:
+   ```bash
+   python3 projects-dashboard/worktrees.py ensure
+   python3 projects-dashboard/worktrees.py list
+   ```
+2. Edit in that worktree (e.g. Fitness → `~/personal-workspace-worktrees/resistance-dashboard`).
+3. Launchers (`resistance-dashboard/start.sh`, `holistic/start.command`, …) auto-prefer
+   the worktree when present.
+4. `git_workflow.py sync` (or Protect & push) so work is on the remote.
 
 See `orchestra/README.md` and `Agents.md` for details.

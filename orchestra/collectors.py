@@ -171,8 +171,24 @@ def collect_backlog_summary(workspace: Path) -> dict[str, Any]:
                 "area": it.get("area") or "",
                 "notes": (it.get("notes") or "")[:300],
                 "tags": it.get("tags") or [],
+                "press_rank": it.get("press_rank"),
+                "schedule_slot": it.get("schedule_slot"),
+                "schedule_label": it.get("schedule_label"),
+                "allocator_id": it.get("allocator_id"),
             }
         )
+    # Prefer press-ranked / scheduled-now at front for Orchestra bridge
+    def _sort_key(x: dict[str, Any]) -> tuple:
+        rank = x.get("press_rank")
+        try:
+            r = int(rank) if rank is not None else 99
+        except (TypeError, ValueError):
+            r = 99
+        slot = (x.get("schedule_slot") or "").lower()
+        slot_w = 0 if slot == "now" else 1 if slot == "this_week" else 2
+        return (slot_w, r, str(x.get("title") or ""))
+
+    active.sort(key=_sort_key)
     return {
         "ok": True,
         "count": len(active),
@@ -457,10 +473,23 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
             target_titles.append(t["title"])
         elif isinstance(t, dict) and t.get("id"):
             target_titles.append(str(t["id"]))
+    linked = [
+        {
+            "id": it.get("id"),
+            "title": it.get("title"),
+            "backlog_id": it.get("backlog_id"),
+            "priority": it.get("priority"),
+            "minutes": it.get("minutes"),
+        }
+        for it in items
+        if isinstance(it, dict) and it.get("backlog_id")
+    ]
     bits = [
         f"{len(targets)} target(s)",
         f"{len(items)} item(s)",
     ]
+    if linked:
+        bits.append(f"{len(linked)} backlog-linked")
     if blocks:
         bits.append(f"{len(blocks)} plan block(s)")
     return {
@@ -472,6 +501,8 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
             "targets": target_titles[:12],
             "target_count": len(targets),
             "item_count": len(items),
+            "backlog_linked": linked[:12],
+            "backlog_linked_count": len(linked),
             "plan_blocks": [
                 b.get("id") or b.get("title")
                 for b in blocks[:10]

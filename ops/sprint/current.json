@@ -1,0 +1,54 @@
+{
+  "sprint_id": null,
+  "goal": null,
+  "wip_limit": 3,
+  "capacity_points": 13,
+  "committed_points": 0,
+  "in_progress": [],
+  "ready": [
+    {
+      "number": 21,
+      "title": "Enable Grok chat to access Buzz Board issues (GitHub Project)",
+      "size": 3,
+      "priority": "P0",
+      "owner": "Grok",
+      "url": "https://github.com/cvolkernick/personal-workspace/issues/21",
+      "notes": "Partial progress: dashboard GraphQL board adapter already live on Sprint tab. Remaining = agent-facing access path from chat."
+    },
+    {
+      "number": 20,
+      "title": "Revisit, expand, and enhance Horizon macro model",
+      "size": 5,
+      "priority": "P1",
+      "owner": null,
+      "url": "https://github.com/cvolkernick/personal-workspace/issues/20",
+      "notes": "Prefer clear MVP slice before pull; full macro expansion may need split."
+    }
+  ],
+  "not_this_sprint": [
+    {
+      "number": 13,
+      "title": "[Parked] Valet Trash App \u2014 fine redistribution amenity",
+      "size": 8,
+      "priority": "P3",
+      "url": "https://github.com/cvolkernick/personal-workspace/issues/13",
+      "notes": "Parked \u2014 leave until explicit unpark."
+    },
+    {
+      "number": 25,
+      "title": "SDLC: issue \u2192 branch \u2192 PR \u2192 merge \u2192 auto-deploy Pi",
+      "size": 8,
+      "priority": "P1",
+      "url": "https://github.com/cvolkernick/personal-workspace/issues/25",
+      "notes": "Parked pipeline work; #24 may be duplicate \u2014 clean at next full grooming."
+    }
+  ],
+  "notes": [
+    "2026-08-05 Cadence: pre-planning ready sizes only \u2014 no sprint goal / no WIP commit.",
+    "Live Board snapshot matched: Parked #13 #25 \u00b7 Ready #20 #21 \u00b7 In Progress empty.",
+    "Overrides welcome on sizes before first Mon planning."
+  ],
+  "updated_at": "2026-08-05T08:02:23Z",
+  "updated_by": "cadence",
+  "board_url": "https://github.com/users/cvolkernick/projects/1"
+}

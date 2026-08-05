@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Workflow Management — personal-workspace</title>
+  <title>🔁 Workflow Management — personal-workspace</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
   <style>
     :root {
       --bg: #0b0f14;
@@ -45,6 +47,18 @@
     }
     button:hover { border-color: var(--accent); color: var(--accent); }
     button:disabled { opacity: 0.5; cursor: wait; }
+    a.btn-bl-orch {
+      display: inline-flex; align-items: center;
+      background: #1a3a55; border: 1px solid #2d6a9f; color: var(--text);
+      border-radius: 8px; padding: 0.4rem 0.75rem; font-size: 0.85rem;
+      font-weight: 600; text-decoration: none;
+    }
+    a.btn-bl-orch:hover { border-color: var(--accent); color: var(--accent); }
+    .rec-card.orch-focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(91,159,212,0.15);
+    }
     label.toggle { display: inline-flex; gap: 0.4rem; align-items: center; font-weight: 500; color: var(--muted); }
     main { max-width: 1100px; margin: 0 auto; padding: 1.25rem 1.5rem 3rem; }
     .error-banner {
@@ -163,6 +177,127 @@
     }
     footer { margin-top: 2rem; color: var(--muted); font-size: 0.8rem; text-align: center; }
     .empty { color: var(--muted); text-align: center; padding: 1.25rem; border: 1px dashed var(--border); border-radius: 12px; }
+    /* gitk-style branch graph */
+    .graph-wrap {
+      overflow: auto; max-height: 28rem; border: 1px solid var(--border);
+      border-radius: 10px; background: #0a1016; margin-top: 0.5rem;
+    }
+    .graph-svg { display: block; min-width: 100%; }
+    .graph-row-hit { cursor: default; }
+    .graph-row-hit:hover rect.graph-bg { fill: rgba(91,159,212,0.08); }
+    .graph-label {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      padding: 0.05rem 0.4rem; border-radius: 999px; font-size: 0.65rem;
+      font-weight: 700; border: 1px solid; margin-right: 0.25rem;
+      font-family: ui-monospace, Menlo, monospace; vertical-align: middle;
+    }
+    .graph-controls {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      margin-bottom: 0.45rem;
+    }
+    .graph-controls button.active {
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(91,159,212,0.25);
+    }
+    .graph-meta { color: var(--muted); font-size: 0.78rem; }
+    .graph-meta a { color: var(--accent); text-decoration: none; }
+    .branch-list-compact { max-height: 12rem; overflow: auto; }
+    /* Branch environment matrix (origin × local clones) */
+    .bmx-wrap {
+      overflow: auto; max-height: 28rem; border: 1px solid var(--border);
+      border-radius: 10px; background: #0a1016; margin-top: 0.45rem;
+    }
+    .bmx {
+      width: 100%; border-collapse: collapse; font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .bmx th, .bmx td {
+      padding: 0.38rem 0.55rem; border-bottom: 1px solid #15202a;
+      text-align: center; white-space: nowrap;
+    }
+    .bmx th {
+      position: sticky; top: 0; z-index: 2;
+      background: #0e151c; color: var(--muted);
+      font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+      font-weight: 650; border-bottom: 1px solid var(--border);
+    }
+    .bmx th.bmx-branch, .bmx td.bmx-branch {
+      text-align: left; position: sticky; left: 0; z-index: 1;
+      background: #0a1016; max-width: 16rem;
+      overflow: hidden; text-overflow: ellipsis;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.74rem;
+    }
+    .bmx th.bmx-branch { z-index: 3; background: #0e151c; }
+    .bmx tr:hover td { background: rgba(91,159,212,0.06); }
+    .bmx tr:hover td.bmx-branch { background: #101820; }
+    .bmx tr.bmx-current td.bmx-branch { color: var(--green); font-weight: 650; }
+    .bmx .bmx-col-sub {
+      display: block; font-size: 0.62rem; font-weight: 500;
+      text-transform: none; letter-spacing: 0; color: #5a6f82; margin-top: 0.1rem;
+    }
+    .bmx-dot {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.35rem; height: 1.35rem; border-radius: 999px;
+      border: 1.5px solid var(--border); background: transparent;
+      font-size: 0.62rem; font-weight: 700; color: var(--muted);
+    }
+    .bmx-dot.st-present, .bmx-dot.st-synced {
+      background: rgba(61,214,140,0.18); border-color: #245c42; color: var(--green);
+    }
+    .bmx-dot.st-ahead {
+      background: rgba(245,197,66,0.18); border-color: #6b5a1e; color: var(--yellow);
+    }
+    .bmx-dot.st-behind {
+      background: rgba(245,197,66,0.12); border-color: #6b5a1e; color: var(--yellow);
+    }
+    .bmx-dot.st-diverged {
+      background: rgba(255,140,66,0.18); border-color: #7a4520; color: #ff9f5a;
+    }
+    .bmx-dot.st-local_only {
+      background: rgba(192,132,252,0.16); border-color: #5b3a7a; color: var(--purple);
+    }
+    .bmx-dot.st-remote_only {
+      background: rgba(91,159,212,0.14); border-color: #2a4a66; color: var(--accent);
+    }
+    .bmx-dot.st-gone {
+      background: rgba(255,107,107,0.14); border-color: #6b2e2e; color: var(--red);
+    }
+    .bmx-dot.st-absent {
+      background: transparent; border-color: #1a2530; color: #3a4a58;
+    }
+    .bmx-dot.st-current-ring {
+      box-shadow: 0 0 0 2px rgba(61,214,140,0.45);
+    }
+    .bmx-meta {
+      display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem;
+      align-items: center; margin-top: 0.55rem;
+      color: var(--muted); font-size: 0.75rem;
+    }
+    .bmx-legend {
+      display: flex; flex-wrap: wrap; gap: 0.35rem 0.55rem;
+      align-items: center; margin-top: 0.4rem;
+    }
+    .bmx-legend span {
+      display: inline-flex; align-items: center; gap: 0.28rem;
+      color: var(--muted); font-size: 0.7rem;
+    }
+    .bmx-wt {
+      display: block; margin-top: 0.15rem; color: #5a6f82;
+      font-size: 0.62rem; font-weight: 500;
+      max-width: 7rem; overflow: hidden; text-overflow: ellipsis;
+    }
+    .bmx-filter {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+      margin-top: 0.35rem;
+    }
+    .bmx-filter button {
+      padding: 0.25rem 0.55rem; font-size: 0.72rem; font-weight: 600;
+    }
+    .bmx-filter button.active {
+      border-color: var(--accent); color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(91,159,212,0.25);
+    }
     /* Recommendation priority + press rank */
     .pill.pri-critical { color: #ff6b6b; border-color: #6b2e2e; background: #2a1515; }
     .pill.pri-high { color: #f5a623; border-color: #6b4a1e; background: #2a1f10; }
@@ -215,13 +350,245 @@
     .legend-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.35rem; }
     .view-toggle { display: flex; gap: 0.35rem; flex-wrap: wrap; }
     .view-toggle button.active { border-color: var(--accent); color: var(--accent); }
+
+    /* —— Tab shell (FitDash/FCC-style) —— */
+    body.m-shell { padding-bottom: 4.5rem; }
+    .top-tabs {
+      display: flex; gap: 0.35rem; flex-wrap: wrap;
+      padding: 0.55rem 1.5rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 50;
+    }
+    .top-tabs .tab-btn {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: transparent; border: 1px solid transparent;
+      color: var(--muted); border-radius: 999px;
+      padding: 0.4rem 0.85rem; font-size: 0.85rem; font-weight: 650;
+      cursor: pointer;
+    }
+    .top-tabs .tab-btn:hover { color: var(--text); border-color: var(--border); }
+    .top-tabs .tab-btn.active {
+      color: var(--text); border-color: var(--accent);
+      background: rgba(91,159,212,0.14); box-shadow: 0 0 0 1px rgba(91,159,212,0.2);
+    }
+    .top-tabs .tab-ico { font-size: 0.95rem; opacity: 0.9; }
+    .top-tabs .tab-count {
+      font-size: 0.7rem; font-weight: 700; min-width: 1.25rem;
+      padding: 0.05rem 0.35rem; border-radius: 999px;
+      background: #1a3a55; color: var(--accent); border: 1px solid #2d6a9f;
+    }
+    .mobile-tabbar {
+      display: none;
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      background: rgba(12,16,22,0.96);
+      border-top: 1px solid var(--border);
+      padding: 0.35rem 0.4rem calc(0.35rem + env(safe-area-inset-bottom));
+      justify-content: space-around; gap: 0.15rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
+      background: transparent; border: none; color: var(--muted);
+      padding: 0.35rem 0.2rem; font-size: 0.68rem; font-weight: 650; cursor: pointer;
+      border-radius: 10px; min-height: 48px;
+    }
+    .mobile-tabbar .tab-btn .tab-ico { font-size: 1.15rem; line-height: 1; }
+    .mobile-tabbar .tab-btn.active { color: var(--accent); background: rgba(91,159,212,0.12); }
+    body.m-shell [data-m-panel] { display: none !important; }
+    body.m-shell[data-m-active="status"] [data-m-panel="status"],
+    body.m-shell[data-m-active="sprint"] [data-m-panel="sprint"],
+    body.m-shell[data-m-active="plan"] [data-m-panel="plan"],
+    body.m-shell[data-m-active="tasks"] [data-m-panel="tasks"],
+    body.m-shell[data-m-active="repo"] [data-m-panel="repo"] {
+      display: block !important;
+    }
+    /* —— Sprint tab —— */
+    .sprint-header {
+      display: grid; gap: 0.75rem;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1rem;
+    }
+    .sprint-header-top {
+      display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+      align-items: flex-start; justify-content: space-between;
+    }
+    .sprint-goal { font-size: 1.05rem; font-weight: 650; margin: 0.15rem 0 0; }
+    .sprint-goal.empty { color: var(--muted); font-weight: 500; font-style: italic; }
+    .wip-meter {
+      display: inline-flex; align-items: center; gap: 0.45rem;
+      padding: 0.35rem 0.7rem; border-radius: 999px;
+      border: 1px solid var(--border); background: #0e151c;
+      font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .wip-meter.ok { color: var(--green); border-color: #245c42; }
+    .wip-meter.warn { color: var(--yellow); border-color: #6b5a1e; }
+    .wip-meter.over { color: var(--red); border-color: #6b2e2e; background: #2a1515; }
+    .sprint-grid {
+      display: grid; gap: 0.85rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 900px) {
+      .sprint-grid { grid-template-columns: 1.2fr 1fr; }
+    }
+    .sprint-card-list { display: grid; gap: 0.55rem; }
+    .sprint-item {
+      display: grid; gap: 0.3rem;
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.85rem;
+    }
+    .sprint-item a { color: var(--text); text-decoration: none; font-weight: 650; }
+    .sprint-item a:hover { color: var(--accent); }
+    .sprint-item .meta-row {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+      font-size: 0.78rem; color: var(--muted);
+    }
+    .sprint-lifecycle {
+      display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.5rem;
+    }
+    .sprint-lifecycle .col-chip {
+      flex: 1 1 100px; min-width: 90px;
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.55rem 0.65rem; text-align: center;
+    }
+    .sprint-lifecycle .col-chip .n { font-size: 1.15rem; font-weight: 700; }
+    .sprint-lifecycle .col-chip .l { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .ceremony-strip {
+      display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
+      margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
+    }
+    details.sprint-details {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.75rem 1rem; margin-bottom: 0.85rem;
+    }
+    details.sprint-details summary {
+      cursor: pointer; font-weight: 650; color: var(--muted);
+      list-style: none;
+    }
+    details.sprint-details summary::-webkit-details-marker { display: none; }
+    .sprint-disclaimer {
+      color: var(--muted); font-size: 0.82rem; margin: 0.75rem 0 0;
+      line-height: 1.4;
+    }
+    @media (max-width: 720px) {
+      .top-tabs { display: none; }
+      .mobile-tabbar { display: flex; }
+      header { padding: 0.75rem 1rem; }
+      main { padding: 1rem 1rem 1.5rem; }
+    }
+    @media (min-width: 721px) {
+      body.m-shell { padding-bottom: 0; }
+    }
+    /* —— Google Tasks panel —— */
+    .tasks-layout {
+      display: grid; gap: 0.85rem;
+    }
+    @media (min-width: 900px) {
+      .tasks-layout { grid-template-columns: 14rem 1fr; align-items: start; }
+    }
+    .tasks-lists {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.65rem; display: grid; gap: 0.25rem;
+      max-height: min(70vh, 36rem); overflow: auto;
+    }
+    .tasks-lists .list-btn {
+      display: flex; justify-content: space-between; align-items: center; gap: 0.4rem;
+      width: 100%; text-align: left; background: transparent; border: 1px solid transparent;
+      border-radius: 8px; padding: 0.45rem 0.55rem; color: var(--text); font: inherit;
+      cursor: pointer; font-weight: 600; font-size: 0.88rem;
+    }
+    .tasks-lists .list-btn:hover { border-color: var(--border); background: #0e151c; }
+    .tasks-lists .list-btn.active {
+      border-color: var(--accent); background: rgba(91,159,212,0.12); color: var(--accent);
+    }
+    .tasks-lists .list-btn .cnt {
+      font-size: 0.72rem; color: var(--muted); font-variant-numeric: tabular-nums;
+    }
+    .tasks-lists .list-btn.active .cnt { color: var(--accent); }
+    .tasks-main {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.85rem 1rem; display: grid; gap: 0.65rem;
+      min-height: 16rem;
+    }
+    .tasks-toolbar {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      justify-content: space-between;
+    }
+    .tasks-toolbar .left, .tasks-toolbar .right {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+    }
+    .task-compose {
+      display: grid; gap: 0.4rem;
+      padding: 0.65rem; border: 1px solid var(--border); border-radius: 10px;
+      background: #0e151c;
+    }
+    .task-compose input, .task-compose textarea, .task-compose select,
+    .task-edit input, .task-edit textarea, .task-edit select,
+    .tasks-lists-create input {
+      background: #0a1016; border: 1px solid var(--border); color: var(--text);
+      border-radius: 8px; padding: 0.45rem 0.6rem; font-size: 0.88rem;
+      font-family: inherit; width: 100%; box-sizing: border-box;
+    }
+    .task-compose textarea, .task-edit textarea { resize: vertical; min-height: 3rem; }
+    .task-row {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 0.55rem 0.65rem;
+      align-items: start; padding: 0.55rem 0.45rem; border-radius: 10px;
+      border: 1px solid transparent; border-bottom-color: var(--border);
+    }
+    .task-row:hover { background: #0e151c; border-color: var(--border); }
+    .task-row.completed .task-title { text-decoration: line-through; opacity: 0.65; }
+    .task-row.child { margin-left: 1.25rem; }
+    .task-check {
+      width: 1.25rem; height: 1.25rem; margin-top: 0.15rem; cursor: pointer;
+      accent-color: var(--green);
+    }
+    .task-title { font-weight: 650; font-size: 0.95rem; }
+    .task-meta {
+      display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    .task-notes {
+      color: var(--muted); font-size: 0.82rem; margin-top: 0.25rem;
+      white-space: pre-wrap; max-height: 6rem; overflow: auto;
+    }
+    .task-actions { display: flex; flex-direction: column; gap: 0.25rem; align-items: flex-end; }
+    .task-actions button { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+    .gh-chip {
+      display: inline-flex; align-items: center; gap: 0.2rem;
+      padding: 0.1rem 0.45rem; border-radius: 999px; font-size: 0.72rem; font-weight: 650;
+      border: 1px solid #3a4570; background: #121c28; color: var(--blue);
+      text-decoration: none;
+    }
+    .gh-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .due-soon { color: var(--yellow); font-weight: 650; }
+    .due-over { color: var(--red); font-weight: 700; }
+    .tasks-summary {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center;
+      margin-bottom: 0.35rem;
+    }
+    .task-edit {
+      grid-column: 1 / -1; display: grid; gap: 0.4rem;
+      margin-top: 0.35rem; padding-top: 0.5rem; border-top: 1px solid var(--border);
+    }
+    .btn-danger:hover { border-color: var(--red); color: var(--red); }
+    .btn-primary {
+      background: #1a3a55; border-color: #2d6a9f;
+    }
+    .btn-primary:hover { border-color: var(--accent); color: var(--accent); }
+    .auth-warn {
+      background: #2a2410; border: 1px solid #6b5a1e; color: var(--yellow);
+      padding: 0.75rem 1rem; border-radius: 10px; font-size: 0.9rem;
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="header-left">
       <div>
-        <h1>Workflow Management</h1>
+        <h1>🔁 Workflow Management</h1>
         <div class="sub">personal-workspace · pre-reset readiness</div>
       </div>
       <div class="header-meta" id="header-meta"></div>
@@ -234,21 +601,76 @@
       <button type="button" id="btn-refresh">Refresh</button>
     </div>
   </header>
+  <nav class="top-tabs" id="top-tabs" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="sprint">
+      <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
+      <span class="tab-count" id="sprint-tab-count" hidden>0</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="plan">
+      <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="tasks">
+      <span class="tab-ico" aria-hidden="true">☑</span><span class="tab-lbl">Tasks</span>
+      <span class="tab-count" id="tasks-tab-count" hidden>0</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="repo">
+      <span class="tab-ico" aria-hidden="true">⎇</span><span class="tab-lbl">Repo</span>
+    </button>
+  </nav>
   <main>
     <div id="err" class="error-banner" role="alert"></div>
     <div id="action-msg" class="error-banner" style="background:#0f2419;border-color:#245c42;color:var(--green)"></div>
-    <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
-    <div class="summary" id="summary"></div>
-    <div id="strategy-focus"></div>
-    <div id="recommendations"></div>
-    <div id="backlog"></div>
-    <div id="branches"></div>
-    <div id="resume"></div>
-    <div class="section-title">Projects (exit readiness by area)</div>
-    <div id="list"><div class="empty">Loading…</div></div>
-    <div id="listeners"></div>
-    <footer id="footer"></footer>
+
+    <section data-m-panel="status">
+      <div class="section-title compact">Pre-reset status <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· click a box to expand</span></div>
+      <div class="summary" id="summary"></div>
+      <div id="strategy-focus"></div>
+    </section>
+
+    <section data-m-panel="sprint">
+      <div id="sprint-root"><div class="empty">Loading sprint…</div></div>
+    </section>
+
+    <section data-m-panel="plan">
+      <div id="bridge"></div>
+      <div id="recommendations"></div>
+      <div id="backlog"></div>
+    </section>
+
+    <section data-m-panel="tasks">
+      <div class="section-title">Google Tasks <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· lists · create · edit · complete · GitHub issue chips</span></div>
+      <div id="tasks-root"><div class="empty">Loading tasks…</div></div>
+    </section>
+
+    <section data-m-panel="repo">
+      <div id="branches"></div>
+      <div id="resume"></div>
+      <div class="section-title">Projects (exit readiness by area)</div>
+      <div id="list"><div class="empty">Loading…</div></div>
+      <div id="listeners"></div>
+      <footer id="footer"></footer>
+    </section>
   </main>
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="status" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span><span class="tab-lbl">Status</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="sprint">
+      <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="plan">
+      <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="tasks">
+      <span class="tab-ico" aria-hidden="true">☑</span><span class="tab-lbl">Tasks</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="repo">
+      <span class="tab-ico" aria-hidden="true">⎇</span><span class="tab-lbl">Repo</span>
+    </button>
+  </nav>
   <script>
     const $ = (id) => document.getElementById(id);
     function esc(s) {
@@ -442,6 +864,45 @@
           <div class="id" style="margin-top:0.5rem">Edit <code>strategy/today.md</code> · promote open items via recommendations/backlog</div>
         </div>`;
 
+      // Workflow ↔ Time allocator bridge
+      const bridge = data.bridge || {};
+      const bCand = bridge.candidates || [];
+      const bLinked = bridge.linked || [];
+      $("bridge").innerHTML = `
+        <div class="section-title">Day bridge <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· backlog → time allocator (not a merge)</span></div>
+        <div class="card">
+          <div style="display:flex;flex-wrap:wrap;gap:0.5rem;align-items:flex-start;justify-content:space-between;margin-bottom:0.5rem">
+            <div class="detail" style="color:var(--muted);font-size:0.88rem;max-width:42rem">
+              ${esc(bridge.note || "Push ranked backlog work into today's minute plan.")}
+              ${bridge.allocator_url ? ` · <a href="${esc(bridge.allocator_url)}" target="_blank" rel="noopener" style="color:var(--accent)">Open time allocator</a>` : ""}
+            </div>
+            <button type="button" id="btn-bridge-top" title="Send top unlinked candidate">Send top to today</button>
+          </div>
+          ${!bCand.length ? `<div class="empty" style="padding:0.65rem">No strong candidates (groom backlog so items get schedule/rank).</div>` :
+            bCand.slice(0, 6).map((c) => `
+              <div class="sess">
+                <div>${c.already_linked ? `<span class="pill clean">linked</span>` : `<span class="pill session">#${esc(c.press_rank || "—")}</span>`}</div>
+                <div>
+                  <div class="title">${esc(c.title)}</div>
+                  <div class="id">${esc(c.schedule_label || c.schedule_slot || "")} · ${esc(c.priority)} · ${esc(c.status)}${c.area ? ` · ${esc(c.area)}` : ""}</div>
+                </div>
+                <div>
+                  ${c.already_linked
+                    ? `<span class="pill muted">${esc(c.allocator_id || "on day list")}</span>`
+                    : `<button type="button" class="btn-bl-to-day" data-id="${esc(c.backlog_id)}">Send to today</button>`}
+                </div>
+              </div>`).join("")}
+          ${bLinked.length ? `
+            <h3 style="margin:0.75rem 0 0.35rem;font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">Already on day list (${bLinked.length})</h3>
+            ${bLinked.slice(0, 5).map((l) => `
+              <div class="sess">
+                <div><span class="pill clean">${esc(l.minutes ?? 0)}m</span></div>
+                <div><div class="title">${esc(l.title)}</div><div class="id">pri ${esc(l.priority)} · backlog ${esc((l.backlog_id || "").slice(0, 8))}</div></div>
+                <div class="when"></div>
+              </div>`).join("")}
+          ` : ""}
+        </div>`;
+
       // Recommendations panel — press rank + priority color coding
       const rec = data.recommendations || {};
       const ranked = rec.ranked || rec.pending || [];
@@ -570,6 +1031,10 @@
       window.__blEditOpen = window.__blEditOpen || new Set();
       const fieldStyle = "background:#0a1016;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.55rem;font-size:0.85rem;width:100%;font-family:inherit;box-sizing:border-box";
 
+      const focusItem = (new URLSearchParams(location.search)).get("item") || "";
+      const fromOrchestra = (new URLSearchParams(location.search)).get("from") === "orchestra";
+      const orchestraRec = (new URLSearchParams(location.search)).get("orchestra_rec") || "";
+
       function renderBlCard(it) {
         const pri = blPri(it.priority);
         const rank = it.press_rank || "—";
@@ -578,8 +1043,13 @@
         const priOpts = ["low", "medium", "high", "critical"].map((p) =>
           `<option value="${p}"${(it.priority || "medium") === p ? " selected" : ""}>${p}</option>`
         ).join("");
+        const focused = focusItem && it.id === focusItem;
+        const orchQs = new URLSearchParams({ backlog: it.id });
+        if (orchestraRec) orchQs.set("rec", orchestraRec);
+        const orchUrl = `http://127.0.0.1:8790/?${orchQs.toString()}`;
+        const holUrl = `http://127.0.0.1:8770/?backlog=${encodeURIComponent(it.id)}${orchestraRec ? `&orchestra_rec=${encodeURIComponent(orchestraRec)}` : ""}&from=workflow`;
         return `
-          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}" data-bl-id="${esc(it.id)}">
+          <article class="rec-card pri-${pri}${rank === 1 ? " rank-1" : ""}${focused ? " orch-focus" : ""}" data-bl-id="${esc(it.id)}" id="bl-${esc(it.id)}">
             <div class="rank-head">
               <div class="rank-badge ${blRankCls(rank)}" title="Press rank ${rank} · score ${it.score ?? "—"}">#${rank}</div>
               <div>
@@ -622,11 +1092,15 @@
             ` : ""}
             <div style="display:flex;flex-wrap:wrap;gap:0.35rem;margin-top:0.35rem">
               <button type="button" class="btn-bl-edit" data-id="${esc(it.id)}">${editing ? "Hide edit" : "Edit / expand"}</button>
+              <button type="button" class="btn-bl-to-day" data-id="${esc(it.id)}" title="Create a time-allocator day task linked to this backlog item">Send to today</button>
               <button type="button" class="btn-bl-initiate" data-id="${esc(it.id)}" title="Start Grok planning + MVP from current fields (works from idea)">Initiate goal</button>
               <button type="button" class="btn-bl-done" data-id="${esc(it.id)}">Done</button>
               <button type="button" class="btn-bl-park" data-id="${esc(it.id)}">Park</button>
               <button type="button" class="btn-bl-del" data-id="${esc(it.id)}">Delete</button>
+              <a class="btn-bl-orch" href="${esc(orchUrl)}" target="_blank" rel="noopener" title="Open this item in Orchestrator">Orchestrator ↗</a>
+              <a class="btn-bl-orch" href="${esc(holUrl)}" target="_blank" rel="noopener" title="Open Time allocator with this backlog id">Time allocator ↗</a>
             </div>
+            ${focused || fromOrchestra && it.id === focusItem ? `<div class="id" style="margin-top:0.35rem;color:var(--accent)">Linked from Orchestrator${orchestraRec ? ` · rec ${esc(orchestraRec)}` : ""}</div>` : ""}
             ${it.seed_path ? `<code class="cmd" style="margin-top:0.35rem">seed: ${esc(it.seed_path)}${it.launch_script ? ` · bash ${esc(it.launch_script)}` : ""}
               ${it.goal_objective ? `<button type="button" class="copy-btn" data-copy="${esc(it.goal_objective)}">Copy /goal text</button>` : ""}
             </code>` : ""}
@@ -703,25 +1177,48 @@
           ${blBody}
         </div>`;
 
-      // Branches panel (list only — current branch/status live in header)
+      // Branches panel: matrix (origin × clones) + graph + list
       const branchList = br.branches || [];
+      const matrix = br.matrix || null;
+      window.__branchMatrix = matrix;
+      const graphMode = (window.__branchGraphMode || "matrix");
       $("branches").innerHTML = `
-        <div class="section-title">Branches</div>
+        <div class="section-title">Branches <span class="sub" style="text-transform:none;letter-spacing:0;font-weight:500">· origin × local clones · graph · list</span></div>
         <div class="card">
-          ${branchList.length ? branchList.map((b) => `
-            <div class="sess">
-              <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
-              <div>
-                <div class="title">${esc(b.name)}</div>
-                <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
-              </div>
-              <div class="when">${b.is_master ? "integration" : ""}</div>
-            </div>`).join("") : `<div class="empty">No branches</div>`}
+          <div class="graph-controls">
+            <button type="button" id="btn-matrix-view" class="${graphMode === "matrix" ? "active" : ""}" title="Origin vs local clones by machine">Matrix</button>
+            <button type="button" id="btn-graph-view" class="${graphMode === "graph" ? "active" : ""}" title="Commit topology (linked list / DAG)">Graph</button>
+            <button type="button" id="btn-list-view" class="${graphMode === "list" ? "active" : ""}" title="Branch inventory">List</button>
+            <button type="button" id="btn-graph-refresh" title="Reload graph from local git">Refresh graph</button>
+            <label class="toggle" style="padding:0.3rem 0.55rem;font-size:0.8rem">
+              <input type="checkbox" id="graph-remotes" ${window.__branchGraphRemotes === false ? "" : "checked"} /> remotes
+            </label>
+            <span class="graph-meta" id="graph-meta">${graphMode === "matrix" ? "Environment matrix" : "Loading graph…"}</span>
+          </div>
+          <div id="branch-matrix-panel" style="${graphMode === "matrix" ? "" : "display:none"}">
+            ${renderBranchMatrix(matrix)}
+          </div>
+          <div id="branch-graph-panel" style="${graphMode === "graph" ? "" : "display:none"}">
+            <div class="graph-wrap" id="branch-graph-mount"><div class="empty" style="margin:0.5rem;border:none">Fetching commit graph…</div></div>
+          </div>
+          <div id="branch-list-panel" class="branch-list-compact" style="${graphMode === "list" ? "" : "display:none"}">
+            ${branchList.length ? branchList.map((b) => `
+              <div class="sess">
+                <div>${b.current ? `<span class="pill active">HEAD</span>` : b.is_work ? `<span class="pill session">work</span>` : b.is_feature ? `<span class="pill branch">feature</span>` : `<span class="pill muted">branch</span>`}</div>
+                <div>
+                  <div class="title">${esc(b.name)}</div>
+                  <div class="id">${esc(b.sha || "")}${b.upstream ? ` · ↑ ${esc(b.upstream)}` : " · no upstream"}${(b.ahead || b.behind) ? ` · ahead ${b.ahead||0} / behind ${b.behind||0}` : ""}</div>
+                </div>
+                <div class="when">${b.is_master ? "integration" : ""}</div>
+              </div>`).join("") : `<div class="empty">No branches</div>`}
+          </div>
           <div style="margin-top:0.65rem;display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
             <input id="start-area" placeholder="area e.g. treasury" style="background:#0e151c;border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0.4rem 0.6rem;font-size:0.85rem" />
             <button type="button" id="btn-start-work">Start work/&lt;area&gt;</button>
           </div>
         </div>`;
+      wireBranchPanel();
+      if (graphMode === "graph") loadBranchGraph();
 
       const kit = data.resume_kit || {};
       const sess = kit.sessions || [];
@@ -794,6 +1291,269 @@
       });
     }
 
+    /** Lane palette for graph columns (cycles). */
+    const LANE_COLORS = ["#7c9cff", "#c084fc", "#3dd68c", "#5b9fd4", "#f5c542", "#ff8fab", "#64d2ff", "#a78bfa"];
+
+    function bmxDotGlyph(state, cell) {
+      if (state === "absent") return "·";
+      if (state === "ahead") return "↑";
+      if (state === "behind") return "↓";
+      if (state === "diverged") return "↕";
+      if (state === "local_only") return "L";
+      if (state === "remote_only") return "R";
+      if (state === "gone") return "×";
+      if (cell && cell.current) return "●";
+      return "●";
+    }
+    function bmxCellTitle(col, cell) {
+      if (!cell) return "";
+      const bits = [col.label || col.id, cell.state || ""];
+      if (cell.sha) bits.push(String(cell.sha).slice(0, 7));
+      if (cell.ahead) bits.push(`ahead ${cell.ahead}`);
+      if (cell.behind) bits.push(`behind ${cell.behind}`);
+      if (cell.current) bits.push("HEAD");
+      if (cell.worktrees && cell.worktrees.length) bits.push(cell.worktrees.join(", "));
+      return bits.filter(Boolean).join(" · ");
+    }
+    function renderBranchMatrix(matrix, filter) {
+      if (!matrix || !matrix.rows || !matrix.columns) {
+        return `<div class="empty" style="margin:0.5rem;border:none">No branch matrix (git inventory empty).</div>`;
+      }
+      const filt = filter || window.__branchMatrixFilter || "all";
+      window.__branchMatrixFilter = filt;
+      const cols = matrix.columns;
+      const rows = matrix.rows.filter((r) => {
+        if (filt === "all") return true;
+        if (filt === "drift") return ["ahead", "behind", "diverged", "local_only", "remote_only", "gone"].includes(r.rollup);
+        if (filt === "local_only") return r.rollup === "local_only" || r.rollup === "gone";
+        if (filt === "remote_only") return r.rollup === "remote_only";
+        if (filt === "work") return r.is_work;
+        return true;
+      });
+      const counts = matrix.counts || {};
+      const legend = (matrix.legend || []).filter((l) =>
+        ["synced", "ahead", "behind", "diverged", "local_only", "remote_only", "gone", "absent"].includes(l.state)
+      );
+      const head = cols.map((c) =>
+        `<th title="${esc(c.subtitle || c.kind || "")}"><span>${esc(c.label)}</span>` +
+        `<span class="bmx-col-sub">${esc(c.subtitle || c.kind || "")}</span></th>`
+      ).join("");
+      const body = rows.length ? rows.map((r) => {
+        const tds = cols.map((c) => {
+          const cell = (r.cells && r.cells[c.id]) || { state: "absent", present: false };
+          const st = cell.state || "absent";
+          const ring = cell.current ? " st-current-ring" : "";
+          const wt = (cell.worktrees && cell.worktrees[0])
+            ? `<span class="bmx-wt" title="${esc((cell.worktrees || []).join(", "))}">${esc(cell.worktrees[0].split("/").slice(-2).join("/"))}</span>`
+            : "";
+          return `<td><span class="bmx-dot st-${esc(st)}${ring}" title="${esc(bmxCellTitle(c, cell))}">${bmxDotGlyph(st, cell)}</span>${wt}</td>`;
+        }).join("");
+        const headMark = r.current
+          ? ' <span class="pill active" style="font-size:0.6rem;padding:0.1rem 0.35rem">HEAD</span>'
+          : "";
+        return `<tr class="${r.current ? "bmx-current" : ""}" data-rollup="${esc(r.rollup || "")}">` +
+          `<td class="bmx-branch" title="${esc(r.name)}">${esc(r.name)}${headMark}</td>${tds}</tr>`;
+      }).join("") : `<tr><td class="bmx-branch" colspan="${cols.length + 1}" style="text-align:center;color:var(--muted)">No branches match filter</td></tr>`;
+
+      return `
+        <div class="bmx-filter" id="bmx-filter">
+          <button type="button" data-bmx-filter="all" class="${filt === "all" ? "active" : ""}">All (${counts.total ?? rows.length})</button>
+          <button type="button" data-bmx-filter="drift" class="${filt === "drift" ? "active" : ""}">Drift (${(counts.diverged || 0) + (counts.local_only || 0) + (counts.remote_only || 0)})</button>
+          <button type="button" data-bmx-filter="local_only" class="${filt === "local_only" ? "active" : ""}">Local only (${counts.local_only || 0})</button>
+          <button type="button" data-bmx-filter="remote_only" class="${filt === "remote_only" ? "active" : ""}">Origin only (${counts.remote_only || 0})</button>
+          <button type="button" data-bmx-filter="work" class="${filt === "work" ? "active" : ""}">work/*</button>
+        </div>
+        <div class="bmx-wrap">
+          <table class="bmx">
+            <thead><tr><th class="bmx-branch">Branch</th>${head}</tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+        <div class="bmx-legend">
+          ${legend.map((l) =>
+            `<span><span class="bmx-dot st-${esc(l.state)}" style="width:0.95rem;height:0.95rem;font-size:0.55rem">${bmxDotGlyph(l.state, {})}</span>${esc(l.label)}</span>`
+          ).join("")}
+        </div>
+        <div class="bmx-meta">
+          <span>${esc(matrix.machine || "local")} · origin ${counts.on_origin || 0} · local ${counts.on_local || 0}</span>
+          ${cols.length <= 2
+            ? `<span title="Drop JSON reports on other hosts">Peer clones: add ops/branch-clones/&lt;machine&gt;.json</span>`
+            : `<span>${cols.length - 1} clone column(s)</span>`}
+        </div>`;
+    }
+    function wireBranchMatrixFilters() {
+      const root = $("bmx-filter");
+      if (!root) return;
+      root.querySelectorAll("[data-bmx-filter]").forEach((btn) => {
+        btn.onclick = () => {
+          window.__branchMatrixFilter = btn.getAttribute("data-bmx-filter") || "all";
+          const panel = $("branch-matrix-panel");
+          if (panel) panel.innerHTML = renderBranchMatrix(window.__branchMatrix, window.__branchMatrixFilter);
+          wireBranchMatrixFilters();
+        };
+      });
+    }
+    function setBranchView(mode) {
+      window.__branchGraphMode = mode;
+      const m = $("branch-matrix-panel");
+      const g = $("branch-graph-panel");
+      const l = $("branch-list-panel");
+      if (m) m.style.display = mode === "matrix" ? "" : "none";
+      if (g) g.style.display = mode === "graph" ? "" : "none";
+      if (l) l.style.display = mode === "list" ? "" : "none";
+      const mBtn = $("btn-matrix-view");
+      const gBtn = $("btn-graph-view");
+      const lBtn = $("btn-list-view");
+      if (mBtn) mBtn.classList.toggle("active", mode === "matrix");
+      if (gBtn) gBtn.classList.toggle("active", mode === "graph");
+      if (lBtn) lBtn.classList.toggle("active", mode === "list");
+      const meta = $("graph-meta");
+      if (mode === "matrix" && meta) meta.textContent = "Environment matrix";
+      if (mode === "graph") loadBranchGraph();
+    }
+    function wireBranchPanel() {
+      const mBtn = $("btn-matrix-view");
+      const gBtn = $("btn-graph-view");
+      const lBtn = $("btn-list-view");
+      const rBtn = $("btn-graph-refresh");
+      const rem = $("graph-remotes");
+      if (mBtn) mBtn.onclick = () => setBranchView("matrix");
+      if (gBtn) gBtn.onclick = () => setBranchView("graph");
+      if (lBtn) lBtn.onclick = () => setBranchView("list");
+      wireBranchMatrixFilters();
+      if (rBtn) rBtn.onclick = () => loadBranchGraph(true);
+      if (rem) rem.onchange = () => {
+        window.__branchGraphRemotes = !!rem.checked;
+        loadBranchGraph(true);
+      };
+    }
+
+    /** Compact committer timestamp for graph rows (newest → oldest top→bottom). */
+    function formatGraphDate(iso) {
+      if (!iso) return "—";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return String(iso).slice(0, 16);
+      // Local wall clock, fixed width-ish: "Aug 03 15:36"
+      const mon = d.toLocaleString(undefined, { month: "short" });
+      const day = String(d.getDate()).padStart(2, "0");
+      const hh = String(d.getHours()).padStart(2, "0");
+      const mm = String(d.getMinutes()).padStart(2, "0");
+      return `${mon} ${day} ${hh}:${mm}`;
+    }
+
+    function renderBranchGraphSvg(g) {
+      const commits = g.commits || [];
+      const edges = g.edges || [];
+      if (!commits.length) {
+        return `<div class="empty" style="margin:0.5rem;border:none">No commits in graph window.</div>`;
+      }
+      const laneCount = Math.max(1, g.lane_count || 1);
+      const rowH = 26;
+      const laneW = 16;
+      const padL = 12;
+      const padT = 10;
+      const textX = padL + laneCount * laneW + 18;
+      const shaW = 58;
+      const dateW = 108; // room for "Aug 03 15:36"
+      const subjX = textX + shaW + dateW;
+      const width = Math.max(820, subjX + 480);
+      const height = padT * 2 + commits.length * rowH;
+
+      const cx = (lane) => padL + lane * laneW + laneW / 2;
+      const cy = (row) => padT + row * rowH + rowH / 2;
+      const laneColor = (lane) => LANE_COLORS[lane % LANE_COLORS.length];
+
+      // Paths for edges (bezier vertical)
+      const edgePaths = edges.map((e) => {
+        const x1 = cx(e.from_lane), y1 = cy(e.from_row);
+        const x2 = cx(e.to_lane), y2 = cy(e.to_row);
+        const midY = (y1 + y2) / 2;
+        const col = laneColor(e.from_lane);
+        const dash = e.kind === "merge" ? ' stroke-dasharray="3 2"' : "";
+        const d = x1 === x2
+          ? `M ${x1} ${y1} L ${x2} ${y2}`
+          : `M ${x1} ${y1} C ${x1} ${midY}, ${x2} ${midY}, ${x2} ${y2}`;
+        return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.6" opacity="0.85"${dash}/>`;
+      }).join("");
+
+      const nodes = commits.map((c) => {
+        const x = cx(c.lane), y = cy(c.row);
+        const col = (c.labels && c.labels[0] && c.labels[0].color) || laneColor(c.lane);
+        const r = c.is_head ? 5.5 : 4;
+        const labels = (c.labels || []).slice(0, 4).map((lb) => {
+          const bg = lb.color || col;
+          return `<tspan fill="${bg}" font-weight="700">[${esc(lb.name)}] </tspan>`;
+        }).join("");
+        const subj = esc((c.subject || "").slice(0, 72));
+        const when = esc(formatGraphDate(c.date));
+        const title = esc([c.date, c.author, c.subject].filter(Boolean).join(" · "));
+        const link = c.url
+          ? `<a href="${esc(c.url)}" target="_blank" rel="noopener"><text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text></a>`
+          : `<text x="${textX}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#8aa0b5">${esc(c.short)}</text>`;
+        return `
+          <g class="graph-row-hit">
+            <title>${title}</title>
+            <rect class="graph-bg" x="0" y="${cy(c.row) - rowH / 2}" width="${width}" height="${rowH}" fill="transparent"/>
+            <circle cx="${x}" cy="${y}" r="${r}" fill="${col}" stroke="#0a1016" stroke-width="1.5"/>
+            ${c.is_head ? `<circle cx="${x}" cy="${y}" r="${r + 3}" fill="none" stroke="${col}" stroke-width="1" opacity="0.7"/>` : ""}
+            ${link}
+            <text x="${textX + shaW}" y="${y + 4}" font-size="11" font-family="ui-monospace,Menlo,monospace" fill="#6b7c8f">${when}</text>
+            <text x="${subjX}" y="${y + 4}" font-size="12" fill="#e7eef5">${labels}<tspan fill="#c5d0db">${subj}</tspan></text>
+          </g>`;
+      }).join("");
+
+      return `<svg class="graph-svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Git branch graph, newest commits at top">
+        ${edgePaths}
+        ${nodes}
+      </svg>`;
+    }
+
+    function paintBranchGraphMeta(g) {
+      const meta = $("graph-meta");
+      if (!meta || !g) return;
+      const links = g.links || {};
+      const parts = [
+        "newest at top",
+        `${g.commit_count} commits`,
+        `${g.lane_count} lanes`,
+        g.current_branch ? `HEAD ${g.current_branch}` : "",
+      ].filter(Boolean);
+      let extra = "";
+      if (links.github_network) {
+        extra = ` · <a href="${esc(links.github_network)}" target="_blank" rel="noopener">GitHub Network</a>`;
+        if (links.github_branches) {
+          extra += ` · <a href="${esc(links.github_branches)}" target="_blank" rel="noopener">Branches</a>`;
+        }
+      }
+      meta.innerHTML = esc(parts.join(" · ")) + extra;
+    }
+
+    async function loadBranchGraph(force) {
+      const mount = $("branch-graph-mount");
+      const meta = $("graph-meta");
+      if (!mount) return;
+      // Instant paint when panel is rebuilt (full dashboard refresh) while Graph is active.
+      if (!force && window.__branchGraphCache) {
+        mount.innerHTML = renderBranchGraphSvg(window.__branchGraphCache);
+        paintBranchGraphMeta(window.__branchGraphCache);
+        return;
+      }
+      const remotes = window.__branchGraphRemotes === false ? "0" : "1";
+      try {
+        if (meta) meta.textContent = "Loading graph…";
+        const res = await fetch(`/api/branch-graph?max=80&remotes=${remotes}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const g = await res.json();
+        if (!g.ok) throw new Error(g.error || "graph error");
+        window.__branchGraphCache = g;
+        mount.innerHTML = renderBranchGraphSvg(g);
+        paintBranchGraphMeta(g);
+      } catch (e) {
+        mount.innerHTML = `<div class="empty" style="margin:0.5rem;border:none">Graph failed: ${esc(e.message)}</div>`;
+        if (meta) meta.textContent = "Graph error";
+      }
+    }
+
     async function load() {
       const btn = $("btn-refresh");
       btn.disabled = true;
@@ -805,11 +1565,19 @@
         const data = await res.json();
         if (!data.ok) throw new Error(data.error || "API error");
         render(data);
+        // Deep link from Orchestrator: ?item=<backlog_id>
+        const focusId = (new URLSearchParams(location.search)).get("item");
+        if (focusId) {
+          const el = document.getElementById("bl-" + focusId)
+            || document.querySelector(`[data-bl-id="${CSS.escape(focusId)}"]`);
+          if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+        }
       } catch (e) {
         $("err").textContent = `Failed to load: ${e.message}`;
         $("err").classList.add("show");
       } finally {
         btn.disabled = false;
+        if (window.__activeTab === "tasks") loadTasks();
       }
     }
 
@@ -854,6 +1622,9 @@
             msg += ` · ${data.changes.length} hygiene change(s)`;
           }
         }
+        if (data.allocator_url || data.already_linked != null || data.sent) {
+          msg = data.message || (data.sent ? `Sent ${data.count} to day plan` : "Bridge OK");
+        }
         if (data.committed) {
           msg = `Committed ${data.sha || ""} on ${data.branch || ""}${data.pushed ? " · pushed" : ""}`;
         }
@@ -865,6 +1636,667 @@
         $("err").classList.add("show");
       }
     }
+
+
+    // ── Tab shell (FitDash/FCC-style) ───────────────────────────────────
+    window.__activeTab = window.__activeTab || "status";
+    const MAIN_TABS = ["status", "sprint", "plan", "tasks", "repo"];
+    function goTab(tab) {
+      const t = tab || "status";
+      window.__activeTab = t;
+      document.body.classList.add("m-shell");
+      document.body.dataset.mActive = t;
+      document.querySelectorAll("[data-m-tab]").forEach((btn) => {
+        const on = btn.getAttribute("data-m-tab") === t;
+        btn.classList.toggle("active", on);
+        if (on) btn.setAttribute("aria-current", "page");
+        else btn.removeAttribute("aria-current");
+      });
+      try {
+        const u = new URL(location.href);
+        u.searchParams.set("tab", t);
+        history.replaceState(null, "", u.toString());
+      } catch (_) {}
+      if (t === "tasks") loadTasks();
+      if (t === "sprint") loadSprint();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    function initTabShell() {
+      document.body.classList.add("m-shell");
+      const params = new URLSearchParams(location.search);
+      const fromUrl = params.get("tab");
+      const initial = MAIN_TABS.includes(fromUrl)
+        ? fromUrl
+        : (window.__activeTab || "status");
+      goTab(initial);
+      document.querySelectorAll("#top-tabs, #mobile-tabbar").forEach((bar) => {
+        if (!bar) return;
+        bar.addEventListener("click", (ev) => {
+          const btn = ev.target.closest("[data-m-tab]");
+          if (!btn) return;
+          goTab(btn.getAttribute("data-m-tab"));
+        });
+      });
+    }
+
+    // ── Sprint tab (ceremony file + optional Buzz Board) ────────────────
+    window.__sprintState = window.__sprintState || { data: null, loading: false };
+
+    function sprintStaleDays(iso, days = 7) {
+      if (!iso) return null;
+      try {
+        const t = new Date(iso).getTime();
+        if (Number.isNaN(t)) return null;
+        const age = (Date.now() - t) / 86400000;
+        return age > days ? Math.floor(age) : null;
+      } catch { return null; }
+    }
+
+    function ceremonyByNumber(lists) {
+      const map = new Map();
+      for (const list of lists) {
+        for (const it of list || []) {
+          if (it && it.number != null) map.set(Number(it.number), it);
+        }
+      }
+      return map;
+    }
+
+    /** Board columns for membership; ceremony file overlays size/priority/owner/notes. */
+    function mergeSprintCards(boardList, ceremonyList, cerMap) {
+      const board = boardList || [];
+      const ceremony = ceremonyList || [];
+      if (board.length) {
+        return board.map((b) => {
+          const c = cerMap.get(Number(b.number)) || {};
+          return {
+            ...b,
+            size: c.size != null ? c.size : (b.size != null ? b.size : b.size_hint),
+            priority: c.priority || b.priority || b.priority_hint,
+            owner: c.owner || b.owner,
+            notes: c.notes || b.notes,
+            url: b.url || c.url,
+            title: b.title || c.title,
+          };
+        });
+      }
+      return ceremony;
+    }
+
+    function sprintCardHtml(card) {
+      const num = card.number != null ? `#${esc(card.number)}` : "";
+      const title = esc(card.title || "(untitled)");
+      const href = card.url ? esc(card.url) : "";
+      const titleHtml = href
+        ? `<a href="${href}" target="_blank" rel="noopener">${num ? num + " · " : ""}${title}</a>`
+        : `<strong>${num ? num + " · " : ""}${title}</strong>`;
+      const bits = [];
+      if (card.size != null && card.size !== "") bits.push(`<span class="pill muted">size ${esc(card.size)}</span>`);
+      if (card.priority) bits.push(`<span class="pill">${esc(card.priority)}</span>`);
+      if (card.owner) bits.push(`<span class="pill session">${esc(card.owner)}</span>`);
+      const stale = sprintStaleDays(card.updated_at, 7);
+      if (stale != null) bits.push(`<span class="pill" style="color:var(--yellow);border-color:#6b5a1e" title="No board update in ${stale}d">stale ${stale}d</span>`);
+      const notes = card.notes ? `<div class="sub" style="margin-top:0.2rem">${esc(card.notes)}</div>` : "";
+      return `<div class="sprint-item">${titleHtml}<div class="meta-row">${bits.join("") || '<span class="sub">—</span>'}</div>${notes}</div>`;
+    }
+
+    function renderSprint(data) {
+      const root = $("sprint-root");
+      if (!root) return;
+      if (!data || data.ok === false) {
+        root.innerHTML = `<div class="error-banner show">${esc(data?.error || "Failed to load sprint")}</div>`;
+        return;
+      }
+      const c = data.ceremony || {};
+      const wip = data.wip || {};
+      const board = data.board || {};
+      const cols = board.columns || {};
+      const limit = wip.limit ?? c.wip_limit ?? 3;
+      const cur = wip.current ?? 0;
+      const meterClass = wip.over ? "over" : (cur >= limit ? "warn" : (cur === 0 ? "warn" : "ok"));
+      const goal = (c.goal && String(c.goal).trim()) || null;
+      const boardUrl = c.board_url || board.url || "https://github.com/users/cvolkernick/projects/1";
+      const sourceLabel = board.source === "github_project_v2"
+        ? "Board live"
+        : board.source === "ceremony_only"
+          ? "Ceremony file"
+          : (board.source || "—");
+
+      const cerMap = ceremonyByNumber([c.in_progress, c.ready, c.not_this_sprint]);
+      // Board = column membership; ceremony = sizes / not-this-sprint / goal
+      let ip = mergeSprintCards(cols["In Progress"], c.in_progress, cerMap);
+      let ready = mergeSprintCards(cols["Ready"], c.ready, cerMap);
+      const notSprint = c.not_this_sprint || [];
+      // Hide Ready cards flagged not-this-sprint
+      const notSet = new Set(notSprint.map((x) => Number(x.number)).filter((n) => !Number.isNaN(n)));
+      if (notSet.size) ready = ready.filter((x) => !notSet.has(Number(x.number)));
+
+      const countEl = $("sprint-tab-count");
+      if (countEl) {
+        if (cur > 0) { countEl.hidden = false; countEl.textContent = String(cur); }
+        else countEl.hidden = true;
+      }
+
+      const ipHtml = ip.length
+        ? `<div class="sprint-card-list">${ip.map(sprintCardHtml).join("")}</div>`
+        : `<div class="empty">No sprint commitment — run planning or approve pull set.</div>`;
+      const readyHtml = ready.length
+        ? `<div class="sprint-card-list">${ready.map(sprintCardHtml).join("")}</div>`
+        : `<div class="empty">Ready queue empty.</div>`;
+      const notHtml = notSprint.length
+        ? `<div class="sprint-card-list" style="margin-top:0.5rem">${notSprint.map(sprintCardHtml).join("")}</div>`
+        : "";
+
+      const lifeKeys = ["Parked", "Validate", "Ready", "In Progress", "Done"];
+      const lifeHtml = lifeKeys.map((k) => {
+        const n = (cols[k] || []).length;
+        const nShow = (k === "In Progress" && !n && ip.length) ? ip.length
+          : (k === "Ready" && !n && ready.length) ? ready.length
+          : n;
+        return `<div class="col-chip"><div class="n">${nShow}</div><div class="l">${esc(k)}</div></div>`;
+      }).join("");
+
+      const boardErr = board.error && board.source !== "github_project_v2"
+        ? `<div class="sub" style="color:var(--yellow);margin-top:0.35rem">Board: ${esc(board.error)} · showing ceremony file</div>`
+        : "";
+
+      const playbookHref = "https://github.com/cvolkernick/personal-workspace/blob/master/GUIDES/CADENCE_SCRUM_CEREMONIES.md";
+      // Prefer last plan path from ceremony if present later; fallback playbook
+      const lastPlan = c.last_plan_url || c.last_plan_path || null;
+      const lastPlanLabel = lastPlan ? "Last plan" : "Playbook";
+      const lastPlanHref = lastPlan
+        ? (String(lastPlan).startsWith("http") ? lastPlan : `https://github.com/cvolkernick/personal-workspace/blob/master/${String(lastPlan).replace(/^\/+/, "")}`)
+        : playbookHref;
+
+      const kickoff = "@Cadence run backlog grooming now";
+      root.innerHTML = `
+        <div class="sprint-header">
+          <div class="sprint-header-top">
+            <div>
+              <div class="sub">${esc(c.sprint_id || "No active sprint id")} · updated ${esc(fmtWhen(c.updated_at))} ${c.updated_by ? "· " + esc(c.updated_by) : ""}</div>
+              <p class="sprint-goal${goal ? "" : " empty"}">${goal ? esc(goal) : "No sprint goal yet — set after first planning ceremony."}</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+              <span class="wip-meter ${meterClass}" title="In Progress / WIP limit (red = over)">WIP ${cur}/${limit}</span>
+              <span class="pill muted">cap ${esc(c.committed_points ?? 0)}/${esc(c.capacity_points ?? 13)}</span>
+              <a class="btn-bl-orch" href="${esc(boardUrl)}" target="_blank" rel="noopener">Buzz Board ↗</a>
+            </div>
+          </div>
+          <div class="sub">Source: ${esc(sourceLabel)} · meter from ${esc(wip.source || "ceremony")} · Board membership + ceremony sizes</div>
+          ${boardErr}
+          <div class="ceremony-strip">
+            <span class="pill muted">Groom Wed 16:00</span>
+            <span class="pill muted">Plan Mon 16:00</span>
+            <a class="btn-bl-orch" href="${esc(lastPlanHref)}" target="_blank" rel="noopener">${esc(lastPlanLabel)} ↗</a>
+            <button type="button" id="btn-sprint-copy-kickoff" title="Copy kickoff mention">Copy grooming kickoff</button>
+            <button type="button" id="btn-sprint-refresh">Refresh sprint</button>
+          </div>
+        </div>
+        <div class="sprint-grid">
+          <div class="card">
+            <h3>In Progress · current commitment</h3>
+            ${ipHtml}
+          </div>
+          <div class="card">
+            <h3>Ready · pull candidates</h3>
+            ${readyHtml}
+            ${notHtml ? `<h3 style="margin-top:0.75rem">Not this sprint</h3>${notHtml}` : ""}
+          </div>
+        </div>
+        <details class="sprint-details">
+          <summary>Lifecycle counts (Board snapshot)</summary>
+          <div class="sprint-lifecycle">${lifeHtml}</div>
+        </details>
+        <p class="sprint-disclaimer">${esc(data.disclaimer || "ops/backlog is not the sprint board.")}</p>
+      `;
+      const copyBtn = $("btn-sprint-copy-kickoff");
+      if (copyBtn) {
+        copyBtn.addEventListener("click", async () => {
+          try {
+            await navigator.clipboard.writeText(kickoff);
+            copyBtn.textContent = "Copied";
+            setTimeout(() => { copyBtn.textContent = "Copy grooming kickoff"; }, 1500);
+          } catch {
+            copyBtn.textContent = "Copy failed";
+          }
+        });
+      }
+      const refBtn = $("btn-sprint-refresh");
+      if (refBtn) refBtn.addEventListener("click", () => loadSprint(true));
+    }
+
+    async function loadSprint(force) {
+      const root = $("sprint-root");
+      if (!root) return;
+      if (window.__sprintState.loading) return;
+      if (!force && window.__sprintState.data) {
+        renderSprint(window.__sprintState.data);
+        return;
+      }
+      window.__sprintState.loading = true;
+      if (!window.__sprintState.data) root.innerHTML = `<div class="empty">Loading sprint…</div>`;
+      try {
+        const res = await fetch("/api/sprint");
+        const data = await res.json();
+        window.__sprintState.data = data;
+        renderSprint(data);
+      } catch (e) {
+        root.innerHTML = `<div class="error-banner show">${esc(e.message || e)}</div>`;
+      } finally {
+        window.__sprintState.loading = false;
+      }
+    }
+
+    // ── Google Tasks ────────────────────────────────────────────────────
+    window.__tasksState = window.__tasksState || {
+      data: null,
+      listId: null,
+      showCompleted: false,
+      editId: null,
+      loading: false,
+    };
+
+    function fmtDue(iso) {
+      if (!iso) return "";
+      try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+        return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      } catch { return String(iso).slice(0, 10); }
+    }
+    function dueClass(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dd = new Date(d);
+      dd.setHours(0, 0, 0, 0);
+      const diff = (dd - today) / 86400000;
+      if (diff < 0) return "due-over";
+      if (diff <= 2) return "due-soon";
+      return "";
+    }
+    function dueInputValue(iso) {
+      if (!iso) return "";
+      try {
+        return new Date(iso).toISOString().slice(0, 10);
+      } catch { return String(iso).slice(0, 10); }
+    }
+
+    async function tasksPost(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body || {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      return data;
+    }
+
+    async function loadTasks(force) {
+      const st = window.__tasksState;
+      const root = $("tasks-root");
+      if (!root) return;
+      if (st.loading && !force) return;
+      st.loading = true;
+      if (!st.data) root.innerHTML = `<div class="empty">Loading tasks…</div>`;
+      try {
+        const qs = st.showCompleted ? "?completed=1" : "";
+        const res = await fetch(`/api/tasks${qs}`, { cache: "no-store" });
+        const data = await res.json();
+        st.data = data;
+        if (!data.ok) {
+          root.innerHTML = `
+            <div class="auth-warn">
+              <strong>Google Tasks unavailable.</strong>
+              ${esc(data.error || "Not authenticated")}
+              ${data.auth && data.auth.hint ? `<br/><span class="id">${esc(data.auth.hint)}</span>` : ""}
+              <br/><span class="id">Creds: ~/.config/google-tasks-mcp/ · Pi unit: google-tasks-mcp.service</span>
+            </div>`;
+          const cnt = $("tasks-tab-count");
+          if (cnt) { cnt.hidden = true; }
+          return;
+        }
+        const lists = data.lists || [];
+        if (!st.listId || !lists.some((l) => l.id === st.listId)) {
+          st.listId = lists[0] ? lists[0].id : null;
+        }
+        const openN = (data.summary && data.summary.open) || (data.all_open || []).length || 0;
+        const cnt = $("tasks-tab-count");
+        if (cnt) {
+          cnt.textContent = String(openN);
+          cnt.hidden = openN <= 0;
+        }
+        renderTasks();
+      } catch (e) {
+        root.innerHTML = `<div class="empty">Failed to load tasks: ${esc(e.message)}</div>`;
+      } finally {
+        st.loading = false;
+      }
+    }
+
+    function tasksForActiveList() {
+      const st = window.__tasksState;
+      const data = st.data || {};
+      const by = data.tasks_by_list || {};
+      const pack = by[st.listId] || {};
+      return pack.tasks || [];
+    }
+
+    function renderTasks() {
+      const st = window.__tasksState;
+      const root = $("tasks-root");
+      if (!root || !st.data) return;
+      const data = st.data;
+      const lists = data.lists || [];
+      const tasks = tasksForActiveList();
+      const activeList = lists.find((l) => l.id === st.listId);
+      const openCount = tasks.filter((t) => t.status === "needsAction").length;
+      const doneCount = tasks.filter((t) => t.status === "completed").length;
+
+      // Build parent/child map for indent
+      const byParent = {};
+      tasks.forEach((t) => {
+        const p = t.parent || "";
+        if (!byParent[p]) byParent[p] = [];
+        byParent[p].push(t);
+      });
+      function walk(parentId, depth) {
+        const kids = byParent[parentId || ""] || [];
+        let out = [];
+        kids.forEach((t) => {
+          out.push({ task: t, depth });
+          out = out.concat(walk(t.id, depth + 1));
+        });
+        return out;
+      }
+      // Roots = no parent or parent not in set
+      const idSet = new Set(tasks.map((t) => t.id));
+      const ordered = [];
+      const seen = new Set();
+      function addTree(t, depth) {
+        if (seen.has(t.id)) return;
+        seen.add(t.id);
+        ordered.push({ task: t, depth });
+        (byParent[t.id] || []).forEach((c) => addTree(c, depth + 1));
+      }
+      tasks.forEach((t) => {
+        if (!t.parent || !idSet.has(t.parent)) addTree(t, 0);
+      });
+
+      const listBtns = lists.map((l) => {
+        const pack = (data.tasks_by_list || {})[l.id] || {};
+        const n = pack.open_count != null ? pack.open_count : ((pack.tasks || []).filter((x) => x.status === "needsAction").length);
+        return `<button type="button" class="list-btn${l.id === st.listId ? " active" : ""}" data-task-list="${esc(l.id)}">
+          <span>${esc(l.title || "Untitled")}</span>
+          <span class="cnt">${n}</span>
+        </button>`;
+      }).join("");
+
+      function renderTaskRow(item) {
+        const t = item.task;
+        const depth = item.depth;
+        const editing = st.editId === t.id;
+        const completed = t.status === "completed";
+        const gh = (t.github || []).map((g) =>
+          `<a class="gh-chip" href="${esc(g.url)}" target="_blank" rel="noopener" title="GitHub / Buzz board issue">${esc(g.label)}</a>`
+        ).join(" ");
+        const dcls = dueClass(t.due);
+        const dueLabel = t.due ? `<span class="${dcls}">due ${esc(fmtDue(t.due))}</span>` : "";
+        const listLabel = t.list_title && st.listId === "__all__" ? `<span class="pill muted">${esc(t.list_title)}</span>` : "";
+        return `
+          <div class="task-row${completed ? " completed" : ""}${depth ? " child" : ""}" data-task-id="${esc(t.id)}" data-list-id="${esc(t.list_id)}" style="${depth ? `margin-left:${Math.min(depth, 4) * 1.1}rem` : ""}">
+            <input type="checkbox" class="task-check" data-task-complete ${completed ? "checked" : ""} title="${completed ? "Mark incomplete" : "Mark complete"}" />
+            <div>
+              <div class="task-title">${esc(t.title || "(no title)")}</div>
+              <div class="task-meta">
+                ${dueLabel}
+                ${listLabel}
+                ${t.updated ? `<span>upd ${esc(fmtWhen(t.updated))}</span>` : ""}
+                ${gh}
+              </div>
+              ${t.notes && !editing ? `<div class="task-notes">${esc(t.notes)}</div>` : ""}
+              ${editing ? `
+                <div class="task-edit">
+                  <input class="te-title" value="${esc(t.title || "")}" placeholder="Title" />
+                  <textarea class="te-notes" rows="3" placeholder="Notes (use owner/repo#123 or gh:owner/repo#123 for GitHub chips)">${esc(t.notes || "")}</textarea>
+                  <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+                    <label class="id">Due <input type="date" class="te-due" value="${esc(dueInputValue(t.due))}" style="width:auto;margin-left:0.35rem" /></label>
+                    <label class="toggle"><input type="checkbox" class="te-clear-due" /> clear due</label>
+                    <select class="te-move-list" style="width:auto;min-width:10rem" title="Move to list">
+                      ${lists.map((l) => `<option value="${esc(l.id)}"${l.id === t.list_id ? " selected" : ""}>${esc(l.title)}</option>`).join("")}
+                    </select>
+                  </div>
+                  <div style="display:flex;flex-wrap:wrap;gap:0.35rem">
+                    <button type="button" class="btn-primary" data-task-save>Save</button>
+                    <button type="button" data-task-cancel-edit>Cancel</button>
+                    <button type="button" class="btn-danger" data-task-delete>Delete</button>
+                  </div>
+                </div>
+              ` : ""}
+            </div>
+            <div class="task-actions">
+              ${!editing ? `<button type="button" data-task-edit>Edit</button>` : ""}
+              ${!editing && !completed ? `<button type="button" data-task-complete-btn title="Complete">Done</button>` : ""}
+              ${!editing && completed ? `<button type="button" data-task-reopen>Reopen</button>` : ""}
+            </div>
+          </div>`;
+      }
+
+      const rows = ordered.length
+        ? ordered.map(renderTaskRow).join("")
+        : `<div class="empty">No tasks in this list${st.showCompleted ? "" : " (open)"}. Add one below.</div>`;
+
+      root.innerHTML = `
+        <div class="tasks-summary">
+          <span class="pill clean">${esc(String((data.summary && data.summary.open) || 0))} open total</span>
+          <span class="pill branch">${esc(String(lists.length))} lists</span>
+          ${activeList ? `<span class="pill muted">${esc(activeList.title)} · ${openCount} open${st.showCompleted ? ` · ${doneCount} done shown` : ""}</span>` : ""}
+          <span class="id" style="margin-left:auto">API · Grok MCP · Rock chat via same tokens</span>
+        </div>
+        <div class="tasks-layout">
+          <aside class="tasks-lists">
+            <div class="id" style="padding:0.25rem 0.4rem;margin-bottom:0.2rem">Lists</div>
+            ${listBtns || `<div class="empty" style="padding:0.5rem;border:none">No lists</div>`}
+            <div class="tasks-lists-create" style="margin-top:0.5rem;padding-top:0.5rem;border-top:1px solid var(--border);display:grid;gap:0.35rem">
+              <input id="new-list-title" placeholder="New list name" />
+              <button type="button" id="btn-list-create" class="btn-primary">Create list</button>
+            </div>
+          </aside>
+          <div class="tasks-main">
+            <div class="tasks-toolbar">
+              <div class="left">
+                <strong>${esc((activeList && activeList.title) || "Tasks")}</strong>
+              </div>
+              <div class="right">
+                <label class="toggle"><input type="checkbox" id="tasks-show-completed" ${st.showCompleted ? "checked" : ""} /> Show completed</label>
+                <button type="button" id="btn-tasks-refresh">Refresh</button>
+              </div>
+            </div>
+            <div class="task-compose">
+              <input id="new-task-title" placeholder="New task title" />
+              <textarea id="new-task-notes" rows="2" placeholder="Notes (optional) — paste owner/repo#123 to link GitHub/Buzz board issues"></textarea>
+              <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
+                <label class="id">Due <input type="date" id="new-task-due" style="width:auto;margin-left:0.35rem" /></label>
+                <button type="button" id="btn-task-add" class="btn-primary">Add task</button>
+              </div>
+            </div>
+            <div id="tasks-list">${rows}</div>
+          </div>
+        </div>`;
+    }
+
+    async function afterTaskMutation(msg) {
+      if (msg) {
+        $("action-msg").textContent = msg;
+        $("action-msg").classList.add("show");
+      }
+      $("err").classList.remove("show");
+      window.__tasksState.editId = null;
+      await loadTasks(true);
+    }
+
+    document.addEventListener("click", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      // List select
+      const listBtn = t.closest && t.closest("[data-task-list]");
+      if (listBtn) {
+        window.__tasksState.listId = listBtn.getAttribute("data-task-list");
+        window.__tasksState.editId = null;
+        renderTasks();
+        return;
+      }
+      if (t.id === "btn-tasks-refresh") {
+        await loadTasks(true);
+        return;
+      }
+      if (t.id === "btn-list-create") {
+        const title = ($("new-list-title") && $("new-list-title").value) || "";
+        if (!title.trim()) {
+          $("err").textContent = "List title required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          const r = await tasksPost("/api/tasks/lists/create", { title: title.trim() });
+          window.__tasksState.listId = r.list && r.list.id;
+          await afterTaskMutation(`List created: ${title.trim()}`);
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.id === "btn-task-add") {
+        const st = window.__tasksState;
+        if (!st.listId) {
+          $("err").textContent = "Select a list first";
+          $("err").classList.add("show");
+          return;
+        }
+        const title = ($("new-task-title") && $("new-task-title").value) || "";
+        if (!title.trim()) {
+          $("err").textContent = "Task title required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          await tasksPost("/api/tasks", {
+            list_id: st.listId,
+            title: title.trim(),
+            notes: ($("new-task-notes") && $("new-task-notes").value) || "",
+            due: ($("new-task-due") && $("new-task-due").value) || null,
+          });
+          if ($("new-task-title")) $("new-task-title").value = "";
+          if ($("new-task-notes")) $("new-task-notes").value = "";
+          if ($("new-task-due")) $("new-task-due").value = "";
+          await afterTaskMutation("Task created");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+
+      const row = t.closest && t.closest(".task-row");
+      if (!row) return;
+      const taskId = row.getAttribute("data-task-id");
+      const listId = row.getAttribute("data-list-id");
+      if (!taskId || !listId) return;
+
+      if (t.matches && (t.matches("[data-task-complete]") || t.matches("[data-task-complete-btn]"))) {
+        const completed = t.matches("[data-task-complete]") ? !!t.checked : true;
+        try {
+          await tasksPost("/api/tasks/complete", { list_id: listId, task_id: taskId, completed });
+          await afterTaskMutation(completed ? "Marked complete" : "Reopened");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+          await loadTasks(true);
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-reopen]")) {
+        try {
+          await tasksPost("/api/tasks/complete", { list_id: listId, task_id: taskId, completed: false });
+          await afterTaskMutation("Reopened");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-edit]")) {
+        window.__tasksState.editId = taskId;
+        renderTasks();
+        return;
+      }
+      if (t.matches && t.matches("[data-task-cancel-edit]")) {
+        window.__tasksState.editId = null;
+        renderTasks();
+        return;
+      }
+      if (t.matches && t.matches("[data-task-delete]")) {
+        if (!confirm("Delete this task permanently?")) return;
+        try {
+          await tasksPost("/api/tasks/delete", { list_id: listId, task_id: taskId });
+          await afterTaskMutation("Task deleted");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+      if (t.matches && t.matches("[data-task-save]")) {
+        const title = (row.querySelector(".te-title") || {}).value || "";
+        const notes = (row.querySelector(".te-notes") || {}).value || "";
+        const due = (row.querySelector(".te-due") || {}).value || "";
+        const clearDue = !!(row.querySelector(".te-clear-due") || {}).checked;
+        const dest = (row.querySelector(".te-move-list") || {}).value || listId;
+        if (!String(title).trim()) {
+          $("err").textContent = "Title is required";
+          $("err").classList.add("show");
+          return;
+        }
+        try {
+          await tasksPost("/api/tasks/update", {
+            list_id: listId,
+            task_id: taskId,
+            title: String(title).trim(),
+            notes,
+            due: clearDue ? null : (due || null),
+            clear_due: clearDue,
+          });
+          if (dest && dest !== listId) {
+            await tasksPost("/api/tasks/move", {
+              list_id: listId,
+              task_id: taskId,
+              destination_list: dest,
+            });
+            window.__tasksState.listId = dest;
+          }
+          await afterTaskMutation("Task updated");
+        } catch (e) {
+          $("err").textContent = e.message;
+          $("err").classList.add("show");
+        }
+        return;
+      }
+    });
+
+    document.addEventListener("change", async (ev) => {
+      const t = ev.target;
+      if (!t) return;
+      if (t.id === "tasks-show-completed") {
+        window.__tasksState.showCompleted = !!t.checked;
+        await loadTasks(true);
+      }
+    });
 
     $("btn-refresh").addEventListener("click", load);
     $("only-touched").addEventListener("change", load);
@@ -909,6 +2341,10 @@
       }
       if (t.id === "btn-bl-groom") {
         await postAction("/api/backlog/groom", { apply: true });
+        return;
+      }
+      if (t.id === "btn-bridge-top") {
+        await postAction("/api/bridge/send-top", { limit: 1 });
         return;
       }
       if (t.id === "btn-bl-view-press") {
@@ -992,6 +2428,10 @@
         window.__blEditOpen.delete(id);
         return;
       }
+      if (t.classList.contains("btn-bl-to-day")) {
+        await postAction("/api/bridge/to-allocator", { backlog_id: id });
+        return;
+      }
       if (t.classList.contains("btn-bl-initiate")) {
         // Idea → Initiate is intentional; no ready gate
         await postAction("/api/backlog/initiate", { id, spawn: true });
@@ -1010,6 +2450,7 @@
         await postAction("/api/backlog/delete", { id });
       }
     });
+    initTabShell();
     load();
   </script>
 </body>

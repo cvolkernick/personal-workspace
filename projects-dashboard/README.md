@@ -39,8 +39,66 @@ python3 projects-dashboard/git_workflow.py sync
 ```bash
 python3 projects-dashboard/git_workflow.py start treasury
 python3 projects-dashboard/git_workflow.py status
-python3 projects-dashboard/git_workflow.py protect "msg"
+python3 projects-dashboard/git_workflow.py protect --auto          # durable only → work/*
+python3 projects-dashboard/git_workflow.py protect "feat: …"      # full (product + durable)
+python3 projects-dashboard/git_workflow.py sync "fix: …"         # session index + full protect
 ```
+
+**Protect modes:** bare `protect`/`sync` = **auto** (snapshots/journals/session-index only;
+push only on `work/*`). Explicit message or dashboard button = **full**. Never pushes
+`master`. See `Agents.md` — *auto-save keeps the lights on; PRs change the product.*
+
+### Branch matrix (origin × clones)
+
+Repo tab default view: a color-coded matrix of every branch vs **origin** and
+each local clone (this machine live; peer machines via
+`ops/branch-clones/*.json`).
+
+| Dot | Meaning |
+|-----|---------|
+| ● green | present / synced |
+| ↑ / ↓ yellow | ahead / behind origin |
+| ↕ orange | diverged |
+| L purple | local only (not on origin) |
+| R blue | origin only (not on this clone) |
+| × red | upstream gone |
+| · muted | absent |
+
+```bash
+python3 projects-dashboard/git_workflow.py status   # includes matrix JSON
+# Peer hosts: write ops/branch-clones/<machine>.json (see ops/branch-clones/README.md)
+```
+
+### Branch graph (gitk-style)
+
+The dashboard **Branches** section also draws a linked-list / DAG view of commits
+(same topology as `gitk` / `git log --graph`), from local git — no GitHub API.
+
+```bash
+python3 projects-dashboard/branch_graph.py --max 40
+# API while server is running:
+curl -s 'http://127.0.0.1:8765/api/branch-graph?max=80&remotes=1' | python3 -m json.tool | head
+```
+
+| | |
+|--|--|
+| UI | Workflow Management → **Branches** → Graph / List |
+| Order | **Newest at top** (gitk / `git log --graph` style); each row shows committer time |
+| API | `GET /api/branch-graph?max=80&remotes=1` (`date` is ISO-8601 committer) |
+| External | [GitHub Branches](https://github.com/cvolkernick/personal-workspace/branches) · [Network](https://github.com/cvolkernick/personal-workspace/network) |
+
+## Day bridge (Workflow ↔ Time allocator)
+
+Macro backlog stays in Workflow; day minutes stay in Holistic. Bridge links them:
+
+```bash
+python3 projects-dashboard/bridge.py status
+python3 projects-dashboard/bridge.py send <backlog-id>
+python3 projects-dashboard/bridge.py send-top 1
+```
+
+Dashboard: **Send to today** on a backlog card, or **Send top to today** in the Day bridge strip.  
+Orchestra shows the same candidates + already-linked day tasks (read-only deep links).
 
 ## Strategy vs projects
 
@@ -84,9 +142,50 @@ python3 projects-dashboard/recommendations.py reject <id>
 
 Persisted in `ops/backlog/suggestions.json`.
 
+## Google Tasks tab
+
+FitDash/FCC-style tab shell: **Status · Plan · Tasks · Repo**.
+
+| | |
+|--|--|
+| UI | **Tasks** tab — all lists, create/edit/complete/delete/move, due dates, notes, list CRUD |
+| API | `GET /api/tasks`, `GET /api/tasks/lists`, `POST /api/tasks/*` (create/update/complete/delete/move), `POST /api/tasks/from-issue` |
+| Auth | Same OAuth as MCP: `~/.config/google-tasks-mcp/{client_secret,token}.json` |
+| GitHub bridge | Notes with `owner/repo#N` or `gh:owner/repo#N` render as chips; `POST /api/tasks/from-issue` mirrors a board issue into a task |
+| Grok / Rock | Agents use MCP `gtasks` (Mac stdio or Pi `:18800/mcp`); dashboards/chat hit this HTTP API on `:8765` |
+
+```bash
+python3 projects-dashboard/google_tasks.py status
+python3 projects-dashboard/google_tasks.py overview
+# deps: pip install google-api-python-client google-auth-httplib2 google-auth-oauthlib
+```
+
+Deep-link: `http://127.0.0.1:8765/?tab=tasks`
+
 ## Launch dashboard
 
 ```bash
 python3 projects-dashboard/server.py   # http://127.0.0.1:8765/
 python3 -m unittest discover -s projects-dashboard/tests -v
 ```
+
+### Always-on on Raspberry Pi (prism-gateway)
+
+Same pattern as Orchestra / IoT / FCC: systemd user unit on the Pi, bind `0.0.0.0:8765`.
+
+| Path | URL |
+|------|-----|
+| **LAN** | http://192.168.100.98:8765/ |
+| **Tailscale** | http://100.67.114.2:8765/ or http://prism-gateway:8765/ |
+| **Health** | `/api/health` |
+| **Branch graph** | `/api/branch-graph?max=80&remotes=1` |
+
+```bash
+# From Mac monorepo root — re-deploy this package only:
+bash deploy/install_remote.sh prism-agent@192.168.100.98 --only workflow
+# Or rsync this worktree's projects-dashboard/ then:
+ssh prism-agent@192.168.100.98 'systemctl --user restart workflow-dashboard'
+```
+
+Unit: `deploy/units/workflow-dashboard.service` (`--bind 0.0.0.0 --port 8765 --no-browser --local`).  
+Server accepts `--local` / `--host` for Pi unit compatibility (API is always local on the backend process).
