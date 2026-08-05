@@ -3,6 +3,10 @@
 
 
 
+## July 20, 2026 - Session Complete
+- Seated Cable Row: 105 lbs x 1 x 10, 105 lbs x 1 x 8, 100 lbs x 1 x 12 (PR!)
+- Lat Pulldowns: 100 lbs x 3 x 8 (PR!)
+- DB Curls: 22.5 lbs x 2 x 8, 20 lbs x 1 x 8
 ## May 27, 2026 - Session Complete
 - Hammer Curls: 27.5 lbs x 3 x 8 (PR!)
 - Seated Cable Row: 115 lbs x 3 x 6 (PR!)

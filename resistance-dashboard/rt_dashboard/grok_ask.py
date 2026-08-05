@@ -23,6 +23,20 @@ SYSTEM_PROMPT = """You are a fitness coach assistant for the user's personal res
 
 You only answer using the FITNESS DATA JSON provided in the user message (plus general exercise/nutrition knowledge that does not invent facts about THIS user).
 
+Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTraining):
+- Balanced hypertrophy does **not** require 10–20 working sets per muscle per week.
+- Target roughly **4–8 hard sets per major muscle group per week**, counting compound **overlap**
+  (e.g. RDLs credit hamstrings and glutes). Major groups: chest, mid/upper back, lats, delts,
+  biceps, triceps, quads, hamstrings, calves, glutes, adductors, abs, traps.
+- Prioritizing 1–2 muscles is fine; other muscles should sit near a **maintenance** dose.
+- There is a cap on productive work per session and per week; 10–20 sets/muscle crowds that out.
+- Prefer compounds for multi-muscle efficiency when the user is short on time or under-recovered.
+- When discussing the planned workout or weekly volume, use `workout_store.plan.volume` / weekly set
+  tallies from the data when present.
+- Focus muscles (`goals.focus_muscles`) raise weekly volume for 1–2 lagging groups and hold others
+  near maintenance. Suggest concrete focus from volume gaps; the user can persist with local
+  commands: "focus on chest and glutes", "auto focus", "clear focus".
+
 Rules:
 - Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review.
 - If something is missing from the data, say so clearly. Do not invent sessions, weights, macros, or dates.
@@ -30,7 +44,11 @@ Rules:
 - When discussing progress, cite specific numbers and dates from the data.
 - Do not claim access to Google Health settings/goals unless they appear in the data.
 - Do not discuss secrets, tokens, or how to hack systems.
-- Note: the user can also run local commands (handled outside the model): set stock <id> on|off, set targets cal=.. protein=.., refresh meal plan, refresh workout plan.
+- Note: the user can also run local commands (handled outside the model, no need to invent syntax):
+  natural language like "set protein to 220", "update calories to 2000", "change macros to 220p 150c 55f",
+  "apply those recommendations", "mark chicken out of stock", "refresh meal plan".
+  If they ask you to change targets, suggest concrete numbers they can confirm, or tell them to say
+  "apply those" / "set protein to X" so the dashboard can write the config.
 """
 
 
@@ -257,17 +275,46 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
 
     wo = dashboard.get("workout_store") or {}
     plan = wo.get("plan") or {}
+    volume_ctx = None
     if isinstance(plan, dict):
+        vol = plan.get("volume") or {}
+        if isinstance(vol, dict) and vol.get("muscles"):
+            volume_ctx = {
+                "framework": (vol.get("framework") or {}).get("id")
+                or (vol.get("framework") or {}).get("label"),
+                "under_target": (vol.get("under_target") or [])[:8],
+                "high_or_over": (vol.get("high_or_over") or [])[:8],
+                "muscles": [
+                    {
+                        "muscle": m.get("muscle"),
+                        "done": m.get("done"),
+                        "planned": m.get("planned"),
+                        "projected": m.get("projected"),
+                        "min": m.get("min"),
+                        "max": m.get("max"),
+                        "status": m.get("status"),
+                    }
+                    for m in (vol.get("muscles") or [])
+                    if isinstance(m, dict)
+                    and (
+                        (m.get("done") or 0) > 0
+                        or (m.get("planned") or 0) > 0
+                        or m.get("status") in ("under", "low", "high", "over")
+                    )
+                ][:13],
+            }
         plan = {
             "date": plan.get("date"),
             "session_type": plan.get("session_type"),
             "is_rest_day": plan.get("is_rest_day"),
             "message": plan.get("message"),
+            "volume": volume_ctx,
             "exercises": [
                 {
                     "name": e.get("name"),
                     "prescription": e.get("prescription"),
                     "primary_muscles": e.get("primary_muscles"),
+                    "set_credits": e.get("set_credits"),
                 }
                 for e in (plan.get("exercises") or [])[:8]
                 if isinstance(e, dict)
@@ -287,6 +334,9 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             "weight": _series_tail(health.get("weight"), h_days),
             "sleep": _series_tail(health.get("sleep"), h_days),
             "nutrition": _series_tail(health.get("nutrition"), h_days),
+            "food_logs": _series_tail(health.get("food_logs"), min(h_days, 7))
+            if isinstance(health.get("food_logs"), list)
+            else (nut.get("food_logs_recent") or [])[-40:],
             "hydration": _series_tail(health.get("hydration"), h_days),
             "calories_burned": _series_tail(health.get("calories_burned"), min(h_days, 14)),
             "notes": health.get("error"),
@@ -294,16 +344,49 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
         "nutrition_store": {
             "targets": nut.get("targets"),
             "today_consumed": nut.get("today_consumed"),
+            "food_logs_today": (nut.get("food_logs_today") or [])[:30],
             "inventory": stocked[:40],
             "meal_plan": meal_plan,
+            "labs": nut.get("labs"),
         },
         "workout_store": {
             "goals": wo.get("goals"),
             "plan": plan,
+            "volume_framework": {
+                "id": "dean_t_balanced_4_8",
+                "target_sets_per_muscle_week": "4-8",
+                "notes": (
+                    "Hard sets per major muscle/week with compound overlap; "
+                    "not 10-20. Priority muscles may go higher; others maintenance."
+                ),
+            },
             "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),
         },
         "coach": {
             "today": (dashboard.get("coach") or {}).get("today"),
+            "food_commentary": {
+                "working_well": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "working_well"
+                    )
+                    or []
+                )[:5],
+                "can_improve": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "can_improve"
+                    )
+                    or []
+                )[:6],
+                "top_foods": (
+                    ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                        "top_foods"
+                    )
+                    or []
+                )[:6],
+                "labs": ((dashboard.get("coach") or {}).get("food_commentary") or {}).get(
+                    "labs"
+                ),
+            },
             "adherence_7d": {
                 k: ((dashboard.get("coach") or {}).get("adherence_7d") or {}).get(k)
                 for k in ("protein", "sleep", "hydration", "calories")

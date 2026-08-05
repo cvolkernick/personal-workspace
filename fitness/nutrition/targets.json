@@ -1,8 +1,8 @@
 {
-  "calories": 2100,
-  "protein_g": 210,
-  "carbs_g": 180,
-  "fat_g": 55,
-  "notes": "Cutting phase targets from meal-plan.md. Edit anytime; meal planner uses these.",
-  "updated_at": "2026-07-11"
+  "calories": 2000.0,
+  "protein_g": 200.0,
+  "carbs_g": 195.0,
+  "fat_g": 45.0,
+  "notes": "Cutting targets (kcal aligned to P/C/F ≈ 200×4 + 195×4 + 45×9). Fat 45g is intentional; calories were incorrectly 45.",
+  "updated_at": "2026-07-26"
 }

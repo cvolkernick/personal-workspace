@@ -113,12 +113,53 @@
     .pill.partial, .pill.missing, .pill.unknown { color: var(--yellow); }
     .pill.live { color: var(--cyan); border-color: var(--cyan); }
     .pill.down { color: var(--muted); }
-    .pill.high { color: var(--orange); }
+    .pill.high, .pill.critical { color: var(--orange); }
+    .pill.critical { color: var(--red); border-color: var(--red); }
     .pill.medium { color: var(--accent); }
-    .pill.low { color: var(--muted); }
+    .pill.low, .pill.info { color: var(--muted); }
     .pill.overlap { color: var(--purple); }
     .pill.connection, .pill.relationship { color: var(--accent); }
     .pill.synergy { color: var(--green); }
+    .pill.stale { color: var(--red); border-color: var(--red); }
+    .pill.fresh { color: var(--green); }
+    .filters { display: flex; gap: 0.4rem; flex-wrap: wrap; margin: 0 0 0.65rem; }
+    .filters button.active { border-color: var(--accent); color: var(--accent); background: #152536; }
+    .row.attn-critical, .row.attn-high {
+      border-color: #5a3030;
+      background: linear-gradient(135deg, #1a1010 0%, var(--panel) 55%);
+    }
+    .briefing {
+      background: linear-gradient(135deg, #121a28 0%, var(--panel) 70%);
+      border: 1px solid #2a3a55;
+      border-radius: 12px;
+      padding: 0.95rem 1.1rem;
+      margin-bottom: 1.25rem;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .briefing .mode {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--cyan); margin-bottom: 0.35rem;
+    }
+    .row.rec-top {
+      border-color: #3a5a8a;
+      background: linear-gradient(135deg, #152238 0%, var(--panel) 55%);
+    }
+    .row .action-line {
+      font-weight: 650; font-size: 0.98rem; margin-top: 0.15rem;
+    }
+    details.secondary {
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.5rem 0.85rem 0.75rem;
+      background: var(--panel2);
+    }
+    details.secondary > summary {
+      cursor: pointer; font-weight: 650; font-size: 0.95rem;
+      color: var(--muted); padding: 0.35rem 0;
+    }
+    details.secondary[open] > summary { color: var(--text); margin-bottom: 0.5rem; }
     a.link {
       color: var(--accent); text-decoration: none; font-size: 0.85rem; font-weight: 600;
     }
@@ -169,37 +210,62 @@
     <div class="error-banner" id="error"></div>
     <div class="summary" id="summary"></div>
 
+    <div class="briefing" id="briefing" hidden>
+      <div class="mode" id="rec-mode"></div>
+      <div id="rec-summary"></div>
+    </div>
+
+    <section id="sec-recommendations">
+      <h2>Recommended next actions <span class="badge" id="rec-count">0</span></h2>
+      <p class="sub" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem">
+        Fully automated from domains, synergies (high preferred; medium fallback), attention hygiene, and priorities — no manual triage required.
+      </p>
+      <div class="list" id="recommendations"></div>
+    </section>
+
     <section id="sec-domains">
       <h2>Domains <span class="badge" id="dom-count">0</span></h2>
       <div class="grid" id="domains"></div>
-    </section>
-
-    <section id="sec-synergies">
-      <h2>Overlaps · Connections · Synergies <span class="badge" id="syn-count">0</span></h2>
-      <div class="list" id="synergies"></div>
-    </section>
-
-    <section id="sec-priorities">
-      <h2>Coordinated action plan <span class="badge" id="pri-count">0</span></h2>
-      <div class="list" id="priorities"></div>
-    </section>
-
-    <section id="sec-bridge">
-      <h2>Day bridge <span class="badge" id="bridge-count">0</span></h2>
-      <p class="sub" id="bridge-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
-      <div class="list" id="bridge"></div>
     </section>
 
     <section id="sec-links">
       <h2>Launch subordinates</h2>
       <div class="list" id="links"></div>
     </section>
+
+    <details class="secondary" id="sec-detail-streams">
+      <summary>Supporting analysis (attention · synergies · raw priorities · day bridge)</summary>
+      <section id="sec-attention" style="margin-top:0.75rem">
+        <h2>Needs attention <span class="badge" id="att-count">0</span></h2>
+        <p class="sub" id="att-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
+        <div class="list" id="attention"></div>
+      </section>
+      <section id="sec-synergies">
+        <h2>Overlaps · Connections · Synergies <span class="badge" id="syn-count">0</span></h2>
+        <div class="filters" id="syn-filters">
+          <button type="button" data-syn="all" class="active">All</button>
+          <button type="button" data-syn="high">High only</button>
+        </div>
+        <div class="list" id="synergies"></div>
+      </section>
+      <section id="sec-priorities">
+        <h2>Raw priority stream <span class="badge" id="pri-count">0</span></h2>
+        <div class="list" id="priorities"></div>
+      </section>
+      <section id="sec-bridge">
+        <h2>Day bridge <span class="badge" id="bridge-count">0</span></h2>
+        <p class="sub" id="bridge-note" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem"></p>
+        <div class="list" id="bridge"></div>
+      </section>
+    </details>
   </main>
   <footer id="footer">Orchestrator · personal-workspace</footer>
 
   <script>
     const $ = (id) => document.getElementById(id);
     let lastProbe = false;
+    let lastData = null;
+    let synFilter = "all";
 
     function showError(msg) {
       const el = $("error");
@@ -214,53 +280,32 @@
       })[c]);
     }
 
-    function render(data) {
-      showError("");
-      $("purpose").textContent = data.purpose || "Orchestrator";
-      const c = data.counts || {};
-      const domains = data.domains || [];
-      // Strategy is files-only (bets/today/initiatives) — surface in the top stats
-      // row so launchable dashboards keep an even card grid.
-      const strategy = domains.find((d) => d.id === "strategy") || {};
-      const sSig = strategy.signals || {};
-      const bets = sSig.thematic_bets || [];
-      const dashDomains = domains.filter((d) => d.id !== "strategy");
-      const dashAvailable = dashDomains.filter((d) => d.available).length;
+    function relAge(iso) {
+      if (!iso) return "";
+      const t = Date.parse(iso);
+      if (Number.isNaN(t)) return "";
+      const mins = Math.max(0, Math.round((Date.now() - t) / 60000));
+      if (mins < 1) return "just now";
+      if (mins < 60) return mins + "m ago";
+      const hrs = Math.round(mins / 60);
+      if (hrs < 48) return hrs + "h ago";
+      return Math.round(hrs / 24) + "d ago";
+    }
 
-      const strategySub = bets.length
-        ? bets.slice(0, 5).join(" · ")
-        : (strategy.available ? "files ok" : "missing");
-      $("summary").innerHTML = [
-        ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
-        ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
-        ["Synergies", c.synergies ?? "—", "links"],
-        ["Priorities", c.priorities ?? "—", "actions"],
-        ["Initiatives", c.initiatives ?? "—", "active"],
-        ["Today", c.today_items ?? "—", "open"],
-        ["Day bridge", c.bridge_candidates ?? "—", "to allocate"],
-      ].map(([l, n, sub]) =>
-        `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
-      ).join("");
+    function formatAgeHours(h) {
+      if (h == null || Number.isNaN(Number(h))) return "";
+      const n = Number(h);
+      if (n < 1) return Math.round(n * 60) + "m";
+      if (n < 48) return n.toFixed(n < 10 ? 1 : 0) + "h";
+      return (n / 24).toFixed(1) + "d";
+    }
 
-      $("dom-count").textContent = String(dashDomains.length);
-      $("domains").innerHTML = dashDomains.map((d) => {
-        const live = d.live === true ? '<span class="pill live">live</span>'
-          : d.live === false ? '<span class="pill down">offline</span>' : "";
-        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
-        return `<article class="card">
-          <h3>${esc(d.label || d.id)}</h3>
-          <div class="sum">${esc(d.summary || "")}</div>
-          <div class="meta">
-            <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
-            ${live}
-            ${url}
-          </div>
-        </article>`;
-      }).join("") || '<div class="row detail">No domains loaded.</div>';
-
-      const syns = data.synergies || [];
-      $("syn-count").textContent = String(syns.length);
-      $("synergies").innerHTML = syns.map((s) => {
+    function renderSynergies(syns) {
+      const filtered = synFilter === "high"
+        ? syns.filter((s) => (s.strength || "") === "high")
+        : syns;
+      $("syn-count").textContent = String(filtered.length) + (synFilter === "high" ? "/" + syns.length : "");
+      $("synergies").innerHTML = filtered.map((s) => {
         const doms = (s.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
         const ev = (s.evidence || []).slice(0, 3).map((e) => `<span class="tag">${esc(e)}</span>`).join("");
         return `<div class="row">
@@ -272,9 +317,120 @@
           <div class="detail">${esc(s.detail || "")}</div>
           <div class="tags">${doms}${ev}</div>
         </div>`;
-      }).join("") || '<div class="row detail">No cross-domain synergies detected yet — add initiatives, today items, or treasury actions.</div>';
+      }).join("") || '<div class="row detail">No synergies match this filter — try All, or add initiatives / today items / treasury actions.</div>';
+    }
 
-      const pris = data.priorities || data.action_plan || [];
+    function render(data) {
+      lastData = data;
+      showError("");
+      $("purpose").textContent = data.purpose || "Orchestrator";
+      const c = data.counts || {};
+      const domains = data.domains || [];
+      // Strategy is files-only — surface in the top stats strip.
+      const strategy = domains.find((d) => d.id === "strategy") || {};
+      const sSig = strategy.signals || {};
+      const bets = sSig.thematic_bets || [];
+      const dashDomains = domains.filter((d) => d.id !== "strategy");
+      const dashAvailable = dashDomains.filter((d) => d.available).length;
+      const fresh = data.freshness || {};
+      const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
+
+      const strategySub = bets.length
+        ? bets.slice(0, 5).join(" · ")
+        : (strategy.available ? "files ok" : "missing");
+      const rec = data.recommendations || {};
+      const recItems = data.recommended_actions || rec.items || data.action_plan || [];
+      const recMode = rec.mode || "—";
+      $("summary").innerHTML = [
+        ["Recommended", c.recommendations ?? recItems.length ?? "—", recMode],
+        ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
+        ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
+        ["High synergies", c.synergies_high ?? "—", "of " + (c.synergies ?? "—")],
+        ["Stale", staleN, "sources"],
+        ["Today", c.today_items ?? "—", "open"],
+        ["Bridge", c.bridge_candidates ?? "—", "to allocate"],
+      ].map(([l, n, sub]) =>
+        `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
+      ).join("");
+
+      // Primary: automated briefing + recommended actions
+      const briefing = $("briefing");
+      if (rec.summary) {
+        briefing.hidden = false;
+        $("rec-mode").textContent = "Mode: " + recMode + (rec.deferred_note ? " · fallback active" : "");
+        $("rec-summary").textContent = rec.summary;
+      } else {
+        briefing.hidden = true;
+      }
+      $("rec-count").textContent = String(recItems.length);
+      $("recommendations").innerHTML = recItems.length
+        ? recItems.map((r, i) => {
+            const urg = r.urgency || "medium";
+            const top = i < 3 ? " rec-top" : "";
+            const doms = (r.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            const srcs = (r.sources || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            return `<div class="row${top}">
+              <div class="title">
+                <span class="rank">${esc(r.rank || i + 1)}</span>
+                <span class="pill ${esc(urg)}">${esc(urg)}</span>
+                <span class="tag">${esc(r.kind || "action")}</span>
+                ${esc(r.title || "")}
+              </div>
+              <div class="action-line">${esc(r.action || r.title || "")}</div>
+              <div class="detail">${esc(r.why || "")}</div>
+              <div class="tags">${doms}${srcs}</div>
+            </div>`;
+          }).join("")
+        : '<div class="row detail">No automated recommendations yet — add today items, initiatives, or domain data.</div>';
+
+      const atts = data.attention || [];
+      $("att-count").textContent = String(atts.length);
+      const thr = fresh.stale_threshold_hours;
+      $("att-note").textContent = atts.length
+        ? "Input stream to recommendations (hygiene). Stale threshold: " + (thr != null ? thr + "h" : "default") + "."
+        : "No attention flags — hygiene stream clear.";
+      $("attention").innerHTML = atts.length
+        ? atts.map((a) => {
+            const sev = a.severity || "medium";
+            const doms = (a.domains || []).map((x) => `<span class="tag">${esc(x)}</span>`).join("");
+            return `<div class="row attn-${esc(sev)}">
+              <div class="title">
+                <span class="rank">${esc(a.rank || "")}</span>
+                <span class="pill ${esc(sev)}">${esc(sev)}</span>
+                <span class="tag">${esc(a.kind || "note")}</span>
+                ${esc(a.title || "")}
+              </div>
+              <div class="detail">${esc(a.detail || "")}</div>
+              <div class="tags">${doms}</div>
+            </div>`;
+          }).join("")
+        : '<div class="row detail">No attention items — system looks clear.</div>';
+
+      $("dom-count").textContent = String(dashDomains.length);
+      $("domains").innerHTML = dashDomains.map((d) => {
+        const live = d.live === true ? '<span class="pill live">live</span>'
+          : d.live === false ? '<span class="pill down">offline</span>' : "";
+        const stalePill = d.stale
+          ? `<span class="pill stale">stale${d.age_hours != null ? " " + esc(formatAgeHours(d.age_hours)) : ""}</span>`
+          : (d.age_hours != null
+            ? `<span class="pill fresh">${esc(formatAgeHours(d.age_hours))}</span>`
+            : "");
+        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
+        return `<article class="card">
+          <h3>${esc(d.label || d.id)}</h3>
+          <div class="sum">${esc(d.summary || "")}</div>
+          <div class="meta">
+            <span class="pill ${esc(d.status || "unknown")}">${esc(d.status || "unknown")}</span>
+            ${live}
+            ${stalePill}
+            ${url}
+          </div>
+        </article>`;
+      }).join("") || '<div class="row detail">No domains loaded.</div>';
+
+      renderSynergies(data.synergies || []);
+
+      const pris = data.priorities || [];
       $("pri-count").textContent = String(pris.length);
       $("priorities").innerHTML = pris.map((p, i) => {
         const top = i < 3 ? " top" : "";
@@ -299,13 +455,13 @@
         ${br.allocator_url ? ` · <a class="link" href="${esc(br.allocator_url)}" target="_blank" rel="noopener">Time allocator</a>` : ""}
         ${br.send_hint ? ` · <span class="detail">${esc(br.send_hint)}</span>` : ""}`;
       const candHtml = cand.length
-        ? cand.map((c) => `
+        ? cand.map((item) => `
           <div class="row">
             <div class="title">
-              <span class="rank">${esc(c.press_rank || "·")}</span>
-              ${esc(c.title || "")}
+              <span class="rank">${esc(item.press_rank || "·")}</span>
+              ${esc(item.title || "")}
             </div>
-            <div class="detail">${esc(c.schedule_label || "")} · ${esc(c.priority || "")} · ${esc(c.status || "")}${c.area ? ` · ${esc(c.area)}` : ""}</div>
+            <div class="detail">${esc(item.schedule_label || "")} · ${esc(item.priority || "")} · ${esc(item.status || "")}${item.area ? ` · ${esc(item.area)}` : ""}</div>
             <div class="tags"><span class="pill medium">send from Workflow</span></div>
           </div>`).join("")
         : '<div class="row detail">No unlinked backlog candidates — groom workflow or all top items are already on the day plan.</div>';
@@ -314,7 +470,6 @@
         : "";
       $("bridge").innerHTML = candHtml + linkedHtml;
 
-      // Launch list: skip strategy (files-only; already on the summary strip)
       const links = (data.links || []).filter((l) => l.id !== "strategy");
       $("links").innerHTML = links.map((l) => {
         const port = l.port != null ? `port ${l.port}` : "files only";
@@ -330,7 +485,10 @@
       }).join("");
 
       const gen = data.generated_at || "";
-      $("footer").textContent = `Orchestrator · ${gen} · workspace ${data.workspace || ""}`;
+      const rel = relAge(gen);
+      const staleNote = staleN ? ` · ${staleN} stale source(s)` : "";
+      $("footer").textContent =
+        `Orchestrator · ${rel || gen}${staleNote} · workspace ${data.workspace || ""}`;
     }
 
     async function load(probe) {
@@ -352,6 +510,15 @@
 
     $("btn-refresh").addEventListener("click", () => load(lastProbe));
     $("btn-probe").addEventListener("click", () => load(true));
+    $("syn-filters").addEventListener("click", (ev) => {
+      const btn = ev.target.closest("button[data-syn]");
+      if (!btn) return;
+      synFilter = btn.getAttribute("data-syn") || "all";
+      $("syn-filters").querySelectorAll("button").forEach((b) => {
+        b.classList.toggle("active", b === btn);
+      });
+      if (lastData) renderSynergies(lastData.synergies || []);
+    });
     load(false);
   </script>
 </body>

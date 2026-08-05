@@ -1,0 +1,5 @@
+{
+  "url": "http://192.168.100.98:8780",
+  "label": "prism-gateway",
+  "notes": "Local Mac dashboard proxies /api/* here. Pi runs the real control + schedule."
+}

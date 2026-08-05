@@ -74,6 +74,7 @@ RSYNC_ARGS=(-az --delete
   --exclude '__pycache__'
   --exclude '*.pyc'
   --exclude 'data/schedule_state.json'
+  --exclude 'secrets.json'
   --exclude '.DS_Store'
 )
 if [[ "$DRY" -eq 1 ]]; then
@@ -81,14 +82,42 @@ if [[ "$DRY" -eq 1 ]]; then
 fi
 
 rsync "${RSYNC_ARGS[@]}" \
+  --exclude 'backend.json' \
   "$ROOT/iot/" \
   "$REMOTE:$REMOTE_DIR/iot/"
+# Pi must not ship Mac's backend.json (would proxy to itself)
+# secrets.json is excluded so rsync --delete never wipes VeSync credentials
 
-echo "→ Install pywizlight on remote (user site)…"
-ssh "$REMOTE" "python3 -m pip install --user -q 'pywizlight>=0.6.0' || python3 -m pip install --user 'pywizlight>=0.6.0'"
+# server.py imports monorepo-root remote_backend (proxy helpers). Ship it next to
+# PYTHONPATH=$REMOTE_DIR so --local Pi deploys start without the full monorepo.
+if [[ -f "$ROOT/remote_backend.py" ]]; then
+  echo "→ Ship remote_backend.py for server import…"
+  rsync -az "$ROOT/remote_backend.py" "$REMOTE:$REMOTE_DIR/remote_backend.py"
+fi
+
+echo "→ Create venv + install deps (PEP 668-safe)…"
+ssh "$REMOTE" "python3 -m venv '$REMOTE_DIR/.venv' && \
+  '$REMOTE_DIR/.venv/bin/pip' install -q --upgrade pip && \
+  '$REMOTE_DIR/.venv/bin/pip' install -q -r '$REMOTE_DIR/iot/requirements.txt'"
 
 echo "→ Ensure schedule data dir…"
 ssh "$REMOTE" "mkdir -p '$REMOTE_DIR/iot/data'"
+
+# If VeSync secrets live under personal-workspace but not iot-workspace, copy once.
+echo "→ Ensure secrets.json for VeSync plugs (if present elsewhere on host)…"
+ssh "$REMOTE" "if [[ ! -f '$REMOTE_DIR/iot/secrets.json' ]]; then
+  for cand in \
+    '/home/${RUSER}/personal-workspace/iot/secrets.json' \
+    '/home/${RUSER}/workspace/iot/secrets.json'; do
+    if [[ -f \"\$cand\" ]]; then
+      cp -a \"\$cand\" '$REMOTE_DIR/iot/secrets.json'
+      chmod 600 '$REMOTE_DIR/iot/secrets.json'
+      echo \"  copied \$cand → $REMOTE_DIR/iot/secrets.json\"
+      break
+    fi
+  done
+fi
+if [[ -f '$REMOTE_DIR/iot/secrets.json' ]]; then echo '  secrets.json present'; else echo '  WARNING: no secrets.json (VeSync plugs will fail)'; fi"
 
 UNIT_SRC="iot-worker.service"
 UNIT_NAME="iot-worker.service"
@@ -98,12 +127,13 @@ if [[ "$MODE" == "dashboard" ]]; then
 fi
 
 echo "→ Install systemd unit ($UNIT_NAME)…"
-# Rewrite paths for this user/dir
+# Rewrite paths for this user/dir; use venv python
 TMP_UNIT="$(mktemp)"
 sed \
   -e "s|User=pi|User=${RUSER}|g" \
   -e "s|Group=pi|Group=${RUSER}|g" \
   -e "s|/home/pi/iot-workspace|${REMOTE_DIR}|g" \
+  -e "s|/usr/bin/python3|${REMOTE_DIR}/.venv/bin/python|g" \
   "$(dirname "$0")/$UNIT_SRC" > "$TMP_UNIT"
 
 scp "$TMP_UNIT" "$REMOTE:/tmp/$UNIT_NAME"

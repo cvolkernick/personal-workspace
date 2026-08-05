@@ -129,6 +129,10 @@ class TestHealthAndRecovery(unittest.TestCase):
         )
         self.assertGreaterEqual(len(weights), 7)
         self.assertGreaterEqual(len(sleep), 1)
+        # Report labeled kg as "lbs" (e.g. 83.1) — must store true pounds (~183)
+        self.assertGreater(weights[-1].weight_lbs, 150.0)
+        self.assertLess(weights[-1].weight_lbs, 220.0)
+        self.assertAlmostEqual(weights[-1].weight_lbs, 83.1 * 2.2046226218, places=1)
         status = compute_recovery_status(
             weight=weights,
             sleep=sleep,
@@ -141,6 +145,8 @@ class TestHealthAndRecovery(unittest.TestCase):
             status.inputs["latest_weight_lbs"], weights[-1].weight_lbs
         )
         self.assertTrue(status.reasons)
+        # Recovery latest weight must not look like raw kg (~80s)
+        self.assertGreater(status.inputs["latest_weight_lbs"], 150.0)
 
     def test_resolve_health_prefers_google_when_present(self):
         google = HealthSnapshot(

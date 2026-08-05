@@ -23,6 +23,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
     CaloriesBurnedDay,
+    FoodLogEntry,
     HealthSnapshot,
     HydrationDay,
     NutritionDay,
@@ -33,6 +34,16 @@ from .models import (
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 HEALTH_BASE = "https://health.googleapis.com/v4/users/me"
 FIT_BASE = "https://www.googleapis.com/fitness/v1/users/me"
+
+# Google Health API rejects access tokens that also carry Calendar (and some other)
+# scopes — error DISALLOWED_OAUTH_SCOPES / cl_readonly. Refresh with this subset so
+# a multi-scope refresh token (Health + Calendar granted together) still works.
+HEALTH_OAUTH_SCOPES = (
+    "https://www.googleapis.com/auth/googlehealth.health_metrics_and_measurements.readonly "
+    "https://www.googleapis.com/auth/googlehealth.sleep.readonly "
+    "https://www.googleapis.com/auth/googlehealth.nutrition.readonly "
+    "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly"
+)
 
 # Legacy Fit data types (fallback only)
 WEIGHT_DATA_TYPE = "com.google.weight"
@@ -114,12 +125,15 @@ class GoogleHealthClient:
                 "Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID, "
                 "GOOGLE_CLIENT_SECRET, and GOOGLE_REFRESH_TOKEN (or GOOGLE_ACCESS_TOKEN)."
             )
+        # Always mint a Health-only access token. Unrestricted refresh can return
+        # Calendar scopes that health.googleapis.com rejects with HTTP 403.
         body = urllib.parse.urlencode(
             {
                 "client_id": self.client_id,
                 "client_secret": self.client_secret,
                 "refresh_token": self.refresh_token,
                 "grant_type": "refresh_token",
+                "scope": HEALTH_OAUTH_SCOPES,
             }
         ).encode("utf-8")
         req = urllib.request.Request(
@@ -190,12 +204,26 @@ class GoogleHealthClient:
 
     def fetch_sleep_health_api(self, days: int = 14) -> List[SleepSample]:
         """Google Health API: GET .../dataTypes/sleep/dataPoints"""
+        samples, _intervals = self.fetch_sleep_health_bundle(days=days)
+        return samples
+
+    def fetch_sleep_health_bundle(
+        self, days: int = 14
+    ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+        """Daily sleep totals + timed intervals (for sleep battery).
+
+        Same dataPoints as Time Allocator: real start/end times, not a fixed 7am wake.
+        """
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        # Sleep segments can be denser than weight; still bound pages tightly.
         max_pages = 4 if days >= 60 else 2
         data = self._paginate_data_points("sleep", max_pages=max_pages)
-        return parse_health_api_sleep(data, start=start)
+        intervals = parse_sleep_intervals(data, start=start)
+        # Prefer daily totals derived from timed intervals (local wake date)
+        samples = sleep_samples_from_intervals(intervals)
+        if not samples:
+            samples = parse_health_api_sleep(data, start=start)
+        return samples, intervals
 
     def fetch_weight_fit(self, days: int = 30) -> List[WeightSample]:
         end = datetime.now(timezone.utc)
@@ -245,13 +273,20 @@ class GoogleHealthClient:
         return self.fetch_weight_fit(days=days)
 
     def fetch_sleep(self, days: int = 14) -> List[SleepSample]:
+        samples, _ = self.fetch_sleep_bundle(days=days)
+        return samples
+
+    def fetch_sleep_bundle(
+        self, days: int = 14
+    ) -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+        """Return (daily samples, timed intervals) for charts + battery."""
         try:
-            samples = self.fetch_sleep_health_api(days=days)
-            if samples:
-                return samples
+            samples, intervals = self.fetch_sleep_health_bundle(days=days)
+            if samples or intervals:
+                return samples, intervals
         except GoogleHealthError:
             pass
-        return self.fetch_sleep_fit(days=days)
+        return self.fetch_sleep_fit(days=days), []
 
     def _civil_range_body(
         self,
@@ -260,10 +295,26 @@ class GoogleHealthClient:
         *,
         end_date: Optional[datetime] = None,
     ) -> dict:
-        end = (end_date or datetime.now(timezone.utc)).date()
-        if isinstance(end, datetime):
-            end = end.date()
-        start = end - timedelta(days=max(1, days - 1))
+        """Build civil date range for dataPoints:dailyRollUp.
+
+        Google Health treats ``range.end`` as **exclusive** (live check: end=today
+        omits today's partial total-calories; end=tomorrow includes today's kcalSum).
+        Request end = last_inclusive_day + 1.
+
+        Default last inclusive day is **local** civil today (not UTC).
+        """
+        if end_date is None:
+            end_inclusive = datetime.now().astimezone().date()
+        elif isinstance(end_date, datetime):
+            end_inclusive = (
+                end_date.astimezone().date()
+                if end_date.tzinfo is not None
+                else end_date.date()
+            )
+        else:
+            end_inclusive = end_date
+        start = end_inclusive - timedelta(days=max(1, days - 1))
+        end_exclusive = end_inclusive + timedelta(days=1)
         # Google enforces windowSizeDays * pageSize <= maxDuration for some types
         page_size = min(page_size, max(1, days))
         return {
@@ -277,9 +328,9 @@ class GoogleHealthClient:
                 },
                 "end": {
                     "date": {
-                        "year": end.year,
-                        "month": end.month,
-                        "day": end.day,
+                        "year": end_exclusive.year,
+                        "month": end_exclusive.month,
+                        "day": end_exclusive.day,
                     }
                 },
             },
@@ -304,10 +355,11 @@ class GoogleHealthClient:
         days: int,
         chunk_days: int,
     ) -> dict:
-        """Fetch rollups in chunks ending today, walking backward."""
+        """Fetch rollups in chunks ending today (local civil), walking backward."""
         days = max(1, int(days))
         chunk_days = max(1, int(chunk_days))
-        end = datetime.now(timezone.utc)
+        # Inclusive last day of this chunk (local calendar)
+        end = datetime.now().astimezone()
         remaining = days
         all_pts: List[dict] = []
         while remaining > 0:
@@ -347,6 +399,22 @@ class GoogleHealthClient:
         try:
             data = self._paginate_data_points("nutrition-log", max_pages=6)
             return parse_nutrition_log_points(data, days=days)
+        except GoogleHealthError:
+            return []
+
+    def fetch_food_logs(self, days: int = 14) -> List[FoodLogEntry]:
+        """Meal-level nutrition-log entries (food names + macros + micros).
+
+        Daily rollups only give totals; meal plan / coach commentary need
+        individual foodDisplayName points. Bound pages tightly — food logs
+        are denser than daily weigh-ins.
+        """
+        days = max(1, min(int(days), 30))
+        # ~100 pts/page; heavy loggers may need more pages for 14d.
+        max_pages = 8 if days >= 14 else 4
+        try:
+            data = self._paginate_data_points("nutrition-log", max_pages=max_pages)
+            return parse_food_log_entries(data, days=days)
         except GoogleHealthError:
             return []
 
@@ -409,18 +477,24 @@ class GoogleHealthClient:
         errors: List[str] = []
         weight: List[WeightSample] = []
         sleep: List[SleepSample] = []
+        sleep_intervals: List[Dict[str, Any]] = []
         nutrition: List[NutritionDay] = []
+        food_logs: List[FoodLogEntry] = []
         hydration: List[HydrationDay] = []
         calories_burned: List[CaloriesBurnedDay] = []
 
         def _weight() -> List[WeightSample]:
             return self.fetch_weight(days=days)
 
-        def _sleep() -> List[SleepSample]:
-            return self.fetch_sleep(days=days)
+        def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
+            return self.fetch_sleep_bundle(days=days)
 
         def _nutrition() -> List[NutritionDay]:
             return self.fetch_nutrition(days=days)
+
+        def _food_logs() -> List[FoodLogEntry]:
+            # Meal-level detail for coach + meal plan (shorter window).
+            return self.fetch_food_logs(days=min(14, days))
 
         def _hydration() -> List[HydrationDay]:
             return self.fetch_hydration(days=days)
@@ -432,12 +506,13 @@ class GoogleHealthClient:
             "weight": _weight,
             "sleep": _sleep,
             "nutrition": _nutrition,
+            "food_logs": _food_logs,
             "hydration": _hydration,
             "calories_burned": _burned,
         }
-        # Parallel streams — sequential 5× calls was exceeding the dashboard
+        # Parallel streams — sequential multi-calls was exceeding the dashboard
         # 20s wall timeout even when Google was healthy.
-        with ThreadPoolExecutor(max_workers=5) as pool:
+        with ThreadPoolExecutor(max_workers=6) as pool:
             futs = {pool.submit(fn): name for name, fn in jobs.items()}
             for fut in as_completed(futs):
                 name = futs[fut]
@@ -452,9 +527,11 @@ class GoogleHealthClient:
                 if name == "weight":
                     weight = result  # type: ignore[assignment]
                 elif name == "sleep":
-                    sleep = result  # type: ignore[assignment]
+                    sleep, sleep_intervals = result  # type: ignore[misc]
                 elif name == "nutrition":
                     nutrition = result  # type: ignore[assignment]
+                elif name == "food_logs":
+                    food_logs = result  # type: ignore[assignment]
                 elif name == "hydration":
                     hydration = result  # type: ignore[assignment]
                 elif name == "calories_burned":
@@ -465,6 +542,7 @@ class GoogleHealthClient:
             not weight
             and not sleep
             and not nutrition
+            and not food_logs
             and not hydration
             and not calories_burned
             and err
@@ -473,7 +551,9 @@ class GoogleHealthClient:
         return HealthSnapshot(
             weight=weight,
             sleep=sleep,
+            sleep_intervals=sleep_intervals,
             nutrition=nutrition,
+            food_logs=food_logs,
             hydration=hydration,
             calories_burned=calories_burned,
             error=err,
@@ -548,35 +628,119 @@ def parse_health_api_weight(
     return [by_date[k] for k in sorted(by_date.keys())]
 
 
+def _parse_interval_times(pt: dict) -> Optional[Tuple[datetime, datetime]]:
+    sleep = pt.get("sleep") or pt.get("data") or pt
+    interval = (
+        (sleep.get("interval") if isinstance(sleep, dict) else None)
+        or pt.get("interval")
+        or {}
+    )
+    st = interval.get("startTime") or pt.get("startTime")
+    en = interval.get("endTime") or pt.get("endTime")
+    if not st or not en:
+        return None
+    try:
+        st_s, en_s = str(st), str(en)
+        if st_s.endswith("Z"):
+            st_s = st_s[:-1] + "+00:00"
+        if en_s.endswith("Z"):
+            en_s = en_s[:-1] + "+00:00"
+        start_dt = datetime.fromisoformat(st_s)
+        end_dt = datetime.fromisoformat(en_s)
+    except ValueError:
+        return None
+    if start_dt.tzinfo is None:
+        start_dt = start_dt.replace(tzinfo=timezone.utc)
+    if end_dt.tzinfo is None:
+        end_dt = end_dt.replace(tzinfo=timezone.utc)
+    if end_dt <= start_dt:
+        return None
+    return start_dt, end_dt
+
+
+def parse_sleep_intervals(
+    payload: dict, start: Optional[datetime] = None
+) -> List[Dict[str, Any]]:
+    """Timed sleep sessions [{start, end, source}] — same shape as Time Allocator."""
+    cutoff = start or datetime.now(timezone.utc) - timedelta(days=14)
+    if cutoff.tzinfo is None:
+        cutoff = cutoff.replace(tzinfo=timezone.utc)
+    rows: List[Dict[str, Any]] = []
+    for pt in payload.get("dataPoints") or []:
+        parsed = _parse_interval_times(pt if isinstance(pt, dict) else {})
+        if not parsed:
+            continue
+        start_dt, end_dt = parsed
+        if end_dt < cutoff:
+            continue
+        if (end_dt - start_dt).total_seconds() > 36 * 3600:
+            continue
+        rows.append(
+            {
+                "start": start_dt.isoformat(timespec="seconds"),
+                "end": end_dt.isoformat(timespec="seconds"),
+                "source": "google_health",
+            }
+        )
+    # Dedupe
+    seen: set = set()
+    out: List[Dict[str, Any]] = []
+    for r in sorted(rows, key=lambda x: x["start"]):
+        key = (r["start"], r["end"])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
+def sleep_samples_from_intervals(
+    intervals: List[Dict[str, Any]],
+) -> List[SleepSample]:
+    """Aggregate timed intervals to daily totals by local wake (end) date."""
+    by_date: Dict[str, float] = {}
+    for iv in intervals or []:
+        try:
+            en = datetime.fromisoformat(str(iv.get("end") or "").replace("Z", "+00:00"))
+            st = datetime.fromisoformat(str(iv.get("start") or "").replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if en.tzinfo is None:
+            en = en.replace(tzinfo=timezone.utc)
+        if st.tzinfo is None:
+            st = st.replace(tzinfo=timezone.utc)
+        hours = max(0.0, (en - st).total_seconds() / 3600.0)
+        if hours <= 0:
+            continue
+        day = en.astimezone().date().isoformat()  # local civil wake date
+        by_date[day] = by_date.get(day, 0.0) + hours
+    return [
+        SleepSample(date=d, sleep_hours=round(h, 2), source="google_health")
+        for d, h in sorted(by_date.items())
+    ]
+
+
 def parse_health_api_sleep(
     payload: dict, start: Optional[datetime] = None
 ) -> List[SleepSample]:
-    """Parse Google Health API sleep dataPoints list."""
+    """Parse Google Health API sleep dataPoints into daily totals.
+
+    Prefer ``sleep_samples_from_intervals(parse_sleep_intervals(...))`` when
+    timed intervals are available (local wake date). This fallback attributes
+    hours to the local end date of each session.
+    """
     by_date: Dict[str, float] = {}
     start = start or datetime.now(timezone.utc) - timedelta(days=14)
     for pt in payload.get("dataPoints") or []:
-        sleep = pt.get("sleep") or pt.get("data") or pt
-        interval = (
-            (sleep.get("interval") if isinstance(sleep, dict) else None)
-            or pt.get("interval")
-            or {}
-        )
-        st = interval.get("startTime") or pt.get("startTime")
-        en = interval.get("endTime") or pt.get("endTime")
-        if not st or not en:
+        if not isinstance(pt, dict):
             continue
-        try:
-            if str(st).endswith("Z"):
-                start_dt = datetime.fromisoformat(str(st).replace("Z", "+00:00"))
-                end_dt = datetime.fromisoformat(str(en).replace("Z", "+00:00"))
-            else:
-                start_dt = datetime.fromisoformat(str(st))
-                end_dt = datetime.fromisoformat(str(en))
-        except ValueError:
+        parsed = _parse_interval_times(pt)
+        if not parsed:
             continue
+        start_dt, end_dt = parsed
         hours = (end_dt - start_dt).total_seconds() / 3600.0
         if hours <= 0:
-            # total sleep minutes field if present
+            sleep = pt.get("sleep") or pt.get("data") or pt
             mins = None
             if isinstance(sleep, dict):
                 mins = sleep.get("durationMinutes") or sleep.get("totalSleepMinutes")
@@ -584,7 +748,8 @@ def parse_health_api_sleep(
                 hours = float(mins) / 60.0
             else:
                 continue
-        date = start_dt.astimezone(timezone.utc).strftime("%Y-%m-%d")
+        # Local wake date (matches Time Allocator daily attribution)
+        date = end_dt.astimezone().strftime("%Y-%m-%d")
         by_date[date] = by_date.get(date, 0.0) + hours
     start_date = start.strftime("%Y-%m-%d")
     return [
@@ -674,6 +839,83 @@ def _nutrient_grams_from_list(nlog: dict, name: str) -> Optional[float]:
     return None
 
 
+def _all_nutrients_grams(nlog: dict) -> Dict[str, float]:
+    """Map nutrient enum → grams (skip macros already on FoodLogEntry)."""
+    skip = {
+        "PROTEIN",
+        "TOTAL_PROTEIN",
+        "CARBOHYDRATES",
+        "CARBS",
+        "TOTAL_CARBOHYDRATE",
+        "TOTAL_CARBOHYDRATES",
+        "FAT",
+        "TOTAL_FAT",
+        "NUTRIENT_UNSPECIFIED",
+    }
+    out: Dict[str, float] = {}
+    for item in nlog.get("nutrients") or []:
+        if not isinstance(item, dict):
+            continue
+        key = str(item.get("nutrient") or "").upper().strip()
+        if not key or key in skip:
+            continue
+        q = item.get("quantity") or {}
+        g = _mass_grams(q)
+        if g is None:
+            continue
+        out[key] = round(float(g), 4)
+    return out
+
+
+def _meal_type_label(raw: Any) -> Optional[str]:
+    if raw is None:
+        return None
+    s = str(raw).strip()
+    if not s or s.upper() in ("MEAL_TYPE_UNSPECIFIED", "UNSPECIFIED", ""):
+        return None
+    # BREAKFAST → Breakfast, BEFORE_LUNCH → Before lunch
+    return s.replace("_", " ").title()
+
+
+def _serving_label(nlog: dict) -> Optional[str]:
+    serving = nlog.get("serving") or {}
+    if not isinstance(serving, dict):
+        return None
+    amount = serving.get("amount")
+    unit = (
+        serving.get("foodMeasurementUnitDisplayName")
+        or serving.get("foodMeasurementUnit")
+        or ""
+    )
+    unit = str(unit).strip()
+    if amount is None and not unit:
+        return None
+    if amount is None:
+        return unit or None
+    try:
+        a = float(amount)
+        a_s = str(int(a)) if a == int(a) else f"{a:g}"
+    except (TypeError, ValueError):
+        a_s = str(amount)
+    return f"{a_s} {unit}".strip() if unit else a_s
+
+
+def _civil_time_hm(civil: Any) -> Optional[str]:
+    if not isinstance(civil, dict):
+        return None
+    t = civil.get("time") or {}
+    if not isinstance(t, dict):
+        return None
+    h = t.get("hours")
+    m = t.get("minutes")
+    if h is None and m is None:
+        return None
+    try:
+        return f"{int(h or 0):02d}:{int(m or 0):02d}"
+    except (TypeError, ValueError):
+        return None
+
+
 def _macros_from_nutrition_log(nlog: dict) -> Dict[str, Optional[float]]:
     """Extract calories + macros from a meal log or daily rollup nutritionLog block.
 
@@ -755,6 +997,86 @@ def parse_nutrition_log_points(payload: dict, days: int = 30) -> List[NutritionD
             )
         )
     return out
+
+
+def parse_food_log_entries(payload: dict, days: int = 14) -> List[FoodLogEntry]:
+    """Parse meal-level nutrition-log dataPoints (keep food names + micros).
+
+    Google Health NutritionLog shape::
+      foodDisplayName, mealType, serving, energy.kcal,
+      totalCarbohydrate/totalFat, nutrients[{nutrient, quantity.grams}],
+      interval.civilStartTime.{date,time}
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
+    entries: List[FoodLogEntry] = []
+    for pt in payload.get("dataPoints") or []:
+        nlog = pt.get("nutritionLog") or pt.get("nutrition_log") or pt.get("nutrition")
+        if not isinstance(nlog, dict):
+            continue
+        date = None
+        time_hm = None
+        interval = nlog.get("interval") or {}
+        civil = interval.get("civilStartTime") or {}
+        if isinstance(civil, dict) and civil.get("date"):
+            date = _civil_date_str({"date": civil.get("date")})
+            time_hm = _civil_time_hm(civil)
+        if not date:
+            date = _parse_rfc3339_date(
+                str(interval.get("startTime") or pt.get("startTime") or "")
+            )
+        if not date or date < cutoff:
+            continue
+
+        name = (
+            str(nlog.get("foodDisplayName") or nlog.get("food_display_name") or "")
+            .strip()
+        )
+        if not name:
+            # Identified food resource name is not human-friendly; last resort.
+            food_ref = nlog.get("food")
+            if food_ref:
+                name = str(food_ref).rsplit("/", 1)[-1][:48]
+            else:
+                name = "Logged food"
+
+        macros = _macros_from_nutrition_log(nlog)
+        if all(
+            macros.get(k) is None
+            for k in ("calories", "protein_g", "carbs_g", "fat_g")
+        ):
+            # Empty / incomplete point — still keep if named? skip empty.
+            continue
+
+        entries.append(
+            FoodLogEntry(
+                date=date,
+                name=name,
+                calories=round(macros["calories"], 1)
+                if macros["calories"] is not None
+                else None,
+                protein_g=round(macros["protein_g"], 1)
+                if macros["protein_g"] is not None
+                else None,
+                carbs_g=round(macros["carbs_g"], 1)
+                if macros["carbs_g"] is not None
+                else None,
+                fat_g=round(macros["fat_g"], 1)
+                if macros["fat_g"] is not None
+                else None,
+                meal_type=_meal_type_label(nlog.get("mealType") or nlog.get("meal_type")),
+                serving_label=_serving_label(nlog),
+                time=time_hm,
+                nutrients=_all_nutrients_grams(nlog),
+                source="google_health",
+            )
+        )
+
+    # Chronological: date then time
+    def _sort_key(e: FoodLogEntry) -> Tuple[str, str, str]:
+        return (e.date, e.time or "99:99", e.name.lower())
+
+    entries.sort(key=_sort_key)
+    return entries
 
 
 def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:

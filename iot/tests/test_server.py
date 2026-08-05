@@ -49,6 +49,116 @@ def _http_json(
         return e.code, payload
 
 
+def _free_port() -> int:
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = int(s.getsockname()[1])
+    s.close()
+    return port
+
+
+class IoTProxyModeTests(unittest.TestCase):
+    def test_proxy_forwards_health_and_annotates(self) -> None:
+        """Local frontend proxies /api to a backend server process."""
+        bulbs = {
+            "entryway1": {"ip": "192.168.100.106", "mac": "6c2990089296"},
+        }
+        with tempfile.TemporaryDirectory() as td:
+            bulbs_path = Path(td) / "bulbs.json"
+            bulbs_path.write_text(json.dumps(bulbs), encoding="utf-8")
+            backend_port = _free_port()
+            proxy_port = _free_port()
+            env = {**os.environ, "PYTHONPATH": str(ROOT)}
+            backend = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(backend_port),
+                    "--host",
+                    "127.0.0.1",
+                    "--bulbs",
+                    str(bulbs_path),
+                    "--no-browser",
+                    "--no-scheduler",
+                    "--local",
+                ],
+                cwd=str(ROOT),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            # Wait for backend first
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                try:
+                    code, _ = _http_json("GET", f"http://127.0.0.1:{backend_port}/api/health")
+                    if code == 200:
+                        break
+                except Exception:
+                    time.sleep(0.1)
+            else:
+                err = backend.stderr.read() if backend.stderr else ""
+                backend.kill()
+                self.fail(f"backend not ready: {err}")
+
+            proxy = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(proxy_port),
+                    "--host",
+                    "127.0.0.1",
+                    "--backend",
+                    f"http://127.0.0.1:{backend_port}",
+                    "--no-browser",
+                    "--no-scheduler",
+                ],
+                cwd=str(ROOT),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                deadline = time.time() + 12
+                health: dict = {}
+                while time.time() < deadline:
+                    try:
+                        code, health = _http_json(
+                            "GET", f"http://127.0.0.1:{proxy_port}/api/health"
+                        )
+                        if code == 200 and health.get("ok"):
+                            break
+                    except Exception:
+                        time.sleep(0.1)
+                else:
+                    err = proxy.stderr.read() if proxy.stderr else ""
+                    self.fail(f"proxy did not become ready: {err}")
+
+                self.assertTrue(health.get("proxy"))
+                self.assertIn(str(backend_port), health.get("backend") or "")
+                self.assertEqual(health.get("service"), "iot")
+                self.assertEqual(health["registry"]["count"], 1)
+
+                code, devices = _http_json(
+                    "GET", f"http://127.0.0.1:{proxy_port}/api/devices"
+                )
+                self.assertEqual(code, 200)
+                self.assertEqual(devices.get("count"), 1)
+            finally:
+                for p in (proxy, backend):
+                    p.terminate()
+                    try:
+                        p.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        p.kill()
+
+
 class IoTDashboardServerTests(unittest.TestCase):
     def test_health_devices_presets_control_validation(self) -> None:
         bulbs = {
@@ -60,7 +170,7 @@ class IoTDashboardServerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             bulbs_path = Path(td) / "bulbs.json"
             bulbs_path.write_text(json.dumps(bulbs), encoding="utf-8")
-            port = 18780
+            port = _free_port()
             env = {**os.environ, "PYTHONPATH": str(ROOT)}
             proc = subprocess.Popen(
                 [
@@ -73,6 +183,8 @@ class IoTDashboardServerTests(unittest.TestCase):
                     "--bulbs",
                     str(bulbs_path),
                     "--no-browser",
+                    "--local",
+                    "--no-scheduler",
                 ],
                 cwd=str(ROOT),
                 env=env,

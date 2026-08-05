@@ -14,6 +14,163 @@
   font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
+/* Phase 1b login gate — no app chrome until authenticated */
+.auth-gate {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--bg);
+  overflow: hidden;
+}
+.auth-gate[hidden] {
+  display: none !important;
+}
+.auth-gate-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(61, 156, 240, 0.28), transparent 55%),
+    radial-gradient(ellipse 50% 40% at 100% 100%, rgba(92, 225, 168, 0.12), transparent 50%),
+    radial-gradient(ellipse 40% 30% at 0% 80%, rgba(240, 113, 120, 0.08), transparent 45%),
+    var(--bg);
+  pointer-events: none;
+}
+.auth-gate-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.04;
+  background-image: linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.auth-gate-card {
+  position: relative;
+  z-index: 1;
+  max-width: 420px;
+  width: 100%;
+  background: linear-gradient(165deg, rgba(36, 48, 68, 0.95), rgba(26, 35, 50, 0.98));
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + 4px);
+  padding: 2rem 1.65rem 1.5rem;
+  box-shadow: var(--shadow), 0 0 0 1px rgba(255, 255, 255, 0.03) inset;
+  backdrop-filter: blur(8px);
+}
+.auth-gate-brand {
+  text-align: center;
+  margin-bottom: 1.35rem;
+}
+.auth-gate-mark {
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #243044, #1a2332);
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+}
+.auth-gate-card h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.auth-gate-tagline {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+.auth-gate-features {
+  list-style: none;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.auth-gate-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  background: rgba(15, 20, 25, 0.45);
+  border: 1px solid rgba(45, 58, 79, 0.85);
+  border-radius: 10px;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+.auth-feat-icon {
+  flex-shrink: 0;
+  width: 1.35rem;
+  text-align: center;
+  line-height: 1.35;
+}
+.auth-gate-error {
+  margin: 0 0 0.75rem;
+  min-height: 0;
+  color: var(--danger);
+  font-size: 0.88rem;
+  text-align: center;
+}
+.auth-gate-error:empty {
+  display: none;
+}
+.auth-login-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin-top: 0.25rem;
+  min-height: 50px;
+  padding: 0.8rem 1.25rem;
+  text-decoration: none;
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 1rem;
+  border-radius: 12px;
+  box-shadow: 0 6px 18px rgba(45, 127, 212, 0.35);
+}
+.auth-login-btn:hover {
+  filter: brightness(1.06);
+}
+.auth-google-icon {
+  flex-shrink: 0;
+}
+.auth-gate-note {
+  margin: 1rem 0 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+a.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.95rem;
+}
+a.btn.primary {
+  background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
+  border-color: transparent;
+  font-weight: 600;
+  color: #fff;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -62,6 +219,22 @@ header p {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+/* Single visual row: Save goals · Refresh plan · Push · Pull · Legs (etc.) */
+.actions.actions-row-single {
+  flex-wrap: nowrap;
+  align-items: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  gap: 0.4rem;
+  padding-bottom: 0.15rem;
+}
+
+.actions.actions-row-single > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 button,
@@ -155,9 +328,155 @@ button:disabled {
   word-break: break-word;
 }
 
-/* Macro boxes often show "218 g · 40%" — slightly smaller so it fits cleanly */
-#nutrition-stats .stat .value {
-  font-size: 1.2rem;
+/* Color-coded nutrition summary tiles (match Cal/P/C/F theme elsewhere) */
+#nutrition-stats .macro-stat {
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+/* Today | Target split inside each macro tile */
+#nutrition-stats .macro-split {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-top: 0.35rem;
+  min-height: 2.6rem;
+}
+
+#nutrition-stats .macro-split-half {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+#nutrition-stats .macro-split-half:first-child {
+  padding-right: 0.55rem;
+}
+
+#nutrition-stats .macro-split-half:last-child {
+  padding-left: 0.55rem;
+  text-align: right;
+}
+
+#nutrition-stats .macro-split-rule {
+  width: 1px;
+  align-self: stretch;
+  background: rgba(255, 255, 255, 0.14);
+  flex: 0 0 1px;
+}
+
+#nutrition-stats .macro-split-k {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.72;
+  line-height: 1.2;
+}
+
+#nutrition-stats .macro-split-v {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-top: 0.1rem;
+  word-break: break-word;
+}
+
+#nutrition-stats .macro-split-pct {
+  font-size: 0.82em;
+  font-weight: 650;
+  opacity: 0.88;
+}
+
+#nutrition-stats .macro-split-delta {
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 0.15rem;
+  opacity: 0.85;
+  letter-spacing: 0.01em;
+}
+
+#nutrition-stats .macro-split-delta.under {
+  opacity: 0.75;
+}
+
+#nutrition-stats .macro-split-delta.over {
+  color: #f0a0a0;
+  opacity: 1;
+}
+
+#nutrition-stats .macro-stat.macro-cals {
+  border-left-color: #5ce1a8;
+  background: linear-gradient(
+    135deg,
+    rgba(92, 225, 168, 0.12),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-cals .label {
+  color: #9deed0;
+}
+#nutrition-stats .macro-stat.macro-cals .macro-split-v {
+  color: #5ce1a8;
+}
+
+#nutrition-stats .macro-stat.macro-protein {
+  border-left-color: #3d9cf0;
+  background: linear-gradient(
+    135deg,
+    rgba(61, 156, 240, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-protein .label {
+  color: #8fc4f5;
+}
+#nutrition-stats .macro-stat.macro-protein .macro-split-v {
+  color: #6db7f5;
+}
+
+#nutrition-stats .macro-stat.macro-carbs {
+  border-left-color: #f0b429;
+  background: linear-gradient(
+    135deg,
+    rgba(240, 180, 41, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-carbs .label {
+  color: #f0d080;
+}
+#nutrition-stats .macro-stat.macro-carbs .macro-split-v {
+  color: #f0c14d;
+}
+
+#nutrition-stats .macro-stat.macro-fat {
+  border-left-color: #c084fc;
+  background: linear-gradient(
+    135deg,
+    rgba(192, 132, 252, 0.14),
+    rgba(26, 35, 50, 0.9) 55%
+  );
+}
+#nutrition-stats .macro-stat.macro-fat .label {
+  color: #d8b4fe;
+}
+#nutrition-stats .macro-stat.macro-fat .macro-split-v {
+  color: #d0a4ff;
+}
+
+@media (max-width: 520px) {
+  #nutrition-stats .macro-split-v {
+    font-size: 1rem;
+  }
+  #nutrition-stats .macro-split-half:first-child {
+    padding-right: 0.4rem;
+  }
+  #nutrition-stats .macro-split-half:last-child {
+    padding-left: 0.4rem;
+  }
 }
 
 .badge {
@@ -192,6 +511,216 @@ button:disabled {
   padding-left: 1.1rem;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+/* Recovery card: cap reasons so battery panel fits without ballooning layout */
+#recovery-card .reasons {
+  max-height: 4.8rem;
+  overflow: hidden;
+  margin-top: 0.4rem;
+  font-size: 0.85rem;
+}
+
+#recovery-card #health-note {
+  margin-top: 0.4rem !important;
+  font-size: 0.78rem !important;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Sleep battery — Time Allocator style, compact at bottom of recovery */
+.sleep-battery-panel {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--border);
+}
+
+.sb-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.sb-panel-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+
+.sb-panel-hint {
+  font-size: 0.7rem;
+}
+
+.sb-panel-body {
+  display: grid;
+  grid-template-columns: minmax(100px, 120px) 1fr;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.sb-shell {
+  width: 100%;
+  border: 2px solid var(--border);
+  border-radius: 12px;
+  padding: 5px;
+  background: #0a121a;
+  position: relative;
+}
+
+.sb-shell::after {
+  content: "";
+  position: absolute;
+  right: -8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 16px;
+  border-radius: 0 3px 3px 0;
+  background: var(--border);
+}
+
+.sb-fill-wrap {
+  height: 44px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0b0f14;
+  position: relative;
+}
+
+.sb-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  max-width: 100%;
+  transition: width 0.35s ease, background 0.25s ease;
+}
+
+.sb-fill.critical {
+  background: linear-gradient(90deg, #ff6b6b, #ff8a8a);
+}
+.sb-fill.low {
+  background: linear-gradient(90deg, #f5c542, #f5d76e);
+}
+.sb-fill.ok {
+  background: linear-gradient(90deg, #3dd68c, #6ecf9a);
+}
+.sb-fill.full {
+  background: linear-gradient(90deg, #5b9fd4, #7c9cff);
+}
+
+.sb-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000a;
+  pointer-events: none;
+}
+
+.sb-big {
+  font-size: 1.05rem;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+.sb-sub {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.9;
+}
+
+.sb-side {
+  min-width: 0;
+}
+
+.sb-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem 0.5rem;
+}
+
+.sb-stat-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  font-weight: 650;
+}
+
+.sb-stat-value {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.sb-timeline {
+  margin-top: 0.4rem;
+  height: 10px;
+  border-radius: 6px;
+  background: #0a121a;
+  border: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+}
+
+.sb-timeline-used {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #5b7cff, #7c9cff);
+  opacity: 0.9;
+  border-radius: 5px;
+}
+
+.sb-timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.62rem;
+  color: var(--muted);
+  margin-top: 0.15rem;
+}
+
+.sb-summary {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sb-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (max-width: 520px) {
+  .sb-panel-body {
+    grid-template-columns: 1fr;
+  }
+  .sb-shell {
+    max-width: 160px;
+  }
 }
 
 .chart-box {
@@ -341,6 +870,27 @@ textarea {
   overflow: auto;
 }
 
+/* Catalog under More — scroll the list, keep form fixed height */
+#exercise-catalog-card .log-form {
+  flex: 0 0 auto;
+}
+
+#exercise-catalog-list.exercise-catalog-scroll,
+.exercise-catalog-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(55vh, 480px);
+  overflow-y: auto;
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.35rem;
+}
+
+/* Plan result denser inside hub Training panel */
+#today-hub #workout-plan-result .session-list {
+  margin-top: 0.35rem;
+}
+
 .session-list li {
   border-top: 1px solid var(--border);
   padding: 0.7rem 0;
@@ -366,10 +916,45 @@ textarea {
 }
 
 .alert {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem;
   border-radius: 10px;
   padding: 0.7rem 0.85rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.55rem;
   font-size: 0.9rem;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.alert-text {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.alert-dismiss {
+  flex-shrink: 0;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  opacity: 0.7;
+  cursor: pointer;
+  padding: 0.1rem 0.35rem;
+  font-size: 1rem;
+  line-height: 1;
+  border-radius: 6px;
+}
+
+.alert-dismiss:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.alert.alert-fade {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 .alert.warn {
@@ -390,6 +975,124 @@ textarea {
   color: #9deed0;
 }
 
+/* Meal plan — same Cal/P/C/F color language as inventory & targets */
+.meal-plan-panel {
+  margin-top: 0.25rem;
+}
+
+.meal-plan-totals-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.45rem;
+  margin-bottom: 0.5rem;
+}
+
+.meal-plan-totals {
+  margin-bottom: 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.meal-plan-totals.compact {
+  margin-bottom: 0;
+  padding: 0.4rem 0.55rem;
+}
+
+.meal-plan-totals.remaining {
+  opacity: 0.92;
+}
+
+.meal-plan-totals-row .inv-macro-strip.compact {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 520px) {
+  .meal-plan-totals-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.meal-bucket .inv-carousel-shell {
+  margin-top: 0.4rem;
+}
+
+.meal-bucket .inv-slide.meal-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.6rem;
+  background: rgba(15, 20, 25, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  box-sizing: border-box;
+}
+
+.meal-plan-totals-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 0.35rem;
+  font-weight: 650;
+}
+
+.meal-bucket {
+  margin-top: 0.75rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.meal-bucket-head .title {
+  font-weight: 650;
+  margin-bottom: 0.35rem;
+}
+
+.meal-item-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.meal-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  background: rgba(15, 20, 25, 0.35);
+}
+
+.meal-item-name {
+  font-weight: 650;
+  font-size: 0.88rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meal-servings-badge {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(61, 156, 240, 0.18);
+  color: #6db7f5;
+  vertical-align: middle;
+}
+
+.meal-item-meta {
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -406,16 +1109,19 @@ footer {
   gap: 0.4rem;
   flex-wrap: wrap;
   margin-bottom: 0.75rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
 }
 
 .tabs button {
-  font-size: 0.85rem;
-  padding: 0.35rem 0.7rem;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.55rem;
 }
 
 .tabs button.active {
   border-color: var(--accent);
   background: rgba(61, 156, 240, 0.15);
+  color: var(--accent);
 }
 
 /* Ask Grok */
@@ -583,16 +1289,1819 @@ footer {
   color: var(--text);
 }
 
-.coach-brief,
-.weekly-review {
-  border-top: 1px solid var(--border);
-  padding-top: 0.75rem;
+/* Standalone food coach card (above inventory / meal plan) */
+#food-coach-section .food-coach {
+  border-top: none;
+  padding-top: 0;
 }
 
-.coach-brief .ask-md {
+#food-coach-section .food-coach .ask-md {
   font-size: 0.92rem;
+}
+
+#food-coach-section .food-coach .today-subh,
+#food-coach-section .food-coach .ask-md > h1:first-child,
+#food-coach-section .food-coach .ask-md > h2:first-child,
+#food-coach-section .food-coach .ask-md > h3:first-child {
+  display: none; /* section h2 already labels the block */
+}
+
+.food-log-list {
+  margin-top: 0.25rem;
+}
+
+.food-log-list li .title {
+  font-size: 0.92rem;
+}
+
+.food-logs-carousel-panel {
+  margin-top: 0.15rem;
+}
+
+.food-logs-carousel-panel .inv-carousel-shell {
+  margin-top: 0.35rem;
+}
+
+.food-log-slide {
+  border-left: 3px solid rgba(92, 225, 168, 0.55);
+}
+
+/* Daily targets / remaining macro summary */
+.macro-summary {
+  margin-top: 0.25rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(36, 48, 68, 0.55), rgba(26, 35, 50, 0.35));
+}
+
+.macro-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.macro-summary-title {
+  font-weight: 650;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}
+
+.macro-summary-meta {
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.macro-summary-meta .dot-sep {
+  opacity: 0.55;
+  margin: 0 0.15rem;
+}
+
+.macro-kcal-block {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.macro-kcal-block.compact .macro-kcal-value {
+  font-size: 1.25rem;
+}
+
+.macro-kcal-value {
+  font-size: 1.55rem;
+  font-weight: 750;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.macro-kcal-label {
+  margin-top: 0.15rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.macro-chip-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.macro-chip {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  padding: 0.55rem 0.65rem;
+  border-left-width: 3px;
+}
+
+.macro-chip.macro-protein {
+  border-left-color: #3d9cf0;
+}
+.macro-chip.macro-carbs {
+  border-left-color: #f0b429;
+}
+.macro-chip.macro-fat {
+  border-left-color: #c084fc;
+}
+.macro-chip.macro-cals {
+  border-left-color: var(--accent-2);
+}
+
+.macro-chip-label {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+}
+
+.macro-chip-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.macro-chip-pct {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.macro-progress-list {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.macro-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  margin-bottom: 0.2rem;
+}
+
+.macro-progress-label {
+  color: var(--muted);
+}
+
+.macro-progress-nums {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.macro-progress-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(45, 58, 79, 0.9);
+  overflow: hidden;
+}
+
+.macro-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+  min-width: 0;
+}
+
+.macro-progress-fill.macro-cals {
+  background: linear-gradient(90deg, #5ce1a8, #3d9cf0);
+}
+.macro-progress-fill.macro-protein {
+  background: #3d9cf0;
+}
+.macro-progress-fill.macro-carbs {
+  background: #f0b429;
+}
+.macro-progress-fill.macro-fat {
+  background: #c084fc;
+}
+.macro-progress-fill.over {
+  background: var(--danger);
+}
+
+.macro-remaining-panel {
+  margin-top: 0.95rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.macro-remaining-panel .macro-summary-header {
+  margin-bottom: 0.65rem;
+}
+
+@media (max-width: 520px) {
+  .macro-chip-row {
+    grid-template-columns: 1fr;
+  }
+  .macro-summary-header {
+    flex-direction: column;
+  }
+  .macro-kcal-block {
+    text-align: left;
+  }
+}
+
+/* Inventory matches meal-plan height; pantry scrolls inside, never drives row taller */
+#inventory-section.equal-cards,
+#inventory-section.inv-meal-row,
+.inv-meal-row {
+  align-items: stretch;
+}
+
+#inventory-section > .card-fill {
+  min-height: 0;
+  overflow: hidden;
+}
+
+#inventory-card .log-form,
+#inventory-card .inv-suggestions,
+#inventory-card .inv-removals,
+#meal-plan-card .log-form {
+  flex: 0 0 auto;
+}
+
+/* flex-basis 0 so pantry items don't expand the grid past the meal-plan card */
+#inventory-list.inv-list-scroll,
+.inv-list-scroll {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overflow-y: auto;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+#inventory-list .inv-cards {
+  margin-top: 0.5rem;
+}
+
+.inv-panel,
+.inv-suggest-panel {
+  margin-top: 0;
+}
+
+.inv-panel.compact-panel,
+.inv-suggest-panel.compact-panel {
+  padding: 0.65rem 0.7rem;
+}
+
+.inv-carousel-count {
+  font-size: 0.8rem;
+  font-weight: 650;
+  min-width: 1.5rem;
+  text-align: right;
+}
+
+/* Horizontal carousel for pantry / suggestions */
+.inv-carousel-shell {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-top: 0.5rem;
+}
+
+.inv-carousel {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 0.25rem;
+}
+
+.inv-carousel-track {
+  display: flex;
+  gap: 0.5rem;
+  width: max-content;
+  padding: 0.1rem 0.05rem;
+}
+
+.inv-slide {
+  scroll-snap-align: start;
+  flex: 0 0 min(200px, 72vw);
+  width: min(200px, 72vw);
+  max-width: 220px;
+}
+
+.inv-carousel-nav {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  border-radius: 10px;
+  width: 2rem;
+  height: 2.4rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.inv-carousel-nav:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.inv-carousel-empty {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+}
+
+.inv-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.inv-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 0.7rem 0.75rem;
+}
+
+.inv-card.compact {
+  padding: 0.55rem 0.6rem;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.inv-card.out {
+  opacity: 0.78;
+  border-style: dashed;
+}
+
+.inv-card.suggest {
+  border-left: 3px solid var(--accent-2);
+}
+
+.inv-card-name {
+  font-weight: 650;
+  font-size: 0.92rem;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+.inv-card.compact .inv-card-name {
+  font-size: 0.88rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.inv-card-meta {
+  font-size: 0.75rem;
+  margin-top: 0.1rem;
+  line-height: 1.3;
+}
+
+.inv-reason {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.inv-reason.compact {
+  margin-top: 0.15rem;
+  font-size: 0.72rem;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 1.9em;
+}
+
+.inv-out-badge {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.inv-action-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
+.inv-action-badge.inv-action-restock {
+  background: rgba(240, 180, 41, 0.18);
+  color: var(--warn);
+}
+
+.inv-action-badge.inv-action-add {
+  background: rgba(92, 225, 168, 0.15);
+  color: var(--accent-2);
+}
+
+.inv-action-badge.inv-action-remove {
+  background: rgba(240, 113, 120, 0.18);
+  color: #f5a3a8;
+}
+
+.inv-card.suggest-remove {
+  border-left: 3px solid var(--danger);
+}
+
+.inv-remove-panel {
+  margin-top: 0;
+}
+
+.btn-suggest-remove {
+  border-color: rgba(240, 113, 120, 0.45) !important;
+  color: #f5a3a8 !important;
+}
+
+.inv-macro-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.inv-macro-strip.compact {
+  margin-top: 0.35rem;
+  gap: 0.25rem;
+}
+
+.inv-macro-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0.28rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.inv-macro-strip.compact .inv-macro-pill {
+  padding: 0.15rem 0.35rem;
+  font-size: 0.7rem;
+}
+
+.inv-macro-pill .pill-k {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.inv-macro-pill.macro-cals {
+  border-color: rgba(92, 225, 168, 0.45);
+  color: var(--accent-2);
+}
+.inv-macro-pill.macro-protein {
+  border-color: rgba(61, 156, 240, 0.5);
+  color: #6db7f5;
+}
+.inv-macro-pill.macro-carbs {
+  border-color: rgba(240, 180, 41, 0.5);
+  color: #f0c14d;
+}
+.inv-macro-pill.macro-fat {
+  border-color: rgba(192, 132, 252, 0.5);
+  color: #d0a4ff;
+}
+
+/* DoorDash meal restock panel (Nutrition Coach) */
+.doordash-panel {
+  border-left: 3px solid var(--accent-2, #3d9cf0);
+}
+
+.doordash-item-list {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.doordash-item-list li {
+  margin: 0.25rem 0;
+}
+
+.inv-card-actions {
+  margin-top: 0.55rem;
+}
+
+.inv-card-actions.compact {
+  margin-top: auto;
+  padding-top: 0.35rem;
+  gap: 0.3rem;
+}
+
+.inv-card-actions button {
+  font-size: 0.85rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.inv-card-actions.compact button {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.5rem;
+}
+
+@media (max-width: 520px) {
+  .inv-carousel-shell {
+    grid-template-columns: 1fr;
+  }
+  .inv-carousel-nav {
+    display: none;
+  }
+  .inv-slide {
+    flex-basis: min(170px, 78vw);
+  }
 }
 
 #today-hub-grid {
   margin-top: 0.5rem;
+}
+
+.today-hub-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+
+.today-hub-actions {
+  margin: 0;
+}
+
+.today-headline {
+  font-weight: 600;
+  color: var(--text, #e8eef7);
+}
+
+.today-sections {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.today-panel {
+  padding: 0.7rem 0.8rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.today-panel-wide {
+  grid-column: 1 / -1;
+}
+
+.today-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.today-action {
+  display: flex;
+  gap: 0.55rem;
+  align-items: flex-start;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: rgba(61, 156, 240, 0.08);
+  border: 1px solid rgba(61, 156, 240, 0.18);
+  font-size: 0.88rem;
+}
+
+.today-action-kind {
+  flex: 0 0 auto;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  min-width: 4.2rem;
+}
+
+.today-action-text {
+  flex: 1 1 auto;
+  line-height: 1.35;
+}
+
+.today-action-why {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.today-target-row {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.88rem;
+}
+
+.today-target-row:last-child {
+  border-bottom: none;
+}
+
+.today-target-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-weight: 650;
+}
+
+.today-target-why {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  opacity: 0.78;
+  line-height: 1.35;
+}
+
+.today-meal-bucket {
+  margin-top: 0.45rem;
+}
+
+.today-meal-bucket-label {
+  font-weight: 650;
+  font-size: 0.82rem;
+  margin-bottom: 0.2rem;
+}
+
+.today-purchase {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 0.85rem;
+}
+
+.today-purchase:last-child {
+  border-bottom: none;
+}
+
+.today-purchase .badge-restock {
+  color: #f0c14d;
+  font-weight: 650;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+.today-purchase .badge-add {
+  color: #6db7f5;
+  font-weight: 650;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+}
+
+@media (max-width: 720px) {
+  .today-sections {
+    grid-template-columns: 1fr;
+  }
+  .today-panel-wide {
+    grid-column: auto;
+  }
+}
+
+/* —— Full-width calorie pacing + in/out delta bars —— */
+.calorie-bar-card {
+  padding: 0.85rem 1rem 0.75rem;
+}
+
+.calorie-bar-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.55rem;
+}
+
+.calorie-bar-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.calorie-bar-meta {
+  font-size: 0.78rem;
+}
+
+.calorie-bar-summary {
+  margin: 0.45rem 0 0;
+  font-size: 0.8rem;
+}
+
+/* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
+.pace-track {
+  position: relative;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.pace-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9));
+  transition: width 0.35s ease;
+}
+
+.pace-fill.ahead {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.55), rgba(240, 180, 41, 0.95));
+}
+
+.pace-fill.behind {
+  background: linear-gradient(90deg, rgba(61, 156, 240, 0.45), rgba(61, 156, 240, 0.9));
+}
+
+.pace-fill.on_pace,
+.pace-fill.start {
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9));
+}
+
+.pace-marker {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 3px;
+  margin-left: -1.5px;
+  left: 0%;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  border-radius: 2px;
+  z-index: 2;
+  transition: left 0.35s ease;
+}
+
+/* Bidirectional delta: midpoint 0, left=deficit red, right=surplus green */
+.delta-track {
+  position: relative;
+  height: 1.15rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+.delta-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.75);
+  z-index: 2;
+}
+
+.delta-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  transition: width 0.35s ease;
+}
+
+.delta-fill.delta-left {
+  right: 50%;
+  border-radius: 999px 0 0 999px;
+  background: linear-gradient(270deg, rgba(240, 113, 120, 0.95), rgba(240, 113, 120, 0.45));
+}
+
+.delta-fill.delta-right {
+  left: 50%;
+  border-radius: 0 999px 999px 0;
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.45), rgba(92, 225, 168, 0.95));
+}
+
+.delta-labels {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.55rem;
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.delta-labels span:nth-child(2) {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* Compact metric strips under intake / macro charts */
+.chart-summary {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.chart-summary-empty {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted, #8b9bb4);
+}
+
+.chart-summary-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  align-items: stretch;
+}
+
+.chart-summary-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.chart-summary-chip .chip-k {
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chart-summary-chip .chip-v {
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.chart-summary-chip .chip-s {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  line-height: 1.25;
+}
+
+.chart-summary-chip.chip-surplus {
+  border-color: rgba(92, 225, 168, 0.35);
+  background: rgba(92, 225, 168, 0.1);
+}
+.chart-summary-chip.chip-surplus .chip-v {
+  color: #5ce1a8;
+}
+
+.chart-summary-chip.chip-deficit {
+  border-color: rgba(240, 113, 120, 0.35);
+  background: rgba(240, 113, 120, 0.1);
+}
+.chart-summary-chip.chip-deficit .chip-v {
+  color: #f07178;
+}
+
+.chart-summary-chip.chip-balance {
+  border-color: rgba(139, 155, 180, 0.35);
+}
+
+.chart-summary-chip.chip-in .chip-v {
+  color: #5ce1a8;
+}
+.chart-summary-chip.chip-out .chip-v {
+  color: #f07178;
+}
+
+.chart-summary-chip.chip-protein {
+  border-color: rgba(61, 156, 240, 0.35);
+  background: rgba(61, 156, 240, 0.1);
+}
+.chart-summary-chip.chip-protein .chip-v {
+  color: #6db7f5;
+}
+
+.chart-summary-chip.chip-carbs {
+  border-color: rgba(240, 180, 41, 0.35);
+  background: rgba(240, 180, 41, 0.1);
+}
+.chart-summary-chip.chip-carbs .chip-v {
+  color: #f0c14d;
+}
+
+.chart-summary-chip.chip-fat {
+  border-color: rgba(240, 113, 120, 0.3);
+  background: rgba(240, 113, 120, 0.08);
+}
+.chart-summary-chip.chip-fat .chip-v {
+  color: #f09098;
+}
+
+/* Macro target band (±5% of daily targets) overrides soft macro colors */
+.chart-summary-chip.chip-in-range {
+  border-color: rgba(92, 225, 168, 0.85) !important;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(92, 225, 168, 0.2);
+}
+.chart-summary-chip.chip-out-of-range {
+  border-color: rgba(240, 80, 90, 0.9) !important;
+  border-width: 2px;
+  box-shadow: 0 0 0 1px rgba(240, 80, 90, 0.2);
+}
+
+/* Prominent target split strip under macro chips */
+.macro-target-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+  margin-top: 0.15rem;
+  padding: 0.45rem 0.55rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.macro-target-bar-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  flex: 0 0 auto;
+}
+
+.macro-target-bar-pills {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.macro-target-pill {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+.macro-target-pill .mtp-k {
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.macro-target-pill .mtp-v {
+  font-weight: 750;
+  font-size: 0.95rem;
+}
+
+.macro-target-pill .mtp-g {
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.macro-target-pill.pill-p {
+  border-color: rgba(61, 156, 240, 0.45);
+  background: rgba(61, 156, 240, 0.12);
+}
+.macro-target-pill.pill-p .mtp-v {
+  color: #6db7f5;
+}
+
+.macro-target-pill.pill-c {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.12);
+}
+.macro-target-pill.pill-c .mtp-v {
+  color: #f0c14d;
+}
+
+.macro-target-pill.pill-f {
+  border-color: rgba(240, 113, 120, 0.4);
+  background: rgba(240, 113, 120, 0.1);
+}
+.macro-target-pill.pill-f .mtp-v {
+  color: #f09098;
+}
+
+.macro-target-bar-hint {
+  font-size: 0.68rem;
+  opacity: 0.65;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+@media (max-width: 520px) {
+  .macro-target-bar-hint {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+.chart-summary-meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted, #8b9bb4);
+  line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+  /* Keep 3 metric chips on one row even on narrow cards */
+  .chart-summary-row {
+    flex-wrap: nowrap;
+  }
+  .chart-summary-chip {
+    min-width: 0;
+    padding: 0.35rem 0.4rem;
+  }
+  .chart-summary-chip .chip-v {
+    font-size: 0.88rem;
+  }
+}
+
+/* Energy balance vs body-weight insight (under intake/burned chips) */
+.energy-weight-insight {
+  margin-top: 0.15rem;
+  padding: 0.55rem 0.65rem 0.5rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.energy-weight-insight.align-ok {
+  border-color: rgba(92, 225, 168, 0.35);
+  background: rgba(92, 225, 168, 0.06);
+}
+
+.energy-weight-insight.align-bad {
+  border-color: rgba(240, 113, 120, 0.35);
+  background: rgba(240, 113, 120, 0.06);
+}
+
+.energy-weight-insight.align-warn {
+  border-color: rgba(240, 180, 41, 0.35);
+  background: rgba(240, 180, 41, 0.06);
+}
+
+.ewi-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.ewi-title {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.ewi-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.align-ok .ewi-badge {
+  color: #5ce1a8;
+  background: rgba(92, 225, 168, 0.15);
+}
+
+.align-bad .ewi-badge {
+  color: #f07178;
+  background: rgba(240, 113, 120, 0.15);
+}
+
+.align-warn .ewi-badge {
+  color: #f0c14d;
+  background: rgba(240, 180, 41, 0.15);
+}
+
+.energy-weight-insight .ewi-metrics {
+  margin-bottom: 0.35rem;
+}
+
+.ewi-advice {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted, #8b9bb4);
+}
+
+.ewi-advice li {
+  margin: 0.2rem 0;
+}
+
+.ewi-advice li:first-child {
+  color: var(--text, #e8eef7);
+  opacity: 0.92;
+}
+
+/* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
+.volume-balance {
+  margin: 0.65rem 0 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.volume-balance-title {
+  font-size: 0.78rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.4rem;
+  color: var(--text, #e8eef7);
+}
+.volume-balance-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.vol-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(26, 35, 50, 0.85);
+}
+.vol-chip-m {
+  text-transform: capitalize;
+  opacity: 0.9;
+  font-weight: 600;
+}
+.vol-chip-v {
+  font-weight: 700;
+}
+.vol-chip-b {
+  opacity: 0.55;
+  font-size: 0.68em;
+}
+.vol-chip.vol-under,
+.vol-chip.vol-low {
+  border-color: rgba(240, 180, 41, 0.45);
+  background: rgba(240, 180, 41, 0.1);
+}
+.vol-chip.vol-ok {
+  border-color: rgba(92, 225, 168, 0.4);
+  background: rgba(92, 225, 168, 0.08);
+}
+.vol-chip.vol-high,
+.vol-chip.vol-over {
+  border-color: rgba(240, 113, 120, 0.45);
+  background: rgba(240, 113, 120, 0.1);
+}
+.volume-balance-note {
+  margin: 0.4rem 0 0;
+  font-size: 0.72rem;
+}
+
+/* ==========================================================================
+   Tab shell (web + phone): Today / Trends / Kitchen / Log / More
+   Phone density stays under max-width 720px; panel tabs apply at all widths.
+   ========================================================================== */
+
+.mobile-help {
+  display: none;
+  margin-top: 0;
+  font-size: 0.85rem;
+}
+
+.macro-strip {
+  display: none;
+}
+
+.mobile-tabbar {
+  display: none;
+}
+
+.mobile-only-card {
+  display: none;
+}
+
+.today-mobile-pills {
+  display: none;
+  gap: 0.4rem;
+  margin: 0.65rem 0 0.35rem;
+  flex-wrap: wrap;
+}
+
+.today-mobile-pills .pill {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.today-mobile-pills .pill.active {
+  background: rgba(61, 156, 240, 0.18);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+/* —— Shared shell (all viewports when body.m-shell) —— */
+/* Bottom dock padding only on phone — see max-width:720 media query */
+
+/* Sticky macro strip (under top tabs on web; under header on phone) */
+body.m-shell .macro-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  margin: 0 0 0.65rem;
+  padding: 0.45rem 0.7rem;
+  background: rgba(15, 20, 25, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+body.m-shell .macro-strip[hidden] {
+  display: none !important;
+}
+
+body.m-shell .macro-strip-dot {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+body.m-shell #macro-strip-recovery {
+  color: var(--accent-2);
+}
+
+/* Panel visibility for tab shell */
+body.m-shell [data-m-panel] {
+  display: none !important;
+}
+
+body.m-shell[data-m-active="today"] [data-m-panel="today"],
+body.m-shell[data-m-active="log"] [data-m-panel="log"],
+body.m-shell[data-m-active="trends"] [data-m-panel="trends"],
+body.m-shell[data-m-active="kitchen"] [data-m-panel="kitchen"],
+body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+  display: block !important;
+}
+
+/* Grid sections must remain grid when active */
+body.m-shell[data-m-active="today"] section.grid[data-m-panel="today"],
+body.m-shell[data-m-active="log"] section.grid[data-m-panel="log"],
+body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"],
+body.m-shell[data-m-active="kitchen"] section.grid[data-m-panel="kitchen"],
+body.m-shell[data-m-active="more"] section.grid[data-m-panel="more"] {
+  display: grid !important;
+}
+
+/* Catalog lives under More only; plan controls live inside Today hub Training */
+body.m-shell[data-m-active="more"] #exercise-catalog-section {
+  display: block !important;
+}
+
+body.m-shell[data-m-active="more"] #exercise-catalog-card {
+  display: block !important;
+}
+
+/* Plan controls denser inside full-day guide */
+.today-plan-controls {
+  margin-top: 1rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--border);
+}
+
+.today-plan-controls-title {
+  margin: 0 0 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.today-plan-result {
+  min-width: 0;
+}
+
+#today-hub #workout-goals-actions {
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* Today hub: pills switch Lift / Meal / Targets */
+body.m-shell .today-mobile-pills {
+  display: flex;
+}
+
+body.m-shell .today-mobile-pills[hidden] {
+  display: none !important;
+}
+
+body.m-shell #today-hub-grid {
+  grid-template-columns: 1fr !important;
+}
+
+body.m-shell #today-hub-grid .today-panel {
+  display: none;
+}
+
+body.m-shell #today-hub-grid .today-panel.today-panel-active {
+  display: block;
+}
+
+/*
+ * Tab bar (FCC placement model):
+ * - Phone / narrow (≤720): fixed BOTTOM dock
+ * - Web / wide (≥721): sticky TOP strip under the header
+ */
+.mobile-tabbar {
+  display: none;
+}
+
+body.m-shell .mobile-tabbar {
+  display: flex;
+}
+
+body.m-shell .mobile-tabbar[hidden] {
+  display: none !important;
+}
+
+body.m-shell .mobile-tabbar .tab-btn {
+  flex: 1 1 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.1rem;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+  line-height: 1;
+}
+
+body.m-shell .mobile-tabbar .tab-btn.active {
+  color: var(--text);
+  background: rgba(61, 156, 240, 0.14);
+}
+
+body.m-shell .mobile-tabbar .tab-btn-primary {
+  color: var(--accent);
+}
+
+body.m-shell .mobile-tabbar .tab-btn-primary.active {
+  color: #fff;
+  background: linear-gradient(135deg, #2b7fd4, #3d9cf0);
+}
+
+/* overflow-x on body only — not on .wrap — so fixed bottom tabs (phone)
+   stay viewport-relative (same lesson as FCC sticky-top vs tabbar). */
+body.m-shell {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+body.m-shell .wrap {
+  width: 100%;
+  max-width: 100vw;
+  box-sizing: border-box;
+}
+
+body.m-shell .card,
+body.m-shell section.grid > .card,
+body.m-shell section.grid > article {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+body.m-shell #alerts {
+  position: sticky;
+  top: 2.6rem;
+  z-index: 35;
+}
+
+/* —— Desktop / web: FCC-style TOP tabs (≥721px) —— */
+@media (min-width: 721px) {
+  body.m-shell {
+    padding-bottom: 0;
+  }
+
+  body.m-shell .wrap {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+    padding-bottom: 2rem;
+  }
+
+  /* Keep header Refresh / Sign out on desktop */
+  body.m-shell .header-actions-desktop {
+    display: flex !important;
+  }
+
+  body.m-shell .desktop-help {
+    display: block !important;
+  }
+
+  body.m-shell .mobile-help {
+    display: none !important;
+  }
+
+  body.m-shell .mobile-only-card {
+    display: none !important;
+  }
+
+  /* Sticky top strip — same idea as FCC web tabs */
+  body.m-shell .mobile-tabbar {
+    position: sticky;
+    top: 0;
+    z-index: 45;
+    gap: 0.35rem;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 0 0.65rem;
+    padding: 0.4rem 0.35rem 0.5rem;
+    background: rgba(15, 20, 25, 0.94);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transform: none;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn {
+    flex-direction: row;
+    gap: 0.4rem;
+    min-height: 2.4rem;
+    padding: 0.4rem 0.85rem;
+    font-size: 0.82rem;
+    border: 1px solid transparent;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn.active {
+    border-color: rgba(61, 156, 240, 0.45);
+    background: rgba(61, 156, 240, 0.14);
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn-primary.active {
+    border-color: transparent;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+    font-size: 0.95rem;
+  }
+
+  /* Macro strip sticks just under the top tab strip */
+  body.m-shell .macro-strip {
+    top: 3.1rem;
+    z-index: 40;
+    font-size: 0.88rem;
+    padding: 0.5rem 0.85rem;
+  }
+
+  body.m-shell #alerts {
+    top: 6.2rem;
+  }
+
+  /* Two-column grids stay two-col on desktop tabs */
+  body.m-shell section.grid.two,
+  body.m-shell section.grid.equal-cards {
+    /* leave template from base styles */
+    width: 100%;
+    min-width: 0;
+  }
+
+  body.m-shell .today-hub-actions.actions-row-single > button {
+    min-height: 40px;
+  }
+}
+
+/* —— Phone density (≤720px): FCC-style BOTTOM tabs —— */
+@media (max-width: 720px) {
+  :root {
+    font-size: 16px;
+  }
+
+  body {
+    padding-bottom: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.m-shell {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.m-shell .wrap {
+    padding: 0.75rem 0.75rem calc(5.5rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Fixed bottom dock — must not sit under a backdrop-filter ancestor */
+  body.m-shell .mobile-tabbar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    top: auto;
+    z-index: 50;
+    gap: 0.15rem;
+    margin: 0;
+    max-width: none;
+    width: auto;
+    transform: none;
+    padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    background: rgba(15, 20, 25, 0.96);
+    border: none;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: none;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn {
+    flex-direction: column;
+    min-height: 48px;
+    padding: 0.35rem 0.15rem;
+    font-size: 0.65rem;
+    border: none;
+  }
+
+  body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+    font-size: 1.05rem;
+  }
+
+  body.m-shell .macro-strip {
+    top: 0;
+  }
+
+  body.m-shell #alerts {
+    top: 2.6rem;
+  }
+
+  .header-sub {
+    display: none;
+  }
+
+  header.app-header {
+    margin-bottom: 0.5rem;
+  }
+
+  header h1 {
+    font-size: 1.2rem;
+  }
+
+  /* Desktop header actions → More tab admin on phone */
+  .header-actions-desktop {
+    display: none !important;
+  }
+
+  .desktop-help {
+    display: none !important;
+  }
+
+  .mobile-help {
+    display: block;
+  }
+
+  .mobile-only-card {
+    display: block;
+  }
+
+  /* Today hub header actions: one row */
+  .today-hub-actions.actions-row-single > button {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+  }
+
+  /* Touch targets */
+  button,
+  .btn,
+  .btn-touch {
+    min-height: 44px;
+  }
+
+  #workout-goals-form .actions.actions-row-single > button,
+  #workout-goals-actions > button {
+    min-height: 40px;
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8rem;
+  }
+
+  #workout-goals-actions,
+  .today-hub-actions {
+    flex-wrap: nowrap !important;
+  }
+
+  input,
+  select,
+  textarea {
+    min-height: 44px;
+    font-size: 16px; /* prevents iOS zoom on focus */
+  }
+
+  .log-actions {
+    flex-direction: column;
+  }
+
+  .log-actions button {
+    width: 100%;
+  }
+
+  .btn-add-set,
+  #btn-add-ex {
+    width: 100%;
+    min-height: 48px;
+    font-weight: 600;
+  }
+
+  .set-row {
+    grid-template-columns: 1fr 1fr 1fr auto !important;
+    gap: 0.4rem;
+  }
+
+  .exercise-card {
+    padding: 0.75rem;
+  }
+
+  .exercise-card-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .exercise-card-actions .set-hint {
+    display: none;
+  }
+
+  /* Trends / two-col: stack on phone */
+  body.m-shell section.grid.two,
+  body.m-shell section.grid.equal-cards,
+  body.m-shell[data-m-active="trends"] section.grid[data-m-panel="trends"] {
+    grid-template-columns: 1fr !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  body.m-shell .card,
+  body.m-shell section.grid > .card,
+  body.m-shell section.grid > article {
+    overflow: hidden;
+  }
+
+  .chart-box {
+    min-height: 160px !important;
+    height: 180px;
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .chart-box canvas {
+    max-width: 100% !important;
+  }
+
+  .grid.equal-cards > .card-fill {
+    min-height: 0;
+  }
+
+  .grid.equal-cards > .card-fill .chart-box {
+    min-height: 160px;
+  }
+
+  .tabs {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-width: 100%;
+    min-width: 0;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    gap: 0.35rem;
+    padding-bottom: 0.25rem;
+    max-height: none;
+  }
+
+  .tabs button,
+  .tabs .tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  #volume-trend-note,
+  #strength-trend-note,
+  #sleep-trend-note,
+  #weight-trend-note,
+  #hydration-trend-note {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .grid.stats {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  #nutrition-stats .macro-split-v {
+    font-size: 0.95rem;
+  }
+
+  .mobile-admin-actions {
+    flex-direction: column;
+  }
+
+  .mobile-admin-actions button,
+  .mobile-admin-actions a.btn {
+    width: 100%;
+    box-sizing: border-box;
+    text-align: center;
+    text-decoration: none;
+  }
+
+  footer.app-footer {
+    font-size: 0.72rem;
+    color: var(--muted);
+    padding-bottom: 0.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -8,15 +8,19 @@ Local control for home devices (currently **Wiz** entryway lights) plus a small 
 # From monorepo root
 pip3 install -r iot/requirements.txt
 
-# Dashboard (http://127.0.0.1:8780/)
+# Dashboard UI on Mac, API proxied to Pi (iot/backend.json → prism-gateway)
 python3 iot/server.py
-# or
-python3 iot/server.py --port 8780 --no-browser
+# Force direct Mac→bulbs (no Pi):
+python3 iot/server.py --local
+# Explicit backend:
+python3 iot/server.py --backend http://192.168.100.98:8780
 
-# CLI
+# CLI (always direct from this machine)
 python3 iot/wiz-lights/wiz-lights.py all cyan
 python3 iot/wiz-lights/wiz-lights.py entryway1 off
 ```
+
+**Architecture (default):** Mac serves the web UI on `:8780` and reverse-proxies `/api/*` to the always-on Pi (`prism-gateway`). Sunrise/sunset run on the Pi so Mac sleep does not miss routines.
 
 ## Layout
 
