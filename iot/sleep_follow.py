@@ -1,8 +1,11 @@
-"""Post-sunset Sleep Battery bedroom follow.
+"""Post-sunset Sleep Battery room dim follow.
 
-After local sunset, poll FitDash Sleep Battery every N minutes and set the
-bedroom group brightness to the battery % (brightness-only — no color change).
-When the battery hits 0%, turn bedroom lights off and stop until the next day.
+After local sunset, poll FitDash Sleep Battery every N minutes and set configured
+target group(s) brightness to the battery % (brightness-only — no color change).
+When the battery hits 0%, turn those lights off and stop until the next evening.
+
+Follow continues **overnight past midnight until sunrise** while still active
+(so a 0% empty-at ~05:00 is still acted on — not frozen at the last dim %).
 
 FitDash field mapping (recovery Sleep battery panel):
   - pct_charged  → brightness percent (0–100)
@@ -57,13 +60,28 @@ def pct_to_wiz_brightness(pct: float) -> int:
     return max(1, min(255, int(round(p / 100.0 * 255.0))))
 
 
+def resolve_follow_targets(raw: Mapping[str, Any]) -> list[str]:
+    """Normalize targets list; accept singular ``target`` for back-compat."""
+    out: list[str] = []
+    multi = raw.get("targets")
+    if isinstance(multi, (list, tuple)):
+        for t in multi:
+            s = str(t or "").strip()
+            if s and s not in out:
+                out.append(s)
+    if not out:
+        one = str(raw.get("target") or DEFAULT_TARGET).strip() or DEFAULT_TARGET
+        out = [one]
+    return out
+
+
 def follow_config(sched: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     """Read sleep_battery_follow block from schedule (with env overrides)."""
     s = dict(sched) if sched is not None else load_schedule()
     raw = dict(s.get("sleep_battery_follow") or {})
     enabled = bool(raw.get("enabled", True))
     poll = int(raw.get("poll_minutes") or DEFAULT_POLL_MINUTES)
-    target = str(raw.get("target") or DEFAULT_TARGET)
+    targets = resolve_follow_targets(raw)
     fitdash_url = (
         os.environ.get("FITDASH_URL")
         or raw.get("fitdash_url")
@@ -80,7 +98,9 @@ def follow_config(sched: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
     return {
         "enabled": enabled,
         "poll_minutes": max(1, poll),
-        "target": target,
+        # Singular target kept for older UIs / logs (first of list).
+        "target": targets[0],
+        "targets": targets,
         "fitdash_url": fitdash_url,
         "fitdash_path": fitdash_path,
         "fitdash_service_token": str(token).strip(),
@@ -130,34 +150,85 @@ def local_now(
     return n, tz, loc
 
 
+def _sun_moment(
+    sched: Mapping[str, Any],
+    key: str,
+    *,
+    now: Optional[datetime] = None,
+) -> Optional[datetime]:
+    """Parse today's local sunrise/sunset for schedule location."""
+    n, _tz, loc = local_now(sched, now=now)
+    if not loc:
+        return None
+    times = sun_times_local(
+        n.date(), loc["latitude"], loc["longitude"], loc["timezone"]
+    )
+    raw = times.get(f"{key}_local") or times.get(key)
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        moment = raw
+    else:
+        try:
+            moment = datetime.fromisoformat(str(raw))
+        except ValueError:
+            return None
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=n.tzinfo)
+    else:
+        moment = moment.astimezone(n.tzinfo)
+    return moment
+
+
 def past_sunset(
     sched: Mapping[str, Any],
     *,
     now: Optional[datetime] = None,
 ) -> bool:
     """True when local now is at or after today's sunset (needs location)."""
-    n, _tz, loc = local_now(sched, now=now)
-    if not loc:
+    n, _tz, _loc = local_now(sched, now=now)
+    sunset = _sun_moment(sched, "sunset", now=n)
+    if sunset is None:
         return False
-    times = sun_times_local(
-        n.date(), loc["latitude"], loc["longitude"], loc["timezone"]
-    )
-    # Prefer local ISO string; sun_times_local also exposes UTC "sunset"
-    raw = times.get("sunset_local") or times.get("sunset")
-    if raw is None:
-        return False
-    if isinstance(raw, datetime):
-        sunset = raw
-    else:
-        try:
-            sunset = datetime.fromisoformat(str(raw))
-        except ValueError:
-            return False
-    if sunset.tzinfo is None:
-        sunset = sunset.replace(tzinfo=n.tzinfo)
-    else:
-        sunset = sunset.astimezone(n.tzinfo)
     return n >= sunset
+
+
+def before_sunrise(
+    sched: Mapping[str, Any],
+    *,
+    now: Optional[datetime] = None,
+) -> bool:
+    """True when local now is strictly before today's sunrise."""
+    n, _tz, _loc = local_now(sched, now=now)
+    sunrise = _sun_moment(sched, "sunrise", now=n)
+    if sunrise is None:
+        return False
+    return n < sunrise
+
+
+def in_follow_window(
+    sched: Mapping[str, Any],
+    *,
+    now: Optional[datetime] = None,
+    follow: Optional[Mapping[str, Any]] = None,
+) -> bool:
+    """Whether sleep-follow should poll right now.
+
+    Window is **after sunset through overnight until sunrise** (or until done):
+
+    - After today's sunset → yes (start/continue evening follow)
+    - After midnight / before sunrise, with an **active unfinished** follow →
+      yes (battery often hits 0% in the early morning — must not stop at midnight)
+
+    Without this overnight carry, ticks after 00:00 see "before today's sunset"
+    and skip, leaving lights stuck at the last dim % until the next evening.
+    """
+    if past_sunset(sched, now=now):
+        return True
+    st = follow or {}
+    if st.get("active") and not st.get("done") and before_sunrise(sched, now=now):
+        return True
+    return False
 
 
 def should_poll(
@@ -326,19 +397,27 @@ def tick_sleep_follow(
     state = load_state(state_path or DEFAULT_STATE_PATH)
     follow = _parse_follow_state(state)
 
-    # New civil day → reset follow cycle
+    # New civil day: carry unfinished overnight follow; otherwise reset.
     if follow.get("day") and follow["day"] != day:
-        follow = {
-            "day": day,
-            "active": False,
-            "done": False,
-            "last_poll_at": None,
-            "last_pct": None,
-            "last_brightness": None,
-            "last_error": None,
-            "activated_at": None,
-            "completed_at": None,
-        }
+        if follow.get("active") and not follow.get("done"):
+            log.info(
+                "sleep_follow carry overnight from day=%s into day=%s",
+                follow.get("day"),
+                day,
+            )
+            follow["day"] = day
+        else:
+            follow = {
+                "day": day,
+                "active": False,
+                "done": False,
+                "last_poll_at": None,
+                "last_pct": None,
+                "last_brightness": None,
+                "last_error": None,
+                "activated_at": None,
+                "completed_at": None,
+            }
 
     follow["day"] = day
 
@@ -357,16 +436,16 @@ def tick_sleep_follow(
         save_state(_write_follow_state(state, follow), state_path)
         return {"ok": False, "error": follow["last_error"], "follow": follow}
 
-    if not past_sunset(sched, now=n) and not force:
+    if not in_follow_window(sched, now=n, follow=follow) and not force:
         return {
             "ok": True,
             "skipped": True,
-            "reason": "before_sunset",
+            "reason": "outside_follow_window",
             "day": day,
             "follow": follow,
         }
 
-    # Activate on first post-sunset tick of the day
+    # Activate on first in-window tick (post-sunset or overnight carry)
     if not follow.get("active"):
         follow["active"] = True
         follow["activated_at"] = n.isoformat(timespec="seconds")
@@ -408,40 +487,50 @@ def tick_sleep_follow(
     follow["last_pct"] = action["pct"]
     follow["last_error"] = None
 
-    target = cfg["target"]
+    targets = list(cfg.get("targets") or [cfg.get("target") or DEFAULT_TARGET])
+    controls: list[dict[str, Any]] = []
     if action["done"]:
-        cr = control(target, "off", None)
+        for target in targets:
+            cr = control(target, "off", None)
+            controls.append({"target": target, **(cr if isinstance(cr, dict) else {"ok": bool(cr)})})
         follow["last_brightness"] = 0
         follow["done"] = True
         follow["active"] = False
         follow["completed_at"] = n.isoformat(timespec="seconds")
         log.info(
-            "sleep_follow DONE day=%s pct=0 target=%s off ok=%s",
+            "sleep_follow DONE day=%s pct=0 targets=%s off ok=%s",
             day,
-            target,
-            cr.get("ok"),
+            targets,
+            all(c.get("ok") for c in controls),
         )
     else:
-        cr = control(target, "keep", int(action["brightness"]))
-        follow["last_brightness"] = int(action["brightness"])
+        bri = int(action["brightness"])
+        for target in targets:
+            cr = control(target, "keep", bri)
+            controls.append({"target": target, **(cr if isinstance(cr, dict) else {"ok": bool(cr)})})
+        follow["last_brightness"] = bri
         log.info(
-            "sleep_follow dim day=%s pct=%.1f bri=%s target=%s ok=%s empty_at=%s",
+            "sleep_follow dim day=%s pct=%.1f bri=%s targets=%s ok=%s empty_at=%s",
             day,
             pct,
-            action["brightness"],
-            target,
-            cr.get("ok"),
+            bri,
+            targets,
+            all(c.get("ok") for c in controls),
             bat.get("empty_at"),
         )
 
+    # Back-compat: single control dict is first result; multi in controls[]
+    primary = controls[0] if controls else {"ok": False, "error": "no targets"}
     save_state(_write_follow_state(state, follow), state_path)
     return {
-        "ok": bool(cr.get("ok")),
+        "ok": all(c.get("ok") for c in controls) if controls else False,
         "day": day,
         "pct_charged": pct,
         "empty_at": bat.get("empty_at"),
         "action": action,
-        "control": cr,
+        "targets": targets,
+        "control": primary,
+        "controls": controls,
         "follow": follow,
         "battery": bat,
     }
