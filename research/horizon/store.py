@@ -1,8 +1,9 @@
-"""Versioned file store for world-state and briefs."""
+"""Versioned file store for world-state, briefs, and implication packets."""
 
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Optional
 
@@ -14,12 +15,18 @@ def ensure_data_dirs(data_dir: Optional[Path] = None) -> Path:
     root = Path(data_dir or DEFAULT_DATA_DIR)
     (root / "history").mkdir(parents=True, exist_ok=True)
     (root / "briefs").mkdir(parents=True, exist_ok=True)
+    (root / "packets").mkdir(parents=True, exist_ok=True)
+    (root / "packets" / "history").mkdir(parents=True, exist_ok=True)
     return root
 
 
 def save_json(path: Path, obj: Any) -> Path:
+    """Atomic write (temp + os.replace) so readers never see partial JSON."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    payload = json.dumps(obj, indent=2, ensure_ascii=False) + "\n"
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, path)
     return path
 
 
@@ -93,3 +100,44 @@ def save_brief(
         "version_json": ver_json,
         "version_md": ver_md,
     }
+
+
+# --- Implication packets (L0 producer SoT; #49) ---
+
+
+def packets_dir(data_dir: Optional[Path] = None) -> Path:
+    return ensure_data_dirs(data_dir) / "packets"
+
+
+def packet_latest_path(data_dir: Optional[Path] = None) -> Path:
+    return packets_dir(data_dir) / "latest.json"
+
+
+def packet_history_path(packet_id: str, data_dir: Optional[Path] = None) -> Path:
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in packet_id)
+    return packets_dir(data_dir) / "history" / f"{safe}.json"
+
+
+def save_packet(packet: dict[str, Any], data_dir: Optional[Path] = None) -> dict[str, Path]:
+    """Write latest.json + id'd archive. Caller must validate fail-closed first."""
+    from research.horizon.packets import assert_valid_packet
+
+    assert_valid_packet(packet)
+    data_dir = ensure_data_dirs(data_dir)
+    pid = str(packet.get("packet_id") or "unknown")
+    latest = packet_latest_path(data_dir)
+    hist = packet_history_path(pid, data_dir)
+    save_json(latest, packet)
+    save_json(hist, packet)
+    return {"latest": latest, "history": hist}
+
+
+def load_packet(data_dir: Optional[Path] = None) -> Optional[dict[str, Any]]:
+    path = packet_latest_path(data_dir)
+    if not path.is_file():
+        return None
+    try:
+        data = load_json(path)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None

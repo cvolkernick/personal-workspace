@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cvolkernick.local/schemas/implication_packet_v0.json",
+  "title": "Implication packet v0",
+  "description": "L0↔L4 weave packet. Producer-owned write SoT; Orchestra fan-in is cache-only. Bounds: nodes≤12, edges≤20, implications≤8.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "packet_id",
+    "level",
+    "direction",
+    "as_of",
+    "producer",
+    "freshness",
+    "nodes",
+    "implications_for_l4",
+    "constraints_from_l4"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "packet_id": { "type": "string", "minLength": 1 },
+    "level": {
+      "type": "string",
+      "enum": ["L0", "L1", "L2", "L3", "L4"]
+    },
+    "direction": { "type": "string", "enum": ["down", "up"] },
+    "as_of": { "type": "string", "minLength": 1 },
+    "producer": {
+      "type": "object",
+      "required": ["domain", "surface"],
+      "properties": {
+        "domain": { "type": "string" },
+        "surface": { "type": "string" },
+        "version_id": { "type": "string" },
+        "refresh_cadence": {
+          "type": "string",
+          "enum": ["manual", "daily", "weekly", "on_event"]
+        }
+      }
+    },
+    "freshness": {
+      "type": "object",
+      "required": ["as_of", "max_age_hours", "stale", "confidence_overall"],
+      "properties": {
+        "as_of": { "type": "string" },
+        "max_age_hours": { "type": "number", "minimum": 0 },
+        "stale": { "type": "boolean" },
+        "confidence_overall": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "regime_summary": {
+      "type": "object",
+      "properties": {
+        "primary_label": { "type": "string" },
+        "primary_probability": { "type": "number" },
+        "confidence": { "type": "number" },
+        "note": { "type": "string" }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "domain", "impact", "confidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "domain": { "type": "string" },
+          "impact": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"]
+          },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "horizon_days": { "type": "integer" },
+          "fact": { "type": "string" },
+          "interpretation": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    },
+    "edges": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "object",
+        "required": ["from", "to", "relation"],
+        "properties": {
+          "from": { "type": "string" },
+          "to": { "type": "string" },
+          "relation": {
+            "type": "string",
+            "enum": [
+              "affects",
+              "constrains",
+              "funds",
+              "exposes",
+              "opportunities",
+              "requires_action",
+              "amplifies",
+              "diverges"
+            ]
+          },
+          "note": { "type": "string" }
+        }
+      }
+    },
+    "implications_for_l4": {
+      "type": "array",
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["id", "action", "owner_domain", "urgency", "rationale", "confidence"],
+        "properties": {
+          "id": { "type": "string" },
+          "action": { "type": "string", "minLength": 1 },
+          "owner_domain": {
+            "type": "string",
+            "enum": ["capital", "body", "work", "time", "home", "knowledge", "weave"]
+          },
+          "urgency": {
+            "type": "string",
+            "enum": ["watch", "this_week", "immediate", "structural"]
+          },
+          "rationale": { "type": "string" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "horizon_days": { "type": "integer" },
+          "related_node_ids": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "constraints_from_l4": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "domain", "constraint", "severity", "as_of"],
+        "properties": {
+          "id": { "type": "string" },
+          "domain": {
+            "type": "string",
+            "enum": ["capital", "body", "work", "time", "home"]
+          },
+          "constraint": { "type": "string" },
+          "severity": { "type": "string", "enum": ["info", "yellow", "red"] },
+          "as_of": { "type": "string" },
+          "metric": { "type": "object" }
+        }
+      }
+    },
+    "consumers": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "notes": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "direction": { "const": "down" } },
+        "required": ["direction"]
+      },
+      "then": {
+        "properties": {
+          "implications_for_l4": { "type": "array", "minItems": 1, "maxItems": 8 }
+        }
+      }
+    }
+  ]
+}

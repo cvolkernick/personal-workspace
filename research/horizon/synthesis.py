@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from research.horizon import DOMAIN_LABELS, REQUIRED_DOMAINS
-from research.horizon.regime import assess_regime, regime_brief_block, regime_headline
+from research.horizon.regime import assess_regime, regime_brief_block
 from research.horizon.world_state import query_nodes
 
 # Mild boost so strategy-relevant nodes surface when scores are close (does not
@@ -305,69 +305,81 @@ def render_markdown(brief: dict[str, Any]) -> str:
     lines.append(f"_Generated: {brief.get('generated_at')}_")
     lines.append("")
 
-    regime = brief.get("regime") or {}
+    regime = brief.get("regime") or brief.get("regime_assessment") or {}
     if regime:
         lines.append("## 0. Regime Assessment")
         lines.append("")
-        lines.append(f"**{regime_headline(regime)}**")
-        lines.append("")
         primary = regime.get("primary") or {}
+        conf = regime.get("confidence_overall")
+        if conf is None:
+            conf = regime.get("confidence")
+        try:
+            pp = f"{float(primary.get('probability') or 0):.0%}"
+        except (TypeError, ValueError):
+            pp = str(primary.get("probability"))
+        conf_s = f" · conf {conf}" if conf is not None else ""
+        lines.append(f"**{primary.get('label') or 'Regime'}** ({pp}{conf_s})")
+        lines.append("")
         if primary.get("summary"):
-            lines.append(f"- **Primary:** {primary.get('summary')}")
-        secondary = regime.get("secondary") or {}
-        if secondary.get("label"):
-            try:
-                sp = f"{float(secondary.get('probability') or 0):.0%}"
-            except (TypeError, ValueError):
-                sp = str(secondary.get("probability"))
-            lines.append(
-                f"- **Secondary:** {secondary.get('label')} "
-                f"({sp}) — {secondary.get('summary')}"
-            )
-        probs = regime.get("probabilities") or {}
-        if probs:
-            ordered = sorted(
-                probs.values(),
-                key=lambda x: float(x.get("probability") or 0),
-                reverse=True,
-            )
-            lines.append("- **Distribution:**")
-            for pr in ordered:
-                try:
-                    pct = f"{float(pr.get('probability') or 0):.0%}"
-                except (TypeError, ValueError):
-                    pct = str(pr.get("probability"))
-                lines.append(f"  - {pr.get('label') or pr.get('id')}: {pct}")
+            lines.append(f"- **Base case:** {primary.get('summary')}")
         axes = regime.get("axes") or []
         if axes:
-            lines.append("")
-            lines.append("| Axis | Dominant | p | conf |")
-            lines.append("|------|----------|---|------|")
+            lines.append("- **Axes (dominant):**")
             for ax in axes:
-                lines.append(
-                    f"| {ax.get('label') or ax.get('id')} | "
-                    f"{ax.get('dominant_label') or ax.get('dominant')} | "
-                    f"{ax.get('probability')} | {ax.get('confidence')} |"
-                )
-        drivers = regime.get("drivers") or []
-        if drivers:
-            lines.append("")
-            lines.append("- **Key drivers:**")
-            for d in drivers[:5]:
-                lines.append(
-                    f"  - [{d.get('domain')}] {d.get('title')} "
-                    f"(w={d.get('weight')}, supports={d.get('supports')})"
-                )
-        cov = regime.get("coverage") or {}
-        lines.append("")
+                if not isinstance(ax, dict):
+                    continue
+                if ax.get("states"):
+                    dom = ax.get("dominant")
+                    dom_label = dom
+                    dom_p = None
+                    for st in ax.get("states") or []:
+                        if st.get("id") == dom:
+                            dom_label = st.get("label") or dom
+                            dom_p = st.get("probability")
+                            break
+                    try:
+                        p_str = f" {float(dom_p):.0%}" if dom_p is not None else ""
+                    except (TypeError, ValueError):
+                        p_str = f" {dom_p}" if dom_p is not None else ""
+                    lines.append(
+                        f"  - {ax.get('label') or ax.get('id')}: "
+                        f"**{dom_label}**{p_str} (axis conf {ax.get('confidence')})"
+                    )
+                else:
+                    p = ax.get("probability")
+                    try:
+                        p_str = f" {float(p):.0%}" if p is not None else ""
+                    except (TypeError, ValueError):
+                        p_str = f" {p}" if p is not None else ""
+                    lines.append(
+                        f"  - {ax.get('label') or ax.get('id')}: "
+                        f"**{ax.get('dominant_label') or ax.get('dominant')}**{p_str}"
+                    )
+        forces = regime.get("active_forces") or []
+        if forces:
+            lines.append("- **Active forces:**")
+            for f in forces[:5]:
+                lines.append(f"  - {f.get('force')} ({f.get('sign')})")
+        scenarios = regime.get("scenarios") or []
+        if scenarios:
+            lines.append("- **Scenario tree:**")
+            for s in scenarios[:5]:
+                try:
+                    sp = f"{float(s.get('probability') or 0):.0%}"
+                except (TypeError, ValueError):
+                    sp = str(s.get("probability"))
+                lines.append(f"  - {sp} — {s.get('label')}")
+        vintage = regime.get("data_vintage") or regime.get("coverage") or {}
         lines.append(
             f"- **Method:** {regime.get('method')} · "
-            f"nodes={cov.get('node_total')} · "
-            f"fixture_share={cov.get('fixture_share')} · "
-            f"conf={regime.get('confidence')}"
+            f"nodes={vintage.get('node_count') or vintage.get('node_total')}"
         )
-        for note in regime.get("notes") or []:
-            lines.append(f"- _Note:_ {note}")
+        notes = regime.get("notes")
+        if isinstance(notes, str) and notes:
+            lines.append(f"- _Note:_ {notes}")
+        elif isinstance(notes, list):
+            for note in notes:
+                lines.append(f"- _Note:_ {note}")
         lines.append("")
 
     eb = brief.get("executive_brief") or {}

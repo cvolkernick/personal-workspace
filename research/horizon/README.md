@@ -60,10 +60,24 @@ python3 research/horizon/run_horizon.py --link-only --offline
 python3 -m unittest discover -s research/horizon/tests -v
 ```
 
+## Implication packet (L0 → Orchestra weave)
+
+Producer-owned SoT for decision-surface so-whats (#49):
+
+| Surface | Path / URL |
+|---------|------------|
+| Latest file | `data/packets/latest.json` (atomic write) |
+| Archive | `data/packets/history/<packet_id>.json` |
+| JSON Schema | `schemas/implication_packet_v0.json` |
+| HTTP | `GET /api/implications?level=L0` (aliases: `/api/packets/latest`, `/api/packets`) |
+
+Write path is fail-closed (invalid packet is not published). Read path soft-degrades (`validation.errors` without 500). Orchestra fan-in is a separate card (#51).
+
 ## Outputs
 
 - `data/world_state_latest.json` + `data/history/world_state_<id>.json`
 - `data/briefs/brief_latest.{json,md}` + versioned copies
+- `data/packets/latest.json` + `data/packets/history/<packet_id>.json`
 
 ## Strategy sources
 
