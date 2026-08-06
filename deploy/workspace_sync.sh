@@ -60,6 +60,7 @@ preserve_durable() {
     ops/backlog/suggestions.json
     ops/sprint
     financial-command/treasury_latest.json
+    orchestra/data/heartbeat/latest.json
     investment/fund_manager_journal.md
     investment/positions.md
   )
