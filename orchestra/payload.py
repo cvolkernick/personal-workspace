@@ -197,6 +197,13 @@ def build_orchestra_payload(
     # Primary operator-facing action list (recommendations.items)
     recommended_actions = list(recommendations.get("items") or [])
 
+    try:
+        from fan_in import build_fan_in
+    except ImportError:
+        from .fan_in import build_fan_in  # type: ignore
+
+    fan_in = build_fan_in(ws)
+
     links = []
     for spec in DOMAIN_SPECS:
         d = by_id.get(spec["id"]) or {}
@@ -240,6 +247,7 @@ def build_orchestra_payload(
         "attention": attention,
         "freshness": freshness,
         "bridge": bridge,
+        "fan_in": fan_in,
         "counts": {
             "domains": len(domains),
             "domains_available": sum(1 for d in domains if d.get("available")),
@@ -253,6 +261,7 @@ def build_orchestra_payload(
             "bridge_linked": len(backlog_linked),
             "attention": len(attention),
             "stale_sources": freshness.get("stale_count") or 0,
+            "implications_top": len((fan_in.get("implications") or {}).get("top") or []),
         },
         "meta": {
             "port": DEFAULT_PORT,
@@ -265,6 +274,7 @@ def build_orchestra_payload(
                 "priorities": "Raw priority synthesis (input to recommendations)",
                 "attention": "Hygiene/attention digest (input to recommendations)",
                 "synergies": "Cross-domain links (input; high preferred, medium fallback)",
+                "fan_in": "Host heartbeat + L0 regime/implications strip",
             },
             "subordinate_ports": {
                 "financial-command": 8000,

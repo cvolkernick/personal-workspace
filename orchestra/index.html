@@ -128,6 +128,38 @@
       border-color: #5a3030;
       background: linear-gradient(135deg, #1a1010 0%, var(--panel) 55%);
     }
+    .fan-in {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.65rem;
+      margin-bottom: 1.1rem;
+      padding: 0.85rem 1rem;
+      border-radius: 12px;
+      border: 1px solid #2a3a55;
+      background: linear-gradient(135deg, #101820 0%, var(--panel) 65%);
+    }
+    .fan-in .fi-cell {
+      min-width: 0;
+      display: flex; flex-direction: column; gap: 0.2rem;
+    }
+    .fan-in .fi-label {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.05em; color: var(--muted);
+    }
+    .fan-in .fi-value {
+      font-size: 1.05rem; font-weight: 700; letter-spacing: -0.02em;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .fan-in .fi-value.ok { color: var(--green); }
+    .fan-in .fi-value.bad { color: var(--red); }
+    .fan-in .fi-value.miss { color: var(--muted); }
+    .fan-in .fi-meta { font-size: 0.78rem; color: var(--muted); }
+    .fan-in .fi-imps { grid-column: 1 / -1; }
+    .fan-in .fi-imps ul {
+      margin: 0.25rem 0 0; padding-left: 1.1rem; color: var(--text);
+      font-size: 0.88rem;
+    }
+    .fan-in .fi-imps li { margin: 0.15rem 0; }
     .briefing {
       background: linear-gradient(135deg, #121a28 0%, var(--panel) 70%);
       border: 1px solid #2a3a55;
@@ -208,6 +240,7 @@
   </header>
   <main>
     <div class="error-banner" id="error"></div>
+    <div class="fan-in" id="fan-in" aria-label="Awareness fan-in strip"></div>
     <div class="summary" id="summary"></div>
 
     <div class="briefing" id="briefing" hidden>
@@ -320,6 +353,85 @@
       }).join("") || '<div class="row detail">No synergies match this filter — try All, or add initiatives / today items / treasury actions.</div>';
     }
 
+    function ageLabel(seconds) {
+      if (seconds == null || Number.isNaN(Number(seconds))) return "";
+      const s = Number(seconds);
+      if (s < 90) return Math.round(s) + "s";
+      if (s < 3600) return Math.round(s / 60) + "m";
+      if (s < 86400) return (s / 3600).toFixed(s < 36000 ? 1 : 0) + "h";
+      return (s / 86400).toFixed(1) + "d";
+    }
+
+    function renderFanIn(fan) {
+      const el = $("fan-in");
+      if (!fan) {
+        el.innerHTML = `<div class="fi-cell"><div class="fi-label">Fan-in</div>
+          <div class="fi-value miss">—</div>
+          <div class="fi-meta">no fan_in in payload</div></div>`;
+        return;
+      }
+      const host = fan.host || {};
+      const regime = fan.regime || {};
+      const imps = fan.implications || {};
+      let hostClass = "miss";
+      let hostVal = "—";
+      if (host.available) {
+        hostClass = host.ok ? "ok" : "bad";
+        hostVal = host.ok ? "OK" : "DOWN";
+      } else {
+        hostVal = "n/a";
+      }
+      const hostMeta = [
+        host.host || null,
+        host.as_of ? ("as_of " + relAge(host.as_of) + (host.age_seconds != null ? " · " + ageLabel(host.age_seconds) : "")) : null,
+        (host.degraded && host.degraded.length) ? (host.degraded.length + " degraded") : null,
+        host.note || null,
+      ].filter(Boolean).join(" · ") || "await heartbeat file";
+
+      const regimeVal = regime.available && regime.primary_label
+        ? regime.primary_label
+        : (regime.available === false ? "stub" : "—");
+      const regimeClass = regime.available && regime.primary_label ? "ok" : "miss";
+      const conf = regime.confidence != null ? ("conf " + Number(regime.confidence).toFixed(2)) : null;
+      const prob = regime.primary_probability != null
+        ? ("p " + Number(regime.primary_probability).toFixed(2)) : null;
+      const regimeMeta = [conf, prob, regime.note || null].filter(Boolean).join(" · ") || "await L0 packet";
+
+      const top = imps.top || [];
+      const impHead = imps.available
+        ? ((imps.count || top.length) + " implication" + ((imps.count || top.length) === 1 ? "" : "s"))
+        : "stub";
+      const impMeta = [
+        imps.as_of ? relAge(imps.as_of) : null,
+        imps.stale ? "stale" : null,
+        imps.note || null,
+      ].filter(Boolean).join(" · ");
+      const impList = top.length
+        ? `<ul>${top.map((t) => {
+            const urg = t.urgency ? `<span class="pill ${esc(t.urgency)}">${esc(t.urgency)}</span> ` : "";
+            const own = t.owner_domain ? `<span class="tag">${esc(t.owner_domain)}</span> ` : "";
+            return `<li>${urg}${own}${esc(t.action || t.id || "")}</li>`;
+          }).join("")}</ul>`
+        : `<div class="fi-meta">${esc(imps.available ? (imps.note || "none") : "await #49 packet path")}</div>`;
+
+      el.innerHTML = `
+        <div class="fi-cell">
+          <div class="fi-label">Host</div>
+          <div class="fi-value ${hostClass}">${esc(hostVal)}</div>
+          <div class="fi-meta">${esc(hostMeta)}</div>
+        </div>
+        <div class="fi-cell">
+          <div class="fi-label">Regime</div>
+          <div class="fi-value ${regimeClass}">${esc(regimeVal)}</div>
+          <div class="fi-meta">${esc(regimeMeta)}</div>
+        </div>
+        <div class="fi-cell fi-imps">
+          <div class="fi-label">Top implications · ${esc(impHead)}</div>
+          ${impList}
+          ${impMeta ? `<div class="fi-meta">${esc(impMeta)}</div>` : ""}
+        </div>`;
+    }
+
     function render(data) {
       lastData = data;
       showError("");
@@ -334,6 +446,8 @@
       const dashAvailable = dashDomains.filter((d) => d.available).length;
       const fresh = data.freshness || {};
       const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
+
+      renderFanIn(data.fan_in);
 
       const strategySub = bets.length
         ? bets.slice(0, 5).join(" · ")

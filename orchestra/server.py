@@ -2,6 +2,7 @@
 """Local server for the Orchestra top-level command center.
 
   GET  /api/health
+  GET  /api/fan-in      — host ok/as_of + regime + top implications strip (#51)
   GET  /api/orchestra   — full payload (recommendations primary; domains, synergies, …)
   GET  /api/domains
   GET  /api/synergies
@@ -35,6 +36,7 @@ if str(ORCHESTRA_DIR) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from fan_in import build_fan_in  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
 from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
 
@@ -86,6 +88,13 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                     "backend": None,
                 },
             )
+            return
+
+        if path in ("/api/fan-in", "/api/fan_in", "/api/awareness"):
+            try:
+                self._json(200, build_fan_in(WORKSPACE_ROOT))
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
             return
 
         if path in (
