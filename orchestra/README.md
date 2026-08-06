@@ -25,6 +25,7 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 
 - UI: http://127.0.0.1:8790/
 - Full payload: http://127.0.0.1:8790/api/orchestra
+- Fan-in strip (host + regime + implications): http://127.0.0.1:8790/api/fan-in
 - Recommended actions: http://127.0.0.1:8790/api/recommendations
 - Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health
