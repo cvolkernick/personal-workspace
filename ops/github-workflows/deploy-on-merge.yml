@@ -1,0 +1,98 @@
+# Install: cp ops/github-workflows/deploy-on-merge.yml .github/workflows/
+# (requires git auth with `workflow` scope to push under .github/workflows/)
+# Issue #25 Phase 1 — merge → path-scoped Pi deploy trigger
+#
+# Primary prod path: Pi workspace-sync.timer pulls master and runs
+# deploy/on_merge.sh (path-scoped restart + health).
+#
+# This workflow:
+# 1. On every push to master — maps changed paths (always; no secrets).
+# 2. Optionally SSHes to Pi and starts workspace-sync.service immediately
+#    when PI_SSH_HOST + PI_SSH_KEY secrets are configured.
+# 3. On PRs that touch deploy map — unit-test the mapper (no deploy).
+#
+# Auto-deploy never runs for treasury/secrets/deploy-only changes (mapper).
+name: deploy-on-merge
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    paths:
+      - "deploy/path_unit_map.json"
+      - "deploy/map_changed_paths.py"
+      - "deploy/on_merge.sh"
+      - "deploy/workspace_sync.sh"
+      - "deploy/tests/**"
+      - ".github/workflows/deploy-on-merge.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  map-paths:
+    name: Map changed paths
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Unit tests (mapper)
+        run: python3 -m unittest discover -s deploy/tests -v
+
+      - name: Dry-run map (push range)
+        if: github.event_name == 'push'
+        run: |
+          set -euo pipefail
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          if [[ -z "$BEFORE" || "$BEFORE" == "0000000000000000000000000000000000000000" ]]; then
+            BEFORE="$(git rev-parse HEAD^ 2>/dev/null || echo none)"
+          fi
+          echo "before=$BEFORE after=$AFTER"
+          python3 deploy/map_changed_paths.py --before "$BEFORE" --after "$AFTER" --format summary
+          python3 deploy/map_changed_paths.py --before "$BEFORE" --after "$AFTER" --format json | tee /tmp/map.json
+          # Fail closed if mapper claims thrash_all (must stay false forever)
+          python3 -c 'import json,sys; d=json.load(open("/tmp/map.json")); sys.exit(1 if d.get("thrash_all") else 0)'
+
+      - name: Dry-run map (PR base…head)
+        if: github.event_name == 'pull_request'
+        run: |
+          set -euo pipefail
+          git fetch origin "${{ github.base_ref }}" --depth=1
+          BEFORE="$(git merge-base origin/${{ github.base_ref }} HEAD)"
+          AFTER="HEAD"
+          python3 deploy/map_changed_paths.py --before "$BEFORE" --after "$AFTER" --format summary
+          bash deploy/on_merge.sh --before "$BEFORE" --after "$AFTER" --dry-run --no-notify
+
+  trigger-pi-sync:
+    name: Trigger Pi workspace-sync (optional)
+    needs: map-paths
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Skip when SSH secrets unset
+        id: gate
+        run: |
+          if [[ -z "${{ secrets.PI_SSH_HOST }}" || -z "${{ secrets.PI_SSH_KEY }}" ]]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "PI_SSH_HOST / PI_SSH_KEY not configured — Pi timer (≤5m) remains the deploy runner."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: SSH start workspace-sync.service
+        if: steps.gate.outputs.skip == 'false'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PI_SSH_HOST }}
+          username: prism-agent
+          key: ${{ secrets.PI_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            systemctl --user start workspace-sync.service
+            systemctl --user --no-pager status workspace-sync.service || true
+            journalctl --user -u workspace-sync.service -n 40 --no-pager || true
