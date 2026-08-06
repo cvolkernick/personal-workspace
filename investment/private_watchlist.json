@@ -89,27 +89,35 @@
       "liquidity": "private",
       "rank": 3,
       "priority": "medium",
-      "theme": "autonomy",
-      "themes": ["aerospace", "energy_adjacent", "hardware", "aviation"],
+      "theme": "energy",
+      "themes": ["energy", "ai_power", "data_center", "aerospace", "hardware", "aviation"],
       "sleeve_if_public": "stocks_growth",
       "public_symbol": null,
       "listing_status": "private_no_filed_ipo",
       "last_reported_valuation": "n/a confirmed recent mark (private; prior rounds / secondary chatter — treat as soft)",
-      "thesis_fit": "Overture supersonic airliner + Symphony engine path; airline LOIs (e.g. United/American historically reported). Owner rank #3. Weaker direct fit to core Energy/Bitcoin/AI/Autonomy/Robotics north star than Anduril/Saronic — more aerospace optionality / hardware execution bet. Higher technical and certification timeline risk.",
-      "why_watch": "Asymmetric public narrative if certification path de-risks; longer horizon than defense autonomy names. Track XB-1 learnings → Overture prototype/first flight and engine path.",
+      "thesis_fit": "Dual path: (1) Overture supersonic airliner + Symphony engine heritage; (2) owner note 2026-08-06 — jet-turbine development repurposed toward data-center buildout power generation (AI/power demand). Owner rank #3. Energy + AI-power sleeve now the primary north-star link; aerospace remains secondary optionality. Still high technical / capital / execution risk vs pure-play power names.",
+      "why_watch": "If turbine-to-datacenter power path is real and scalable, Boom maps to open Energy/AI-power theme (alongside BE-class thinking) not just aerospace. Track: power-product milestones, offtake/partners, vs continued Overture certification path.",
       "monitor_for": [
+        "Data-center / stationary power product milestones (turbine repurpose)",
+        "Power offtake, hyperscaler or infra partners, MW-scale pilots",
         "Overture prototype rollout / first flight",
-        "Symphony engine milestones",
+        "Symphony engine milestones (flight and/or power variants)",
         "airline order conversions (firm vs LOI)",
         "S-1 or other liquidity event",
-        "funding round quality (up/down)"
+        "funding round quality (up/down) — which path capital is funding"
       ],
-      "next_catalyst": "Prototype / flight / engine milestones; no confirmed IPO date as of 2026-08-06",
+      "next_catalyst": "Power-gen / data-center turbine milestones or Overture flight/engine news; no confirmed IPO date as of 2026-08-06",
       "added": "2026-08-06",
       "added_by": "owner",
       "last_review": "2026-08-06",
       "last_review_path": "investment/research/private/BOOM_brief.md",
-      "notes": "Owner priority #3. Certification and capital intensity dominate; do not promote on hype alone. On listing → public watchlist + deep-dive before size."
+      "owner_notes": [
+        {
+          "date": "2026-08-06",
+          "note": "Boom has repurposed development of their jet turbines to serve data center buildout with power generation."
+        }
+      ],
+      "notes": "Owner priority #3. Owner update 2026-08-06: turbine path → data-center power gen elevates Energy/AI-power thesis fit (was underweighted as pure aerospace). Certification, capital intensity, and product proof still dominate; do not promote on narrative alone. On listing → public watchlist + deep-dive before size."
     }
   ]
 }
