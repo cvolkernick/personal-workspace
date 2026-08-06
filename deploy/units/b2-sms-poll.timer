@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: SMS Gateway → B2 allowlisted poll
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=b2-sms-poll.service
+
+[Install]
+WantedBy=timers.target

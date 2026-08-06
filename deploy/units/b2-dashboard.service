@@ -1,0 +1,17 @@
+[Unit]
+Description=B2 knowledge vault + SMS ingest API (personal-workspace)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace/b2-ux
+Environment=PYTHONUNBUFFERED=1
+Environment=B2_VAULT_PATH=%h/personal-workspace/brain2
+Environment=B2_PORT=8792
+ExecStart=/usr/bin/python3 %h/personal-workspace/b2-ux/server.py --host 0.0.0.0 --port 8792 --vault %h/personal-workspace/brain2
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

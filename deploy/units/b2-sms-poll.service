@@ -1,0 +1,12 @@
+[Unit]
+Description=B2 SMS Gateway poll (allowlisted contacts → vault)
+After=network-online.target b2-dashboard.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace/b2-ux
+Environment=PYTHONUNBUFFERED=1
+Environment=B2_VAULT_PATH=%h/personal-workspace/brain2
+Environment=PYTHONPATH=%h/personal-workspace/b2-ux
+ExecStart=/usr/bin/python3 -m b2_kb.sms_gateway_bridge poll --limit 100
