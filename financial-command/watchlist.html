@@ -101,7 +101,9 @@
     .pill.ready { color: var(--green); border-color: #245c42; }
     .pill.pass { color: var(--muted); }
     .pill.held { color: var(--agent); border-color: #3a4a7a; }
+    .pill.private { color: #c9a0ff; border-color: #5a3a7a; }
     .pill.high { color: var(--red); border-color: #6b2e2e; }
+    .pill.medium { color: var(--yellow); border-color: #6b5a1e; }
     .meta-row {
       display: flex;
       flex-wrap: wrap;
@@ -280,6 +282,14 @@
 
     <div id="entries"></div>
 
+    <section class="card" id="private-section">
+      <h2>Private companies (pre-IPO)</h2>
+      <p class="hint" id="private-purpose">
+        Monitor only for a possible public allocation if/when listed. Not deployable. Not in the public consider set. No private-market authority.
+      </p>
+      <div id="private-entries"></div>
+    </section>
+
     <section class="card hidden" id="full-dive-card">
       <h2 id="full-dive-title">Deep dive</h2>
       <p class="hint" id="full-dive-path"></p>
@@ -289,8 +299,8 @@
   </main>
 
   <footer>
-    Data: <code>investment/watchlist.json</code> · deep dives in <code>investment/research/</code> ·
-    workflows <code>/position-deep-dive</code> · <code>/fund-manager-research</code>
+    Data: <code>investment/watchlist.json</code> · private: <code>investment/private_watchlist.json</code> ·
+    research in <code>investment/research/</code> · workflows <code>/position-deep-dive</code> · <code>/fund-manager-research</code>
   </footer>
 
   <script>
@@ -484,7 +494,7 @@
 
     function statusPill(st) {
       const s = (st || "monitor").toLowerCase();
-      const cls = ["monitor", "ready", "pass", "held", "promoted"].includes(s) ? s : "monitor";
+      const cls = ["monitor", "ready", "pass", "held", "promoted", "private"].includes(s) ? s : "monitor";
       return `<span class="pill ${cls}">${esc(s)}</span>`;
     }
 
@@ -537,31 +547,29 @@
       const root = document.getElementById("entries");
       const entries = data.entries || [];
       if (!entries.length) {
-        root.innerHTML = `<section class="card"><p class="hint">No watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.</p></section>`;
-        return;
-      }
-
-      root.innerHTML = entries
-        .map((e) => {
-          const d = e.deep_dive || {};
-          const sf = e.strategy_fit || {};
-          const open = e.priority === "high" ? " open" : "";
-          const heldBadge = e.held_in_agentic ? statusPill("held") : "";
-          const pri = e.priority
-            ? `<span class="pill ${e.priority === "high" ? "high" : ""}">${esc(e.priority)} priority</span>`
-            : "";
-          const conclusion =
-            d.one_line_conclusion ||
-            e.notes ||
-            e.thesis_fit ||
-            "No deep-dive conclusion yet.";
-          const exec =
-            d.executive_findings ||
-            d.conclusions ||
-            "_No deep-dive report on disk. Run_ `/position-deep-dive symbol=" +
-              (e.symbol || "") +
-              "`";
-          return `
+        root.innerHTML = `<section class="card"><p class="hint">No public watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.</p></section>`;
+      } else {
+        root.innerHTML = entries
+          .map((e) => {
+            const d = e.deep_dive || {};
+            const sf = e.strategy_fit || {};
+            const open = e.priority === "high" ? " open" : "";
+            const heldBadge = e.held_in_agentic ? statusPill("held") : "";
+            const pri = e.priority
+              ? `<span class="pill ${e.priority === "high" ? "high" : ""}">${esc(e.priority)} priority</span>`
+              : "";
+            const conclusion =
+              d.one_line_conclusion ||
+              e.notes ||
+              e.thesis_fit ||
+              "No deep-dive conclusion yet.";
+            const exec =
+              d.executive_findings ||
+              d.conclusions ||
+              "_No deep-dive report on disk. Run_ `/position-deep-dive symbol=" +
+                (e.symbol || "") +
+                "`";
+            return `
 <details class="card entry-card"${open}>
   <summary>
     <div class="meta-row">
@@ -600,12 +608,74 @@
     </div>
   </div>
 </details>`;
-        })
-        .join("");
+          })
+          .join("");
 
-      root.querySelectorAll(".btn-full-dive").forEach((btn) => {
-        btn.addEventListener("click", () => openFullDive(btn.getAttribute("data-symbol")));
-      });
+        root.querySelectorAll(".btn-full-dive").forEach((btn) => {
+          btn.addEventListener("click", () => openFullDive(btn.getAttribute("data-symbol")));
+        });
+      }
+
+      // Private companies lane (pre-IPO) — never deployable
+      const pwl = data.private_watchlist || {};
+      const pEntries = pwl.entries || [];
+      const pRoot = document.getElementById("private-entries");
+      const pPurpose = document.getElementById("private-purpose");
+      if (pwl.purpose) pPurpose.textContent = pwl.purpose;
+      if (!pEntries.length) {
+        pRoot.innerHTML = `<p class="hint">No private companies yet. Add to investment/private_watchlist.json.</p>`;
+      } else {
+        pRoot.innerHTML = pEntries
+          .map((e) => {
+            const open = e.rank === 1 || e.priority === "high" ? " open" : "";
+            const rank = e.rank != null ? `<span class="pill high">#${esc(e.rank)}</span>` : "";
+            const pri = e.priority
+              ? `<span class="pill ${e.priority === "high" ? "high" : "medium"}">${esc(e.priority)}</span>`
+              : "";
+            const monitors = (e.monitor_for || [])
+              .map((m) => `<li>${esc(m)}</li>`)
+              .join("");
+            const briefPath = e.last_review_path || "";
+            return `
+<details class="card entry-card"${open}>
+  <summary>
+    <div class="meta-row">
+      <span class="entry-title">${esc(e.id)} <span>${esc(e.name || "")}</span></span>
+      ${statusPill(e.status || "private")}
+      ${rank}
+      ${pri}
+    </div>
+    <div class="hint" style="margin:0">${esc((e.themes || []).join(" · ") || e.theme || "—")}</div>
+  </summary>
+  <div style="margin-top:0.65rem">
+    <div class="strategy-box">
+      <b>Lane</b> Private / pre-IPO · Sleeve if public: <code>${esc(e.sleeve_if_public || "stocks_growth")}</code><br/>
+      Deployable: <strong>no</strong> · Auto-buy: <strong>no</strong> · Public symbol: <code>${esc(e.public_symbol || "none")}</code>
+    </div>
+    <div class="grid-2">
+      <div class="kv"><b>Valuation (press)</b>${esc(e.last_reported_valuation || "—")}</div>
+      <div class="kv"><b>Listing status</b>${esc(e.listing_status || "private")}</div>
+      <div class="kv"><b>Last review</b>${esc(e.last_review || "—")}</div>
+      <div class="kv"><b>Next catalyst</b>${esc(e.next_catalyst || "—")}</div>
+    </div>
+    <div class="kv"><b>Thesis fit</b>${esc(e.thesis_fit || "—")}</div>
+    <div class="kv"><b>Why watch</b>${esc(e.why_watch || "—")}</div>
+    <div class="kv"><b>Notes</b>${esc(e.notes || "—")}</div>
+    ${
+      monitors
+        ? `<div class="hint" style="margin-top:0.65rem">Monitor for</div><ul style="margin:0.25rem 0 0;padding-left:1.2rem;color:var(--muted);font-size:0.85rem">${monitors}</ul>`
+        : ""
+    }
+    ${
+      briefPath
+        ? `<div class="controls" style="margin-top:0.65rem"><a href="/${esc(briefPath)}" target="_blank" rel="noopener">Open brief</a></div>`
+        : ""
+    }
+  </div>
+</details>`;
+          })
+          .join("");
+      }
     }
 
     function kv(k, v) {

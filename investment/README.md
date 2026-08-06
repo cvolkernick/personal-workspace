@@ -67,6 +67,8 @@ Weights are **targets for the investable equity book** (not cash buffers, CB Mor
 
 **Watchlist:** thematic monitor/consider list in [`watchlist.json`](./watchlist.json) (not the same as core allowlist). Deep-dives via workflow `position-deep-dive` → reports in [`research/`](./research/).
 
+**Private companies watchlist:** pre-IPO / unlisted names in [`private_watchlist.json`](./private_watchlist.json) for future public allocation if/when they list. **Not** investable on the agentic book today; **not** in the deploy consider set; short briefs under [`research/private/`](./research/private/). On listing → promote to public `watchlist.json` + deep-dive before any size.
+
 ## Data source
 
 | Source | Role |

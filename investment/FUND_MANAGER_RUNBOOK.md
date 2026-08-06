@@ -101,17 +101,26 @@ python3 -m treasury.fund_manager --rules-review --notify
 
 | Artifact | Role |
 |----------|------|
-| [`watchlist.json`](./watchlist.json) | Owner active-interest candidates — not auto-buy |
-| [`research/`](./research/) | Deep-dives + portfolio research |
+| [`watchlist.json`](./watchlist.json) | Owner active-interest **public** candidates — not auto-buy |
+| [`private_watchlist.json`](./private_watchlist.json) | Pre-IPO / private companies — **IPO/list monitor only**; not deployable |
+| [`research/`](./research/) | Public deep-dives + portfolio research |
+| [`research/private/`](./research/private/) | **Private deep-dives** (same process as public) + optional short briefs |
 | `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive (**deep-research** pattern: Plan → Research claims → Verify → Report + Critic) |
 | `.grok/workflows/fund-manager-research.rhai` | Book + themes + candidates |
 
-**Owner policy (2026-08-04):** Watchlist entry = active interest for systemic deploys.  
+**Owner policy (2026-08-04):** Public watchlist entry = active interest for systemic deploys.  
 1. **On owner add** → auto-queue deep-dive (no stuck `monitor`).  
 2. **After dive** → status **`ready`** (default) unless explicit **`pass`**.  
 3. **Each allocation assessment** → every `ready` name in the consider set; reject with reasons if not sized.  
 4. **Refresh** deep-dives on ~90-day age / earnings / material news / drawdown.  
 5. **Still never auto-buy**; strong theme bias; core allowlist preferred when RV favors it.
+
+**Private lane (2026-08-06):** Separate from public watchlist — **same deep-dive process** as public stocks (owner).  
+1. **Not** in deploy consider set; **no** private-market / secondary authority; **no** auto-buy.  
+2. On owner add → **immediate private deep-dive** (`research/private/{ID}_deep_dive.md`) + thesis_fit/rank; optional short brief. Do not leave without homework.  
+3. Refresh private deep-dives on ~90-day age / funding / material news / owner request.  
+4. On listing / IPO → promote to `watchlist.json` → **fresh public** deep-dive → `ready` only after that dive (private dive is not a substitute).  
+5. ~30-day catalyst monitor (S-1, funding, material news) in addition to deep-dive refresh.
 
 ## Strategy reminder
 

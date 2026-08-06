@@ -9,6 +9,7 @@ from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
+PRIVATE_WATCHLIST_PATH = ROOT / "investment" / "private_watchlist.json"
 RESEARCH_DIR = ROOT / "investment" / "research"
 FM_POLICY = ROOT / "investment" / "fund_manager.json"
 FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
@@ -204,6 +205,56 @@ def build_watchlist_dashboard() -> Dict[str, Any]:
     fm_wl = (fm_snap.get("analysis") or {}).get("watchlist") or policy.get("watchlist") or {}
     sleeves = (policy.get("sleeves") or {}) if policy else {}
 
+    pwl = _load_json(PRIVATE_WATCHLIST_PATH)
+    private_out: List[Dict[str, Any]] = []
+    for e in pwl.get("entries") or []:
+        if not isinstance(e, dict):
+            continue
+        eid = (e.get("id") or e.get("symbol") or "").strip().upper()
+        if not eid:
+            continue
+        rel = e.get("last_review_path") or f"investment/research/private/{eid}_brief.md"
+        brief_path = ROOT / rel
+        if not brief_path.is_file():
+            brief_path = RESEARCH_DIR / "private" / f"{eid}_brief.md"
+        brief = _parse_deep_dive(brief_path)
+        brief_summary = {k: v for k, v in brief.items() if k != "full_markdown"}
+        private_out.append(
+            {
+                "id": eid,
+                "name": e.get("name"),
+                "theme": e.get("theme"),
+                "themes": e.get("themes") or ([e.get("theme")] if e.get("theme") else []),
+                "status": e.get("status") or "private",
+                "rank": e.get("rank"),
+                "priority": e.get("priority"),
+                "liquidity": e.get("liquidity") or "private",
+                "public_symbol": e.get("public_symbol"),
+                "listing_status": e.get("listing_status"),
+                "last_reported_valuation": e.get("last_reported_valuation"),
+                "thesis_fit": e.get("thesis_fit"),
+                "why_watch": e.get("why_watch"),
+                "monitor_for": e.get("monitor_for") or [],
+                "next_catalyst": e.get("next_catalyst"),
+                "added": e.get("added"),
+                "added_by": e.get("added_by"),
+                "last_review": e.get("last_review"),
+                "last_review_path": rel,
+                "notes": e.get("notes"),
+                "sleeve_if_public": e.get("sleeve_if_public") or "stocks_growth",
+                "brief": brief_summary,
+                "deployable": False,
+                "include_in_deploy_consider_set": False,
+            }
+        )
+    private_out.sort(
+        key=lambda x: (
+            x.get("rank") is None,
+            x.get("rank") if x.get("rank") is not None else 999,
+            x.get("id") or "",
+        )
+    )
+
     return {
         "ok": True,
         "as_of": _now(),
@@ -212,6 +263,7 @@ def build_watchlist_dashboard() -> Dict[str, Any]:
         "policy": wl.get("policy") or {},
         "fund_policy": {
             "watchlist": policy.get("watchlist"),
+            "private_watchlist": policy.get("private_watchlist"),
             "allowlist_strict": (policy.get("allowlist") or {}).get("strict"),
             "energy_opportunistic": sleeves.get("energy_opportunistic"),
             "targets": policy.get("targets"),
@@ -220,6 +272,14 @@ def build_watchlist_dashboard() -> Dict[str, Any]:
         "fund_manager_watchlist": fm_wl,
         "entries": entries_out,
         "count": len(entries_out),
+        "private_watchlist": {
+            "as_of": pwl.get("as_of"),
+            "purpose": pwl.get("purpose"),
+            "policy": pwl.get("policy") or {},
+            "entries": private_out,
+            "count": len(private_out),
+            "path": "investment/private_watchlist.json",
+        },
         "research_dir": "investment/research",
         "workflows": {
             "deep_dive": "position-deep-dive",

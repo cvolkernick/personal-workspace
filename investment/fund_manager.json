@@ -5,7 +5,7 @@
   "mode": "active",
   "status": "live_autopilot",
   "live": true,
-  "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading — low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
+  "description": "Actively manage the Robinhood Agentic account toward modernized 60/40. Risk is bounded by capital deposited into the agentic account only. Not day-trading \u2014 low-frequency active management. Process is size-invariant: same research/rotate standards at $10 or $10k.",
   "cadence": {
     "scheduled_reviews_per_day": 1,
     "reviews_per_day": 1,
@@ -14,8 +14,12 @@
     "timezone": "America/New_York",
     "preferred_window": "mid_session",
     "preferred_local_time": "12:30",
-    "avoid": ["market_open_first_30m", "market_close_last_30m", "intraday_momentum"],
-    "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap — a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false→true. Avoid open/close noise; no day-trading mandate. Every deploy/review that deploys capital MUST run the uniform research_rotate process (not top-up-held-only)."
+    "avoid": [
+      "market_open_first_30m",
+      "market_close_last_30m",
+      "intraday_momentum"
+    ],
+    "notes": "Target one automated review per trading day (mid-session). That is a schedule floor for attention, NOT a trade cap \u2014 a single review may place zero or many orders if quorum agrees. Extra reviews OK after large deposits or live:false\u2192true. Avoid open/close noise; no day-trading mandate. Every deploy/review that deploys capital MUST run the uniform research_rotate process (not top-up-held-only)."
   },
   "process": {
     "uniform_for_all_nav": true,
@@ -32,7 +36,12 @@
     ],
     "research_rotate": {
       "required": true,
-      "required_when": ["scheduled_review", "capital_deposit", "manual_kickoff", "need_llm"],
+      "required_when": [
+        "scheduled_review",
+        "capital_deposit",
+        "manual_kickoff",
+        "need_llm"
+      ],
       "forbid_held_only_default": true,
       "forbid_held_only_notes": "Never default to 'add only to existing positions' without an explicit research/rotate case that other allowlist/theme names were considered and rejected with reasons.",
       "workflow": "fund-manager-research",
@@ -51,9 +60,9 @@
       "owner_preferences": {
         "as_of": "2026-08-04",
         "digital_credit_bias": "small_within_40pct_stack",
-        "digital_credit_emphasis": "Within the ~40% BTC & digital credit complex, keep a small standing bias toward STRC and/or SATA (preferred digital-credit core). They are BTC-fundamentally based, high-yield, frequent-dividend expressions — not cash. Owner 2026-08-04: those yields are roughly ~2× typical USDC/USDG high-yield cash, so when residual dollars would otherwise sit in cash-like yield, prefer a real STRC/SATA seat over pure cash proxies. Do not make the entire 40% credit-only; still diversify miners/infra and allow MSTR/BITA/ASST. Skip STRC/SATA only with a strong, logged Risk/Critic rebuttal (liquidity, structure, ticket-size, or thesis).",
-        "yield_vs_cash": "STRC/SATA yield > USDC/USDG cash yields (~2× owner estimate) → digital credit is the preferred idle-capital expression inside the agentic BTC complex when free capital is being deployed into the 40% sleeve; cash is unallocated, not a competing long-term sleeve.",
-        "miner_diversification": "Multiple miners (MARA, IREN, CLSK, RIOT, WULF, …) is desired diversification within the miner sleeve. Reject 'miner overlap' as a default no. Only concentrate or skip miners when credit/MSTR underweight, liquidity fails, or true single-name/book concentration risk.",
+        "digital_credit_emphasis": "Within the ~40% BTC & digital credit complex, keep a small standing bias toward STRC and/or SATA (preferred digital-credit core). They are BTC-fundamentally based, high-yield, frequent-dividend expressions \u2014 not cash. Owner 2026-08-04: those yields are roughly ~2\u00d7 typical USDC/USDG high-yield cash, so when residual dollars would otherwise sit in cash-like yield, prefer a real STRC/SATA seat over pure cash proxies. Do not make the entire 40% credit-only; still diversify miners/infra and allow MSTR/BITA/ASST. Skip STRC/SATA only with a strong, logged Risk/Critic rebuttal (liquidity, structure, ticket-size, or thesis).",
+        "yield_vs_cash": "STRC/SATA yield > USDC/USDG cash yields (~2\u00d7 owner estimate) \u2192 digital credit is the preferred idle-capital expression inside the agentic BTC complex when free capital is being deployed into the 40% sleeve; cash is unallocated, not a competing long-term sleeve.",
+        "miner_diversification": "Multiple miners (MARA, IREN, CLSK, RIOT, WULF, \u2026) is desired diversification within the miner sleeve. Reject 'miner overlap' as a default no. Only concentrate or skip miners when credit/MSTR underweight, liquidity fails, or true single-name/book concentration risk.",
         "notes": "2026-07-27 elevated STRC/SATA; 2026-08-04 reframes as small bias within 40% + yield-vs-cash rationale (USDC/USDG). Apply on next review/deploy; strong team rebuttal must be logged if overriding."
       },
       "output_required": [
@@ -151,14 +160,14 @@
     "max_single_order_notional_usd": null,
     "max_position_pct": null,
     "min_trade_notional_usd": 1.0,
-    "notes": "No max notional — agent discretion. Optional min avoids dust orders."
+    "notes": "No max notional \u2014 agent discretion. Optional min avoids dust orders."
   },
   "targets": {
     "btc_digital_credit_pct": 0.4,
     "stocks_growth_pct": 0.6,
     "band_pct": 0.05,
     "cash_is_unallocated": true,
-    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) — not MSTR-only by habit, not 40% all-credit."
+    "notes": "Modernized 60/40: ~40% BTC & digital credit complex, ~60% stocks/growth. Cash counts as unallocated until deployed. Within the 40% complex, small bias toward STRC/SATA (BTC-fundamental high-yield / frequent dividends; yield edge vs USDC/USDG cash) \u2014 not MSTR-only by habit, not 40% all-credit."
   },
   "sleeves": {
     "btc_digital_credit": {
@@ -176,19 +185,45 @@
         "WULF",
         "IREN"
       ],
-      "optional_symbols": ["PAXG", "GLDM", "IAU", "SLV"],
-      "themes": ["bitcoin", "hard_money", "digital_credit", "btc_infrastructure", "btc_yield"],
+      "optional_symbols": [
+        "PAXG",
+        "GLDM",
+        "IAU",
+        "SLV"
+      ],
+      "themes": [
+        "bitcoin",
+        "hard_money",
+        "digital_credit",
+        "btc_infrastructure",
+        "btc_yield"
+      ],
       "sub_sleeves": {
         "digital_credit": {
           "priority": "elevated",
           "bias": "small_within_btc_complex",
-          "symbols": ["STRC", "SATA", "ASST", "BITA", "MSTR"],
-          "preferred_core": ["STRC", "SATA"],
-          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA — BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2× owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit."
+          "symbols": [
+            "STRC",
+            "SATA",
+            "ASST",
+            "BITA",
+            "MSTR"
+          ],
+          "preferred_core": [
+            "STRC",
+            "SATA"
+          ],
+          "notes": "Owner 2026-08-04: small bias inside the 40% stack toward STRC/SATA \u2014 BTC-fundamental high-yield / frequent-dividend credit, not cash. Yield edge vs USDC/USDG (~2\u00d7 owner estimate) is the economic case for preferring a real STRC/SATA seat over cash-like residual. Do not reject STRC/SATA solely as 'illiquid for tiny tickets' or 'MSTR+BITA already cover credit' without a strong liquidity/risk rebuttal. Bias is small (presence + preferential residual), not 40% all-credit."
         },
         "miners_infra": {
           "priority": "diversify_within_sleeve",
-          "symbols": ["MARA", "RIOT", "CLSK", "WULF", "IREN"],
+          "symbols": [
+            "MARA",
+            "RIOT",
+            "CLSK",
+            "WULF",
+            "IREN"
+          ],
           "notes": "Owner 2026-07-27: multi-miner diversification is intentional. Do NOT reject RIOT/CLSK/WULF/etc. merely for 'miner overlap' or 'already have MARA+IREN'. Diversify mining beta across names; only block on true concentration (e.g. miners crowding out digital credit / MSTR / whole-book limits), liquidity, or thesis failure."
         }
       },
@@ -196,15 +231,29 @@
     },
     "stocks_growth": {
       "target_pct": 0.6,
-      "symbols": ["TSLA", "SPCX"],
-      "watchlist_symbols": ["GOOGL", "AAPL", "NVDA", "PLTR"],
-      "themes": ["growth_equity", "ai_stack", "energy_adjacent"],
-      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) via investment/watchlist.json — owner-add triggers auto deep-dive → ready for consider set each deploy; never auto-buy."
+      "symbols": [
+        "TSLA",
+        "SPCX"
+      ],
+      "watchlist_symbols": [
+        "GOOGL",
+        "AAPL",
+        "NVDA",
+        "PLTR"
+      ],
+      "themes": [
+        "growth_equity",
+        "ai_stack",
+        "energy_adjacent"
+      ],
+      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) via investment/watchlist.json \u2014 owner-add triggers auto deep-dive \u2192 ready for consider set each deploy; never auto-buy."
     },
     "energy_opportunistic": {
       "target_pct": null,
       "symbols": [],
-      "watchlist_symbols": ["BE"],
+      "watchlist_symbols": [
+        "BE"
+      ],
       "open": true,
       "notes": "No core mandate. BE on watchlist is active interest: deep-dive + ready for consideration each deploy; never auto-buy."
     }
@@ -219,9 +268,27 @@
     "deep_dive_workflow": "position-deep-dive",
     "portfolio_research_workflow": "fund-manager-research",
     "deep_dive_report_dir": "investment/research",
-    "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor → auto-queue dive → ready). Never auto-buy.",
+    "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy.",
     "agent_may_propose_additions": true,
-    "notes": "Owner 2026-08-04: watchlist = active allocation interest. Auto deep-dive on add; default status ready after dive (pass only if explicit); periodic refresh. Discovery/proposal ≠ order authority."
+    "notes": "Owner 2026-08-04: watchlist = active allocation interest. Auto deep-dive on add; default status ready after dive (pass only if explicit); periodic refresh. Discovery/proposal \u2260 order authority."
+  },
+  "private_watchlist": {
+    "path": "investment/private_watchlist.json",
+    "auto_buy": false,
+    "private_market_authority": false,
+    "include_in_deploy_consider_set": false,
+    "include_in_public_watchlist": false,
+    "on_owner_add": "Immediately queue private deep-dive (same process as public position-deep-dive, pre-IPO adapted) \u2192 write investment/research/private/{ID}_deep_dive.md; optional short brief. Do NOT queue public position-deep-dive until ticker exists. Do not leave owner names without homework.",
+    "on_listing_or_ipo": "Promote to investment/watchlist.json (owner or agent proposal) with status monitor \u2192 immediate position-deep-dive \u2192 ready only after dive. Never auto-buy on listing day.",
+    "monitor_cadence_days": 30,
+    "brief_dir": "investment/research/private",
+    "on_review": "Scout may surface IPO/list catalysts for private names as context only. Private names MUST NOT enter the public deploy consider set or receive orders. Pre-IPO secondaries out of scope. Each private name should have a current deep-dive (< deep_dive_refresh_days) just as public ready names do.",
+    "agent_may_propose_additions": true,
+    "notes": "Owner 2026-08-06: private lane (Anduril #1, Saronic #2, Boom #3) + same deep research process as public watchlist. Capital discipline unchanged.",
+    "deep_dive_required": true,
+    "deep_dive_refresh_days": 90,
+    "deep_dive_report_dir": "investment/research/private",
+    "deep_dive_workflow": "position-deep-dive (emulate private: id=NAME, no public market claims)"
   },
   "research": {
     "enabled": true,
@@ -232,14 +299,16 @@
     "paths": {
       "dir": "investment/research",
       "deep_dive_pattern": "investment/research/{SYMBOL}_deep_dive.md",
-      "portfolio_latest": "investment/research/fund_manager_research_latest.md"
+      "portfolio_latest": "investment/research/fund_manager_research_latest.md",
+      "private_deep_dive_pattern": "investment/research/private/{ID}_deep_dive.md"
     },
     "when_to_run": {
       "position_deep_dive": "IMMEDIATELY on owner watchlist add; on agent-proposed add after merge; when last_deep_dive older than deep_dive_refresh_days (default 90); before first buy if stale; on material news/earnings/drawdown; on owner request",
-      "portfolio_research": "On need_llm reviews, capital step-changes, periodic thematic scan, or when watchlist empty/stale; may propose new candidates"
+      "portfolio_research": "On need_llm reviews, capital step-changes, periodic thematic scan, or when watchlist empty/stale; may propose new candidates",
+      "private_position_deep_dive": "IMMEDIATELY on owner private-watchlist add; when last_deep_dive older than deep_dive_refresh_days (90); on material funding/IPO/news; on owner request. Never grants deploy authority."
     },
     "verbose_reports": true,
-    "notes": "Native Grok .rhai workflows under .grok/workflows/. position-deep-dive follows Grok Build /deep-research shape: Plan → parallel claim research → adversarial Verify (fail-closed) → Report (Partial if drops) plus fund Critic/verdict. If host lacks workflow tool, emulate the same phases inline and still write research files. After a successful dive, set watchlist status to ready (unless explicit pass). Never place trades from research alone."
+    "notes": "Native Grok .rhai workflows under .grok/workflows/. position-deep-dive follows Grok Build /deep-research shape: Plan \u2192 parallel claim research \u2192 adversarial Verify (fail-closed) \u2192 Report (Partial if drops) plus fund Critic/verdict. If host lacks workflow tool, emulate the same phases inline and still write research files. After a successful dive, set watchlist status to ready (unless explicit pass). Never place trades from research alone."
   },
   "allowlist": {
     "strict": false,
@@ -268,7 +337,10 @@
   "execution": {
     "venue": "robinhood_mcp",
     "mcp_url": "https://agent.robinhood.com/mcp/trading",
-    "order_types_preferred": ["market", "limit"],
+    "order_types_preferred": [
+      "market",
+      "limit"
+    ],
     "default_market_hours": "regular_hours",
     "prefer_dollar_orders_for_small_book": true,
     "review_before_place": false,
@@ -280,10 +352,30 @@
       "as_of": "2026-07-21T15:16:00Z",
       "status": "complete",
       "allocation": [
-        {"symbol": "MSTR", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "filled"},
-        {"symbol": "MARA", "sleeve": "btc_digital_credit", "dollar_amount": 1.65, "status": "filled"},
-        {"symbol": "TSLA", "sleeve": "stocks_growth", "dollar_amount": 2.5, "status": "filled"},
-        {"symbol": "SPCX", "sleeve": "stocks_growth", "dollar_amount": 2.4, "status": "filled"}
+        {
+          "symbol": "MSTR",
+          "sleeve": "btc_digital_credit",
+          "dollar_amount": 1.65,
+          "status": "filled"
+        },
+        {
+          "symbol": "MARA",
+          "sleeve": "btc_digital_credit",
+          "dollar_amount": 1.65,
+          "status": "filled"
+        },
+        {
+          "symbol": "TSLA",
+          "sleeve": "stocks_growth",
+          "dollar_amount": 2.5,
+          "status": "filled"
+        },
+        {
+          "symbol": "SPCX",
+          "sleeve": "stocks_growth",
+          "dollar_amount": 2.4,
+          "status": "filled"
+        }
       ],
       "blocker": null
     }
@@ -292,6 +384,7 @@
     "thesis": "investment/README.md",
     "positions": "investment/positions.md",
     "watchlist": "investment/watchlist.json",
+    "private_watchlist": "investment/private_watchlist.json",
     "research": "investment/research/README.md",
     "runbook": "investment/FUND_MANAGER_RUNBOOK.md",
     "deep_dive_workflow": ".grok/workflows/position-deep-dive.rhai",

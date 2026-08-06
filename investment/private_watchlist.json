@@ -1,0 +1,158 @@
+{
+  "version": 2,
+  "as_of": "2026-08-06",
+  "purpose": "Private (pre-IPO / pre-listing) companies to monitor for a possible public-market allocation when/if they become tradable. Not investable on the agentic book today. Not part of the public equities deploy consider set.",
+  "policy": {
+    "auto_buy": false,
+    "private_market_authority": false,
+    "include_in_deploy_consider_set": false,
+    "include_in_public_watchlist": false,
+    "on_owner_add": "Immediately queue private position deep-dive (same phases as public position-deep-dive, adapted for pre-IPO: no public price, no deploy). Write investment/research/private/{ID}_deep_dive.md plus optional short brief. Do NOT queue public position-deep-dive until a public ticker exists. Do not leave owner names on private list without homework.",
+    "on_listing_or_ipo": "Promote to investment/watchlist.json (owner or agent proposal) with status monitor \u2192 immediate position-deep-dive \u2192 ready only after dive. Never auto-buy on listing day.",
+    "monitor_cadence_days": 30,
+    "refresh_triggers": [
+      "ipo_s1_or_confidential_filing",
+      "direct_listing_or_spac_announcement",
+      "material_funding_or_valuation_step",
+      "material_product_or_contract_news",
+      "owner_request",
+      "periodic_age_gt_monitor_cadence_days"
+    ],
+    "agent_may_propose_additions": true,
+    "agent_proposed_initial_status": "monitor",
+    "notes": "Owner 2026-08-06: private lane for future public allocations. Same deep-dive process as public stocks (owner). Still never deploy while private; no secondary authority.",
+    "deep_dive_required": true,
+    "deep_dive_refresh_days": 90,
+    "deep_dive_report_dir": "investment/research/private",
+    "post_deep_dive_default_status": "private"
+  },
+  "entries": [
+    {
+      "id": "ANDURIL",
+      "name": "Anduril Industries",
+      "legal_name": "Anduril Industries, Inc.",
+      "status": "private",
+      "liquidity": "private",
+      "rank": 1,
+      "priority": "high",
+      "theme": "autonomy",
+      "themes": [
+        "autonomy",
+        "robotics",
+        "defense_tech",
+        "ai_stack",
+        "national_security"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "~$61B Series H (May 2026; ~$5B raise, Thrive / a16z led \u2014 press)",
+      "thesis_fit": "Software-defined defense autonomy (Lattice, UAVs, C-UAS, undersea, soldier systems). Primary owner rank #1. Fits Autonomy + Robotics + AI physical-world leverage under stocks/growth when/if public. Concentration and defense-cycle risk will dominate any first-size decision.",
+      "why_watch": "Highest-conviction private name on the autonomy/defense stack; IPO prep language has been medium-term, not imminent. Track filing + Ohio manufacturing scale as readiness signals.",
+      "monitor_for": [
+        "S-1 / confidential IPO filing",
+        "exchange selection + roadshow",
+        "valuation vs public defense comps",
+        "major DoD program wins / production rate"
+      ],
+      "next_catalyst": "IPO process milestones or next major funding/valuation print; no confirmed IPO date as of 2026-08-06",
+      "added": "2026-08-06",
+      "added_by": "owner",
+      "last_review": "2026-08-06",
+      "last_review_path": "investment/research/private/ANDURIL_brief.md",
+      "notes": "Owner priority #1. Do not confuse with public defense primes. On listing \u2192 promote to public watchlist only after ticker is live; deep-dive before any size.",
+      "deep_dive_required": true,
+      "last_deep_dive": "2026-08-06",
+      "last_deep_dive_path": "investment/research/private/ANDURIL_deep_dive.md",
+      "last_verdict": "private_watch_rank1_homework_done"
+    },
+    {
+      "id": "SARONIC",
+      "name": "Saronic Technologies",
+      "legal_name": "Saronic Technologies, Inc.",
+      "status": "private",
+      "liquidity": "private",
+      "rank": 2,
+      "priority": "high",
+      "theme": "autonomy",
+      "themes": [
+        "autonomy",
+        "robotics",
+        "defense_tech",
+        "maritime",
+        "national_security"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "~$9.25B Series D (Mar 2026; ~$1.75B raise, Kleiner Perkins led \u2014 press)",
+      "thesis_fit": "Autonomous surface vessels + shipyard scale (Port Alpha narrative) for hybrid naval fleets. Owner rank #2. Pure-play maritime autonomy under Autonomy/Robotics when/if public; execution and shipbuilding capacity are the binding risks.",
+      "why_watch": "High-growth maritime autonomy co in the defense-tech wave; complements Anduril land/air stack with sea domain. IPO timing unknown; private capital still deep.",
+      "monitor_for": [
+        "S-1 / confidential IPO filing",
+        "Navy / hybrid-fleet contract scale",
+        "Port Alpha / shipyard throughput milestones",
+        "valuation step-ups or down rounds"
+      ],
+      "next_catalyst": "Program awards, shipyard milestones, or funding/IPO process news; no confirmed IPO date as of 2026-08-06",
+      "added": "2026-08-06",
+      "added_by": "owner",
+      "last_review": "2026-08-06",
+      "last_review_path": "investment/research/private/SARONIC_brief.md",
+      "notes": "Owner priority #2. Behind Anduril for scarce post-IPO residual capital unless relative value flips hard.",
+      "deep_dive_required": true,
+      "last_deep_dive": "2026-08-06",
+      "last_deep_dive_path": "investment/research/private/SARONIC_deep_dive.md",
+      "last_verdict": "private_watch_rank2_homework_done"
+    },
+    {
+      "id": "BOOM",
+      "name": "Boom Supersonic",
+      "legal_name": "Boom Technology, Inc.",
+      "status": "private",
+      "liquidity": "private",
+      "rank": 3,
+      "priority": "medium",
+      "theme": "energy",
+      "themes": [
+        "energy",
+        "ai_power",
+        "data_center",
+        "aerospace",
+        "hardware",
+        "aviation"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "n/a confirmed recent mark (private; prior rounds / secondary chatter \u2014 treat as soft)",
+      "thesis_fit": "Dual path: (1) Overture supersonic airliner + Symphony engine heritage; (2) owner note 2026-08-06 \u2014 jet-turbine development repurposed toward data-center buildout power generation (AI/power demand). Owner rank #3. Energy + AI-power sleeve now the primary north-star link; aerospace remains secondary optionality. Still high technical / capital / execution risk vs pure-play power names.",
+      "why_watch": "If turbine-to-datacenter power path is real and scalable, Boom maps to open Energy/AI-power theme (alongside BE-class thinking) not just aerospace. Track: power-product milestones, offtake/partners, vs continued Overture certification path.",
+      "monitor_for": [
+        "Data-center / stationary power product milestones (turbine repurpose)",
+        "Power offtake, hyperscaler or infra partners, MW-scale pilots",
+        "Overture prototype rollout / first flight",
+        "Symphony engine milestones (flight and/or power variants)",
+        "airline order conversions (firm vs LOI)",
+        "S-1 or other liquidity event",
+        "funding round quality (up/down) \u2014 which path capital is funding"
+      ],
+      "next_catalyst": "Power-gen / data-center turbine milestones or Overture flight/engine news; no confirmed IPO date as of 2026-08-06",
+      "added": "2026-08-06",
+      "added_by": "owner",
+      "last_review": "2026-08-06",
+      "last_review_path": "investment/research/private/BOOM_brief.md",
+      "owner_notes": [
+        {
+          "date": "2026-08-06",
+          "note": "Boom has repurposed development of their jet turbines to serve data center buildout with power generation."
+        }
+      ],
+      "notes": "Owner priority #3. Owner update 2026-08-06: turbine path \u2192 data-center power gen elevates Energy/AI-power thesis fit (was underweighted as pure aerospace). Certification, capital intensity, and product proof still dominate; do not promote on narrative alone. On listing \u2192 public watchlist + deep-dive before size.",
+      "deep_dive_required": true,
+      "last_deep_dive": "2026-08-06",
+      "last_deep_dive_path": "investment/research/private/BOOM_deep_dive.md",
+      "last_verdict": "private_watch_energy_ai_power_show_me"
+    }
+  ]
+}

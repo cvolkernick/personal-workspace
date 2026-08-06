@@ -34,20 +34,24 @@ Optional args:
 Documented in `investment/fund_manager.json` → `research` / `watchlist` and in the daily prompt:
 
 1. **Each allocation assessment / daily review:** read latest research + watchlist; include every **`ready`** name in the consider set (reject with reasons if not sized).  
-2. **Owner adds a watchlist name:** immediately queue `/position-deep-dive symbol=SYM` (or inline equivalent); on completion set status **`ready`** unless explicit **`pass`**. Do **not** leave owner names stuck on `monitor` without homework.  
-3. **When need_llm / thematic scan / capital change:** run `/fund-manager-research` (or inline equivalent).  
-4. **Refresh:** re-run deep-dive when `last_deep_dive` is older than `deep_dive_refresh_days` (default **90**), or on material news/earnings/drawdown, or before first buy if stale.  
-5. **Agent-proposed candidates:** may merge as `monitor` → auto-queue dive → `ready` (still **not** auto-buy).
+2. **Owner adds a public watchlist name:** immediately queue `/position-deep-dive symbol=SYM` (or inline equivalent); on completion set status **`ready`** unless explicit **`pass`**. Do **not** leave owner names stuck on `monitor` without homework.  
+3. **Owner adds a private-watchlist name:** immediately run the **same deep-dive process** (pre-IPO adapted) → `investment/research/private/{ID}_deep_dive.md`. Status stays **`private`** (never deploy). Do **not** leave private names without homework.  
+4. **When need_llm / thematic scan / capital change:** run `/fund-manager-research` (or inline equivalent).  
+5. **Refresh:** re-run deep-dive when `last_deep_dive` is older than `deep_dive_refresh_days` (default **90**), or on material news/earnings/drawdown/funding/IPO catalyst, or before first buy if stale.  
+6. **Agent-proposed candidates:** may merge as `monitor` → auto-queue dive → `ready` (still **not** auto-buy). Private agent proposals start `private` + deep-dive.
 
-**Owner policy (2026-08-04):** Watchlist = active interest for systemic deploys. Strong theme bias at size time; core allowlist still preferred when relative value favors it. Research ≠ order.
+**Owner policy (2026-08-04 / 2026-08-06):** Public watchlist = active interest for systemic deploys. Private watchlist = IPO/list monitor only, but **same deep research standard** as public. Strong theme bias at size time; core allowlist preferred for routine rebalance. Research ≠ order.
 
 ## Outputs
 
 | Path | Role |
 |------|------|
-| `investment/research/{SYMBOL}_deep_dive.md` | Single-name deep dive (verbose findings + conclusions) |
+| `investment/research/{SYMBOL}_deep_dive.md` | Single-name **public** deep dive (verbose findings + conclusions) |
+| `investment/research/private/{ID}_deep_dive.md` | **Private** deep dive — same process as public (pre-IPO adapted); required on owner add |
+| `investment/research/private/{ID}_brief.md` | Optional short one-pager; does **not** replace the private deep dive |
 | `investment/research/fund_manager_research_latest.md` | Latest portfolio/strategy/watchlist research pass |
-| `investment/watchlist.json` | Machine watchlist (monitor/ready/pass; not holdings) |
+| `investment/watchlist.json` | Public machine watchlist (monitor/ready/pass; not holdings) |
+| `investment/private_watchlist.json` | Private / pre-IPO monitor list (not deployable) |
 
 ## Status vocabulary
 
@@ -58,10 +62,12 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 | `pass` | Researched; do **not** propose size for now (explicit negative verdict) |
 | `held` | Already in agentic book |
 | `promoted` | Moved toward core allowlist (rare; update `fund_manager.json`) |
+| `private` | Pre-IPO / unlisted — **private lane only**; never in public deploy consider set until listing + promotion |
 
 ## Cadence
 
-- **On owner add:** position-deep-dive immediately → `ready` (default).  
-- **Periodic refresh:** deep-dive age &gt; 90 days or catalyst-driven.  
+- **On owner add (public):** position-deep-dive immediately → `ready` (default).  
+- **On owner add (private):** private deep-dive immediately → stay `private` (never deploy).  
+- **Periodic refresh:** deep-dive age &gt; 90 days or catalyst-driven (public and private).  
 - **Recurring:** fund-manager-research on a periodic / need_llm basis.  
-- **Every deploy:** consider all `ready` watchlist names + core allowlist; never auto-buy.
+- **Every deploy:** consider all `ready` **public** watchlist names + core allowlist; never auto-buy; private names context-only.

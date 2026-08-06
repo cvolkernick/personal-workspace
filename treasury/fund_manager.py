@@ -27,6 +27,7 @@ from treasury.adapters import (  # noqa: E402
 
 POLICY_PATH = ROOT / "investment" / "fund_manager.json"
 WATCHLIST_PATH = ROOT / "investment" / "watchlist.json"
+PRIVATE_WATCHLIST_PATH = ROOT / "investment" / "private_watchlist.json"
 FM_SNAPSHOT = SNAPSHOTS_DIR / "fund_manager_latest.json"
 DECISIONS_PATH = SNAPSHOTS_DIR / "fund_manager_decisions.jsonl"
 JOURNAL_PATH = ROOT / "investment" / "fund_manager_journal.md"
@@ -126,6 +127,89 @@ def watchlist_summary(
         "entries": compact,
         "on_review": fm_wl.get("on_review")
         or "Scan watchlist each review; deep-dive before first buy when required.",
+    }
+
+
+def load_private_watchlist(path: Optional[Path] = None) -> Dict[str, Any]:
+    """Load pre-IPO / private-company monitor list (not deployable; not auto-buy)."""
+    p = path or PRIVATE_WATCHLIST_PATH
+    data = load_json(p)
+    if not data:
+        return {
+            "version": 0,
+            "entries": [],
+            "policy": {
+                "auto_buy": False,
+                "include_in_deploy_consider_set": False,
+            },
+            "error": f"private watchlist missing or empty: {p}",
+        }
+    return data
+
+
+def private_watchlist_entries(
+    watchlist: Optional[Dict[str, Any]] = None,
+) -> List[Dict[str, Any]]:
+    wl = watchlist if watchlist is not None else load_private_watchlist()
+    entries = wl.get("entries") or []
+    out: List[Dict[str, Any]] = []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        eid = (e.get("id") or e.get("symbol") or "").strip().upper()
+        if not eid:
+            continue
+        row = dict(e)
+        row["id"] = eid
+        out.append(row)
+    out.sort(key=lambda r: (r.get("rank") is None, r.get("rank") or 999, r.get("id") or ""))
+    return out
+
+
+def private_watchlist_summary(
+    policy: Optional[Dict[str, Any]] = None,
+    watchlist: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Compact private-company watchlist — IPO/list monitor only, never orders."""
+    policy = policy or load_fund_policy()
+    wl = watchlist if watchlist is not None else load_private_watchlist()
+    entries = private_watchlist_entries(wl)
+    compact = []
+    for e in entries:
+        compact.append(
+            {
+                "id": e["id"],
+                "name": e.get("name"),
+                "theme": e.get("theme"),
+                "themes": e.get("themes"),
+                "status": e.get("status") or "private",
+                "rank": e.get("rank"),
+                "priority": e.get("priority"),
+                "public_symbol": e.get("public_symbol"),
+                "listing_status": e.get("listing_status"),
+                "thesis_fit": e.get("thesis_fit"),
+                "next_catalyst": e.get("next_catalyst"),
+                "last_review": e.get("last_review"),
+            }
+        )
+    wl_pol = wl.get("policy") or {}
+    fm_pw = policy.get("private_watchlist") or {}
+    return {
+        "path": str(
+            (policy.get("docs") or {}).get("private_watchlist")
+            or "investment/private_watchlist.json"
+        ),
+        "auto_buy": bool(wl_pol.get("auto_buy", False)),
+        "include_in_deploy_consider_set": bool(
+            wl_pol.get("include_in_deploy_consider_set", False)
+        ),
+        "private_market_authority": bool(wl_pol.get("private_market_authority", False)),
+        "count": len(compact),
+        "ids": [c["id"] for c in compact],
+        "entries": compact,
+        "on_review": fm_pw.get("on_review")
+        or wl_pol.get("notes")
+        or "Monitor private names for listing catalysts; do not include in deploy consider set.",
     }
 
 
@@ -301,6 +385,7 @@ def analyze_agentic_book(
         (r.get("symbol") or "").upper() for r in rows if (r.get("symbol") or "").strip()
     ]
     wl = watchlist_summary(policy, held_symbols=held_syms)
+    pwl = private_watchlist_summary(policy)
     if wl.get("count"):
         mon = [
             e["symbol"]
@@ -312,6 +397,14 @@ def analyze_agentic_book(
                 "Watchlist candidates (not auto-buy): "
                 + ", ".join(mon)
                 + " — deep-dive via /position-deep-dive before first buy when required."
+            )
+    if pwl.get("count") and not pwl.get("include_in_deploy_consider_set", False):
+        ids = pwl.get("ids") or []
+        if ids:
+            hints.append(
+                "Private companies on IPO/list monitor (not deployable): "
+                + ", ".join(ids)
+                + " — promote to public watchlist only after a live ticker."
             )
 
     return {
@@ -356,6 +449,7 @@ def analyze_agentic_book(
         "sleeve_market_value": {k: round(v, 4) for k, v in by_sleeve.items()},
         "allowlist_core": (policy.get("allowlist") or {}).get("core") or [],
         "watchlist": wl,
+        "private_watchlist": pwl,
         "approval": {
             "require_user_confirm": bool(approval.get("require_user_confirm")),
             "max_single_order_notional_usd": limits.get("max_single_order_notional_usd"),
@@ -365,7 +459,8 @@ def analyze_agentic_book(
         "notes": (
             "Agentic-only weights. No trade approval in v1. "
             "Downside capped by agentic deposits. Order size at manager discretion. "
-            "Watchlist is monitor/consider only — not auto-buy."
+            "Public watchlist is monitor/consider only — not auto-buy. "
+            "Private watchlist is IPO/list monitor only — never deployable while private."
         ),
     }
 
