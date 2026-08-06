@@ -1,0 +1,156 @@
+{
+  "schema_version": 1,
+  "packet_id": "l0-20260805T234722Z",
+  "level": "L0",
+  "direction": "down",
+  "as_of": "2026-08-05T23:47:22.732148+00:00",
+  "producer": {
+    "domain": "horizon",
+    "surface": "horizon-macro",
+    "version_id": "20260805T234722Z",
+    "refresh_cadence": "manual"
+  },
+  "freshness": {
+    "as_of": "2026-08-05T23:47:22.732148+00:00",
+    "max_age_hours": 168,
+    "stale": false,
+    "confidence_overall": 0.5
+  },
+  "regime_summary": {
+    "primary_label": "Geopolitical risk-premium",
+    "primary_probability": 0.3819,
+    "confidence": 0.5,
+    "note": "Fixture-heavy first-pass; not market-implied odds. Multipolar competition + elevated rates structure."
+  },
+  "nodes": [
+    {
+      "id": "supply-chip-geography",
+      "title": "Advanced semiconductor manufacturing remains geographically concentrated",
+      "domain": "supply_chains",
+      "impact": "high",
+      "confidence": 0.85,
+      "horizon_days": 365,
+      "fact": "Leading-edge logic capacity is highly concentrated in a small number of firms and locations.",
+      "interpretation": "Systemic risk node linking geopolitics, AI compute, and capex cycles.",
+      "tags": ["semiconductors", "taiwan", "supply-chain"]
+    },
+    {
+      "id": "geo-great-power-competition",
+      "title": "US–China strategic competition remains the primary geopolitical axis",
+      "domain": "geopolitics",
+      "impact": "high",
+      "confidence": 0.85,
+      "horizon_days": 730,
+      "fact": "Export controls on advanced semiconductors and manufacturing equipment remain in force.",
+      "interpretation": "Transmits into tech supply chains, capital allocation, and military posture.",
+      "tags": ["china", "export-controls", "geopolitics"]
+    },
+    {
+      "id": "tech-ai-compute-race",
+      "title": "Frontier AI remains compute- and energy-constrained",
+      "domain": "technology_ai",
+      "impact": "high",
+      "confidence": 0.8,
+      "horizon_days": 365,
+      "fact": "Leading labs continue multi-billion-dollar training and inference buildouts.",
+      "interpretation": "Investable exposure concentrated in semis, power, and platforms.",
+      "tags": ["ai", "gpus", "compute"]
+    },
+    {
+      "id": "macro-rates-regime",
+      "title": "Global policy rates remain elevated vs 2010s baseline",
+      "domain": "macroeconomics",
+      "impact": "high",
+      "confidence": 0.8,
+      "horizon_days": 180,
+      "fact": "Major advanced-economy policy rates are still well above post-GFC low-decade averages.",
+      "interpretation": "Higher-for-longer or staggered cuts reprice duration, risk assets, USD, and BTC beta.",
+      "tags": ["rates", "fed", "liquidity"]
+    },
+    {
+      "id": "capital-btc-liquidity",
+      "title": "Bitcoin remains a high-beta expression of global liquidity and risk appetite",
+      "domain": "capital_flows",
+      "impact": "high",
+      "confidence": 0.7,
+      "horizon_days": 90,
+      "fact": "Spot BTC ETFs and corporate treasury narratives expanded institutional access channels.",
+      "interpretation": "Watch real rates, USD liquidity, ETF flows, regulatory clarity as first-order drivers.",
+      "tags": ["bitcoin", "liquidity", "risk-assets"]
+    }
+  ],
+  "edges": [
+    {
+      "from": "geo-great-power-competition",
+      "to": "supply-chip-geography",
+      "relation": "constrains",
+      "note": "export controls and dual-use policy bind leading-edge capacity geography"
+    },
+    {
+      "from": "supply-chip-geography",
+      "to": "tech-ai-compute-race",
+      "relation": "constrains",
+      "note": "concentrated fabs/packaging gate AI scale-out cost and location"
+    },
+    {
+      "from": "macro-rates-regime",
+      "to": "capital-btc-liquidity",
+      "relation": "affects",
+      "note": "real rates and USD liquidity path set high-beta risk appetite"
+    },
+    {
+      "from": "tech-ai-compute-race",
+      "to": "capital-btc-liquidity",
+      "relation": "opportunities",
+      "note": "AI/power capex cycle coexists with risk-on liquidity beta — not the same driver"
+    }
+  ],
+  "implications_for_l4": [
+    {
+      "id": "impl-capital-rates-btc",
+      "action": "Treat free-dollar risk (BTC/equity residual) as second-order until cash floors and card stress clear; rates/liquidity path is the macro gate, not narrative.",
+      "owner_domain": "capital",
+      "urgency": "this_week",
+      "rationale": "Elevated rates + BTC liquidity-beta node; capital stack already red on float — macro does not authorize new free-dollar risk.",
+      "confidence": 0.7,
+      "horizon_days": 30,
+      "related_node_ids": ["macro-rates-regime", "capital-btc-liquidity"]
+    },
+    {
+      "id": "impl-capital-semi-geo",
+      "action": "Keep semi/AI/power concentration risk on the radar for any thematic equity exposure; do not size as if supply is frictionless.",
+      "owner_domain": "capital",
+      "urgency": "structural",
+      "rationale": "Chip geography + export controls remain high-impact systemic nodes.",
+      "confidence": 0.8,
+      "horizon_days": 365,
+      "related_node_ids": ["supply-chip-geography", "geo-great-power-competition", "tech-ai-compute-race"]
+    },
+    {
+      "id": "impl-work-horizon-refresh",
+      "action": "Prefer shipping Horizon live densification + Pi deploy of regime layer over new L1–L3 surfaces this cycle.",
+      "owner_domain": "work",
+      "urgency": "this_week",
+      "rationale": "Packet confidence is fixture-capped (~0.5); decision quality needs live sources on prod, not more fractal depth.",
+      "confidence": 0.65,
+      "horizon_days": 14,
+      "related_node_ids": ["macro-rates-regime"]
+    },
+    {
+      "id": "impl-weave-display",
+      "action": "Orchestra should show L0 regime label + top 3 implications with as_of/confidence — not re-render full Horizon UI.",
+      "owner_domain": "weave",
+      "urgency": "structural",
+      "rationale": "Anti-pattern: god-dashboard. Weave fans in packets only.",
+      "confidence": 0.75,
+      "horizon_days": 30,
+      "related_node_ids": []
+    }
+  ],
+  "constraints_from_l4": [],
+  "consumers": ["orchestra", "nakatoshi", "cadence", "chris"],
+  "notes": [
+    "Example derived from Horizon brief 20260805T234722Z (offline fixtures). Live densification will raise confidence_overall.",
+    "constraints_from_l4 left empty — capital/body/work producers fill on up-packets."
+  ]
+}

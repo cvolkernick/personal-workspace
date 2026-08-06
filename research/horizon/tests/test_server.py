@@ -43,9 +43,12 @@ class TestDashboardArtifacts(unittest.TestCase):
             self.assertTrue(payload["ok"])
             self.assertTrue(payload["has_brief"])
             self.assertTrue(payload["has_world_state"])
+            self.assertTrue(payload["has_packet"])
             self.assertEqual(len(payload["domain_stats"]), 10)
             self.assertIn("executive_brief", payload["brief"])
             self.assertIn("watchlist", payload["brief"])
+            self.assertEqual(payload["packet"]["level"], "L0")
+            self.assertIn("packet_latest", payload["paths"])
 
 
 if __name__ == "__main__":

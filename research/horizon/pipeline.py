@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+from research.horizon.packets import publish_l0_packet
 from research.horizon.regime import attach_regime
 from research.horizon.sources.fixture import FixtureSource
 from research.horizon.sources.rss import RssSource
@@ -105,6 +106,11 @@ def run_pipeline(
     markdown = render_markdown(brief)
     brief_paths = save_brief(brief, markdown, data_dir)
 
+    # L0 implication packet (#49) — producer-owned latest.json + history
+    packet_pub = publish_l0_packet(state, brief, data_dir=data_dir)
+    packet = packet_pub["packet"]
+    packet_paths = packet_pub["paths"]
+
     return {
         "ok": True,
         "version_id": version_id,
@@ -126,6 +132,8 @@ def run_pipeline(
             "brief_latest_json": str(brief_paths["latest_json"]),
             "brief_latest_md": str(brief_paths["latest_md"]),
             "brief_version_json": str(brief_paths["version_json"]),
+            "packet_latest": str(packet_paths["latest"]),
+            "packet_history": str(packet_paths["history"]),
         },
         "sections": {
             "executive_brief_items": len(
@@ -138,10 +146,13 @@ def run_pipeline(
                 (brief.get("implications_for_my_strategy") or {}).get("sections") or []
             ),
             "watchlist_items": len((brief.get("watchlist") or {}).get("items") or []),
+            "packet_nodes": len(packet.get("nodes") or []),
+            "packet_implications": len(packet.get("implications_for_l4") or []),
         },
         "brief": brief,
         "state": state,
         "regime": regime,
+        "packet": packet,
         "strategy": strategy,
         "linkages": linkages,
         "markdown": markdown,

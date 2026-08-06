@@ -69,6 +69,14 @@ class TestPipeline(unittest.TestCase):
             hist = list((data_dir / "history").glob("world_state_*.json"))
             self.assertGreaterEqual(len(hist), 1)
 
+            # L0 implication packet (#49)
+            packet_path = Path(result["paths"]["packet_latest"])
+            self.assertTrue(packet_path.is_file())
+            packet = json.loads(packet_path.read_text(encoding="utf-8"))
+            self.assertEqual(packet["level"], "L0")
+            self.assertEqual(packet["direction"], "down")
+            self.assertGreaterEqual(len(packet.get("implications_for_l4") or []), 1)
+
     def test_link_only_recomputes_without_requiring_new_events(self):
         with tempfile.TemporaryDirectory() as td:
             data_dir = Path(td)

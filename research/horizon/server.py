@@ -6,6 +6,7 @@
   GET  /api/brief        — latest synthesis brief JSON
   GET  /api/world-state  — latest world-state JSON
   GET  /api/dashboard    — combined payload for UI
+  GET  /api/implications — L0 implication packet (alias: /api/packets/latest)
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
 
 Usage (Mac dev):
@@ -24,19 +25,22 @@ import sys
 import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HORIZON_DIR = Path(__file__).resolve().parent
 ROOT = HORIZON_DIR.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from research.horizon.packets import validate_packet  # noqa: E402
 from research.horizon.pipeline import run_pipeline  # noqa: E402
 from research.horizon.store import (  # noqa: E402
     DEFAULT_DATA_DIR,
     brief_latest_paths,
     load_json,
+    load_packet,
     load_world_state,
+    packet_latest_path,
     world_state_latest_path,
 )
 
@@ -83,6 +87,8 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
     elif isinstance(state, dict) and isinstance(state.get("regime"), dict):
         regime = state["regime"]
 
+    packet = load_packet(data_dir)
+
     return {
         "ok": True,
         "service": "horizon",
@@ -90,16 +96,51 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         "data_dir": str(data_dir),
         "has_world_state": state is not None,
         "has_brief": brief is not None,
+        "has_packet": packet is not None,
         "version_id": (brief or state or {}).get("version_id"),
         "generated_at": (brief or {}).get("generated_at") or (state or {}).get("updated_at"),
         "domain_stats": domain_stats,
         "regime": regime,
         "world_state": state,
         "brief": brief,
+        "packet": packet,
         "paths": {
             "world_state": str(world_state_latest_path(data_dir)),
             "brief_json": str(brief_path),
+            "packet_latest": str(packet_latest_path(data_dir)),
         },
+    }
+
+
+def build_packet_response(data_dir: Path | None = None, *, level: str | None = "L0") -> tuple[int, dict]:
+    """Serve L0 implication packet. Read path soft-degrades on invalid JSON shape."""
+    data_dir = Path(data_dir or DEFAULT_DATA_DIR)
+    lvl = (level or "L0").upper()
+    if lvl not in ("L0", ""):
+        # v0 producer is L0-only
+        return 400, {
+            "ok": False,
+            "error": f"level={lvl} not produced by Horizon v0 (only L0)",
+            "supported_levels": ["L0"],
+        }
+    packet = load_packet(data_dir)
+    path = packet_latest_path(data_dir)
+    if packet is None:
+        return 404, {
+            "ok": False,
+            "error": "no implication packet yet — run POST /api/refresh",
+            "path": str(path),
+        }
+    errors = validate_packet(packet)
+    # Soft-degrade: still return body with validation flags (do not 500 UI)
+    stale = bool((packet.get("freshness") or {}).get("stale"))
+    return 200, {
+        "ok": len(errors) == 0,
+        "level": "L0",
+        "path": str(path),
+        "stale": stale,
+        "validation": {"valid": len(errors) == 0, "errors": errors},
+        "packet": packet,
     }
 
 
@@ -182,6 +223,17 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self._json(200, {"ok": True, "world_state": state})
             return
 
+        if path in (
+            "/api/implications",
+            "/api/packets/latest",
+            "/api/packets",
+        ):
+            qs = parse_qs(parsed.query or "")
+            level = (qs.get("level") or ["L0"])[0]
+            code, body = build_packet_response(DEFAULT_DATA_DIR, level=level)
+            self._json(code, body)
+            return
+
         if path in ("/favicon.svg", "/favicon.ico"):
             fav = HORIZON_DIR / "favicon.svg"
             if fav.is_file():
@@ -218,6 +270,8 @@ class HorizonHandler(SimpleHTTPRequestHandler):
                 "ok": result.get("ok"),
                 "version_id": result.get("version_id"),
                 "source_modes": result.get("source_modes"),
+                "packet_id": (result.get("packet") or {}).get("packet_id"),
+                "packet_path": (result.get("paths") or {}).get("packet_latest"),
                 "sections": result.get("sections"),
                 "linkage_count": result.get("linkage_count"),
             }
