@@ -227,20 +227,26 @@ def fetch_inbox_page(
 def backfill(
     vault_path: Optional[str] = None,
     *,
-    limit: int = 100,
+    limit: int = 200,
     max_pages: int = 200,
     msg_types: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
+    """Page Local Server GET /inbox → allowlist → B2.
+
+    Default: **no type filter** (device returns full inbox; type=SMS can under-count).
+    Pass msg_types=["SMS", ...] only if you need a subset.
+    """
     vault = resolve_vault_path(vault_path)
     auth = load_auth(vault)
     contacts = load_contacts(vault)
     if not contacts:
         raise SystemExit("no allowlisted contacts in sms_contacts.json")
 
-    types = msg_types or ["SMS", "MMS", "MMS_DOWNLOADED"]
+    # None type = unfiltered inbox (preferred). Explicit list = filter each type.
+    type_passes: List[Optional[str]] = list(msg_types) if msg_types else [None]
     all_raw: List[Dict[str, Any]] = []
     pages = 0
-    for t in types:
+    for t in type_passes:
         offset = 0
         while pages < max_pages:
             page, total = fetch_inbox_page(
