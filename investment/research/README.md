@@ -45,8 +45,9 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 
 | Path | Role |
 |------|------|
-| `investment/research/{SYMBOL}_deep_dive.md` | Single-name deep dive (verbose findings + conclusions) |
-| `investment/research/private/{ID}_brief.md` | Short private-company brief (pre-IPO; not a public deep-dive) |
+| `investment/research/{SYMBOL}_deep_dive.md` | Single-name **public** deep dive (verbose findings + conclusions) |
+| `investment/research/private/{ID}_deep_dive.md` | **Private** deep dive — same process as public (pre-IPO adapted); required on owner add |
+| `investment/research/private/{ID}_brief.md` | Optional short one-pager; does **not** replace the private deep dive |
 | `investment/research/fund_manager_research_latest.md` | Latest portfolio/strategy/watchlist research pass |
 | `investment/watchlist.json` | Public machine watchlist (monitor/ready/pass; not holdings) |
 | `investment/private_watchlist.json` | Private / pre-IPO monitor list (not deployable) |
@@ -64,7 +65,8 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 
 ## Cadence
 
-- **On owner add:** position-deep-dive immediately → `ready` (default).  
-- **Periodic refresh:** deep-dive age &gt; 90 days or catalyst-driven.  
+- **On owner add (public):** position-deep-dive immediately → `ready` (default).  
+- **On owner add (private):** private deep-dive immediately → stay `private` (never deploy).  
+- **Periodic refresh:** deep-dive age &gt; 90 days or catalyst-driven (public and private).  
 - **Recurring:** fund-manager-research on a periodic / need_llm basis.  
-- **Every deploy:** consider all `ready` watchlist names + core allowlist; never auto-buy.
+- **Every deploy:** consider all `ready` **public** watchlist names + core allowlist; never auto-buy; private names context-only.

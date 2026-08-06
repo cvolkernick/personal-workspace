@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "as_of": "2026-08-04",
-  "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys — not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
+  "as_of": "2026-08-06",
+  "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
     "prefer_core_allowlist_for_rebalance": true,
@@ -26,18 +26,23 @@
     "agent_proposed_promotion_to_ready": "After deep-dive completes (same path as owner-added).",
     "portfolio_research_workflow": "fund-manager-research",
     "on_each_allocation_assessment": "Scout/Thesis must include every status=ready watchlist name in the consider set alongside held + unheld core allowlist. Reject with reasons if not sized. Status=monitor only for agent-proposed names still awaiting first dive (or mid-dive).",
-    "notes": "Owner 2026-08-04: anything the owner puts on the watchlist is active allocation interest — auto deep-dive, then ready for consideration each deploy, with periodic refresh. Still never auto-buy. Energy/AI opportunistic sleeve. Agents may propose NEW names (start monitor → dive → ready)."
+    "notes": "Owner 2026-08-04: anything the owner puts on the watchlist is active allocation interest \u2014 auto deep-dive, then ready for consideration each deploy, with periodic refresh. Still never auto-buy. Energy/AI opportunistic sleeve. Agents may propose NEW names (start monitor \u2192 dive \u2192 ready)."
   },
   "entries": [
     {
       "symbol": "BE",
       "name": "Bloom Energy",
       "theme": "energy",
-      "themes": ["energy", "electrification", "distributed_generation", "ai_power"],
+      "themes": [
+        "energy",
+        "electrification",
+        "distributed_generation",
+        "ai_power"
+      ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "high",
-      "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification — fits open energy theme under stocks/growth.",
+      "thesis_fit": "Solid-oxide fuel cells / on-site generation; potential beneficiary of AI/data-center power demand and broader electrification \u2014 fits open energy theme under stocks/growth.",
       "added": "2026-07-22",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
@@ -51,11 +56,17 @@
       "symbol": "GOOGL",
       "name": "Alphabet (Google)",
       "theme": "ai_stack",
-      "themes": ["ai_stack", "growth_equity", "cloud", "foundation_models", "advertising"],
+      "themes": [
+        "ai_stack",
+        "growth_equity",
+        "cloud",
+        "foundation_models",
+        "advertising"
+      ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "high",
-      "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap candidate — not on agentic core allowlist.",
+      "thesis_fit": "Full AI stack exposure: cloud (GCP), foundation models (Gemini), search/ads cash engine, YouTube, and infra. Fits open AI theme under ~60% stocks/growth sleeve as a liquid mega-cap candidate \u2014 not on agentic core allowlist.",
       "added": "2026-07-24",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
@@ -69,11 +80,17 @@
       "symbol": "AAPL",
       "name": "Apple",
       "theme": "ai_stack",
-      "themes": ["ai_stack", "growth_equity", "consumer_hardware", "services", "devices"],
+      "themes": [
+        "ai_stack",
+        "growth_equity",
+        "consumer_hardware",
+        "services",
+        "devices"
+      ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "high",
-      "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth — liquid candidate, not on agentic core allowlist.",
+      "thesis_fit": "Device + services mega-cap with AI on-device / ecosystem angle (Apple Intelligence), high cash generation, and broad consumer reach. Fits open AI/growth theme under ~60% stocks/growth \u2014 liquid candidate, not on agentic core allowlist.",
       "added": "2026-07-24",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
@@ -87,7 +104,13 @@
       "symbol": "NVDA",
       "name": "NVIDIA",
       "theme": "ai_stack",
-      "themes": ["ai_stack", "semiconductors", "data_center", "gpus", "ai_infra"],
+      "themes": [
+        "ai_stack",
+        "semiconductors",
+        "data_center",
+        "gpus",
+        "ai_infra"
+      ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "high",
@@ -98,18 +121,24 @@
       "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
-      "next_catalyst": "Earnings est. ~2026-08-26 — event risk for any new size into print",
+      "next_catalyst": "Earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
       "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. Ready for consider set; not auto-buy."
     },
     {
       "symbol": "PLTR",
       "name": "Palantir Technologies",
       "theme": "ai_stack",
-      "themes": ["ai_stack", "harness", "applications", "enterprise_software", "gov_commercial"],
+      "themes": [
+        "ai_stack",
+        "harness",
+        "applications",
+        "enterprise_software",
+        "gov_commercial"
+      ],
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "medium",
-      "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology ≈ enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core.",
+      "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core.",
       "added": "2026-08-03",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
@@ -117,7 +146,31 @@
       "last_deep_dive_path": "investment/research/PLTR_deep_dive.md",
       "last_verdict": "ready_consider_lower_priority",
       "next_catalyst": "Next quarter print; commercial growth durability vs multiple",
-      "notes": "Deep-dive 2026-08-04. Ready for consider set at medium priority — high multiple + politics/gov gates. Behind mega-cap AI for scarce residual capital. Not auto-buy."
+      "notes": "Deep-dive 2026-08-04. Ready for consider set at medium priority \u2014 high multiple + politics/gov gates. Behind mega-cap AI for scarce residual capital. Not auto-buy."
+    },
+    {
+      "symbol": "EVGO",
+      "name": "EVgo, Inc.",
+      "theme": "energy",
+      "themes": [
+        "energy",
+        "electrification",
+        "ev_infra",
+        "nacs",
+        "charging"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "ready",
+      "priority": "low",
+      "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative.",
+      "added": "2026-08-06",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": "2026-08-06",
+      "last_deep_dive_path": "investment/research/EVGO_deep_dive.md",
+      "last_verdict": "ready_consider_low_priority_show_me_superchargers",
+      "next_catalyst": "First EVgo Supercharger sites live + utilization; next earnings; or >25% move from ~$1.5 base",
+      "notes": "Deep-dive 2026-08-06. Owner asked whether Supercharger white-label changes circumstances enough for watchlist. Verdict: yes, low-priority ready \u2014 homework done; no size until free capital + post-deployment proof. Chart skepticism stands. Not auto-buy."
     }
   ]
 }

@@ -104,7 +104,7 @@ python3 -m treasury.fund_manager --rules-review --notify
 | [`watchlist.json`](./watchlist.json) | Owner active-interest **public** candidates — not auto-buy |
 | [`private_watchlist.json`](./private_watchlist.json) | Pre-IPO / private companies — **IPO/list monitor only**; not deployable |
 | [`research/`](./research/) | Public deep-dives + portfolio research |
-| [`research/private/`](./research/private/) | Short private-company briefs (not full deep-dives) |
+| [`research/private/`](./research/private/) | **Private deep-dives** (same process as public) + optional short briefs |
 | `.grok/workflows/position-deep-dive.rhai` | Single-name deep dive (**deep-research** pattern: Plan → Research claims → Verify → Report + Critic) |
 | `.grok/workflows/fund-manager-research.rhai` | Book + themes + candidates |
 
@@ -115,11 +115,12 @@ python3 -m treasury.fund_manager --rules-review --notify
 4. **Refresh** deep-dives on ~90-day age / earnings / material news / drawdown.  
 5. **Still never auto-buy**; strong theme bias; core allowlist preferred when RV favors it.
 
-**Private lane (2026-08-06):** Separate from public watchlist.  
+**Private lane (2026-08-06):** Separate from public watchlist — **same deep-dive process** as public stocks (owner).  
 1. **Not** in deploy consider set; **no** private-market / secondary authority; **no** auto-buy.  
-2. On owner add → thesis_fit + rank + optional short brief only (not public deep-dive).  
-3. On listing / IPO → promote to `watchlist.json` → deep-dive → `ready` only after dive.  
-4. ~30-day monitor cadence or catalyst (S-1, funding, material news).
+2. On owner add → **immediate private deep-dive** (`research/private/{ID}_deep_dive.md`) + thesis_fit/rank; optional short brief. Do not leave without homework.  
+3. Refresh private deep-dives on ~90-day age / funding / material news / owner request.  
+4. On listing / IPO → promote to `watchlist.json` → **fresh public** deep-dive → `ready` only after that dive (private dive is not a substitute).  
+5. ~30-day catalyst monitor (S-1, funding, material news) in addition to deep-dive refresh.
 
 ## Strategy reminder
 
