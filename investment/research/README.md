@@ -46,8 +46,10 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 | Path | Role |
 |------|------|
 | `investment/research/{SYMBOL}_deep_dive.md` | Single-name deep dive (verbose findings + conclusions) |
+| `investment/research/private/{ID}_brief.md` | Short private-company brief (pre-IPO; not a public deep-dive) |
 | `investment/research/fund_manager_research_latest.md` | Latest portfolio/strategy/watchlist research pass |
-| `investment/watchlist.json` | Machine watchlist (monitor/ready/pass; not holdings) |
+| `investment/watchlist.json` | Public machine watchlist (monitor/ready/pass; not holdings) |
+| `investment/private_watchlist.json` | Private / pre-IPO monitor list (not deployable) |
 
 ## Status vocabulary
 
@@ -58,6 +60,7 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 | `pass` | Researched; do **not** propose size for now (explicit negative verdict) |
 | `held` | Already in agentic book |
 | `promoted` | Moved toward core allowlist (rare; update `fund_manager.json`) |
+| `private` | Pre-IPO / unlisted — **private lane only**; never in public deploy consider set until listing + promotion |
 
 ## Cadence
 

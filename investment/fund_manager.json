@@ -223,6 +223,20 @@
     "agent_may_propose_additions": true,
     "notes": "Owner 2026-08-04: watchlist = active allocation interest. Auto deep-dive on add; default status ready after dive (pass only if explicit); periodic refresh. Discovery/proposal ≠ order authority."
   },
+  "private_watchlist": {
+    "path": "investment/private_watchlist.json",
+    "auto_buy": false,
+    "private_market_authority": false,
+    "include_in_deploy_consider_set": false,
+    "include_in_public_watchlist": false,
+    "on_owner_add": "Log thesis_fit + rank; optional short private brief under investment/research/private/; do NOT queue public position-deep-dive until a public ticker exists.",
+    "on_listing_or_ipo": "Promote to investment/watchlist.json (owner or agent proposal) with status monitor → immediate position-deep-dive → ready only after dive. Never auto-buy on listing day.",
+    "monitor_cadence_days": 30,
+    "brief_dir": "investment/research/private",
+    "on_review": "Scout may surface IPO/list catalysts for private names as context only. Private names MUST NOT enter the public deploy consider set or receive orders. Pre-IPO secondaries are out of scope for agentic automation.",
+    "agent_may_propose_additions": true,
+    "notes": "Owner 2026-08-06: separate private-companies lane (Anduril #1, Saronic #2, Boom #3) for future public allocations only. Capital discipline unchanged — red-mode / residual-after-floors."
+  },
   "research": {
     "enabled": true,
     "workflows": {
@@ -292,6 +306,7 @@
     "thesis": "investment/README.md",
     "positions": "investment/positions.md",
     "watchlist": "investment/watchlist.json",
+    "private_watchlist": "investment/private_watchlist.json",
     "research": "investment/research/README.md",
     "runbook": "investment/FUND_MANAGER_RUNBOOK.md",
     "deep_dive_workflow": ".grok/workflows/position-deep-dive.rhai",
