@@ -29,6 +29,8 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 - Recommended actions: http://127.0.0.1:8790/api/recommendations
 - Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health
+- Pi heartbeat (ops plane): http://127.0.0.1:8790/api/heartbeat  
+  (file: `orchestra/data/heartbeat/latest.json` · timer: `pi-heartbeat.timer` · see `ops/INSTALL_PI_HEARTBEAT.md`)
 
 Add `?probe=1` to probe child server ports for live badges.
 

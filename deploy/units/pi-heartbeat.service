@@ -1,0 +1,13 @@
+[Unit]
+Description=Collect Pi service heartbeat → Orchestra latest.json
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace:%h/personal-workspace/orchestra
+Environment=HEARTBEAT_HOST_ROLE=prod
+Environment=HEARTBEAT_HOST=prism-gateway
+ExecStart=/usr/bin/python3 %h/personal-workspace/orchestra/collect_heartbeat.py --workspace %h/personal-workspace
