@@ -133,23 +133,24 @@ if [[ "$BEFORE" == "$AFTER" ]]; then
   exit 0
 fi
 
-log "code updated — restarting dashboard units"
-UNITS=(
-  orchestra-dashboard.service
-  financial-command.service
-  workflow-dashboard.service
-  holistic-dashboard.service
-  iot-dashboard.service
-  resistance-dashboard.service
-  horizon-dashboard.service
-)
-for u in "${UNITS[@]}"; do
-  systemctl --user try-restart "$u" 2>/dev/null || true
-done
-sleep 1
-for u in "${UNITS[@]}"; do
-  st="$(systemctl --user is-active "$u" 2>/dev/null || echo unknown)"
-  log "unit $u → $st"
-done
-log "restart done"
-exit 0
+# Path-scoped restart (issue #25): never thrash-all; never auto treasury/secrets.
+# on_merge.sh maps BEFORE..AFTER → units, restarts only those, health-checks, optional Buzz notify.
+ON_MERGE="$DIR/deploy/on_merge.sh"
+if [[ ! -x "$ON_MERGE" && -f "$ON_MERGE" ]]; then
+  chmod +x "$ON_MERGE" 2>/dev/null || true
+fi
+if [[ -f "$ON_MERGE" ]]; then
+  log "code updated — path-scoped on_merge (local)"
+  # Buzz may be absent on Pi; on_merge falls back to structured log.
+  bash "$ON_MERGE" --before "$BEFORE" --after "$AFTER" --mode local || {
+    log "ERROR: on_merge failed (HEAD already advanced; units may need manual restart)"
+    exit 1
+  }
+  log "path-scoped deploy done"
+  exit 0
+fi
+
+# Fallback if on_merge missing (should not happen after #25 lands)
+log "WARN: deploy/on_merge.sh missing — refusing thrash-all restart"
+log "Operator: bash deploy/on_merge.sh --before $BEFORE --after $AFTER --mode local"
+exit 1

@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "description": "Path-scoped auto-deploy map for merge → Pi. Auto prefixes restart only their units. Manual prefixes never auto-restart and never thrash-all.",
+  "auto": [
+    {
+      "prefixes": ["orchestra/"],
+      "unit": "orchestra-dashboard.service",
+      "service_key": "orchestra",
+      "only": "orchestra"
+    },
+    {
+      "prefixes": ["financial-command/"],
+      "unit": "financial-command.service",
+      "service_key": "financial-command",
+      "only": "financial-command"
+    },
+    {
+      "prefixes": ["projects-dashboard/"],
+      "unit": "workflow-dashboard.service",
+      "service_key": "projects-dashboard",
+      "only": "workflow"
+    },
+    {
+      "prefixes": ["holistic/"],
+      "unit": "holistic-dashboard.service",
+      "service_key": "holistic",
+      "only": "holistic"
+    },
+    {
+      "prefixes": ["iot/"],
+      "unit": "iot-dashboard.service",
+      "service_key": "iot",
+      "only": "iot"
+    },
+    {
+      "prefixes": ["resistance-dashboard/", "fitness/"],
+      "unit": "resistance-dashboard.service",
+      "service_key": "resistance-dashboard",
+      "only": "resistance"
+    },
+    {
+      "prefixes": ["research/horizon/", "horizon/"],
+      "unit": "horizon-dashboard.service",
+      "service_key": "horizon",
+      "only": "horizon"
+    },
+    {
+      "prefixes": ["business/panamerica-auto/"],
+      "unit": "panamerica-auto.service",
+      "service_key": "panamerica",
+      "only": "panamerica"
+    }
+  ],
+  "shared_auto": {
+    "paths": ["remote_backend.py", "dashboard_endpoints.py", "launch.py"],
+    "description": "Shared platform glue used by multiple dashboards — restart all auto-mapped dashboard units (not treasury)."
+  },
+  "manual_prefixes": [
+    "treasury/",
+    "investment/",
+    "deploy/",
+    "ops/backlog/",
+    ".github/"
+  ],
+  "manual_globs": [
+    "**/secrets.json",
+    "**/*.env",
+    "**/.env",
+    "treasury/**",
+    "**/workflow-scheduler.env"
+  ],
+  "ignore_prefixes": [
+    "docs/",
+    "brain2/",
+    "b2-ux/",
+    "initiatives/",
+    "grokterm/"
+  ],
+  "ignore_globs": [
+    "**/*.md",
+    "**/*.png",
+    "**/*.jpg",
+    "**/.DS_Store",
+    "**/__pycache__/**",
+    "**/*.pyc"
+  ],
+  "notes": {
+    "treasury": "Manual only — never auto-restart from treasury/ or secrets paths.",
+    "deploy": "Deploy glue updates land via git pull but do not auto-install units or thrash services; run install_remote.sh by hand when unit files change.",
+    "thrash": "Never restart the full unit list unless every auto unit is explicitly mapped from changed paths (shared glue or multi-path merge)."
+  }
+}

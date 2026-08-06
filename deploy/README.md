@@ -99,7 +99,34 @@ Optional: Cloudflare Tunnel for HTTPS URLs without a VPN app; still keep access 
 - Prefer private mesh + home LAN over public exposure.
 - Secrets (API keys, Grok auth) stay on the host that needs them; deploy does not provision third-party credentials.
 
+## Merge → path-scoped auto-deploy (issue #25)
+
+After **human** merge to `master`, Pi pulls via `workspace-sync.timer` and runs
+`deploy/on_merge.sh` so **only mapped dashboard/platform units** restart.
+
+| Piece | Path |
+|-------|------|
+| Path → unit map | `deploy/path_unit_map.json` |
+| Mapper (testable) | `deploy/map_changed_paths.py` |
+| Orchestrator | `deploy/on_merge.sh` |
+| Pi pull + call on_merge | `deploy/workspace_sync.sh` |
+| GH trigger (map + optional SSH) | `ops/github-workflows/deploy-on-merge.yml` (optional; copy to `.github/workflows/`) |
+| Operator runbook | `ops/SDLC_MERGE_DEPLOY.md` |
+
+```bash
+# Dry-run what a commit would restart
+bash deploy/on_merge.sh --before HEAD~1 --after HEAD --dry-run
+
+# Mapper unit tests
+python3 -m unittest discover -s deploy/tests -v
+```
+
+**Never auto:** `treasury/`, secrets, `deploy/` glue install, thrash-all units.  
+**Optional fast path:** repo secrets `PI_SSH_HOST` + `PI_SSH_KEY` so the Action
+starts `workspace-sync.service` immediately; otherwise the 5‑minute timer is enough.
+
 ## Related
 
 - Per-package IoT-only deploy: `iot/deploy/` (worker vs dashboard).
 - Shared proxy helper: `remote_backend.py` at monorepo root.
+- Runbook: `ops/SDLC_MERGE_DEPLOY.md`.
