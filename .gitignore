@@ -48,3 +48,6 @@ Backups/
 
 # IoT runtime state / fire logs (never commit)
 iot/data/
+
+# B2 local captures / secrets (SMS allowlist, tokens, state)
+brain2/inbox/

@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 
 from b2_kb.ask import B2AskError, ask_grok, auth_status  # noqa: E402
+from b2_kb.sms_contact import ingest_messages, verify_token  # noqa: E402
 from b2_kb.vault import (  # noqa: E402
     DEFAULT_VAULT_PATH,
     build_graph,
@@ -40,7 +41,9 @@ def _json_response(handler: SimpleHTTPRequestHandler, code: int, payload: Any) -
     handler.wfile.write(raw)
 
 
-def _read_json_body(handler: SimpleHTTPRequestHandler, max_bytes: int = 100_000) -> dict:
+def _read_json_body(
+    handler: SimpleHTTPRequestHandler, max_bytes: int = 100_000
+) -> dict | list:
     length = int(handler.headers.get("Content-Length") or 0)
     if length <= 0:
         return {}
@@ -50,9 +53,16 @@ def _read_json_body(handler: SimpleHTTPRequestHandler, max_bytes: int = 100_000)
     if not raw:
         return {}
     data = json.loads(raw.decode("utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError("JSON object required")
+    if not isinstance(data, (dict, list)):
+        raise ValueError("JSON object or array required")
     return data
+
+
+def _bearer_token(handler: SimpleHTTPRequestHandler) -> Optional[str]:
+    auth = handler.headers.get("Authorization") or ""
+    if auth.lower().startswith("bearer "):
+        return auth[7:].strip()
+    return (handler.headers.get("X-SMS-Token") or "").strip() or None
 
 
 class B2Handler(SimpleHTTPRequestHandler):
@@ -150,12 +160,18 @@ class B2Handler(SimpleHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+
+        if path == "/api/sms/ingest":
+            return self._sms_ingest()
+
         if path != "/api/ask":
             return _json_response(self, 404, {"error": "not found"})
         try:
             body = _read_json_body(self)
         except (ValueError, json.JSONDecodeError) as e:
             return _json_response(self, 400, {"error": str(e)})
+        if not isinstance(body, dict):
+            return _json_response(self, 400, {"error": "JSON object required"})
 
         question = (body.get("question") or body.get("q") or "").strip()
         force_offline = bool(body.get("force_offline") or body.get("offline"))
@@ -175,6 +191,22 @@ class B2Handler(SimpleHTTPRequestHandler):
         except B2AskError as e:
             code = e.status if e.status and 400 <= e.status < 600 else 400
             return _json_response(self, code, {"ok": False, "error": str(e)})
+        except Exception as e:
+            traceback.print_exc()
+            return _json_response(self, 500, {"ok": False, "error": str(e)})
+
+    def _sms_ingest(self) -> None:
+        if not verify_token(self.vault_path, _bearer_token(self)):
+            return _json_response(self, 401, {"ok": False, "error": "unauthorized"})
+        try:
+            # SMS batches can be larger than Ask payloads
+            body = _read_json_body(self, max_bytes=2_000_000)
+        except (ValueError, json.JSONDecodeError) as e:
+            return _json_response(self, 400, {"ok": False, "error": str(e)})
+        try:
+            result = ingest_messages(body, self.vault_path, notify_summary=True)
+            code = 200 if result.get("ok") else 400
+            return _json_response(self, code, result)
         except Exception as e:
             traceback.print_exc()
             return _json_response(self, 500, {"ok": False, "error": str(e)})
@@ -223,7 +255,7 @@ def main(argv: Optional[list] = None) -> int:
     print(f"Listening: http://{args.host}:{args.port}/")
     print(
         f"API:       /api/notes  /api/note?path=  /api/search?q=  "
-        f"/api/graph  /api/ask  /api/health"
+        f"/api/graph  /api/ask  /api/health  /api/sms/ingest"
     )
     try:
         server.serve_forever()
