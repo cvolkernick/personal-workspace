@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-08-06T02:45:51.919656+00:00",
+  "as_of": "2026-08-06T12:38:45.485219+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-06T02:45:51.916798+00:00",
+    "as_of": "2026-08-06T12:38:45.482484+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 176.5285,
+    "nav_usd": 176.4371,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 174.5,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3954,
-      "stocks_growth": 0.5931,
+      "btc_digital_credit": 0.3956,
+      "stocks_growth": 0.5934,
       "other": 0.0,
       "cash": 0.0005
     },
@@ -107,13 +107,14 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 5,
+      "count": 6,
       "symbols": [
         "BE",
         "GOOGL",
         "AAPL",
         "NVDA",
-        "PLTR"
+        "PLTR",
+        "EVGO"
       ],
       "entries": [
         {
@@ -175,9 +176,97 @@
           "last_deep_dive": "2026-08-04",
           "held": false,
           "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core."
+        },
+        {
+          "symbol": "EVGO",
+          "name": "EVgo, Inc.",
+          "theme": "energy",
+          "status": "ready",
+          "priority": "low",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": "2026-08-06",
+          "held": false,
+          "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative."
         }
       ],
       "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
+    },
+    "private_watchlist": {
+      "path": "investment/private_watchlist.json",
+      "auto_buy": false,
+      "include_in_deploy_consider_set": false,
+      "private_market_authority": false,
+      "count": 3,
+      "ids": [
+        "ANDURIL",
+        "SARONIC",
+        "BOOM"
+      ],
+      "entries": [
+        {
+          "id": "ANDURIL",
+          "name": "Anduril Industries",
+          "theme": "autonomy",
+          "themes": [
+            "autonomy",
+            "robotics",
+            "defense_tech",
+            "ai_stack",
+            "national_security"
+          ],
+          "status": "private",
+          "rank": 1,
+          "priority": "high",
+          "public_symbol": null,
+          "listing_status": "private_no_filed_ipo",
+          "thesis_fit": "Software-defined defense autonomy (Lattice, UAVs, C-UAS, undersea, soldier systems). Primary owner rank #1. Fits Autonomy + Robotics + AI physical-world leverage under stocks/growth when/if public. Concentration and defense-cycle risk will dominate any first-size decision.",
+          "next_catalyst": "IPO process milestones or next major funding/valuation print; no confirmed IPO date as of 2026-08-06",
+          "last_review": "2026-08-06"
+        },
+        {
+          "id": "SARONIC",
+          "name": "Saronic Technologies",
+          "theme": "autonomy",
+          "themes": [
+            "autonomy",
+            "robotics",
+            "defense_tech",
+            "maritime",
+            "national_security"
+          ],
+          "status": "private",
+          "rank": 2,
+          "priority": "high",
+          "public_symbol": null,
+          "listing_status": "private_no_filed_ipo",
+          "thesis_fit": "Autonomous surface vessels + shipyard scale (Port Alpha narrative) for hybrid naval fleets. Owner rank #2. Pure-play maritime autonomy under Autonomy/Robotics when/if public; execution and shipbuilding capacity are the binding risks.",
+          "next_catalyst": "Program awards, shipyard milestones, or funding/IPO process news; no confirmed IPO date as of 2026-08-06",
+          "last_review": "2026-08-06"
+        },
+        {
+          "id": "BOOM",
+          "name": "Boom Supersonic",
+          "theme": "energy",
+          "themes": [
+            "energy",
+            "ai_power",
+            "data_center",
+            "aerospace",
+            "hardware",
+            "aviation"
+          ],
+          "status": "private",
+          "rank": 3,
+          "priority": "medium",
+          "public_symbol": null,
+          "listing_status": "private_no_filed_ipo",
+          "thesis_fit": "Dual path: (1) Overture supersonic airliner + Symphony engine heritage; (2) owner note 2026-08-06 \u2014 jet-turbine development repurposed toward data-center buildout power generation (AI/power demand). Owner rank #3. Energy + AI-power sleeve now the primary north-star link; aerospace remains secondary optionality. Still high technical / capital / execution risk vs pure-play power names.",
+          "next_catalyst": "Power-gen / data-center turbine milestones or Overture flight/engine news; no confirmed IPO date as of 2026-08-06",
+          "last_review": "2026-08-06"
+        }
+      ],
+      "on_review": "Scout may surface IPO/list catalysts for private names as context only. Private names MUST NOT enter the public deploy consider set or receive orders. Pre-IPO secondaries out of scope. Each private name should have a current deep-dive (< deep_dive_refresh_days) just as public ready names do."
     },
     "approval": {
       "require_user_confirm": false,
@@ -185,10 +274,11 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR \u2014 deep-dive via /position-deep-dive before first buy when required."
+      "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO \u2014 deep-dive via /position-deep-dive before first buy when required.",
+      "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
     ],
     "fair_game": true,
-    "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
+    "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
   },
   "recent_decisions": [
     {

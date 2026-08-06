@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-06T02:45:51.914791+00:00",
+    "as_of": "2026-08-06T12:38:45.480288+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-05T06:00:59.014651+00:00",
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-05T23:40:28.538194+00:00",
+      "as_of": "2026-08-06T09:45:52.483579+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -483,11 +483,11 @@
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-07"
+      "since": "2026-05-08"
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-05T23:40:29.769466+00:00",
+      "as_of": "2026-08-06T09:45:52.632919+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -530,11 +530,11 @@
       ],
       "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-07"
+      "since": "2026-05-08"
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-05T23:40:31.576833+00:00",
+      "as_of": "2026-08-06T09:45:52.839589+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -543,14 +543,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 652.04,
-      "cash": 652.04,
-      "available": 652.04,
-      "cleared_balance": 652.04,
+      "balance_raw": 236.89,
+      "cash": 236.89,
+      "available": 236.89,
+      "cleared_balance": 236.89,
       "uncleared_balance": 0.0,
-      "spend_30d": 971.92,
+      "spend_30d": 1387.07,
       "inflow_30d": 1623.96,
-      "transaction_count": 103,
+      "transaction_count": 106,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -751,7 +751,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+          "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
           "date": "2026-07-23",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -762,7 +762,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
+          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
           "date": "2026-07-23",
           "payee": "7-Eleven",
           "amount": -0.63,
@@ -1105,7 +1105,7 @@
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-07",
+      "since": "2026-05-08",
       "apy_est": 0.06
     },
     "expenses": {
@@ -1861,7 +1861,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-06T02:45:51.757816+00:00",
+      "as_of": "2026-08-06T12:38:45.338758+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -1875,9 +1875,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-06T02:45:51.757811+00:00",
-        "total_value": 176.5285062866,
-        "equity_value": 176.4385062866,
+        "as_of": "2026-08-06T12:38:45.338753+00:00",
+        "total_value": 176.4371101796,
+        "equity_value": 176.3471101796,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -2125,11 +2125,11 @@
       "rh_checking_cash": 0.0,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 2.43,
-      "x_money_cash": 652.04,
+      "x_money_cash": 236.89,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 971.92,
+      "x_money_spend_30d": 1387.07,
       "x_money_apy_est": 0.06,
-      "bank_cash": 652.04,
+      "bank_cash": 236.89,
       "bill_pay_cash": 0.0,
       "rh_equity": 0.0,
       "rh_total_value": 0.094046,
@@ -2139,7 +2139,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 176.5285062866,
+      "rh_agentic_total_value": 176.4371101796,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2215,19 +2215,19 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-05T06:00:59.014651+00:00",
-        "robinhood_as_of": "2026-08-06T02:45:51.757816+00:00",
-        "one_card_as_of": "2026-08-05T23:40:28.538194+00:00",
-        "rh_checking_as_of": "2026-08-05T23:40:29.769466+00:00",
-        "x_money_as_of": "2026-08-05T23:40:31.576833+00:00",
+        "robinhood_as_of": "2026-08-06T12:38:45.338758+00:00",
+        "one_card_as_of": "2026-08-06T09:45:52.483579+00:00",
+        "rh_checking_as_of": "2026-08-06T09:45:52.632919+00:00",
+        "x_money_as_of": "2026-08-06T09:45:52.839589+00:00",
         "expenses_as_of": "2026-08-05T09:11:16.816866+00:00"
       },
       "stale": [
-        "coinbase data 20.7h old (>6.0h)",
-        "expenses data 17.6h old (>6.0h)"
+        "coinbase data 30.6h old (>6.0h)",
+        "expenses data 27.5h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 20.7h old (>6.0h)",
-        "expenses data 17.6h old (>6.0h)"
+        "coinbase data 30.6h old (>6.0h)",
+        "expenses data 27.5h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2302,7 +2302,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.4992\nUSDC working: $128.00 (spot $1.00 + vault $127.00) | BTC liquid: 0.00000003 (~$0.00)\nOne Card owed: $440.18 (source=ynab) | 30d spend $404.77\nUpcoming expense estimates (sheet Personal): $18952.86/mo | CB-funded est $12937.90 | RH-checking est $0.00 | Productive Discretionary (capital, not burn) $548.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $652.04 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [either|manual] LTV 49.9% above alert 45% \u2014 prepare buffer\n  P2 [human|manual] Restore cash stack \u00b7 Card $440 \u00b7 88% util \u00b7 USDC \u2212$1572 floors\n  P5 [either|manual] Bills ~$12938/mo vs USDC $128\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.4992\nUSDC working: $128.00 (spot $1.00 + vault $127.00) | BTC liquid: 0.00000003 (~$0.00)\nOne Card owed: $440.18 (source=ynab) | 30d spend $404.77\nUpcoming expense estimates (sheet Personal): $18952.86/mo | CB-funded est $12937.90 | RH-checking est $0.00 | Productive Discretionary (capital, not burn) $548.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $236.89 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [either|manual] LTV 49.9% above alert 45% \u2014 prepare buffer\n  P2 [human|manual] Restore cash stack \u00b7 Card $440 \u00b7 88% util \u00b7 USDC \u2212$1572 floors\n  P5 [either|manual] Bills ~$12938/mo vs USDC $128\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -2312,10 +2312,10 @@
         "collateral_excess",
         "capex_from_margin"
       ],
-      "free_liquid_start": 780.04,
+      "free_liquid_start": 364.89,
       "free_liquid_residual": 0.0,
       "working_usdc": 128.0,
-      "bank_cash": 652.04,
+      "bank_cash": 236.89,
       "free_dollar_red": true,
       "active_step_id": "expenses",
       "next_free_dollar": "Pay Personal sheet obligations (overdue / due soon)",
@@ -2326,8 +2326,8 @@
           "title": "Expenses paid & current",
           "status": "partial",
           "need": 15816.78,
-          "allocated": 780.04,
-          "gap": 15036.74,
+          "allocated": 364.89,
+          "gap": 15451.89,
           "detail": "5 overdue \u00b7 2 due \u22647d \u00b7 critical $15,817",
           "fund_from": "venue_cash",
           "meta": {
@@ -2379,7 +2379,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 17048.92,
+          "gap": 17464.07,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -2498,25 +2498,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-06T02:45:51.919656+00:00",
+      "as_of": "2026-08-06T12:38:45.485219+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-06T02:45:51.916798+00:00",
+        "as_of": "2026-08-06T12:38:45.482484+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 176.5285,
+        "nav_usd": 176.4371,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3954,
-          "stocks_growth": 0.5931,
+          "btc_digital_credit": 0.3956,
+          "stocks_growth": 0.5934,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -2605,13 +2605,14 @@
           "path": "investment/watchlist.json",
           "auto_buy": false,
           "deep_dive_workflow": "position-deep-dive",
-          "count": 5,
+          "count": 6,
           "symbols": [
             "BE",
             "GOOGL",
             "AAPL",
             "NVDA",
-            "PLTR"
+            "PLTR",
+            "EVGO"
           ],
           "entries": [
             {
@@ -2673,9 +2674,97 @@
               "last_deep_dive": "2026-08-04",
               "held": false,
               "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core."
+            },
+            {
+              "symbol": "EVGO",
+              "name": "EVgo, Inc.",
+              "theme": "energy",
+              "status": "ready",
+              "priority": "low",
+              "sleeve_if_owned": "stocks_growth",
+              "deep_dive_required_before_buy": true,
+              "last_deep_dive": "2026-08-06",
+              "held": false,
+              "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative."
             }
           ],
           "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
+        },
+        "private_watchlist": {
+          "path": "investment/private_watchlist.json",
+          "auto_buy": false,
+          "include_in_deploy_consider_set": false,
+          "private_market_authority": false,
+          "count": 3,
+          "ids": [
+            "ANDURIL",
+            "SARONIC",
+            "BOOM"
+          ],
+          "entries": [
+            {
+              "id": "ANDURIL",
+              "name": "Anduril Industries",
+              "theme": "autonomy",
+              "themes": [
+                "autonomy",
+                "robotics",
+                "defense_tech",
+                "ai_stack",
+                "national_security"
+              ],
+              "status": "private",
+              "rank": 1,
+              "priority": "high",
+              "public_symbol": null,
+              "listing_status": "private_no_filed_ipo",
+              "thesis_fit": "Software-defined defense autonomy (Lattice, UAVs, C-UAS, undersea, soldier systems). Primary owner rank #1. Fits Autonomy + Robotics + AI physical-world leverage under stocks/growth when/if public. Concentration and defense-cycle risk will dominate any first-size decision.",
+              "next_catalyst": "IPO process milestones or next major funding/valuation print; no confirmed IPO date as of 2026-08-06",
+              "last_review": "2026-08-06"
+            },
+            {
+              "id": "SARONIC",
+              "name": "Saronic Technologies",
+              "theme": "autonomy",
+              "themes": [
+                "autonomy",
+                "robotics",
+                "defense_tech",
+                "maritime",
+                "national_security"
+              ],
+              "status": "private",
+              "rank": 2,
+              "priority": "high",
+              "public_symbol": null,
+              "listing_status": "private_no_filed_ipo",
+              "thesis_fit": "Autonomous surface vessels + shipyard scale (Port Alpha narrative) for hybrid naval fleets. Owner rank #2. Pure-play maritime autonomy under Autonomy/Robotics when/if public; execution and shipbuilding capacity are the binding risks.",
+              "next_catalyst": "Program awards, shipyard milestones, or funding/IPO process news; no confirmed IPO date as of 2026-08-06",
+              "last_review": "2026-08-06"
+            },
+            {
+              "id": "BOOM",
+              "name": "Boom Supersonic",
+              "theme": "energy",
+              "themes": [
+                "energy",
+                "ai_power",
+                "data_center",
+                "aerospace",
+                "hardware",
+                "aviation"
+              ],
+              "status": "private",
+              "rank": 3,
+              "priority": "medium",
+              "public_symbol": null,
+              "listing_status": "private_no_filed_ipo",
+              "thesis_fit": "Dual path: (1) Overture supersonic airliner + Symphony engine heritage; (2) owner note 2026-08-06 \u2014 jet-turbine development repurposed toward data-center buildout power generation (AI/power demand). Owner rank #3. Energy + AI-power sleeve now the primary north-star link; aerospace remains secondary optionality. Still high technical / capital / execution risk vs pure-play power names.",
+              "next_catalyst": "Power-gen / data-center turbine milestones or Overture flight/engine news; no confirmed IPO date as of 2026-08-06",
+              "last_review": "2026-08-06"
+            }
+          ],
+          "on_review": "Scout may surface IPO/list catalysts for private names as context only. Private names MUST NOT enter the public deploy consider set or receive orders. Pre-IPO secondaries out of scope. Each private name should have a current deep-dive (< deep_dive_refresh_days) just as public ready names do."
         },
         "approval": {
           "require_user_confirm": false,
@@ -2683,10 +2772,11 @@
         },
         "manager_hints": [
           "Deployed mix within target bands \u2014 discretionary alpha only.",
-          "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR \u2014 deep-dive via /position-deep-dive before first buy when required."
+          "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO \u2014 deep-dive via /position-deep-dive before first buy when required.",
+          "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
         ],
         "fair_game": true,
-        "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
+        "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
       },
       "recent_decisions": [
         {
@@ -5792,25 +5882,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-06T02:45:51.919656+00:00",
+    "as_of": "2026-08-06T12:38:45.485219+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-06T02:45:51.916798+00:00",
+      "as_of": "2026-08-06T12:38:45.482484+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 176.5285,
+      "nav_usd": 176.4371,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3954,
-        "stocks_growth": 0.5931,
+        "btc_digital_credit": 0.3956,
+        "stocks_growth": 0.5934,
         "other": 0.0,
         "cash": 0.0005
       },
@@ -5899,13 +5989,14 @@
         "path": "investment/watchlist.json",
         "auto_buy": false,
         "deep_dive_workflow": "position-deep-dive",
-        "count": 5,
+        "count": 6,
         "symbols": [
           "BE",
           "GOOGL",
           "AAPL",
           "NVDA",
-          "PLTR"
+          "PLTR",
+          "EVGO"
         ],
         "entries": [
           {
@@ -5967,9 +6058,97 @@
             "last_deep_dive": "2026-08-04",
             "held": false,
             "thesis_fit": "Optional listed harness + applications sleeve (AIP/Ontology \u2248 enterprise context/decision OS). Fills public-book gap vs silicon+BTC+energy; does NOT advance ASIC/Turo engines, Energy, Bitcoin, or Robotics. Thesis-only fit: yes as sleeve, no as core."
+          },
+          {
+            "symbol": "EVGO",
+            "name": "EVgo, Inc.",
+            "theme": "energy",
+            "status": "ready",
+            "priority": "low",
+            "sleeve_if_owned": "stocks_growth",
+            "deep_dive_required_before_buy": true,
+            "last_deep_dive": "2026-08-06",
+            "held": false,
+            "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative."
           }
         ],
         "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
+      },
+      "private_watchlist": {
+        "path": "investment/private_watchlist.json",
+        "auto_buy": false,
+        "include_in_deploy_consider_set": false,
+        "private_market_authority": false,
+        "count": 3,
+        "ids": [
+          "ANDURIL",
+          "SARONIC",
+          "BOOM"
+        ],
+        "entries": [
+          {
+            "id": "ANDURIL",
+            "name": "Anduril Industries",
+            "theme": "autonomy",
+            "themes": [
+              "autonomy",
+              "robotics",
+              "defense_tech",
+              "ai_stack",
+              "national_security"
+            ],
+            "status": "private",
+            "rank": 1,
+            "priority": "high",
+            "public_symbol": null,
+            "listing_status": "private_no_filed_ipo",
+            "thesis_fit": "Software-defined defense autonomy (Lattice, UAVs, C-UAS, undersea, soldier systems). Primary owner rank #1. Fits Autonomy + Robotics + AI physical-world leverage under stocks/growth when/if public. Concentration and defense-cycle risk will dominate any first-size decision.",
+            "next_catalyst": "IPO process milestones or next major funding/valuation print; no confirmed IPO date as of 2026-08-06",
+            "last_review": "2026-08-06"
+          },
+          {
+            "id": "SARONIC",
+            "name": "Saronic Technologies",
+            "theme": "autonomy",
+            "themes": [
+              "autonomy",
+              "robotics",
+              "defense_tech",
+              "maritime",
+              "national_security"
+            ],
+            "status": "private",
+            "rank": 2,
+            "priority": "high",
+            "public_symbol": null,
+            "listing_status": "private_no_filed_ipo",
+            "thesis_fit": "Autonomous surface vessels + shipyard scale (Port Alpha narrative) for hybrid naval fleets. Owner rank #2. Pure-play maritime autonomy under Autonomy/Robotics when/if public; execution and shipbuilding capacity are the binding risks.",
+            "next_catalyst": "Program awards, shipyard milestones, or funding/IPO process news; no confirmed IPO date as of 2026-08-06",
+            "last_review": "2026-08-06"
+          },
+          {
+            "id": "BOOM",
+            "name": "Boom Supersonic",
+            "theme": "energy",
+            "themes": [
+              "energy",
+              "ai_power",
+              "data_center",
+              "aerospace",
+              "hardware",
+              "aviation"
+            ],
+            "status": "private",
+            "rank": 3,
+            "priority": "medium",
+            "public_symbol": null,
+            "listing_status": "private_no_filed_ipo",
+            "thesis_fit": "Dual path: (1) Overture supersonic airliner + Symphony engine heritage; (2) owner note 2026-08-06 \u2014 jet-turbine development repurposed toward data-center buildout power generation (AI/power demand). Owner rank #3. Energy + AI-power sleeve now the primary north-star link; aerospace remains secondary optionality. Still high technical / capital / execution risk vs pure-play power names.",
+            "next_catalyst": "Power-gen / data-center turbine milestones or Overture flight/engine news; no confirmed IPO date as of 2026-08-06",
+            "last_review": "2026-08-06"
+          }
+        ],
+        "on_review": "Scout may surface IPO/list catalysts for private names as context only. Private names MUST NOT enter the public deploy consider set or receive orders. Pre-IPO secondaries out of scope. Each private name should have a current deep-dive (< deep_dive_refresh_days) just as public ready names do."
       },
       "approval": {
         "require_user_confirm": false,
@@ -5977,10 +6156,11 @@
       },
       "manager_hints": [
         "Deployed mix within target bands \u2014 discretionary alpha only.",
-        "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR \u2014 deep-dive via /position-deep-dive before first buy when required."
+        "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO \u2014 deep-dive via /position-deep-dive before first buy when required.",
+        "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
       ],
       "fair_game": true,
-      "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Watchlist is monitor/consider only \u2014 not auto-buy."
+      "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
     },
     "recent_decisions": [
       {
