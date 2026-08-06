@@ -433,6 +433,10 @@
     </nav>
 
     <section class="panel active" id="panel-overview">
+      <div class="card-block" id="regime-card" style="margin-bottom:0.9rem">
+        <h3>Regime assessment <span class="hint">probability-weighted · from world-state nodes</span></h3>
+        <div id="overview-regime"><div class="empty">No regime yet — run Refresh</div></div>
+      </div>
       <div class="overview-grid">
         <div>
           <h2>Domain heat map <span class="hint">intensity = top priority score</span></h2>
@@ -663,7 +667,75 @@
       </article>`;
     }
 
+    function renderRegime(payload) {
+      const regime = payload.regime
+        || (payload.brief || {}).regime
+        || (payload.world_state || {}).regime;
+      const el = $("overview-regime");
+      if (!regime || !regime.primary) {
+        el.innerHTML = '<div class="empty">No regime yet — run Refresh</div>';
+        return;
+      }
+      const p = regime.primary;
+      const conf = regime.confidence_overall != null ? regime.confidence_overall : regime.confidence;
+      const scenarios = (regime.scenarios || []).slice().sort(
+        (a, b) => (Number(b.probability) || 0) - (Number(a.probability) || 0)
+      );
+      const bars = scenarios.slice(0, 5).map((sc, i) => {
+        const pr = Number(sc.probability) || 0;
+        const isPrimary = i === 0 || sc.id === p.scenario_id;
+        return `<div style="margin-bottom:0.4rem">
+          <div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.8rem;font-weight:${isPrimary ? 700 : 500}">
+            <span>${esc(sc.label || sc.id)}</span>
+            <span style="color:${isPrimary ? "var(--cyan)" : "var(--muted)"}">${(pr * 100).toFixed(0)}%</span>
+          </div>
+          <div class="bar aff" style="margin-top:0.2rem"><i style="width:${pct(pr)}%;background:${isPrimary ? "var(--cyan)" : "var(--purple)"}"></i></div>
+        </div>`;
+      }).join("");
+      const axes = (regime.axes || []).map(ax => {
+        let label = ax.dominant_label || ax.dominant;
+        let pr = ax.probability;
+        if (ax.states && ax.dominant) {
+          const st = (ax.states || []).find(s => s.id === ax.dominant);
+          if (st) { label = st.label || st.id; pr = st.probability; }
+        }
+        const pStr = pr != null ? ` ${(Number(pr) * 100).toFixed(0)}%` : "";
+        return `<div style="font-size:0.78rem;margin-bottom:0.35rem">
+          <span style="color:var(--dim)">${esc(ax.label || ax.id)}</span>
+          · <strong>${esc(label || "—")}</strong>${pStr}
+        </div>`;
+      }).join("");
+      const forces = (regime.active_forces || []).slice(0, 4).map(d =>
+        `<li style="margin:0.2rem 0;font-size:0.8rem;color:var(--muted)"><span style="color:var(--text)">${esc(d.force || "")}</span> · ${esc(d.sign || "")}</li>`
+      ).join("");
+      const nodeCount = (regime.data_vintage || {}).node_count
+        || (regime.coverage || {}).node_total
+        || "—";
+      el.innerHTML = `
+        <div style="display:flex;flex-wrap:wrap;gap:0.75rem 1.25rem;align-items:baseline;margin-bottom:0.65rem">
+          <div>
+            <div style="font-size:1.05rem;font-weight:750;color:var(--cyan);line-height:1.35">${esc(p.label || "Regime")}</div>
+            <div style="font-size:0.8rem;color:var(--muted);margin-top:0.15rem">${(Number(p.probability) * 100).toFixed(0)}% base · conf ${esc(conf)}</div>
+          </div>
+        </div>
+        <p style="font-size:0.84rem;color:var(--muted);margin:0 0 0.75rem;line-height:1.4">${esc(p.summary || "")}</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+          <div>
+            <div style="font-size:0.78rem;font-weight:650;margin-bottom:0.35rem;color:var(--dim)">Scenario tree</div>
+            ${bars || '<div class="empty">No scenarios</div>'}
+          </div>
+          <div>
+            <div style="font-size:0.78rem;font-weight:650;margin-bottom:0.35rem;color:var(--dim)">Axes</div>
+            ${axes || '<div class="empty">No axes</div>'}
+            <div style="font-size:0.78rem;font-weight:650;margin:0.65rem 0 0.35rem;color:var(--dim)">Active forces</div>
+            <ul style="margin:0;padding-left:1.1rem">${forces || "<li class='empty'>None</li>"}</ul>
+            <div style="font-size:0.72rem;color:var(--dim);margin-top:0.55rem">nodes ${esc(nodeCount)} · Δ90d ${esc(regime.regime_change_probability_90d != null ? (Number(regime.regime_change_probability_90d)*100).toFixed(0)+"%" : "—")}</div>
+          </div>
+        </div>`;
+    }
+
     function renderOverview(payload) {
+      renderRegime(payload);
       const stats = payload.domain_stats || [];
       $("domain-heat").innerHTML = stats.map(d => domainTile(d)).join("") || '<div class="empty">No domains</div>';
       $("domain-heat").querySelectorAll(".domain-tile").forEach(el => {

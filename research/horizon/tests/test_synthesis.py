@@ -40,10 +40,15 @@ class TestSynthesis(unittest.TestCase):
         state, strategy, linkages = self._state_and_links()
         brief = synthesize(state, strategy, linkages)
 
+        self.assertIn("regime", brief)
+        self.assertIn("primary", brief["regime"])
         self.assertIn("executive_brief", brief)
         self.assertIn("current_world_state", brief)
         self.assertIn("implications_for_my_strategy", brief)
         self.assertIn("watchlist", brief)
+        self.assertIn("regime", brief)
+        self.assertIn("primary", brief["regime"])
+        self.assertIn("probabilities", brief["regime"])
 
         eb = brief["executive_brief"]
         self.assertGreater(len(eb["items"]), 0)
@@ -52,6 +57,17 @@ class TestSynthesis(unittest.TestCase):
         self.assertIn("interpretation", item)
         self.assertIn("confidence", item)
         self.assertIn("priority_rationale", item)
+        # Strategy linkage should surface on ranked items when fixtures match bets
+        self.assertIn("strategy_priorities", item)
+        self.assertIn("strategy_links", item)
+        any_linked = any(
+            (it.get("strategy_priorities") or it.get("strategy_links"))
+            for it in eb["items"]
+        )
+        self.assertTrue(
+            any_linked,
+            "expected at least one executive-brief item linked to strategy",
+        )
 
         ws = brief["current_world_state"]
         for d in REQUIRED_DOMAINS:
@@ -75,17 +91,20 @@ class TestSynthesis(unittest.TestCase):
         self.assertIn("confidence", wl["items"][0])
 
     def test_watchlist_ranking_structure(self):
-        state, _, _ = self._state_and_links()
-        wl = build_watchlist(state, top_n=5)
-        scores = [float(i["priority_score"]) for i in wl["items"]]
-        self.assertEqual(scores, sorted(scores, reverse=True))
+        state, _, linkages = self._state_and_links()
+        wl = build_watchlist(state, top_n=5, linkages=linkages)
+        # rank_score is the strategy-aware sort key (monotonic non-increasing)
+        rank_scores = [float(i.get("rank_score") or i["priority_score"]) for i in wl["items"]]
+        self.assertEqual(rank_scores, sorted(rank_scores, reverse=True))
         ranks = [i["rank"] for i in wl["items"]]
         self.assertEqual(ranks, list(range(1, len(ranks) + 1)))
+        self.assertIn("strategy_priorities", wl["items"][0])
 
     def test_markdown_contains_four_sections(self):
         state, strategy, linkages = self._state_and_links()
         brief = synthesize(state, strategy, linkages)
         md = render_markdown(brief)
+        self.assertIn("## 0. Regime Assessment", md)
         self.assertIn("## 1. Executive Brief", md)
         self.assertIn("## 2. Current World State", md)
         self.assertIn("## 3. Implications for My Strategy", md)

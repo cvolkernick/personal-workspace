@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Optional
 
+from research.horizon.regime import attach_regime
 from research.horizon.sources.fixture import FixtureSource
 from research.horizon.sources.rss import RssSource
 from research.horizon.store import (
@@ -92,17 +93,17 @@ def run_pipeline(
             version_id=version_id,
             source_modes=modes,
         )
-        save_world_state(state, data_dir)
+
+    # Regime assessment always recomputed from current nodes (product layer)
+    state = attach_regime(state)
+    regime = state.get("regime") or {}
+    save_world_state(state, data_dir)
 
     strategy = load_strategy(workspace)
     linkages = link_world_to_strategy(state, strategy)
     brief = synthesize(state, strategy, linkages)
     markdown = render_markdown(brief)
     brief_paths = save_brief(brief, markdown, data_dir)
-
-    if link_only:
-        # Persist world-state version stamp for audit of link-only runs
-        save_world_state(state, data_dir)
 
     return {
         "ok": True,
@@ -112,6 +113,8 @@ def run_pipeline(
         "source_modes": modes,
         "node_total": (state.get("meta") or {}).get("node_total"),
         "linkage_count": len(linkages),
+        "regime_primary": (regime.get("primary") or {}).get("id"),
+        "regime_confidence": regime.get("confidence"),
         "strategy_paths_exist": strategy.get("paths_exist"),
         "paths": {
             "data_dir": str(data_dir),
@@ -134,6 +137,7 @@ def run_pipeline(
         },
         "brief": brief,
         "state": state,
+        "regime": regime,
         "strategy": strategy,
         "linkages": linkages,
         "markdown": markdown,

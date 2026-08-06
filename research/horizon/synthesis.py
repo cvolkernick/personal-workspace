@@ -6,12 +6,79 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from research.horizon import DOMAIN_LABELS, REQUIRED_DOMAINS
+from research.horizon.regime import assess_regime, regime_brief_block, regime_headline
 from research.horizon.world_state import query_nodes
 
+# Mild boost so strategy-relevant nodes surface when scores are close (does not
+# override a clear higher priority_score).
+_STRATEGY_RANK_BOOST = 0.15
 
-def _rank_items(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+
+def _link_index(
+    linkages: list[dict[str, Any]] | None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Map world-state node id → strategy linkage records."""
+    by_node: dict[str, list[dict[str, Any]]] = {}
+    for link in linkages or []:
+        nid = link.get("node_id")
+        if not nid:
+            continue
+        by_node.setdefault(str(nid), []).append(link)
+    return by_node
+
+
+def _strategy_hits_for_node(
+    node_id: Any,
+    link_index: dict[str, list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    hits: list[dict[str, Any]] = []
+    for link in link_index.get(str(node_id or ""), []):
+        hits.append(
+            {
+                "priority_id": link.get("priority_id"),
+                "priority_label": link.get("priority_label")
+                or link.get("priority_id"),
+                "affinity": link.get("affinity"),
+                "matched_keywords": list(link.get("matched_keywords") or [])[:6],
+            }
+        )
+    # Highest affinity first
+    hits.sort(key=lambda h: float(h.get("affinity") or 0), reverse=True)
+    return hits
+
+
+def _rank_items(
+    nodes: list[dict[str, Any]],
+    *,
+    linkages: list[dict[str, Any]] | None = None,
+) -> list[dict[str, Any]]:
+    """Rank nodes by priority_score, with mild strategy-link boost for ties."""
+    link_index = _link_index(linkages)
+
+    decorated: list[tuple[float, float, dict[str, Any], list[dict[str, Any]]]] = []
+    for n in nodes:
+        hits = _strategy_hits_for_node(n.get("id"), link_index)
+        base = float(n.get("priority_score") or 0)
+        best_aff = float(hits[0]["affinity"]) if hits else 0.0
+        sort_key = base + (best_aff * _STRATEGY_RANK_BOOST if hits else 0.0)
+        decorated.append((sort_key, base, n, hits))
+
+    decorated.sort(key=lambda t: (-t[0], -(t[1]), str(t[2].get("title") or "")))
+
     ranked: list[dict[str, Any]] = []
-    for i, n in enumerate(nodes, start=1):
+    for i, (sort_key, base, n, hits) in enumerate(decorated, start=1):
+        labels = [
+            str(h.get("priority_label") or h.get("priority_id"))
+            for h in hits[:4]
+            if h.get("priority_label") or h.get("priority_id")
+        ]
+        rationale = (
+            f"Ranked #{i} by priority_score={base} "
+            f"(impact={n.get('impact')}, confidence={n.get('confidence')}"
+            f"{', strategy_boost=' + str(round(sort_key - base, 3)) if hits else ''})."
+        )
+        if labels:
+            rationale += f" Linked strategy: {', '.join(labels)}."
         ranked.append(
             {
                 "rank": i,
@@ -21,21 +88,31 @@ def _rank_items(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "impact": n.get("impact"),
                 "confidence": n.get("confidence"),
                 "priority_score": n.get("priority_score"),
+                "rank_score": round(sort_key, 4),
                 "facts": list(n.get("facts") or []),
                 "interpretation": n.get("interpretation") or "",
-                "priority_rationale": (
-                    f"Ranked #{i} by priority_score={n.get('priority_score')} "
-                    f"(impact={n.get('impact')}, confidence={n.get('confidence')})."
-                ),
+                "priority_rationale": rationale,
+                "strategy_links": hits[:4],
+                "strategy_priorities": labels,
                 "tags": list(n.get("tags") or []),
             }
         )
     return ranked
 
 
-def build_executive_brief(state: dict[str, Any], *, top_n: int = 7) -> dict[str, Any]:
-    nodes = query_nodes(state, limit=top_n)
-    items = _rank_items(nodes)
+def build_executive_brief(
+    state: dict[str, Any],
+    *,
+    top_n: int = 7,
+    linkages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    # Pull a wider pool, then re-rank with strategy so linked items can surface.
+    pool = max(top_n * 3, top_n)
+    nodes = query_nodes(state, limit=pool)
+    items = _rank_items(nodes, linkages=linkages)[:top_n]
+    # Re-number ranks 1..n after slice
+    for i, it in enumerate(items, start=1):
+        it["rank"] = i
     bullets = []
     for it in items:
         fact0 = (it["facts"][0] if it["facts"] else it["title"])
@@ -48,6 +125,8 @@ def build_executive_brief(state: dict[str, Any], *, top_n: int = 7) -> dict[str,
                 "interpretation": it["interpretation"],
                 "confidence": it["confidence"],
                 "priority_rationale": it["priority_rationale"],
+                "strategy_links": it.get("strategy_links") or [],
+                "strategy_priorities": it.get("strategy_priorities") or [],
             }
         )
     return {
@@ -55,7 +134,10 @@ def build_executive_brief(state: dict[str, Any], *, top_n: int = 7) -> dict[str,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "version_id": state.get("version_id"),
         "items": bullets,
-        "note": "Facts are listed separately from interpretation; confidence is explicit.",
+        "note": (
+            "Facts are listed separately from interpretation; confidence is explicit. "
+            "Items with strategy_links match personal priorities (bets/intent keywords)."
+        ),
     }
 
 
@@ -143,30 +225,48 @@ def build_strategy_implications(
     }
 
 
-def build_watchlist(state: dict[str, Any], *, top_n: int = 12) -> dict[str, Any]:
-    nodes = query_nodes(state, limit=top_n)
-    items = _rank_items(nodes)
+def build_watchlist(
+    state: dict[str, Any],
+    *,
+    top_n: int = 12,
+    linkages: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    pool = max(top_n * 3, top_n)
+    nodes = query_nodes(state, limit=pool)
+    items = _rank_items(nodes, linkages=linkages)[:top_n]
+    for i, it in enumerate(items, start=1):
+        it["rank"] = i
     watch = []
     for it in items:
+        why = it["priority_rationale"]
+        labels = it.get("strategy_priorities") or []
+        if labels:
+            why = f"{why} Watch because it touches: {', '.join(labels)}."
         watch.append(
             {
                 "rank": it["rank"],
                 "variable_or_event": it["title"],
                 "domain": it["domain"],
-                "why_watch": it["priority_rationale"],
+                "why_watch": why,
                 "facts": it["facts"],
                 "interpretation": it["interpretation"],
                 "confidence": it["confidence"],
                 "impact": it["impact"],
                 "priority_score": it["priority_score"],
+                "rank_score": it.get("rank_score"),
+                "strategy_links": it.get("strategy_links") or [],
+                "strategy_priorities": labels,
                 "tags": it["tags"],
             }
         )
     return {
         "title": "Watchlist / Radar",
         "items": watch,
-        "ranking_field": "priority_score",
-        "note": "Ordered by priority_score (impact × confidence × recency).",
+        "ranking_field": "priority_score+strategy_affinity",
+        "note": (
+            "Ordered by priority_score (impact × confidence × recency) with a mild "
+            "boost when the node links to personal strategy priorities."
+        ),
     }
 
 
@@ -176,14 +276,19 @@ def synthesize(
     linkages: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Build full synthesis document with required sections."""
-    exec_brief = build_executive_brief(state)
+    exec_brief = build_executive_brief(state, linkages=linkages)
     world_summary = build_world_state_summary(state)
     implications = build_strategy_implications(linkages, strategy)
-    watchlist = build_watchlist(state)
+    watchlist = build_watchlist(state, linkages=linkages)
+    regime = state.get("regime") if isinstance(state.get("regime"), dict) else None
+    if not regime:
+        regime = assess_regime(state)
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "version_id": state.get("version_id"),
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "regime": regime,
+        "regime_brief": regime_brief_block(regime),
         "executive_brief": exec_brief,
         "current_world_state": world_summary,
         "implications_for_my_strategy": implications,
@@ -200,6 +305,71 @@ def render_markdown(brief: dict[str, Any]) -> str:
     lines.append(f"_Generated: {brief.get('generated_at')}_")
     lines.append("")
 
+    regime = brief.get("regime") or {}
+    if regime:
+        lines.append("## 0. Regime Assessment")
+        lines.append("")
+        lines.append(f"**{regime_headline(regime)}**")
+        lines.append("")
+        primary = regime.get("primary") or {}
+        if primary.get("summary"):
+            lines.append(f"- **Primary:** {primary.get('summary')}")
+        secondary = regime.get("secondary") or {}
+        if secondary.get("label"):
+            try:
+                sp = f"{float(secondary.get('probability') or 0):.0%}"
+            except (TypeError, ValueError):
+                sp = str(secondary.get("probability"))
+            lines.append(
+                f"- **Secondary:** {secondary.get('label')} "
+                f"({sp}) — {secondary.get('summary')}"
+            )
+        probs = regime.get("probabilities") or {}
+        if probs:
+            ordered = sorted(
+                probs.values(),
+                key=lambda x: float(x.get("probability") or 0),
+                reverse=True,
+            )
+            lines.append("- **Distribution:**")
+            for pr in ordered:
+                try:
+                    pct = f"{float(pr.get('probability') or 0):.0%}"
+                except (TypeError, ValueError):
+                    pct = str(pr.get("probability"))
+                lines.append(f"  - {pr.get('label') or pr.get('id')}: {pct}")
+        axes = regime.get("axes") or []
+        if axes:
+            lines.append("")
+            lines.append("| Axis | Dominant | p | conf |")
+            lines.append("|------|----------|---|------|")
+            for ax in axes:
+                lines.append(
+                    f"| {ax.get('label') or ax.get('id')} | "
+                    f"{ax.get('dominant_label') or ax.get('dominant')} | "
+                    f"{ax.get('probability')} | {ax.get('confidence')} |"
+                )
+        drivers = regime.get("drivers") or []
+        if drivers:
+            lines.append("")
+            lines.append("- **Key drivers:**")
+            for d in drivers[:5]:
+                lines.append(
+                    f"  - [{d.get('domain')}] {d.get('title')} "
+                    f"(w={d.get('weight')}, supports={d.get('supports')})"
+                )
+        cov = regime.get("coverage") or {}
+        lines.append("")
+        lines.append(
+            f"- **Method:** {regime.get('method')} · "
+            f"nodes={cov.get('node_total')} · "
+            f"fixture_share={cov.get('fixture_share')} · "
+            f"conf={regime.get('confidence')}"
+        )
+        for note in regime.get("notes") or []:
+            lines.append(f"- _Note:_ {note}")
+        lines.append("")
+
     eb = brief.get("executive_brief") or {}
     lines.append("## 1. Executive Brief")
     lines.append("")
@@ -212,6 +382,9 @@ def render_markdown(brief: dict[str, Any]) -> str:
             lines.append(f"- **Interpretation:** {it.get('interpretation')}")
         lines.append(f"- **Confidence:** {it.get('confidence')}")
         lines.append(f"- **Why ranked:** {it.get('priority_rationale')}")
+        sp = it.get("strategy_priorities") or []
+        if sp:
+            lines.append(f"- **Strategy:** {', '.join(str(x) for x in sp)}")
         lines.append("")
 
     ws = brief.get("current_world_state") or {}
@@ -275,6 +448,9 @@ def render_markdown(brief: dict[str, Any]) -> str:
             f"conf={it.get('confidence')}"
         )
         lines.append(f"   - Why: {it.get('why_watch')}")
+        sp = it.get("strategy_priorities") or []
+        if sp:
+            lines.append(f"   - Strategy: {', '.join(str(x) for x in sp)}")
     lines.append("")
     lines.append("---")
     lines.append(

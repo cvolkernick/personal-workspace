@@ -77,11 +77,20 @@ Each `SourceEvent` carries: id, domain, title, facts, optional interpretation, c
 
 ### Preferred future sources (modular add-ons)
 
-- Official: central banks, energy agencies (EIA/IEA), defense/stat releases
+- Official: central banks, energy agencies (EIA/IEA), defense/stat releases — **partially landed** in `RssSource.DEFAULT_FEEDS` (Fed, ECB, BoE, BIS, BLS, BEA, Treasury, EIA, IMF, World Bank, State, USTR)
 - Markets: rates, FX, commodities (read-only; no trading)
 - Think-tank / academic digests
 - Selective X/social only as weak signals with low default confidence
 - OSINT indicators (optional later)
+
+### Regime assessment layer
+
+`regime.assess_regime(state)` → multi-axis probability view from current nodes only (keyword + domain priors × impact × confidence). No network, no invented prints. Confidence hard-capped on fixture/scaffold density.
+
+- **Axes:** monetary, growth, liquidity, risk_appetite, geopolitics, energy_tech  
+- **Composite scenarios:** restrictive_soft_landing, higher_for_longer_slowdown, easing_reacceleration, stagflation_or_supply_shock, geopolitical_risk_premium  
+- **Surfaces:** `state.regime`, `brief.regime` / `regime_brief`, markdown §0, dashboard Overview card  
+- **Helpers:** `attach_regime`, `regime_brief_block`, `regime_headline`
 
 **Curation principle:** Prefer primary/high-credibility sources; tag provenance; keep confidence explicit; treat social as low-confidence unless corroborated.
 
@@ -235,3 +244,11 @@ python3 research/horizon/run_horizon.py --link-only --offline
 - New sources: implement `SourceAdapter.fetch`.
 - Smarter linkage: swap keyword scorer for embeddings later without changing artifact schema.
 - Dashboards / agents: consume `data/world_state_latest.json` and `data/briefs/brief_latest.json`.
+
+---
+
+## 9. Enhancement log
+
+| When | Change |
+|------|--------|
+| 2026-08-05 (#20) | Strategy-aware ranking on executive brief + watchlist (`synthesis.py`): mild affinity boost + `strategy_priorities` / `strategy_links` on items. Assessment: `ASSESSMENT_ISSUE_20.md`. |

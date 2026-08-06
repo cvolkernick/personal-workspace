@@ -150,6 +150,111 @@
       "tags": ["narrative", "ai", "bitcoin", "sentiment", "media"],
       "related_domains": ["technology_ai", "capital_flows"],
       "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "macro-labor-cooling-not-collapse",
+      "domain": "macroeconomics",
+      "title": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+      "facts": [
+        "Job openings and quits have retreated from peaks while unemployment has only gradually risen in most recent cycles.",
+        "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series."
+      ],
+      "interpretation": "A soft landing needs labor rebalancing without demand destruction; a sharp unemployment jump would reweight toward growth-scare.",
+      "confidence": 0.7,
+      "impact": "high",
+      "tags": ["labor", "payroll", "unemployment", "wages", "soft-landing"],
+      "related_domains": ["demographics", "capital_flows"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "macro-fiscal-impulse-us",
+      "domain": "macroeconomics",
+      "title": "US fiscal stance remains expansionary relative to pre-2020 norms",
+      "facts": [
+        "Federal deficits remain large as a share of GDP versus the 2010s expansion baseline.",
+        "Interest outlays as a share of outlays have risen with the stock of debt and higher coupon resets."
+      ],
+      "interpretation": "Fiscal impulse supports nominal growth and complicates disinflation; higher-for-longer is partially a fiscal-monetary interaction story.",
+      "confidence": 0.75,
+      "impact": "high",
+      "tags": ["fiscal", "deficit", "debt", "treasury", "inflation"],
+      "related_domains": ["capital_flows"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "capital-credit-spreads-calm",
+      "domain": "capital_flows",
+      "title": "IG/HY credit spreads are not pricing acute funding stress",
+      "facts": [
+        "Investment-grade and high-yield spreads remain tighter than crisis-period peaks in most recent calm windows.",
+        "Primary market issuance has periodically reopened after risk-off pauses without prolonged shutdown."
+      ],
+      "interpretation": "Absence of credit stress keeps liquidity-stress regime secondary unless bank/funding nodes flip.",
+      "confidence": 0.65,
+      "impact": "medium",
+      "tags": ["credit", "spreads", "ig", "hy", "risk-assets"],
+      "related_domains": ["macroeconomics"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "capital-usd-funding",
+      "domain": "capital_flows",
+      "title": "USD funding conditions and the dollar remain a global transmission channel",
+      "facts": [
+        "Cross-border USD credit and FX hedging costs transmit US rate policy to EM and G10 balance sheets.",
+        "Periods of USD strength often coincide with tighter global financial conditions outside the US."
+      ],
+      "interpretation": "For BTC and risk assets, USD liquidity and real-rate path remain first-order; watch DXY, swap lines rhetoric, and Treasury supply.",
+      "confidence": 0.7,
+      "impact": "high",
+      "tags": ["usd", "dxy", "funding", "liquidity", "carry-trade"],
+      "related_domains": ["macroeconomics", "geopolitics"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "geo-industrial-policy-race",
+      "domain": "geopolitics",
+      "title": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+      "facts": [
+        "Major economies run parallel subsidy and local-content programs for semiconductors, EVs, and energy equipment.",
+        "Tariff and export-control toolkits are used with higher frequency in bilateral disputes."
+      ],
+      "interpretation": "Fragmentation is structural, not episodic — raises capex costs, extends supply-chain rebuild timelines, and embeds dual-use tech rivalry.",
+      "confidence": 0.8,
+      "impact": "high",
+      "tags": ["tariff", "industrial-policy", "subsidy", "export-controls", "fragmentation"],
+      "related_domains": ["supply_chains", "technology_ai", "energy"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "energy-oil-buffer",
+      "domain": "energy",
+      "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+      "facts": [
+        "OPEC+ continues to use coordinated output management as a price-support tool.",
+        "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+      ],
+      "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
+      "confidence": 0.7,
+      "impact": "high",
+      "tags": ["oil", "opec", "energy", "inflation"],
+      "related_domains": ["macroeconomics", "geopolitics"],
+      "sources": [{"name": "fixture", "url": ""}]
+    },
+    {
+      "id": "tech-export-controls-ai",
+      "domain": "technology_ai",
+      "title": "Advanced AI compute remains gated by export controls and packaging capacity",
+      "facts": [
+        "Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.",
+        "Advanced packaging and HBM capacity are cited as bottlenecks alongside raw GPU supply."
+      ],
+      "interpretation": "AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.",
+      "confidence": 0.8,
+      "impact": "high",
+      "tags": ["ai", "gpus", "export-controls", "semiconductors", "hbm"],
+      "related_domains": ["geopolitics", "supply_chains", "energy"],
+      "sources": [{"name": "fixture", "url": ""}]
     }
   ]
 }
