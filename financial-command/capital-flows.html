@@ -268,7 +268,7 @@
             <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
             <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money</span></div></div>
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase (Morpho path internal)</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Agentic fund</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (fleet · ASIC OpEx/capex)</span></div></div>
           </div>
@@ -380,16 +380,24 @@
     }
 
     function edgePath(a, b) {
-      // Same-column (e.g. X Money → Agentic): curve to the right then down/up
+      // Same-column vertical (e.g. X Money → Agentic Fund): left-to-right S-curve
+      // from bottom of source card to top of target card
       if (a.colIndex != null && a.colIndex === b.colIndex) {
-        const x1 = a.x + a.w * 0.85;
-        const y1 = a.y + a.h / 2;
-        const x2 = b.x + b.w * 0.85;
-        const y2 = b.y + b.h / 2;
-        const bulge = a.x + a.w + 48;
+        const goingDown = b.y >= a.y;
+        const x1 = a.x + a.w / 2;
+        const y1 = goingDown ? a.y + a.h : a.y;
+        const x2 = b.x + b.w / 2;
+        const y2 = goingDown ? b.y : b.y + b.h;
+        // Left→right S: leave source rightward, then reverse into target top
+        const amp = Math.max(64, a.w * 0.42);
+        const dy = y2 - y1;
+        const c1x = x1 + amp;
+        const c1y = y1 + dy * 0.22;
+        const c2x = x2 - amp * 0.55;
+        const c2y = y2 - dy * 0.22;
         return {
-          d: `M ${x1} ${y1} C ${bulge} ${y1}, ${bulge} ${y2}, ${x2} ${y2}`,
-          lx: bulge + 4,
+          d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+          lx: x1 + amp * 0.55,
           ly: (y1 + y2) / 2,
         };
       }
