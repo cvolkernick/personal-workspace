@@ -1,8 +1,8 @@
 {
-  "version": 14,
+  "version": 15,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → deploy",
-  "notes": "Col 1 Income: streams with border color = first-touch payout account (Turo green→X Money; Lyft/ASICs blue→Coinbase). Col 2 Digital Credit: central capitalization engine — all income funnels into Coinbase → buy BTC → Morpho BTC-backed USDC loan (lend against BTC). Turo cannot land on Coinbase directly so Turo→X Money then X Money→Coinbase to join the engine. Col 3 Deploy: X Money, Agentic Fund, Bills, One Card (ops, book, expenses after the engine).",
+  "notes": "Col 1 Income: each card is three lines — bold title, cadence, italic first-touch channel (Turo/Semi-Daily/X Money; Lyft/Weekly/Coinbase; ASICs/Every other month/Coinbase). Border color = landing account. Col 2 Digital Credit: capitalization engine — all income funnels into Coinbase → buy BTC → Morpho BTC-backed loan. Turo hops X Money→Coinbase. Col 3 Deploy: X Money, Agentic Fund, Bills, One Card.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",

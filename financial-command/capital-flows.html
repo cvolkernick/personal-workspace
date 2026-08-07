@@ -119,6 +119,8 @@
     .node-box.leverage { stroke: var(--leverage); }
     .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
     .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
+    /* Income third row: payout channel name (italic) */
+    .node-landing { fill: var(--muted); font-size: 9px; font-style: italic; font-family: inherit; }
     /* butt caps on dashed edges — round + thick stroke collapses short gaps to solid */
     .edge-path {
       fill: none;
@@ -370,6 +372,8 @@
       (data.income_sources || []).forEach((n) => {
         const landing = byId[n.typical_landing];
         const landingKind = (landing && landing.kind) || n.landing_kind || null;
+        const landingLabel =
+          (landing && landing.label) || n.landing_label || n.typical_landing || "";
         byId[n.id] = {
           ...n,
           layer: "income",
@@ -377,6 +381,7 @@
             ? "income-landing-" + landingKind
             : n.kind || "income",
           landingKind,
+          landingLabel,
         };
       });
 
@@ -391,12 +396,15 @@
         colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
         ids.forEach((id, i) => {
+          const node = byId[id];
+          // Income cards need room for title + cadence + italic landing channel
+          const isIncome = node && node.layer === "income";
           positions[id] = {
-            ...byId[id],
+            ...node,
             x,
-            y: top + gap * i + gap * 0.15,
+            y: top + gap * i + gap * 0.12,
             w: nodeW,
-            h: 54,
+            h: isIncome ? 68 : 54,
             colIndex: ci,
           };
         });
@@ -494,10 +502,16 @@
         const sub = cadence
           ? cadence + (n.pool ? " · " + n.pool : "")
           : (n.subtitle || n.evidence || "").slice(0, 42);
+        // Income: bold title · cadence · italic first-touch channel (e.g. Turo / Semi-Daily / X Money)
+        const landingLine =
+          n.layer === "income" && n.landingLabel
+            ? `<text class="node-landing" x="10" y="54">${esc(n.landingLabel)}</text>`
+            : "";
         html += `<g transform="translate(${n.x},${n.y})">
           <rect class="node-box ${esc(boxClass)}" width="${n.w}" height="${n.h}" />
           <text class="node-title" x="10" y="20">${esc(n.label)}</text>
           <text class="node-sub" x="10" y="38">${esc(sub)}</text>
+          ${landingLine}
         </g>`;
       });
 
