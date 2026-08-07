@@ -1076,18 +1076,6 @@ textarea {
   overflow: hidden;
 }
 
-.meal-servings-badge {
-  display: inline-block;
-  margin-left: 0.35rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  background: rgba(61, 156, 240, 0.18);
-  color: #6db7f5;
-  vertical-align: middle;
-}
-
 .meal-item-meta {
   font-size: 0.8rem;
   margin-top: 0.15rem;
