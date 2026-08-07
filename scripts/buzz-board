@@ -1,0 +1,460 @@
+#!/usr/bin/env python3
+"""Buzz Board CLI — GitHub Project #1 (owner token GraphQL + Issues REST).
+
+Agents use this when github__projects_* MCP returns 403 integration ACL errors.
+Requires env GITHUB_TOKEN or GH_TOKEN with scopes: project, repo.
+
+Examples:
+  scripts/buzz-board list
+  scripts/buzz-board list --status Ready
+  scripts/buzz-board get 21
+  scripts/buzz-board create --title "..." --body "..." --status Ready
+  scripts/buzz-board set-status 21 "In Progress"
+  scripts/buzz-board add 20 --status Ready
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
+from typing import Any
+
+OWNER_LOGIN = "cvolkernick"
+DEFAULT_REPO = "personal-workspace"
+PROJECT_NUMBER = 1
+# Stable IDs for Project #1 (Buzz Board). Re-fetch via `list` if GraphQL errors on unknown field.
+PROJECT_ID = "PVT_kwHOAQX9MM4BfNqD"
+STATUS_FIELD_ID = "PVTSSF_lAHOAQX9MM4BfNqDzhZiHaI"
+STATUS_OPTIONS = {
+    "Parked": "b6f4402a",
+    "Validate ($0)": "ef8c7263",
+    "Ready": "776093d7",
+    "In Progress": "e9e09126",
+    "Pending Review": "73462e08",
+    "Done": "af0819f5",
+}
+# Short aliases → canonical Status option name
+STATUS_ALIASES = {
+    "parked": "Parked",
+    "validate": "Validate ($0)",
+    "validate ($0)": "Validate ($0)",
+    "$0": "Validate ($0)",
+    "ready": "Ready",
+    "in progress": "In Progress",
+    "in_progress": "In Progress",
+    "wip": "In Progress",
+    "pending review": "Pending Review",
+    "pending_review": "Pending Review",
+    "pending": "Pending Review",
+    "review": "Pending Review",
+    "chris": "Pending Review",
+    "done": "Done",
+}
+
+
+def token() -> str:
+    t = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not t:
+        print(
+            "error: set GITHUB_TOKEN or GH_TOKEN (scopes: project, repo)",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return t
+
+
+def rest(method: str, path: str, body: dict | None = None) -> Any:
+    data = None if body is None else json.dumps(body).encode()
+    req = urllib.request.Request(
+        f"https://api.github.com{path}",
+        data=data,
+        method=method,
+        headers={
+            "Authorization": f"Bearer {token()}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "buzz-board-cli",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            raw = r.read()
+            return json.loads(raw) if raw else None
+    except urllib.error.HTTPError as e:
+        err = e.read().decode()
+        print(f"error: REST {method} {path} → {e.code}: {err}", file=sys.stderr)
+        sys.exit(1)
+
+
+def gql(query: str, variables: dict | None = None) -> dict:
+    payload = {"query": query, "variables": variables or {}}
+    req = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=json.dumps(payload).encode(),
+        method="POST",
+        headers={
+            "Authorization": f"Bearer {token()}",
+            "Accept": "application/vnd.github+json",
+            "Content-Type": "application/json",
+            "User-Agent": "buzz-board-cli",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req) as r:
+            out = json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        err = e.read().decode()
+        print(f"error: GraphQL HTTP {e.code}: {err}", file=sys.stderr)
+        sys.exit(1)
+    if out.get("errors"):
+        print(f"error: GraphQL: {json.dumps(out['errors'], indent=2)}", file=sys.stderr)
+        sys.exit(1)
+    return out["data"]
+
+
+def resolve_status(name: str) -> str:
+    key = name.strip()
+    if key in STATUS_OPTIONS:
+        return key
+    alias = STATUS_ALIASES.get(key.lower())
+    if alias:
+        return alias
+    print(
+        f"error: unknown status {name!r}; use: {', '.join(STATUS_OPTIONS)}",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+
+def fetch_items(first: int = 100) -> list[dict]:
+    """Paginate project items; return normalized dicts."""
+    items: list[dict] = []
+    cursor: str | None = None
+    while True:
+        data = gql(
+            """
+            query($login:String!, $n:Int!, $after:String, $first:Int!) {
+              user(login:$login) {
+                projectV2(number:$n) {
+                  title
+                  items(first:$first, after:$after) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      id
+                      fieldValueByName(name:"Status") {
+                        ... on ProjectV2ItemFieldSingleSelectValue { name }
+                      }
+                      content {
+                        __typename
+                        ... on Issue {
+                          number
+                          title
+                          url
+                          state
+                          body
+                          repository { nameWithOwner }
+                        }
+                        ... on PullRequest {
+                          number
+                          title
+                          url
+                          state
+                          repository { nameWithOwner }
+                        }
+                        ... on DraftIssue { title }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """,
+            {
+                "login": OWNER_LOGIN,
+                "n": PROJECT_NUMBER,
+                "after": cursor,
+                "first": min(first, 50),
+            },
+        )
+        proj = data["user"]["projectV2"]
+        conn = proj["items"]
+        for node in conn["nodes"]:
+            content = node.get("content") or {}
+            status = None
+            fv = node.get("fieldValueByName")
+            if fv:
+                status = fv.get("name")
+            kind = content.get("__typename") or "Unknown"
+            items.append(
+                {
+                    "item_id": node["id"],
+                    "status": status,
+                    "kind": kind,
+                    "number": content.get("number"),
+                    "title": content.get("title"),
+                    "url": content.get("url"),
+                    "state": content.get("state"),
+                    "repo": (content.get("repository") or {}).get("nameWithOwner"),
+                    "body": content.get("body"),
+                }
+            )
+        if not conn["pageInfo"]["hasNextPage"]:
+            break
+        cursor = conn["pageInfo"]["endCursor"]
+        if len(items) >= first:
+            break
+    return items
+
+
+def cmd_list(args: argparse.Namespace) -> None:
+    items = fetch_items(first=args.limit)
+    if args.status:
+        want = resolve_status(args.status)
+        items = [i for i in items if i.get("status") == want]
+    # Default: open issues only (skip closed + drafts without numbers unless --all)
+    if not args.all:
+        items = [
+            i
+            for i in items
+            if i.get("kind") in ("Issue", "PullRequest")
+            and (i.get("state") or "").upper() == "OPEN"
+        ]
+    # Stable sort: status order then number
+    order = {s: i for i, s in enumerate(STATUS_OPTIONS)}
+    items.sort(
+        key=lambda i: (
+            order.get(i.get("status") or "", 99),
+            i.get("number") or 0,
+        )
+    )
+    if args.json:
+        print(json.dumps(items, indent=2))
+        return
+    # Group by status
+    by: dict[str, list] = {}
+    for i in items:
+        by.setdefault(i.get("status") or "(no status)", []).append(i)
+    print(f"Buzz Board (Project #{PROJECT_NUMBER}) — {len(items)} items")
+    for status in list(STATUS_OPTIONS) + ["(no status)"]:
+        group = by.get(status)
+        if not group:
+            continue
+        print(f"\n## {status} ({len(group)})")
+        for i in group:
+            num = f"#{i['number']}" if i.get("number") else "?"
+            print(f"- {num} {i.get('title')}")
+            if i.get("url"):
+                print(f"  {i['url']}")
+
+
+def cmd_get(args: argparse.Namespace) -> None:
+    num = args.number
+    issue = rest("GET", f"/repos/{OWNER_LOGIN}/{DEFAULT_REPO}/issues/{num}")
+    # Board status if on project
+    board_status = None
+    item_id = None
+    for i in fetch_items(first=100):
+        if i.get("number") == num and i.get("repo") == f"{OWNER_LOGIN}/{DEFAULT_REPO}":
+            board_status = i.get("status")
+            item_id = i.get("item_id")
+            break
+    out = {
+        "number": issue["number"],
+        "title": issue["title"],
+        "state": issue["state"],
+        "url": issue["html_url"],
+        "body": issue.get("body") or "",
+        "labels": [l["name"] for l in issue.get("labels") or []],
+        "board_status": board_status,
+        "board_item_id": item_id,
+        "on_board": item_id is not None,
+    }
+    if args.json:
+        print(json.dumps(out, indent=2))
+        return
+    print(f"#{out['number']} {out['title']}")
+    print(f"state: {out['state']}  board: {out['board_status'] or '—'}  on_board: {out['on_board']}")
+    print(out["url"])
+    if out["labels"]:
+        print("labels:", ", ".join(out["labels"]))
+    print()
+    print(out["body"])
+
+
+def add_to_project(issue_node_id: str) -> str:
+    data = gql(
+        """
+        mutation($projectId:ID!, $contentId:ID!) {
+          addProjectV2ItemById(input:{projectId:$projectId, contentId:$contentId}) {
+            item { id }
+          }
+        }
+        """,
+        {"projectId": PROJECT_ID, "contentId": issue_node_id},
+    )
+    return data["addProjectV2ItemById"]["item"]["id"]
+
+
+def set_item_status(item_id: str, status_name: str) -> None:
+    status_name = resolve_status(status_name)
+    option_id = STATUS_OPTIONS[status_name]
+    gql(
+        """
+        mutation($projectId:ID!, $itemId:ID!, $fieldId:ID!, $optionId:String!) {
+          updateProjectV2ItemFieldValue(input:{
+            projectId:$projectId
+            itemId:$itemId
+            fieldId:$fieldId
+            value:{ singleSelectOptionId:$optionId }
+          }) { projectV2Item { id } }
+        }
+        """,
+        {
+            "projectId": PROJECT_ID,
+            "itemId": item_id,
+            "fieldId": STATUS_FIELD_ID,
+            "optionId": option_id,
+        },
+    )
+
+
+def find_item_for_issue(number: int) -> dict | None:
+    for i in fetch_items(first=100):
+        if (
+            i.get("number") == number
+            and i.get("repo") == f"{OWNER_LOGIN}/{DEFAULT_REPO}"
+            and i.get("kind") == "Issue"
+        ):
+            return i
+    return None
+
+
+def cmd_create(args: argparse.Namespace) -> None:
+    body = args.body
+    if body == "-":
+        body = sys.stdin.read()
+    labels = args.label or []
+    issue = rest(
+        "POST",
+        f"/repos/{OWNER_LOGIN}/{DEFAULT_REPO}/issues",
+        {"title": args.title, "body": body or "", "labels": labels},
+    )
+    item_id = add_to_project(issue["node_id"])
+    status = args.status or "Parked"
+    set_item_status(item_id, status)
+    out = {
+        "number": issue["number"],
+        "url": issue["html_url"],
+        "board_status": resolve_status(status),
+        "item_id": item_id,
+    }
+    if args.json:
+        print(json.dumps(out, indent=2))
+        return
+    print(f"created #{out['number']} [{out['board_status']}]")
+    print(out["url"])
+
+
+def cmd_add(args: argparse.Namespace) -> None:
+    issue = rest("GET", f"/repos/{OWNER_LOGIN}/{DEFAULT_REPO}/issues/{args.number}")
+    existing = find_item_for_issue(args.number)
+    if existing:
+        item_id = existing["item_id"]
+        created = False
+    else:
+        item_id = add_to_project(issue["node_id"])
+        created = True
+    if args.status:
+        set_item_status(item_id, args.status)
+        status = resolve_status(args.status)
+    else:
+        status = existing.get("status") if existing else None
+    out = {
+        "number": args.number,
+        "url": issue["html_url"],
+        "item_id": item_id,
+        "added": created,
+        "board_status": status,
+    }
+    if args.json:
+        print(json.dumps(out, indent=2))
+        return
+    action = "added" if created else "already on board"
+    print(f"#{args.number} {action}; status={status or '—'}")
+    print(out["url"])
+
+
+def cmd_set_status(args: argparse.Namespace) -> None:
+    existing = find_item_for_issue(args.number)
+    if not existing:
+        # Auto-add then set
+        issue = rest("GET", f"/repos/{OWNER_LOGIN}/{DEFAULT_REPO}/issues/{args.number}")
+        item_id = add_to_project(issue["node_id"])
+    else:
+        item_id = existing["item_id"]
+    status = resolve_status(args.status)
+    set_item_status(item_id, status)
+    if args.json:
+        print(json.dumps({"number": args.number, "board_status": status, "item_id": item_id}, indent=2))
+        return
+    print(f"#{args.number} → {status}")
+
+
+def cmd_whoami(_: argparse.Namespace) -> None:
+    u = rest("GET", "/user")
+    # scopes from a cheap meta call aren't in JSON; print login + note
+    print(f"login: {u.get('login')}")
+    print("required_scopes: project, repo")
+    print(f"project: https://github.com/users/{OWNER_LOGIN}/projects/{PROJECT_NUMBER}")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description="Buzz Board (GitHub Project #1) agent CLI")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    pl = sub.add_parser("list", help="List board items")
+    pl.add_argument("--status", help="Filter by Status (Ready, Parked, …)")
+    pl.add_argument("--all", action="store_true", help="Include closed / non-issues")
+    pl.add_argument("--limit", type=int, default=100)
+    pl.add_argument("--json", action="store_true")
+    pl.set_defaults(func=cmd_list)
+
+    pg = sub.add_parser("get", help="Get issue + board status")
+    pg.add_argument("number", type=int)
+    pg.add_argument("--json", action="store_true")
+    pg.set_defaults(func=cmd_get)
+
+    pc = sub.add_parser("create", help="Create issue and add to board")
+    pc.add_argument("--title", required=True)
+    pc.add_argument("--body", default="", help="Markdown body, or - for stdin")
+    pc.add_argument("--status", default="Parked")
+    pc.add_argument("--label", action="append", default=[])
+    pc.add_argument("--json", action="store_true")
+    pc.set_defaults(func=cmd_create)
+
+    pa = sub.add_parser("add", help="Add existing issue to board")
+    pa.add_argument("number", type=int)
+    pa.add_argument("--status")
+    pa.add_argument("--json", action="store_true")
+    pa.set_defaults(func=cmd_add)
+
+    ps = sub.add_parser("set-status", help="Set board Status for issue")
+    ps.add_argument("number", type=int)
+    ps.add_argument("status")
+    ps.add_argument("--json", action="store_true")
+    ps.set_defaults(func=cmd_set_status)
+
+    pw = sub.add_parser("whoami", help="Show token identity")
+    pw.set_defaults(func=cmd_whoami)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

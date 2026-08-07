@@ -63,3 +63,14 @@ Library: `from sprint_board import sprint_payload, set_item_status`.
 - Nest guide: `GUIDES/BUZZ_BOARD_AGENT_ACCESS.md` (Buzz workspace)  
 - Sprint tab uses the same adapter: `sprint_board.py`  
 - Process: `GUIDES/CADENCE_SCRUM_CEREMONIES.md`
+
+## Eng-gate Done after merge (#58)
+
+Prefer monorepo root:
+
+```bash
+./scripts/buzz-board set-status N Done
+python3 scripts/eng_gate_post_merge.py --pr M
+```
+
+See `ops/ENG_GATE_BOARD_DONE.md`.

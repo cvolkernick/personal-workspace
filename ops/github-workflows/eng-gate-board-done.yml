@@ -1,0 +1,44 @@
+# Issue #58 — optional: after PR merge, mark linked board issues Done.
+#
+# Install:
+#   mkdir -p .github/workflows
+#   cp ops/github-workflows/eng-gate-board-done.yml .github/workflows/
+#   # needs git auth with `workflow` scope to push under .github/workflows/
+#
+# Secrets:
+#   BUZZ_BOARD_TOKEN — PAT with repo + project (Actions GITHUB_TOKEN usually cannot write Projects)
+#
+# Until installed, use:
+#   python3 scripts/eng_gate_post_merge.py --pr <N>
+#   ./scripts/buzz-board set-status <N> Done
+name: eng-gate-board-done
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  board-done:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unit tests
+        run: python3 -m unittest discover -s scripts/tests -v
+
+      - name: Mark board Done for Fixes/Closes issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.BUZZ_BOARD_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${GITHUB_TOKEN:-}" ]]; then
+            echo "BUZZ_BOARD_TOKEN unset — skip board mutation (install secret or run script manually)."
+            python3 scripts/eng_gate_post_merge.py --pr "${{ github.event.pull_request.number }}" --dry-run || true
+            exit 0
+          fi
+          python3 scripts/eng_gate_post_merge.py --pr "${{ github.event.pull_request.number }}"
