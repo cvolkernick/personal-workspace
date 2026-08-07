@@ -1,8 +1,8 @@
 {
-  "version": 9,
+  "version": 10,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → liquidity → expense",
-  "notes": "Income landings: Turo → X Money (Turo cannot deposit to Coinbase); Lyft + ASICs → Coinbase. Middle column is Liquidity & Collateral (X Money · Coinbase · Agentic fund). Coinbase still hosts the Morpho path internally (BTC collateral → borrow USDC → High Yield vault) — collapsed on the map, not separate nodes. Expense: One Card + Bills. Agentic funded weekly Mon from X Money.",
+  "notes": "Income landings: Turo → X Money (Turo cannot deposit to Coinbase); Lyft + ASICs → Coinbase. Middle column is Liquidity & Collateral (X Money · Agentic fund · Coinbase top→bottom). Coinbase still hosts the Morpho path internally (BTC collateral → borrow USDC → High Yield vault) — collapsed on the map, not separate nodes. Expense top→bottom: Bills · One Card. Agentic funded weekly Mon from X Money.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -18,12 +18,12 @@
       {
         "id": "liquidity",
         "label": "Liquidity & Collateral",
-        "ids": ["x_money", "coinbase", "rh_agentic"]
+        "ids": ["x_money", "rh_agentic", "coinbase"]
       },
       {
         "id": "expense",
         "label": "Expense",
-        "ids": ["one_card", "bills_xm"]
+        "ids": ["bills_xm", "one_card"]
       }
     ]
   },
