@@ -100,6 +100,15 @@
       rx: 10;
     }
     .node-box.income { stroke: var(--income); }
+    /* Income cards recolored by landing account (see strokeKind) */
+    .node-box.income-landing-cash {
+      stroke: var(--cash);
+      stroke-width: 2;
+    }
+    .node-box.income-landing-venue {
+      stroke: var(--venue);
+      stroke-width: 2;
+    }
     .node-box.cash { stroke: var(--cash); }
     .node-box.credit { stroke: var(--credit); }
     .node-box.venue { stroke: var(--venue); }
@@ -265,7 +274,8 @@
         <div>
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Income → X Money</strong><span class="desc"> — green border (Turo)</span></div></div>
+            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Income → Coinbase</strong><span class="desc"> — blue border (Lyft, ASICs)</span></div></div>
             <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money</span></div></div>
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase (Morpho path internal)</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Agentic Fund</span></div></div>
@@ -277,7 +287,7 @@
           <h3>Layout</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Liquidity &amp; Collateral</strong> · <strong>Expense</strong></span></div>
-            <div class="leg-item"><span class="desc">Landings: Turo → X Money · Lyft/ASICs → Coinbase. Arrow labels are path names / cadences.</span></div>
+            <div class="leg-item"><span class="desc">Income border color = payout account (green X Money, blue Coinbase). Cadence on income cards only.</span></div>
           </div>
         </div>
       </div>
@@ -348,11 +358,21 @@
         ];
       const xByIndex = [40, 360, 700];
       const byId = {};
-      (data.income_sources || []).forEach((n) => {
-        byId[n.id] = { ...n, layer: "income" };
-      });
       (data.channels || []).forEach((n) => {
         byId[n.id] = { ...n, layer: n.kind };
+      });
+      // Income cards: border color matches the account they pay into (landing)
+      (data.income_sources || []).forEach((n) => {
+        const landing = byId[n.typical_landing];
+        const landingKind = (landing && landing.kind) || n.landing_kind || null;
+        byId[n.id] = {
+          ...n,
+          layer: "income",
+          strokeKind: landingKind
+            ? "income-landing-" + landingKind
+            : n.kind || "income",
+          landingKind,
+        };
       });
 
       const positions = {};
@@ -452,7 +472,8 @@
 
       // nodes
       Object.values(positions).forEach((n) => {
-        const kind = n.kind || "venue";
+        // Income: color by landing account; others by channel kind
+        const boxClass = n.strokeKind || n.kind || "venue";
         // Cadence keys must be valid JS identifiers or quoted — dots in keys break the whole page.
         const cadenceMap = {
           intermittent: "Intermittent",
@@ -467,7 +488,7 @@
           ? cadence + (n.pool ? " · " + n.pool : "")
           : (n.subtitle || n.evidence || "").slice(0, 42);
         html += `<g transform="translate(${n.x},${n.y})">
-          <rect class="node-box ${esc(kind)}" width="${n.w}" height="${n.h}" />
+          <rect class="node-box ${esc(boxClass)}" width="${n.w}" height="${n.h}" />
           <text class="node-title" x="10" y="20">${esc(n.label)}</text>
           <text class="node-sub" x="10" y="38">${esc(sub)}</text>
         </g>`;
