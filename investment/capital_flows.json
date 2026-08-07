@@ -1,8 +1,8 @@
 {
-  "version": 16,
+  "version": 17,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards (title · cadence · italic first-touch). Col 2 Digital Credit: Coinbase → buy BTC → Morpho BTC-backed loan. Col 3 Liquidity Engine: X Money + USDC High Yield + USDG High Yield (idle stables / ops cash after the engine). Col 4 Deploy: Agentic Fund, Bills, One Card. Turo first-touch X Money; Lyft/ASICs → Coinbase; Morpho borrow parks in USDC HY.",
+  "notes": "Col 1 Income: three-line cards; Turo border matches X Money (gray). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine borders: X Money gray · USDC HY blue · USDG HY green. Morpho borrowed USDC fans out to all three liquidity sleeves. Col 4 Deploy: Agentic Fund, Bills, One Card.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -98,31 +98,34 @@
       "kind": "leverage",
       "subtitle": "Collateralize BTC · borrow USDC",
       "confidence": "owner_stated",
-      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC prefers idle park in USDC High Yield (Liquidity Engine)."
+      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC fans out to X Money, USDC HY, and USDG HY (Liquidity Engine)."
     },
     {
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
+      "stroke": "liq-gray",
       "subtitle": "~6% APY · Turo land + ops",
       "confidence": "owner_stated",
-      "notes": "Liquidity Engine cash sleeve — Turo first-touch + ops float; funds Bills and Agentic Fund."
+      "notes": "Liquidity Engine cash sleeve (gray border) — Turo first-touch + Morpho USDC share + ops float."
     },
     {
       "id": "usdc_hy",
       "label": "USDC High Yield",
       "kind": "yield",
-      "subtitle": "Idle Morpho / CB USDC",
+      "stroke": "liq-blue",
+      "subtitle": "Idle Morpho USDC",
       "confidence": "owner_stated",
-      "notes": "Preferred park for idle USDC from Morpho borrow (and residual CB USDC). MO: vault prefer idle spot."
+      "notes": "Blue border. Morpho-borrowed USDC park sleeve."
     },
     {
       "id": "usdg_hy",
       "label": "USDG High Yield",
       "kind": "yield",
-      "subtitle": "Idle USDG stable yield",
+      "stroke": "liq-green",
+      "subtitle": "Idle Morpho → USDG yield",
       "confidence": "owner_stated",
-      "notes": "Parallel stable yield sleeve in Liquidity Engine (owner-stated product on CB)."
+      "notes": "Green border. Morpho USDC path into USDG high-yield sleeve."
     },
     {
       "id": "rh_agentic",
@@ -194,27 +197,27 @@
     },
     {
       "from": "cb_morpho",
-      "to": "usdc_hy",
-      "label": "Park idle USDC",
-      "confidence": "owner_stated",
-      "weight": 5,
-      "notes": "Borrowed USDC prefers High Yield vault before ops draws."
-    },
-    {
-      "from": "coinbase",
-      "to": "usdg_hy",
-      "label": "USDG sleeve",
-      "confidence": "owner_stated",
-      "weight": 2,
-      "notes": "Parallel stable yield sleeve (Liquidity Engine)."
-    },
-    {
-      "from": "usdc_hy",
       "to": "x_money",
-      "label": "Ops draw",
+      "label": "USDC → X Money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Primary vault draw into X Money ops cash."
+      "notes": "Morpho-borrowed USDC fan-out: ops / cash sleeve."
+    },
+    {
+      "from": "cb_morpho",
+      "to": "usdc_hy",
+      "label": "USDC → HY",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Morpho-borrowed USDC fan-out: USDC High Yield park."
+    },
+    {
+      "from": "cb_morpho",
+      "to": "usdg_hy",
+      "label": "USDC → USDG HY",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Morpho-borrowed USDC fan-out: USDG High Yield sleeve."
     },
     {
       "from": "usdc_hy",
@@ -244,6 +247,7 @@
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
     "Turo residual: how much of X Money Turo land is regularly funneled to Coinbase vs kept as ops cash?",
-    "USDG HY funding source and target share vs USDC HY — confirm product names/APYs on CB"
+    "Morpho USDC split across X Money / USDC HY / USDG HY — target weights?",
+    "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics"
   ]
 }

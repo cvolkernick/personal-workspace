@@ -109,6 +109,19 @@
       stroke: var(--venue);
       stroke-width: 2;
     }
+    /* Liquidity Engine palette (owner): X Money gray · USDC blue · USDG green */
+    .node-box.liq-gray {
+      stroke: #7a8694;
+      stroke-width: 2;
+    }
+    .node-box.liq-blue {
+      stroke: var(--venue);
+      stroke-width: 2;
+    }
+    .node-box.liq-green {
+      stroke: var(--cash);
+      stroke-width: 2;
+    }
     .node-box.cash { stroke: var(--cash); }
     .node-box.credit { stroke: var(--credit); }
     .node-box.venue { stroke: var(--venue); }
@@ -208,6 +221,9 @@
     .swatch-node.expense { border-color: var(--expense); }
     .swatch-node.capex { border-color: var(--capex); }
     .swatch-node.leverage { border-color: var(--leverage); }
+    .swatch-node.liq-gray { border-color: #7a8694; }
+    .swatch-node.liq-blue { border-color: var(--venue); }
+    .swatch-node.liq-green { border-color: var(--cash); }
     .swatch-line {
       width: 36px; height: 0;
       border-top: 3px solid #3dd68c;
@@ -258,7 +274,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money · USDC HY · USDG HY) → <strong>Deploy</strong>. All income funnels into the CB capitalization engine; idle borrow parks in high-yield stables.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money gray · USDC HY blue · USDG HY green) → <strong>Deploy</strong>. Morpho USDC fans out to all three liquidity sleeves; Turo border matches X Money.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -276,13 +292,12 @@
         <div>
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Income → X Money</strong><span class="desc"> — green (Turo first-touch)</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Income → Coinbase</strong><span class="desc"> — blue (Lyft, ASICs)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>X Money / Turo</strong><span class="desc"> — gray (cash sleeve · first-touch match)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>USDC High Yield</strong><span class="desc"> — blue · Lyft/ASICs → Coinbase also blue</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>USDG High Yield</strong><span class="desc"> — green</span></div></div>
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Digital Credit</strong><span class="desc"> — Coinbase · BTC · Morpho loan</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC spot · Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho BTC-backed USDC</span></div></div>
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money (Liquidity Engine)</span></div></div>
-            <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — USDC / USDG High Yield</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
@@ -291,7 +306,7 @@
           <h3>Layout</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">Path: income → CB → buy BTC → Morpho lend → park stables / X Money → deploy (fund · bills · card).</span></div>
+            <div class="leg-item"><span class="desc">Morpho USDC fans out to <strong>X Money</strong> · <strong>USDC HY</strong> · <strong>USDG HY</strong>, then deploy.</span></div>
           </div>
         </div>
       </div>
@@ -377,20 +392,30 @@
       const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
       const byId = {};
       (data.channels || []).forEach((n) => {
-        byId[n.id] = { ...n, layer: n.kind };
+        // Explicit stroke (e.g. liq-gray) overrides kind-based border
+        byId[n.id] = {
+          ...n,
+          layer: n.kind,
+          strokeKind: n.stroke || n.kind || "venue",
+        };
       });
-      // Income cards: border color matches the account they pay into (landing)
+      // Income cards: border matches landing channel (Turo→X Money gray, etc.)
       (data.income_sources || []).forEach((n) => {
         const landing = byId[n.typical_landing];
         const landingKind = (landing && landing.kind) || n.landing_kind || null;
         const landingLabel =
           (landing && landing.label) || n.landing_label || n.typical_landing || "";
+        // Prefer landing's explicit stroke so Turo matches X Money gray
+        const strokeKind =
+          (landing && landing.stroke) ||
+          (landing && landing.strokeKind) ||
+          (landingKind ? "income-landing-" + landingKind : null) ||
+          n.kind ||
+          "income";
         byId[n.id] = {
           ...n,
           layer: "income",
-          strokeKind: landingKind
-            ? "income-landing-" + landingKind
-            : n.kind || "income",
+          strokeKind,
           landingKind,
           landingLabel,
         };
