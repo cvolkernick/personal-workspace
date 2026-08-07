@@ -1,8 +1,8 @@
 {
-  "version": 19,
+  "version": 20,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo lands X Money (italic + gray border) but no Turo→X Money edge on map. Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: X Money gray · USDC HY blue · USDG HY green. DC→LE only Morpho fan-out to all three. Col 4 Deploy: Agentic Fund, Bills, One Card — keep X Money→Agentic Fund.",
+  "notes": "Col 1 Income: three-line cards; Turo first-touch X Money on card (italic + gray) with map arrow Turo→Coinbase (engine funnel). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to X Money · USDC HY · USDG HY. Col 4 Deploy priority top→bottom: Bills · One Card · Agentic Fund.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -28,7 +28,7 @@
       {
         "id": "deploy",
         "label": "Deploy",
-        "ids": ["rh_agentic", "bills_xm", "one_card"]
+        "ids": ["bills_xm", "one_card", "rh_agentic"]
       }
     ]
   },
@@ -38,7 +38,7 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "First-touch: X Money (Coinbase not supported as direct Turo payout). Semi-daily. Landing shown on card (italic + gray border) — no Turo→X Money flow arrow on map.",
+      "evidence": "First-touch ops land X Money (cannot direct-deposit to Coinbase). Map draws Turo→Coinbase for capitalization engine funnel; card still shows *X Money* italic + gray border.",
       "typical_landing": "x_money",
       "engine_target": "coinbase",
       "cadence": "semi_daily"
@@ -152,6 +152,13 @@
   ],
   "edges": [
     {
+      "from": "turo",
+      "to": "coinbase",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Engine funnel on map (not first-touch ACH). Ops first-touch remains X Money on the card; no Turo→X Money arrow."
+    },
+    {
       "from": "lyft",
       "to": "coinbase",
       "confidence": "owner_stated",
@@ -231,8 +238,7 @@
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
-    "Turo→X Money first-touch is card-only (no arrow); re-add edge only if owner wants payout drawn again",
-    "Turo residual capitalization: when/how much X Money → Coinbase off-map (not drawn — map only Morpho fan-out between DC and LE)",
+    "Turo: map arrow is Turo→Coinbase (engine); first-touch ACH still X Money on-card — confirm residual ops vs capitalization split",
     "Morpho USDC split across X Money / USDC HY / USDG HY — target weights?",
     "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics"
   ]
