@@ -256,7 +256,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Liquidity &amp; Collateral</strong> → <strong>Expense</strong>. Morpho stack is internal to Coinbase (not separate nodes).</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho lend) → <strong>Deploy</strong>. All income funnels into the CB capitalization engine.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -274,20 +274,21 @@
         <div>
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Income → X Money</strong><span class="desc"> — green border (Turo)</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Income → Coinbase</strong><span class="desc"> — blue border (Lyft, ASICs)</span></div></div>
+            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Income → X Money</strong><span class="desc"> — green (Turo first-touch)</span></div></div>
+            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Income → Coinbase</strong><span class="desc"> — blue (Lyft, ASICs)</span></div></div>
+            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Digital Credit</strong><span class="desc"> — Coinbase · BTC · Morpho loan</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC spot · Agentic Fund</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho BTC-backed USDC</span></div></div>
             <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase (Morpho path internal)</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (fleet · ASIC OpEx/capex)</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Liquidity &amp; Collateral</strong> · <strong>Expense</strong></span></div>
-            <div class="leg-item"><span class="desc">Income border color = payout account (green X Money, blue Coinbase). Cadence on income cards only.</span></div>
+            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Engine: all streams → Coinbase → buy BTC → lend against BTC (Morpho). Cadence on income cards only.</span></div>
           </div>
         </div>
       </div>
@@ -344,17 +345,21 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model layout (v9+): Income → Liquidity & Collateral → Expense
+      // Prefer model layout: Income → Digital Credit → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
           { id: "income", label: "Income", ids: ["turo", "lyft", "asics"] },
           {
-            id: "liquidity",
-            label: "Liquidity & Collateral",
-            ids: ["x_money", "rh_agentic", "coinbase"],
+            id: "digital_credit",
+            label: "Digital Credit",
+            ids: ["coinbase", "cb_btc", "cb_morpho"],
           },
-          { id: "expense", label: "Expense", ids: ["bills_xm", "one_card"] },
+          {
+            id: "deploy",
+            label: "Deploy",
+            ids: ["x_money", "rh_agentic", "bills_xm", "one_card"],
+          },
         ];
       const xByIndex = [40, 360, 700];
       const byId = {};
@@ -421,9 +426,11 @@
           ly: (y1 + y2) / 2,
         };
       }
-      const x1 = a.x + a.w;
+      // Cross-column: support both left→right and reverse (e.g. X Money → Coinbase funnel)
+      const goingRight = b.x >= a.x;
+      const x1 = goingRight ? a.x + a.w : a.x;
       const y1 = a.y + a.h / 2;
-      const x2 = b.x;
+      const x2 = goingRight ? b.x : b.x + b.w;
       const y2 = b.y + b.h / 2;
       const mx = (x1 + x2) / 2;
       return {
