@@ -17,14 +17,11 @@
       --yellow: #f5c542;
       --red: #ff6b6b;
       --accent: #5b9fd4;
-      --income: #5b9fd4;
       --cash: #3dd68c;
       --credit: #f0a06a;
       --venue: #7c9cff;
-      --yield: #b5d47a;
       --invest: #c9a0ff;
       --expense: #ff8e8e;
-      --capex: #f5c542;
       --leverage: #e6a0c8;
     }
     * { box-sizing: border-box; }
@@ -78,7 +75,6 @@
     }
     .pill.observed { color: var(--green); border-color: #245c42; }
     .pill.inferred { color: var(--yellow); border-color: #6b5a1e; }
-    .pill.planned { color: var(--accent); border-color: #2a4a6a; }
     .pill.owner_stated { color: #c9a0ff; border-color: #5a3a7a; }
     .error {
       background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
@@ -99,17 +95,7 @@
       stroke-width: 1.2;
       rx: 10;
     }
-    .node-box.income { stroke: var(--income); }
-    /* Income cards recolored by landing account (see strokeKind) */
-    .node-box.income-landing-cash {
-      stroke: var(--cash);
-      stroke-width: 2;
-    }
-    .node-box.income-landing-venue {
-      stroke: var(--venue);
-      stroke-width: 2;
-    }
-    /* Liquidity Engine palette (owner): X Money gray · USDC blue · USDG green */
+    /* Active borders only: liquidity palette + kinds still used on map nodes */
     .node-box.liq-gray {
       stroke: #7a8694;
       stroke-width: 2;
@@ -122,13 +108,10 @@
       stroke: var(--cash);
       stroke-width: 2;
     }
-    .node-box.cash { stroke: var(--cash); }
     .node-box.credit { stroke: var(--credit); }
     .node-box.venue { stroke: var(--venue); }
-    .node-box.yield { stroke: var(--yield); }
     .node-box.invest { stroke: var(--invest); }
     .node-box.expense { stroke: var(--expense); }
-    .node-box.capex { stroke: var(--capex); }
     .node-box.leverage { stroke: var(--leverage); }
     .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
     .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
@@ -149,18 +132,11 @@
       stroke: #f5c542;
       stroke-dasharray: 9 7;
     }
-    .edge-path.planned {
-      stroke: #5b9fd4;
-      stroke-dasharray: 3 6;
-    }
     .edge-path.owner_stated {
       stroke: #c9a0ff;
       stroke-dasharray: 10 8;
     }
-    /* explicit exception paths (e.g. Lyft express) — denser dashes on top of confidence color */
-    .edge-path.explicit-dash {
-      stroke-dasharray: 5 7;
-    }
+    /* Live strip + optional labels (labels off by default in model) */
     .edge-label {
       fill: var(--muted);
       font-size: 9px;
@@ -212,14 +188,10 @@
       border: 2px solid var(--border);
       flex-shrink: 0;
     }
-    .swatch-node.income { border-color: var(--income); }
-    .swatch-node.cash { border-color: var(--cash); }
     .swatch-node.credit { border-color: var(--credit); }
     .swatch-node.venue { border-color: var(--venue); }
-    .swatch-node.yield { border-color: var(--yield); }
     .swatch-node.invest { border-color: var(--invest); }
     .swatch-node.expense { border-color: var(--expense); }
-    .swatch-node.capex { border-color: var(--capex); }
     .swatch-node.leverage { border-color: var(--leverage); }
     .swatch-node.liq-gray { border-color: #7a8694; }
     .swatch-node.liq-blue { border-color: var(--venue); }
@@ -232,7 +204,6 @@
     }
     .swatch-line.observed { border-top-color: #3dd68c; border-top-style: solid; }
     .swatch-line.inferred { border-top-color: #f5c542; border-top-style: dashed; }
-    .swatch-line.planned { border-top-color: #5b9fd4; border-top-style: dotted; border-top-width: 3px; }
     .swatch-line.owner_stated { border-top-color: #c9a0ff; border-top-style: dashed; }
     .swatch-line.thick { border-top-width: 5px; }
     .swatch-line.thin { border-top-width: 1.5px; }
@@ -274,7 +245,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money gray · USDC HY blue · USDG HY green) → <strong>Deploy</strong> (Bills · One Card · Agentic Fund). All income → Coinbase (incl. Turo funnel); Morpho fans to three liquidity cards.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong>. Connecting lines have no text labels. Border colors: Turo/X Money gray · USDC HY blue · USDG HY green · Coinbase/Lyft/ASICs blue · Morpho leverage · Deploy kinds.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -283,21 +254,20 @@
           <h3>Connecting lines (confidence)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
-            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you (not yet in YNAB/sheet)</span></div></div>
+            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
             <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
-            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker line</strong><br/><span class="desc">Higher relative importance (not $)</span></div></div>
-            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner line</strong><br/><span class="desc">Secondary / optional path</span></div></div>
+            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker</strong><br/><span class="desc">Higher relative weight</span></div></div>
+            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner</strong><br/><span class="desc">Secondary path</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Node border colors (channel type)</h3>
+          <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>X Money / Turo</strong><span class="desc"> — gray (cash sleeve · first-touch match)</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>USDC High Yield</strong><span class="desc"> — blue · Lyft/ASICs → Coinbase also blue</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>USDG High Yield</strong><span class="desc"> — green</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Digital Credit</strong><span class="desc"> — Coinbase · BTC · Morpho loan</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC spot · Agentic Fund</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho BTC-backed USDC</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic Fund</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
@@ -305,8 +275,8 @@
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">DC→LE: <strong>only</strong> Morpho → X Money · USDC HY · USDG HY (three lines). No other cross edges between those columns.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Bills → One Card → Agentic Fund)</span></div>
+            <div class="leg-item"><span class="desc">No text on connecting lines. DC→LE only Morpho → three liquidity cards.</span></div>
           </div>
         </div>
       </div>
@@ -399,24 +369,20 @@
           strokeKind: n.stroke || n.kind || "venue",
         };
       });
-      // Income cards: border matches landing channel (Turo→X Money gray, etc.)
+      // Income cards: border matches landing channel stroke/kind (Turo→X Money gray, etc.)
       (data.income_sources || []).forEach((n) => {
         const landing = byId[n.typical_landing];
-        const landingKind = (landing && landing.kind) || n.landing_kind || null;
         const landingLabel =
           (landing && landing.label) || n.landing_label || n.typical_landing || "";
-        // Prefer landing's explicit stroke so Turo matches X Money gray
         const strokeKind =
           (landing && landing.stroke) ||
           (landing && landing.strokeKind) ||
-          (landingKind ? "income-landing-" + landingKind : null) ||
-          n.kind ||
-          "income";
+          (landing && landing.kind) ||
+          "venue";
         byId[n.id] = {
           ...n,
           layer: "income",
           strokeKind,
-          landingKind,
           landingLabel,
         };
       });
@@ -514,15 +480,11 @@
         const a = positions[e.from];
         const b = positions[e.to];
         if (!a || !b) return;
-        const { d, lx, ly } = edgePath(a, b);
+        const { d } = edgePath(a, b);
         // Cap stroke so dash gaps stay visible (weight still differentiates importance)
         const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
         const conf = e.confidence || "inferred";
-        const dashCls = e.dashed ? " explicit-dash" : "";
-        html += `<path class="edge-path ${esc(conf)}${dashCls}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
-        if (e.label) {
-          html += `<text class="edge-label" x="${lx}" y="${ly}">${esc(e.label)}</text>`;
-        }
+        html += `<path class="edge-path ${esc(conf)}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
       });
 
       // nodes

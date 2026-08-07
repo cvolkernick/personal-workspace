@@ -1,8 +1,8 @@
 {
-  "version": 21,
+  "version": 22,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo first-touch X Money on card (italic + gray) with map arrow Turo→Coinbase (engine funnel). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to X Money · USDC HY · USDG HY. Col 4 Deploy priority top→bottom: Bills · One Card · Agentic Fund.",
+  "notes": "Col 1 Income: three-line cards; Turo first-touch X Money on card (italic + gray) with map arrow Turo→Coinbase. Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to X Money · USDC HY · USDG HY (gray/blue/green borders). Col 4 Deploy priority: Bills · One Card · Agentic Fund. Map edges have no text labels (declutter).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -156,76 +156,65 @@
       "to": "coinbase",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Engine funnel on map (not first-touch ACH). Ops first-touch remains X Money on the card; no Turo→X Money arrow."
+      "notes": "Engine funnel (not first-touch ACH). Card shows X Money italic."
     },
     {
       "from": "lyft",
       "to": "coinbase",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Cadence on income card only."
+      "weight": 4
     },
     {
       "from": "asics",
       "to": "coinbase",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Braiins → Coinbase. Cadence on income card only."
+      "weight": 4
     },
     {
       "from": "coinbase",
       "to": "cb_btc",
-      "label": "Buy BTC",
       "confidence": "owner_stated",
       "weight": 5
     },
     {
       "from": "cb_btc",
       "to": "cb_morpho",
-      "label": "Lend against BTC",
       "confidence": "owner_stated",
-      "weight": 5,
-      "notes": "Morpho: pledge BTC collateral → borrow USDC (digital credit)"
+      "weight": 5
     },
     {
       "from": "cb_morpho",
       "to": "x_money",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: ops / cash sleeve. No edge label (owner: declutter)."
+      "weight": 4
     },
     {
       "from": "cb_morpho",
       "to": "usdc_hy",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: USDC High Yield park. No edge label."
+      "weight": 4
     },
     {
       "from": "cb_morpho",
       "to": "usdg_hy",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: USDG High Yield sleeve. No edge label."
+      "weight": 4
     },
     {
       "from": "usdc_hy",
       "to": "one_card",
-      "label": "Secondary · card",
       "confidence": "owner_stated",
       "weight": 2
     },
     {
       "from": "x_money",
       "to": "bills_xm",
-      "label": "Bills · fleet · ASICs",
       "confidence": "observed",
       "weight": 4
     },
     {
       "from": "x_money",
       "to": "rh_agentic",
-      "label": "Weekly Mon",
       "confidence": "owner_stated",
       "weight": 3,
       "notes": "Agentic Fund funded by X Money every Monday"
