@@ -92,7 +92,7 @@
       background: #0d141c;
       padding: 0.5rem;
     }
-    svg.flow-svg { display: block; min-width: 980px; width: 100%; height: auto; }
+    svg.flow-svg { display: block; min-width: 1180px; width: 100%; height: auto; }
     .node-box {
       fill: #15202c;
       stroke: var(--border);
@@ -258,9 +258,9 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho lend) → <strong>Deploy</strong>. All income funnels into the CB capitalization engine.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money · USDC HY · USDG HY) → <strong>Deploy</strong>. All income funnels into the CB capitalization engine; idle borrow parks in high-yield stables.</p>
       <div class="flow-wrap">
-        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
         <div>
@@ -281,7 +281,8 @@
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Digital Credit</strong><span class="desc"> — Coinbase · BTC · Morpho loan</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC spot · Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho BTC-backed USDC</span></div></div>
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money</span></div></div>
+            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money (Liquidity Engine)</span></div></div>
+            <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — USDC / USDG High Yield</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
@@ -289,8 +290,8 @@
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">Engine: all streams → Coinbase → buy BTC → lend against BTC (Morpho). Cadence on income cards only.</span></div>
+            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Path: income → CB → buy BTC → Morpho lend → park stables / X Money → deploy (fund · bills · card).</span></div>
           </div>
         </div>
       </div>
@@ -347,7 +348,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model layout: Income → Digital Credit → Deploy
+      // Prefer model layout: Income → Digital Credit → Liquidity Engine → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
@@ -358,12 +359,22 @@
             ids: ["coinbase", "cb_btc", "cb_morpho"],
           },
           {
+            id: "liquidity_engine",
+            label: "Liquidity Engine",
+            ids: ["x_money", "usdc_hy", "usdg_hy"],
+          },
+          {
             id: "deploy",
             label: "Deploy",
-            ids: ["x_money", "rh_agentic", "bills_xm", "one_card"],
+            ids: ["rh_agentic", "bills_xm", "one_card"],
           },
         ];
-      const xByIndex = [40, 360, 700];
+      // Four columns — keep node width readable; SVG width scales with count
+      const colCount = Math.max(layoutCols.length, 1);
+      const nodeW = colCount >= 4 ? 185 : 200;
+      const colGap = colCount >= 4 ? 250 : 320;
+      const leftPad = 28;
+      const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
       const byId = {};
       (data.channels || []).forEach((n) => {
         byId[n.id] = { ...n, layer: n.kind };
@@ -389,9 +400,8 @@
       const colMeta = {};
       const colH = 520;
       const top = 52;
-      const nodeW = 200;
       layoutCols.forEach((col, ci) => {
-        const x = xByIndex[ci] != null ? xByIndex[ci] : 40 + ci * 320;
+        const x = xByIndex[ci] != null ? xByIndex[ci] : leftPad + ci * colGap;
         const ids = (col.ids || []).filter((id) => byId[id]);
         colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
@@ -409,7 +419,11 @@
           };
         });
       });
-      return { positions, colMeta, layoutCols };
+      const svgW = Math.max(
+        1000,
+        leftPad + (colCount - 1) * colGap + nodeW + 40
+      );
+      return { positions, colMeta, layoutCols, xByIndex, svgW };
     }
 
     function edgePath(a, b) {
@@ -450,8 +464,8 @@
 
     function draw(data) {
       const svg = document.getElementById("flow-svg");
-      const { positions, layoutCols } = layoutNodes(data);
-      const W = 1000;
+      const { positions, layoutCols, xByIndex, svgW } = layoutNodes(data);
+      const W = svgW || 1240;
       const H = 620;
 
       // defs for arrows
@@ -464,7 +478,8 @@
         </defs>
       `;
       layoutCols.forEach((col, ci) => {
-        const x = [40, 360, 700][ci] != null ? [40, 360, 700][ci] : 40 + ci * 320;
+        const x =
+          xByIndex && xByIndex[ci] != null ? xByIndex[ci] : 28 + ci * 250;
         html += `<text class="col-label" x="${x}" y="28">${esc(col.label || col.id || "")}</text>`;
       });
 
