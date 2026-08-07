@@ -1,5 +1,5 @@
 {
-  "version": 10,
+  "version": 11,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → liquidity → expense",
   "notes": "Income landings: Turo → X Money (Turo cannot deposit to Coinbase); Lyft + ASICs → Coinbase. Middle column is Liquidity & Collateral (X Money · Agentic fund · Coinbase top→bottom). Coinbase still hosts the Morpho path internally (BTC collateral → borrow USDC → High Yield vault) — collapsed on the map, not separate nodes. Expense top→bottom: Bills · One Card. Agentic funded weekly Mon from X Money.",
@@ -111,25 +111,23 @@
     {
       "from": "turo",
       "to": "x_money",
-      "label": "Semi-Daily",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Owner 2026-08-07: Turo cannot deposit directly to Coinbase"
+      "notes": "Owner 2026-08-07: Turo cannot deposit directly to Coinbase. Cadence shown on income card only."
     },
     {
       "from": "lyft",
       "to": "coinbase",
-      "label": "Weekly",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Cadence shown on income card only."
     },
     {
       "from": "asics",
       "to": "coinbase",
-      "label": "Every other month",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py)"
+      "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py). Cadence shown on income card only."
     },
     {
       "from": "coinbase",
