@@ -265,7 +265,7 @@
         <div>
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Lyft, Turo, ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
             <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase hub</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC, agentic book</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho collateral / USDC borrow</span></div></div>
@@ -338,7 +338,7 @@
     function layoutNodes(data) {
       // Fixed columns: income → Coinbase stack → cash/credit → uses
       const cols = {
-        income: { x: 30, ids: ["lyft", "turo", "asics"] },
+        income: { x: 30, ids: ["turo", "lyft", "asics"] },
         cb_stack: {
           x: 250,
           ids: [
@@ -429,14 +429,17 @@
       // nodes
       Object.values(positions).forEach((n) => {
         const kind = n.kind || "venue";
-        const cadence =
-          n.cadence === "intermittent"
-            ? "Intermittent"
-            : n.cadence === "weekly"
-              ? "Weekly"
-              : n.cadence === "approx_monthly"
-                ? "~Monthly"
-                : "";
+        const cadenceMap = {
+          intermittent: "Intermittent",
+          semi_daily: "Semi-Daily",
+          weekly: "Weekly",
+          approx_monthly: "~Monthly",
+          approx_monthly_to_bimonthly_at_0_01_threshold: "Every other month",
+          approx_monthly_to_bimonthly_at_0.01_threshold: "Every other month",
+          every_other_month: "Every other month",
+          bi_monthly: "Every other month",
+        };
+        const cadence = cadenceMap[n.cadence] || "";
         const sub = cadence
           ? cadence + (n.pool ? " · " + n.pool : "")
           : (n.subtitle || n.evidence || "").slice(0, 42);

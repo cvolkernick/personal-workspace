@@ -1,8 +1,8 @@
 {
-  "version": 7,
-  "as_of": "2026-07-26",
+  "version": 8,
+  "as_of": "2026-08-07",
   "title": "Capital flows — income to channels",
-  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays).",
+  "notes": "Income (Turo/Lyft/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -14,9 +14,9 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts deposit to Coinbase. Cadence intermittent / irregular (rental activity).",
+      "evidence": "Payouts deposit to Coinbase. Cadence semi-daily (rental activity).",
       "typical_landing": "coinbase",
-      "cadence": "intermittent"
+      "cadence": "semi_daily"
     },
     {
       "id": "lyft",
@@ -29,12 +29,12 @@
     },
     {
       "id": "asics",
-      "label": "ASICs (mining revenue)",
+      "label": "ASICs",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins. Owner threshold 0.01 BTC (was 0.005; raised 2026-08-05).",
+      "evidence": "Payouts to Coinbase every other month. Pool: Braiins. Owner threshold 0.01 BTC (was 0.005; raised 2026-08-05).",
       "typical_landing": "coinbase",
-      "cadence": "approx_monthly_to_bimonthly_at_0.01_threshold",
+      "cadence": "every_other_month",
       "pool": "braiins",
       "payout_threshold_btc": 0.01
     }
