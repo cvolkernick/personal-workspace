@@ -150,7 +150,6 @@
       text-transform: uppercase;
       font-family: inherit;
     }
-    .legend-row { display: flex; flex-wrap: wrap; gap: 0.5rem 0.85rem; align-items: center; }
     .map-legend {
       margin-top: 0.75rem;
       padding: 0.75rem 0.85rem;
@@ -196,17 +195,6 @@
     .swatch-node.liq-gray { border-color: #7a8694; }
     .swatch-node.liq-blue { border-color: var(--venue); }
     .swatch-node.liq-green { border-color: var(--cash); }
-    .swatch-line {
-      width: 36px; height: 0;
-      border-top: 3px solid #3dd68c;
-      flex-shrink: 0;
-      border-radius: 2px;
-    }
-    .swatch-line.observed { border-top-color: #3dd68c; border-top-style: solid; }
-    .swatch-line.inferred { border-top-color: #f5c542; border-top-style: dashed; }
-    .swatch-line.owner_stated { border-top-color: #c9a0ff; border-top-style: dashed; }
-    .swatch-line.thick { border-top-width: 5px; }
-    .swatch-line.thin { border-top-width: 1.5px; }
     .edge-list { font-size: 0.82rem; }
     .edge-list li { margin: 0.35rem 0; }
     .q-list { margin: 0; padding-left: 1.15rem; font-size: 0.88rem; }
@@ -238,28 +226,12 @@
     <div id="load-error" class="error hidden"></div>
 
     <section class="card">
-      <h2>How to read this</h2>
-      <p class="hint" id="notes">—</p>
-      <div class="legend-row" id="legend"></div>
-    </section>
-
-    <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund). No edge text labels.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund).</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
-        <div>
-          <h3>Connecting lines (confidence)</h3>
-          <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
-            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
-            <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
-            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker</strong><br/><span class="desc">Higher relative weight</span></div></div>
-            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner</strong><br/><span class="desc">Secondary path</span></div></div>
-          </div>
-        </div>
         <div>
           <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
@@ -269,14 +241,14 @@
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Productive · Consumer</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Essential → Productive Disc. → Consumer Disc. → One Card → Agentic Fund)</span></div>
-            <div class="leg-item"><span class="desc">Expense buckets match sheet MO. No text on connecting lines. DC→LE only Morpho → three liquidity cards.</span></div>
+            <div class="leg-item"><span class="desc">Expense buckets match sheet MO. DC→LE only Morpho → three liquidity cards.</span></div>
           </div>
         </div>
       </div>
@@ -588,22 +560,6 @@
       document.getElementById("subtitle").textContent =
         (data.title || "Capital flows") +
         (data.as_of ? " · model " + String(data.as_of).slice(0, 10) : "");
-      document.getElementById("notes").textContent = data.notes || "";
-
-      const legend = data.legend || {};
-      const order = ["observed", "owner_stated", "inferred"];
-      const keys = [
-        ...order.filter((k) => legend[k]),
-        ...Object.keys(legend).filter((k) => !order.includes(k)),
-      ];
-      document.getElementById("legend").innerHTML =
-        keys
-          .map(
-            (k) =>
-              `${confPill(k)} <span class="hint" style="margin:0">${esc(legend[k])}</span>`
-          )
-          .join("") ||
-        `<span class="hint" style="margin:0">See Flow map legend for line and node colors.</span>`;
 
       draw(data);
 
