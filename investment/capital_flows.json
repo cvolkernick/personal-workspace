@@ -1,8 +1,8 @@
 {
-  "version": 22,
+  "version": 23,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo first-touch X Money on card (italic + gray) with map arrow Turo→Coinbase. Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to X Money · USDC HY · USDG HY (gray/blue/green borders). Col 4 Deploy priority: Bills · One Card · Agentic Fund. Map edges have no text labels (declutter).",
+  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy: Bills · One Card · Agentic Fund. X Money→Bills is owner_stated (dashed purple). Agentic Fund funded from USDG HY (not X Money). No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -131,7 +131,7 @@
       "id": "rh_agentic",
       "label": "Agentic Fund",
       "kind": "invest",
-      "subtitle": "40/60 · funded Mon via X Money",
+      "subtitle": "40/60 · funded via USDG HY",
       "confidence": "owner_stated"
     },
     {
@@ -209,15 +209,16 @@
     {
       "from": "x_money",
       "to": "bills_xm",
-      "confidence": "observed",
-      "weight": 4
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "Bills from X Money ops — dashed purple (not observed green thick)."
     },
     {
-      "from": "x_money",
+      "from": "usdg_hy",
       "to": "rh_agentic",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Agentic Fund funded by X Money every Monday"
+      "notes": "Agentic Fund funded from USDG High Yield (replaces former X Money→Agentic Fund edge)."
     }
   ],
   "open_questions": [
