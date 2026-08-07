@@ -251,21 +251,25 @@
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
         <div>
-          <h3>Connecting lines</h3>
+          <h3>Connecting lines (confidence)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed paths on this map</span></div></div>
+            <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
+            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
+            <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
+            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker</strong><br/><span class="desc">Higher relative weight</span></div></div>
+            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner</strong><br/><span class="desc">Secondary path</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Node borders (venue / role)</h3>
+          <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — Coinbase</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — Robinhood</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC (spot)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic Fund</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Productive · Consumer</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
         </div>
         <div>
