@@ -1,8 +1,8 @@
 {
-  "version": 24,
+  "version": 25,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy priority: Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund (expense sheet MO). X Money→three expense buckets; USDG HY→Agentic Fund. No edge text labels.",
+  "notes": "Col 1 Income → Col 2 Digital Credit → Col 3 Liquidity Engine → Col 4 Deploy (Essential · Productive · Consumer · One Card · Agentic Fund). Border legend: gray=X Money, blue=Coinbase, green=Robinhood. Connecting lines: owner_stated dashed purple only (no observed/inferred/weight legend). No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -87,9 +87,10 @@
       "id": "coinbase",
       "label": "Coinbase",
       "kind": "venue",
+      "stroke": "liq-blue",
       "subtitle": "Income funnel · engine entry",
       "confidence": "owner_stated",
-      "notes": "Central hub: all income streams target CB for capitalization (Turo via X Money hop)."
+      "notes": "Blue border = Coinbase venue. Central hub: all income streams target CB for capitalization."
     },
     {
       "id": "cb_btc",
@@ -113,7 +114,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% APY · Turo land + ops",
       "confidence": "owner_stated",
-      "notes": "Liquidity Engine cash sleeve (gray border) — Turo first-touch + Morpho USDC share + ops float."
+      "notes": "Gray border = X Money venue. Turo first-touch + Morpho USDC share + ops float."
     },
     {
       "id": "usdc_hy",
@@ -122,7 +123,7 @@
       "stroke": "liq-blue",
       "subtitle": "Idle Morpho USDC",
       "confidence": "owner_stated",
-      "notes": "Blue border. Morpho-borrowed USDC park sleeve."
+      "notes": "Blue border = Coinbase venue. Morpho-borrowed USDC park sleeve."
     },
     {
       "id": "usdg_hy",
@@ -131,14 +132,16 @@
       "stroke": "liq-green",
       "subtitle": "Idle Morpho → USDG yield",
       "confidence": "owner_stated",
-      "notes": "Green border. Morpho USDC path into USDG high-yield sleeve."
+      "notes": "Green border = Robinhood venue. Morpho USDC path into USDG high-yield sleeve."
     },
     {
       "id": "rh_agentic",
       "label": "Agentic Fund",
       "kind": "invest",
+      "stroke": "liq-green",
       "subtitle": "40/60 · funded via USDG HY",
-      "confidence": "owner_stated"
+      "confidence": "owner_stated",
+      "notes": "Green border = Robinhood (Agentic Fund on RH)."
     },
     {
       "id": "one_card",
