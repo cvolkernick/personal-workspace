@@ -429,13 +429,12 @@
       // nodes
       Object.values(positions).forEach((n) => {
         const kind = n.kind || "venue";
+        // Cadence keys must be valid JS identifiers or quoted — dots in keys break the whole page.
         const cadenceMap = {
           intermittent: "Intermittent",
           semi_daily: "Semi-Daily",
           weekly: "Weekly",
           approx_monthly: "~Monthly",
-          approx_monthly_to_bimonthly_at_0_01_threshold: "Every other month",
-          approx_monthly_to_bimonthly_at_0.01_threshold: "Every other month",
           every_other_month: "Every other month",
           bi_monthly: "Every other month",
         };
