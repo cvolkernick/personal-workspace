@@ -2722,12 +2722,10 @@
         const items = m.items || [];
         let slides = "";
         items.forEach((it) => {
-          const n = Number(it.servings) || 1;
+          // Total portion only (grams when known) — no ×N inventory-serving badge.
           const serve = formatPlanPortion(it);
           slides += `<div class="inv-slide meal-item compact">
-            <div class="meal-item-name">${it.name || "Item"}${
-            n > 1 ? ` <span class="meal-servings-badge">×${n}</span>` : ""
-          }</div>
+            <div class="meal-item-name">${it.name || "Item"}</div>
             <div class="meal-item-meta muted">${serve}</div>
             ${invMacroStrip(it, true)}
           </div>`;
