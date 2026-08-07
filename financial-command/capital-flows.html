@@ -113,6 +113,12 @@
     .node-box.invest { stroke: var(--invest); }
     .node-box.expense { stroke: var(--expense); }
     .node-box.leverage { stroke: var(--leverage); }
+    /* Future / planned income — brown dashed (not active) */
+    .node-box.planned-brown {
+      stroke: #a67c52;
+      stroke-width: 2;
+      stroke-dasharray: 5 4;
+    }
     .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
     .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
     /* Income third row: payout channel name (italic) */
@@ -195,6 +201,10 @@
     .swatch-node.liq-gray { border-color: #7a8694; }
     .swatch-node.liq-blue { border-color: var(--venue); }
     .swatch-node.liq-green { border-color: var(--cash); }
+    .swatch-node.planned-brown {
+      border-color: #a67c52;
+      border-style: dashed;
+    }
     .edge-list { font-size: 0.82rem; }
     .edge-list li { margin: 0.35rem 0; }
     .q-list { margin: 0; padding-left: 1.15rem; font-size: 0.88rem; }
@@ -242,6 +252,7 @@
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Productive · Consumer</span></div></div>
+            <div class="leg-item"><span class="swatch-node planned-brown"></span><div><strong>Brown dashed</strong><span class="desc"> — Planned future income (not active)</span></div></div>
           </div>
         </div>
         <div>
@@ -309,7 +320,11 @@
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
-          { id: "income", label: "Income", ids: ["turo", "lyft", "asics"] },
+          {
+            id: "income",
+            label: "Income",
+            ids: ["turo", "x_creator", "lyft", "tread", "asics"],
+          },
           {
             id: "digital_credit",
             label: "Digital Credit",
@@ -347,12 +362,14 @@
           strokeKind: n.stroke || n.kind || "venue",
         };
       });
-      // Income cards: border matches landing channel stroke/kind (Turo→X Money gray, etc.)
+      // Income cards: border matches landing channel, unless explicit stroke
+      // (planned-brown for future income — do not inherit X Money gray)
       (data.income_sources || []).forEach((n) => {
         const landing = byId[n.typical_landing];
         const landingLabel =
           (landing && landing.label) || n.landing_label || n.typical_landing || "";
         const strokeKind =
+          n.stroke ||
           (landing && landing.stroke) ||
           (landing && landing.strokeKind) ||
           (landing && landing.kind) ||
@@ -482,6 +499,9 @@
           intermittent: "Intermittent",
           semi_daily: "Semi-Daily",
           weekly: "Weekly",
+          biweekly: "Biweekly",
+          bi_weekly: "Biweekly",
+          monthly: "Monthly",
           approx_monthly: "~Monthly",
           every_other_month: "Every other month",
           bi_monthly: "Every other month",

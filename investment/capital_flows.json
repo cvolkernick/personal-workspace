@@ -1,8 +1,8 @@
 {
-  "version": 24,
+  "version": 25,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy priority: Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund (expense sheet MO). X Money→three expense buckets; USDG HY→Agentic Fund. No edge text labels.",
+  "notes": "Col 1 Income order: Turo · X Creator (planned) · Lyft · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy expense buckets. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -13,7 +13,7 @@
       {
         "id": "income",
         "label": "Income",
-        "ids": ["turo", "lyft", "asics"]
+        "ids": ["turo", "x_creator", "lyft", "tread", "asics"]
       },
       {
         "id": "digital_credit",
@@ -50,6 +50,17 @@
       "cadence": "semi_daily"
     },
     {
+      "id": "x_creator",
+      "label": "X Creator",
+      "kind": "income",
+      "status": "planned",
+      "stroke": "planned-brown",
+      "confidence": "owner_stated",
+      "evidence": "Future plan — not an active income source yet. Intended first-touch X Money. Biweekly. No map edges until live.",
+      "typical_landing": "x_money",
+      "cadence": "biweekly"
+    },
+    {
       "id": "lyft",
       "label": "Lyft",
       "kind": "income",
@@ -58,6 +69,17 @@
       "typical_landing": "coinbase",
       "engine_target": "coinbase",
       "cadence": "weekly"
+    },
+    {
+      "id": "tread",
+      "label": "TREAD",
+      "kind": "income",
+      "status": "planned",
+      "stroke": "planned-brown",
+      "confidence": "owner_stated",
+      "evidence": "Future plan — not an active income source yet. Intended first-touch X Money. Monthly. No map edges until live.",
+      "typical_landing": "x_money",
+      "cadence": "monthly"
     },
     {
       "id": "asics",
