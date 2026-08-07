@@ -1,5 +1,5 @@
 {
-  "version": 20,
+  "version": 21,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
   "notes": "Col 1 Income: three-line cards; Turo first-touch X Money on card (italic + gray) with map arrow Turo→Coinbase (engine funnel). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to X Money · USDC HY · USDG HY. Col 4 Deploy priority top→bottom: Bills · One Card · Agentic Fund.",
@@ -190,26 +190,23 @@
     {
       "from": "cb_morpho",
       "to": "x_money",
-      "label": "USDC → X Money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: ops / cash sleeve."
+      "notes": "Morpho-borrowed USDC fan-out: ops / cash sleeve. No edge label (owner: declutter)."
     },
     {
       "from": "cb_morpho",
       "to": "usdc_hy",
-      "label": "USDC → HY",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: USDC High Yield park."
+      "notes": "Morpho-borrowed USDC fan-out: USDC High Yield park. No edge label."
     },
     {
       "from": "cb_morpho",
       "to": "usdg_hy",
-      "label": "USDC → USDG HY",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Morpho-borrowed USDC fan-out: USDG High Yield sleeve."
+      "notes": "Morpho-borrowed USDC fan-out: USDG High Yield sleeve. No edge label."
     },
     {
       "from": "usdc_hy",
