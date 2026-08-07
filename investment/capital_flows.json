@@ -1,8 +1,8 @@
 {
-  "version": 17,
+  "version": 18,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo border matches X Money (gray). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine borders: X Money gray · USDC HY blue · USDG HY green. Morpho borrowed USDC fans out to all three liquidity sleeves. Col 4 Deploy: Agentic Fund, Bills, One Card.",
+  "notes": "Col 1 Income: three-line cards; Turo border matches X Money (gray). Col 2 Digital Credit: Coinbase → buy BTC → Morpho. Col 3 Liquidity Engine: X Money gray · USDC HY blue · USDG HY green. Only cross edges Digital Credit→Liquidity Engine are Morpho→X Money, Morpho→USDC HY, Morpho→USDG HY (no reverse X Money→Coinbase on map). Col 4 Deploy: Agentic Fund, Bills, One Card.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -156,15 +156,7 @@
       "to": "x_money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "First-touch only — Turo cannot deposit to Coinbase. Cadence on income card."
-    },
-    {
-      "from": "x_money",
-      "to": "coinbase",
-      "label": "Funnel to engine",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Owner intent: all income streams feed Digital Credit via Coinbase (Turo residual / capitalization transfers)."
+      "notes": "First-touch only — Turo cannot deposit to Coinbase. Cadence on income card. Map: Income→Liquidity Engine only (no reverse X Money→Coinbase edge)."
     },
     {
       "from": "lyft",
@@ -246,7 +238,7 @@
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
-    "Turo residual: how much of X Money Turo land is regularly funneled to Coinbase vs kept as ops cash?",
+    "Turo residual capitalization: when/how much X Money → Coinbase off-map (not drawn — map only Morpho fan-out between DC and LE)",
     "Morpho USDC split across X Money / USDC HY / USDG HY — target weights?",
     "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics"
   ]

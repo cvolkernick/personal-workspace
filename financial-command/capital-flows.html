@@ -274,7 +274,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money gray · USDC HY blue · USDG HY green) → <strong>Deploy</strong>. Morpho USDC fans out to all three liquidity sleeves; Turo border matches X Money.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> (Coinbase · buy BTC · Morpho) → <strong>Liquidity Engine</strong> (X Money gray · USDC HY blue · USDG HY green) → <strong>Deploy</strong>. Between Digital Credit and Liquidity Engine: <strong>only</strong> Morpho → each of the three liquidity cards (no reverse X Money→Coinbase on map).</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -306,7 +306,7 @@
           <h3>Layout</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">Morpho USDC fans out to <strong>X Money</strong> · <strong>USDC HY</strong> · <strong>USDG HY</strong>, then deploy.</span></div>
+            <div class="leg-item"><span class="desc">DC→LE: <strong>only</strong> Morpho → X Money · USDC HY · USDG HY (three lines). No other cross edges between those columns.</span></div>
           </div>
         </div>
       </div>
