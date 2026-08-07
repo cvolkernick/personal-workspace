@@ -1,8 +1,8 @@
 {
-  "version": 23,
+  "version": 24,
   "as_of": "2026-08-07",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy: Bills · One Card · Agentic Fund. X Money→Bills is owner_stated (dashed purple). Agentic Fund funded from USDG HY (not X Money). No edge text labels.",
+  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy priority: Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund (expense sheet MO). X Money→three expense buckets; USDG HY→Agentic Fund. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -28,7 +28,13 @@
       {
         "id": "deploy",
         "label": "Deploy",
-        "ids": ["bills_xm", "one_card", "rh_agentic"]
+        "ids": [
+          "bills_essential",
+          "bills_productive",
+          "bills_consumer",
+          "one_card",
+          "rh_agentic"
+        ]
       }
     ]
   },
@@ -142,12 +148,28 @@
       "confidence": "observed"
     },
     {
-      "id": "bills_xm",
-      "label": "Bills",
+      "id": "bills_essential",
+      "label": "Essential",
       "kind": "expense",
-      "subtitle": "Fleet · ASIC OpEx/capex · loans…",
-      "confidence": "observed",
-      "notes": "Includes ASIC fleet OpEx and hardware (capex) — bills funded via X Money"
+      "subtitle": "Personal · must-pay bills",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Personal / essential burn — priority over discretionary. Funded via X Money ops."
+    },
+    {
+      "id": "bills_productive",
+      "label": "Productive Discretionary",
+      "kind": "expense",
+      "subtitle": "Capex · grow assets",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base (ASICs, fleet, etc.). Priority over consumer wishlist."
+    },
+    {
+      "id": "bills_consumer",
+      "label": "Consumer Discretionary",
+      "kind": "expense",
+      "subtitle": "Wishlist · after productive",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Consumer Discretionary — consumer goods / personal wishlist; lower priority than Productive."
     }
   ],
   "edges": [
@@ -208,17 +230,31 @@
     },
     {
       "from": "x_money",
-      "to": "bills_xm",
+      "to": "bills_essential",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Essential / Personal bills from X Money — highest spend priority."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_productive",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Bills from X Money ops — dashed purple (not observed green thick)."
+      "notes": "Productive Discretionary funded after essentials."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_consumer",
+      "confidence": "owner_stated",
+      "weight": 2,
+      "notes": "Consumer Discretionary funded last among expense buckets."
     },
     {
       "from": "usdg_hy",
       "to": "rh_agentic",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Agentic Fund funded from USDG High Yield (replaces former X Money→Agentic Fund edge)."
+      "notes": "Agentic Fund funded from USDG High Yield."
     }
   ],
   "open_questions": [
