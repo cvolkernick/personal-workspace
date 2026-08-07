@@ -11,6 +11,10 @@ Examples:
   python3 projects-dashboard/buzz_board_cli.py show 21
   python3 projects-dashboard/buzz_board_cli.py create --title "…" --body "…"
   python3 projects-dashboard/buzz_board_cli.py set-status --item-id <node> --status Ready
+  python3 projects-dashboard/buzz_board_cli.py set-status 58 --status Done
+
+Canonical eng-gate Done path (issue #58): scripts/buzz-board set-status N Done
+  (+ scripts/eng_gate_post_merge.py after merge). See ops/ENG_GATE_BOARD_DONE.md
 
 See: GUIDES/BUZZ_BOARD_AGENT_ACCESS.md (Buzz nest) and projects-dashboard/BOARD_ACCESS.md
 """
@@ -258,8 +262,49 @@ def cmd_create(args: argparse.Namespace) -> int:
     return 0
 
 
+def _find_item_id_for_issue(number: int) -> str | None:
+    """Resolve ProjectV2 item id for a repo issue number (include Done column)."""
+    owner_repo = _repo()
+    payload = sprint_payload(include_done=True)
+    if not payload.get("ok"):
+        return None
+    for col, items in (payload.get("columns") or {}).items():
+        for it in items or []:
+            if it.get("number") == number and it.get("repo") in (
+                None,
+                owner_repo,
+            ):
+                return it.get("item_id")
+    for it in payload.get("uncategorized") or []:
+        if it.get("number") == number:
+            return it.get("item_id")
+    return None
+
+
 def cmd_set_status(args: argparse.Namespace) -> int:
-    result = set_item_status(args.item_id, args.status)
+    item_id = args.item_id
+    issue_number = getattr(args, "issue", None)
+    if not item_id and issue_number is not None:
+        item_id = _find_item_id_for_issue(int(issue_number))
+        if not item_id:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": f"issue #{issue_number} not found on Buzz Board",
+                        "hint": "use scripts/buzz-board set-status N Done (auto-adds) "
+                        "or pass --item-id from list",
+                    },
+                    indent=2,
+                )
+            )
+            return 1
+    if not item_id:
+        print(json.dumps({"ok": False, "error": "need --item-id or issue number"}))
+        return 1
+    result = set_item_status(item_id, args.status)
+    if issue_number is not None:
+        result = {**result, "number": int(issue_number)}
     print(json.dumps(result, indent=2))
     return 0 if result.get("ok") else 1
 
@@ -303,13 +348,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     st = sub.add_parser(
         "set-status",
-        help="Set project Status field (needs project item node id)",
+        help="Set project Status by --item-id or issue number (eng-gate Done path)",
     )
-    st.add_argument("--item-id", required=True, help="ProjectV2 item node id")
+    st.add_argument(
+        "--item-id",
+        default="",
+        help="ProjectV2 item node id (optional if issue number given)",
+    )
+    st.add_argument(
+        "issue",
+        nargs="?",
+        type=int,
+        default=None,
+        help="Issue number (preferred eng-gate form: set-status 58 --status Done)",
+    )
     st.add_argument(
         "--status",
         required=True,
-        help="Status option name (Parked, Ready, In Progress, …)",
+        help="Status option name (Parked, Ready, In Progress, Done, …)",
     )
     st.set_defaults(func=cmd_set_status)
 
