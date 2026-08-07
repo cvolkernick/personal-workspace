@@ -1639,6 +1639,32 @@
       </div>`;
   }
 
+  /** Prefer weighable grams on meal-plan / inventory lines (food scale). */
+  function formatPlanPortion(it) {
+    if (!it) return "1 serving";
+    const pg = Number(it.portion_g);
+    if (Number.isFinite(pg) && pg > 0) return `${Math.round(pg)}g`;
+    const sg = Number(it.serving_g);
+    const n = Number(it.servings) || 1;
+    if (Number.isFinite(sg) && sg > 0) return `${Math.round(sg * n)}g`;
+    const label = String(it.serving_label || "1 serving").trim() || "1 serving";
+    // Server already collapsed multi-servings into a total gram label (e.g. "510g").
+    if (/^\d+(\.\d+)?g\b/i.test(label)) return label;
+    if (n > 1) return `${n} × ${label}`;
+    return label;
+  }
+
+  function formatInventoryPortion(ing) {
+    if (!ing) return "1 serving";
+    const sg = Number(ing.serving_g);
+    if (Number.isFinite(sg) && sg > 0) {
+      const label = String(ing.serving_label || "").trim();
+      if (label && /g\b/i.test(label)) return label;
+      return `${Math.round(sg)}g`;
+    }
+    return String(ing.serving_label || "1 serving").trim() || "1 serving";
+  }
+
   function renderInventory(store) {
     const list = $("inventory-list");
     if (!list) return;
@@ -1666,7 +1692,9 @@
         <div class="inv-card-name">${ing.name || "Ingredient"}${
         stock ? "" : ' <span class="inv-out-badge">out</span>'
       }</div>
-        <div class="inv-card-meta muted">${ing.category || "other"} · ${ing.serving_label || "1 serving"}</div>
+        <div class="inv-card-meta muted">${ing.category || "other"} · ${formatInventoryPortion(
+        ing
+      )}</div>
         ${invMacroStrip(ing, false)}
         <div class="actions inv-card-actions">
           <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
@@ -2695,10 +2723,7 @@
         let slides = "";
         items.forEach((it) => {
           const n = Number(it.servings) || 1;
-          const serve =
-            n > 1
-              ? `${n} × ${it.serving_label || "serving"}`
-              : it.serving_label || "1 serving";
+          const serve = formatPlanPortion(it);
           slides += `<div class="inv-slide meal-item compact">
             <div class="meal-item-name">${it.name || "Item"}${
             n > 1 ? ` <span class="meal-servings-badge">×${n}</span>` : ""
@@ -3161,11 +3186,7 @@
             <div class="today-meal-bucket-label">${bucket.label || "Meal"}</div>
             <ul style="margin:0;padding-left:1.1rem">`;
           its.forEach((it) => {
-            const n = Number(it.servings) || 1;
-            const serve =
-              n > 1
-                ? `${n} × ${it.serving_label || "serving"}`
-                : it.serving_label || "1 serving";
+            const serve = formatPlanPortion(it);
             html += `<li><strong>${it.name || "Item"}</strong> · ${serve}
               · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
           });
@@ -3636,16 +3657,25 @@
     ev.preventDefault();
     const status = $("ing-status");
     if (status) status.textContent = "Saving…";
+    const servingGRaw = ($("ing-serving-g") && $("ing-serving-g").value.trim()) || "";
+    const servingG = servingGRaw === "" ? null : Number(servingGRaw);
     const body = {
       name: $("ing-name").value.trim(),
       category: $("ing-category").value,
-      serving_label: $("ing-serving").value.trim() || "1 serving",
+      serving_label: ($("ing-serving") && $("ing-serving").value.trim()) || "",
       calories: Number($("ing-cal").value),
       protein_g: Number($("ing-p").value),
       carbs_g: Number($("ing-c").value),
       fat_g: Number($("ing-f").value),
       in_stock: true,
     };
+    // Prefer weighable grams; macros apply to this mass.
+    if (Number.isFinite(servingG) && servingG > 0) {
+      body.serving_g = servingG;
+      if (!body.serving_label) body.serving_label = `${Math.round(servingG)}g`;
+    } else if (!body.serving_label) {
+      body.serving_label = "1 serving";
+    }
     try {
       const res = await fetch("/api/inventory/add", {
         method: "POST",
@@ -3657,6 +3687,8 @@
       if (status) status.textContent = `Saved ${body.name}`;
       showAlert(`Inventory updated: ${body.name}`, "ok");
       $("ing-name").value = "";
+      if ($("ing-serving-g")) $("ing-serving-g").value = "";
+      if ($("ing-serving")) $("ing-serving").value = "";
       if (data.inventory) {
         applyInventoryUpdate(data.inventory);
       }
