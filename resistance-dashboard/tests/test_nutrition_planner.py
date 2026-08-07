@@ -12,7 +12,9 @@ sys.path.insert(0, str(ROOT))
 from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
+    format_portion_label,
     generate_meal_plan,
+    normalize_ingredient,
     remaining_macros,
     remove_ingredient,
     suggest_inventory_removals,
@@ -252,6 +254,74 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertEqual(collapsed[0]["servings"], 3)
         self.assertEqual(collapsed[0]["protein_g"], 156.0)
         self.assertEqual(collapsed[0]["calories"], 840.0)
+
+    def test_gram_portions_on_plan_and_normalize(self):
+        ing = normalize_ingredient(
+            {
+                "name": "Tilapia",
+                "serving_g": 170,
+                "serving_label": "cooked",
+                "calories": 220,
+                "protein_g": 45,
+                "carbs_g": 0,
+                "fat_g": 4,
+                "in_stock": True,
+            }
+        )
+        self.assertEqual(ing["serving_g"], 170.0)
+        self.assertIn("170g", ing["serving_label"])
+        # oz label → grams without explicit serving_g
+        oz = normalize_ingredient(
+            {
+                "name": "Turkey",
+                "serving_label": "6 oz cooked",
+                "calories": 250,
+                "protein_g": 50,
+                "carbs_g": 0,
+                "fat_g": 4,
+            }
+        )
+        self.assertEqual(oz["serving_g"], 170.0)
+        self.assertTrue(str(oz["serving_label"]).startswith("170g"))
+        self.assertEqual(format_portion_label(serving_g=170, servings=2), "340g")
+
+        inv = {
+            "ingredients": [
+                {
+                    "id": "tilapia",
+                    "name": "Tilapia",
+                    "serving_g": 170,
+                    "serving_label": "170g cooked",
+                    "calories": 220,
+                    "protein_g": 45,
+                    "carbs_g": 0,
+                    "fat_g": 4,
+                    "in_stock": True,
+                }
+            ]
+        }
+        plan = generate_meal_plan(
+            inv,
+            {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            {"calories": 1800, "protein_g": 100, "carbs_g": 150, "fat_g": 40},
+        )
+        self.assertTrue(plan["items"])
+        first = plan["items"][0]
+        self.assertEqual(first["id"], "tilapia")
+        self.assertIn("portion_g", first)
+        self.assertTrue(str(first["serving_label"]).endswith("g") or "g" in str(first["serving_label"]))
+        # Multi-pick collapses to total grams (not "2 × 170g")
+        from rt_dashboard.nutrition_planner import _collapse_plan_items, _plan_item_from_ingredient
+
+        rows = [
+            _plan_item_from_ingredient(ing, 1),
+            _plan_item_from_ingredient(ing, 1),
+        ]
+        collapsed = _collapse_plan_items(rows)
+        self.assertEqual(len(collapsed), 1)
+        self.assertEqual(collapsed[0]["servings"], 2)
+        self.assertEqual(collapsed[0]["portion_g"], 340)
+        self.assertEqual(collapsed[0]["serving_label"], "340g")
 
     def test_generate_plan_fills_protein_from_stock(self):
         inv = {

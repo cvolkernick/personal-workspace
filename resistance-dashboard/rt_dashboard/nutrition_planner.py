@@ -78,16 +78,98 @@ def normalize_targets(raw: Optional[dict]) -> dict:
     return t
 
 
+def _coerce_serving_g(raw: dict) -> Optional[float]:
+    """Grams of edible food for one inventory serving (macros apply to this mass).
+
+    Prefer explicit ``serving_g``. Fallback: parse ``N g`` or ``N oz`` from
+    ``serving_label`` so scale users get a weighable amount even on legacy rows.
+    Cups/eggs/medium are *not* guessed (density varies).
+    """
+    if not isinstance(raw, dict):
+        return None
+    if raw.get("serving_g") is not None and str(raw.get("serving_g")).strip() != "":
+        try:
+            v = float(raw["serving_g"])
+            return round(v, 1) if v > 0 else None
+        except (TypeError, ValueError):
+            pass
+    label = str(raw.get("serving_label") or "")
+    m = re.search(r"([\d.]+)\s*g\b", label, re.I)
+    if m:
+        try:
+            v = float(m.group(1))
+            return round(v, 1) if v > 0 else None
+        except ValueError:
+            return None
+    m = re.search(r"([\d.]+)\s*oz\b", label, re.I)
+    if m:
+        try:
+            v = float(m.group(1)) * 28.3495
+            return round(v) if v > 0 else None
+        except ValueError:
+            return None
+    return None
+
+
+def format_portion_label(
+    serving_g: Optional[float] = None,
+    servings: float = 1.0,
+    serving_label: str = "",
+) -> str:
+    """Human portion for meal plan / inventory: prefer grams for food scale."""
+    n = float(servings or 1)
+    if serving_g is not None and float(serving_g) > 0:
+        total_g = round(float(serving_g) * n)
+        if total_g <= 0:
+            total_g = 1
+        return f"{total_g}g"
+    label = (serving_label or "1 serving").strip() or "1 serving"
+    if abs(n - 1.0) < 1e-9:
+        return label
+    if n == int(n):
+        return f"{int(n)} × {label}"
+    return f"{n:g} × {label}"
+
+
 def normalize_ingredient(raw: dict) -> dict:
     name = str(raw.get("name") or "").strip()
     if not name:
         raise ValueError("ingredient name required")
     iid = str(raw.get("id") or _slug(name)).strip()
-    return {
+    serving_g = _coerce_serving_g(raw)
+    raw_label = str(raw.get("serving_label") or "").strip()
+    # Bias labels toward grams when we know mass; keep free-text only as fallback.
+    if serving_g is not None:
+        g_txt = f"{int(round(serving_g))}g"
+        if not raw_label or raw_label.lower() in ("1 serving", "serving"):
+            serving_label = g_txt
+        elif re.search(r"\d+\s*g\b", raw_label, re.I):
+            # Already gram-first (may include prep note)
+            serving_label = raw_label
+        elif re.search(r"\d", raw_label):
+            # e.g. "6 oz cooked" / "1.5 cups" → "170g cooked" (scale-first)
+            note = re.sub(
+                r"^[\d./\s½¼¾]+",
+                "",
+                raw_label,
+            ).strip()
+            note = re.sub(
+                r"^(?:oz|ounce|ounces|cup|cups|tbsp|tsp|scoop|scoops|medium|large|small|can|eggs?)\b\s*",
+                "",
+                note,
+                flags=re.I,
+            ).strip(" ·-,")
+            serving_label = g_txt + (f" {note}" if note else "")
+        else:
+            # Prep-only note ("cooked", "dry") — prefix grams
+            serving_label = f"{g_txt} {raw_label}".strip()
+    else:
+        serving_label = raw_label or "1 serving"
+    out = {
         "id": iid,
         "name": name,
         "category": str(raw.get("category") or "other").strip() or "other",
-        "serving_label": str(raw.get("serving_label") or "1 serving").strip(),
+        "serving_label": serving_label,
         "calories": float(raw.get("calories") or 0),
         "protein_g": float(raw.get("protein_g") or 0),
         "carbs_g": float(raw.get("carbs_g") or 0),
@@ -95,6 +177,9 @@ def normalize_ingredient(raw: dict) -> dict:
         "in_stock": bool(raw.get("in_stock", True)),
         "notes": str(raw.get("notes") or ""),
     }
+    if serving_g is not None:
+        out["serving_g"] = float(serving_g)
+    return out
 
 
 def is_in_stock(raw: dict) -> bool:
@@ -231,8 +316,10 @@ def generate_meal_plan(
     """
     Greedy remaining-day plan from stocked ingredients.
 
-    Adds whole servings that best fill remaining protein/calories without
-    massively overshooting calories (allow ~15% soft overshoot on protein only).
+    Adds whole inventory servings that best fill remaining protein/calories
+    without massively overshooting calories (allow ~15% soft overshoot on
+    protein only). Portions prefer **grams** (``serving_g`` / food scale) when
+    the inventory row has mass; otherwise free-text ``serving_label``.
     When food_logs_today is provided, the message and scoring bias away from
     foods already eaten heavily today.
     """
@@ -316,19 +403,7 @@ def generate_meal_plan(
             and totals["calories"] > 0
         ):
             break
-        plan_items.append(
-            {
-                "id": best["id"],
-                "name": best["name"],
-                "servings": 1,
-                "serving_label": best["serving_label"],
-                "calories": best["calories"],
-                "protein_g": best["protein_g"],
-                "carbs_g": best["carbs_g"],
-                "fat_g": best["fat_g"],
-                "in_stock": True,
-            }
-        )
+        plan_items.append(_plan_item_from_ingredient(best, servings=1))
         pick_counts[str(best["id"])] = pick_counts.get(str(best["id"]), 0) + 1
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             totals[k] += float(best[k])
@@ -394,6 +469,38 @@ def generate_meal_plan(
     }
 
 
+def _plan_item_from_ingredient(ing: dict, servings: float = 1.0) -> dict:
+    """One meal-plan line: macros × servings, portion label biased to grams."""
+    n = float(servings or 1)
+    base_g = ing.get("serving_g")
+    if base_g is None:
+        base_g = _coerce_serving_g(ing)
+    portion_g = None
+    if base_g is not None and float(base_g) > 0:
+        portion_g = round(float(base_g) * n)
+    label = format_portion_label(
+        serving_g=float(base_g) if base_g is not None else None,
+        servings=n,
+        serving_label=str(ing.get("serving_label") or "1 serving"),
+    )
+    row = {
+        "id": ing.get("id"),
+        "name": ing.get("name"),
+        "servings": int(n) if abs(n - int(n)) < 1e-9 else round(n, 2),
+        "serving_label": label,
+        "calories": round(float(ing.get("calories") or 0) * n, 1),
+        "protein_g": round(float(ing.get("protein_g") or 0) * n, 1),
+        "carbs_g": round(float(ing.get("carbs_g") or 0) * n, 1),
+        "fat_g": round(float(ing.get("fat_g") or 0) * n, 1),
+        "in_stock": True,
+    }
+    if base_g is not None and float(base_g) > 0:
+        row["serving_g"] = float(base_g)
+    if portion_g is not None:
+        row["portion_g"] = float(portion_g)
+    return row
+
+
 def _collapse_plan_items(items: List[dict]) -> List[dict]:
     """Merge identical ingredient picks into a single row with servings count."""
     if not items:
@@ -405,29 +512,62 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
         if not key:
             key = f"anon-{len(by_key)}"
         if key not in by_key:
+            n = float(it.get("servings") or 1)
+            base_g = it.get("serving_g")
+            if base_g is None and it.get("portion_g") is not None and n:
+                try:
+                    base_g = float(it["portion_g"]) / n
+                except (TypeError, ValueError, ZeroDivisionError):
+                    base_g = None
             row = {
                 "id": it.get("id"),
                 "name": it.get("name"),
-                "servings": int(it.get("servings") or 1),
+                "servings": n,
                 "serving_label": it.get("serving_label") or "1 serving",
                 "calories": float(it.get("calories") or 0),
                 "protein_g": float(it.get("protein_g") or 0),
                 "carbs_g": float(it.get("carbs_g") or 0),
                 "fat_g": float(it.get("fat_g") or 0),
             }
+            if base_g is not None and float(base_g) > 0:
+                row["serving_g"] = float(base_g)
+            if it.get("portion_g") is not None:
+                row["portion_g"] = float(it["portion_g"])
             by_key[key] = row
             order.append(key)
         else:
             row = by_key[key]
-            add_n = int(it.get("servings") or 1)
-            row["servings"] = int(row.get("servings") or 0) + add_n
+            add_n = float(it.get("servings") or 1)
+            row["servings"] = float(row.get("servings") or 0) + add_n
             for k in ("calories", "protein_g", "carbs_g", "fat_g"):
                 row[k] = round(float(row[k]) + float(it.get(k) or 0), 1)
+            if it.get("portion_g") is not None:
+                row["portion_g"] = round(
+                    float(row.get("portion_g") or 0) + float(it["portion_g"]), 1
+                )
     out = []
     for key in order:
         row = by_key[key]
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             row[k] = round(float(row[k]), 1)
+        n = float(row.get("servings") or 1)
+        row["servings"] = int(n) if abs(n - int(n)) < 1e-9 else round(n, 2)
+        base_g = row.get("serving_g")
+        if base_g is not None and float(base_g) > 0:
+            row["portion_g"] = round(float(base_g) * n)
+            row["serving_label"] = format_portion_label(
+                serving_g=float(base_g),
+                servings=n,
+                serving_label=str(row.get("serving_label") or ""),
+            )
+        elif float(n) != 1.0:
+            # Non-gram multi-servings: "3 × 1 cup"
+            base_label = str(row.get("serving_label") or "1 serving")
+            # Strip prior multiplier if re-collapsing
+            base_label = re.sub(r"^\d+\s*×\s*", "", base_label)
+            row["serving_label"] = format_portion_label(
+                servings=n, serving_label=base_label
+            )
         out.append(row)
     return out
 
@@ -518,12 +658,14 @@ def update_targets(raw: dict) -> dict:
 
 
 # Curated cutting/recomp staples for smart "add to inventory" suggestions.
+# Macros are per serving_g (weighable). serving_label is secondary/prep note.
 STAPLE_CATALOG: List[dict] = [
     {
         "id": "chicken-breast",
         "name": "Chicken breast",
         "category": "protein",
-        "serving_label": "6 oz cooked",
+        "serving_g": 170,
+        "serving_label": "170g cooked",
         "calories": 280,
         "protein_g": 52,
         "carbs_g": 0,
@@ -533,7 +675,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "turkey-breast",
         "name": "Turkey breast",
         "category": "protein",
-        "serving_label": "6 oz cooked",
+        "serving_g": 170,
+        "serving_label": "170g cooked",
         "calories": 250,
         "protein_g": 50,
         "carbs_g": 0,
@@ -543,7 +686,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "nonfat-greek-yogurt",
         "name": "Greek yogurt (nonfat)",
         "category": "protein",
-        "serving_label": "1.5 cups",
+        "serving_g": 360,
+        "serving_label": "360g",
         "calories": 200,
         "protein_g": 30,
         "carbs_g": 12,
@@ -553,7 +697,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "cottage-cheese-lowfat",
         "name": "Cottage cheese (low-fat)",
         "category": "protein",
-        "serving_label": "1 cup",
+        "serving_g": 226,
+        "serving_label": "226g",
         "calories": 180,
         "protein_g": 28,
         "carbs_g": 8,
@@ -563,7 +708,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "whey-protein",
         "name": "Whey protein",
         "category": "protein",
-        "serving_label": "1 scoop",
+        "serving_g": 30,
+        "serving_label": "30g dry",
         "calories": 120,
         "protein_g": 24,
         "carbs_g": 3,
@@ -573,7 +719,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "egg-whites",
         "name": "Egg whites",
         "category": "protein",
-        "serving_label": "1 cup",
+        "serving_g": 243,
+        "serving_label": "243g",
         "calories": 125,
         "protein_g": 26,
         "carbs_g": 2,
@@ -583,7 +730,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "canned-tuna",
         "name": "Canned tuna (in water)",
         "category": "protein",
-        "serving_label": "1 can drained",
+        "serving_g": 142,
+        "serving_label": "142g drained",
         "calories": 120,
         "protein_g": 26,
         "carbs_g": 0,
@@ -593,7 +741,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "lean-ground-turkey",
         "name": "Lean ground turkey (93%)",
         "category": "protein",
-        "serving_label": "6 oz cooked",
+        "serving_g": 170,
+        "serving_label": "170g cooked",
         "calories": 260,
         "protein_g": 42,
         "carbs_g": 0,
@@ -603,7 +752,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "oats",
         "name": "Oats",
         "category": "carb",
-        "serving_label": "1/2 cup dry",
+        "serving_g": 40,
+        "serving_label": "40g dry",
         "calories": 150,
         "protein_g": 5,
         "carbs_g": 27,
@@ -613,7 +763,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "brown-rice",
         "name": "Brown rice",
         "category": "carb",
-        "serving_label": "1 cup cooked",
+        "serving_g": 195,
+        "serving_label": "195g cooked",
         "calories": 215,
         "protein_g": 5,
         "carbs_g": 45,
@@ -623,7 +774,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "sweet-potato",
         "name": "Sweet potato",
         "category": "carb",
-        "serving_label": "1 medium",
+        "serving_g": 130,
+        "serving_label": "130g",
         "calories": 110,
         "protein_g": 2,
         "carbs_g": 26,
@@ -633,7 +785,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "black-beans",
         "name": "Black beans",
         "category": "carb",
-        "serving_label": "1 cup cooked",
+        "serving_g": 172,
+        "serving_label": "172g cooked",
         "calories": 220,
         "protein_g": 15,
         "carbs_g": 40,
@@ -643,7 +796,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "broccoli",
         "name": "Broccoli",
         "category": "veg",
-        "serving_label": "2 cups",
+        "serving_g": 180,
+        "serving_label": "180g",
         "calories": 60,
         "protein_g": 5,
         "carbs_g": 12,
@@ -653,7 +807,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "spinach",
         "name": "Spinach",
         "category": "veg",
-        "serving_label": "3 cups raw",
+        "serving_g": 90,
+        "serving_label": "90g raw",
         "calories": 20,
         "protein_g": 2,
         "carbs_g": 3,
@@ -663,7 +818,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "berries-mixed",
         "name": "Mixed berries",
         "category": "carb",
-        "serving_label": "1 cup",
+        "serving_g": 140,
+        "serving_label": "140g",
         "calories": 70,
         "protein_g": 1,
         "carbs_g": 17,
@@ -673,7 +829,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "olive-oil",
         "name": "Olive oil",
         "category": "fat",
-        "serving_label": "1 tbsp",
+        "serving_g": 14,
+        "serving_label": "14g",
         "calories": 120,
         "protein_g": 0,
         "carbs_g": 0,
@@ -683,7 +840,8 @@ STAPLE_CATALOG: List[dict] = [
         "id": "avocado",
         "name": "Avocado",
         "category": "fat",
-        "serving_label": "1/2 medium",
+        "serving_g": 68,
+        "serving_label": "68g",
         "calories": 120,
         "protein_g": 1.5,
         "carbs_g": 6,
