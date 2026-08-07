@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-07T11:03:14.389011+00:00",
+    "as_of": "2026-08-07T14:05:38.273955+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-05T06:00:59.014651+00:00",
@@ -1861,7 +1861,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-07T11:03:14.273708+00:00",
+      "as_of": "2026-08-07T14:05:38.145432+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -1875,9 +1875,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-07T11:03:14.273703+00:00",
-        "total_value": 178.2425986521,
-        "equity_value": 178.1525986521,
+        "as_of": "2026-08-07T14:05:38.145427+00:00",
+        "total_value": 180.1779209242,
+        "equity_value": 180.0879209242,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -2139,7 +2139,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 178.2425986521,
+      "rh_agentic_total_value": 180.1779209242,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2215,25 +2215,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-05T06:00:59.014651+00:00",
-        "robinhood_as_of": "2026-08-07T11:03:14.273708+00:00",
+        "robinhood_as_of": "2026-08-07T14:05:38.145432+00:00",
         "one_card_as_of": "2026-08-07T02:55:44.791956+00:00",
         "rh_checking_as_of": "2026-08-07T02:55:44.953451+00:00",
         "x_money_as_of": "2026-08-07T02:55:45.168247+00:00",
         "expenses_as_of": "2026-08-07T02:55:45.879123+00:00"
       },
       "stale": [
-        "coinbase data 53.0h old (>6.0h)",
-        "one_card data 8.1h old (>6.0h)",
-        "rh_checking data 8.1h old (>6.0h)",
-        "x_money data 8.1h old (>6.0h)",
-        "expenses data 8.1h old (>6.0h)"
+        "coinbase data 56.1h old (>6.0h)",
+        "one_card data 11.2h old (>6.0h)",
+        "rh_checking data 11.2h old (>6.0h)",
+        "x_money data 11.2h old (>6.0h)",
+        "expenses data 11.2h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 53.0h old (>6.0h)",
-        "one_card data 8.1h old (>6.0h)",
-        "rh_checking data 8.1h old (>6.0h)",
-        "x_money data 8.1h old (>6.0h)",
-        "expenses data 8.1h old (>6.0h)"
+        "coinbase data 56.1h old (>6.0h)",
+        "one_card data 11.2h old (>6.0h)",
+        "rh_checking data 11.2h old (>6.0h)",
+        "x_money data 11.2h old (>6.0h)",
+        "expenses data 11.2h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2504,25 +2504,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-07T11:03:14.394201+00:00",
+      "as_of": "2026-08-07T14:05:38.278777+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-07T11:03:14.391341+00:00",
+        "as_of": "2026-08-07T14:05:38.275921+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 178.2426,
+        "nav_usd": 180.1779,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3916,
-          "stocks_growth": 0.5874,
+          "btc_digital_credit": 0.3874,
+          "stocks_growth": 0.5811,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -2785,6 +2785,58 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
       },
       "recent_decisions": [
+        {
+          "kind": "hold",
+          "outcome": "hold",
+          "need_llm": false,
+          "path": "rules",
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "nav_usd": 178.2426,
+          "buying_power_usd": 0.09,
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "rationale": {
+            "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+            "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+            "thesis_tags": [
+              "rules_engine",
+              "modernized_60_40"
+            ]
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "observe",
+              "note": "NAV $178.24 BP $0.09 cash $0.09"
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "deployed BTC 0.4 stocks 0.6"
+            },
+            "risk": {
+              "vote": "ok",
+              "note": "Agentic capital only; no trade if hold"
+            },
+            "critic": {
+              "vote": "ok",
+              "note": "Hold preferred when bands ok \u2014 avoid churn"
+            },
+            "executor": {
+              "vote": "hold",
+              "note": "No MCP orders on pure rules HOLD"
+            }
+          },
+          "actions": [],
+          "as_of": "2026-08-07T13:43:49.306879+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "kind": "hold",
           "outcome": "hold",
@@ -5485,58 +5537,6 @@
           "mcp_available": false,
           "notes": "Yahoo marks ~11:42 ET: MSTR 94.73 MARA 11.79 TSLA 323.03 SPCX 111.285 BITA 51.875 IREN 39.06 CLSK 14.45 STRC 92.07 SATA 97.30. BTC-USD ~63799.",
           "schema_version": 1
-        },
-        {
-          "kind": "deploy",
-          "outcome": "need_llm",
-          "need_llm": true,
-          "path": "rules",
-          "summary": "Rules \u2192 need team/LLM: free capital cash $0.09 BP $0.09 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-          "nav_usd": 177.2362,
-          "buying_power_usd": 0.09,
-          "weights_before": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "weights_after_expected": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6
-          },
-          "rationale": {
-            "summary": "Rules \u2192 need team/LLM: free capital cash $0.09 BP $0.09 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-            "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
-            "thesis_tags": [
-              "rules_engine",
-              "modernized_60_40"
-            ]
-          },
-          "team_votes": {
-            "scout": {
-              "vote": "observe",
-              "note": "NAV $177.24 BP $0.09 cash $0.09"
-            },
-            "thesis": {
-              "vote": "ok",
-              "note": "deployed BTC 0.4 stocks 0.6"
-            },
-            "risk": {
-              "vote": "review",
-              "note": "Agentic capital only; no trade if hold"
-            },
-            "critic": {
-              "vote": "challenge",
-              "note": "Hold preferred when bands ok \u2014 avoid churn"
-            },
-            "executor": {
-              "vote": "await_team",
-              "note": "No MCP orders on pure rules HOLD"
-            }
-          },
-          "actions": [],
-          "as_of": "2026-08-03T15:41:11.337204+00:00",
-          "schema_version": 1,
-          "account_scope": "agentic_only"
         }
       ],
       "policy_summary": {
@@ -5581,25 +5581,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-07T11:03:14.394201+00:00",
+    "as_of": "2026-08-07T14:05:38.278777+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-07T11:03:14.391341+00:00",
+      "as_of": "2026-08-07T14:05:38.275921+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 178.2426,
+      "nav_usd": 180.1779,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3916,
-        "stocks_growth": 0.5874,
+        "btc_digital_credit": 0.3874,
+        "stocks_growth": 0.5811,
         "other": 0.0,
         "cash": 0.0005
       },
@@ -5862,6 +5862,58 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
     },
     "recent_decisions": [
+      {
+        "kind": "hold",
+        "outcome": "hold",
+        "need_llm": false,
+        "path": "rules",
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+        "nav_usd": 178.2426,
+        "buying_power_usd": 0.09,
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "rationale": {
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+          "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+          "thesis_tags": [
+            "rules_engine",
+            "modernized_60_40"
+          ]
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "observe",
+            "note": "NAV $178.24 BP $0.09 cash $0.09"
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "deployed BTC 0.4 stocks 0.6"
+          },
+          "risk": {
+            "vote": "ok",
+            "note": "Agentic capital only; no trade if hold"
+          },
+          "critic": {
+            "vote": "ok",
+            "note": "Hold preferred when bands ok \u2014 avoid churn"
+          },
+          "executor": {
+            "vote": "hold",
+            "note": "No MCP orders on pure rules HOLD"
+          }
+        },
+        "actions": [],
+        "as_of": "2026-08-07T13:43:49.306879+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "kind": "hold",
         "outcome": "hold",
@@ -8562,58 +8614,6 @@
         "mcp_available": false,
         "notes": "Yahoo marks ~11:42 ET: MSTR 94.73 MARA 11.79 TSLA 323.03 SPCX 111.285 BITA 51.875 IREN 39.06 CLSK 14.45 STRC 92.07 SATA 97.30. BTC-USD ~63799.",
         "schema_version": 1
-      },
-      {
-        "kind": "deploy",
-        "outcome": "need_llm",
-        "need_llm": true,
-        "path": "rules",
-        "summary": "Rules \u2192 need team/LLM: free capital cash $0.09 BP $0.09 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-        "nav_usd": 177.2362,
-        "buying_power_usd": 0.09,
-        "weights_before": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "weights_after_expected": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6
-        },
-        "rationale": {
-          "summary": "Rules \u2192 need team/LLM: free capital cash $0.09 BP $0.09 (any >$0 triggers; min_trade $1.00 for dust tickets)",
-          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
-          "why_not_alternatives": "Quorum team should debate size/names; Executor only places after OK.",
-          "thesis_tags": [
-            "rules_engine",
-            "modernized_60_40"
-          ]
-        },
-        "team_votes": {
-          "scout": {
-            "vote": "observe",
-            "note": "NAV $177.24 BP $0.09 cash $0.09"
-          },
-          "thesis": {
-            "vote": "ok",
-            "note": "deployed BTC 0.4 stocks 0.6"
-          },
-          "risk": {
-            "vote": "review",
-            "note": "Agentic capital only; no trade if hold"
-          },
-          "critic": {
-            "vote": "challenge",
-            "note": "Hold preferred when bands ok \u2014 avoid churn"
-          },
-          "executor": {
-            "vote": "await_team",
-            "note": "No MCP orders on pure rules HOLD"
-          }
-        },
-        "actions": [],
-        "as_of": "2026-08-03T15:41:11.337204+00:00",
-        "schema_version": 1,
-        "account_scope": "agentic_only"
       }
     ],
     "policy_summary": {
