@@ -1,12 +1,31 @@
 {
-  "version": 8,
+  "version": 9,
   "as_of": "2026-08-07",
-  "title": "Capital flows — income to channels",
-  "notes": "Income (Turo/Lyft/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays).",
+  "title": "Capital flows — income → liquidity → expense",
+  "notes": "Income landings: Turo → X Money (Turo cannot deposit to Coinbase); Lyft + ASICs → Coinbase. Middle column is Liquidity & Collateral (X Money · Coinbase · Agentic fund). Coinbase still hosts the Morpho path internally (BTC collateral → borrow USDC → High Yield vault) — collapsed on the map, not separate nodes. Expense: One Card + Bills. Agentic funded weekly Mon from X Money.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
     "inferred": "Implied by strategy"
+  },
+  "layout": {
+    "columns": [
+      {
+        "id": "income",
+        "label": "Income",
+        "ids": ["turo", "lyft", "asics"]
+      },
+      {
+        "id": "liquidity",
+        "label": "Liquidity & Collateral",
+        "ids": ["x_money", "coinbase", "rh_agentic"]
+      },
+      {
+        "id": "expense",
+        "label": "Expense",
+        "ids": ["one_card", "bills_xm"]
+      }
+    ]
   },
   "income_sources": [
     {
@@ -14,8 +33,8 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts deposit to Coinbase. Cadence semi-daily (rental activity).",
-      "typical_landing": "coinbase",
+      "evidence": "Payouts deposit to X Money (Coinbase not supported as direct Turo payout). Cadence semi-daily.",
+      "typical_landing": "x_money",
       "cadence": "semi_daily"
     },
     {
@@ -23,7 +42,7 @@
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Default weekly payout to Coinbase (same Morpho/BTC path).",
+      "evidence": "Default weekly payout to Coinbase (Morpho/BTC path internal to CB).",
       "typical_landing": "coinbase",
       "cadence": "weekly"
     },
@@ -51,53 +70,19 @@
   },
   "channels": [
     {
-      "id": "coinbase",
-      "label": "Coinbase",
-      "kind": "venue",
-      "subtitle": "All primary income lands here",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_btc",
-      "label": "BTC (spot)",
-      "kind": "invest",
-      "subtitle": "Auto-allocated from income cash",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_morpho_collateral",
-      "label": "Morpho BTC collateral",
-      "kind": "leverage",
-      "subtitle": "BTC pledged for USDC loan",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_usdc_borrow",
-      "label": "USDC (borrowed)",
-      "kind": "leverage",
-      "subtitle": "Morpho loan proceeds",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_vault",
-      "label": "High Yield USDC vault",
-      "kind": "yield",
-      "subtitle": "All Morpho USDC parks here",
-      "confidence": "observed"
-    },
-    {
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
-      "subtitle": "~6% APY · primary vault draw",
-      "confidence": "observed"
+      "subtitle": "~6% APY · Turo land + ops cash",
+      "confidence": "owner_stated"
     },
     {
-      "id": "one_card",
-      "label": "One Card",
-      "kind": "credit",
-      "subtitle": "Secondary · from vault",
-      "confidence": "observed"
+      "id": "coinbase",
+      "label": "Coinbase",
+      "kind": "venue",
+      "subtitle": "Lyft/ASICs · Morpho path internal",
+      "confidence": "owner_stated",
+      "notes": "Internal (not separate map nodes): BTC spot → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault draws to X Money (primary) and One Card (secondary)."
     },
     {
       "id": "rh_agentic",
@@ -105,6 +90,13 @@
       "kind": "invest",
       "subtitle": "40/60 · funded Mon via X Money",
       "confidence": "owner_stated"
+    },
+    {
+      "id": "one_card",
+      "label": "One Card",
+      "kind": "credit",
+      "subtitle": "Card float · secondary from CB vault",
+      "confidence": "observed"
     },
     {
       "id": "bills_xm",
@@ -118,10 +110,11 @@
   "edges": [
     {
       "from": "turo",
-      "to": "coinbase",
-      "label": "Intermittent",
+      "to": "x_money",
+      "label": "Semi-Daily",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Owner 2026-08-07: Turo cannot deposit directly to Coinbase"
     },
     {
       "from": "lyft",
@@ -133,50 +126,23 @@
     {
       "from": "asics",
       "to": "coinbase",
-      "label": "~Monthly",
+      "label": "Every other month",
       "confidence": "owner_stated",
       "weight": 4,
       "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py)"
     },
     {
       "from": "coinbase",
-      "to": "cb_btc",
-      "label": "Auto → BTC",
-      "confidence": "owner_stated",
-      "weight": 5
-    },
-    {
-      "from": "cb_btc",
-      "to": "cb_morpho_collateral",
-      "label": "Add collateral",
-      "confidence": "owner_stated",
-      "weight": 5
-    },
-    {
-      "from": "cb_morpho_collateral",
-      "to": "cb_usdc_borrow",
-      "label": "Borrow USDC",
-      "confidence": "owner_stated",
-      "weight": 4
-    },
-    {
-      "from": "cb_usdc_borrow",
-      "to": "cb_vault",
-      "label": "Park all USDC",
-      "confidence": "owner_stated",
-      "weight": 5
-    },
-    {
-      "from": "cb_vault",
       "to": "x_money",
-      "label": "Primary draw",
+      "label": "Primary vault draw",
       "confidence": "owner_stated",
-      "weight": 5
+      "weight": 5,
+      "notes": "Morpho USDC vault → X Money (collapsed Morpho stack lives inside Coinbase)"
     },
     {
-      "from": "cb_vault",
+      "from": "coinbase",
       "to": "one_card",
-      "label": "Secondary · card/deposit",
+      "label": "Secondary · card",
       "confidence": "owner_stated",
       "weight": 2
     },
@@ -199,7 +165,8 @@
   ],
   "open_questions": [
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
-    "Morpho LTV targets when income adds collateral",
-    "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights"
+    "Morpho LTV targets when income adds collateral (path still live inside CB; not on map)",
+    "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
+    "Does any Turo residual move X Money → Coinbase for Morpho collateral, or stay pure ops cash?"
   ]
 }

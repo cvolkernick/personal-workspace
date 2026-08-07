@@ -247,7 +247,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: income → Coinbase/Morpho path → cash/credit → uses.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Liquidity &amp; Collateral</strong> → <strong>Expense</strong>. Morpho stack is internal to Coinbase (not separate nodes).</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -266,20 +266,18 @@
           <h3>Node border colors (channel type)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Turo, Lyft, ASICs</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase hub</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC, agentic book</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho collateral / USDC borrow</span></div></div>
-            <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — High Yield USDC vault</span></div></div>
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money, RH Checking</span></div></div>
+            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money</span></div></div>
+            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase (Morpho path internal)</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Agentic fund</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (incl. ASIC OpEx/capex)</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (fleet · ASIC OpEx/capex)</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc">Columns left → right: <strong>Income</strong> · <strong>Coinbase / Morpho path</strong> · <strong>Cash / credit / invest</strong> · <strong>Uses</strong></span></div>
-            <div class="leg-item"><span class="desc">Arrowheads show direction of capital. Labels on lines are path names (e.g. Express pay).</span></div>
+            <div class="leg-item"><span class="desc">Columns: <strong>Income</strong> · <strong>Liquidity &amp; Collateral</strong> · <strong>Expense</strong></span></div>
+            <div class="leg-item"><span class="desc">Landings: Turo → X Money · Lyft/ASICs → Coinbase. Arrow labels are path names / cadences.</span></div>
           </div>
         </div>
       </div>
@@ -336,25 +334,19 @@
     }
 
     function layoutNodes(data) {
-      // Fixed columns: income → Coinbase stack → cash/credit → uses
-      const cols = {
-        income: { x: 30, ids: ["turo", "lyft", "asics"] },
-        cb_stack: {
-          x: 250,
-          ids: [
-            "coinbase",
-            "cb_btc",
-            "cb_morpho_collateral",
-            "cb_usdc_borrow",
-            "cb_vault",
-          ],
-        },
-        cash: { x: 500, ids: ["one_card", "x_money", "rh_agentic"] },
-        uses: {
-          x: 750,
-          ids: ["bills_xm"],
-        },
-      };
+      // Prefer model layout (v9+): Income → Liquidity & Collateral → Expense
+      const layoutCols =
+        (data.layout && data.layout.columns) ||
+        [
+          { id: "income", label: "Income", ids: ["turo", "lyft", "asics"] },
+          {
+            id: "liquidity",
+            label: "Liquidity & Collateral",
+            ids: ["x_money", "coinbase", "rh_agentic"],
+          },
+          { id: "expense", label: "Expense", ids: ["one_card", "bills_xm"] },
+        ];
+      const xByIndex = [40, 360, 700];
       const byId = {};
       (data.income_sources || []).forEach((n) => {
         byId[n.id] = { ...n, layer: "income" };
@@ -364,27 +356,58 @@
       });
 
       const positions = {};
-      const colH = 580;
-      const top = 48;
-      Object.entries(cols).forEach(([key, col]) => {
-        const ids = col.ids.filter((id) => byId[id]);
+      const colMeta = {};
+      const colH = 520;
+      const top = 52;
+      const nodeW = 200;
+      layoutCols.forEach((col, ci) => {
+        const x = xByIndex[ci] != null ? xByIndex[ci] : 40 + ci * 320;
+        const ids = (col.ids || []).filter((id) => byId[id]);
+        colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
         ids.forEach((id, i) => {
           positions[id] = {
             ...byId[id],
-            x: col.x,
-            y: top + gap * i + gap * 0.12,
-            w: key === "cb_stack" ? 190 : 175,
-            h: 50,
+            x,
+            y: top + gap * i + gap * 0.15,
+            w: nodeW,
+            h: 54,
+            colIndex: ci,
           };
         });
       });
-      return { positions, colMeta: cols };
+      return { positions, colMeta, layoutCols };
+    }
+
+    function edgePath(a, b) {
+      // Same-column (e.g. X Money → Agentic): curve to the right then down/up
+      if (a.colIndex != null && a.colIndex === b.colIndex) {
+        const x1 = a.x + a.w * 0.85;
+        const y1 = a.y + a.h / 2;
+        const x2 = b.x + b.w * 0.85;
+        const y2 = b.y + b.h / 2;
+        const bulge = a.x + a.w + 48;
+        return {
+          d: `M ${x1} ${y1} C ${bulge} ${y1}, ${bulge} ${y2}, ${x2} ${y2}`,
+          lx: bulge + 4,
+          ly: (y1 + y2) / 2,
+        };
+      }
+      const x1 = a.x + a.w;
+      const y1 = a.y + a.h / 2;
+      const x2 = b.x;
+      const y2 = b.y + b.h / 2;
+      const mx = (x1 + x2) / 2;
+      return {
+        d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`,
+        lx: mx - 24,
+        ly: (y1 + y2) / 2 - 4,
+      };
     }
 
     function draw(data) {
       const svg = document.getElementById("flow-svg");
-      const { positions, colMeta } = layoutNodes(data);
+      const { positions, layoutCols } = layoutNodes(data);
       const W = 1000;
       const H = 620;
 
@@ -396,31 +419,24 @@
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#8aa0b5"/>
           </marker>
         </defs>
-        <text class="col-label" x="30" y="28">Income</text>
-        <text class="col-label" x="250" y="28">Coinbase · Morpho path</text>
-        <text class="col-label" x="500" y="28">Cash / credit / invest</text>
-        <text class="col-label" x="750" y="28">Uses</text>
       `;
+      layoutCols.forEach((col, ci) => {
+        const x = [40, 360, 700][ci] != null ? [40, 360, 700][ci] : 40 + ci * 320;
+        html += `<text class="col-label" x="${x}" y="28">${esc(col.label || col.id || "")}</text>`;
+      });
 
       // edges under nodes
       const edges = data.edges || [];
-      edges.forEach((e, idx) => {
+      edges.forEach((e) => {
         const a = positions[e.from];
         const b = positions[e.to];
         if (!a || !b) return;
-        const x1 = a.x + a.w;
-        const y1 = a.y + a.h / 2;
-        const x2 = b.x;
-        const y2 = b.y + b.h / 2;
-        const mx = (x1 + x2) / 2;
+        const { d, lx, ly } = edgePath(a, b);
         // Cap stroke so dash gaps stay visible (weight still differentiates importance)
         const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
         const conf = e.confidence || "inferred";
         const dashCls = e.dashed ? " explicit-dash" : "";
-        const path = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
-        html += `<path class="edge-path ${esc(conf)}${dashCls}" d="${path}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
-        const lx = mx - 20;
-        const ly = (y1 + y2) / 2 - 4;
+        html += `<path class="edge-path ${esc(conf)}${dashCls}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
         if (e.label) {
           html += `<text class="edge-label" x="${lx}" y="${ly}">${esc(e.label)}</text>`;
         }
