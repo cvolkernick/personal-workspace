@@ -1,12 +1,42 @@
 {
-  "version": 7,
-  "as_of": "2026-07-26",
-  "title": "Capital flows — income to channels",
-  "notes": "Income (Lyft/Turo/ASICs) → Coinbase → BTC → Morpho collateral → borrowed USDC → High Yield USDC vault. Vault outflows: primary → X Money, secondary → One Card. X Money funds Bills (fleet, ASIC OpEx/capex, loans…) and the Agentic fund (weekly Mondays).",
+  "version": 24,
+  "as_of": "2026-08-07",
+  "title": "Capital flows — income → digital credit → liquidity → deploy",
+  "notes": "Col 1 Income: three-line cards; Turo→Coinbase engine funnel (X Money on-card only). Col 2 Digital Credit: Coinbase → BTC → Morpho. Col 3 Liquidity Engine: Morpho fans to three sleeves. Col 4 Deploy priority: Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund (expense sheet MO). X Money→three expense buckets; USDG HY→Agentic Fund. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
     "inferred": "Implied by strategy"
+  },
+  "layout": {
+    "columns": [
+      {
+        "id": "income",
+        "label": "Income",
+        "ids": ["turo", "lyft", "asics"]
+      },
+      {
+        "id": "digital_credit",
+        "label": "Digital Credit",
+        "ids": ["coinbase", "cb_btc", "cb_morpho"]
+      },
+      {
+        "id": "liquidity_engine",
+        "label": "Liquidity Engine",
+        "ids": ["x_money", "usdc_hy", "usdg_hy"]
+      },
+      {
+        "id": "deploy",
+        "label": "Deploy",
+        "ids": [
+          "bills_essential",
+          "bills_productive",
+          "bills_consumer",
+          "one_card",
+          "rh_agentic"
+        ]
+      }
+    ]
   },
   "income_sources": [
     {
@@ -14,27 +44,30 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts deposit to Coinbase. Cadence intermittent / irregular (rental activity).",
-      "typical_landing": "coinbase",
-      "cadence": "intermittent"
+      "evidence": "First-touch ops land X Money (cannot direct-deposit to Coinbase). Map draws Turo→Coinbase for capitalization engine funnel; card still shows *X Money* italic + gray border.",
+      "typical_landing": "x_money",
+      "engine_target": "coinbase",
+      "cadence": "semi_daily"
     },
     {
       "id": "lyft",
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Default weekly payout to Coinbase (same Morpho/BTC path).",
+      "evidence": "Weekly payout lands on Coinbase — enters Digital Credit engine directly.",
       "typical_landing": "coinbase",
+      "engine_target": "coinbase",
       "cadence": "weekly"
     },
     {
       "id": "asics",
-      "label": "ASICs (mining revenue)",
+      "label": "ASICs",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Payouts to Coinbase; ~monthly. Pool: Braiins. Owner threshold 0.01 BTC (was 0.005; raised 2026-08-05).",
+      "evidence": "Every other month to Coinbase (Braiins). Owner threshold 0.01 BTC. Enters Digital Credit engine directly.",
       "typical_landing": "coinbase",
-      "cadence": "approx_monthly_to_bimonthly_at_0.01_threshold",
+      "engine_target": "coinbase",
+      "cadence": "every_other_month",
       "pool": "braiins",
       "payout_threshold_btc": 0.01
     }
@@ -43,7 +76,7 @@
     "braiins_pool": {
       "status": "ready",
       "purpose": "Read ASIC hashrate / payout stats directly instead of inferring from Coinbase deposits",
-      "notes": "Sync via treasury/braiins_sync.py → treasury/snapshots/braiins_latest.json. Token: ~/.config/braiins/token or BRAIINS_POOL_TOKEN. Create at pool.braiins.com → Settings → Access Profiles → Allow web APIs → Generate token. Account payout threshold: treasury/config.json braiins.payout_threshold_btc (0.01 as of 2026-08-05).",
+      "notes": "Sync via treasury/braiins_sync.py → treasury/snapshots/braiins_latest.json. Token: ~/.config/braiins/token or BRAIINS_POOL_TOKEN. Account payout threshold: treasury/config.json braiins.payout_threshold_btc (0.01 as of 2026-08-05).",
       "sync_command": "python3 treasury/braiins_sync.py",
       "cadence_hint": "Poll daily or after expected payout window; FCC capital-flows reads braiins_latest.json live strip",
       "payout_threshold_btc": 0.01
@@ -54,152 +87,182 @@
       "id": "coinbase",
       "label": "Coinbase",
       "kind": "venue",
-      "subtitle": "All primary income lands here",
-      "confidence": "owner_stated"
+      "subtitle": "Income funnel · engine entry",
+      "confidence": "owner_stated",
+      "notes": "Central hub: all income streams target CB for capitalization (Turo via X Money hop)."
     },
     {
       "id": "cb_btc",
       "label": "BTC (spot)",
       "kind": "invest",
-      "subtitle": "Auto-allocated from income cash",
+      "subtitle": "Buy BTC from income cash",
       "confidence": "owner_stated"
     },
     {
-      "id": "cb_morpho_collateral",
-      "label": "Morpho BTC collateral",
+      "id": "cb_morpho",
+      "label": "Morpho · BTC loan",
       "kind": "leverage",
-      "subtitle": "BTC pledged for USDC loan",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_usdc_borrow",
-      "label": "USDC (borrowed)",
-      "kind": "leverage",
-      "subtitle": "Morpho loan proceeds",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "cb_vault",
-      "label": "High Yield USDC vault",
-      "kind": "yield",
-      "subtitle": "All Morpho USDC parks here",
-      "confidence": "observed"
+      "subtitle": "Collateralize BTC · borrow USDC",
+      "confidence": "owner_stated",
+      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC fans out to X Money, USDC HY, and USDG HY (Liquidity Engine)."
     },
     {
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
-      "subtitle": "~6% APY · primary vault draw",
-      "confidence": "observed"
+      "stroke": "liq-gray",
+      "subtitle": "~6% APY · Turo land + ops",
+      "confidence": "owner_stated",
+      "notes": "Liquidity Engine cash sleeve (gray border) — Turo first-touch + Morpho USDC share + ops float."
+    },
+    {
+      "id": "usdc_hy",
+      "label": "USDC High Yield",
+      "kind": "yield",
+      "stroke": "liq-blue",
+      "subtitle": "Idle Morpho USDC",
+      "confidence": "owner_stated",
+      "notes": "Blue border. Morpho-borrowed USDC park sleeve."
+    },
+    {
+      "id": "usdg_hy",
+      "label": "USDG High Yield",
+      "kind": "yield",
+      "stroke": "liq-green",
+      "subtitle": "Idle Morpho → USDG yield",
+      "confidence": "owner_stated",
+      "notes": "Green border. Morpho USDC path into USDG high-yield sleeve."
+    },
+    {
+      "id": "rh_agentic",
+      "label": "Agentic Fund",
+      "kind": "invest",
+      "subtitle": "40/60 · funded via USDG HY",
+      "confidence": "owner_stated"
     },
     {
       "id": "one_card",
       "label": "One Card",
       "kind": "credit",
-      "subtitle": "Secondary · from vault",
+      "subtitle": "Card float · from vault/CB",
       "confidence": "observed"
     },
     {
-      "id": "rh_agentic",
-      "label": "Agentic fund",
-      "kind": "invest",
-      "subtitle": "40/60 · funded Mon via X Money",
-      "confidence": "owner_stated"
+      "id": "bills_essential",
+      "label": "Essential",
+      "kind": "expense",
+      "subtitle": "Personal · must-pay bills",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Personal / essential burn — priority over discretionary. Funded via X Money ops."
     },
     {
-      "id": "bills_xm",
-      "label": "Bills",
+      "id": "bills_productive",
+      "label": "Productive Discretionary",
       "kind": "expense",
-      "subtitle": "Fleet · ASIC OpEx/capex · loans…",
-      "confidence": "observed",
-      "notes": "Includes ASIC fleet OpEx and hardware (capex) — both treated as bills funded via X Money"
+      "subtitle": "Capex · grow assets",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base (ASICs, fleet, etc.). Priority over consumer wishlist."
+    },
+    {
+      "id": "bills_consumer",
+      "label": "Consumer Discretionary",
+      "kind": "expense",
+      "subtitle": "Wishlist · after productive",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Consumer Discretionary — consumer goods / personal wishlist; lower priority than Productive."
     }
   ],
   "edges": [
     {
       "from": "turo",
       "to": "coinbase",
-      "label": "Intermittent",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Engine funnel (not first-touch ACH). Card shows X Money italic."
     },
     {
       "from": "lyft",
       "to": "coinbase",
-      "label": "Weekly",
       "confidence": "owner_stated",
       "weight": 4
     },
     {
       "from": "asics",
       "to": "coinbase",
-      "label": "~Monthly",
       "confidence": "owner_stated",
-      "weight": 4,
-      "notes": "Braiins pool → Coinbase (sync: treasury/braiins_sync.py)"
+      "weight": 4
     },
     {
       "from": "coinbase",
       "to": "cb_btc",
-      "label": "Auto → BTC",
       "confidence": "owner_stated",
       "weight": 5
     },
     {
       "from": "cb_btc",
-      "to": "cb_morpho_collateral",
-      "label": "Add collateral",
+      "to": "cb_morpho",
       "confidence": "owner_stated",
       "weight": 5
     },
     {
-      "from": "cb_morpho_collateral",
-      "to": "cb_usdc_borrow",
-      "label": "Borrow USDC",
+      "from": "cb_morpho",
+      "to": "x_money",
       "confidence": "owner_stated",
       "weight": 4
     },
     {
-      "from": "cb_usdc_borrow",
-      "to": "cb_vault",
-      "label": "Park all USDC",
+      "from": "cb_morpho",
+      "to": "usdc_hy",
       "confidence": "owner_stated",
-      "weight": 5
+      "weight": 4
     },
     {
-      "from": "cb_vault",
-      "to": "x_money",
-      "label": "Primary draw",
+      "from": "cb_morpho",
+      "to": "usdg_hy",
       "confidence": "owner_stated",
-      "weight": 5
+      "weight": 4
     },
     {
-      "from": "cb_vault",
+      "from": "usdc_hy",
       "to": "one_card",
-      "label": "Secondary · card/deposit",
       "confidence": "owner_stated",
       "weight": 2
     },
     {
       "from": "x_money",
-      "to": "bills_xm",
-      "label": "Bills · fleet · ASICs",
-      "confidence": "observed",
+      "to": "bills_essential",
+      "confidence": "owner_stated",
       "weight": 4,
-      "notes": "ASIC OpEx and hardware/capex roll into Bills"
+      "notes": "Essential / Personal bills from X Money — highest spend priority."
     },
     {
       "from": "x_money",
-      "to": "rh_agentic",
-      "label": "Weekly Mon",
+      "to": "bills_productive",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Agentic fund funded by X Money transfers every Monday"
+      "notes": "Productive Discretionary funded after essentials."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_consumer",
+      "confidence": "owner_stated",
+      "weight": 2,
+      "notes": "Consumer Discretionary funded last among expense buckets."
+    },
+    {
+      "from": "usdg_hy",
+      "to": "rh_agentic",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "Agentic Fund funded from USDG High Yield."
     }
   ],
   "open_questions": [
     "Auto-BTC: % of each Coinbase deposit converted vs held as USD/USDC",
     "Morpho LTV targets when income adds collateral",
-    "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights"
+    "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
+    "Turo: map arrow is Turo→Coinbase (engine); first-touch ACH still X Money on-card — confirm residual ops vs capitalization split",
+    "Morpho USDC split across X Money / USDC HY / USDG HY — target weights?",
+    "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics"
   ]
 }

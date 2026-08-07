@@ -17,14 +17,11 @@
       --yellow: #f5c542;
       --red: #ff6b6b;
       --accent: #5b9fd4;
-      --income: #5b9fd4;
       --cash: #3dd68c;
       --credit: #f0a06a;
       --venue: #7c9cff;
-      --yield: #b5d47a;
       --invest: #c9a0ff;
       --expense: #ff8e8e;
-      --capex: #f5c542;
       --leverage: #e6a0c8;
     }
     * { box-sizing: border-box; }
@@ -78,7 +75,6 @@
     }
     .pill.observed { color: var(--green); border-color: #245c42; }
     .pill.inferred { color: var(--yellow); border-color: #6b5a1e; }
-    .pill.planned { color: var(--accent); border-color: #2a4a6a; }
     .pill.owner_stated { color: #c9a0ff; border-color: #5a3a7a; }
     .error {
       background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
@@ -92,24 +88,35 @@
       background: #0d141c;
       padding: 0.5rem;
     }
-    svg.flow-svg { display: block; min-width: 980px; width: 100%; height: auto; }
+    svg.flow-svg { display: block; min-width: 1180px; width: 100%; height: auto; }
     .node-box {
       fill: #15202c;
       stroke: var(--border);
       stroke-width: 1.2;
       rx: 10;
     }
-    .node-box.income { stroke: var(--income); }
-    .node-box.cash { stroke: var(--cash); }
+    /* Active borders only: liquidity palette + kinds still used on map nodes */
+    .node-box.liq-gray {
+      stroke: #7a8694;
+      stroke-width: 2;
+    }
+    .node-box.liq-blue {
+      stroke: var(--venue);
+      stroke-width: 2;
+    }
+    .node-box.liq-green {
+      stroke: var(--cash);
+      stroke-width: 2;
+    }
     .node-box.credit { stroke: var(--credit); }
     .node-box.venue { stroke: var(--venue); }
-    .node-box.yield { stroke: var(--yield); }
     .node-box.invest { stroke: var(--invest); }
     .node-box.expense { stroke: var(--expense); }
-    .node-box.capex { stroke: var(--capex); }
     .node-box.leverage { stroke: var(--leverage); }
     .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
     .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
+    /* Income third row: payout channel name (italic) */
+    .node-landing { fill: var(--muted); font-size: 9px; font-style: italic; font-family: inherit; }
     /* butt caps on dashed edges — round + thick stroke collapses short gaps to solid */
     .edge-path {
       fill: none;
@@ -125,18 +132,11 @@
       stroke: #f5c542;
       stroke-dasharray: 9 7;
     }
-    .edge-path.planned {
-      stroke: #5b9fd4;
-      stroke-dasharray: 3 6;
-    }
     .edge-path.owner_stated {
       stroke: #c9a0ff;
       stroke-dasharray: 10 8;
     }
-    /* explicit exception paths (e.g. Lyft express) — denser dashes on top of confidence color */
-    .edge-path.explicit-dash {
-      stroke-dasharray: 5 7;
-    }
+    /* Live strip + optional labels (labels off by default in model) */
     .edge-label {
       fill: var(--muted);
       font-size: 9px;
@@ -188,15 +188,14 @@
       border: 2px solid var(--border);
       flex-shrink: 0;
     }
-    .swatch-node.income { border-color: var(--income); }
-    .swatch-node.cash { border-color: var(--cash); }
     .swatch-node.credit { border-color: var(--credit); }
     .swatch-node.venue { border-color: var(--venue); }
-    .swatch-node.yield { border-color: var(--yield); }
     .swatch-node.invest { border-color: var(--invest); }
     .swatch-node.expense { border-color: var(--expense); }
-    .swatch-node.capex { border-color: var(--capex); }
     .swatch-node.leverage { border-color: var(--leverage); }
+    .swatch-node.liq-gray { border-color: #7a8694; }
+    .swatch-node.liq-blue { border-color: var(--venue); }
+    .swatch-node.liq-green { border-color: var(--cash); }
     .swatch-line {
       width: 36px; height: 0;
       border-top: 3px solid #3dd68c;
@@ -205,7 +204,6 @@
     }
     .swatch-line.observed { border-top-color: #3dd68c; border-top-style: solid; }
     .swatch-line.inferred { border-top-color: #f5c542; border-top-style: dashed; }
-    .swatch-line.planned { border-top-color: #5b9fd4; border-top-style: dotted; border-top-width: 3px; }
     .swatch-line.owner_stated { border-top-color: #c9a0ff; border-top-style: dashed; }
     .swatch-line.thick { border-top-width: 5px; }
     .swatch-line.thin { border-top-width: 1.5px; }
@@ -247,39 +245,38 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: income → Coinbase/Morpho path → cash/credit → uses.</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund). No edge text labels.</p>
       <div class="flow-wrap">
-        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1000 620" role="img" aria-label="Capital flow diagram"></svg>
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
         <div>
           <h3>Connecting lines (confidence)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-line observed"></span><div><strong>Observed</strong><br/><span class="desc">Solid green — seen in YNAB / sheet</span></div></div>
-            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you (not yet in YNAB/sheet)</span></div></div>
+            <div class="leg-item"><span class="swatch-line owner_stated"></span><div><strong>Owner stated</strong><br/><span class="desc">Dashed purple — confirmed by you</span></div></div>
             <div class="leg-item"><span class="swatch-line inferred"></span><div><strong>Inferred</strong><br/><span class="desc">Dashed yellow — strategy-implied</span></div></div>
-            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker line</strong><br/><span class="desc">Higher relative importance (not $)</span></div></div>
-            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner line</strong><br/><span class="desc">Secondary / optional path</span></div></div>
+            <div class="leg-item"><span class="swatch-line thick observed"></span><div><strong>Thicker</strong><br/><span class="desc">Higher relative weight</span></div></div>
+            <div class="leg-item"><span class="swatch-line thin observed"></span><div><strong>Thinner</strong><br/><span class="desc">Secondary path</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Node border colors (channel type)</h3>
+          <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="swatch-node income"></span><div><strong>Income</strong><span class="desc"> — Lyft, Turo, ASICs</span></div></div>
-            <div class="leg-item"><span class="swatch-node venue"></span><div><strong>Venue</strong><span class="desc"> — Coinbase hub</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC, agentic book</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho collateral / USDC borrow</span></div></div>
-            <div class="leg-item"><span class="swatch-node yield"></span><div><strong>Yield</strong><span class="desc"> — High Yield USDC vault</span></div></div>
-            <div class="leg-item"><span class="swatch-node cash"></span><div><strong>Cash</strong><span class="desc"> — X Money, RH Checking</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic Fund</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills (incl. ASIC OpEx/capex)</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Bills</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc">Columns left → right: <strong>Income</strong> · <strong>Coinbase / Morpho path</strong> · <strong>Cash / credit / invest</strong> · <strong>Uses</strong></span></div>
-            <div class="leg-item"><span class="desc">Arrowheads show direction of capital. Labels on lines are path names (e.g. Express pay).</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Essential → Productive Disc. → Consumer Disc. → One Card → Agentic Fund)</span></div>
+            <div class="leg-item"><span class="desc">Expense buckets match sheet MO. No text on connecting lines. DC→LE only Morpho → three liquidity cards.</span></div>
           </div>
         </div>
       </div>
@@ -336,57 +333,145 @@
     }
 
     function layoutNodes(data) {
-      // Fixed columns: income → Coinbase stack → cash/credit → uses
-      const cols = {
-        income: { x: 30, ids: ["lyft", "turo", "asics"] },
-        cb_stack: {
-          x: 250,
-          ids: [
-            "coinbase",
-            "cb_btc",
-            "cb_morpho_collateral",
-            "cb_usdc_borrow",
-            "cb_vault",
-          ],
-        },
-        cash: { x: 500, ids: ["one_card", "x_money", "rh_agentic"] },
-        uses: {
-          x: 750,
-          ids: ["bills_xm"],
-        },
-      };
+      // Prefer model layout: Income → Digital Credit → Liquidity Engine → Deploy
+      const layoutCols =
+        (data.layout && data.layout.columns) ||
+        [
+          { id: "income", label: "Income", ids: ["turo", "lyft", "asics"] },
+          {
+            id: "digital_credit",
+            label: "Digital Credit",
+            ids: ["coinbase", "cb_btc", "cb_morpho"],
+          },
+          {
+            id: "liquidity_engine",
+            label: "Liquidity Engine",
+            ids: ["x_money", "usdc_hy", "usdg_hy"],
+          },
+          {
+            id: "deploy",
+            label: "Deploy",
+            ids: [
+              "bills_essential",
+              "bills_productive",
+              "bills_consumer",
+              "one_card",
+              "rh_agentic",
+            ],
+          },
+        ];
+      // Four columns — keep node width readable; SVG width scales with count
+      const colCount = Math.max(layoutCols.length, 1);
+      const nodeW = colCount >= 4 ? 185 : 200;
+      const colGap = colCount >= 4 ? 250 : 320;
+      const leftPad = 28;
+      const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
       const byId = {};
-      (data.income_sources || []).forEach((n) => {
-        byId[n.id] = { ...n, layer: "income" };
-      });
       (data.channels || []).forEach((n) => {
-        byId[n.id] = { ...n, layer: n.kind };
+        // Explicit stroke (e.g. liq-gray) overrides kind-based border
+        byId[n.id] = {
+          ...n,
+          layer: n.kind,
+          strokeKind: n.stroke || n.kind || "venue",
+        };
+      });
+      // Income cards: border matches landing channel stroke/kind (Turo→X Money gray, etc.)
+      (data.income_sources || []).forEach((n) => {
+        const landing = byId[n.typical_landing];
+        const landingLabel =
+          (landing && landing.label) || n.landing_label || n.typical_landing || "";
+        const strokeKind =
+          (landing && landing.stroke) ||
+          (landing && landing.strokeKind) ||
+          (landing && landing.kind) ||
+          "venue";
+        byId[n.id] = {
+          ...n,
+          layer: "income",
+          strokeKind,
+          landingLabel,
+        };
       });
 
       const positions = {};
-      const colH = 580;
-      const top = 48;
-      Object.entries(cols).forEach(([key, col]) => {
-        const ids = col.ids.filter((id) => byId[id]);
+      const colMeta = {};
+      const colH = 560;
+      const top = 52;
+      layoutCols.forEach((col, ci) => {
+        const x = xByIndex[ci] != null ? xByIndex[ci] : leftPad + ci * colGap;
+        const ids = (col.ids || []).filter((id) => byId[id]);
+        colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
+        // Dense columns (5 deploy cards): slightly shorter nodes so gaps stay readable
+        const dense = ids.length >= 5;
         ids.forEach((id, i) => {
+          const node = byId[id];
+          // Income cards need room for title + cadence + italic landing channel
+          const isIncome = node && node.layer === "income";
+          const h = isIncome ? 68 : dense ? 48 : 54;
           positions[id] = {
-            ...byId[id],
-            x: col.x,
-            y: top + gap * i + gap * 0.12,
-            w: key === "cb_stack" ? 190 : 175,
-            h: 50,
+            ...node,
+            x,
+            y: top + gap * i + gap * 0.1,
+            w: nodeW,
+            h,
+            colIndex: ci,
           };
         });
       });
-      return { positions, colMeta: cols };
+      const svgW = Math.max(
+        1000,
+        leftPad + (colCount - 1) * colGap + nodeW + 40
+      );
+      // Taller canvas when a column is dense
+      const svgH = Math.max(
+        620,
+        top + colH + 40
+      );
+      return { positions, colMeta, layoutCols, xByIndex, svgW, svgH };
+    }
+
+    function edgePath(a, b) {
+      // Same-column vertical (e.g. X Money → Agentic Fund): left-to-right S-curve
+      // from bottom of source card to top of target card
+      if (a.colIndex != null && a.colIndex === b.colIndex) {
+        const goingDown = b.y >= a.y;
+        const x1 = a.x + a.w / 2;
+        const y1 = goingDown ? a.y + a.h : a.y;
+        const x2 = b.x + b.w / 2;
+        const y2 = goingDown ? b.y : b.y + b.h;
+        // Left→right S: leave source rightward, then reverse into target top
+        const amp = Math.max(64, a.w * 0.42);
+        const dy = y2 - y1;
+        const c1x = x1 + amp;
+        const c1y = y1 + dy * 0.22;
+        const c2x = x2 - amp * 0.55;
+        const c2y = y2 - dy * 0.22;
+        return {
+          d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+          lx: x1 + amp * 0.55,
+          ly: (y1 + y2) / 2,
+        };
+      }
+      // Cross-column: support both left→right and reverse (e.g. X Money → Coinbase funnel)
+      const goingRight = b.x >= a.x;
+      const x1 = goingRight ? a.x + a.w : a.x;
+      const y1 = a.y + a.h / 2;
+      const x2 = goingRight ? b.x : b.x + b.w;
+      const y2 = b.y + b.h / 2;
+      const mx = (x1 + x2) / 2;
+      return {
+        d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`,
+        lx: mx - 24,
+        ly: (y1 + y2) / 2 - 4,
+      };
     }
 
     function draw(data) {
       const svg = document.getElementById("flow-svg");
-      const { positions, colMeta } = layoutNodes(data);
-      const W = 1000;
-      const H = 620;
+      const { positions, layoutCols, xByIndex, svgW, svgH } = layoutNodes(data);
+      const W = svgW || 1240;
+      const H = svgH || 620;
 
       // defs for arrows
       let html = `
@@ -396,54 +481,53 @@
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#8aa0b5"/>
           </marker>
         </defs>
-        <text class="col-label" x="30" y="28">Income</text>
-        <text class="col-label" x="250" y="28">Coinbase · Morpho path</text>
-        <text class="col-label" x="500" y="28">Cash / credit / invest</text>
-        <text class="col-label" x="750" y="28">Uses</text>
       `;
+      layoutCols.forEach((col, ci) => {
+        const x =
+          xByIndex && xByIndex[ci] != null ? xByIndex[ci] : 28 + ci * 250;
+        html += `<text class="col-label" x="${x}" y="28">${esc(col.label || col.id || "")}</text>`;
+      });
 
       // edges under nodes
       const edges = data.edges || [];
-      edges.forEach((e, idx) => {
+      edges.forEach((e) => {
         const a = positions[e.from];
         const b = positions[e.to];
         if (!a || !b) return;
-        const x1 = a.x + a.w;
-        const y1 = a.y + a.h / 2;
-        const x2 = b.x;
-        const y2 = b.y + b.h / 2;
-        const mx = (x1 + x2) / 2;
+        const { d } = edgePath(a, b);
         // Cap stroke so dash gaps stay visible (weight still differentiates importance)
         const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
         const conf = e.confidence || "inferred";
-        const dashCls = e.dashed ? " explicit-dash" : "";
-        const path = `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`;
-        html += `<path class="edge-path ${esc(conf)}${dashCls}" d="${path}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
-        const lx = mx - 20;
-        const ly = (y1 + y2) / 2 - 4;
-        if (e.label) {
-          html += `<text class="edge-label" x="${lx}" y="${ly}">${esc(e.label)}</text>`;
-        }
+        html += `<path class="edge-path ${esc(conf)}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
       });
 
       // nodes
       Object.values(positions).forEach((n) => {
-        const kind = n.kind || "venue";
-        const cadence =
-          n.cadence === "intermittent"
-            ? "Intermittent"
-            : n.cadence === "weekly"
-              ? "Weekly"
-              : n.cadence === "approx_monthly"
-                ? "~Monthly"
-                : "";
+        // Income: color by landing account; others by channel kind
+        const boxClass = n.strokeKind || n.kind || "venue";
+        // Cadence keys must be valid JS identifiers or quoted — dots in keys break the whole page.
+        const cadenceMap = {
+          intermittent: "Intermittent",
+          semi_daily: "Semi-Daily",
+          weekly: "Weekly",
+          approx_monthly: "~Monthly",
+          every_other_month: "Every other month",
+          bi_monthly: "Every other month",
+        };
+        const cadence = cadenceMap[n.cadence] || "";
         const sub = cadence
           ? cadence + (n.pool ? " · " + n.pool : "")
           : (n.subtitle || n.evidence || "").slice(0, 42);
+        // Income: bold title · cadence · italic first-touch channel (e.g. Turo / Semi-Daily / X Money)
+        const landingLine =
+          n.layer === "income" && n.landingLabel
+            ? `<text class="node-landing" x="10" y="54">${esc(n.landingLabel)}</text>`
+            : "";
         html += `<g transform="translate(${n.x},${n.y})">
-          <rect class="node-box ${esc(kind)}" width="${n.w}" height="${n.h}" />
+          <rect class="node-box ${esc(boxClass)}" width="${n.w}" height="${n.h}" />
           <text class="node-title" x="10" y="20">${esc(n.label)}</text>
           <text class="node-sub" x="10" y="38">${esc(sub)}</text>
+          ${landingLine}
         </g>`;
       });
 
