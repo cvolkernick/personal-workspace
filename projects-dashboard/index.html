@@ -401,10 +401,99 @@
     body.m-shell [data-m-panel] { display: none !important; }
     body.m-shell[data-m-active="status"] [data-m-panel="status"],
     body.m-shell[data-m-active="sprint"] [data-m-panel="sprint"],
+    body.m-shell[data-m-active="schedule"] [data-m-panel="schedule"],
     body.m-shell[data-m-active="plan"] [data-m-panel="plan"],
     body.m-shell[data-m-active="tasks"] [data-m-panel="tasks"],
     body.m-shell[data-m-active="repo"] [data-m-panel="repo"] {
       display: block !important;
+    }
+    /* —— Schedule / Process tab (#61) —— */
+    .proc-header {
+      display: grid; gap: 0.75rem;
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1rem;
+    }
+    .proc-header-top {
+      display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+      align-items: flex-start; justify-content: space-between;
+    }
+    .proc-table-wrap { overflow-x: auto; }
+    table.proc-table {
+      width: 100%; border-collapse: collapse; font-size: 0.88rem;
+    }
+    table.proc-table th, table.proc-table td {
+      text-align: left; padding: 0.55rem 0.65rem;
+      border-bottom: 1px solid var(--border); vertical-align: top;
+    }
+    table.proc-table th {
+      color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
+      letter-spacing: 0.04em; font-weight: 650;
+    }
+    table.proc-table tr:hover td { background: rgba(91,159,212,0.06); }
+    table.proc-table code {
+      font-size: 0.78rem; background: #0e151c; padding: 0.1rem 0.35rem;
+      border-radius: 4px; border: 1px solid var(--border);
+    }
+    .proc-status {
+      display: inline-block; font-size: 0.72rem; font-weight: 700;
+      padding: 0.12rem 0.45rem; border-radius: 999px; border: 1px solid var(--border);
+    }
+    .proc-status.active { color: var(--green); border-color: #245c42; }
+    .proc-status.inert { color: var(--muted); }
+    .proc-status.missing { color: var(--yellow); border-color: #6b5a1e; }
+    .proc-flow {
+      display: grid; gap: 0.65rem;
+    }
+    .proc-flow-nodes {
+      display: grid; gap: 0.55rem;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 800px) {
+      .proc-flow-nodes { grid-template-columns: repeat(3, 1fr); }
+    }
+    .proc-node {
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.7rem 0.85rem;
+    }
+    .proc-node.missing { opacity: 0.65; border-style: dashed; }
+    .proc-node .pn-name { font-weight: 700; margin-bottom: 0.25rem; }
+    .proc-edges { display: grid; gap: 0.35rem; margin-top: 0.5rem; }
+    .proc-edge {
+      font-size: 0.82rem; color: var(--muted);
+      padding: 0.35rem 0.5rem; background: #0e151c;
+      border-radius: 8px; border-left: 3px solid var(--accent);
+    }
+    .proc-edge strong { color: var(--text); font-weight: 650; }
+    .proc-week {
+      display: grid; gap: 0.45rem;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+    @media (max-width: 900px) {
+      .proc-week { grid-template-columns: 1fr 1fr; }
+    }
+    .proc-day {
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.5rem 0.55rem; min-height: 4.5rem;
+    }
+    .proc-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,159,212,0.25); }
+    .proc-day .d-head {
+      font-size: 0.72rem; color: var(--muted); font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.35rem;
+    }
+    .proc-day .d-ev {
+      font-size: 0.75rem; margin: 0.2rem 0; line-height: 1.25;
+    }
+    .proc-timeline { display: grid; gap: 0.4rem; }
+    .proc-tl-row {
+      display: grid; grid-template-columns: 7.5rem 1fr;
+      gap: 0.65rem; align-items: start;
+      padding: 0.4rem 0; border-bottom: 1px solid var(--border);
+      font-size: 0.86rem;
+    }
+    .proc-tl-row .t { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+    .proc-id {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem; color: var(--muted); word-break: break-all;
     }
     /* —— Sprint tab —— */
     .sprint-header {
@@ -623,6 +712,10 @@
       <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
       <span class="tab-count" id="sprint-tab-count" hidden>0</span>
     </button>
+    <button type="button" class="tab-btn" data-m-tab="schedule">
+      <span class="tab-ico" aria-hidden="true">⏱</span><span class="tab-lbl">Schedule</span>
+      <span class="tab-count" id="schedule-tab-count" hidden>0</span>
+    </button>
     <button type="button" class="tab-btn" data-m-tab="plan">
       <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
     </button>
@@ -646,6 +739,10 @@
 
     <section data-m-panel="sprint">
       <div id="sprint-root"><div class="empty">Loading sprint…</div></div>
+    </section>
+
+    <section data-m-panel="schedule">
+      <div id="schedule-root"><div class="empty">Loading schedule…</div></div>
     </section>
 
     <section data-m-panel="plan">
@@ -674,6 +771,9 @@
     </button>
     <button type="button" class="tab-btn" data-m-tab="sprint">
       <span class="tab-ico" aria-hidden="true">🔁</span><span class="tab-lbl">Sprint</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="schedule">
+      <span class="tab-ico" aria-hidden="true">⏱</span><span class="tab-lbl">Schedule</span>
     </button>
     <button type="button" class="tab-btn" data-m-tab="plan">
       <span class="tab-ico" aria-hidden="true">☰</span><span class="tab-lbl">Plan</span>
@@ -1654,7 +1754,7 @@
 
     // ── Tab shell (FitDash/FCC-style) ───────────────────────────────────
     window.__activeTab = window.__activeTab || "status";
-    const MAIN_TABS = ["status", "sprint", "plan", "tasks", "repo"];
+    const MAIN_TABS = ["status", "sprint", "schedule", "plan", "tasks", "repo"];
     function goTab(tab) {
       const t = tab || "status";
       window.__activeTab = t;
@@ -1673,6 +1773,7 @@
       } catch (_) {}
       if (t === "tasks") loadTasks();
       if (t === "sprint") loadSprint();
+      if (t === "schedule") loadSchedule();
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function initTabShell() {
@@ -1975,6 +2076,206 @@
         root.innerHTML = `<div class="error-banner show">${esc(e.message || e)}</div>`;
       } finally {
         window.__sprintState.loading = false;
+      }
+    }
+
+    // ── Schedule / Process tab (#61) ────────────────────────────────────
+    window.__scheduleState = window.__scheduleState || {
+      data: null,
+      loading: false,
+      includeInert: false,
+    };
+
+    function renderSchedule(data) {
+      const root = $("schedule-root");
+      if (!root) return;
+      if (!data || data.ok === false) {
+        root.innerHTML = `<div class="error-banner show">${esc(data?.error || "Failed to load schedule")}</div>`;
+        return;
+      }
+      const counts = data.counts || {};
+      const workflows = data.workflows || [];
+      const flow = data.process_flow || {};
+      const nodes = flow.nodes || [];
+      const edges = flow.edges || [];
+      const narrative = flow.narrative || [];
+      const week = data.week || [];
+      const dayTl = data.day_timeline || [];
+      const sourceLabel = data.source === "relay"
+        ? "Relay live"
+        : data.source === "snapshot"
+          ? "Cadence snapshot"
+          : (data.source || "—");
+      const snap = data.snapshot || {};
+      const errNotes = (data.errors || []).slice(0, 4).map((e) => `<li>${esc(e)}</li>`).join("");
+
+      const countEl = $("schedule-tab-count");
+      if (countEl) {
+        const n = counts.active ?? workflows.length;
+        if (n > 0) { countEl.hidden = false; countEl.textContent = String(n); }
+        else countEl.hidden = true;
+      }
+
+      const rowsHtml = workflows.length
+        ? workflows.map((w) => {
+            const kicks = (w.kick_targets || []).length
+              ? (w.kick_targets || []).map((k) => `@${k}`).join(" ")
+              : "—";
+            const st = w.status || "active";
+            const nextLocal = w.next_fire_local || w.next_fire_utc || "—";
+            const idShort = (w.id || "").slice(0, 8);
+            return `<tr>
+              <td><strong>${esc(w.name)}</strong>
+                ${w.is_core ? '<span class="pill muted" style="margin-left:0.35rem">core</span>' : ""}
+                <div class="proc-id" title="${esc(w.id || "")}">${esc(idShort)}${w.id && w.id.length > 8 ? "…" : ""}</div>
+              </td>
+              <td><code>${esc(w.cron || "—")}</code>
+                <div class="sub">${esc(w.schedule_human || "")}</div>
+                <div class="sub">next ${esc(nextLocal)}</div>
+              </td>
+              <td>${esc(w.channel_name || "—")}</td>
+              <td>${esc(kicks)}</td>
+              <td><span class="proc-status ${esc(st)}">${esc(st)}</span></td>
+            </tr>`;
+          }).join("")
+        : `<tr><td colspan="5" class="empty">No active workflows</td></tr>`;
+
+      const nodesHtml = nodes.map((n) => {
+        const st = n.status || "active";
+        const kicks = (n.kick_targets || []).map((k) => `@${k}`).join(" ") || "—";
+        return `<div class="proc-node ${st === "missing" ? "missing" : ""}">
+          <div class="pn-name">${esc(n.name)}</div>
+          <div class="sub">${esc(n.kind || "workflow")} · <span class="proc-status ${esc(st)}">${esc(st)}</span></div>
+          <div class="sub" style="margin-top:0.25rem">${esc(n.schedule_human || n.cron || n.notes || "—")}</div>
+          <div class="sub">${esc(n.channel_name || "")} · kicks ${esc(kicks)}</div>
+          ${n.next_fire_local ? `<div class="sub">next ${esc(n.next_fire_local)}</div>` : ""}
+        </div>`;
+      }).join("");
+
+      const edgesHtml = edges.map((e) =>
+        `<div class="proc-edge"><strong>${esc(e.from)}</strong> → <strong>${esc(e.to)}</strong>
+          <span class="sub"> · ${esc(e.label || "")}</span></div>`
+      ).join("");
+
+      const narrHtml = narrative.map((line) => `<li>${esc(line)}</li>`).join("");
+
+      const weekHtml = week.map((d) => {
+        const evs = (d.events || []).map((ev) => {
+          const t = ev.at_local || ev.label || "";
+          return `<div class="d-ev"><strong>${esc(ev.name)}</strong>${t ? `<div class="sub">${esc(t)}</div>` : ""}</div>`;
+        }).join("") || `<div class="sub">—</div>`;
+        return `<div class="proc-day${d.is_today ? " today" : ""}">
+          <div class="d-head">${esc(d.weekday)} ${esc((d.date || "").slice(5))}</div>
+          ${evs}
+        </div>`;
+      }).join("");
+
+      const tlHtml = dayTl.length
+        ? dayTl.map((ev) => {
+            const kicks = (ev.kick_targets || []).map((k) => `@${k}`).join(" ");
+            return `<div class="proc-tl-row">
+              <div class="t">${esc(ev.at_local || ev.at_utc || "—")}</div>
+              <div><strong>${esc(ev.name)}</strong>
+                <span class="sub"> · ${esc(ev.channel_name || "")}${kicks ? " · " + esc(kicks) : ""}${ev.note ? " · " + esc(ev.note) : ""}</span>
+              </div>
+            </div>`;
+          }).join("")
+        : `<div class="empty">No fires in the next 24h (or only continuous eng-gate).</div>`;
+
+      root.innerHTML = `
+        <div class="proc-header">
+          <div class="proc-header-top">
+            <div>
+              <div class="sub">Continuous flow · source <strong>${esc(sourceLabel)}</strong>
+                · schema v${esc(data.schema_version ?? 1)}
+                · gen ${esc(fmtWhen(data.generated_at))}</div>
+              <p class="sprint-goal" style="margin-top:0.35rem">Autonomous process schedule — when ceremonies fire and how they chain</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+              <span class="pill muted">active ${esc(counts.active ?? workflows.length)}</span>
+              <span class="pill muted">inert ${esc(counts.inert ?? 0)} hidden</span>
+              <span class="pill muted">core ${esc(counts.core_present ?? 0)}/${esc(counts.core_expected ?? 5)}</span>
+              <button type="button" id="btn-schedule-toggle-inert">${window.__scheduleState.includeInert ? "Hide inert" : "Show inert"}</button>
+              <button type="button" id="btn-schedule-refresh">Refresh</button>
+            </div>
+          </div>
+          <div class="sub">${esc(data.timezone_note || "Relay cron is UTC.")}
+            ${snap.exists ? ` · snapshot ${esc(snap.updated_at || "")} ${snap.updated_by ? "by " + esc(snap.updated_by) : ""}` : " · no snapshot on disk"}
+          </div>
+          ${errNotes ? `<details class="sprint-details"><summary>Source notes</summary><ul class="sub" style="margin:0.5rem 0 0 1.1rem">${errNotes}</ul></details>` : ""}
+        </div>
+
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>Process flow · day / week chain</h3>
+          <div class="proc-flow">
+            <div class="proc-flow-nodes">${nodesHtml}</div>
+            <div class="proc-edges">${edgesHtml || '<div class="sub">No edges</div>'}</div>
+            ${narrHtml ? `<ul class="sub" style="margin:0.35rem 0 0 1.1rem;padding:0">${narrHtml}</ul>` : ""}
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>This week (UTC days · local times on events)</h3>
+          <div class="proc-week">${weekHtml || '<div class="empty">—</div>'}</div>
+        </div>
+
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>Next 24h</h3>
+          <div class="proc-timeline">${tlHtml}</div>
+        </div>
+
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>Live workflows</h3>
+          <div class="proc-table-wrap">
+            <table class="proc-table">
+              <thead>
+                <tr>
+                  <th>Name · id</th>
+                  <th>Schedule · next</th>
+                  <th>Channel</th>
+                  <th>Kick targets</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>
+        <p class="sprint-disclaimer">${esc(data.disclaimer || "Read-only process view.")}</p>
+      `;
+
+      const refBtn = $("btn-schedule-refresh");
+      if (refBtn) refBtn.addEventListener("click", () => loadSchedule(true));
+      const inertBtn = $("btn-schedule-toggle-inert");
+      if (inertBtn) {
+        inertBtn.addEventListener("click", () => {
+          window.__scheduleState.includeInert = !window.__scheduleState.includeInert;
+          window.__scheduleState.data = null;
+          loadSchedule(true);
+        });
+      }
+    }
+
+    async function loadSchedule(force) {
+      const root = $("schedule-root");
+      if (!root) return;
+      if (window.__scheduleState.loading) return;
+      if (!force && window.__scheduleState.data) {
+        renderSchedule(window.__scheduleState.data);
+        return;
+      }
+      window.__scheduleState.loading = true;
+      if (!window.__scheduleState.data) root.innerHTML = `<div class="empty">Loading schedule…</div>`;
+      try {
+        const inert = window.__scheduleState.includeInert ? "1" : "0";
+        const res = await fetch(`/api/process?inert=${inert}`);
+        const data = await res.json();
+        window.__scheduleState.data = data;
+        renderSchedule(data);
+      } catch (e) {
+        root.innerHTML = `<div class="error-banner show">${esc(e.message || e)}</div>`;
+      } finally {
+        window.__scheduleState.loading = false;
       }
     }
 
