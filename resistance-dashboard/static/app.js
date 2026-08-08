@@ -2035,7 +2035,7 @@
   }
 
   /**
-   * Kitchen "Today so far" row: day totals + pace-relative center bar.
+   * Today "Today so far" row: day totals + pace-relative center bar.
    * pace = server pace_vs_expected payload (band green|yellow|red, side, bar_pct).
    * Center = on pace for this point in the eating window (not day-empty→full).
    */
@@ -4142,8 +4142,12 @@
     }
     if ($("btn-scroll-meal-plan")) {
       $("btn-scroll-meal-plan").addEventListener("click", () => {
-        goMobileTab("kitchen");
-        const el = $("meal-plan-card") || $("meal-plan-result");
+        // Meal plan + today-so-far live on Today (Kitchen is setup only)
+        goMobileTab("today");
+        const el =
+          $("meal-plan-card") ||
+          $("meal-plan-result") ||
+          $("today-so-far-card");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
