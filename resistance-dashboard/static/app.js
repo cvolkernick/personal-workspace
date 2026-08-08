@@ -73,6 +73,48 @@
     return out;
   }
 
+  /**
+   * Daily water target from body weight (heuristic).
+   * 35 ml/kg ≈ common athletic baseline (roughly 0.5 oz/lb). Not individualized
+   * for heat/sweat; good enough for a chart guide line.
+   */
+  function hydrationTargetMlFromLbs(weightLbs) {
+    const lbs = Number(weightLbs);
+    if (!Number.isFinite(lbs) || lbs <= 0) return null;
+    const kg = lbs / 2.2046226218;
+    return Math.round(kg * 35);
+  }
+
+  /** Forward-fill last known weight onto each calendar date (lbs). */
+  function weightLbsSeriesForDates(weightPoints, dates) {
+    const sorted = (weightPoints || [])
+      .map((w) => ({
+        date: String(w.date || "").slice(0, 10),
+        lbs: Number(w.weight_lbs != null ? w.weight_lbs : w.lbs),
+      }))
+      .filter((w) => w.date && Number.isFinite(w.lbs) && w.lbs > 0)
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    let j = 0;
+    let last = null;
+    // seed last with any weight on or before first date
+    if (sorted.length && dates.length) {
+      const first = dates[0];
+      for (const w of sorted) {
+        if (w.date <= first) last = w.lbs;
+        else break;
+      }
+    }
+    const out = [];
+    for (const d of dates) {
+      while (j < sorted.length && sorted[j].date <= d) {
+        last = sorted[j].lbs;
+        j += 1;
+      }
+      out.push(last);
+    }
+    return out;
+  }
+
   /** Keep charts snappy on long series (e.g. 90d). */
   function downsamplePoints(points, maxPoints = 45) {
     if (!Array.isArray(points) || points.length <= maxPoints) return points || [];
@@ -1396,66 +1438,126 @@
 
     destroyChart(hydrationChart);
     if ($("chart-hydration")) {
+      const hydDates = hydration.map((h) => h.date);
       const hydVals = hydration.map((h) => h.water_ml);
       const hydRoll7 = rollingAverage(hydVals, 7);
       const hydTrend = linearTrend(hydVals);
       const hSlope = trendSlopePerDay(hydVals);
       const lastHydRoll =
         [...hydRoll7].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
+      // Weight-based dynamic targets (35 ml/kg, forward-filled weight)
+      const weightPts = (data.health && data.health.weight) || [];
+      const lbsByDay = weightLbsSeriesForDates(weightPts, hydDates);
+      const hydTargetDay = lbsByDay.map((lbs) => hydrationTargetMlFromLbs(lbs));
+      const hydTargetRoll7 = rollingAverage(hydTargetDay, 7);
+      const todayTarget =
+        [...hydTargetDay].reverse().find((v) => v != null && !Number.isNaN(v)) ??
+        null;
+      const todayLbs =
+        [...lbsByDay].reverse().find((v) => v != null && !Number.isNaN(v)) ?? null;
+      const lastTgtRoll =
+        [...hydTargetRoll7]
+          .reverse()
+          .find((v) => v != null && !Number.isNaN(v)) ?? null;
+
+      const hydDatasets = [
+        {
+          type: "bar",
+          label: "Water (ml)",
+          data: hydVals,
+          backgroundColor: "rgba(61,156,240,0.45)",
+          borderRadius: 6,
+          order: 4,
+        },
+        {
+          type: "line",
+          label: "7d rolling avg",
+          data: hydRoll7,
+          borderColor: "#5ce1a8",
+          borderWidth: 2.5,
+          pointRadius: 0,
+          tension: 0.25,
+          spanGaps: true,
+          order: 1,
+        },
+        {
+          type: "line",
+          label: "Trend",
+          data: hydTrend,
+          borderColor: "#f0b429",
+          borderDash: [6, 4],
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0,
+          order: 2,
+        },
+      ];
+      if (hydTargetDay.some((v) => v != null)) {
+        hydDatasets.push({
+          type: "line",
+          label: "Day target (35 ml/kg)",
+          data: hydTargetDay,
+          borderColor: "rgba(192, 132, 252, 0.9)",
+          borderDash: [2, 3],
+          borderWidth: 1.75,
+          pointRadius: 0,
+          tension: 0,
+          spanGaps: true,
+          order: 0,
+        });
+        hydDatasets.push({
+          type: "line",
+          label: "7d rolling target",
+          data: hydTargetRoll7,
+          borderColor: "rgba(240, 113, 120, 0.85)",
+          borderWidth: 2,
+          pointRadius: 0,
+          tension: 0.2,
+          spanGaps: true,
+          order: 0,
+        });
+      }
+
       hydrationChart = new Chart($("chart-hydration"), {
         data: {
-          labels: hydration.map((h) => h.date),
-          datasets: [
-            {
-              type: "bar",
-              label: "Water (ml)",
-              data: hydVals,
-              backgroundColor: "rgba(61,156,240,0.45)",
-              borderRadius: 6,
-              order: 3,
-            },
-            {
-              type: "line",
-              label: "7d rolling avg",
-              data: hydRoll7,
-              borderColor: "#5ce1a8",
-              borderWidth: 2.5,
-              pointRadius: 0,
-              tension: 0.25,
-              spanGaps: true,
-              order: 1,
-            },
-            {
-              type: "line",
-              label: "Trend",
-              data: hydTrend,
-              borderColor: "#f0b429",
-              borderDash: [6, 4],
-              borderWidth: 2,
-              pointRadius: 0,
-              tension: 0,
-              order: 2,
-            },
-          ],
+          labels: hydDates,
+          datasets: hydDatasets,
         },
         options: chartDefaults(),
       });
       if ($("hydration-trend-note")) {
         const zeroDays = hydVals.filter((v) => v <= 0).length;
-        if (lastHydRoll == null) {
+        if (lastHydRoll == null && todayTarget == null) {
           $("hydration-trend-note").textContent =
-            "Need hydration logs for rolling average.";
+            "Need hydration logs (and weight for a dynamic target).";
         } else {
-          const slopeTxt =
-            hSlope == null
-              ? ""
-              : ` · trend ${hSlope >= 0 ? "+" : ""}${Math.round(hSlope * 7)} ml/week`;
-          const zeroTxt =
-            zeroDays > 0
-              ? ` · ${zeroDays} day(s) with no log counted as 0 ml`
-              : "";
-          $("hydration-trend-note").textContent =
-            `Latest 7d avg: ${Math.round(lastHydRoll).toLocaleString()} ml${slopeTxt}${zeroTxt} · ${hydration.length} calendar days`;
+          const bits = [];
+          if (todayTarget != null && todayLbs != null) {
+            bits.push(
+              `Today target ~${todayTarget.toLocaleString()} ml (35 ml/kg @ ${todayLbs.toFixed(1)} lb)`
+            );
+          }
+          if (lastHydRoll != null) {
+            bits.push(`7d intake avg ${Math.round(lastHydRoll).toLocaleString()} ml`);
+          }
+          if (lastTgtRoll != null) {
+            bits.push(`7d target avg ${Math.round(lastTgtRoll).toLocaleString()} ml`);
+            if (lastHydRoll != null) {
+              const gap = Math.round(lastHydRoll - lastTgtRoll);
+              const gapTxt = `${gap > 0 ? "+" : ""}${gap.toLocaleString()}`;
+              bits.push(`intake ${gapTxt} ml vs target avg`);
+            }
+          }
+          if (hSlope != null) {
+            bits.push(
+              `trend ${hSlope >= 0 ? "+" : ""}${Math.round(hSlope * 7)} ml/week`
+            );
+          }
+          if (zeroDays > 0) {
+            bits.push(`${zeroDays} day(s) no log = 0 ml`);
+          }
+          bits.push(`${hydration.length} calendar days`);
+          $("hydration-trend-note").textContent = bits.join(" · ");
         }
       }
     }
@@ -2048,17 +2150,28 @@
     const halfW = barPct * 0.5;
     const leftW = side === "behind" ? halfW : 0;
     const rightW = side === "ahead" ? halfW : 0;
+    const unit = kind === "cals" || kind === "calories" ? "kcal" : "g";
     const paced = p && p.paced_expected != null ? fmtNum(p.paced_expected) : "—";
-    const delta =
-      p && p.delta_vs_pace != null
-        ? Number(p.delta_vs_pace) > 0
-          ? `+${fmtNum(p.delta_vs_pace)}`
-          : fmtNum(p.delta_vs_pace)
+    let paceHint = "";
+    let paceTitle = (p && p.summary) || `${label} vs pace`;
+    if (p && p.status !== "no_target" && p.paced_expected != null) {
+      // pace now = expected by this time in the eating window
+      // signed delta = consumed − expected (positive = ahead of pace)
+      const d = Number(p.delta_vs_pace);
+      const dTxt = Number.isFinite(d)
+        ? d > 0
+          ? `+${fmtNum(d)}`
+          : fmtNum(d)
         : "";
-    const paceHint =
-      p && p.status !== "no_target"
-        ? ` · pace ~${paced}${delta ? ` (${delta})` : ""}`
-        : "";
+      const rel =
+        side === "ahead" ? "ahead" : side === "behind" ? "behind" : "on pace";
+      paceHint = dTxt
+        ? ` · pace now ${paced}${unit} · <span class="pace-delta">${dTxt} ${rel}</span>`
+        : ` · pace now ${paced}${unit}`;
+      paceTitle = `Pace now ${paced} ${unit} = day target × fraction of eating window elapsed. ${
+        dTxt ? `${dTxt} ${unit} = intake minus that expected (${rel}).` : "On pace."
+      }`;
+    }
     return `<div class="macro-progress-row">
       <div class="macro-progress-meta">
         <span class="macro-progress-label">${label}</span>
@@ -2066,9 +2179,10 @@
       pct != null ? ` · <strong>${pct}%</strong>` : ""
     }${paceHint}</span>
       </div>
-      <div class="macro-pace-track band-${band}" role="img" aria-label="${label} pace ${side} ${band}" title="${
-      (p && p.summary) || `${label} vs pace`
-    }">
+      <div class="macro-pace-track band-${band}" role="img" aria-label="${label} pace ${side} ${band}" title="${paceTitle.replace(
+      /"/g,
+      "&quot;"
+    )}">
         <div class="macro-pace-mid" aria-hidden="true"></div>
         <div class="macro-pace-fill macro-pace-left band-${band}" style="width:${leftW}%"></div>
         <div class="macro-pace-fill macro-pace-right band-${band}" style="width:${rightW}%"></div>
@@ -2154,7 +2268,10 @@
     return Number.isInteger(x) ? String(x) : x.toFixed(0);
   }
 
-  /** Sticky phone strip: cals · protein · recovery status */
+  /**
+   * Sticky strip: glance cals/protein/recovery on non-Today tabs.
+   * Hidden on Today — full “Today so far” + pacing already cover it there.
+   */
   function updateMacroStrip(consumed, targets, recovery) {
     const strip = $("macro-strip");
     if (!strip) return;
@@ -2186,7 +2303,15 @@
       rEl.title =
         "Recovery score 0–100 from sleep, recent training volume, and weight trend. Bands: Ready 75+, Moderate 50–74, Caution 30–49, Needs Rest <30.";
     }
-    strip.hidden = false;
+    syncMacroStripVisibility();
+  }
+
+  function syncMacroStripVisibility() {
+    const strip = $("macro-strip");
+    if (!strip) return;
+    // Today tab already has pace bars + so-far; strip is redundant noise there
+    const hide = (typeof mobileActiveTab !== "undefined" ? mobileActiveTab : "today") === "today";
+    strip.hidden = hide;
   }
 
   function fmtBarWhen(iso) {
@@ -3439,6 +3564,7 @@
     if (admin) {
       admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
     }
+    syncMacroStripVisibility();
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     // After layout paints, resize charts that were built while hidden
     requestAnimationFrame(() => {

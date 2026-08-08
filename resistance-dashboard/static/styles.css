@@ -1552,6 +1552,18 @@ footer {
   line-height: 1.35;
 }
 
+.macro-progress-nums .pace-delta {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+/* Stack so-far + meal plan on narrow phones */
+@media (max-width: 720px) {
+  #today-exec-row.grid.two {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pace-fill.band-green {
   background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9)) !important;
 }
