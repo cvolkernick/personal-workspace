@@ -409,30 +409,13 @@
     }
     /* —— Schedule / Process tab (#61) —— */
     .proc-header {
-      display: grid; gap: 0.75rem;
+      display: grid; gap: 0.55rem;
       background: var(--panel); border: 1px solid var(--border);
-      border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1rem;
+      border-radius: 14px; padding: 0.9rem 1.1rem; margin-bottom: 0.85rem;
     }
     .proc-header-top {
-      display: flex; flex-wrap: wrap; gap: 0.65rem 1.25rem;
+      display: flex; flex-wrap: wrap; gap: 0.55rem 1rem;
       align-items: flex-start; justify-content: space-between;
-    }
-    .proc-table-wrap { overflow-x: auto; }
-    table.proc-table {
-      width: 100%; border-collapse: collapse; font-size: 0.88rem;
-    }
-    table.proc-table th, table.proc-table td {
-      text-align: left; padding: 0.55rem 0.65rem;
-      border-bottom: 1px solid var(--border); vertical-align: top;
-    }
-    table.proc-table th {
-      color: var(--muted); font-size: 0.72rem; text-transform: uppercase;
-      letter-spacing: 0.04em; font-weight: 650;
-    }
-    table.proc-table tr:hover td { background: rgba(91,159,212,0.06); }
-    table.proc-table code {
-      font-size: 0.78rem; background: #0e151c; padding: 0.1rem 0.35rem;
-      border-radius: 4px; border: 1px solid var(--border);
     }
     .proc-status {
       display: inline-block; font-size: 0.72rem; font-weight: 700;
@@ -441,60 +424,145 @@
     .proc-status.active { color: var(--green); border-color: #245c42; }
     .proc-status.inert { color: var(--muted); }
     .proc-status.missing { color: var(--yellow); border-color: #6b5a1e; }
-    .proc-flow {
-      display: grid; gap: 0.65rem;
+    .proc-chips { display: inline-flex; flex-wrap: wrap; gap: 0.28rem; align-items: center; }
+    .proc-chip {
+      display: inline-flex; align-items: center;
+      padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 650;
+      border: 1px solid #3a4570; background: #121c28; color: var(--blue);
     }
-    .proc-flow-nodes {
-      display: grid; gap: 0.55rem;
-      grid-template-columns: 1fr;
+    .proc-chip.channel {
+      border-color: #2a4a66; background: #0e151c; color: var(--accent); font-weight: 600;
     }
-    @media (min-width: 800px) {
-      .proc-flow-nodes { grid-template-columns: repeat(3, 1fr); }
+    .proc-chip.continuous {
+      border-color: #245c42; background: #0f2419; color: var(--green);
     }
-    .proc-node {
+    .proc-chip.muted-chip {
+      border-color: var(--border); background: #0e151c; color: var(--muted); font-weight: 500;
+    }
+    .proc-hero { display: grid; gap: 0.55rem; }
+    .proc-hero-row {
+      display: grid; grid-template-columns: 5.5rem 1fr;
+      gap: 0.75rem 1rem; align-items: start;
+      padding: 0.75rem 0.85rem; border-radius: 12px;
       background: #0e151c; border: 1px solid var(--border);
-      border-radius: 10px; padding: 0.7rem 0.85rem;
     }
-    .proc-node.missing { opacity: 0.65; border-style: dashed; }
-    .proc-node .pn-name { font-weight: 700; margin-bottom: 0.25rem; }
-    .proc-edges { display: grid; gap: 0.35rem; margin-top: 0.5rem; }
-    .proc-edge {
-      font-size: 0.82rem; color: var(--muted);
-      padding: 0.35rem 0.5rem; background: #0e151c;
-      border-radius: 8px; border-left: 3px solid var(--accent);
+    .proc-hero-row.continuous {
+      border-color: #245c42; background: linear-gradient(135deg, #0f2419 0%, #0e151c 70%);
     }
-    .proc-edge strong { color: var(--text); font-weight: 650; }
+    .proc-hero-row.next-up {
+      border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,159,212,0.22);
+    }
+    .proc-hero-time {
+      font-size: 1.35rem; font-weight: 750; font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em; line-height: 1.1; color: var(--text);
+    }
+    .proc-hero-time .tz {
+      display: block; font-size: 0.68rem; font-weight: 600; color: var(--muted);
+      margin-top: 0.2rem; letter-spacing: 0.02em;
+    }
+    .proc-hero-body { min-width: 0; }
+    .proc-hero-title {
+      font-size: 1.02rem; font-weight: 700; margin: 0 0 0.2rem;
+    }
+    .proc-hero-slug {
+      font-size: 0.72rem; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .proc-hero-meta {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+      margin-top: 0.4rem;
+    }
+    .proc-always-on {
+      display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; align-items: center;
+      padding: 0.55rem 0.75rem; border-radius: 10px;
+      background: #0f2419; border: 1px solid #245c42; margin-bottom: 0.65rem;
+      font-size: 0.86rem;
+    }
+    .proc-always-on strong { font-weight: 700; }
     .proc-week {
-      display: grid; gap: 0.45rem;
+      display: grid; gap: 0.4rem;
       grid-template-columns: repeat(7, minmax(0, 1fr));
     }
     @media (max-width: 900px) {
       .proc-week { grid-template-columns: 1fr 1fr; }
+      .proc-hero-row { grid-template-columns: 4.5rem 1fr; }
+      .proc-hero-time { font-size: 1.15rem; }
     }
     .proc-day {
       background: #0e151c; border: 1px solid var(--border);
-      border-radius: 10px; padding: 0.5rem 0.55rem; min-height: 4.5rem;
+      border-radius: 10px; padding: 0.45rem 0.5rem; min-height: 4.2rem;
     }
     .proc-day.today { border-color: var(--accent); box-shadow: 0 0 0 1px rgba(91,159,212,0.25); }
     .proc-day .d-head {
-      font-size: 0.72rem; color: var(--muted); font-weight: 650;
-      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.35rem;
+      font-size: 0.7rem; color: var(--muted); font-weight: 650;
+      text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.3rem;
+      display: flex; justify-content: space-between; align-items: baseline; gap: 0.25rem;
     }
     .proc-day .d-ev {
-      font-size: 0.75rem; margin: 0.2rem 0; line-height: 1.25;
+      font-size: 0.74rem; margin: 0.22rem 0; line-height: 1.3;
+      display: grid; grid-template-columns: 2.4rem 1fr; gap: 0.25rem;
+      align-items: baseline;
     }
-    .proc-timeline { display: grid; gap: 0.4rem; }
-    .proc-tl-row {
-      display: grid; grid-template-columns: 7.5rem 1fr;
-      gap: 0.65rem; align-items: start;
-      padding: 0.4rem 0; border-bottom: 1px solid var(--border);
-      font-size: 0.86rem;
+    .proc-day .d-ev .clk {
+      font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent); font-size: 0.72rem;
     }
-    .proc-tl-row .t { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 0.78rem; }
+    .proc-day .d-ev .nm { font-weight: 600; min-width: 0; }
+    .proc-day .d-badge {
+      font-size: 0.65rem; font-weight: 700; color: var(--green);
+      border: 1px solid #245c42; border-radius: 999px; padding: 0.05rem 0.35rem;
+      background: #0f2419;
+    }
+    .proc-chain {
+      display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem 0.2rem;
+    }
+    .proc-chain-step {
+      display: inline-flex; flex-direction: column; gap: 0.15rem;
+      background: #0e151c; border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.5rem 0.65rem; min-width: 7.5rem; max-width: 11rem;
+    }
+    .proc-chain-step.missing { opacity: 0.6; border-style: dashed; }
+    .proc-chain-step .pn-name { font-weight: 700; font-size: 0.86rem; line-height: 1.25; }
+    .proc-chain-step .pn-sub { font-size: 0.7rem; color: var(--muted); }
+    .proc-chain-arrow {
+      color: var(--muted); font-size: 1rem; font-weight: 700; padding: 0 0.15rem;
+      user-select: none;
+    }
+    .proc-narr {
+      margin: 0.55rem 0 0; padding: 0 0 0 1.05rem;
+      color: var(--muted); font-size: 0.8rem; line-height: 1.4;
+    }
+    .proc-narr li { margin: 0.2rem 0; }
+    .proc-wf-list { display: grid; gap: 0.45rem; }
+    .proc-wf-card {
+      display: grid; gap: 0.35rem;
+      padding: 0.65rem 0.8rem; border-radius: 10px;
+      background: #0e151c; border: 1px solid var(--border);
+    }
+    .proc-wf-card.core { border-color: #2a4a66; }
+    .proc-wf-top {
+      display: flex; flex-wrap: wrap; gap: 0.4rem 0.75rem;
+      align-items: baseline; justify-content: space-between;
+    }
+    .proc-wf-title { font-weight: 700; font-size: 0.95rem; }
+    .proc-wf-slug {
+      font-size: 0.7rem; color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .proc-wf-next {
+      font-size: 0.95rem; font-weight: 700; font-variant-numeric: tabular-nums;
+    }
+    .proc-wf-next .utc {
+      font-size: 0.7rem; font-weight: 500; color: var(--muted); margin-left: 0.4rem;
+    }
+    .proc-cron-detail {
+      font-size: 0.72rem; color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
     .proc-id {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 0.72rem; color: var(--muted); word-break: break-all;
     }
+    body.show-proc-cron .proc-cron-detail { display: block; }
+    .proc-cron-detail { display: none; }
     /* —— Sprint tab —— */
     .sprint-header {
       display: grid; gap: 0.75rem;
@@ -2084,7 +2152,67 @@
       data: null,
       loading: false,
       includeInert: false,
+      showCron: false,
     };
+
+    const PROC_DISPLAY_NAMES = {
+      "cadence-daily-status": "Daily status",
+      "eng-gate-sweep": "Eng-gate sweep",
+      "cadence-daily-replenish": "Daily replenish",
+      "cadence-deep-groom": "Deep groom",
+      "autonomous-backlog-harvest": "Backlog harvest",
+      "assay-system-slice-qa": "Assay system-slice QA",
+    };
+
+    function procFriendlyName(slug) {
+      if (!slug) return "—";
+      const s = String(slug);
+      if (PROC_DISPLAY_NAMES[s]) return PROC_DISPLAY_NAMES[s];
+      // Title-case dashed slugs as a soft fallback
+      return s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function procIsEngGate(name) {
+      return String(name || "") === "eng-gate-sweep";
+    }
+
+    /** Parse "2026-08-09 09:00 EDT" → { clock: "9:00", tz: "EDT", date: "2026-08-09", full } */
+    function procParseLocal(localStr) {
+      const full = localStr || "";
+      const m = full.match(/^(\d{4}-\d{2}-\d{2})\s+(\d{1,2}):(\d{2})\s*([A-Za-z0-9+_/-]+)?/);
+      if (!m) return { clock: full || "—", tz: "", date: "", full };
+      const h = parseInt(m[2], 10);
+      const clock = `${h}:${m[3]}`;
+      return { clock, tz: m[4] || "", date: m[1], full };
+    }
+
+    function procShortUtc(iso) {
+      if (!iso) return "";
+      // 2026-08-09T13:00:00Z → 13:00Z
+      const m = String(iso).match(/T(\d{2}:\d{2})/);
+      return m ? `${m[1]}Z` : String(iso);
+    }
+
+    function procAgentChips(targets) {
+      const list = (targets || []).filter(Boolean);
+      if (!list.length) return `<span class="sub">—</span>`;
+      return `<span class="proc-chips">${list.map((k) =>
+        `<span class="proc-chip" title="@${esc(k)}">${esc(String(k).replace(/^@/, ""))}</span>`
+      ).join("")}</span>`;
+    }
+
+    function procChannelPill(name) {
+      if (!name) return "";
+      return `<span class="proc-chip channel">${esc(name)}</span>`;
+    }
+
+    function procCronDetail(cron, human) {
+      if (!cron && !human) return "";
+      const parts = [];
+      if (cron) parts.push(cron);
+      if (human && human !== cron) parts.push(human);
+      return `<div class="proc-cron-detail" title="UTC cron">${esc(parts.join(" · "))}</div>`;
+    }
 
     function renderSchedule(data) {
       const root = $("schedule-root");
@@ -2093,11 +2221,12 @@
         root.innerHTML = `<div class="error-banner show">${esc(data?.error || "Failed to load schedule")}</div>`;
         return;
       }
+      document.body.classList.toggle("show-proc-cron", !!window.__scheduleState.showCron);
+
       const counts = data.counts || {};
       const workflows = data.workflows || [];
       const flow = data.process_flow || {};
       const nodes = flow.nodes || [];
-      const edges = flow.edges || [];
       const narrative = flow.narrative || [];
       const week = data.week || [];
       const dayTl = data.day_timeline || [];
@@ -2116,130 +2245,185 @@
         else countEl.hidden = true;
       }
 
-      const rowsHtml = workflows.length
-        ? workflows.map((w) => {
-            const kicks = (w.kick_targets || []).length
-              ? (w.kick_targets || []).map((k) => `@${k}`).join(" ")
-              : "—";
-            const st = w.status || "active";
-            const nextLocal = w.next_fire_local || w.next_fire_utc || "—";
-            const idShort = (w.id || "").slice(0, 8);
-            return `<tr>
-              <td><strong>${esc(w.name)}</strong>
-                ${w.is_core ? '<span class="pill muted" style="margin-left:0.35rem">core</span>' : ""}
-                <div class="proc-id" title="${esc(w.id || "")}">${esc(idShort)}${w.id && w.id.length > 8 ? "…" : ""}</div>
-              </td>
-              <td><code>${esc(w.cron || "—")}</code>
-                <div class="sub">${esc(w.schedule_human || "")}</div>
-                <div class="sub">next ${esc(nextLocal)}</div>
-              </td>
-              <td>${esc(w.channel_name || "—")}</td>
-              <td>${esc(kicks)}</td>
-              <td><span class="proc-status ${esc(st)}">${esc(st)}</span></td>
-            </tr>`;
-          }).join("")
-        : `<tr><td colspan="5" class="empty">No active workflows</td></tr>`;
+      // Eng-gate continuous row (collapse flood)
+      const engGateWf = workflows.find((w) => procIsEngGate(w.name) && w.status === "active");
+      const engGateTl = dayTl.find((ev) => procIsEngGate(ev.name));
+      const engNext = engGateTl
+        ? procParseLocal(engGateTl.at_local)
+        : engGateWf
+          ? procParseLocal(engGateWf.next_fire_local)
+          : null;
+      const alwaysOnHtml = engGateWf || engGateTl
+        ? `<div class="proc-always-on" title="${esc((engGateWf && engGateWf.id) || (engGateTl && engGateTl.id) || "")}">
+            <span class="proc-chip continuous">always on</span>
+            <strong>${esc(procFriendlyName("eng-gate-sweep"))}</strong>
+            <span class="sub">every 15m · next at <strong>${esc(engNext ? engNext.clock : "—")}</strong>${engNext && engNext.tz ? ` ${esc(engNext.tz)}` : ""}</span>
+            ${procChannelPill((engGateTl && engGateTl.channel_name) || (engGateWf && engGateWf.channel_name) || "#workflow")}
+            ${procAgentChips((engGateTl && engGateTl.kick_targets) || (engGateWf && engGateWf.kick_targets) || ["Grok"])}
+          </div>`
+        : "";
 
-      const nodesHtml = nodes.map((n) => {
-        const st = n.status || "active";
-        const kicks = (n.kick_targets || []).map((k) => `@${k}`).join(" ") || "—";
-        return `<div class="proc-node ${st === "missing" ? "missing" : ""}">
-          <div class="pn-name">${esc(n.name)}</div>
-          <div class="sub">${esc(n.kind || "workflow")} · <span class="proc-status ${esc(st)}">${esc(st)}</span></div>
-          <div class="sub" style="margin-top:0.25rem">${esc(n.schedule_human || n.cron || n.notes || "—")}</div>
-          <div class="sub">${esc(n.channel_name || "")} · kicks ${esc(kicks)}</div>
-          ${n.next_fire_local ? `<div class="sub">next ${esc(n.next_fire_local)}</div>` : ""}
+      // Next 24h hero — timed ceremonies only (eng-gate already always-on)
+      const heroEvents = dayTl.filter((ev) => !procIsEngGate(ev.name));
+      let heroHtml;
+      if (!heroEvents.length && !alwaysOnHtml) {
+        heroHtml = `<div class="empty">No fires in the next 24h.</div>`;
+      } else if (!heroEvents.length) {
+        heroHtml = `<div class="empty" style="padding:0.25rem 0">No timed ceremonies in the next 24h — continuous eng-gate only.</div>`;
+      } else {
+        heroHtml = heroEvents.map((ev, idx) => {
+          const loc = procParseLocal(ev.at_local);
+          const utcShort = procShortUtc(ev.at_utc);
+          const title = procFriendlyName(ev.name);
+          const rowClass = idx === 0 ? " next-up" : "";
+          return `<div class="proc-hero-row${rowClass}" title="${esc(ev.id || "")}">
+            <div class="proc-hero-time">${esc(loc.clock)}
+              <span class="tz">${esc(loc.tz || "local")}${utcShort ? ` · ${esc(utcShort)}` : ""}</span>
+            </div>
+            <div class="proc-hero-body">
+              <div class="proc-hero-title">${esc(title)}</div>
+              <div class="proc-hero-slug">${esc(ev.name || "")}${ev.note ? ` · ${esc(ev.note)}` : ""}</div>
+              <div class="proc-hero-meta">
+                ${procChannelPill(ev.channel_name)}
+                ${procAgentChips(ev.kick_targets)}
+              </div>
+            </div>
+          </div>`;
+        }).join("");
+      }
+
+      // Week grid — eng-gate as day badge, timed events as clock + short name
+      const weekHtml = week.map((d) => {
+        const evs = d.events || [];
+        const hasEng = evs.some((ev) => procIsEngGate(ev.name));
+        const timed = evs.filter((ev) => !procIsEngGate(ev.name));
+        const badge = hasEng ? `<span class="d-badge" title="Eng-gate every 15m">15m</span>` : "";
+        const evHtml = timed.length
+          ? timed.map((ev) => {
+              const loc = procParseLocal(ev.at_local);
+              const clk = loc.clock !== "—" ? loc.clock : (ev.label || "·");
+              return `<div class="d-ev" title="${esc(ev.name || "")}${ev.id ? " · " + esc(ev.id) : ""}">
+                <span class="clk">${esc(clk)}</span>
+                <span class="nm">${esc(procFriendlyName(ev.name))}</span>
+              </div>`;
+            }).join("")
+          : (hasEng ? "" : `<div class="sub">—</div>`);
+        return `<div class="proc-day${d.is_today ? " today" : ""}">
+          <div class="d-head"><span>${esc(d.weekday)} ${esc((d.date || "").slice(5))}</span>${badge}</div>
+          ${evHtml}
         </div>`;
       }).join("");
 
-      const edgesHtml = edges.map((e) =>
-        `<div class="proc-edge"><strong>${esc(e.from)}</strong> → <strong>${esc(e.to)}</strong>
-          <span class="sub"> · ${esc(e.label || "")}</span></div>`
-      ).join("");
+      // Process flow — ordered horizontal story (core first, extras after)
+      const CORE_ORDER = [
+        "cadence-daily-status",
+        "eng-gate-sweep",
+        "cadence-daily-replenish",
+        "cadence-deep-groom",
+        "autonomous-backlog-harvest",
+      ];
+      const coreChain = (nodes || []).filter((n) => CORE_ORDER.includes(n.name || n.id));
+      const extraChain = (nodes || []).filter((n) => !CORE_ORDER.includes(n.name || n.id));
+      const orderedChain = coreChain.length ? coreChain.concat(extraChain) : (nodes || []);
+      const chainParts = orderedChain.map((n) => {
+        const st = n.status || "active";
+        const title = procFriendlyName(n.name || n.id);
+        const when = n.next_fire_local
+          ? `next ${procParseLocal(n.next_fire_local).clock}`
+          : (n.schedule_human || n.notes || "");
+        const idHint = [n.workflow_id || n.id, n.cron].filter(Boolean).join(" · ");
+        return `<div class="proc-chain-step ${st === "missing" ? "missing" : ""}" title="${esc(idHint)}">
+          <div class="pn-name">${esc(title)}</div>
+          <div class="pn-sub">${esc(when || "—")}</div>
+          <div style="margin-top:0.3rem;display:flex;flex-wrap:wrap;gap:0.25rem;align-items:center">
+            ${n.channel_name ? procChannelPill(n.channel_name) : ""}
+            ${procAgentChips(n.kick_targets)}
+          </div>
+        </div>`;
+      });
+      const chainJoined = chainParts.length
+        ? chainParts.map((html, i) => (i === 0 ? html : `<span class="proc-chain-arrow" aria-hidden="true">→</span>${html}`)).join("")
+        : `<div class="empty">No process nodes</div>`;
 
       const narrHtml = narrative.map((line) => `<li>${esc(line)}</li>`).join("");
 
-      const weekHtml = week.map((d) => {
-        const evs = (d.events || []).map((ev) => {
-          const t = ev.at_local || ev.label || "";
-          return `<div class="d-ev"><strong>${esc(ev.name)}</strong>${t ? `<div class="sub">${esc(t)}</div>` : ""}</div>`;
-        }).join("") || `<div class="sub">—</div>`;
-        return `<div class="proc-day${d.is_today ? " today" : ""}">
-          <div class="d-head">${esc(d.weekday)} ${esc((d.date || "").slice(5))}</div>
-          ${evs}
-        </div>`;
-      }).join("");
-
-      const tlHtml = dayTl.length
-        ? dayTl.map((ev) => {
-            const kicks = (ev.kick_targets || []).map((k) => `@${k}`).join(" ");
-            return `<div class="proc-tl-row">
-              <div class="t">${esc(ev.at_local || ev.at_utc || "—")}</div>
-              <div><strong>${esc(ev.name)}</strong>
-                <span class="sub"> · ${esc(ev.channel_name || "")}${kicks ? " · " + esc(kicks) : ""}${ev.note ? " · " + esc(ev.note) : ""}</span>
+      // Workflow cards — local-first, no ID column, cron secondary
+      const wfHtml = workflows.length
+        ? workflows.map((w) => {
+            const st = w.status || "active";
+            const title = procFriendlyName(w.name);
+            const loc = procParseLocal(w.next_fire_local);
+            const utcShort = procShortUtc(w.next_fire_utc);
+            const isCont = procIsEngGate(w.name);
+            const nextLabel = isCont
+              ? `every 15m · next ${loc.clock}${loc.tz ? " " + loc.tz : ""}`
+              : `${loc.clock}${loc.tz ? " " + loc.tz : ""}`;
+            return `<div class="proc-wf-card${w.is_core ? " core" : ""}" title="${esc(w.id || "")}">
+              <div class="proc-wf-top">
+                <div>
+                  <div class="proc-wf-title">${esc(title)}
+                    ${w.is_core ? '<span class="pill muted" style="margin-left:0.3rem">core</span>' : ""}
+                    <span class="proc-status ${esc(st)}" style="margin-left:0.3rem">${esc(st)}</span>
+                  </div>
+                  <div class="proc-wf-slug">${esc(w.name || "")}</div>
+                </div>
+                <div class="proc-wf-next" title="${esc(w.next_fire_local || w.next_fire_utc || "")}">
+                  ${esc(nextLabel || "—")}
+                  ${utcShort && !isCont ? `<span class="utc" title="UTC">${esc(utcShort)}</span>` : ""}
+                </div>
               </div>
+              <div class="proc-hero-meta">
+                ${procChannelPill(w.channel_name)}
+                ${procAgentChips(w.kick_targets)}
+              </div>
+              ${procCronDetail(w.cron, w.schedule_human)}
             </div>`;
           }).join("")
-        : `<div class="empty">No fires in the next 24h (or only continuous eng-gate).</div>`;
+        : `<div class="empty">No active workflows</div>`;
 
       root.innerHTML = `
         <div class="proc-header">
           <div class="proc-header-top">
             <div>
               <div class="sub">Continuous flow · source <strong>${esc(sourceLabel)}</strong>
-                · schema v${esc(data.schema_version ?? 1)}
                 · gen ${esc(fmtWhen(data.generated_at))}</div>
-              <p class="sprint-goal" style="margin-top:0.35rem">Autonomous process schedule — when ceremonies fire and how they chain</p>
+              <p class="sprint-goal" style="margin-top:0.3rem;font-size:1rem">What fires next · when (local) · who gets kicked</p>
             </div>
-            <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
+            <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center">
               <span class="pill muted">active ${esc(counts.active ?? workflows.length)}</span>
-              <span class="pill muted">inert ${esc(counts.inert ?? 0)} hidden</span>
+              <span class="pill muted">inert ${esc(counts.inert ?? 0)}</span>
               <span class="pill muted">core ${esc(counts.core_present ?? 0)}/${esc(counts.core_expected ?? 5)}</span>
+              <button type="button" id="btn-schedule-toggle-cron">${window.__scheduleState.showCron ? "Hide cron" : "Show cron"}</button>
               <button type="button" id="btn-schedule-toggle-inert">${window.__scheduleState.includeInert ? "Hide inert" : "Show inert"}</button>
               <button type="button" id="btn-schedule-refresh">Refresh</button>
             </div>
           </div>
-          <div class="sub">${esc(data.timezone_note || "Relay cron is UTC.")}
-            ${snap.exists ? ` · snapshot ${esc(snap.updated_at || "")} ${snap.updated_by ? "by " + esc(snap.updated_by) : ""}` : " · no snapshot on disk"}
+          <div class="sub">${esc(data.timezone_note || "Local times: America/New_York. Cron is UTC.")}
+            ${snap.exists ? ` · snapshot ${esc(snap.updated_at || "")}` : ""}
           </div>
           ${errNotes ? `<details class="sprint-details"><summary>Source notes</summary><ul class="sub" style="margin:0.5rem 0 0 1.1rem">${errNotes}</ul></details>` : ""}
         </div>
 
         <div class="card" style="margin-bottom:0.85rem">
-          <h3>Process flow · day / week chain</h3>
-          <div class="proc-flow">
-            <div class="proc-flow-nodes">${nodesHtml}</div>
-            <div class="proc-edges">${edgesHtml || '<div class="sub">No edges</div>'}</div>
-            ${narrHtml ? `<ul class="sub" style="margin:0.35rem 0 0 1.1rem;padding:0">${narrHtml}</ul>` : ""}
-          </div>
+          <h3>Next 24h</h3>
+          ${alwaysOnHtml}
+          <div class="proc-hero">${heroHtml}</div>
         </div>
 
         <div class="card" style="margin-bottom:0.85rem">
-          <h3>This week (UTC days · local times on events)</h3>
+          <h3>This week <span class="sub" style="font-weight:500;text-transform:none;letter-spacing:0">(local clock · eng-gate = 15m badge)</span></h3>
           <div class="proc-week">${weekHtml || '<div class="empty">—</div>'}</div>
         </div>
 
         <div class="card" style="margin-bottom:0.85rem">
-          <h3>Next 24h</h3>
-          <div class="proc-timeline">${tlHtml}</div>
+          <h3>Process flow</h3>
+          <div class="proc-chain">${chainJoined}</div>
+          ${narrHtml ? `<ul class="proc-narr">${narrHtml}</ul>` : ""}
         </div>
 
         <div class="card" style="margin-bottom:0.85rem">
-          <h3>Live workflows</h3>
-          <div class="proc-table-wrap">
-            <table class="proc-table">
-              <thead>
-                <tr>
-                  <th>Name · id</th>
-                  <th>Schedule · next</th>
-                  <th>Channel</th>
-                  <th>Kick targets</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-          </div>
+          <h3>Workflows</h3>
+          <div class="proc-wf-list">${wfHtml}</div>
         </div>
         <p class="sprint-disclaimer">${esc(data.disclaimer || "Read-only process view.")}</p>
       `;
@@ -2252,6 +2436,13 @@
           window.__scheduleState.includeInert = !window.__scheduleState.includeInert;
           window.__scheduleState.data = null;
           loadSchedule(true);
+        });
+      }
+      const cronBtn = $("btn-schedule-toggle-cron");
+      if (cronBtn) {
+        cronBtn.addEventListener("click", () => {
+          window.__scheduleState.showCron = !window.__scheduleState.showCron;
+          if (window.__scheduleState.data) renderSchedule(window.__scheduleState.data);
         });
       }
     }
