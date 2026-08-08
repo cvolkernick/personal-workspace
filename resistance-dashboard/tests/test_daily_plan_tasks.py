@@ -5,20 +5,28 @@ from __future__ import annotations
 import unittest
 
 from rt_dashboard.daily_plan_tasks import (
-    make_notes,
-    parse_notes,
+    cache_key,
     plan_from_today_board,
+    plan_preview,
 )
 
 
 class TestDailyPlanTasks(unittest.TestCase):
-    def test_notes_roundtrip(self):
-        n = make_notes(day="2026-08-08", group="training", slug="session")
-        self.assertIn("fitdash:v1", n)
-        meta = parse_notes(n)
-        self.assertEqual(meta["day"], "2026-08-08")
-        self.assertEqual(meta["group"], "training")
-        self.assertEqual(meta["slug"], "session")
+    def test_cache_key(self):
+        self.assertEqual(cache_key("training", "session"), "training|session")
+
+    def test_plan_preview_fast(self):
+        prev = plan_preview(
+            {
+                "date": "2026-08-08",
+                "actions": [{"kind": "training", "text": "Train", "id": "t"}],
+                "workout": {"is_rest_day": True, "exercises": []},
+                "meal": {"meals": [], "items": []},
+                "purchases": [],
+            }
+        )
+        self.assertEqual(prev["source"], "plan_preview")
+        self.assertTrue(prev["groups"])
 
     def test_plan_groups_from_board(self):
         board = {
@@ -52,10 +60,20 @@ class TestDailyPlanTasks(unittest.TestCase):
                 ],
             },
             "meal": {
-                "items": [
-                    {"name": "Chicken", "serving_label": "210g"},
-                    {"name": "Rice", "serving_label": "195g"},
-                ]
+                "meals": [
+                    {
+                        "label": "Next meal",
+                        "items": [
+                            {"name": "Chicken", "serving_label": "210g"},
+                            {"name": "Rice", "serving_label": "195g"},
+                        ],
+                    },
+                    {
+                        "label": "Later meal",
+                        "items": [{"name": "Yogurt", "serving_label": "200g"}],
+                    },
+                ],
+                "items": [],  # flat list unused when meals present
             },
             "purchases": [{"name": "Greek yogurt", "action": "restock", "reason": "OOS"}],
         }
@@ -67,11 +85,15 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("sleep", by)
         # session + exercise
         self.assertGreaterEqual(len(by["training"].items), 2)
-        # protein action + 2 foods
-        self.assertGreaterEqual(len(by["nutrition"].items), 3)
+        # protein action + 3 foods across meal buckets
+        self.assertGreaterEqual(len(by["nutrition"].items), 4)
         titles = " ".join(i.title for i in by["training"].items)
         self.assertIn("PUSH", titles)
         self.assertIn("DB Press", titles)
+        meal_titles = " ".join(i.title for i in by["nutrition"].items)
+        self.assertIn("Next meal", meal_titles)
+        self.assertIn("Later meal", meal_titles)
+        self.assertTrue(any(i.meal_label == "Next meal" for i in by["nutrition"].items))
 
     def test_rest_day_skips_exercises(self):
         board = {

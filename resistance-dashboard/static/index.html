@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=daily-quests-1" />
+    <link rel="stylesheet" href="/styles.css?v=quests-v2-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=daily-quests-1" defer></script>
+    <script src="/app.js?v=quests-v2-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -167,35 +167,48 @@
         </div>
         <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
         <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
-        <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.5rem"></div>
+        <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
 
         <div class="today-sections" id="today-hub-grid">
           <div class="today-panel" data-today-panel="targets">
-            <h3 class="today-subh">Targets &amp; why</h3>
-            <div id="today-targets"></div>
-            <div id="today-recovery" style="margin-top: 0.5rem"></div>
-            <div id="today-adherence" class="muted" style="margin-top: 0.45rem; font-size: 0.82rem"></div>
+            <button type="button" class="today-subh collapsible-head" data-collapse="targets" aria-expanded="true">
+              Targets &amp; recovery <span class="collapse-chevron">▾</span>
+            </button>
+            <div class="collapsible-body" data-collapse-body="targets">
+              <div id="today-targets"></div>
+              <div id="today-recovery" style="margin-top: 0.5rem"></div>
+              <div id="today-adherence" class="muted" style="margin-top: 0.45rem; font-size: 0.82rem"></div>
+            </div>
           </div>
           <div class="today-panel" data-today-panel="meal">
-            <h3 class="today-subh">Meal · stocked</h3>
-            <div id="today-meal" style="font-size: 0.88rem"></div>
-            <div id="today-purchases" style="margin-top: 0.45rem; font-size: 0.85rem"></div>
-            <div id="today-macros" class="muted" style="margin-top: 0.45rem; font-size: 0.82rem"></div>
+            <button type="button" class="today-subh collapsible-head" data-collapse="meal-sum" aria-expanded="false">
+              Meal snapshot <span class="collapse-chevron">▾</span>
+            </button>
+            <div class="collapsible-body" data-collapse-body="meal-sum" hidden>
+              <p class="muted" style="font-size:0.78rem;margin:0 0 0.35rem">Full plan + quests are primary; this is a compact stocked summary.</p>
+              <div id="today-meal" style="font-size: 0.88rem"></div>
+              <div id="today-purchases" style="margin-top: 0.45rem; font-size: 0.85rem"></div>
+              <div id="today-macros" class="muted" style="margin-top: 0.45rem; font-size: 0.82rem"></div>
+            </div>
           </div>
           <div class="today-panel today-panel-wide" data-today-panel="lift">
             <div class="today-lift-head">
-              <h3 class="today-subh" style="margin: 0">Training</h3>
+              <button type="button" class="today-subh collapsible-head" data-collapse="lift" aria-expanded="true" style="margin:0">
+                Training <span class="collapse-chevron">▾</span>
+              </button>
               <div class="today-session-force actions actions-row-single" id="workout-goals-actions">
                 <button type="button" id="btn-force-session-push" title="Force push session">Push</button>
                 <button type="button" id="btn-force-session-pull" title="Force pull session">Pull</button>
                 <button type="button" id="btn-force-session-legs" title="Force legs session">Legs</button>
               </div>
             </div>
-            <div id="today-workout" style="font-size: 0.88rem; margin-top: 0.45rem"></div>
-            <div id="workout-plan-result" class="today-plan-result" style="margin-top: 0.4rem"></div>
-            <p class="muted" style="margin: 0.45rem 0 0; font-size: 0.78rem">
-              Split / exercise count / rest threshold → <strong>More · Training settings</strong>.
-            </p>
+            <div class="collapsible-body" data-collapse-body="lift">
+              <div id="today-workout" style="font-size: 0.88rem; margin-top: 0.45rem"></div>
+              <div id="workout-plan-result" class="today-plan-result" style="margin-top: 0.4rem"></div>
+              <p class="muted" style="margin: 0.45rem 0 0; font-size: 0.78rem">
+                Settings → <strong>More · Training settings</strong>
+              </p>
+            </div>
           </div>
         </div>
       </section>

@@ -1,30 +1,33 @@
-"""Daily plan quests: group + leaf tasks synced to Google Tasks (Fitness list).
+"""Daily plan quests synced to Google Tasks (Fitness list).
 
-Machine notes format (stable sync key):
-  fitdash:v1 day=YYYY-MM-DD group=training slug=session
+Sync identity lives in a **local cache** (not in GT titles/notes):
+  ~/.config/resistance-dashboard/daily_quest_cache.json
+  { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." } } }
 
-Groups: training, nutrition, shopping, sleep (and other action kinds).
+Task titles are human-only. Due date = civil day. Notes = optional motivation only.
 """
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import gtasks_bridge as gtb
 from .timeutil import local_today_iso
 
-NOTE_PREFIX = "fitdash:v1"
 DEFAULT_LIST_TITLE = "Fitness"
 
 GROUP_META = {
-    "training": {"title": "Training", "order": 1},
-    "nutrition": {"title": "Nutrition", "order": 2},
-    "shopping": {"title": "Shopping", "order": 3},
-    "sleep": {"title": "Sleep & recovery", "order": 4},
-    "recovery": {"title": "Sleep & recovery", "order": 4},
-    "other": {"title": "Other", "order": 9},
+    "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
+    "nutrition": {"title": "Nutrition", "order": 2, "emoji": "🍽"},
+    "shopping": {"title": "Shopping", "order": 3, "emoji": "🛒"},
+    "sleep": {"title": "Sleep & recovery", "order": 4, "emoji": "😴"},
+    "recovery": {"title": "Sleep & recovery", "order": 4, "emoji": "😴"},
+    "other": {"title": "Other", "order": 9, "emoji": "✓"},
 }
 
 
@@ -33,22 +36,37 @@ def _slug(text: str, limit: int = 48) -> str:
     return (s or "item")[:limit]
 
 
-def make_notes(*, day: str, group: str, slug: str) -> str:
-    return f"{NOTE_PREFIX} day={day} group={group} slug={slug}"
+def _cache_path() -> Path:
+    override = os.environ.get("RESISTANCE_DASHBOARD_CONFIG_DIR")
+    base = Path(override).expanduser() if override else Path.home() / ".config" / "resistance-dashboard"
+    return base / "daily_quest_cache.json"
 
 
-def parse_notes(notes: str) -> Optional[Dict[str, str]]:
-    if not notes or NOTE_PREFIX not in notes:
-        return None
-    out: Dict[str, str] = {}
-    for part in notes.replace("\n", " ").split():
-        if "=" in part:
-            k, _, v = part.partition("=")
-            if k in ("day", "group", "slug"):
-                out[k] = v
-    if out.get("day") and out.get("group") and out.get("slug"):
-        return out
-    return None
+def _load_cache() -> dict:
+    path = _cache_path()
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_cache(data: dict) -> None:
+    path = _cache_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+    except OSError:
+        pass
+
+
+def cache_key(group: str, slug: str) -> str:
+    return f"{group}|{slug}"
 
 
 @dataclass
@@ -57,12 +75,14 @@ class PlannedItem:
     slug: str
     title: str
     notes_extra: str = ""
+    meal_label: str = ""  # e.g. Next meal
 
 
 @dataclass
 class PlannedGroup:
     group: str
     title: str
+    emoji: str = "✓"
     items: List[PlannedItem] = field(default_factory=list)
 
 
@@ -72,15 +92,15 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
     groups: Dict[str, PlannedGroup] = {}
 
     def _g(kind: str) -> PlannedGroup:
-        meta = GROUP_META.get(kind) or GROUP_META["other"]
-        # Map recovery into sleep group
         key = "sleep" if kind == "recovery" else kind
         if key not in groups:
             m = GROUP_META.get(key) or GROUP_META["other"]
-            groups[key] = PlannedGroup(group=key, title=m["title"], items=[])
+            groups[key] = PlannedGroup(
+                group=key, title=m["title"], emoji=m.get("emoji") or "✓", items=[]
+            )
         return groups[key]
 
-    # High-level actions
+    # High-level actions (skip pure nutrition "eat through plan" if we expand meals)
     for i, act in enumerate((today or {}).get("actions") or []):
         if not isinstance(act, dict):
             continue
@@ -88,17 +108,20 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         text = str(act.get("text") or "").strip()
         if not text:
             continue
+        # Prefer meal-bucket leaves over generic "eat through planned meals"
+        if kind == "nutrition" and "planned meal" in text.lower():
+            continue
         slug = str(act.get("id") or f"action-{kind}-{i}")
         _g(kind).items.append(
             PlannedItem(
                 group=("sleep" if kind == "recovery" else kind),
                 slug=_slug(slug),
                 title=text[:200],
-                notes_extra=str(act.get("motivation") or "")[:500],
+                notes_extra=str(act.get("motivation") or "")[:400],
             )
         )
 
-    # Training exercises as leaf quests
+    # Training exercises
     workout = (today or {}).get("workout") or {}
     if not workout.get("is_rest_day"):
         for ex in workout.get("exercises") or []:
@@ -107,69 +130,89 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             name = str(ex.get("name") or "").strip()
             if not name:
                 continue
-            sets = ex.get("sets")
-            reps = ex.get("reps")
-            w = ex.get("weight_lbs")
-            detail = name
             bits = []
-            if w is not None:
-                bits.append(f"{w} lb")
-            if sets is not None and reps is not None:
-                bits.append(f"{sets}×{reps}")
-            if bits:
-                detail = f"{name} ({' '.join(bits)})"
+            if ex.get("weight_lbs") is not None:
+                bits.append(f"{ex.get('weight_lbs')} lb")
+            if ex.get("sets") is not None and ex.get("reps") is not None:
+                bits.append(f"{ex.get('sets')}×{ex.get('reps')}")
+            detail = f"{name} ({' '.join(bits)})" if bits else name
             _g("training").items.append(
                 PlannedItem(
                     group="training",
                     slug=f"ex-{_slug(name)}",
-                    title=f"Lift: {detail}"[:200],
-                    notes_extra=str(ex.get("rationale") or "")[:500],
+                    title=detail[:200],
+                    notes_extra=str(ex.get("rationale") or "")[:400],
                 )
             )
 
-    # Meal plan items
+    # Nutrition: meal-plan buckets (Next meal / Later / Evening) — not flat day dump
     meal = (today or {}).get("meal") or {}
-    for j, it in enumerate(meal.get("items") or []):
-        if not isinstance(it, dict):
-            continue
-        name = str(it.get("name") or "").strip()
-        if not name:
-            continue
-        portion = it.get("serving_label") or it.get("portion_g") or ""
-        title = f"Eat: {name}"
-        if portion:
-            title = f"Eat: {name} · {portion}"
-        _g("nutrition").items.append(
-            PlannedItem(
-                group="nutrition",
-                slug=f"food-{_slug(name)}-{j}",
-                title=title[:200],
-                notes_extra="",
+    meals = list(meal.get("meals") or [])
+    if meals:
+        for mi, bucket in enumerate(meals):
+            if not isinstance(bucket, dict):
+                continue
+            label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            items = list(bucket.get("items") or [])
+            if not items:
+                continue
+            for j, it in enumerate(items):
+                if not isinstance(it, dict):
+                    continue
+                name = str(it.get("name") or "").strip()
+                if not name:
+                    continue
+                portion = it.get("serving_label") or (
+                    f"{it.get('portion_g')}g" if it.get("portion_g") else ""
+                )
+                title = f"{label}: {name}"
+                if portion:
+                    title = f"{label}: {name} · {portion}"
+                _g("nutrition").items.append(
+                    PlannedItem(
+                        group="nutrition",
+                        slug=f"meal-{mi}-{_slug(name)}-{j}",
+                        title=title[:200],
+                        meal_label=label,
+                    )
+                )
+    else:
+        # Fallback flat items if meals buckets empty
+        for j, it in enumerate(meal.get("items") or []):
+            if not isinstance(it, dict):
+                continue
+            name = str(it.get("name") or "").strip()
+            if not name:
+                continue
+            portion = it.get("serving_label") or ""
+            title = f"Eat: {name}" + (f" · {portion}" if portion else "")
+            _g("nutrition").items.append(
+                PlannedItem(
+                    group="nutrition",
+                    slug=f"food-{_slug(name)}-{j}",
+                    title=title[:200],
+                )
             )
-        )
 
-    # Shopping rows (beyond top action)
     for k, p in enumerate((today or {}).get("purchases") or []):
         if not isinstance(p, dict):
             continue
         name = str(p.get("name") or "").strip()
         if not name:
             continue
-        # skip if already covered by first shopping action with same name
         g = _g("shopping")
         if any(name.lower() in it.title.lower() for it in g.items):
             continue
         act = "Restock" if p.get("action") == "restock" else "Get"
-        _g("shopping").items.append(
+        g.items.append(
             PlannedItem(
                 group="shopping",
                 slug=f"buy-{_slug(name)}-{k}",
                 title=f"{act}: {name}"[:200],
-                notes_extra=str(p.get("reason") or "")[:500],
+                notes_extra=str(p.get("reason") or "")[:400],
             )
         )
 
-    # Drop empty groups; sort
     ordered = sorted(
         [g for g in groups.values() if g.items],
         key=lambda g: (GROUP_META.get(g.group) or GROUP_META["other"])["order"],
@@ -177,16 +220,15 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
     return ordered
 
 
-def _index_existing(tasks: Sequence[dict]) -> Dict[Tuple[str, str, str], dict]:
-    """Map (day, group, slug) → task dict."""
-    out: Dict[Tuple[str, str, str], dict] = {}
-    for t in tasks or []:
-        meta = parse_notes(str(t.get("notes") or ""))
-        if not meta:
-            continue
-        key = (meta["day"], meta["group"], meta["slug"])
-        out[key] = t
-    return out
+def _get_task_safe(list_id: str, task_id: str) -> Optional[dict]:
+    try:
+        gt = gtb.load_google_tasks()
+        r = gt.get_task(list_id, task_id)
+        if r.get("ok"):
+            return r.get("task")
+    except Exception:
+        return None
+    return None
 
 
 def ensure_daily_tasks(
@@ -194,66 +236,61 @@ def ensure_daily_tasks(
     *,
     list_title: str = DEFAULT_LIST_TITLE,
     day: Optional[str] = None,
+    create_missing: bool = True,
 ) -> dict:
-    """Ensure Google Tasks exist for today's plan; return UI payload.
-
-    Does not re-create completed items. Creates missing group parents + leaves.
-    Auto-completes a group parent when all children are completed.
-    """
+    """Ensure / refresh quests. Uses local cache; human-only GT titles/notes."""
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
 
     cred = gtb.credentials_status()
     if not cred.get("ok"):
-        # Local-only preview (no GT)
-        return _local_payload(planned, day=day, error=cred.get("error") or "Google Tasks not configured")
+        return _local_payload(
+            planned,
+            day=day,
+            error=cred.get("error") or "Google Tasks not configured",
+        )
 
     try:
         list_id = gtb.resolve_list_id(list_title)
         if not list_id:
             return _local_payload(
-                planned,
-                day=day,
-                error=f"Task list '{list_title}' not found",
+                planned, day=day, error=f"Task list '{list_title}' not found"
             )
 
-        listed = gtb.list_tasks(list_id, show_completed=True, show_hidden=True)
-        if not listed.get("ok"):
-            return _local_payload(
-                planned, day=day, error=listed.get("error") or "list_tasks failed"
-            )
+        cache = _load_cache()
+        day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+        if day_cache.get("list_id") != list_id:
+            day_cache = {"list_id": list_id, "ids": {}}
+        ids: Dict[str, str] = dict(day_cache.get("ids") or {})
 
-        existing = _index_existing(listed.get("tasks") or [])
         groups_out: List[dict] = []
 
         for g in planned:
-            parent_slug = "group"
-            parent_key = (day, g.group, parent_slug)
-            parent_task = existing.get(parent_key)
-            if not parent_task:
-                notes = make_notes(day=day, group=g.group, slug=parent_slug)
-                notes = f"{notes}\nFitDash daily group · {day}"
+            parent_ck = cache_key(g.group, "group")
+            parent_id = ids.get(parent_ck)
+            parent_task = _get_task_safe(list_id, parent_id) if parent_id else None
+            if not parent_task and create_missing:
                 created = gtb.create_task(
                     list_id,
-                    f"[{day}] {g.title}",
-                    notes=notes,
+                    g.title,  # no date stamp
+                    notes="",  # human-empty; mapping is local
                     due=day,
                 )
-                if created.get("ok"):
-                    parent_task = created.get("task") or {}
-                    existing[parent_key] = parent_task
-                else:
-                    parent_task = {"id": None, "status": "needsAction"}
+                if created.get("ok") and created.get("task"):
+                    parent_task = created["task"]
+                    parent_id = str(parent_task.get("id") or "")
+                    if parent_id:
+                        ids[parent_ck] = parent_id
+            elif not parent_task:
+                parent_id = None
 
-            parent_id = parent_task.get("id")
             items_out: List[dict] = []
             for it in g.items:
-                key = (day, g.group, it.slug)
-                task = existing.get(key)
-                if not task:
-                    notes = make_notes(day=day, group=g.group, slug=it.slug)
-                    if it.notes_extra:
-                        notes = f"{notes}\n{it.notes_extra}"
+                ck = cache_key(g.group, it.slug)
+                tid = ids.get(ck)
+                task = _get_task_safe(list_id, tid) if tid else None
+                if not task and create_missing:
+                    notes = (it.notes_extra or "").strip()
                     created = gtb.create_task(
                         list_id,
                         it.title,
@@ -261,15 +298,24 @@ def ensure_daily_tasks(
                         due=day,
                         parent=str(parent_id) if parent_id else None,
                     )
-                    if created.get("ok"):
-                        task = created.get("task") or {}
-                        existing[key] = task
-                    else:
-                        task = {
-                            "id": None,
+                    if created.get("ok") and created.get("task"):
+                        task = created["task"]
+                        tid = str(task.get("id") or "")
+                        if tid:
+                            ids[ck] = tid
+                if not task:
+                    items_out.append(
+                        {
+                            "slug": it.slug,
                             "title": it.title,
-                            "status": "needsAction",
+                            "completed": False,
+                            "task_id": tid,
+                            "list_id": list_id if tid else None,
+                            "group": g.group,
+                            "meal_label": it.meal_label or None,
                         }
+                    )
+                    continue
                 completed = str(task.get("status") or "") == "completed"
                 items_out.append(
                     {
@@ -279,32 +325,49 @@ def ensure_daily_tasks(
                         "task_id": task.get("id"),
                         "list_id": list_id,
                         "group": g.group,
+                        "meal_label": it.meal_label or None,
                     }
                 )
 
-            # Parent complete when all children done
             all_done = bool(items_out) and all(x["completed"] for x in items_out)
-            parent_completed = str(parent_task.get("status") or "") == "completed"
-            if all_done and not parent_completed and parent_id:
-                gtb.complete_task(list_id, str(parent_id), completed=True)
-                parent_completed = True
-            elif not all_done and parent_completed and parent_id:
-                gtb.complete_task(list_id, str(parent_id), completed=False)
-                parent_completed = False
+            parent_completed = (
+                parent_task is not None
+                and str(parent_task.get("status") or "") == "completed"
+            )
+            if parent_id and create_missing:
+                if all_done and not parent_completed:
+                    gtb.complete_task(list_id, str(parent_id), completed=True)
+                    parent_completed = True
+                elif not all_done and parent_completed:
+                    gtb.complete_task(list_id, str(parent_id), completed=False)
+                    parent_completed = False
 
             done_n = sum(1 for x in items_out if x["completed"])
+            # Nest open items under meal_label for UI
+            items_out_open = [x for x in items_out if not x["completed"]]
             groups_out.append(
                 {
                     "group": g.group,
                     "title": g.title,
+                    "emoji": g.emoji,
                     "task_id": parent_id,
                     "list_id": list_id,
-                    "completed": parent_completed,
+                    "completed": parent_completed or (bool(items_out) and done_n == len(items_out)),
                     "done": done_n,
                     "total": len(items_out),
                     "items": items_out,
+                    "open_items": items_out_open,
                 }
             )
+
+        day_cache = {"list_id": list_id, "ids": ids}
+        cache[day] = day_cache
+        # prune old days (keep last 14)
+        if len(cache) > 16:
+            keys = sorted(k for k in cache.keys() if re.match(r"\d{4}-\d{2}-\d{2}", k))
+            for old in keys[:-14]:
+                cache.pop(old, None)
+        _save_cache(cache)
 
         total = sum(g["total"] for g in groups_out)
         done = sum(g["done"] for g in groups_out)
@@ -322,10 +385,20 @@ def ensure_daily_tasks(
         return _local_payload(planned, day=day, error=str(e))
 
 
+def plan_preview(today_board: dict, *, day: Optional[str] = None) -> dict:
+    """Fast local structure for UI skeleton before GT ensure finishes."""
+    day = day or str((today_board or {}).get("date") or local_today_iso())
+    planned = plan_from_today_board(today_board or {}, day=day)
+    return _local_payload(planned, day=day, error=None, source="plan_preview")
+
+
 def _local_payload(
-    planned: List[PlannedGroup], *, day: str, error: Optional[str] = None
+    planned: List[PlannedGroup],
+    *,
+    day: str,
+    error: Optional[str] = None,
+    source: str = "local_preview",
 ) -> dict:
-    """Offline preview structure (no task_ids) when Google Tasks unavailable."""
     groups_out = []
     for g in planned:
         items = [
@@ -336,6 +409,7 @@ def _local_payload(
                 "task_id": None,
                 "list_id": None,
                 "group": g.group,
+                "meal_label": it.meal_label or None,
                 "local": True,
             }
             for it in g.items
@@ -344,18 +418,20 @@ def _local_payload(
             {
                 "group": g.group,
                 "title": g.title,
+                "emoji": g.emoji,
                 "task_id": None,
                 "list_id": None,
                 "completed": False,
                 "done": 0,
                 "total": len(items),
                 "items": items,
+                "open_items": items,
             }
         )
     total = sum(g["total"] for g in groups_out)
     return {
         "ok": error is None,
-        "source": "local_preview",
+        "source": source,
         "list_title": DEFAULT_LIST_TITLE,
         "list_id": None,
         "day": day,
@@ -373,7 +449,6 @@ def complete_leaf(
     parent_id: Optional[str] = None,
     sibling_all_done: Optional[bool] = None,
 ) -> dict:
-    """Complete/uncomplete a leaf; optionally roll up parent."""
     if not list_id or not task_id:
         return {"ok": False, "error": "missing list_id or task_id"}
     try:

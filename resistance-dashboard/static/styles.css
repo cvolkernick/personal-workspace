@@ -2030,80 +2030,214 @@ footer {
   gap: 0.3rem;
 }
 
-/* Daily quests (Google Tasks checkoff) */
+/* Daily quests — tap cards (no bare checkboxes) */
 .daily-quests {
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
 }
 
 .daily-quests-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 0.5rem;
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, rgba(61, 156, 240, 0.12), rgba(92, 225, 168, 0.08));
+  color: var(--text);
+  border-radius: 12px;
+  padding: 0.55rem 0.7rem;
   font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
 }
 
-.daily-quest-group {
+.daily-quests-head .collapsible-title {
+  flex: 0 1 auto;
+}
+
+.daily-quests-meter {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(45, 58, 79, 0.9);
+  overflow: hidden;
+  min-width: 3rem;
+}
+
+.daily-quests-meter-fill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #5ce1a8, #3d9cf0);
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.daily-quests-count {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+}
+
+.quest-sync-note {
+  font-size: 0.75rem;
+  margin: 0.15rem 0 0.35rem;
+}
+
+.quest-group {
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 0.45rem 0.55rem 0.35rem;
+  border-radius: 12px;
+  padding: 0.5rem 0.55rem 0.55rem;
   background: rgba(255, 255, 255, 0.03);
 }
 
-.daily-quest-group.is-done {
-  opacity: 0.72;
+.quest-group.is-done {
   border-color: rgba(92, 225, 168, 0.35);
+  background: rgba(92, 225, 168, 0.06);
 }
 
-.daily-quest-group-head {
+.quest-group-head {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 0.3rem;
-  font-size: 0.8rem;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+  font-size: 0.78rem;
   font-weight: 700;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--muted);
 }
 
-.daily-quest-list {
-  list-style: none;
-  margin: 0;
+.quest-group-emoji {
+  font-size: 1rem;
+  text-transform: none;
+}
+
+.quest-group-title {
+  flex: 1 1 auto;
+}
+
+.quest-group-prog {
+  font-variant-numeric: tabular-nums;
+}
+
+.quest-group-done {
+  font-size: 0.82rem;
+  color: var(--accent-2, #5ce1a8);
+  font-weight: 600;
+  padding: 0.25rem 0.1rem;
+}
+
+.quest-meal-bucket {
+  margin-top: 0.35rem;
+}
+
+.quest-meal-label {
+  font-size: 0.75rem;
+  font-weight: 650;
+  color: var(--accent, #3d9cf0);
+  margin: 0.2rem 0 0.3rem;
+}
+
+.quest-card-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.quest-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  width: 100%;
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  min-height: 44px;
+}
+
+.quest-card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(61, 156, 240, 0.08);
+}
+
+.quest-card:active:not(:disabled) {
+  transform: scale(0.99);
+}
+
+.quest-card-mark {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  border-radius: 999px;
+  border: 2px solid rgba(92, 225, 168, 0.65);
+  background: transparent;
+  box-shadow: inset 0 0 0 0 rgba(92, 225, 168, 0.9);
+  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.quest-card.is-completing .quest-card-mark,
+.quest-card.is-done .quest-card-mark {
+  background: rgba(92, 225, 168, 0.95);
+  border-color: #5ce1a8;
+  box-shadow: inset 0 0 0 3px rgba(15, 20, 25, 0.35);
+}
+
+.quest-card.is-done {
+  opacity: 0.45;
+}
+
+.quest-card-pending {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.quest-card-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  font-weight: 550;
+}
+
+/* Collapsible heads in Today hub */
+.collapsible-head {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: 100%;
+  text-align: left;
   padding: 0;
 }
 
-.daily-quest-item {
-  margin: 0.2rem 0;
+.collapsible-head .collapse-chevron {
+  margin-left: auto;
+  opacity: 0.65;
+  transition: transform 0.15s ease;
 }
 
-.daily-quest-label {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.45rem;
-  cursor: pointer;
-  font-size: 0.88rem;
-  line-height: 1.35;
+.collapsible-head.is-collapsed .collapse-chevron,
+.collapsible-head[aria-expanded="false"] .collapse-chevron {
+  transform: rotate(-90deg);
 }
 
-.daily-quest-check {
-  margin-top: 0.2rem;
-  flex: 0 0 auto;
-  width: 1.05rem;
-  height: 1.05rem;
-  accent-color: var(--accent-2, #5ce1a8);
-}
-
-.daily-quest-text {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.daily-quest-item.is-complete {
-  font-size: 0.82rem;
-  padding: 0.15rem 0;
+.collapsible-body[hidden] {
+  display: none !important;
 }
 
 .today-actions-compact .today-action-chip {
