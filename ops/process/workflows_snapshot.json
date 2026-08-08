@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-08T16:15:00Z",
+  "updated_by": "forge",
+  "source": "buzz_workflows_list",
+  "notes": [
+    "Cadence/Forge-maintained snapshot of ceremony workflows for Schedule/Process tab (#61).",
+    "Prefer live relay via buzz when available; this file is offline/Pi fallback SoT.",
+    "zzz-* and probe workflows are inert \u2014 UI hides them by default.",
+    "Includes #standup cadence-daily-status (311bb694-\u2026) \u2014 list both ceremony channels."
+  ],
+  "channels": [
+    {
+      "id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "name": "#workflow",
+      "slug": "workflow"
+    },
+    {
+      "id": "1bafc96c-299a-48ef-aff6-4b6190e643e4",
+      "name": "#standup",
+      "slug": "standup"
+    }
+  ],
+  "workflows": [
+    {
+      "id": "a2f99a83-3014-4d45-b2d2-c3672aaf066d",
+      "name": "autonomous-backlog-harvest",
+      "cron": "0 17 * * 1,4",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [
+        "Cadence",
+        "Forge",
+        "Frankenfit",
+        "Grok"
+      ],
+      "kick_pubkeys": [
+        "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f",
+        "f3414245e8bb0b9b7367cb6c29a08774de39cf4045786b7fff5d5f6fb117294a",
+        "f379e967b0e386b2aced741125ec5b935c0e67f99fe189da73986a0016e1ef6e",
+        "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+      ],
+      "status": "active",
+      "trigger_on": "schedule",
+      "created_at": 1786011417,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "85e7e98e-4267-4fe7-8d72-fac49ed3e75b",
+      "name": "cadence-daily-replenish",
+      "cron": "0 16 * * *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [
+        "Cadence"
+      ],
+      "kick_pubkeys": [],
+      "status": "active",
+      "trigger_on": "schedule",
+      "created_at": 1785992187,
+      "pubkey": "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+    },
+    {
+      "id": "59d56951-77a0-4275-a68c-b1fd794bdba3",
+      "name": "eng-gate-sweep",
+      "cron": "*/15 * * * *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [
+        "Grok"
+      ],
+      "kick_pubkeys": [
+        "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+      ],
+      "status": "active",
+      "trigger_on": "schedule",
+      "created_at": 1785992075,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "05e7fcc7-11fe-4043-bf6b-e22a5744cc67",
+      "name": "cadence-deep-groom",
+      "cron": "0 16 * * 3",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [
+        "Cadence",
+        "ChrisV.btc\u26a1"
+      ],
+      "kick_pubkeys": [],
+      "status": "active",
+      "trigger_on": "schedule",
+      "created_at": 1785967228,
+      "pubkey": "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+    },
+    {
+      "id": "b85c12fa-e7e5-43b3-8292-295a1e9f9783",
+      "name": "zzz-retired-cadence-sprint-planning",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785960150,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "95d911df-509b-4eac-a4f5-ffeaa4c1e3da",
+      "name": "zzz-retired-cadence-backlog-grooming",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785960150,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "b45b3339-cd86-4dd0-b0dc-6909f110a48f",
+      "name": "zzz-probe-inert",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785916220,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "50fb41c0-6ed1-4b8a-999c-6a1ef8569993",
+      "name": "zzz-probe-inert",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785916220,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "ea9e6c62-25f1-4967-93cb-867ec83d316d",
+      "name": "probe",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785916121,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "08c87233-1270-424e-a83a-bf8a84ff3970",
+      "name": "zzz-probe-delete-me",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [
+        "Cadence"
+      ],
+      "kick_pubkeys": [
+        "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+      ],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785916103,
+      "pubkey": "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+    },
+    {
+      "id": "1e34895a-eb99-40bb-9b57-bdaf387d0f8f",
+      "name": "zzz-schema-probe-inert-do-not-trigger",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785914290,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "8bd46f07-aff9-4ae7-bad1-f95763b82975",
+      "name": "zzz-schema-probe-inert-do-not-trigger",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785914289,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "f9a3b3f8-b163-47e4-b9a4-ce1e9837e7ca",
+      "name": "zzz-schema-probe-inert-do-not-trigger",
+      "cron": "0 0 1 1 *",
+      "channel_id": "db0e8f97-0c81-4976-b299-1c460b87134e",
+      "channel_name": "#workflow",
+      "kick_targets": [],
+      "kick_pubkeys": [],
+      "status": "inert",
+      "trigger_on": "schedule",
+      "created_at": 1785914289,
+      "pubkey": "213349578fbf53a20fda8b56d0229fca699033d349aa0af00d0a860070f2f2b1"
+    },
+    {
+      "id": "311bb694-4cc5-430b-b663-0ebd113636d4",
+      "name": "cadence-daily-status",
+      "cron": "0 13 * * *",
+      "channel_id": "1bafc96c-299a-48ef-aff6-4b6190e643e4",
+      "channel_name": "#standup",
+      "kick_targets": [
+        "Cadence",
+        "Grok",
+        "ChrisV.btc\u26a1"
+      ],
+      "kick_pubkeys": [
+        "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+      ],
+      "status": "active",
+      "trigger_on": "schedule",
+      "created_at": 1785992187,
+      "pubkey": "0092be61e5d369d74c59bf64d7aaa2ce4fe6932efa7e647645cf4e3fb396a99f"
+    }
+  ]
+}

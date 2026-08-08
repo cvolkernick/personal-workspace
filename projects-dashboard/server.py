@@ -13,6 +13,7 @@
   POST /api/start-work     — body {"area":"treasury"} → work/treasury
   GET  /api/health
   GET  /api/sprint         — ceremony state + optional Buzz Board columns
+  GET  /api/process        — Schedule/Process: live Buzz workflows + day/week flow
 
 Usage:
   python3 projects-dashboard/server.py
@@ -78,6 +79,7 @@ from recommendations import (  # noqa: E402
 )
 from remote_backend import add_backend_args, resolve_backend, try_proxy_api  # noqa: E402
 from session_backup import write_full_archive, write_session_index  # noqa: E402
+from process_schedule import process_payload  # noqa: E402
 from sprint import sprint_payload  # noqa: E402
 from workspace import WORKSPACE_ROOT, collect_workspace_dashboard  # noqa: E402
 
@@ -292,6 +294,19 @@ class ProjectsHandler(SimpleHTTPRequestHandler):
             )
             try:
                 payload = sprint_payload(live_board=live)
+                self._json(200 if payload.get("ok") else 500, payload)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
+        if path == "/api/process":
+            qs = parse_qs(parsed.query)
+            live = (qs.get("live") or ["1"])[0] not in ("0", "false", "no")
+            include_inert = (qs.get("inert") or qs.get("include_inert") or ["0"])[
+                0
+            ] in ("1", "true", "yes")
+            try:
+                payload = process_payload(live=live, include_inert=include_inert)
                 self._json(200 if payload.get("ok") else 500, payload)
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
@@ -613,7 +628,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.local:
         print("Mode: local API (Pi backend)")
     print(
-        "API: GET /api/projects /api/branch-graph /api/tasks /api/sprint | "
+        "API: GET /api/projects /api/branch-graph /api/tasks /api/sprint /api/process | "
         "POST /api/sync /api/protect /api/start-work /api/tasks/*"
     )
     httpd = ThreadingHTTPServer((bind, args.port), ProjectsHandler)
