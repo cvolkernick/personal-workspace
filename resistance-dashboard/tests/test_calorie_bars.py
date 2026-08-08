@@ -10,6 +10,7 @@ from rt_dashboard.calorie_bars import (
     calorie_in_out_delta,
     calorie_pacing,
     eating_window_fraction,
+    pace_vs_expected,
     sum_intake_in_window,
 )
 from rt_dashboard.models import FoodLogEntry
@@ -211,6 +212,76 @@ class TestCalorieBars(unittest.TestCase):
         # Yesterday's meals must not count as today's pacing intake
         self.assertEqual(payload["pacing"]["window"]["source"], "civil_day_after_empty")
         self.assertEqual(payload["pacing"]["consumed"], 0.0)
+
+    def test_pace_vs_expected_green_yellow_red(self):
+        # Mid-window, day target 2000 → paced 1000
+        on = pace_vs_expected(
+            consumed=1000, target=2000, window_fraction=0.5, kind="calories"
+        )
+        self.assertEqual(on["band"], "green")
+        self.assertEqual(on["side"], "on")
+        self.assertAlmostEqual(on["paced_expected"], 1000.0, places=0)
+
+        # 12% ahead of paced → yellow (between 5% and 20%)
+        yel = pace_vs_expected(
+            consumed=1120, target=2000, window_fraction=0.5, kind="calories"
+        )
+        self.assertEqual(yel["band"], "yellow")
+        self.assertEqual(yel["side"], "ahead")
+
+        # 25% behind → red
+        red = pace_vs_expected(
+            consumed=750, target=2000, window_fraction=0.5, kind="calories"
+        )
+        self.assertEqual(red["band"], "red")
+        self.assertEqual(red["side"], "behind")
+
+    def test_protein_over_looser_than_calories(self):
+        # +12% over paced protein stays green; same relative over on cals is yellow
+        p = pace_vs_expected(
+            consumed=112, target=200, window_fraction=0.5, kind="protein"
+        )
+        c = pace_vs_expected(
+            consumed=1120, target=2000, window_fraction=0.5, kind="calories"
+        )
+        self.assertEqual(p["band"], "green")
+        self.assertEqual(c["band"], "yellow")
+        # Under protein still tight
+        under = pace_vs_expected(
+            consumed=750, target=2000, window_fraction=0.5, kind="protein"
+        )
+        # paced 1000, consumed 750 → 25% under → red
+        self.assertEqual(under["band"], "red")
+
+    def test_payload_includes_macro_pace(self):
+        wake = datetime(2026, 7, 26, 8, 0, 0, tzinfo=timezone.utc)
+        now = wake + timedelta(hours=8)
+        payload = build_calorie_bars_payload(
+            today_consumed={
+                "calories": 1000,
+                "protein_g": 100,
+                "carbs_g": 90,
+                "fat_g": 30,
+            },
+            targets={
+                "calories": 2000,
+                "protein_g": 200,
+                "carbs_g": 180,
+                "fat_g": 55,
+            },
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            now=now,
+        )
+        self.assertIn("macro_pace", payload)
+        mp = payload["macro_pace"]
+        self.assertIn("calories", mp)
+        self.assertIn("protein_g", mp)
+        self.assertEqual(mp["calories"]["band"], "green")
+        self.assertEqual(payload["pacing"].get("band"), "green")
 
 
 if __name__ == "__main__":

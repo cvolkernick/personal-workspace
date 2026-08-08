@@ -299,6 +299,130 @@ def calorie_pacing(
     }
 
 
+def pace_vs_expected(
+    *,
+    consumed: float,
+    target: float,
+    window_fraction: float,
+    kind: str = "calories",
+) -> Dict[str, Any]:
+    """Signed deviation from paced expected intake (center = on pace).
+
+    ``paced = target * clamp(window_fraction)``. Relative error uses
+    ``max(paced, 5% of day target)`` so early-window tiny budgets don't go red
+    after a normal first meal.
+
+    Color bands (coach defaults):
+      green  |rel| ≤ 5% of paced floor
+      yellow 5% < |rel| ≤ 20%
+      red    |rel| > 20%
+
+    Protein *over* is looser (green to 15%, yellow to 30%) — surplus protein on
+    a cut is usually fine; under-protein stays on the tight ladder.
+    """
+    consumed = max(0.0, float(consumed or 0))
+    target = max(0.0, float(target or 0))
+    frac = max(0.0, min(1.0, float(window_fraction or 0)))
+    kind_key = (kind or "calories").strip().lower()
+    if kind_key in ("protein", "protein_g", "p"):
+        kind_key = "protein"
+    elif kind_key in ("carbs", "carbs_g", "c", "carbohydrates"):
+        kind_key = "carbs"
+    elif kind_key in ("fat", "fat_g", "f"):
+        kind_key = "fat"
+    else:
+        kind_key = "calories"
+
+    if target <= 0:
+        return {
+            "kind": kind_key,
+            "consumed": round(consumed, 1),
+            "target": 0.0,
+            "window_fraction": round(frac, 4),
+            "paced_expected": 0.0,
+            "delta_vs_pace": round(consumed, 1),
+            "rel_error": None,
+            "side": "none",
+            "band": "muted",
+            "color": "muted",
+            "bar_pct": 0.0,
+            "status": "no_target",
+            "summary": f"Set a {kind_key} target to pace intake.",
+        }
+
+    paced = target * frac
+    # Floor avoids divide-by-near-zero early in the window
+    floor = max(paced, target * 0.05, 1.0)
+    delta = consumed - paced
+    rel = abs(delta) / floor
+
+    # Half-track scale: 30% relative error fills the side (readable severity)
+    bar_pct = min(100.0, (rel / 0.30) * 100.0)
+
+    if frac <= 0.02 and consumed <= 0:
+        side = "start"
+        band = "green"
+        color = "green"
+        status = "start"
+        summary = f"{kind_key}: window opening · day target {target:g}"
+    else:
+        if abs(delta) < 0.5 or rel < 0.005:
+            side = "on"
+        elif delta > 0:
+            side = "ahead"
+        else:
+            side = "behind"
+
+        # Thresholds
+        if kind_key == "protein" and delta > 0:
+            green_max, yellow_max = 0.15, 0.30
+        else:
+            green_max, yellow_max = 0.05, 0.20
+
+        if rel <= green_max:
+            band, color = "green", "green"
+            status = "on_pace" if side in ("on", "start") else f"{side}_ok"
+        elif rel <= yellow_max:
+            band, color = "yellow", "yellow"
+            status = f"{side}_watch"
+        else:
+            band, color = "red", "red"
+            status = f"{side}_off"
+
+        unit = "kcal" if kind_key == "calories" else "g"
+        if side == "on":
+            summary = (
+                f"{consumed:g} / paced ~{paced:.0f} {unit} · on pace "
+                f"({frac * 100:.0f}% of window · day {target:g})"
+            )
+        elif side == "ahead":
+            summary = (
+                f"{consumed:g} {unit} · +{delta:.0f} ahead of pace "
+                f"(~{paced:.0f} expected now · day {target:g})"
+            )
+        else:
+            summary = (
+                f"{consumed:g} {unit} · {abs(delta):.0f} behind pace "
+                f"(~{paced:.0f} expected now · day {target:g})"
+            )
+
+    return {
+        "kind": kind_key,
+        "consumed": round(consumed, 1),
+        "target": round(target, 1),
+        "window_fraction": round(frac, 4),
+        "paced_expected": round(paced, 1),
+        "delta_vs_pace": round(delta, 1),
+        "rel_error": round(rel, 4),
+        "side": side,
+        "band": band,
+        "color": color,
+        "bar_pct": round(bar_pct, 1),
+        "status": status,
+        "summary": summary,
+    }
+
+
 def calorie_in_out_delta(
     *,
     intake: float,
@@ -385,8 +509,10 @@ def build_calorie_bars_payload(
     when no window logs are found. In/out delta still uses civil-day intake
     vs same-day burned.
     """
-    civil_consumed = float((today_consumed or {}).get("calories") or 0)
-    target = float((targets or {}).get("calories") or 0)
+    civil = today_consumed or {}
+    civil_consumed = float(civil.get("calories") or 0)
+    targets = targets or {}
+    target = float(targets.get("calories") or 0)
     bat = sleep_battery or {}
 
     window = eating_window_fraction(
@@ -404,22 +530,70 @@ def build_calorie_bars_payload(
     if win_intake.get("log_count"):
         pacing_consumed = float(win_intake.get("calories") or 0)
         pacing_source = "eating_window_logs"
+        macro_intake = {
+            "calories": float(win_intake.get("calories") or 0),
+            "protein_g": float(win_intake.get("protein_g") or 0),
+            "carbs_g": float(win_intake.get("carbs_g") or 0),
+            "fat_g": float(win_intake.get("fat_g") or 0),
+        }
     else:
         pacing_consumed = civil_consumed
         pacing_source = "civil_day_fallback"
+        macro_intake = {
+            "calories": civil_consumed,
+            "protein_g": float(civil.get("protein_g") or 0),
+            "carbs_g": float(civil.get("carbs_g") or 0),
+            "fat_g": float(civil.get("fat_g") or 0),
+        }
 
+    frac = float(window["fraction"])
     pacing = calorie_pacing(
         consumed=pacing_consumed,
         target=target,
-        window_fraction=float(window["fraction"]),
+        window_fraction=frac,
     )
     pacing["window"] = window
     pacing["intake_source"] = pacing_source
     pacing["window_intake"] = win_intake
     pacing["civil_day_consumed"] = round(civil_consumed, 1)
 
+    # Severity band for the main calorie pacing fill (same ladder as macros)
+    cal_pace = pace_vs_expected(
+        consumed=pacing_consumed,
+        target=target,
+        window_fraction=frac,
+        kind="calories",
+    )
+    pacing["band"] = cal_pace.get("band")
+    pacing["color"] = cal_pace.get("color")
+    pacing["rel_error"] = cal_pace.get("rel_error")
+
+    macro_pace = {
+        "calories": cal_pace,
+        "protein_g": pace_vs_expected(
+            consumed=macro_intake["protein_g"],
+            target=float(targets.get("protein_g") or 0),
+            window_fraction=frac,
+            kind="protein",
+        ),
+        "carbs_g": pace_vs_expected(
+            consumed=macro_intake["carbs_g"],
+            target=float(targets.get("carbs_g") or 0),
+            window_fraction=frac,
+            kind="carbs",
+        ),
+        "fat_g": pace_vs_expected(
+            consumed=macro_intake["fat_g"],
+            target=float(targets.get("fat_g") or 0),
+            window_fraction=frac,
+            kind="fat",
+        ),
+        "window_fraction": round(frac, 4),
+        "intake_source": pacing_source,
+    }
+
     delta = calorie_in_out_delta(
         intake=civil_consumed,
         burned=calories_burned_today,
     )
-    return {"pacing": pacing, "delta": delta}
+    return {"pacing": pacing, "delta": delta, "macro_pace": macro_pace}
