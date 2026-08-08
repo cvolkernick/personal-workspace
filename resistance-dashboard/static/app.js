@@ -11,6 +11,35 @@
   let macrosChart = null;
   let hydrationChart = null;
   let selectedExercise = null;
+  /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v1";
+  const COLLAPSE_DEFAULTS = {
+    quests: true,
+    targets: true,
+    "meal-sum": false,
+    lift: true,
+  };
+  function readCollapseOpen() {
+    try {
+      const raw = sessionStorage.getItem(COLLAPSE_STORAGE_KEY);
+      if (!raw) return { ...COLLAPSE_DEFAULTS };
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return { ...COLLAPSE_DEFAULTS };
+      return { ...COLLAPSE_DEFAULTS, ...parsed };
+    } catch (_) {
+      return { ...COLLAPSE_DEFAULTS };
+    }
+  }
+  const collapseOpen = readCollapseOpen();
+  function persistCollapseOpen() {
+    try {
+      sessionStorage.setItem(COLLAPSE_STORAGE_KEY, JSON.stringify(collapseOpen));
+    } catch (_) {
+      /* private mode / quota — in-memory still works this session */
+    }
+  }
+  /** Intake vs burned chart + cumulative summary window (days). */
+  const CAL_IN_OUT_SPAN_DAYS = 45;
 
   function todayISO() {
     // Browser local civil date (matches host TZ when you open dashboard on this Mac).
@@ -905,9 +934,9 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Intake vs burned: 30d for now (older burned totals were inflated/corrupted).
+    // Intake vs burned: 45d window (was 30d while older burned totals were inflated).
     // Macro split reuses its own 90d axis below.
-    const calSpanDays = 30;
+    const calSpanDays = CAL_IN_OUT_SPAN_DAYS;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -919,7 +948,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Full series mapped onto the intake/burned civil axis (30d).
+    // Full series mapped onto the intake/burned civil axis.
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -1093,7 +1122,7 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
-      // 90d civil axis (aligned with body weight; independent of intake/burned 30d).
+      // 90d civil axis (aligned with body weight; independent of intake/burned span).
       // Map logged nutrition onto each day; null split when no macros that day.
       const macroSpanDays = 90;
       const macroEnd = new Date();
@@ -3004,9 +3033,9 @@
         note.innerHTML =
           `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
       } else {
-        // Cumulative intake − burned over the same window as the chart (30d for now).
+        // Cumulative intake − burned over the same window as the chart.
         // Days with both series present only, so the sum matches the shaded bands.
-        const spanDays = 30;
+        const spanDays = CAL_IN_OUT_SPAN_DAYS;
         const end = new Date();
         end.setHours(0, 0, 0, 0);
         const z = (x) => String(x).padStart(2, "0");
@@ -3203,39 +3232,9 @@
     renderTodayHub(data);
   }
 
-  /** Polished daily quests — tap cards, meal subgroups, async GT sync. */
-  function renderDailyPlanTasks(daily, fallbackActions) {
-    const box = $("today-actions");
-    if (!box) return;
-    const groups = (daily && daily.groups) || [];
-    const sum = (daily && daily.summary) || {};
-    const err = daily && daily.error;
-    const src = (daily && daily.source) || "";
-    const syncing = daily && daily.needs_sync && src !== "google_tasks";
-
-    if (!groups.length) {
-      const acts = fallbackActions || [];
-      if (!acts.length) {
-        box.innerHTML = err
-          ? `<p class="muted" style="font-size:0.82rem;margin:0">Quests: ${err}</p>`
-          : syncing
-            ? `<p class="muted" style="font-size:0.82rem;margin:0">Syncing quests…</p>`
-            : "";
-        return;
-      }
-    }
-
-    const done = sum.done != null ? sum.done : 0;
-    const total = sum.total != null ? sum.total : 0;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    let html = `<div class="daily-quests">
-      <button type="button" class="daily-quests-head collapsible-head" data-collapse="quests" aria-expanded="true">
-        <span class="collapsible-title">⚔ Daily quests</span>
-        <span class="daily-quests-meter" aria-hidden="true"><span class="daily-quests-meter-fill" style="width:${pct}%"></span></span>
-        <span class="muted daily-quests-count">${done}/${total}</span>
-        <span class="collapse-chevron">▾</span>
-      </button>
-      <div class="collapsible-body" data-collapse-body="quests">`;
+  /** Build quest body HTML (sync note + groups) — never includes the collapsible shell. */
+  function buildDailyQuestBodyHtml(groups, { syncing, err, src }) {
+    let html = "";
     if (syncing) {
       html += `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
     } else if (err) {
@@ -3302,8 +3301,97 @@
       }
       html += `</div>`;
     });
-    html += `</div></div>`;
-    box.innerHTML = html;
+    return html;
+  }
+
+  /** Apply collapseOpen.quests to existing head/body without replacing the shell. */
+  function applyQuestsCollapseDom(root) {
+    const el = root || $("today-actions") || document;
+    const head =
+      el.querySelector?.('[data-collapse="quests"]') ||
+      document.querySelector('[data-collapse="quests"]');
+    const body =
+      el.querySelector?.('[data-collapse-body="quests"]') ||
+      document.querySelector('[data-collapse-body="quests"]');
+    if (!head && !body) return;
+    const open = collapseOpen.quests !== false;
+    if (head) {
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      head.classList.toggle("is-collapsed", !open);
+    }
+    if (body) body.hidden = !open;
+  }
+
+  /**
+   * Polished daily quests — tap cards, meal subgroups, async GT sync.
+   * Critical: once the collapsible shell exists, never replace it on re-render
+   * (async GT sync was forcing quests open by rewriting the whole block).
+   */
+  function renderDailyPlanTasks(daily, fallbackActions) {
+    const box = $("today-actions");
+    if (!box) return;
+    const groups = (daily && daily.groups) || [];
+    const sum = (daily && daily.summary) || {};
+    const err = daily && daily.error;
+    const src = (daily && daily.source) || "";
+    const syncing = daily && daily.needs_sync && src !== "google_tasks";
+    const existing = box.querySelector(".daily-quests");
+
+    if (!groups.length) {
+      const acts = fallbackActions || [];
+      if (!acts.length) {
+        // Keep shell if user already collapsed it — only swap body note / wipe once
+        if (existing) {
+          const body = existing.querySelector('[data-collapse-body="quests"]');
+          if (body) {
+            body.innerHTML = err
+              ? `<p class="muted quest-sync-note">Quests: ${err}</p>`
+              : syncing
+                ? `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`
+                : `<p class="muted quest-sync-note">No open quests.</p>`;
+          }
+          applyQuestsCollapseDom(existing);
+          return;
+        }
+        box.innerHTML = err
+          ? `<p class="muted" style="font-size:0.82rem;margin:0">Quests: ${err}</p>`
+          : syncing
+            ? `<p class="muted" style="font-size:0.82rem;margin:0">Syncing quests…</p>`
+            : "";
+        return;
+      }
+    }
+
+    const done = sum.done != null ? sum.done : 0;
+    const total = sum.total != null ? sum.total : 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const bodyHtml = buildDailyQuestBodyHtml(groups, { syncing, err, src });
+
+    // Re-render path: update meter/count/body only — head + open/closed stay put
+    if (existing) {
+      const count = existing.querySelector(".daily-quests-count");
+      if (count) count.textContent = `${done}/${total}`;
+      const fill = existing.querySelector(".daily-quests-meter-fill");
+      if (fill) fill.style.width = `${pct}%`;
+      const body = existing.querySelector('[data-collapse-body="quests"]');
+      if (body) body.innerHTML = bodyHtml;
+      applyQuestsCollapseDom(existing);
+      return;
+    }
+
+    // First paint only — bake current preference into shell
+    const questsOpen = collapseOpen.quests !== false;
+    box.innerHTML = `<div class="daily-quests">
+      <button type="button" class="daily-quests-head collapsible-head${questsOpen ? "" : " is-collapsed"}" data-collapse="quests" aria-expanded="${questsOpen ? "true" : "false"}">
+        <span class="collapsible-title">⚔ Daily quests</span>
+        <span class="daily-quests-meter" aria-hidden="true"><span class="daily-quests-meter-fill" style="width:${pct}%"></span></span>
+        <span class="muted daily-quests-count">${done}/${total}</span>
+        <span class="collapse-chevron">▾</span>
+      </button>
+      <div class="collapsible-body" data-collapse-body="quests"${questsOpen ? "" : " hidden"}>
+        ${bodyHtml}
+      </div>
+    </div>`;
   }
 
   async function syncDailyTasksFromServer() {
@@ -3396,20 +3484,56 @@
     }
   }
 
-  function bindCollapsibles(root) {
-    (root || document).querySelectorAll("[data-collapse]").forEach((head) => {
-      if (head.dataset.boundCollapse) return;
-      head.dataset.boundCollapse = "1";
-      head.addEventListener("click", () => {
-        const key = head.getAttribute("data-collapse");
-        const body = document.querySelector(`[data-collapse-body="${key}"]`);
-        if (!body) return;
-        const open = head.getAttribute("aria-expanded") !== "false";
-        head.setAttribute("aria-expanded", open ? "false" : "true");
-        body.hidden = open;
-        head.classList.toggle("is-collapsed", open);
-      });
+  /** Event-delegated collapse — survives quest re-renders after GT sync. */
+  function onCollapsibleHeadClick(ev) {
+    if (ev.target.closest && ev.target.closest(".quest-card")) return;
+    const head = ev.target.closest && ev.target.closest("[data-collapse]");
+    if (!head) return;
+    // Head is the control; ignore clicks that only bubble through from outside
+    if (!head.contains(ev.target)) return;
+    const key = head.getAttribute("data-collapse");
+    if (!key) return;
+    const root = $("today-hub") || document;
+    const body =
+      root.querySelector(`[data-collapse-body="${key}"]`) ||
+      document.querySelector(`[data-collapse-body="${key}"]`);
+    if (!body) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const open = head.getAttribute("aria-expanded") !== "false";
+    const nextOpen = !open;
+    head.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    body.hidden = !nextOpen;
+    head.classList.toggle("is-collapsed", !nextOpen);
+    collapseOpen[key] = nextOpen;
+    persistCollapseOpen();
+  }
+
+  function applyStaticCollapseState(root) {
+    const el = root || $("today-hub") || document;
+    el.querySelectorAll("[data-collapse]").forEach((head) => {
+      const key = head.getAttribute("data-collapse");
+      if (!key || key === "quests") return; // quests re-rendered with state baked in
+      if (!(key in collapseOpen)) return;
+      const open = collapseOpen[key] !== false;
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      head.classList.toggle("is-collapsed", !open);
+      const body =
+        el.querySelector(`[data-collapse-body="${key}"]`) ||
+        document.querySelector(`[data-collapse-body="${key}"]`);
+      if (body) body.hidden = !open;
     });
+  }
+
+  function bindCollapsibles(root) {
+    // Document-level so re-parenting / partial hub rewrites never drop the handler
+    if (document.documentElement.dataset.collapseDelegated === "1") {
+      applyStaticCollapseState(root);
+      return;
+    }
+    document.documentElement.dataset.collapseDelegated = "1";
+    document.addEventListener("click", onCollapsibleHeadClick);
+    applyStaticCollapseState(root);
   }
 
   function renderTodayHub(data) {
@@ -3438,8 +3562,9 @@
 
     // Daily quests: paint local plan immediately; sync GT in background (keeps dashboard snappy)
     const daily = today.daily_tasks || data.daily_tasks || null;
-    renderDailyPlanTasks(daily, today.actions || []);
+    // Bind collapse delegation once on hub (before/after quest re-renders)
     bindCollapsibles($("today-hub") || document);
+    renderDailyPlanTasks(daily, today.actions || []);
     if (!daily || daily.needs_sync || daily.source !== "google_tasks") {
       syncDailyTasksFromServer();
     }
