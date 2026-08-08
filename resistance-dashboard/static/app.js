@@ -694,27 +694,50 @@
     if (!selectedExercise || !exercises.includes(selectedExercise)) {
       selectedExercise = exercises[0] || null;
     }
-    const tabs = $("exercise-tabs");
-    tabs.innerHTML = "";
-    // Show full top-exercise list (backend ranks by session frequency).
-    // Previously capped at 8, which hid e.g. Tricep Pushdowns (#9–10).
-    exercises.forEach((name) => {
-      const b = document.createElement("button");
-      b.type = "button";
-      b.textContent = name;
-      if (name === selectedExercise) b.classList.add("active");
-      b.addEventListener("click", () => {
-        selectedExercise = name;
-        tabs.querySelectorAll("button").forEach((btn) => {
-          btn.classList.toggle("active", btn.textContent === selectedExercise);
-        });
-        renderStrength(data);
+    // Compact picker (select + prev/next) keeps strength card height near volume chart
+    const sel = $("exercise-select");
+    if (sel) {
+      sel.innerHTML = "";
+      exercises.forEach((name) => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (name === selectedExercise) opt.selected = true;
+        sel.appendChild(opt);
       });
-      tabs.appendChild(b);
-    });
+      if (!sel.dataset.bound) {
+        sel.dataset.bound = "1";
+        sel.addEventListener("change", () => {
+          selectedExercise = sel.value || null;
+          if (state) renderStrength(state);
+        });
+      }
+    }
+    const stepExercise = (dir) => {
+      if (!exercises.length) return;
+      let i = exercises.indexOf(selectedExercise);
+      if (i < 0) i = 0;
+      i = (i + dir + exercises.length) % exercises.length;
+      selectedExercise = exercises[i];
+      if (sel) sel.value = selectedExercise;
+      if (state) renderStrength(state);
+    };
+    const prev = $("exercise-prev");
+    const next = $("exercise-next");
+    if (prev && !prev.dataset.bound) {
+      prev.dataset.bound = "1";
+      prev.addEventListener("click", () => stepExercise(-1));
+    }
+    if (next && !next.dataset.bound) {
+      next.dataset.bound = "1";
+      next.addEventListener("click", () => stepExercise(1));
+    }
+    // Legacy tabs container kept hidden for any residual CSS
+    const tabs = $("exercise-tabs");
+    if (tabs) tabs.innerHTML = "";
     if ($("strength-trend-note")) {
       $("strength-trend-note").textContent = exercises.length
-        ? `${exercises.length} exercises ranked by log frequency — pick a tab to view trend`
+        ? `${exercises.length} exercises by log frequency — use ‹ › or the menu`
         : "No exercises with strength history yet.";
     }
     renderStrength(data);
@@ -2268,50 +2291,13 @@
     return Number.isInteger(x) ? String(x) : x.toFixed(0);
   }
 
-  /**
-   * Sticky strip: glance cals/protein/recovery on non-Today tabs.
-   * Hidden on Today — full “Today so far” + pacing already cover it there.
-   */
-  function updateMacroStrip(consumed, targets, recovery) {
-    const strip = $("macro-strip");
-    if (!strip) return;
-    const c = consumed || {};
-    const t = targets || {};
-    const rec = recovery || {};
-    const calsEl = $("macro-strip-cals");
-    const pEl = $("macro-strip-protein");
-    const rEl = $("macro-strip-recovery");
-    // source "none" means Google Health has no day yet — show — not fake 0s
-    const noIntake =
-      !c.source || c.source === "none" || (c.food_log_count === 0 && !(Number(c.calories) > 0));
-    if (calsEl) {
-      const eaten = noIntake && !(Number(c.calories) > 0) ? "—" : fmtNumShort(c.calories);
-      calsEl.textContent = `Cals ${eaten}/${fmtNumShort(t.calories)}`;
-      calsEl.title = "Calories eaten today / daily target (from Google Health)";
-    }
-    if (pEl) {
-      const eatenP =
-        noIntake && !(Number(c.protein_g) > 0) ? "—" : fmtNumShort(c.protein_g);
-      pEl.textContent = `P ${eatenP}/${fmtNumShort(t.protein_g)}g`;
-      pEl.title = "Protein eaten today / daily target (from Google Health)";
-    }
-    if (rEl) {
-      const label = rec.label || "—";
-      const score = rec.score != null ? Math.round(Number(rec.score)) : "—";
-      // Keep "Rec" prefix so Caution/Ready is not mistaken for a macro
-      rEl.textContent = `Rec ${label} ${score}`;
-      rEl.title =
-        "Recovery score 0–100 from sleep, recent training volume, and weight trend. Bands: Ready 75+, Moderate 50–74, Caution 30–49, Needs Rest <30.";
-    }
-    syncMacroStripVisibility();
+  /** Sticky macro strip removed (product: eyesore / low value). Keep no-op for callers. */
+  function updateMacroStrip(_consumed, _targets, _recovery) {
+    /* intentionally empty */
   }
 
   function syncMacroStripVisibility() {
-    const strip = $("macro-strip");
-    if (!strip) return;
-    // Today tab already has pace bars + so-far; strip is redundant noise there
-    const hide = (typeof mobileActiveTab !== "undefined" ? mobileActiveTab : "today") === "today";
-    strip.hidden = hide;
+    /* strip removed */
   }
 
   function fmtBarWhen(iso) {
@@ -4256,13 +4242,12 @@
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
-        // Plan controls live inside Today hub → Training
-        goMobileTab("today");
-        setTodayPill("lift");
+        // Training settings live under More; prescription is on Today Lift
+        goMobileTab("more");
         const el =
-          $("today-plan-controls") ||
-          $("workout-plan-result") ||
-          $("today-hub");
+          $("training-settings-section") ||
+          $("workout-goals-form") ||
+          $("exercise-catalog-section");
         if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
