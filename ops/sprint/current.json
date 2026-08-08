@@ -1,54 +1,101 @@
 {
-  "sprint_id": null,
-  "goal": null,
-  "wip_limit": 3,
-  "capacity_points": 13,
-  "committed_points": 0,
-  "in_progress": [],
-  "ready": [
-    {
-      "number": 21,
-      "title": "Enable Grok chat to access Buzz Board issues (GitHub Project)",
-      "size": 3,
-      "priority": "P0",
-      "owner": "Grok",
-      "url": "https://github.com/cvolkernick/personal-workspace/issues/21",
-      "notes": "Partial progress: dashboard GraphQL board adapter already live on Sprint tab. Remaining = agent-facing access path from chat."
-    },
-    {
-      "number": 20,
-      "title": "Revisit, expand, and enhance Horizon macro model",
+  "schema_version": 2,
+  "sprint_id": "2026-W32",
+  "goal": "Ship Sprint tab that shows real eng-gate WIP (Board columns + free agents), not dual-SoT lies.",
+  "agent_wip_cap": 1,
+  "board_sot": "github_project_v2",
+  "board_url": "https://github.com/users/cvolkernick/projects/1",
+  "card_overlays": {
+    "56": {
       "size": 5,
-      "priority": "P1",
+      "priority": "P2",
+      "owner": "Forge",
+      "notes": "In Progress — Sprint tab real WIP; Cadence ceremony v2 + Forge implement; Grok eng-gate"
+    },
+    "40": {
+      "size": null,
+      "priority": "P2",
       "owner": null,
-      "url": "https://github.com/cvolkernick/personal-workspace/issues/20",
-      "notes": "Prefer clear MVP slice before pull; full macro expansion may need split."
-    }
-  ],
-  "not_this_sprint": [
-    {
-      "number": 13,
-      "title": "[Parked] Valet Trash App \u2014 fine redistribution amenity",
+      "notes": "Ready — agent roster hygiene; pull when eng free after #56"
+    },
+    "61": {
+      "size": null,
+      "priority": "P2",
+      "owner": null,
+      "notes": "Validate — workflow scheduled process flow; groom after #56"
+    },
+    "76": {
+      "size": null,
+      "priority": "P3",
+      "owner": "Assay",
+      "notes": "Validate — Mon 2026-08-10 Assay QA process analysis; not eng pull; Ready only after cycle-2 ranked table"
+    },
+    "13": {
       "size": 8,
       "priority": "P3",
-      "url": "https://github.com/cvolkernick/personal-workspace/issues/13",
-      "notes": "Parked \u2014 leave until explicit unpark."
+      "owner": null,
+      "notes": "Parked — capital; do not silent-promote"
     },
-    {
-      "number": 25,
-      "title": "SDLC: issue \u2192 branch \u2192 PR \u2192 merge \u2192 auto-deploy Pi",
-      "size": 8,
-      "priority": "P1",
-      "url": "https://github.com/cvolkernick/personal-workspace/issues/25",
-      "notes": "Parked pipeline work; #24 may be duplicate \u2014 clean at next full grooming."
+    "42": {
+      "size": null,
+      "priority": "P3",
+      "owner": null,
+      "notes": "Parked — KPI close"
+    },
+    "57": {
+      "size": null,
+      "priority": "P3",
+      "owner": null,
+      "notes": "Parked — implication packet seed; may be partially shipped via Done #38/#49"
+    },
+    "64": {
+      "size": null,
+      "priority": "P3",
+      "owner": null,
+      "notes": "Parked — TREAD P8"
+    },
+    "81": {
+      "size": null,
+      "priority": "P3",
+      "owner": "Frankenfit",
+      "notes": "Parked — FitDash collapse"
     }
+  },
+  "not_this_sprint": [
+    { "number": 13, "reason": "capital / explicit park" },
+    { "number": 42, "reason": "KPI close — parked" },
+    { "number": 57, "reason": "likely superseded wire — re-scope later" },
+    { "number": 64, "reason": "TREAD P8 — no silent promote" },
+    { "number": 76, "reason": "Assay process analysis dated Mon 2026-08-10 — Validate, not eng pull" },
+    { "number": 81, "reason": "FitDash collapse parked" }
   ],
+  "agents": [
+    { "name": "Forge", "role": "platform eng", "seat": "implement" },
+    { "name": "Grok", "role": "SIC + eng gate", "seat": "gate" },
+    { "name": "Meridian", "role": "horizon / domain", "seat": "implement" },
+    { "name": "Frankenfit", "role": "fitness", "seat": "implement" },
+    { "name": "Nakatoshi", "role": "capital (off eng board)", "seat": "domain" },
+    { "name": "Assay", "role": "system QA weekly slice", "seat": "qa" },
+    { "name": "Cadence", "role": "scrum / ceremonies", "seat": "process" }
+  ],
+  "ceremonies": {
+    "replenish_cron": "0 16 * * *",
+    "replenish_workflow_id": "85e7e98e-4267-4fe7-8d72-fac49ed3e75b",
+    "daily_status_cron": "0 13 * * *",
+    "daily_status_workflow_id": "311bb694-4cc5-430b-b663-0ebd113636d4",
+    "deep_groom_cron": "0 16 * * 3",
+    "deep_groom_workflow_id": "05e7fcc7-11fe-4043-bf6b-e22a5744cc67",
+    "eng_gate_sweep_cron": "*/15 * * * *",
+    "eng_gate_sweep_workflow_id": "59d56951-77a0-4275-a68c-b1fd794bdba3",
+    "next_assay_qa": "2026-08-10",
+    "assay_qa_issue": 76,
+    "assay_qa_note": "Monday Assay QA process analysis — #76 Validate until cycle-2 ranked table in #workflow, then Ready + @Grok; not feature eng"
+  },
   "notes": [
-    "2026-08-05 Cadence: pre-planning ready sizes only \u2014 no sprint goal / no WIP commit.",
-    "Live Board snapshot matched: Parked #13 #25 \u00b7 Ready #20 #21 \u00b7 In Progress empty.",
-    "Overrides welcome on sizes before first Mon planning."
+    "2026-08-08 Cadence: schema v2 seed for #56. Board = column SoT. This file = goal/overlays/roster/ceremonies only.",
+    "Grok A+B+C board: IP #56 · Ready #40 · Validate #61 #76 · Parked capital/P3 hold.",
+    "v1 in_progress/ready/wip_limit=3 are deprecated — do not treat as primary columns when live Board works."
   ],
-  "updated_at": "2026-08-05T08:02:23Z",
-  "updated_by": "cadence",
-  "board_url": "https://github.com/users/cvolkernick/projects/1"
+  "updated_at": "2026-08-08T06:35:00Z",
+  "updated_by": "cadence"
 }

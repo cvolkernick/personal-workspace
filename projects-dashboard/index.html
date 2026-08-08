@@ -456,6 +456,20 @@
     }
     .sprint-lifecycle .col-chip .n { font-size: 1.15rem; font-weight: 700; }
     .sprint-lifecycle .col-chip .l { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .sprint-agents {
+      display: grid; gap: 0.55rem;
+      grid-template-columns: 1fr;
+      margin: 0 0 0.85rem;
+    }
+    @media (min-width: 720px) {
+      .sprint-agents { grid-template-columns: 1fr 1fr; }
+    }
+    .sprint-agent-pills {
+      display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.35rem;
+    }
+    .sprint-agent-pills .pill.free { color: var(--green); border-color: #245c42; }
+    .sprint-agent-pills .pill.busy { color: var(--yellow); border-color: #6b5a1e; }
+    .sprint-agent-pills .pill.over { color: var(--red); border-color: #6b2e2e; }
     .ceremony-strip {
       display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;
       margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border);
@@ -1702,7 +1716,24 @@
       return map;
     }
 
-    /** Board columns for membership; ceremony file overlays size/priority/owner/notes. */
+    /** Overlay map from ceremony.card_overlays (schema v2) or v1 lists. */
+    function buildOverlayMap(ceremony) {
+      const map = new Map();
+      const ov = (ceremony && ceremony.card_overlays) || {};
+      Object.keys(ov).forEach((k) => {
+        const n = Number(k);
+        if (!Number.isNaN(n) && ov[k]) map.set(n, ov[k]);
+      });
+      // v1 soft lists (degrade only)
+      for (const list of [ceremony?.in_progress, ceremony?.ready, ceremony?.not_this_sprint]) {
+        for (const it of list || []) {
+          if (it && it.number != null && !map.has(Number(it.number))) map.set(Number(it.number), it);
+        }
+      }
+      return map;
+    }
+
+    /** Board columns for membership; overlays already applied server-side — soft merge for safety. */
     function mergeSprintCards(boardList, ceremonyList, cerMap) {
       const board = boardList || [];
       const ceremony = ceremonyList || [];
@@ -1711,10 +1742,10 @@
           const c = cerMap.get(Number(b.number)) || {};
           return {
             ...b,
-            size: c.size != null ? c.size : (b.size != null ? b.size : b.size_hint),
-            priority: c.priority || b.priority || b.priority_hint,
-            owner: c.owner || b.owner,
-            notes: c.notes || b.notes,
+            size: b.size != null ? b.size : (c.size != null ? c.size : b.size_hint),
+            priority: b.priority || c.priority || b.priority_hint,
+            owner: b.owner || c.owner,
+            notes: b.notes || c.notes,
             url: b.url || c.url,
             title: b.title || c.title,
           };
@@ -1751,29 +1782,38 @@
       const wip = data.wip || {};
       const board = data.board || {};
       const cols = board.columns || {};
-      const limit = wip.limit ?? c.wip_limit ?? 3;
-      const cur = wip.current ?? 0;
-      const meterClass = wip.over ? "over" : (cur >= limit ? "warn" : (cur === 0 ? "warn" : "ok"));
+      const agents = data.agents || {};
+      const cerems = data.ceremonies || {};
+      const boardIp = wip.board_in_progress_count ?? (cols["In Progress"] || []).length;
+      const freeCount = agents.free_count ?? (agents.free || []).length;
+      const busyCount = agents.busy_count ?? (agents.busy || []).length;
+      const agentCap = agents.cap ?? wip.cap ?? c.agent_wip_cap ?? 1;
+      const meterClass = freeCount > 0 ? "ok" : (boardIp > 0 ? "warn" : "warn");
       const goal = (c.goal && String(c.goal).trim()) || null;
       const boardUrl = c.board_url || board.url || "https://github.com/users/cvolkernick/projects/1";
       const sourceLabel = board.source === "github_project_v2"
         ? "Board live"
         : board.source === "ceremony_only"
-          ? "Ceremony file"
+          ? "Ceremony degrade"
           : (board.source || "—");
+      const schemaV = c.schema_version != null ? `schema v${c.schema_version}` : "schema ?";
 
-      const cerMap = ceremonyByNumber([c.in_progress, c.ready, c.not_this_sprint]);
-      // Board = column membership; ceremony = sizes / not-this-sprint / goal
+      const cerMap = buildOverlayMap(c);
+      // Board = column membership (server already applied overlays)
       let ip = mergeSprintCards(cols["In Progress"], c.in_progress, cerMap);
-      let ready = mergeSprintCards(cols["Ready"], c.ready, cerMap);
+      let ready = data.ready_display
+        ? mergeSprintCards(data.ready_display, [], cerMap)
+        : mergeSprintCards(cols["Ready"], c.ready, cerMap);
+      let pending = mergeSprintCards(cols["Pending Review"], [], cerMap);
       const notSprint = c.not_this_sprint || [];
-      // Hide Ready cards flagged not-this-sprint
       const notSet = new Set(notSprint.map((x) => Number(x.number)).filter((n) => !Number.isNaN(n)));
-      if (notSet.size) ready = ready.filter((x) => !notSet.has(Number(x.number)));
+      if (!data.ready_display && notSet.size) {
+        ready = ready.filter((x) => !notSet.has(Number(x.number)));
+      }
 
       const countEl = $("sprint-tab-count");
       if (countEl) {
-        if (cur > 0) { countEl.hidden = false; countEl.textContent = String(cur); }
+        if (boardIp > 0) { countEl.hidden = false; countEl.textContent = String(boardIp); }
         else countEl.hidden = true;
       }
 
@@ -1783,55 +1823,106 @@
       const readyHtml = ready.length
         ? `<div class="sprint-card-list">${ready.map(sprintCardHtml).join("")}</div>`
         : `<div class="empty">Ready queue empty.</div>`;
+      const pendingHtml = pending.length
+        ? `<div class="sprint-card-list">${pending.map(sprintCardHtml).join("")}</div>`
+        : `<div class="empty">No cards awaiting eng review.</div>`;
       const notHtml = notSprint.length
-        ? `<div class="sprint-card-list" style="margin-top:0.5rem">${notSprint.map(sprintCardHtml).join("")}</div>`
+        ? `<div class="sprint-card-list" style="margin-top:0.5rem">${notSprint.map((x) => {
+            const card = { number: x.number, title: x.title || x.reason || "flagged", notes: x.reason };
+            return sprintCardHtml(card);
+          }).join("")}</div>`
         : "";
 
-      const lifeKeys = ["Parked", "Validate", "Ready", "In Progress", "Done"];
+      const lifeKeys = ["Parked", "Validate", "Ready", "In Progress", "Pending Review", "Done"];
       const lifeHtml = lifeKeys.map((k) => {
-        const n = (cols[k] || []).length;
-        const nShow = (k === "In Progress" && !n && ip.length) ? ip.length
-          : (k === "Ready" && !n && ready.length) ? ready.length
-          : n;
-        return `<div class="col-chip"><div class="n">${nShow}</div><div class="l">${esc(k)}</div></div>`;
+        const n = (board.counts && board.counts[k] != null)
+          ? board.counts[k]
+          : (cols[k] || []).length;
+        return `<div class="col-chip"><div class="n">${n}</div><div class="l">${esc(k)}</div></div>`;
       }).join("");
 
+      const freeList = agents.free || [];
+      const busyList = agents.busy || [];
+      const freePills = freeList.length
+        ? freeList.map((n) => `<span class="pill free">${esc(n)}</span>`).join("")
+        : `<span class="sub">None free</span>`;
+      const busyPills = busyList.length
+        ? busyList.map((b) => {
+            const over = b.over ? " over" : " busy";
+            const issue = b.issue != null ? `#${b.issue}` : ((b.cards || []).map((x) => x.number != null ? `#${x.number}` : "?").join(" "));
+            return `<span class="pill${over}" title="${esc(b.title || "")}">${esc(b.name)} · ${esc(issue || "?")}</span>`;
+          }).join("")
+        : `<span class="sub">Nobody busy on In Progress</span>`;
+      const gapList = [];
+      if (agents.data_gap) gapList.push(agents.data_gap);
+      for (const g of (agents.data_gaps || [])) {
+        if (!gapList.includes(g)) gapList.push(g);
+      }
+      const gapNotes = gapList.slice(0, 4).map((g) => `<li>${esc(g)}</li>`).join("");
+
       const boardErr = board.error && board.source !== "github_project_v2"
-        ? `<div class="sub" style="color:var(--yellow);margin-top:0.35rem">Board: ${esc(board.error)} · showing ceremony file</div>`
+        ? `<div class="sub" style="color:var(--yellow);margin-top:0.35rem">Board: ${esc(board.error)} · ceremony overlays only (no second backlog)</div>`
         : "";
 
       const playbookHref = "https://github.com/cvolkernick/personal-workspace/blob/master/GUIDES/CADENCE_SCRUM_CEREMONIES.md";
-      // Prefer last plan path from ceremony if present later; fallback playbook
       const lastPlan = c.last_plan_url || c.last_plan_path || null;
       const lastPlanLabel = lastPlan ? "Last plan" : "Playbook";
       const lastPlanHref = lastPlan
         ? (String(lastPlan).startsWith("http") ? lastPlan : `https://github.com/cvolkernick/personal-workspace/blob/master/${String(lastPlan).replace(/^\/+/, "")}`)
         : playbookHref;
 
+      const assayDate = cerems.next_assay_qa || null;
+      const assayIssue = cerems.assay_qa_issue || null;
+      const assayNote = cerems.assay_qa_note || null;
+      const assayPill = assayDate
+        ? `<span class="pill muted" title="${esc(assayNote || "")}">Assay QA ${esc(assayDate)}${assayIssue ? " · #" + esc(assayIssue) : ""}</span>`
+        : "";
+
       const kickoff = "@Cadence run backlog grooming now";
       root.innerHTML = `
         <div class="sprint-header">
           <div class="sprint-header-top">
             <div>
-              <div class="sub">${esc(c.sprint_id || "No active sprint id")} · updated ${esc(fmtWhen(c.updated_at))} ${c.updated_by ? "· " + esc(c.updated_by) : ""}</div>
-              <p class="sprint-goal${goal ? "" : " empty"}">${goal ? esc(goal) : "No sprint goal yet — set after first planning ceremony."}</p>
+              <div class="sub">${esc(c.sprint_id || "Continuous flow")} · ${esc(schemaV)} · updated ${esc(fmtWhen(c.updated_at))} ${c.updated_by ? "· " + esc(c.updated_by) : ""}</div>
+              <p class="sprint-goal${goal ? "" : " empty"}">${goal ? esc(goal) : "No sprint goal yet — Cadence sets after planning/replenish."}</p>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:0.45rem;align-items:center">
-              <span class="wip-meter ${meterClass}" title="In Progress / WIP limit (red = over)">WIP ${cur}/${limit}</span>
-              <span class="pill muted">cap ${esc(c.committed_points ?? 0)}/${esc(c.capacity_points ?? 13)}</span>
+              <span class="wip-meter ${meterClass}" title="Per-agent WIP model — free agents can pull">free ${esc(freeCount)} · busy ${esc(busyCount)}</span>
+              <span class="pill muted" title="Per-agent implement cap">agent WIP=${esc(agentCap)}</span>
+              <span class="pill muted" title="Board In Progress column count">Board IP ${esc(boardIp)}</span>
               <a class="btn-bl-orch" href="${esc(boardUrl)}" target="_blank" rel="noopener">Buzz Board ↗</a>
             </div>
           </div>
-          <div class="sub">Source: ${esc(sourceLabel)} · meter from ${esc(wip.source || "ceremony")} · Board membership + ceremony sizes</div>
+          <div class="sub">Source: ${esc(sourceLabel)} · columns = Project #1 · pull gate = free agents (Pending Review ≠ busy)</div>
           ${boardErr}
           <div class="ceremony-strip">
-            <span class="pill muted">Groom Wed 16:00</span>
-            <span class="pill muted">Plan Mon 16:00</span>
+            <span class="pill muted">Replenish daily 16:00</span>
+            <span class="pill muted">Deep groom Wed 16:00</span>
+            <span class="pill muted">Eng-gate every 15m</span>
+            ${assayPill}
             <a class="btn-bl-orch" href="${esc(lastPlanHref)}" target="_blank" rel="noopener">${esc(lastPlanLabel)} ↗</a>
             <button type="button" id="btn-sprint-copy-kickoff" title="Copy kickoff mention">Copy grooming kickoff</button>
             <button type="button" id="btn-sprint-refresh">Refresh sprint</button>
           </div>
         </div>
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>Lifecycle · Buzz Board snapshot</h3>
+          <div class="sprint-lifecycle">${lifeHtml}</div>
+          <div class="sub" style="margin-top:0.45rem">Parked → Validate → Ready → In Progress → Pending Review → Done · SoT = Project #1 (not ops/backlog)</div>
+        </div>
+        <div class="sprint-agents">
+          <div class="card">
+            <h3>Free agents · can pull (WIP=${esc(agentCap)})</h3>
+            <div class="sprint-agent-pills">${freePills}</div>
+            <div class="sub" style="margin-top:0.4rem">${esc(agents.rule || "Free iff zero In Progress cards")}</div>
+          </div>
+          <div class="card">
+            <h3>Busy · active implement</h3>
+            <div class="sprint-agent-pills">${busyPills}</div>
+            <div class="sub" style="margin-top:0.4rem">Pending Review does not count as busy</div>
+          </div>
+        </div>
+        ${gapNotes ? `<details class="sprint-details"><summary>Data gaps / inference notes</summary><ul class="sub" style="margin:0.5rem 0 0 1.1rem;padding:0">${gapNotes}</ul></details>` : ""}
         <div class="sprint-grid">
           <div class="card">
             <h3>In Progress · current commitment</h3>
@@ -1843,10 +1934,10 @@
             ${notHtml ? `<h3 style="margin-top:0.75rem">Not this sprint</h3>${notHtml}` : ""}
           </div>
         </div>
-        <details class="sprint-details">
-          <summary>Lifecycle counts (Board snapshot)</summary>
-          <div class="sprint-lifecycle">${lifeHtml}</div>
-        </details>
+        <div class="card" style="margin-bottom:0.85rem">
+          <h3>Pending Review · eng-gate (Grok)</h3>
+          ${pendingHtml}
+        </div>
         <p class="sprint-disclaimer">${esc(data.disclaimer || "ops/backlog is not the sprint board.")}</p>
       `;
       const copyBtn = $("btn-sprint-copy-kickoff");

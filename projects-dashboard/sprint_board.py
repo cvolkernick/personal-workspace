@@ -4,7 +4,7 @@
 Board of record: GitHub user project "Buzz Board" (default project #1 under
 GITHUB_OWNER / BUZZ_BOARD_OWNER). Status field options map to Cadence columns:
 
-  Parked → Validate ($0) → Ready → In Progress → Done
+  Parked → Validate ($0) → Ready → In Progress → Pending Review → Done
 
 Auth: GITHUB_TOKEN (or GH_TOKEN) with `repo` + `project` scopes.
 Never logs or returns the token.
@@ -23,12 +23,13 @@ DEFAULT_PROJECT_NUMBER = 1
 DEFAULT_WIP_LIMIT = 3
 GITHUB_GRAPHQL = "https://api.github.com/graphql"
 
-# Display order for kanban (Cadence ceremony columns)
+# Display order for kanban (Cadence ceremony columns — Project Status options)
 STATUS_ORDER = [
     "Parked",
     "Validate ($0)",
     "Ready",
     "In Progress",
+    "Pending Review",
     "Done",
 ]
 
@@ -217,6 +218,7 @@ def _fetch_items(project_id: str, first: int = 100) -> list[dict[str, Any]]:
                   body
                   updatedAt
                   labels(first:8) { nodes { name color } }
+                  assignees(first:8) { nodes { login name } }
                   repository { nameWithOwner }
                 }
                 ... on DraftIssue {
@@ -229,6 +231,7 @@ def _fetch_items(project_id: str, first: int = 100) -> list[dict[str, Any]]:
                   state
                   url
                   updatedAt
+                  assignees(first:8) { nodes { login name } }
                   repository { nameWithOwner }
                 }
               }
@@ -277,15 +280,31 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any] | None:
     state = content.get("state")
     updated = content.get("updatedAt")
     body = content.get("body") or ""
-    # Lightweight AC / size hints from body (optional convention)
+    assignees: list[str] = []
+    for node in ((content.get("assignees") or {}).get("nodes") or []):
+        login = (node.get("login") or "").strip()
+        name = (node.get("name") or "").strip()
+        if login:
+            assignees.append(login)
+        elif name:
+            assignees.append(name)
+    # Lightweight AC / size / owner hints from body (optional convention)
     size_hint = None
     priority_hint = None
+    owner_hint = None
     for line in body.splitlines()[:40]:
         low = line.strip().lower()
         if low.startswith("size:") or low.startswith("**size:**"):
             size_hint = line.split(":", 1)[-1].strip().strip("*")
         if low.startswith("priority:") or low.startswith("**priority:**"):
             priority_hint = line.split(":", 1)[-1].strip().strip("*")
+        if (
+            low.startswith("owner:")
+            or low.startswith("**owner:**")
+            or low.startswith("implementer:")
+            or low.startswith("**implementer:**")
+        ):
+            owner_hint = line.split(":", 1)[-1].strip().strip("*").lstrip("@")
     return {
         "item_id": raw.get("id"),
         "status": status,
@@ -297,6 +316,8 @@ def _normalize_item(raw: dict[str, Any]) -> dict[str, Any] | None:
         "state": state,
         "repo": repo,
         "labels": labels,
+        "assignees": assignees,
+        "owner": owner_hint,
         "updated_at": updated,
         "size_hint": size_hint,
         "priority_hint": priority_hint,
