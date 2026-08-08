@@ -2034,19 +2034,47 @@
     </div>`;
   }
 
-  function progressRow(label, consumed, target, kind) {
+  /**
+   * Kitchen "Today so far" row: day totals + pace-relative center bar.
+   * pace = server pace_vs_expected payload (band green|yellow|red, side, bar_pct).
+   * Center = on pace for this point in the eating window (not day-empty→full).
+   */
+  function progressRow(label, consumed, target, kind, pace) {
     const pct = targetPct(consumed, target);
-    const width = pct == null ? 0 : Math.min(100, pct);
-    const over = pct != null && pct > 105;
+    const p = pace || null;
+    const band = (p && p.band) || (pct != null && pct > 120 ? "red" : pct != null && pct > 105 ? "yellow" : "green");
+    const side = (p && p.side) || "on";
+    const barPct = Math.max(0, Math.min(100, Number(p && p.bar_pct) || 0));
+    const halfW = barPct * 0.5;
+    const leftW = side === "behind" ? halfW : 0;
+    const rightW = side === "ahead" ? halfW : 0;
+    const paced = p && p.paced_expected != null ? fmtNum(p.paced_expected) : "—";
+    const delta =
+      p && p.delta_vs_pace != null
+        ? Number(p.delta_vs_pace) > 0
+          ? `+${fmtNum(p.delta_vs_pace)}`
+          : fmtNum(p.delta_vs_pace)
+        : "";
+    const paceHint =
+      p && p.status !== "no_target"
+        ? ` · pace ~${paced}${delta ? ` (${delta})` : ""}`
+        : "";
     return `<div class="macro-progress-row">
       <div class="macro-progress-meta">
         <span class="macro-progress-label">${label}</span>
         <span class="macro-progress-nums">${fmtNum(consumed)} / ${fmtNum(target)}${
       pct != null ? ` · <strong>${pct}%</strong>` : ""
-    }</span>
+    }${paceHint}</span>
       </div>
-      <div class="macro-progress-track" aria-hidden="true">
-        <div class="macro-progress-fill macro-${kind}${over ? " over" : ""}" style="width:${width}%"></div>
+      <div class="macro-pace-track band-${band}" role="img" aria-label="${label} pace ${side} ${band}" title="${
+      (p && p.summary) || `${label} vs pace`
+    }">
+        <div class="macro-pace-mid" aria-hidden="true"></div>
+        <div class="macro-pace-fill macro-pace-left band-${band}" style="width:${leftW}%"></div>
+        <div class="macro-pace-fill macro-pace-right band-${band}" style="width:${rightW}%"></div>
+        <div class="macro-pace-labels" aria-hidden="true">
+          <span>behind</span><span>on pace</span><span>ahead</span>
+        </div>
       </div>
     </div>`;
   }
@@ -2187,7 +2215,12 @@
       const pct = Math.max(0, Math.min(100, Number(pacing.fill_pct) || 0));
       const exp = Math.max(0, Math.min(100, Number(pacing.expected_pct) || 0));
       fill.style.width = `${pct}%`;
-      fill.className = `pace-fill ${pacing.status || "on_pace"}`;
+      // Prefer severity band (green/yellow/red vs pace); fall back to ahead/behind.
+      const band = pacing.band || "";
+      const status = pacing.status || "on_pace";
+      fill.className = band
+        ? `pace-fill band-${band} ${status}`
+        : `pace-fill ${status}`;
       if (marker) marker.style.left = `${exp}%`;
       if (paceSum) {
         let sum = pacing.summary || "—";
@@ -2249,6 +2282,8 @@
   function renderTargetsAndRemaining(store) {
     const t = (store && store.targets) || {};
     const c = (store && store.today_consumed) || {};
+    const mp =
+      (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
     if ($("tgt-cal")) {
       $("tgt-cal").value = t.calories ?? 2100;
       $("tgt-p").value = t.protein_g ?? 210;
@@ -2298,10 +2333,14 @@
             ${macroChip("fat", "Fat", c.fat_g, soFarPct.f)}
           </div>
           <div class="macro-progress-list">
-            ${progressRow("Calories", c.calories, t.calories, "cals")}
-            ${progressRow("Protein", c.protein_g, t.protein_g, "protein")}
-            ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs")}
-            ${progressRow("Fat", c.fat_g, t.fat_g, "fat")}
+            <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
+              Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
+              Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
+            </p>
+            ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
+            ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
+            ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
+            ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
           </div>
           <div class="macro-remaining-panel">
             <div class="macro-summary-header">

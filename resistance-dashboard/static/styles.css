@@ -1475,6 +1475,93 @@ footer {
   background: var(--danger);
 }
 
+/* Pace-relative macro bars (center = expected now in eating window) */
+.macro-pace-track {
+  position: relative;
+  height: 14px;
+  border-radius: 999px;
+  background: rgba(45, 58, 79, 0.9);
+  overflow: hidden;
+  margin-top: 0.15rem;
+}
+
+.macro-pace-mid {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(255, 255, 255, 0.55);
+  z-index: 2;
+}
+
+.macro-pace-fill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  width: 0%;
+  transition: width 0.3s ease;
+  z-index: 1;
+}
+
+.macro-pace-fill.macro-pace-left {
+  right: 50%;
+  border-radius: 999px 0 0 999px;
+}
+
+.macro-pace-fill.macro-pace-right {
+  left: 50%;
+  border-radius: 0 999px 999px 0;
+}
+
+.macro-pace-fill.band-green {
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.45), rgba(92, 225, 168, 0.95));
+}
+.macro-pace-fill.macro-pace-left.band-green {
+  background: linear-gradient(270deg, rgba(92, 225, 168, 0.95), rgba(92, 225, 168, 0.45));
+}
+.macro-pace-fill.band-yellow {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.45), rgba(240, 180, 41, 0.95));
+}
+.macro-pace-fill.macro-pace-left.band-yellow {
+  background: linear-gradient(270deg, rgba(240, 180, 41, 0.95), rgba(240, 180, 41, 0.45));
+}
+.macro-pace-fill.band-red {
+  background: linear-gradient(90deg, rgba(240, 113, 120, 0.45), rgba(240, 113, 120, 0.95));
+}
+.macro-pace-fill.macro-pace-left.band-red {
+  background: linear-gradient(270deg, rgba(240, 113, 120, 0.95), rgba(240, 113, 120, 0.45));
+}
+
+.macro-pace-track.band-green {
+  box-shadow: inset 0 0 0 1px rgba(92, 225, 168, 0.25);
+}
+.macro-pace-track.band-yellow {
+  box-shadow: inset 0 0 0 1px rgba(240, 180, 41, 0.3);
+}
+.macro-pace-track.band-red {
+  box-shadow: inset 0 0 0 1px rgba(240, 113, 120, 0.35);
+}
+
+.macro-pace-labels {
+  display: none; /* compact Kitchen rows; title/aria carry meaning */
+}
+
+.macro-pace-legend {
+  line-height: 1.35;
+}
+
+.pace-fill.band-green {
+  background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9)) !important;
+}
+.pace-fill.band-yellow {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.55), rgba(240, 180, 41, 0.95)) !important;
+}
+.pace-fill.band-red {
+  background: linear-gradient(90deg, rgba(240, 113, 120, 0.55), rgba(240, 113, 120, 0.95)) !important;
+}
+
 .macro-remaining-panel {
   margin-top: 0.95rem;
   padding-top: 0.85rem;
