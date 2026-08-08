@@ -1,11 +1,11 @@
 {
   "ok": true,
-  "as_of": "2026-08-08T02:13:31.874154+00:00",
+  "as_of": "2026-08-08T05:15:50.513713+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-08T02:13:31.871380+00:00",
+    "as_of": "2026-08-08T05:15:50.510708+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
