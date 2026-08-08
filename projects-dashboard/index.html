@@ -441,7 +441,7 @@
     }
     .proc-hero { display: grid; gap: 0.55rem; }
     .proc-hero-row {
-      display: grid; grid-template-columns: 5.5rem 1fr;
+      display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) minmax(10rem, 1.15fr);
       gap: 0.75rem 1rem; align-items: start;
       padding: 0.75rem 0.85rem; border-radius: 12px;
       background: #0e151c; border: 1px solid var(--border);
@@ -471,13 +471,33 @@
       display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
       margin-top: 0.4rem;
     }
+    .proc-hero-purpose {
+      min-width: 0;
+      font-size: 0.84rem; line-height: 1.35; color: var(--muted);
+      padding-left: 0.85rem;
+      border-left: 1px solid var(--border);
+      align-self: center;
+    }
+    .proc-hero-purpose strong {
+      display: block; font-size: 0.68rem; font-weight: 700; color: var(--text);
+      text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.2rem;
+      opacity: 0.72;
+    }
     .proc-always-on {
-      display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; align-items: center;
+      display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, 1.15fr);
+      gap: 0.55rem 1rem; align-items: center;
       padding: 0.55rem 0.75rem; border-radius: 10px;
       background: #0f2419; border: 1px solid #245c42; margin-bottom: 0.65rem;
       font-size: 0.86rem;
     }
+    .proc-always-on-main {
+      display: flex; flex-wrap: wrap; gap: 0.45rem 0.75rem; align-items: center;
+      min-width: 0;
+    }
     .proc-always-on strong { font-weight: 700; }
+    .proc-always-on .proc-hero-purpose {
+      border-left-color: #245c42;
+    }
     .proc-week {
       display: grid; gap: 0.4rem;
       grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -486,6 +506,15 @@
       .proc-week { grid-template-columns: 1fr 1fr; }
       .proc-hero-row { grid-template-columns: 4.5rem 1fr; }
       .proc-hero-time { font-size: 1.15rem; }
+      .proc-hero-purpose {
+        grid-column: 1 / -1;
+        padding-left: 0; padding-top: 0.35rem;
+        border-left: none; border-top: 1px solid var(--border);
+      }
+      .proc-always-on { grid-template-columns: 1fr; }
+      .proc-always-on .proc-hero-purpose {
+        border-left: none; border-top: 1px solid #245c42; padding-left: 0; padding-top: 0.35rem;
+      }
     }
     .proc-day {
       background: #0e151c; border: 1px solid var(--border);
@@ -2164,12 +2193,36 @@
       "assay-system-slice-qa": "Assay system-slice QA",
     };
 
+    /** One-line purpose for Next 24h / always-on cards (what it accomplishes). */
+    const PROC_PURPOSES = {
+      "cadence-daily-status": "Posts daily standup in #standup and surfaces Needs Grok work for the day.",
+      "eng-gate-sweep": "Reviews open PRs against AC and merges green ones (Grok eng-gate).",
+      "cadence-daily-replenish": "Assigns Ready board work to free agents so WIP stays full.",
+      "cadence-deep-groom": "Deep backlog groom — re-score, prioritize, and hygiene parked items.",
+      "autonomous-backlog-harvest": "Harvests finished work and seeds the next backlog slice.",
+      "assay-system-slice-qa": "Runs Assay system-slice QA checks on critical surfaces.",
+    };
+
     function procFriendlyName(slug) {
       if (!slug) return "—";
       const s = String(slug);
       if (PROC_DISPLAY_NAMES[s]) return PROC_DISPLAY_NAMES[s];
       // Title-case dashed slugs as a soft fallback
       return s.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+
+    function procPurpose(slug) {
+      if (!slug) return "";
+      const s = String(slug);
+      if (PROC_PURPOSES[s]) return PROC_PURPOSES[s];
+      // Soft fallback: never invent a long story; leave blank so layout stays clean
+      return "";
+    }
+
+    function procPurposeHtml(slug) {
+      const text = procPurpose(slug);
+      if (!text) return `<div class="proc-hero-purpose" aria-hidden="true"></div>`;
+      return `<div class="proc-hero-purpose"><strong>What it does</strong>${esc(text)}</div>`;
     }
 
     function procIsEngGate(name) {
@@ -2255,11 +2308,14 @@
           : null;
       const alwaysOnHtml = engGateWf || engGateTl
         ? `<div class="proc-always-on" title="${esc((engGateWf && engGateWf.id) || (engGateTl && engGateTl.id) || "")}">
-            <span class="proc-chip continuous">always on</span>
-            <strong>${esc(procFriendlyName("eng-gate-sweep"))}</strong>
-            <span class="sub">every 15m · next at <strong>${esc(engNext ? engNext.clock : "—")}</strong>${engNext && engNext.tz ? ` ${esc(engNext.tz)}` : ""}</span>
-            ${procChannelPill((engGateTl && engGateTl.channel_name) || (engGateWf && engGateWf.channel_name) || "#workflow")}
-            ${procAgentChips((engGateTl && engGateTl.kick_targets) || (engGateWf && engGateWf.kick_targets) || ["Grok"])}
+            <div class="proc-always-on-main">
+              <span class="proc-chip continuous">always on</span>
+              <strong>${esc(procFriendlyName("eng-gate-sweep"))}</strong>
+              <span class="sub">every 15m · next at <strong>${esc(engNext ? engNext.clock : "—")}</strong>${engNext && engNext.tz ? ` ${esc(engNext.tz)}` : ""}</span>
+              ${procChannelPill((engGateTl && engGateTl.channel_name) || (engGateWf && engGateWf.channel_name) || "#workflow")}
+              ${procAgentChips((engGateTl && engGateTl.kick_targets) || (engGateWf && engGateWf.kick_targets) || ["Grok"])}
+            </div>
+            ${procPurposeHtml("eng-gate-sweep")}
           </div>`
         : "";
 
@@ -2288,6 +2344,7 @@
                 ${procAgentChips(ev.kick_targets)}
               </div>
             </div>
+            ${procPurposeHtml(ev.name)}
           </div>`;
         }).join("");
       }
