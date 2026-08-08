@@ -827,11 +827,15 @@ def process_payload(
                 "No workflows available (relay empty and no ops/process/workflows_snapshot.json)"
             )
 
+    # Status-only pass for counts (avoid next_cron on yearly zzz-* probes)
+    status_rows = []
+    for r in rows:
+        st = r.get("status") or _status_for_name(str(r.get("name") or ""))
+        status_rows.append({**r, "status": st})
+    inert_count = sum(1 for r in status_rows if r.get("status") == "inert")
+    active_count = sum(1 for r in status_rows if r.get("status") == "active")
+
     active_rows = enrich_rows(rows, now=now, include_inert=include_inert)
-    # Always compute inert count from full set
-    all_for_count = enrich_rows(rows, now=now, include_inert=True)
-    inert_count = sum(1 for r in all_for_count if r.get("status") == "inert")
-    active_count = sum(1 for r in all_for_count if r.get("status") == "active")
 
     core_present = [
         r["name"] for r in active_rows if r.get("name") in CORE_FLOW_NAMES
@@ -855,7 +859,8 @@ def process_payload(
         "include_inert": include_inert,
         "day_timeline": build_day_timeline(active_rows, now=now, hours=24),
         "week": build_week_grid(active_rows, now=now),
-        "process_flow": build_process_flow(all_for_count),
+        # Prefer enriched rows (next fire) for core nodes; fall back to status_rows
+        "process_flow": build_process_flow(active_rows if active_rows else status_rows),
         "snapshot": {
             "path": snap.get("_path"),
             "exists": bool(snap.get("_exists")),

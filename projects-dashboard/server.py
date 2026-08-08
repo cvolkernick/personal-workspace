@@ -628,7 +628,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.local:
         print("Mode: local API (Pi backend)")
     print(
-        "API: GET /api/projects /api/branch-graph /api/tasks /api/sprint | "
+        "API: GET /api/projects /api/branch-graph /api/tasks /api/sprint /api/process | "
         "POST /api/sync /api/protect /api/start-work /api/tasks/*"
     )
     httpd = ThreadingHTTPServer((bind, args.port), ProjectsHandler)

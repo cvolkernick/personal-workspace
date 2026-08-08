@@ -1,12 +1,13 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-08-08T16:06:08Z",
+  "updated_at": "2026-08-08T16:15:00Z",
   "updated_by": "forge",
   "source": "buzz_workflows_list",
   "notes": [
     "Cadence/Forge-maintained snapshot of ceremony workflows for Schedule/Process tab (#61).",
     "Prefer live relay via buzz when available; this file is offline/Pi fallback SoT.",
-    "zzz-* and probe workflows are inert \u2014 UI hides them by default."
+    "zzz-* and probe workflows are inert \u2014 UI hides them by default.",
+    "Includes #standup cadence-daily-status (311bb694-\u2026) \u2014 list both ceremony channels."
   ],
   "channels": [
     {
