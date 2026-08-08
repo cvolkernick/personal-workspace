@@ -836,6 +836,26 @@ def load_dashboard_data(
             "brief": {"title": "Coach brief", "markdown": f"Coach unavailable: {e}"},
         }
 
+    # Daily plan quests → Google Tasks (Fitness list); non-fatal if GT offline
+    try:
+        from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
+
+        today_board = (payload.get("coach") or {}).get("today") or {}
+        daily = ensure_daily_tasks(today_board, day=local_today)
+        payload["daily_tasks"] = daily
+        if isinstance(payload.get("coach"), dict) and isinstance(
+            payload["coach"].get("today"), dict
+        ):
+            payload["coach"]["today"]["daily_tasks"] = daily
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"daily_tasks: {e}")
+        payload["daily_tasks"] = {
+            "ok": False,
+            "error": str(e),
+            "groups": [],
+            "summary": {"done": 0, "total": 0},
+        }
+
     elapsed_ms = int((datetime.utcnow() - t0).total_seconds() * 1000)
     payload["meta"] = {
         "source": source,
@@ -1339,6 +1359,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
             return
+        if parsed.path == "/api/daily-tasks":
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                today = ((data.get("coach") or {}).get("today")) or {}
+                from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
+                from rt_dashboard.timeutil import local_today_iso
+
+                day = today.get("date") or local_today_iso()
+                result = ensure_daily_tasks(today, day=day)
+                self._send_json({"ok": True, "daily_tasks": result})
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
         if parsed.path == "/api/sessions":
             user = self._require_user()
             if user is None and _auth_required():
@@ -1723,6 +1760,34 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
+        if parsed.path == "/api/daily-tasks/complete":
+            try:
+                body = self._read_json()
+                list_id = str(body.get("list_id") or "").strip()
+                task_id = str(body.get("task_id") or "").strip()
+                completed = body.get("completed", True)
+                if isinstance(completed, str):
+                    completed = completed.lower() in ("1", "true", "yes")
+                parent_id = body.get("parent_id")
+                parent_id = str(parent_id).strip() if parent_id else None
+                sibling_all_done = body.get("sibling_all_done")
+                from rt_dashboard.daily_plan_tasks import complete_leaf
+
+                result = complete_leaf(
+                    list_id,
+                    task_id,
+                    completed=bool(completed),
+                    parent_id=parent_id,
+                    sibling_all_done=sibling_all_done
+                    if sibling_all_done is None
+                    else bool(sibling_all_done),
+                )
+                status = 200 if result.get("ok") else 400
+                self._send_json(result, status=status)
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+
         if parsed.path == "/api/meal-plan/generate":
             try:
                 body = self._read_json() if int(self.headers.get("Content-Length") or 0) else {}

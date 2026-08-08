@@ -3203,6 +3203,157 @@
     renderTodayHub(data);
   }
 
+  /** Render checkable daily plan groups (Google Tasks Fitness list). */
+  function renderDailyPlanTasks(daily, fallbackActions) {
+    const box = $("today-actions");
+    if (!box) return;
+    const groups = (daily && daily.groups) || [];
+    const sum = (daily && daily.summary) || {};
+    const err = daily && daily.error;
+    const src = (daily && daily.source) || "";
+
+    if (!groups.length) {
+      // Fallback to legacy action chips if no tasks yet
+      const acts = fallbackActions || [];
+      if (!acts.length) {
+        box.innerHTML = err
+          ? `<p class="muted" style="font-size:0.82rem;margin:0">Daily quests: ${err}</p>`
+          : "";
+        return;
+      }
+      box.innerHTML = acts
+        .slice(0, 8)
+        .map(
+          (a) => `<div class="today-action">
+            <span class="today-action-kind">${a.kind || "do"}</span>
+            <span class="today-action-text">${a.text || ""}</span>
+          </div>`
+        )
+        .join("");
+      return;
+    }
+
+    const done = sum.done != null ? sum.done : 0;
+    const total = sum.total != null ? sum.total : 0;
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    let html = `<div class="daily-quests">
+      <div class="daily-quests-head">
+        <strong>Daily quests</strong>
+        <span class="muted">${done}/${total} · ${pct}%</span>
+      </div>`;
+    if (err) {
+      html += `<p class="muted" style="font-size:0.78rem;margin:0.25rem 0 0.4rem">Google Tasks: ${err} · showing plan locally</p>`;
+    } else if (src === "google_tasks") {
+      html += `<p class="muted" style="font-size:0.78rem;margin:0.25rem 0 0.4rem">Synced to Google Tasks · Fitness list</p>`;
+    }
+    groups.forEach((g) => {
+      const gDone = g.done || 0;
+      const gTot = g.total || 0;
+      html += `<div class="daily-quest-group${g.completed ? " is-done" : ""}" data-group="${g.group || ""}">
+        <div class="daily-quest-group-head">
+          <span class="daily-quest-group-title">${g.title || g.group || "Group"}</span>
+          <span class="muted daily-quest-group-prog">${gDone}/${gTot}</span>
+        </div>
+        <ul class="daily-quest-list">`;
+      (g.items || []).forEach((it) => {
+        if (it.completed) return; // hide completed leaves for the day
+        const tid = it.task_id || "";
+        const lid = it.list_id || "";
+        const pid = g.task_id || "";
+        const disabled = !tid || !lid ? " disabled" : "";
+        html += `<li class="daily-quest-item">
+          <label class="daily-quest-label">
+            <input type="checkbox" class="daily-quest-check" data-task-id="${tid}" data-list-id="${lid}" data-parent-id="${pid}" data-group="${g.group || ""}"${disabled} />
+            <span class="daily-quest-text">${it.title || ""}</span>
+          </label>
+        </li>`;
+      });
+      const openLeft = (g.items || []).filter((x) => !x.completed).length;
+      if (!openLeft) {
+        html += `<li class="daily-quest-item is-complete muted">Group complete ✓</li>`;
+      }
+      html += `</ul></div>`;
+    });
+    html += `</div>`;
+    box.innerHTML = html;
+  }
+
+  async function onDailyQuestToggle(ev) {
+    const input = ev.target;
+    if (!input || !input.classList || !input.classList.contains("daily-quest-check"))
+      return;
+    if (input.disabled) return;
+    const taskId = input.getAttribute("data-task-id") || "";
+    const listId = input.getAttribute("data-list-id") || "";
+    const parentId = input.getAttribute("data-parent-id") || "";
+    if (!taskId || !listId) return;
+    input.disabled = true;
+    // Count remaining siblings after this check
+    const groupEl = input.closest(".daily-quest-group");
+    const openChecks = groupEl
+      ? Array.from(groupEl.querySelectorAll(".daily-quest-check:not(:checked)"))
+      : [];
+    // After checking this one, remaining open = openChecks without self if checked
+    const siblingAllDone = input.checked && openChecks.length === 0;
+    try {
+      const res = await fetch("/api/daily-tasks/complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          list_id: listId,
+          task_id: taskId,
+          completed: !!input.checked,
+          parent_id: parentId || null,
+          sibling_all_done: siblingAllDone,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        input.checked = !input.checked;
+        showAlert(data.error || "Could not update task", "err");
+        input.disabled = false;
+        return;
+      }
+      // Remove row when completed (gamify: clear the board)
+      if (input.checked) {
+        const li = input.closest(".daily-quest-item");
+        if (li) li.remove();
+        if (groupEl) {
+          const left = groupEl.querySelectorAll(".daily-quest-check").length;
+          const prog = groupEl.querySelector(".daily-quest-group-prog");
+          if (prog) {
+            const parts = String(prog.textContent || "").split("/");
+            const tot = Number(parts[1]) || 0;
+            const done = tot - left;
+            prog.textContent = `${done}/${tot}`;
+          }
+          if (left === 0) {
+            groupEl.classList.add("is-done");
+            const ul = groupEl.querySelector(".daily-quest-list");
+            if (ul)
+              ul.innerHTML =
+                '<li class="daily-quest-item is-complete muted">Group complete ✓</li>';
+          }
+        }
+        // Update head progress
+        const head = document.querySelector(".daily-quests-head .muted");
+        if (head && state && state.daily_tasks && state.daily_tasks.summary) {
+          const s = state.daily_tasks.summary;
+          s.done = (s.done || 0) + 1;
+          const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+          head.textContent = `${s.done}/${s.total} · ${pct}%`;
+        }
+      } else {
+        input.disabled = false;
+      }
+    } catch (e) {
+      input.checked = !input.checked;
+      showAlert(String(e.message || e), "err");
+      input.disabled = false;
+    }
+  }
+
   function renderTodayHub(data) {
     const coach = data.coach || {};
     const today = coach.today || {};
@@ -3227,27 +3378,11 @@
         "Rebuilt each load from live logs, stock, recovery, and planners.";
     }
 
-    // Priority action list
-    if ($("today-actions")) {
-      const acts = today.actions || [];
-      if (!acts.length) {
-        $("today-actions").innerHTML = "";
-      } else {
-        $("today-actions").innerHTML = acts
-          .slice(0, 8)
-          .map(
-            (a) => `<div class="today-action">
-            <span class="today-action-kind">${a.kind || "do"}</span>
-            <span class="today-action-text">${a.text || ""}${
-              a.motivation
-                ? `<span class="today-action-why">${a.motivation}</span>`
-                : ""
-            }</span>
-          </div>`
-          )
-          .join("");
-      }
-    }
+    // Daily plan quests (Google Tasks / local preview) — checkable groups
+    renderDailyPlanTasks(
+      today.daily_tasks || data.daily_tasks || null,
+      today.actions || []
+    );
 
     // Targets with motivations + progress
     if ($("today-targets")) {
@@ -4239,6 +4374,10 @@
     });
     if ($("btn-log-plan")) {
       $("btn-log-plan").addEventListener("click", logPlanToForm);
+    }
+    if ($("today-actions") && !$("today-actions").dataset.questBound) {
+      $("today-actions").dataset.questBound = "1";
+      $("today-actions").addEventListener("change", onDailyQuestToggle);
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
