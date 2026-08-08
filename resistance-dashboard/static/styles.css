@@ -1599,7 +1599,7 @@ footer {
 #inventory-card .log-form,
 #inventory-card .inv-suggestions,
 #inventory-card .inv-removals,
-#meal-plan-card .log-form {
+#targets-config-card .log-form {
   flex: 0 0 auto;
 }
 
