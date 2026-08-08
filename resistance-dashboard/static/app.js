@@ -11,6 +11,15 @@
   let macrosChart = null;
   let hydrationChart = null;
   let selectedExercise = null;
+  /** Collapse open/closed state survives quest re-renders after GT sync. */
+  const collapseOpen = {
+    quests: true,
+    targets: true,
+    "meal-sum": false,
+    lift: true,
+  };
+  /** Intake vs burned chart + cumulative summary window (days). */
+  const CAL_IN_OUT_SPAN_DAYS = 45;
 
   function todayISO() {
     // Browser local civil date (matches host TZ when you open dashboard on this Mac).
@@ -905,9 +914,9 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Intake vs burned: 30d for now (older burned totals were inflated/corrupted).
+    // Intake vs burned: 45d window (was 30d while older burned totals were inflated).
     // Macro split reuses its own 90d axis below.
-    const calSpanDays = 30;
+    const calSpanDays = CAL_IN_OUT_SPAN_DAYS;
     const calEnd = new Date();
     calEnd.setHours(0, 0, 0, 0);
     const calLabels = [];
@@ -919,7 +928,7 @@
         `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`
       );
     }
-    // Full series mapped onto the intake/burned civil axis (30d).
+    // Full series mapped onto the intake/burned civil axis.
     const nutritionAll = [...((data.health && data.health.nutrition) || [])].sort(
       (a, b) => String(a.date).localeCompare(String(b.date))
     );
@@ -1093,7 +1102,7 @@
 
     destroyChart(macrosChart);
     if ($("chart-macros")) {
-      // 90d civil axis (aligned with body weight; independent of intake/burned 30d).
+      // 90d civil axis (aligned with body weight; independent of intake/burned span).
       // Map logged nutrition onto each day; null split when no macros that day.
       const macroSpanDays = 90;
       const macroEnd = new Date();
@@ -3004,9 +3013,9 @@
         note.innerHTML =
           `<p class="chart-summary-empty">No nutrition/hydration yet — re-connect Google Health to grant nutrition + activity scopes, and log food/water in Fitbit/Google Health.</p>`;
       } else {
-        // Cumulative intake − burned over the same window as the chart (30d for now).
+        // Cumulative intake − burned over the same window as the chart.
         // Days with both series present only, so the sum matches the shaded bands.
-        const spanDays = 30;
+        const spanDays = CAL_IN_OUT_SPAN_DAYS;
         const end = new Date();
         end.setHours(0, 0, 0, 0);
         const z = (x) => String(x).padStart(2, "0");
@@ -3228,14 +3237,15 @@
     const done = sum.done != null ? sum.done : 0;
     const total = sum.total != null ? sum.total : 0;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    const questsOpen = collapseOpen.quests !== false;
     let html = `<div class="daily-quests">
-      <button type="button" class="daily-quests-head collapsible-head" data-collapse="quests" aria-expanded="true">
+      <button type="button" class="daily-quests-head collapsible-head${questsOpen ? "" : " is-collapsed"}" data-collapse="quests" aria-expanded="${questsOpen ? "true" : "false"}">
         <span class="collapsible-title">⚔ Daily quests</span>
         <span class="daily-quests-meter" aria-hidden="true"><span class="daily-quests-meter-fill" style="width:${pct}%"></span></span>
         <span class="muted daily-quests-count">${done}/${total}</span>
         <span class="collapse-chevron">▾</span>
       </button>
-      <div class="collapsible-body" data-collapse-body="quests">`;
+      <div class="collapsible-body" data-collapse-body="quests"${questsOpen ? "" : " hidden"}>`;
     if (syncing) {
       html += `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
     } else if (err) {
@@ -3402,7 +3412,7 @@
     if (ev.target.closest && ev.target.closest(".quest-card")) return;
     const head = ev.target.closest && ev.target.closest("[data-collapse]");
     if (!head) return;
-    // Only handle if the click originated on the head (not a nested control)
+    // Head is the control; ignore clicks that only bubble through from outside
     if (!head.contains(ev.target)) return;
     const key = head.getAttribute("data-collapse");
     if (!key) return;
@@ -3414,16 +3424,38 @@
     ev.preventDefault();
     ev.stopPropagation();
     const open = head.getAttribute("aria-expanded") !== "false";
-    head.setAttribute("aria-expanded", open ? "false" : "true");
-    body.hidden = open;
-    head.classList.toggle("is-collapsed", open);
+    const nextOpen = !open;
+    head.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    body.hidden = !nextOpen;
+    head.classList.toggle("is-collapsed", !nextOpen);
+    collapseOpen[key] = nextOpen;
+  }
+
+  function applyStaticCollapseState(root) {
+    const el = root || $("today-hub") || document;
+    el.querySelectorAll("[data-collapse]").forEach((head) => {
+      const key = head.getAttribute("data-collapse");
+      if (!key || key === "quests") return; // quests re-rendered with state baked in
+      if (!(key in collapseOpen)) return;
+      const open = collapseOpen[key] !== false;
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      head.classList.toggle("is-collapsed", !open);
+      const body =
+        el.querySelector(`[data-collapse-body="${key}"]`) ||
+        document.querySelector(`[data-collapse-body="${key}"]`);
+      if (body) body.hidden = !open;
+    });
   }
 
   function bindCollapsibles(root) {
-    const el = root || $("today-hub") || document;
-    if (!el || el.dataset.collapseDelegated === "1") return;
-    el.dataset.collapseDelegated = "1";
-    el.addEventListener("click", onCollapsibleHeadClick);
+    // Document-level so re-parenting / partial hub rewrites never drop the handler
+    if (document.documentElement.dataset.collapseDelegated === "1") {
+      applyStaticCollapseState(root);
+      return;
+    }
+    document.documentElement.dataset.collapseDelegated = "1";
+    document.addEventListener("click", onCollapsibleHeadClick);
+    applyStaticCollapseState(root);
   }
 
   function renderTodayHub(data) {
