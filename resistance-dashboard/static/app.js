@@ -3203,7 +3203,7 @@
     renderTodayHub(data);
   }
 
-  /** Render checkable daily plan groups (Google Tasks Fitness list). */
+  /** Polished daily quests — tap cards, meal subgroups, async GT sync. */
   function renderDailyPlanTasks(daily, fallbackActions) {
     const box = $("today-actions");
     if (!box) return;
@@ -3211,90 +3211,136 @@
     const sum = (daily && daily.summary) || {};
     const err = daily && daily.error;
     const src = (daily && daily.source) || "";
+    const syncing = daily && daily.needs_sync && src !== "google_tasks";
 
     if (!groups.length) {
-      // Fallback to legacy action chips if no tasks yet
       const acts = fallbackActions || [];
       if (!acts.length) {
         box.innerHTML = err
-          ? `<p class="muted" style="font-size:0.82rem;margin:0">Daily quests: ${err}</p>`
-          : "";
+          ? `<p class="muted" style="font-size:0.82rem;margin:0">Quests: ${err}</p>`
+          : syncing
+            ? `<p class="muted" style="font-size:0.82rem;margin:0">Syncing quests…</p>`
+            : "";
         return;
       }
-      box.innerHTML = acts
-        .slice(0, 8)
-        .map(
-          (a) => `<div class="today-action">
-            <span class="today-action-kind">${a.kind || "do"}</span>
-            <span class="today-action-text">${a.text || ""}</span>
-          </div>`
-        )
-        .join("");
-      return;
     }
 
     const done = sum.done != null ? sum.done : 0;
     const total = sum.total != null ? sum.total : 0;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
     let html = `<div class="daily-quests">
-      <div class="daily-quests-head">
-        <strong>Daily quests</strong>
-        <span class="muted">${done}/${total} · ${pct}%</span>
-      </div>`;
-    if (err) {
-      html += `<p class="muted" style="font-size:0.78rem;margin:0.25rem 0 0.4rem">Google Tasks: ${err} · showing plan locally</p>`;
+      <button type="button" class="daily-quests-head collapsible-head" data-collapse="quests" aria-expanded="true">
+        <span class="collapsible-title">⚔ Daily quests</span>
+        <span class="daily-quests-meter" aria-hidden="true"><span class="daily-quests-meter-fill" style="width:${pct}%"></span></span>
+        <span class="muted daily-quests-count">${done}/${total}</span>
+        <span class="collapse-chevron">▾</span>
+      </button>
+      <div class="collapsible-body" data-collapse-body="quests">`;
+    if (syncing) {
+      html += `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
+    } else if (err) {
+      html += `<p class="muted quest-sync-note">${err}</p>`;
     } else if (src === "google_tasks") {
-      html += `<p class="muted" style="font-size:0.78rem;margin:0.25rem 0 0.4rem">Synced to Google Tasks · Fitness list</p>`;
+      html += `<p class="muted quest-sync-note">Fitness list · complete here or in Google Tasks</p>`;
     }
+
     groups.forEach((g) => {
       const gDone = g.done || 0;
       const gTot = g.total || 0;
-      html += `<div class="daily-quest-group${g.completed ? " is-done" : ""}" data-group="${g.group || ""}">
-        <div class="daily-quest-group-head">
-          <span class="daily-quest-group-title">${g.title || g.group || "Group"}</span>
-          <span class="muted daily-quest-group-prog">${gDone}/${gTot}</span>
-        </div>
-        <ul class="daily-quest-list">`;
-      (g.items || []).forEach((it) => {
-        if (it.completed) return; // hide completed leaves for the day
-        const tid = it.task_id || "";
-        const lid = it.list_id || "";
-        const pid = g.task_id || "";
-        const disabled = !tid || !lid ? " disabled" : "";
-        html += `<li class="daily-quest-item">
-          <label class="daily-quest-label">
-            <input type="checkbox" class="daily-quest-check" data-task-id="${tid}" data-list-id="${lid}" data-parent-id="${pid}" data-group="${g.group || ""}"${disabled} />
-            <span class="daily-quest-text">${it.title || ""}</span>
-          </label>
-        </li>`;
-      });
-      const openLeft = (g.items || []).filter((x) => !x.completed).length;
-      if (!openLeft) {
-        html += `<li class="daily-quest-item is-complete muted">Group complete ✓</li>`;
+      const open = (g.open_items || g.items || []).filter((x) => !x.completed);
+      const emoji = g.emoji || "✓";
+      html += `<div class="quest-group${g.completed || !open.length ? " is-done" : ""}" data-group="${g.group || ""}">
+        <div class="quest-group-head">
+          <span class="quest-group-emoji">${emoji}</span>
+          <span class="quest-group-title">${g.title || g.group || "Group"}</span>
+          <span class="quest-group-prog">${gDone}/${gTot}</span>
+        </div>`;
+      if (!open.length) {
+        html += `<div class="quest-group-done">Cleared ✓</div>`;
+      } else {
+        // Bucket by meal_label for nutrition
+        const byMeal = {};
+        const noMeal = [];
+        open.forEach((it) => {
+          if (it.meal_label) {
+            (byMeal[it.meal_label] = byMeal[it.meal_label] || []).push(it);
+          } else noMeal.push(it);
+        });
+        const renderCard = (it, g) => {
+          const tid = it.task_id || "";
+          const lid = it.list_id || "";
+          const pid = g.task_id || "";
+          const ready = tid && lid;
+          // Strip redundant "Next meal: " prefix if already under meal header
+          let label = it.title || "";
+          if (it.meal_label && label.startsWith(it.meal_label + ":")) {
+            label = label.slice(it.meal_label.length + 1).trim();
+          }
+          return `<button type="button" class="quest-card${ready ? "" : " quest-card-pending"}"
+            data-task-id="${tid}" data-list-id="${lid}" data-parent-id="${pid}"
+            ${ready ? "" : "disabled"} aria-label="Complete: ${label}">
+            <span class="quest-card-mark" aria-hidden="true"></span>
+            <span class="quest-card-text">${label}</span>
+          </button>`;
+        };
+        Object.keys(byMeal).forEach((mealLab) => {
+          html += `<div class="quest-meal-bucket">
+            <div class="quest-meal-label">${mealLab}</div>
+            <div class="quest-card-row">`;
+          byMeal[mealLab].forEach((it) => {
+            html += renderCard(it, g);
+          });
+          html += `</div></div>`;
+        });
+        if (noMeal.length) {
+          html += `<div class="quest-card-row">`;
+          noMeal.forEach((it) => {
+            html += renderCard(it, g);
+          });
+          html += `</div>`;
+        }
       }
-      html += `</ul></div>`;
+      html += `</div>`;
     });
-    html += `</div>`;
+    html += `</div></div>`;
     box.innerHTML = html;
   }
 
-  async function onDailyQuestToggle(ev) {
-    const input = ev.target;
-    if (!input || !input.classList || !input.classList.contains("daily-quest-check"))
-      return;
-    if (input.disabled) return;
-    const taskId = input.getAttribute("data-task-id") || "";
-    const listId = input.getAttribute("data-list-id") || "";
-    const parentId = input.getAttribute("data-parent-id") || "";
+  async function syncDailyTasksFromServer() {
+    try {
+      const res = await fetch("/api/daily-tasks", {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) return;
+      const daily = data.daily_tasks;
+      if (!daily) return;
+      if (state) {
+        state.daily_tasks = daily;
+        if (state.coach && state.coach.today) state.coach.today.daily_tasks = daily;
+      }
+      renderDailyPlanTasks(daily, (state && state.coach && state.coach.today && state.coach.today.actions) || []);
+    } catch (_) {
+      /* non-fatal */
+    }
+  }
+
+  async function onDailyQuestClick(ev) {
+    const btn = ev.target.closest && ev.target.closest(".quest-card");
+    if (!btn || btn.disabled) return;
+    if (btn.classList.contains("quest-card-pending")) return;
+    const taskId = btn.getAttribute("data-task-id") || "";
+    const listId = btn.getAttribute("data-list-id") || "";
+    const parentId = btn.getAttribute("data-parent-id") || "";
     if (!taskId || !listId) return;
-    input.disabled = true;
-    // Count remaining siblings after this check
-    const groupEl = input.closest(".daily-quest-group");
-    const openChecks = groupEl
-      ? Array.from(groupEl.querySelectorAll(".daily-quest-check:not(:checked)"))
+    btn.disabled = true;
+    btn.classList.add("is-completing");
+    const groupEl = btn.closest(".quest-group");
+    const remaining = groupEl
+      ? Array.from(groupEl.querySelectorAll(".quest-card:not(.is-completing):not(.is-done)"))
       : [];
-    // After checking this one, remaining open = openChecks without self if checked
-    const siblingAllDone = input.checked && openChecks.length === 0;
+    const siblingAllDone = remaining.length === 0;
     try {
       const res = await fetch("/api/daily-tasks/complete", {
         method: "POST",
@@ -3303,55 +3349,67 @@
         body: JSON.stringify({
           list_id: listId,
           task_id: taskId,
-          completed: !!input.checked,
+          completed: true,
           parent_id: parentId || null,
           sibling_all_done: siblingAllDone,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        input.checked = !input.checked;
-        showAlert(data.error || "Could not update task", "err");
-        input.disabled = false;
+        btn.disabled = false;
+        btn.classList.remove("is-completing");
+        showAlert(data.error || "Could not complete quest", "err");
         return;
       }
-      // Remove row when completed (gamify: clear the board)
-      if (input.checked) {
-        const li = input.closest(".daily-quest-item");
-        if (li) li.remove();
-        if (groupEl) {
-          const left = groupEl.querySelectorAll(".daily-quest-check").length;
-          const prog = groupEl.querySelector(".daily-quest-group-prog");
+      btn.classList.add("is-done");
+      setTimeout(() => {
+        btn.remove();
+        if (groupEl && !groupEl.querySelector(".quest-card")) {
+          groupEl.classList.add("is-done");
+          const row = groupEl.querySelector(".quest-card-row") || groupEl;
+          const doneEl = document.createElement("div");
+          doneEl.className = "quest-group-done";
+          doneEl.textContent = "Cleared ✓";
+          groupEl.appendChild(doneEl);
+        }
+        if (state && state.daily_tasks && state.daily_tasks.summary) {
+          const s = state.daily_tasks.summary;
+          s.done = Math.min((s.done || 0) + 1, s.total || 0);
+          const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+          const count = document.querySelector(".daily-quests-count");
+          if (count) count.textContent = `${s.done}/${s.total}`;
+          const fill = document.querySelector(".daily-quests-meter-fill");
+          if (fill) fill.style.width = `${pct}%`;
+          const prog = groupEl && groupEl.querySelector(".quest-group-prog");
           if (prog) {
             const parts = String(prog.textContent || "").split("/");
             const tot = Number(parts[1]) || 0;
-            const done = tot - left;
-            prog.textContent = `${done}/${tot}`;
-          }
-          if (left === 0) {
-            groupEl.classList.add("is-done");
-            const ul = groupEl.querySelector(".daily-quest-list");
-            if (ul)
-              ul.innerHTML =
-                '<li class="daily-quest-item is-complete muted">Group complete ✓</li>';
+            const left = groupEl.querySelectorAll(".quest-card").length;
+            prog.textContent = `${tot - left}/${tot}`;
           }
         }
-        // Update head progress
-        const head = document.querySelector(".daily-quests-head .muted");
-        if (head && state && state.daily_tasks && state.daily_tasks.summary) {
-          const s = state.daily_tasks.summary;
-          s.done = (s.done || 0) + 1;
-          const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-          head.textContent = `${s.done}/${s.total} · ${pct}%`;
-        }
-      } else {
-        input.disabled = false;
-      }
+      }, 280);
     } catch (e) {
-      input.checked = !input.checked;
+      btn.disabled = false;
+      btn.classList.remove("is-completing");
       showAlert(String(e.message || e), "err");
-      input.disabled = false;
     }
+  }
+
+  function bindCollapsibles(root) {
+    (root || document).querySelectorAll("[data-collapse]").forEach((head) => {
+      if (head.dataset.boundCollapse) return;
+      head.dataset.boundCollapse = "1";
+      head.addEventListener("click", () => {
+        const key = head.getAttribute("data-collapse");
+        const body = document.querySelector(`[data-collapse-body="${key}"]`);
+        if (!body) return;
+        const open = head.getAttribute("aria-expanded") !== "false";
+        head.setAttribute("aria-expanded", open ? "false" : "true");
+        body.hidden = open;
+        head.classList.toggle("is-collapsed", open);
+      });
+    });
   }
 
   function renderTodayHub(data) {
@@ -3378,11 +3436,13 @@
         "Rebuilt each load from live logs, stock, recovery, and planners.";
     }
 
-    // Daily plan quests (Google Tasks / local preview) — checkable groups
-    renderDailyPlanTasks(
-      today.daily_tasks || data.daily_tasks || null,
-      today.actions || []
-    );
+    // Daily quests: paint local plan immediately; sync GT in background (keeps dashboard snappy)
+    const daily = today.daily_tasks || data.daily_tasks || null;
+    renderDailyPlanTasks(daily, today.actions || []);
+    bindCollapsibles($("today-hub") || document);
+    if (!daily || daily.needs_sync || daily.source !== "google_tasks") {
+      syncDailyTasksFromServer();
+    }
 
     // Targets with motivations + progress
     if ($("today-targets")) {
@@ -4377,7 +4437,7 @@
     }
     if ($("today-actions") && !$("today-actions").dataset.questBound) {
       $("today-actions").dataset.questBound = "1";
-      $("today-actions").addEventListener("change", onDailyQuestToggle);
+      $("today-actions").addEventListener("click", onDailyQuestClick);
     }
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {

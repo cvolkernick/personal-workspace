@@ -836,12 +836,13 @@ def load_dashboard_data(
             "brief": {"title": "Coach brief", "markdown": f"Coach unavailable: {e}"},
         }
 
-    # Daily plan quests → Google Tasks (Fitness list); non-fatal if GT offline
+    # Daily quests: fast local plan on dashboard paint; GT ensure is async via GET /api/daily-tasks
     try:
-        from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
+        from rt_dashboard.daily_plan_tasks import plan_preview
 
         today_board = (payload.get("coach") or {}).get("today") or {}
-        daily = ensure_daily_tasks(today_board, day=local_today)
+        daily = plan_preview(today_board, day=local_today)
+        daily["needs_sync"] = True
         payload["daily_tasks"] = daily
         if isinstance(payload.get("coach"), dict) and isinstance(
             payload["coach"].get("today"), dict
@@ -854,6 +855,7 @@ def load_dashboard_data(
             "error": str(e),
             "groups": [],
             "summary": {"done": 0, "total": 0},
+            "needs_sync": True,
         }
 
     elapsed_ms = int((datetime.utcnow() - t0).total_seconds() * 1000)
