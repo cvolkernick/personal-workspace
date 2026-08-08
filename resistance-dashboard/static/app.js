@@ -3304,6 +3304,7 @@
     });
     html += `</div></div>`;
     box.innerHTML = html;
+    // Collapse uses hub-level delegation; no per-node bind needed after re-render
   }
 
   async function syncDailyTasksFromServer() {
@@ -3396,20 +3397,33 @@
     }
   }
 
+  /** Event-delegated collapse — survives quest re-renders after GT sync. */
+  function onCollapsibleHeadClick(ev) {
+    if (ev.target.closest && ev.target.closest(".quest-card")) return;
+    const head = ev.target.closest && ev.target.closest("[data-collapse]");
+    if (!head) return;
+    // Only handle if the click originated on the head (not a nested control)
+    if (!head.contains(ev.target)) return;
+    const key = head.getAttribute("data-collapse");
+    if (!key) return;
+    const root = $("today-hub") || document;
+    const body =
+      root.querySelector(`[data-collapse-body="${key}"]`) ||
+      document.querySelector(`[data-collapse-body="${key}"]`);
+    if (!body) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const open = head.getAttribute("aria-expanded") !== "false";
+    head.setAttribute("aria-expanded", open ? "false" : "true");
+    body.hidden = open;
+    head.classList.toggle("is-collapsed", open);
+  }
+
   function bindCollapsibles(root) {
-    (root || document).querySelectorAll("[data-collapse]").forEach((head) => {
-      if (head.dataset.boundCollapse) return;
-      head.dataset.boundCollapse = "1";
-      head.addEventListener("click", () => {
-        const key = head.getAttribute("data-collapse");
-        const body = document.querySelector(`[data-collapse-body="${key}"]`);
-        if (!body) return;
-        const open = head.getAttribute("aria-expanded") !== "false";
-        head.setAttribute("aria-expanded", open ? "false" : "true");
-        body.hidden = open;
-        head.classList.toggle("is-collapsed", open);
-      });
-    });
+    const el = root || $("today-hub") || document;
+    if (!el || el.dataset.collapseDelegated === "1") return;
+    el.dataset.collapseDelegated = "1";
+    el.addEventListener("click", onCollapsibleHeadClick);
   }
 
   function renderTodayHub(data) {
@@ -3438,8 +3452,9 @@
 
     // Daily quests: paint local plan immediately; sync GT in background (keeps dashboard snappy)
     const daily = today.daily_tasks || data.daily_tasks || null;
-    renderDailyPlanTasks(daily, today.actions || []);
+    // Bind collapse delegation once on hub (before/after quest re-renders)
     bindCollapsibles($("today-hub") || document);
+    renderDailyPlanTasks(daily, today.actions || []);
     if (!daily || daily.needs_sync || daily.source !== "google_tasks") {
       syncDailyTasksFromServer();
     }
