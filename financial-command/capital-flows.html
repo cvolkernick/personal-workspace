@@ -243,7 +243,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit · BTC</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> → <strong>Digital Credit · Equities</strong> (Agentic · Stock · Margin loan). Twin leverage governors: USDC HY (Morpho) · USDG HY (RH margin).</p>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>DC · BTC</strong> <em>(+ USDC HY buffer)</em> → <strong>Liquidity Engine</strong> <em>(cash/credit)</em> → <strong>DC · Equities</strong> <em>(+ USDG HY buffer)</em> → <strong>Deploy</strong>. HY co-located with each engine as de-facto buffer.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -252,21 +252,20 @@
           <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic · Stock (spot)</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho · RH Margin loan</span></div></div>
-            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card (LE)</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Fleet · Productive · Consumer</span></div></div>
-            <div class="leg-item"><span class="swatch-node planned-brown"></span><div><strong>Brown dashed</strong><span class="desc"> — Planned income</span></div></div>
-            <div class="leg-item"><span class="desc"><strong>Red dashed edges</strong> — optional margin extract (not income)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY (BTC engine buffer)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY (Equities engine buffer)</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic · Stock</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho · Margin loan</span></div></div>
+            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
+            <div class="leg-item"><span class="desc"><strong>Red dashed</strong> — margin extract (not income)</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Layout</h3>
+          <h3>Layout (v34 calm)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Digital Credit · BTC</strong> (CB · BTC · Morpho) · <strong>LE</strong> (X Money · One Card · USDC HY · USDG HY) · <strong>Deploy</strong> · <strong>Digital Credit · Equities</strong> (Agentic · Stock · Margin)</span></div>
-            <div class="leg-item"><span class="desc">USDC HY → BTC (LTV defense). USDG HY → Agentic (margin defense). Morpho → One Card refinance. X Money → Agentic (1st). Margin loan → LE/CB = extract only.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>DC·BTC</strong> (+USDC HY) → <strong>LE</strong> (X Money · One Card) → <strong>DC·Equities</strong> (+USDG HY) → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">HY co-located with each engine as de-facto buffer. Defense edges stay local. Main cash spine left→right.</span></div>
           </div>
         </div>
       </div>
@@ -323,7 +322,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model: Income → DC·BTC → LE → Deploy → DC·Equities
+      // Prefer model: Income → DC·BTC(+USDC HY) → LE → DC·Equities(+USDG HY) → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
@@ -335,12 +334,17 @@
           {
             id: "digital_credit_btc",
             label: "Digital Credit · BTC",
-            ids: ["coinbase", "cb_btc", "cb_morpho"],
+            ids: ["coinbase", "cb_btc", "cb_morpho", "usdc_hy"],
           },
           {
             id: "liquidity_engine",
             label: "Liquidity Engine",
-            ids: ["x_money", "one_card", "usdc_hy", "usdg_hy"],
+            ids: ["x_money", "one_card"],
+          },
+          {
+            id: "digital_credit_equities",
+            label: "Digital Credit · Equities",
+            ids: ["rh_agentic", "rh_stock_spot", "rh_margin_loan", "usdg_hy"],
           },
           {
             id: "deploy",
@@ -351,11 +355,6 @@
               "bills_productive",
               "bills_consumer",
             ],
-          },
-          {
-            id: "digital_credit_equities",
-            label: "Digital Credit · Equities",
-            ids: ["rh_agentic", "rh_stock_spot", "rh_margin_loan"],
           },
         ];
       // Five columns: slightly narrower nodes / gaps so map fits

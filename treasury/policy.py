@@ -1674,13 +1674,11 @@ def evaluate_treasury(
         "strategy_context": {
             "goal": "Keep invested (BTC + Agentic equities) with twin digital-credit engines and paired HY governors",
             "usdc_model": (
-                "Capital Flows v33 dual engines: "
-                "(1) Digital Credit · BTC: Coinbase → BTC → Morpho → LE "
-                "(X Money · One Card refinance · USDC HY · USDG HY). "
-                "(2) Digital Credit · Equities: Agentic → Stock → RH margin loan. "
-                "Deploy spend: Essential → Fleet → Productive → Consumer. "
-                "USDC HY → BTC only when Morpho LTV hot; USDG HY → Agentic only when RH margin hot. "
-                "X Money → Agentic on the 1st. Margin loan extract to LE/CB is optional leverage — not income. "
+                "Capital Flows v34: Income → DC·BTC (+USDC HY buffer co-located) → LE "
+                "(X Money · One Card) → DC·Equities (+USDG HY buffer co-located) → Deploy. "
+                "HY is de-facto buffer tool on each venue (Morpho LTV / RH margin). "
+                "USDC HY → BTC and USDG HY → Agentic only when leverage hot. "
+                "X Money → Agentic on the 1st. Margin extract to LE is optional — not income. "
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
