@@ -1,11 +1,14 @@
 {
   "policy": {
-    "cb_target_ltv_max": 0.5,
+    "cb_ltv_target": 0.38,
     "cb_ltv_alert": 0.45,
+    "cb_target_ltv_max": 0.5,
     "cb_card_float_usdc": 0,
     "cb_loan_buffer_usdc": 1000,
     "cb_bridge_dry_powder_usdc": 200,
     "rh_bp_floor": 0,
+    "rh_margin_use_target": 0.28,
+    "rh_margin_use_alert": 0.35,
     "rh_margin_use_max": 0.4,
     "excess_split_cb": 0.6,
     "excess_split_rh": 0.4,
