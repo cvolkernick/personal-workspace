@@ -15,9 +15,13 @@
     "label": "Master Bathroom",
     "members": ["masterbathroom1"]
   },
-  "newlights": {
-    "label": "New lights (rename me)",
-    "members": ["new1", "new2", "new3"]
+  "garage": {
+    "label": "Garage",
+    "members": ["garage1", "garage2"]
+  },
+  "exterior": {
+    "label": "Exterior Lighting",
+    "members": ["exterior1"]
   },
   "office": {
     "label": "Office",
@@ -42,9 +46,9 @@
       "livingroom2",
       "masterbathroom1",
       "masterbedroom1",
-      "new1",
-      "new2",
-      "new3"
+      "garage1",
+      "garage2",
+      "exterior1"
     ]
   }
 }

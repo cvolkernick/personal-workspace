@@ -6,24 +6,29 @@
   "livingroom1": {"ip": "192.168.100.42", "mac": "6c29904cfc9c", "type": "wiz"},
   "livingroom2": {"ip": "192.168.100.92", "mac": "6c29904ca8b6", "type": "wiz"},
   "masterbathroom1": {"ip": "192.168.100.203", "mac": "6c2990fe26e4", "type": "wiz"},
-  "masterbedroom1": {"ip": "192.168.100.193", "mac": "6c2990e1aca6", "type": "wiz"},
-  "new1": {
-    "ip": "192.168.100.171",
-    "mac": "6c29908d7636",
-    "type": "wiz",
-    "label": "New light 1 (ID: red)"
-  },
-  "new2": {
-    "ip": "192.168.100.110",
-    "mac": "6c29908d946e",
-    "type": "wiz",
-    "label": "New light 2 (ID: green)"
-  },
-  "new3": {
+  "masterbedroom1": {
     "ip": "192.168.100.39",
     "mac": "6c2990e067d8",
     "type": "wiz",
-    "label": "New light 3 (ID: blue)"
+    "label": "Master Bedroom"
+  },
+  "exterior1": {
+    "ip": "192.168.100.193",
+    "mac": "6c2990e1aca6",
+    "type": "wiz",
+    "label": "Exterior Lighting (was master bedroom)"
+  },
+  "garage1": {
+    "ip": "192.168.100.171",
+    "mac": "6c29908d7636",
+    "type": "wiz",
+    "label": "Garage 1"
+  },
+  "garage2": {
+    "ip": "192.168.100.110",
+    "mac": "6c29908d946e",
+    "type": "wiz",
+    "label": "Garage 2"
   },
   "plantlight": {
     "type": "kasa",
