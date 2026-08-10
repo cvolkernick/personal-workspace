@@ -100,16 +100,19 @@ class TestSnapshot(unittest.TestCase):
         # combined burn = personal only when no fleet tab
         self.assertAlmostEqual(s["combined_monthly"], 8427.0)
         self.assertGreater(s["coinbase_funded_monthly"], 8000)
-        self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
-        self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
+        self.assertIn("Coinbase", snap["tabs"]["Essential"]["by_source_monthly"])
+        self.assertEqual(snap["tabs"]["Essential"]["role"], "upcoming_expense_estimates")
+        # Legacy Personal alias still present
+        self.assertEqual(snap["tabs"]["Personal"]["alias_of"], "Essential")
         self.assertEqual(
             snap["tabs"]["Productive Discretionary"]["role"], "productive_capital_outlay"
         )
-        # Legacy alias still present
+        # Legacy Discretionary alias still present
         self.assertEqual(snap["tabs"]["Discretionary"]["alias_of"], "Productive Discretionary")
         self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
+        self.assertAlmostEqual(s["essential_monthly"], 8427.0)
         # Chronological order: Rent (4/1) before Gym (7/17)
-        by_date = snap["tabs"]["Personal"]["upcoming_by_date"]
+        by_date = snap["tabs"]["Essential"]["upcoming_by_date"]
         self.assertEqual(by_date[0]["item"], "Rent")
         self.assertEqual(by_date[1]["item"], "Gym")
 
@@ -126,7 +129,7 @@ class TestSnapshot(unittest.TestCase):
         s = snap["summary"]
         self.assertAlmostEqual(s["personal_monthly"], 8427.0)
         self.assertAlmostEqual(s["fleet_monthly"], 1644.52)
-        # Burn = Personal + Fleet; Collateral is not burn
+        # Burn = Essential + Fleet; Collateral is not burn
         self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0 + 1644.52)
         self.assertAlmostEqual(s["combined_monthly"], 8427.0 + 1644.52)
         self.assertAlmostEqual(s["collateral_investments_monthly"], 537.20)

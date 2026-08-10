@@ -2,17 +2,18 @@
 """Sync Personal Expense Google Sheet into treasury snapshots for FCC.
 
 Sheet: Personal Expense Sheet
-  Personal                   — estimated *upcoming* personal expenses (ballpark OK),
+  Essential                  — estimated *upcoming* essential expenses (ballpark OK),
                                due dates and funding account (From). Not actual spend.
+                               (Legacy tab title: "Personal" — still accepted.)
   Fleet                      — auto fleet expenses (loans, insurance, wash, repairs).
-                               Expense burn; combined with Personal for upcoming bills.
+                               Expense burn; combined with Essential for upcoming bills.
   Collateral                 — collateral / productive capital investments (not burn).
   Productive Discretionary   — capital outlay that grows productive asset base (priority).
                                Not expense burn.
   Consumer Discretionary     — consumer goods / personal wishlist (lower priority).
                                Not expense burn.
 
-Legacy tab name "Discretionary" is accepted as an alias for Productive Discretionary.
+Legacy tab names: "Personal" → Essential; "Discretionary" → Productive Discretionary.
 
 YNAB is the source of *actual* spending (esp. Coinbase One Card). Do not double-count.
 
@@ -44,15 +45,19 @@ if str(ROOT) not in sys.path:
 from treasury.adapters import SNAPSHOTS_DIR, load_config, save_json  # noqa: E402
 
 DEFAULT_SHEET_ID = "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ"
-PERSONAL_TAB = "Personal"
+ESSENTIAL_TAB = "Essential"
+# Pre-2026-08-10 sheet tab title; still accepted on fetch and as snapshot alias.
+LEGACY_ESSENTIAL_TAB = "Personal"
 FLEET_TAB = "Fleet"
 COLLATERAL_TAB = "Collateral"
 PRODUCTIVE_TAB = "Productive Discretionary"
 CONSUMER_TAB = "Consumer Discretionary"
 LEGACY_PRODUCTIVE_TAB = "Discretionary"
+# Back-compat for importers that still reference PERSONAL_TAB
+PERSONAL_TAB = ESSENTIAL_TAB
 
 DEFAULT_TABS = (
-    PERSONAL_TAB,
+    ESSENTIAL_TAB,
     FLEET_TAB,
     COLLATERAL_TAB,
     PRODUCTIVE_TAB,
@@ -61,12 +66,20 @@ DEFAULT_TABS = (
 
 # Stable sheet gids (export?format=csv&gid=) — gviz by name often returns sheet 0 only.
 DEFAULT_TAB_GIDS: Dict[str, str] = {
-    PERSONAL_TAB: "0",
+    ESSENTIAL_TAB: "0",
+    LEGACY_ESSENTIAL_TAB: "0",
     FLEET_TAB: "1189472679",
     COLLATERAL_TAB: "1072275501",
     PRODUCTIVE_TAB: "1837986973",
     CONSUMER_TAB: "192074825",
 }
+
+
+def essential_tab_block(tabs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Return Essential (or legacy Personal) tab block from an expenses snapshot."""
+    t = tabs or {}
+    block = t.get(ESSENTIAL_TAB) or t.get(LEGACY_ESSENTIAL_TAB) or {}
+    return block if isinstance(block, dict) else {}
 
 
 def _now() -> str:
@@ -369,7 +382,7 @@ def build_expenses_snapshot(
     # Backward-compat keyword used by older callers/tests
     discretionary_csv: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Build expenses snapshot from Personal + optional Fleet/Collateral/disc tabs.
+    """Build expenses snapshot from Essential + optional Fleet/Collateral/disc tabs.
 
     ``productive_csv`` is preferred; ``discretionary_csv`` remains as a legacy alias
     for the productive tab content.
@@ -378,7 +391,7 @@ def build_expenses_snapshot(
         productive_csv = discretionary_csv
 
     personal_items, personal_totals = parse_personal_rows(rows_from_csv(personal_csv))
-    personal_items = _tag_items(personal_items, PERSONAL_TAB)
+    personal_items = _tag_items(personal_items, ESSENTIAL_TAB)
 
     fleet_items: List[Dict[str, Any]] = []
     fleet_totals = _empty_totals()
@@ -409,7 +422,7 @@ def build_expenses_snapshot(
     productive_monthly = prod_totals.get("monthly") or 0.0
     consumer_monthly = cons_totals.get("monthly") or 0.0
 
-    # Burn = Personal + Fleet (obligations). Capital tabs never enter burn.
+    # Burn = Essential + Fleet (obligations). Capital tabs never enter burn.
     burn_items = personal_items + fleet_items
     burn_monthly = personal_monthly + fleet_monthly
     burn_daily = (personal_totals.get("daily") or 0.0) + (fleet_totals.get("daily") or 0.0)
@@ -465,7 +478,7 @@ def build_expenses_snapshot(
     collateral_block["label"] = COLLATERAL_TAB
     collateral_block["description"] = (
         "Collateral / productive capital investments. Not expense burn. "
-        "Separate from recurring Personal/Fleet obligations."
+        "Separate from recurring Essential/Fleet obligations."
     )
 
     fleet_block = _tab_block(
@@ -477,7 +490,19 @@ def build_expenses_snapshot(
     fleet_block["label"] = FLEET_TAB
     fleet_block["description"] = (
         "Auto fleet expenses (loans, insurance, wash, repairs). "
-        "Included in upcoming expense burn with Personal."
+        "Included in upcoming expense burn with Essential."
+    )
+
+    essential_block = _tab_block(
+        role="upcoming_expense_estimates",
+        items=personal_items,
+        totals=personal_totals,
+        kind="expense",
+    )
+    essential_block["label"] = ESSENTIAL_TAB
+    essential_block["description"] = (
+        "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. "
+        "Forward-looking plan — not actual spend."
     )
 
     return {
@@ -486,13 +511,17 @@ def build_expenses_snapshot(
         "sheet_id": sheet_id,
         "sheet_name": "Personal Expense Sheet",
         "semantics": {
-            "personal": (
-                "Estimated upcoming personal expenses (ballpark OK) with due dates and funding account. "
+            "essential": (
+                "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. "
                 "Forward-looking plan — not a record of what already spent."
+            ),
+            "personal": (
+                "Alias for Essential (legacy tab title). "
+                "Estimated upcoming essential expenses — not actual spend."
             ),
             "fleet": (
                 "Auto fleet expenses (loans, insurance, ops). Expense burn; "
-                "combined with Personal for upcoming bills and pay-from pressure."
+                "combined with Essential for upcoming bills and pay-from pressure."
             ),
             "collateral": (
                 "Collateral / capital investments. Not expense burn."
@@ -509,26 +538,25 @@ def build_expenses_snapshot(
                 "Alias for Productive Discretionary (legacy name). "
                 "Capital outlay that grows productive asset base — not expense burn."
             ),
-            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal/Fleet.",
+            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
             "priority_order": [
-                "Personal + Fleet expenses paid & current",
+                "Essential + Fleet expenses paid & current",
                 "Collateral investments (as planned)",
                 "Productive Discretionary (margin-funded capex)",
                 "Consumer Discretionary (wishlist; after productive)",
             ],
         },
         "tabs": {
-            PERSONAL_TAB: _tab_block(
-                role="upcoming_expense_estimates",
-                items=personal_items,
-                totals=personal_totals,
-                kind="expense",
-            ),
+            ESSENTIAL_TAB: essential_block,
             FLEET_TAB: fleet_block,
             COLLATERAL_TAB: collateral_block,
             PRODUCTIVE_TAB: productive_block,
             CONSUMER_TAB: consumer_block,
-            # Backward-compatible alias → productive data (same object shape)
+            # Backward-compatible aliases
+            LEGACY_ESSENTIAL_TAB: {
+                **essential_block,
+                "alias_of": ESSENTIAL_TAB,
+            },
             LEGACY_PRODUCTIVE_TAB: {
                 **productive_block,
                 "role": "excess_capital_targets",  # legacy role string
@@ -536,10 +564,12 @@ def build_expenses_snapshot(
             },
         },
         "summary": {
-            # Burn = Personal + Fleet
+            # Burn = Essential + Fleet
             "upcoming_expense_monthly": round(burn_monthly, 2),
-            "personal_monthly": round(personal_monthly, 2),
+            "essential_monthly": round(personal_monthly, 2),
+            "personal_monthly": round(personal_monthly, 2),  # legacy alias → essential
             "personal_daily": round(personal_totals.get("daily") or 0.0, 2),
+            "essential_daily": round(personal_totals.get("daily") or 0.0, 2),
             "personal_weekly": round(personal_totals.get("weekly") or 0.0, 2),
             "personal_annually": round(personal_totals.get("annually") or 0.0, 2),
             "fleet_monthly": round(fleet_monthly, 2),
@@ -565,13 +595,13 @@ def build_expenses_snapshot(
             "x_money_funded_monthly": round(x_money_monthly, 2),
         },
         "notes": (
-            "Personal = estimated personal bills by pay-from account. "
+            "Essential = estimated essential bills by pay-from account (legacy tab: Personal). "
             "Fleet = auto fleet expenses (included in burn). "
             "Collateral = collateral/capital investments (not burn). "
             "Productive Discretionary = capital outlay growing productive assets "
             "(priority; margin-funded). "
             "Consumer Discretionary = wishlist / consumer goods (lower priority). "
-            "Burn = Personal + Fleet only. Actual spend = YNAB."
+            "Burn = Essential + Fleet only. Actual spend = YNAB."
         ),
     }
 
@@ -579,7 +609,7 @@ def build_expenses_snapshot(
 def _resolve_tab_names(tabs: List[str]) -> Dict[str, str]:
     """Map logical roles → configured sheet tab names (with legacy fallbacks)."""
     names = {
-        "personal": PERSONAL_TAB,
+        "personal": ESSENTIAL_TAB,  # logical role key stays "personal" for config compat
         "fleet": FLEET_TAB,
         "collateral": COLLATERAL_TAB,
         "productive": PRODUCTIVE_TAB,
@@ -588,7 +618,7 @@ def _resolve_tab_names(tabs: List[str]) -> Dict[str, str]:
     for t in tabs:
         tl = (t or "").strip()
         low = tl.lower()
-        if low == "personal":
+        if low in ("essential", "personal"):
             names["personal"] = tl
         elif low in ("fleet", "auto fleet", "auto fleet expenses"):
             names["fleet"] = tl
@@ -658,10 +688,38 @@ def sync_expenses(
 
     try:
         personal_csv, pers_err = _fetch_tab_optional(
-            sid, names["personal"], gid=gids.get(names["personal"]) or gids.get(PERSONAL_TAB)
+            sid,
+            names["personal"],
+            gid=gids.get(names["personal"])
+            or gids.get(ESSENTIAL_TAB)
+            or gids.get(LEGACY_ESSENTIAL_TAB),
         )
+        # If config/default still says Essential but sheet not yet renamed (or vice versa)
+        if personal_csv is None and names["personal"] == ESSENTIAL_TAB:
+            personal_csv, pers_err2 = _fetch_tab_optional(
+                sid,
+                LEGACY_ESSENTIAL_TAB,
+                gid=gids.get(LEGACY_ESSENTIAL_TAB) or gids.get(ESSENTIAL_TAB),
+            )
+            if personal_csv is not None:
+                pers_err = None
+            else:
+                pers_err = pers_err or pers_err2
+        elif personal_csv is None and names["personal"] == LEGACY_ESSENTIAL_TAB:
+            personal_csv, pers_err2 = _fetch_tab_optional(
+                sid,
+                ESSENTIAL_TAB,
+                gid=gids.get(ESSENTIAL_TAB) or gids.get(LEGACY_ESSENTIAL_TAB),
+            )
+            if personal_csv is not None:
+                pers_err = None
+            else:
+                pers_err = pers_err or pers_err2
         if personal_csv is None:
-            raise RuntimeError(pers_err or f"Personal tab not found ({names['personal']!r})")
+            raise RuntimeError(
+                pers_err
+                or f"Essential tab not found (tried {names['personal']!r} / Essential / Personal)"
+            )
 
         fleet_csv, fleet_err = _fetch_tab_optional(
             sid, names["fleet"], gid=gids.get(names["fleet"]) or gids.get(FLEET_TAB)
@@ -782,7 +840,8 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "coinbase_funded_monthly": s.get("coinbase_funded_monthly"),
                 "rh_checking_funded_monthly": s.get("rh_funded_monthly"),
                 "x_money_funded_monthly": s.get("x_money_funded_monthly"),
-                "items_personal": tabs.get(PERSONAL_TAB, {}).get("item_count"),
+                "items_essential": essential_tab_block(tabs).get("item_count"),
+                "items_personal": essential_tab_block(tabs).get("item_count"),  # legacy key
                 "items_fleet": tabs.get(FLEET_TAB, {}).get("item_count"),
                 "items_collateral": tabs.get(COLLATERAL_TAB, {}).get("item_count"),
                 "items_productive": tabs.get(

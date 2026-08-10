@@ -3694,8 +3694,9 @@
         .join("");
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
-      // Burn = Personal + Fleet; capital tabs (Collateral / Productive / Consumer) excluded.
-      const persTab = (ex.tabs && ex.tabs.Personal) || {};
+      // Burn = Essential + Fleet; capital tabs (Collateral / Productive / Consumer) excluded.
+      // Essential was renamed from Personal (2026-08-10); accept both keys.
+      const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
       const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
       const collTab = (ex.tabs && ex.tabs.Collateral) || {};
       const discTab =
@@ -3730,7 +3731,7 @@
 
       document.getElementById("expense-kpis").innerHTML = [
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
-        metric("Personal / mo", money(es.personal_monthly)),
+        metric("Essential / mo", money(es.essential_monthly ?? es.personal_monthly)),
         metric("Fleet / mo", money(es.fleet_monthly)),
         metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
         metric("RH Checking / mo", money(es.rh_funded_monthly)),

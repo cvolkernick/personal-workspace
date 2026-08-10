@@ -88,7 +88,7 @@
       background: #0d141c;
       padding: 0.5rem;
     }
-    svg.flow-svg { display: block; min-width: 1180px; width: 100%; height: auto; }
+    svg.flow-svg { display: block; min-width: 1480px; width: 100%; height: auto; }
     .node-box {
       fill: #15202c;
       stroke: var(--border);
@@ -141,6 +141,12 @@
     .edge-path.owner_stated {
       stroke: #c9a0ff;
       stroke-dasharray: 10 8;
+    }
+    /* Optional leverage extract — not income (margin loan feedback) */
+    .edge-path.risk {
+      stroke: #ff6b6b;
+      stroke-dasharray: 4 6;
+      opacity: 0.75;
     }
     /* Live strip + optional labels (labels off by default in model) */
     .edge-label {
@@ -237,7 +243,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> (X Money · One Card · USDC HY · USDG HY) → <strong>Deploy</strong> (Essential · Fleet · Productive · Consumer · Collateral <em>incl. Agentic</em>).</p>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(Digital Credit → X Money → Margin)</em> → <strong>Deploy</strong>. Credit engines are LE cards, not separate columns. Each credit card still runs HY ↔ borrowing rotation inside.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -245,21 +251,19 @@
         <div>
           <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — Digital Credit (Morpho · BTC · USDC HY)</span></div></div>
             <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Collateral (incl. Agentic Fund)</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
-            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card (Liquidity Engine)</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Fleet · Productive · Consumer</span></div></div>
-            <div class="leg-item"><span class="swatch-node planned-brown"></span><div><strong>Brown dashed</strong><span class="desc"> — Planned future income (not active)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — Margin (Agentic · stocks · USDG HY)</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Deploy · Collateral</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
+            <div class="leg-item"><span class="desc"><strong>Red dashed</strong> — margin extract (not income)</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Layout</h3>
+          <h3>Layout (v37 · LE + Deploy Collateral)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Liquidity Engine</strong> (X Money → One Card → USDC HY → USDG HY) · <strong>Deploy</strong> (Essential → Fleet → Productive → Consumer → Collateral)</span></div>
-            <div class="leg-item"><span class="desc">Morpho → One Card = refinance ~5% vs ~29%. X Money → Collateral = 1st Agentic auto. HY → Collateral = LTV/margin defense only.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (Digital Credit → X Money → Margin) → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Deploy mid-card: Essential · Fleet · <strong>Collateral</strong> · Productive · Consumer. LE credit cards unchanged.</span></div>
           </div>
         </div>
       </div>
@@ -316,7 +320,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model layout: Income → Digital Credit → Liquidity Engine → Deploy
+      // Prefer model: Income → LE (Digital Credit → X Money → Margin) → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
@@ -326,14 +330,9 @@
             ids: ["turo", "lyft", "x_creator", "tread", "asics"],
           },
           {
-            id: "digital_credit",
-            label: "Digital Credit",
-            ids: ["coinbase", "cb_btc", "cb_morpho"],
-          },
-          {
             id: "liquidity_engine",
             label: "Liquidity Engine",
-            ids: ["x_money", "one_card", "usdc_hy", "usdg_hy"],
+            ids: ["digital_credit", "x_money", "margin"],
           },
           {
             id: "deploy",
@@ -341,17 +340,17 @@
             ids: [
               "bills_essential",
               "bills_fleet",
+              "bills_collateral",
               "bills_productive",
               "bills_consumer",
-              "bills_collateral",
             ],
           },
         ];
-      // Four columns — keep node width readable; SVG width scales with count
+      // Five columns: slightly narrower nodes / gaps so map fits
       const colCount = Math.max(layoutCols.length, 1);
-      const nodeW = colCount >= 4 ? 185 : 200;
-      const colGap = colCount >= 4 ? 250 : 320;
-      const leftPad = 28;
+      const nodeW = colCount >= 5 ? 168 : colCount >= 4 ? 185 : 200;
+      const colGap = colCount >= 5 ? 230 : colCount >= 4 ? 250 : 320;
+      const leftPad = 24;
       const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
       const byId = {};
       (data.channels || []).forEach((n) => {
@@ -490,7 +489,8 @@
         // Cap stroke so dash gaps stay visible (weight still differentiates importance)
         const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
         const conf = e.confidence || "inferred";
-        html += `<path class="edge-path ${esc(conf)}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
+        const style = e.style === "risk" ? " risk" : "";
+        html += `<path class="edge-path ${esc(conf)}${style}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
       });
 
       // nodes
