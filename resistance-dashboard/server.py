@@ -773,6 +773,20 @@ def load_dashboard_data(
         errors.append(f"calorie_bars: {e}")
         payload["calorie_bars"] = {"pacing": None, "delta": None}
 
+    # Hydration pacing over the same wake window as calorie eating-window
+    try:
+        from rt_dashboard.hydration_bars import build_hydration_bars_payload
+
+        payload["hydration_bars"] = build_hydration_bars_payload(
+            hydration=health.hydration or [],
+            weight=health.weight or [],
+            sleep_battery=sleep_battery,
+            as_of=local_today,
+        )
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"hydration_bars: {e}")
+        payload["hydration_bars"] = {"pacing": None}
+
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
     try:
         wo = load_catalog_and_goals(nut_client)

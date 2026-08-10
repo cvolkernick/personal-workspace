@@ -2407,6 +2407,81 @@
     }
   }
 
+  /** Render hydration pacing bar (same wake window as calorie eating window). */
+  function renderHydrationBars(data) {
+    const bars = (data && data.hydration_bars) || {};
+    const pacing = bars.pacing || null;
+    const fill = $("hydration-pacing-fill");
+    const marker = $("hydration-pacing-marker");
+    const paceSum = $("hydration-pacing-summary");
+    const paceMeta = $("hydration-pacing-meta");
+    if (fill && pacing) {
+      const pct = Math.max(0, Math.min(100, Number(pacing.fill_pct) || 0));
+      const exp = Math.max(0, Math.min(100, Number(pacing.expected_pct) || 0));
+      fill.style.width = `${pct}%`;
+      const band = pacing.band || "";
+      const status = pacing.status || "on_pace";
+      fill.className = band
+        ? `pace-fill band-${band} ${status}`
+        : `pace-fill ${status}`;
+      if (marker) marker.style.left = `${exp}%`;
+      if (paceSum) {
+        let sum = pacing.summary || "—";
+        const consumed =
+          pacing.consumed_ml != null ? pacing.consumed_ml : pacing.consumed;
+        const target =
+          pacing.target_ml != null ? pacing.target_ml : pacing.target;
+        const paced =
+          pacing.paced_budget_ml != null
+            ? pacing.paced_budget_ml
+            : pacing.paced_budget;
+        if (pacing.status && pacing.status !== "no_target" && target != null) {
+          // Prefer concise pace-now line for the athlete glance
+          const delta = Number(pacing.delta_vs_pace);
+          let paceLine = `pace now ${fmtNum(paced)} ml`;
+          if (Number.isFinite(delta)) {
+            if (Math.abs(delta) < 1) paceLine += " · on pace";
+            else if (delta > 0) paceLine += ` · +${fmtNum(delta)} ahead`;
+            else paceLine += ` · ${fmtNum(delta)} behind`;
+          }
+          paceLine += ` · ${fmtNum(consumed)} / ${fmtNum(target)} ml day`;
+          sum = paceLine;
+        }
+        paceSum.textContent = sum;
+      }
+      const win = pacing.window || bars.window || {};
+      if (paceMeta) {
+        const bits = [];
+        if (win.window_start)
+          bits.push(`wake ${fmtBarWhen(win.window_start)}`);
+        if (win.window_end) bits.push(`bed ~${fmtBarWhen(win.window_end)}`);
+        if (win.fraction != null)
+          bits.push(`${Math.round(Number(win.fraction) * 100)}% of window`);
+        if (pacing.paced_budget_ml != null || pacing.paced_budget != null)
+          bits.push(
+            `paced ~${fmtNum(
+              pacing.paced_budget_ml != null
+                ? pacing.paced_budget_ml
+                : pacing.paced_budget
+            )} ml`
+          );
+        if (pacing.target_source === "weight_35ml_kg" && pacing.weight_lbs) {
+          bits.push(
+            `target 35 ml/kg @ ${Number(pacing.weight_lbs).toFixed(1)} lb`
+          );
+        } else if (pacing.target_source === "default") {
+          bits.push("target default 2500 ml");
+        }
+        if (pacing.intake_source && pacing.intake_source !== "none")
+          bits.push(String(pacing.intake_source).replace(/_/g, " "));
+        paceMeta.textContent = bits.join(" · ");
+      }
+    } else if (paceSum) {
+      paceSum.textContent = "Waiting for hydration / sleep data…";
+      if (paceMeta) paceMeta.textContent = "";
+    }
+  }
+
   /** Render full-width calorie pacing + in/out delta from server calorie_bars. */
   function renderCalorieBars(data) {
     const bars = (data && data.calorie_bars) || {};
@@ -3055,6 +3130,7 @@
     renderNutritionStatTiles(data.nutrition_store);
     // Full-width pacing (above chips) + in/out delta (below chips)
     renderCalorieBars(data);
+    renderHydrationBars(data);
     // Mirror cache meta onto mobile admin card
     if ($("mobile-meta-line") && $("meta-line")) {
       $("mobile-meta-line").textContent = $("meta-line").textContent;
