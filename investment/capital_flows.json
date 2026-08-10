@@ -1,8 +1,8 @@
 {
-  "version": 34,
+  "version": 35,
   "as_of": "2026-08-10",
-  "title": "Capital Flows — dual engines, HY co-located buffers",
-  "notes": "Visual calm v34. Columns L→R: Income → Digital Credit · BTC (incl USDC HY buffer) → Liquidity Engine (cash/credit only) → Digital Credit · Equities (incl USDG HY buffer) → Deploy. HY is de-facto buffer on each venue, co-located with its engine — not a separate cross-map highway. Main spine left-to-right; defense edges stay short/local; margin extract dashed.",
+  "title": "Capital Flows — DC columns as HY ↔ borrowing rotation",
+  "notes": "v35 clean DC model. Each Digital Credit column is a constant rotation between HY buffer and borrowing (Morpho / margin), gated by LTV vs target. Liquidity enters → immediate allocate to spot collateral. LTV below target → additional principal parks in HY. LTV above target → HY tops spot collateral. Spine L→R: Income → DC·BTC → LE (cash/credit) → DC·Equities → Deploy. Cross-map dual-leverage extract stays dashed/optional.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -111,33 +111,34 @@
       "id": "coinbase",
       "label": "Coinbase",
       "kind": "venue",
-      "subtitle": "BTC engine entry",
-      "confidence": "owner_stated"
+      "subtitle": "Liquidity entry",
+      "confidence": "owner_stated",
+      "notes": "BTC engine entry. Liquidity here allocates immediately to BTC spot collateral."
     },
     {
       "id": "cb_btc",
       "label": "BTC (spot)",
       "kind": "invest",
-      "subtitle": "Morpho collateral",
+      "subtitle": "Immediate collateral",
       "confidence": "owner_stated",
-      "notes": "USDC HY tops BTC when LTV hot (local defense)."
+      "notes": "Spot collateral for Morpho. Entry liquidity lands here first; HY tops when LTV hot."
     },
     {
       "id": "cb_morpho",
       "label": "Morpho · BTC loan",
       "kind": "leverage",
-      "subtitle": "Borrow USDC vs BTC",
+      "subtitle": "Borrowing",
       "confidence": "owner_stated",
-      "notes": "Feeds Liquidity Engine. Twin of RH margin loan."
+      "notes": "Borrow USDC vs BTC. Twin of RH margin. LTV cool → park principal in USDC HY; LTV hot → pull HY to BTC."
     },
     {
       "id": "usdc_hy",
       "label": "USDC High Yield",
       "kind": "yield",
       "stroke": "liq-blue",
-      "subtitle": "BTC engine buffer",
+      "subtitle": "HY ↔ Morpho rotation",
       "confidence": "owner_stated",
-      "notes": "De-facto Morpho LTV buffer, co-located with BTC digital credit. Defense: HY→BTC when LTV hot; else floor."
+      "notes": "Rotation partner of Morpho borrow. LTV < target: principal → HY. LTV > target: HY → BTC collateral."
     },
     {
       "id": "x_money",
@@ -160,33 +161,34 @@
       "id": "rh_agentic",
       "label": "Agentic Fund",
       "kind": "invest",
-      "subtitle": "RH wealth book",
+      "subtitle": "Liquidity entry",
       "confidence": "owner_stated",
-      "notes": "Primary equity wealth target. Buffered by co-located USDG HY."
+      "notes": "Equities engine entry/book. Liquidity here allocates immediately to stock spot collateral."
     },
     {
       "id": "rh_stock_spot",
       "label": "Stock (spot)",
       "kind": "invest",
-      "subtitle": "Equity collateral",
-      "confidence": "owner_stated"
+      "subtitle": "Immediate collateral",
+      "confidence": "owner_stated",
+      "notes": "Equity collateral for margin. Entry liquidity lands here first; USDG HY tops when margin heat."
     },
     {
       "id": "rh_margin_loan",
       "label": "Margin loan",
       "kind": "leverage",
-      "subtitle": "RH borrow vs stocks",
+      "subtitle": "Borrowing",
       "confidence": "owner_stated",
-      "notes": "Twin of Morpho. Extract to LE is optional leverage — not income."
+      "notes": "RH borrow vs stocks. Twin of Morpho. Margin cool → park principal in USDG HY; heat → pull HY to stock."
     },
     {
       "id": "usdg_hy",
       "label": "USDG High Yield",
       "kind": "yield",
       "stroke": "liq-green",
-      "subtitle": "Equities engine buffer",
+      "subtitle": "HY ↔ margin rotation",
       "confidence": "owner_stated",
-      "notes": "De-facto RH/Agentic margin buffer, co-located with equities digital credit. Defense-only when margin heat."
+      "notes": "Rotation partner of RH margin borrow. Margin cool: principal → HY. Margin heat: HY → stock collateral."
     },
     {
       "id": "bills_essential",
@@ -240,27 +242,40 @@
       "from": "coinbase",
       "to": "cb_btc",
       "confidence": "owner_stated",
-      "weight": 5
+      "weight": 5,
+      "label": "immediate → spot",
+      "notes": "Liquidity enters DC·BTC and allocates immediately to BTC spot collateral."
     },
     {
       "from": "cb_btc",
       "to": "cb_morpho",
       "confidence": "owner_stated",
-      "weight": 5
+      "weight": 5,
+      "label": "borrow vs BTC",
+      "notes": "Spot collateral enables Morpho borrowing."
     },
     {
       "from": "cb_morpho",
       "to": "usdc_hy",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Borrow parks in co-located USDC HY buffer (Morpho LTV governor)."
+      "label": "LTV < target → HY",
+      "notes": "Rotation: when Morpho LTV is below target, additional principal parks in USDC HY buffer."
+    },
+    {
+      "from": "usdc_hy",
+      "to": "cb_btc",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "LTV > target → collateral",
+      "notes": "Rotation: when Morpho LTV is above target, pull USDC HY into additional BTC collateral."
     },
     {
       "from": "cb_morpho",
       "to": "x_money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "USDC to cash sleeve."
+      "notes": "Borrow liquidity out to cash sleeve (ops / Deploy / Agentic pipe)."
     },
     {
       "from": "cb_morpho",
@@ -268,13 +283,6 @@
       "confidence": "owner_stated",
       "weight": 3,
       "notes": "Refinance One Card via new Morpho principal (~5% vs ~29%)."
-    },
-    {
-      "from": "usdc_hy",
-      "to": "cb_btc",
-      "confidence": "owner_stated",
-      "weight": 3,
-      "notes": "Local defense: HY → BTC when Morpho LTV hot. Else buffer floor."
     },
     {
       "from": "x_money",
@@ -305,33 +313,40 @@
       "to": "rh_agentic",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "1st-of-month auto → RH Agentic (main LE → Equities capital pipe)."
+      "label": "1st auto → equities entry",
+      "notes": "Main LE → DC·Equities capital pipe. Liquidity then allocates to stock spot."
     },
     {
       "from": "rh_agentic",
       "to": "rh_stock_spot",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 5,
+      "label": "immediate → spot",
+      "notes": "Liquidity enters DC·Equities and allocates immediately to stock spot collateral."
     },
     {
       "from": "rh_stock_spot",
       "to": "rh_margin_loan",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 5,
+      "label": "borrow vs stocks",
+      "notes": "Spot equity collateral enables margin borrowing."
     },
     {
-      "from": "cb_morpho",
+      "from": "rh_margin_loan",
       "to": "usdg_hy",
       "confidence": "owner_stated",
-      "weight": 3,
-      "notes": "Optional: Morpho USDC → USDG buffer for equities engine (dual-leverage caution)."
+      "weight": 4,
+      "label": "margin cool → HY",
+      "notes": "Rotation: when margin use is below target, additional principal parks in USDG HY buffer."
     },
     {
       "from": "usdg_hy",
-      "to": "rh_agentic",
+      "to": "rh_stock_spot",
       "confidence": "owner_stated",
-      "weight": 3,
-      "notes": "Local defense: USDG HY → Agentic when RH margin heat; else buffer floor."
+      "weight": 4,
+      "label": "margin heat → collateral",
+      "notes": "Rotation: when RH margin is above target, pull USDG HY into additional stock collateral."
     },
     {
       "from": "rh_margin_loan",
@@ -339,11 +354,13 @@
       "confidence": "inferred",
       "weight": 2,
       "style": "risk",
-      "notes": "Optional leverage extract to LE — NOT income."
+      "label": "optional extract",
+      "notes": "Optional leverage extract to LE — NOT income. Dual-engine risk."
     }
   ],
   "open_questions": [
-    "Morpho USDC split: how much to USDC HY vs X Money vs One Card vs USDG",
+    "Exact Morpho LTV target band (cool park-to-HY vs hot pull-to-BTC thresholds)",
+    "Exact RH margin-use target band (cool park-to-USDG vs heat pull-to-stock)",
     "When to allow margin extract vs dual-leverage hard block"
   ]
 }

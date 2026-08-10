@@ -243,7 +243,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>DC · BTC</strong> <em>(+ USDC HY buffer)</em> → <strong>Liquidity Engine</strong> <em>(cash/credit)</em> → <strong>DC · Equities</strong> <em>(+ USDG HY buffer)</em> → <strong>Deploy</strong>. HY co-located with each engine as de-facto buffer.</p>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>DC · BTC</strong> → <strong>LE</strong> → <strong>DC · Equities</strong> → <strong>Deploy</strong>. Each DC column = <strong>HY ↔ borrowing rotation</strong>: liquidity → spot collateral; LTV cool → principal to HY; LTV hot → HY to collateral.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -252,20 +252,20 @@
           <h3>Node borders (in use)</h3>
           <div class="map-legend-grid">
             <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY (BTC engine buffer)</span></div></div>
-            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY (Equities engine buffer)</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic · Stock</span></div></div>
-            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho · Margin loan</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY (Morpho rotation partner)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY (margin rotation partner)</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic · Stock (spot collateral)</span></div></div>
+            <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho · Margin loan (borrowing)</span></div></div>
             <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
             <div class="leg-item"><span class="desc"><strong>Red dashed</strong> — margin extract (not income)</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Layout (v34 calm)</h3>
+          <h3>Layout (v35 · HY ↔ borrow rotation)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>DC·BTC</strong> (+USDC HY) → <strong>LE</strong> (X Money · One Card) → <strong>DC·Equities</strong> (+USDG HY) → <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">HY co-located with each engine as de-facto buffer. Defense edges stay local. Main cash spine left→right.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>DC·BTC</strong> → <strong>LE</strong> → <strong>DC·Equities</strong> → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Each DC column: liquidity → spot; LTV cool → HY; LTV hot → collateral. HY rotates with borrowing, not a separate highway.</span></div>
           </div>
         </div>
       </div>
@@ -322,7 +322,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model: Income → DC·BTC(+USDC HY) → LE → DC·Equities(+USDG HY) → Deploy
+      // Prefer model: Income → DC·BTC (HY↔Morpho) → LE → DC·Equities (HY↔margin) → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [

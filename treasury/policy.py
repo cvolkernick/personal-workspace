@@ -1672,23 +1672,24 @@ def evaluate_treasury(
             },
         },
         "strategy_context": {
-            "goal": "Keep invested (BTC + Agentic equities) with twin digital-credit engines and paired HY governors",
+            "goal": "Keep invested (BTC + Agentic equities) with twin digital-credit engines as HY ↔ borrowing rotations",
             "usdc_model": (
-                "Capital Flows v34: Income → DC·BTC (+USDC HY buffer co-located) → LE "
-                "(X Money · One Card) → DC·Equities (+USDG HY buffer co-located) → Deploy. "
-                "HY is de-facto buffer tool on each venue (Morpho LTV / RH margin). "
-                "USDC HY → BTC and USDG HY → Agentic only when leverage hot. "
+                "Capital Flows v35: Income → DC·BTC → LE (X Money · One Card) → DC·Equities → Deploy. "
+                "Each DC column is a constant HY ↔ borrowing rotation: liquidity enters and allocates "
+                "immediately to spot collateral; if LTV/margin use is below target, additional principal "
+                "parks in the co-located HY buffer; if above target, pull HY into additional collateral. "
+                "USDC HY ↔ Morpho (BTC); USDG HY ↔ RH margin (equities). "
                 "X Money → Agentic on the 1st. Margin extract to LE is optional — not income. "
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
                 "Personal + Fleet expenses current (sheet burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
-                "USDC HY loan/bridge floors (Morpho LTV defense)",
-                "USDC HY → BTC only if Morpho LTV too high",
-                "X Money → Agentic Fund (scheduled 1st)",
+                "Liquidity → spot collateral first (both engines)",
+                "LTV cool: Morpho principal → USDC HY; LTV hot: USDC HY → BTC",
+                "X Money → Agentic Fund (scheduled 1st) → stock spot",
                 "Productive Discretionary before Consumer wishlist",
-                "USDG HY → Agentic/Stock only if RH margin heat too high",
+                "Margin cool: principal → USDG HY; heat: USDG HY → stock",
                 "RH margin heat cap still binds BP / leverage extract",
             ],
             "double_leverage_warning": (
