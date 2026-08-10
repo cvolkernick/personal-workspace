@@ -225,13 +225,18 @@ def build_day_constraints_packet(
         else:
             train_rec = "train" if coach_ok and not fitness_down else None
 
-    # Never invent Ready when we lack honest body signal
-    if fitness_down or not coach_ok:
+    # Honesty gate: Fit/coach down must not advertise train/easy from leftover board.
+    # Composer does not read packet.stale — only train_recommendation / session_due.
+    body_untrusted = bool(fitness_down or not coach_ok)
+    if body_untrusted:
         if rec_label == "Ready":
             rec_label = None
-        # Prefer rest gate honesty over invented train
-        if train_rec == "train" and (rec_score_f is None or rec_score_f < 40):
-            train_rec = "rest" if rec_score_f is not None and rec_score_f < 40 else None
+        # Prefer rest when score proves low recovery; otherwise withhold (null).
+        if rec_score_f is not None and rec_score_f < 40:
+            train_rec = "rest"
+        elif train_rec in ("train", "easy") or train_rec is None:
+            train_rec = None
+        # keep explicit "rest" if board already said rest
     if recovery_sparse and rec_label == "Ready":
         # Sparse Health must not paint Ready (product honesty)
         rec_label = "Moderate" if rec_score_f is not None and rec_score_f >= 50 else rec_label
@@ -256,7 +261,10 @@ def build_day_constraints_packet(
         and rec_score_f is not None
         and rec_score_f < 40
     )
-    if logged:
+    if body_untrusted:
+        # Withhold train advertising when body signal is untrusted
+        session_due = False
+    elif logged:
         session_due = False
     elif recovery_forced_rest:
         session_due = True

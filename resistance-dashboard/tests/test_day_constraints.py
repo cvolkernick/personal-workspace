@@ -177,6 +177,71 @@ class PacketBuilderTests(unittest.TestCase):
         self.assertTrue(pkt["stale"])
         self.assertNotEqual(pkt.get("recovery_label"), "Ready")
         self.assertLessEqual(float(pkt.get("confidence") or 0), 0.3)
+        # Leftover board train must not export as train / session advertising
+        self.assertIsNone(pkt.get("train_recommendation"))
+        self.assertFalse(pkt["session_due"])
+
+    def test_coach_down_leftover_train_withholds_not_easy(self) -> None:
+        """Eng-gate: fitness_down/coach_ok=False + board recommendation=train.
+
+        Composer ignores packet.stale — must not emit train/easy or session_due.
+        Score >=40 → null train_recommendation; score <40 → rest.
+        """
+        # High score leftover train → null (not train/easy)
+        high = build_day_constraints_packet(
+            today_board=self._board(
+                rec="train",
+                score=80,
+                label="Ready",
+                session_type="push",
+                is_rest=False,
+            ),
+            recovery={"label": "Ready", "score": 80},
+            workout_plan={"is_rest_day": False, "session_type": "push", "exercises": []},
+            sessions=[],
+            coach_ok=False,
+            fitness_down=False,
+            civil_day="2026-08-10",
+            as_of="2026-08-10T18:00:00+00:00",
+        )
+        self.assertTrue(high["stale"])
+        self.assertIsNone(high.get("train_recommendation"))
+        self.assertNotIn(high.get("train_recommendation"), ("train", "easy"))
+        self.assertFalse(high["session_due"])
+        self.assertNotEqual(high.get("recovery_label"), "Ready")
+
+        # easy leftover also withheld
+        easy = build_day_constraints_packet(
+            today_board=self._board(rec="easy", score=50, label="Moderate"),
+            recovery={"label": "Moderate", "score": 50},
+            workout_plan={"is_rest_day": False, "session_type": "legs"},
+            coach_ok=False,
+            fitness_down=True,
+            civil_day="2026-08-10",
+            as_of="2026-08-10T18:00:00+00:00",
+        )
+        self.assertIsNone(easy.get("train_recommendation"))
+        self.assertFalse(easy["session_due"])
+
+        # Low score while down → rest (honest block), still no session_due
+        low = build_day_constraints_packet(
+            today_board=self._board(
+                rec="train",
+                score=25,
+                label="Needs Rest",
+                session_type="pull",
+                is_rest=False,
+            ),
+            recovery={"label": "Needs Rest", "score": 25},
+            workout_plan={"is_rest_day": False, "session_type": "pull"},
+            coach_ok=False,
+            fitness_down=True,
+            civil_day="2026-08-10",
+            as_of="2026-08-10T18:00:00+00:00",
+        )
+        self.assertEqual(low.get("train_recommendation"), "rest")
+        self.assertFalse(low["session_due"])
+        self.assertTrue(low["stale"])
 
     def test_protein_gap_band_gap(self) -> None:
         pkt = build_day_constraints_packet(
