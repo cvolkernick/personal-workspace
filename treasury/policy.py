@@ -13,7 +13,9 @@ from typing import Any, Dict, List, Optional
 DEFAULT_POLICY: Dict[str, Any] = {
     "cb_target_ltv_max": 0.50,
     "cb_ltv_alert": 0.45,
-    "cb_card_float_usdc": 500.0,
+    # Spot-only optional reserve (rarely used). Card paydown is Morpho refinance, not HY.
+    "cb_card_float_usdc": 0.0,
+    # Primary USDC HY purpose: Morpho LTV / BTC collateral defense buffer
     "cb_loan_buffer_usdc": 1000.0,
     "cb_bridge_dry_powder_usdc": 200.0,
     "rh_bp_floor": 0.0,  # MO 2026-08-02: no RH BP floor — any in-account BP deployable
@@ -22,12 +24,16 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "excess_split_rh": 0.40,
     "bridge_max_recommend_usdc": 5000.0,
     "stale_after_hours": 6.0,
-    # Strategy: prefer High Yield Morpho vault USDC (~variable yield) over idle spot USDC.
-    # Spot liquid USDC may intentionally be ~0; vault holds working USDC float.
+    # Capital Flows MO (2026-08-10): USDC HY = LTV/margin buffer; One Card = Morpho new principal
+    # refinance (~5% vs ~29%). Vault counts toward loan/bridge floors only — not card paydown.
     "count_vault_toward_buffers": True,
-    "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers buffers
+    "count_vault_toward_card_float": False,
+    "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers LTV floors
     # Secured One Card: available credit ≈ security deposit USDC − balance owed
     "one_card_security_deposit_usdc": 500.0,
+    # Illustrative APR spread for refinance actions (not live quotes)
+    "morpho_borrow_apr_est": 0.05,
+    "one_card_apr_est": 0.29,
 }
 
 MANUAL_FIELDS = (
@@ -60,11 +66,16 @@ def classify_liquid_usdc(
     loan_buffer: float,
     bridge_dry_powder: float,
 ) -> Dict[str, Any]:
-    """Split liquid USDC into required floors vs excess."""
+    """Split liquid USDC into required floors vs excess.
+
+    Floor fill order (Capital Flows MO): loan_buffer (LTV) → bridge → card_float
+    (optional spot reserve). Card paydown is *not* scored here when callers pass
+    card_float=0 — One Card is Morpho refinance, not a vault-funded float.
+    """
     floors = {
-        "card_float": max(0.0, card_float),
         "loan_buffer": max(0.0, loan_buffer),
         "bridge_dry_powder": max(0.0, bridge_dry_powder),
+        "card_float": max(0.0, card_float),
     }
     required = sum(floors.values())
     shortfall = max(0.0, required - liquid_usdc)
@@ -73,7 +84,8 @@ def classify_liquid_usdc(
     remaining = liquid_usdc
     filled = {}
     gaps = {}
-    for name in ("card_float", "loan_buffer", "bridge_dry_powder"):
+    # LTV buffer first, then bridge, then optional spot card reserve
+    for name in ("loan_buffer", "bridge_dry_powder", "card_float"):
         need = floors[name]
         take = min(remaining, need)
         filled[name] = take
@@ -161,15 +173,20 @@ def _card_stress(
     card_avail_raw: Any,
     card_balance: float,
     card_avail: Optional[float],
-    card_float_gap: float,
+    card_float_gap: float = 0.0,
 ) -> str:
-    """Unknown card fields → yellow (not green). Balance with float gap → red."""
+    """Card health from deposit/credit — not vault float gap.
+
+    Balance owed → yellow (Morpho refinance path). Near-maxed available credit → red.
+    Vault shortfall must not paint card red (Capital Flows: HY is LTV buffer only).
+    """
+    del card_float_gap  # retained for call-site compat; unused under refinance MO
     if _is_missing(card_balance_raw) and _is_missing(card_avail_raw):
         return "yellow"
-    if card_balance > 0 and card_float_gap > 0:
+    if card_balance > 0 and card_avail is not None and card_avail < 50:
         return "red"
-    if card_balance > 0 and card_avail is not None and card_avail < 100:
-        return "yellow"
+    if card_balance > 0:
+        return "yellow"  # refinance recommended; not a vault-float failure
     if _is_missing(card_balance_raw) or _is_missing(card_avail_raw):
         return "yellow"
     return "green"
@@ -545,11 +562,12 @@ def cashflow_allocation_guidance(
     Priority (free dollars):
       1. Personal expenses paid & current (overdue / ≤7d window)
       2. Coinbase One Card balance paid down
-      3. Cash stack buffers (card float, loan buffer, bridge powder)
-      4. Excess beyond floors → collateral (BTC path / RH securities)
+      3. LTV buffers (loan / USDC HY sleeve · bridge powder) — not card float from vault
+      4. Excess beyond floors → collateral; HY→Collateral only under LTV heat
 
     Capex (Productive Discretionary first, then Consumer) is **not** free-dollar
     residual — fund from collateralized margin (RH buying power) only.
+    Card paydown is Morpho refinance (not free-dollar residual from HY).
     """
     free_start = max(0.0, _f(working_usdc)) + max(0.0, _f(bank_cash))
     remaining = free_start
@@ -812,7 +830,7 @@ def cashflow_allocation_guidance(
     # Next free dollar label
     next_map = {
         "expenses": "Pay Personal sheet obligations (overdue / due soon)",
-        "card_paydown": "Pay down Coinbase One Card balance",
+        "card_paydown": "Refinance One Card via Morpho principal (not HY pull)",
         "cash_buffers": "Fill cash stack buffers (float · loan · bridge)",
         "collateral": "Deploy excess to collateral (BTC or RH securities)",
     }
@@ -892,8 +910,13 @@ def evaluate_treasury(
     vault_known = not _is_missing(vault_raw)
     vault_usdc = _f(vault_raw) if vault_known else 0.0
     count_vault = bool(p.get("count_vault_toward_buffers", True))
-    # Working USDC = idle Advanced Trade USDC + High Yield vault (when known & enabled)
+    count_vault_card = bool(p.get("count_vault_toward_card_float", False))
+    # Working USDC = idle Advanced Trade USDC + High Yield vault (LTV buffer sleeve)
     working_usdc = liquid_usdc + (vault_usdc if count_vault and vault_known else 0.0)
+    # Floors scored against vault: loan + bridge only unless explicitly counting card float
+    card_float_for_vault = (
+        _f(p["cb_card_float_usdc"]) if count_vault_card else 0.0
+    )
     # Prefer YNAB/snapshot one_card over manual card_balance so a stale UI/config
     # override cannot pin owed balance (2026-08-05: $499.23 manual beat live $440.18).
     ynab_card_raw = one_card.get("card_balance")
@@ -971,10 +994,10 @@ def evaluate_treasury(
         if unlev is not None and _f(unlev) > 0 and bp > _f(unlev):
             margin_use = min(1.0, max(0.0, (bp - _f(unlev)) / equity))
 
-    # Buffers scored against *working* USDC (vault + spot), not idle spot alone
+    # LTV buffers scored against *working* USDC (vault + spot). Card float excluded by default.
     buckets = classify_liquid_usdc(
         working_usdc,
-        card_float=_f(p["cb_card_float_usdc"]),
+        card_float=card_float_for_vault,
         loan_buffer=_f(p["cb_loan_buffer_usdc"]),
         bridge_dry_powder=_f(p["cb_bridge_dry_powder_usdc"]),
     )
@@ -982,10 +1005,11 @@ def evaluate_treasury(
     buckets["vault_usdc"] = vault_usdc if vault_known else None
     buckets["working_usdc"] = working_usdc
     buckets["count_vault_toward_buffers"] = count_vault and vault_known
-    # Spot-only view (for transparency / intentional zero idle USDC)
+    buckets["count_vault_toward_card_float"] = count_vault_card
+    # Spot-only view (optional card reserve lives here if configured)
     spot_buckets = classify_liquid_usdc(
         liquid_usdc,
-        card_float=_f(p["cb_card_float_usdc"]),
+        card_float=_f(p["cb_card_float_usdc"]) if count_vault_card else 0.0,
         loan_buffer=_f(p["cb_loan_buffer_usdc"]),
         bridge_dry_powder=_f(p["cb_bridge_dry_powder_usdc"]),
     )
@@ -1028,7 +1052,7 @@ def evaluate_treasury(
             card_avail_raw=card_avail_raw,
             card_balance=card_balance,
             card_avail=card_avail,
-            card_float_gap=buckets["gaps"]["card_float"],
+            card_float_gap=0.0,  # never vault-float gap (refinance MO)
         ),
         "robinhood": _rh_stress(bp, _f(p["rh_bp_floor"]), margin_use, _f(p["rh_margin_use_max"])),
         "data_quality": data_quality["status"],
@@ -1137,29 +1161,40 @@ def evaluate_treasury(
         add(
             0,
             "vault_unknown",
-            "Enter High Yield vault USDC (working float lives here, not idle spot)",
+            "Enter High Yield vault USDC (LTV / margin buffer)",
             actor="human",
             detail=(
-                "Spot USDC often ~$0 intentionally (borrowed USDC → card paydown + High Yield vault). "
-                "Enter vault balance in Settings so buffers score correctly."
+                "USDC HY is the Morpho LTV defense sleeve (not One Card float). "
+                "Spot USDC often ~$0 by design. Enter vault balance so loan/bridge floors score."
             ),
             api_reachable=False,
         )
-    # --- Cash stack (SNR): one hero for card + CB buffer gaps (not five prose cards)
+
     card_dep = _f(
         man.get("one_card_security_deposit_usdc")
         or p.get("one_card_security_deposit_usdc"),
         500.0,
     )
     card_util = (card_balance / card_dep) if card_dep > 0 and card_balance > 0 else None
-    need_cash_stack = (
-        buckets["gaps"]["card_float"] > 0
-        or buckets["gaps"]["loan_buffer"] > 0
-        or (buckets["gaps"]["bridge_dry_powder"] > 0 and buckets["shortfall"] > 0)
-        or card_balance > 0
-        or (vault_known and vault_usdc > 0 and buckets["shortfall"] > 0)
-    )
-    if _is_missing(card_balance_raw) and not (card_balance > 0):
+    morpho_apr = _f(p.get("morpho_borrow_apr_est"), 0.05)
+    card_apr = _f(p.get("one_card_apr_est"), 0.29)
+
+    # One Card owed → Morpho refinance (not vault pull)
+    if card_balance > 0.01 and not _is_missing(card_balance_raw):
+        add(
+            1,
+            "card_refinance",
+            f"Refinance One Card ${card_balance:.0f} via Morpho principal "
+            f"(~{morpho_apr:.0%} vs ~{card_apr:.0%} APR)",
+            actor="human",
+            detail=(
+                "Capital Flows: Morpho → One Card. Borrow additional BTC-backed USDC principal "
+                "and pay the card in-app. Do not pull USDC HY for card — HY is LTV buffer. "
+                "Watch LTV after principal increases."
+            ),
+            api_reachable=False,
+        )
+    elif _is_missing(card_balance_raw) and not (card_balance > 0):
         add(
             2,
             "card_unknown",
@@ -1168,42 +1203,56 @@ def evaluate_treasury(
             detail="Card unknown — stress cannot go green until filled (YNAB or Settings).",
             api_reachable=False,
         )
-    elif need_cash_stack and (
-        buckets["shortfall"] > 0 or card_balance > 0 or stress["coinbase_card"] in ("red", "yellow")
+
+    # LTV heat: HY may deploy to Collateral defense only
+    if (
+        ltv is not None
+        and ltv >= _f(p["cb_ltv_alert"])
+        and vault_known
+        and vault_usdc > 0
     ):
-        vault_pull = (
-            min(vault_usdc, buckets["shortfall"])
-            if vault_known and vault_usdc > 0 and buckets["shortfall"] > 0
-            else 0.0
+        add(
+            1,
+            "hy_collateral_defense",
+            f"LTV {ltv:.1%} hot — USDC HY → Collateral defense only "
+            f"(up to ${vault_usdc:.0f} buffer)",
+            actor="human",
+            detail=(
+                "Owner MO: HY → Collateral only when leverage too high; else HY stays buffer floor. "
+                "In-app: add BTC collateral and/or repay Morpho principal. Not routine capital deploy."
+            ),
+            api_reachable=False,
         )
+
+    # LTV floors shortfall (loan + bridge) — separate from card refinance
+    need_ltv_stack = (
+        buckets["gaps"]["loan_buffer"] > 0
+        or buckets["gaps"]["bridge_dry_powder"] > 0
+        or buckets["shortfall"] > 0
+    )
+    if need_ltv_stack and buckets["shortfall"] > 0:
         bits: List[str] = []
-        if card_balance > 0:
-            bits.append(f"Card ${card_balance:.0f}")
-            if card_util is not None:
-                bits.append(f"{card_util:.0%} util")
-        if buckets["shortfall"] > 0:
-            bits.append(f"USDC −${buckets['shortfall']:.0f} floors")
-        title = "Restore cash stack · " + " · ".join(bits) if bits else "Restore cash stack"
+        if buckets["gaps"]["loan_buffer"] > 0:
+            bits.append(f"loan buf −${buckets['gaps']['loan_buffer']:.0f}")
+        if buckets["gaps"]["bridge_dry_powder"] > 0:
+            bits.append(f"bridge −${buckets['gaps']['bridge_dry_powder']:.0f}")
+        title = "Restore LTV buffer stack · " + " · ".join(bits) if bits else "Restore LTV buffer stack"
         actions.append(
             {
                 "priority": 2,
-                "kind": "cash_stack",
+                "kind": "ltv_buffer_stack",
                 "title": title,
                 "actor": "human",
                 "detail": (
-                    "One Card paydown + working USDC vs floors (spot+vault). "
-                    "App: card pay / vault withdraw. Morpho keep-open; manage LTV only."
+                    "USDC HY + spot vs loan/bridge floors (Capital Flows Liquidity Engine). "
+                    "Top Morpho LTV buffer in-app; do not treat HY as One Card float."
                 ),
                 "api_reachable": False,
                 "meta": {
-                    "card_balance": card_balance,
-                    "card_deposit": card_dep,
-                    "card_util": card_util,
                     "working_usdc": working_usdc,
                     "floors_required": buckets["required_total"],
                     "shortfall": buckets["shortfall"],
                     "vault_usdc": vault_usdc if vault_known else None,
-                    "vault_pull": vault_pull,
                     "gaps": dict(buckets["gaps"]),
                 },
             }
@@ -1262,7 +1311,7 @@ def evaluate_treasury(
             "bridge_rh_to_cb",
             f"Recommend bridge ~${amt:.2f} cash Robinhood → Coinbase",
             actor="human",
-            detail="Recommend-only to refill CB card/loan buffers or LTV defense.",
+            detail="Recommend-only to refill Morpho LTV buffer (USDC HY) or bridge powder.",
             api_reachable=False,
         )
     elif (
@@ -1273,7 +1322,7 @@ def evaluate_treasury(
             or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
         )
     ):
-        # No BP floor: still allow RH→CB recommend when CB stack is short / LTV hot
+        # No BP floor: still allow RH→CB recommend when LTV buffer stack short / LTV hot
         amt = min(cash * 0.5, _f(p["bridge_max_recommend_usdc"]), max(buckets["shortfall"], 100.0))
         if amt >= 50:
             add(
@@ -1281,7 +1330,7 @@ def evaluate_treasury(
                 "bridge_rh_to_cb",
                 f"Recommend bridge ~${amt:.2f} RH → Coinbase",
                 actor="human",
-                detail="Recommend-only — refill card/loan buffers or LTV defense.",
+                detail="Recommend-only — refill LTV buffer (USDC HY) / bridge powder, not card float.",
                 api_reachable=False,
             )
 
@@ -1306,23 +1355,28 @@ def evaluate_treasury(
                 api_reachable=True,
             )
 
-    # vault_pull folded into cash_stack meta when shortfall > 0
     exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
     # Upcoming estimates only (Personal tab) — not Discretionary capital targets
     cb_burn = exp_sum.get("coinbase_funded_monthly")
     rh_checking_burn = exp_sum.get("rh_funded_monthly") or exp_sum.get("rh_checking_funded_monthly")
-    # Demote bill-runway noise when cash_stack already owns the red (SNR)
+    has_primary_stack = any(
+        a.get("kind") in ("ltv_buffer_stack", "card_refinance", "hy_collateral_defense")
+        for a in actions
+    )
     if (
         cb_burn
         and working_usdc < float(cb_burn) * 0.25
-        and not any(a.get("kind") == "cash_stack" for a in actions)
+        and not has_primary_stack
     ):
         add(
             3,
             "expense_burn",
             f"Bills ~${float(cb_burn):.0f}/mo vs USDC ${working_usdc:.0f}",
             actor="either",
-            detail="Working USDC (spot+vault) thin vs Coinbase-funded sheet bills.",
+            detail=(
+                "Working USDC (spot+vault LTV sleeve) thin vs Coinbase-funded sheet bills. "
+                "Ops bills via X Money; card via Morpho refinance."
+            ),
             api_reachable=False,
         )
     elif cb_burn and working_usdc < float(cb_burn) * 0.25:
@@ -1331,7 +1385,7 @@ def evaluate_treasury(
             "expense_burn",
             f"Bills ~${float(cb_burn):.0f}/mo vs USDC ${working_usdc:.0f}",
             actor="either",
-            detail="Secondary to cash stack — vault/spot runway vs sheet bills.",
+            detail="Secondary — vault/spot runway vs sheet bills (not card float).",
             api_reachable=False,
         )
     if rh_checking_burn and bill_pay_cash is not None and float(bill_pay_cash) < float(rh_checking_burn) * 0.15:
@@ -1392,11 +1446,12 @@ def evaluate_treasury(
     agent_brief_lines = [
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
-        f"USDC working: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + vault "
-        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'})"
+        f"USDC LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
+        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — margin buffer, not card float)"
         f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
-        + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
+        + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else "")
+        + " | path=Morpho refinance (not HY pull)",
         f"Upcoming expense estimates (sheet Personal+Fleet): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
@@ -1553,20 +1608,37 @@ def evaluate_treasury(
                 "target": _f(p["cb_card_float_usdc"]),
                 "filled": buckets["filled"]["card_float"],
                 "gap": buckets["gaps"]["card_float"],
+                "note": (
+                    "Optional spot reserve only; default 0. Card paydown = Morpho refinance, "
+                    "not USDC HY. count_vault_toward_card_float="
+                    f"{count_vault_card}"
+                ),
             },
             "loan_buffer": {
                 "target": _f(p["cb_loan_buffer_usdc"]),
                 "filled": buckets["filled"]["loan_buffer"],
                 "gap": buckets["gaps"]["loan_buffer"],
+                "note": "Primary USDC HY purpose — Morpho LTV / BTC margin defense",
             },
             "yield_sleeve": {
                 "vault_usdc": vault_usdc if vault_known else None,
-                "note": "High Yield Morpho vault = primary USDC home (not idle spot)",
+                "note": (
+                    "USDC HY = LTV buffer (Liquidity Engine). HY→Collateral only when LTV/margin hot; "
+                    "else buffer floor. Not One Card funder."
+                ),
             },
             "working_usdc": {
                 "spot": liquid_usdc,
                 "vault": vault_usdc if vault_known else None,
                 "total": working_usdc,
+                "role": "ltv_buffer_sleeve",
+            },
+            "one_card": {
+                "balance": card_balance if not _is_missing(card_balance_raw) else None,
+                "available_credit": card_avail,
+                "deposit": card_deposit,
+                "path": "morpho_refinance",
+                "note": "Morpho new principal → pay card (~5% vs ~29%); raises LTV deliberately",
             },
             "rh_cash_bp": {
                 "buying_power": bp,
@@ -1583,19 +1655,21 @@ def evaluate_treasury(
         "strategy_context": {
             "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
             "usdc_model": (
-                "CB: BTC → Morpho collateral → borrow USDC → One Card + High Yield vault. "
-                "RH: equity/margin → cash → USDG → Robinhood Earn (Morpho ~7% est.). "
-                "X Money: spend/float cash at ~6% APY (product rate). "
-                "Idle broker cash intentionally low vs Morpho yield sleeves + X Money."
+                "Capital Flows: BTC → Morpho → USDC to Liquidity Engine "
+                "(X Money · One Card via new principal · USDC HY LTV buffer · USDG HY agentic buffer). "
+                "Deploy: Essential → Fleet → Productive → Consumer → Collateral. "
+                "HY→Collateral only for LTV/margin defense. "
+                "X Money → RH Agentic monthly (1st). Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
-                "Personal expenses paid & current (sheet)",
-                "Coinbase One Card balance paid down",
-                "Cash stack buffers filled (card float · loan · bridge)",
-                "Excess free dollars → collateral (BTC path / RH securities)",
-                "Capex · Productive Discretionary from margin (priority over Consumer wishlist)",
-                "Protect CB Morpho LTV (<50% target) — keep loan open, manage LTV",
-                "RH margin heat cap still binds deployment of BP",
+                "Personal + Fleet expenses current (sheet burn)",
+                "One Card: Morpho refinance when balance owed (not HY pull)",
+                "LTV buffer floors (USDC HY / loan buffer · bridge)",
+                "HY → Collateral only if LTV/margin too high; else HY stays floor",
+                "X Money → Agentic Fund (scheduled 1st) under Collateral",
+                "Productive Discretionary before Consumer wishlist",
+                "Protect CB Morpho LTV (<50% target) — keep loan open",
+                "RH margin heat cap still binds BP deployment",
             ],
             "double_leverage_warning": (
                 "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly "
@@ -1605,9 +1679,10 @@ def evaluate_treasury(
             "in_app_only": [
                 "loan protection",
                 "Morpho repay/add collateral (CB)",
-                "High Yield vault deposit/withdraw (CB)",
-                "Robinhood Earn USDG lend/withdraw (Morpho self-custody wallet)",
-                "One Card pay / autopay",
+                "Morpho borrow / One Card pay (refinance path)",
+                "High Yield vault deposit/withdraw (CB) — LTV buffer",
+                "Robinhood Earn USDG lend/withdraw",
+                "X Money → RH Agentic scheduled transfer",
                 "external USDC send (bridge)",
             ],
         },

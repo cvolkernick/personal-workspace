@@ -2162,8 +2162,8 @@
             <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
             <label>CB LTV (0–1, e.g. 0.35)</label>
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
-            <label>CB High Yield vault USDC</label>
-            <input id="m-vault" type="number" step="any" placeholder="Morpho High Yield" />
+            <label>CB High Yield vault USDC (LTV buffer)</label>
+            <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
             <label>Morpho variable APR (0–1, e.g. 0.0487)</label>
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.0487" />
             <label>Morpho liquidation price (BTC USD)</label>
@@ -2534,8 +2534,10 @@
       if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
       else if (ltv >= p.cb_target_ltv_max)
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
-      if (buckets.gaps.card_float > 0)
-        add(2, "card_float", `Fund card float: need $${buckets.gaps.card_float.toFixed(2)}`, "either", "Liquid USDC buffer.", false);
+      if (f(man.card_balance) > 0)
+        add(1, "card_refinance", `Refinance One Card $${f(man.card_balance).toFixed(0)} via Morpho principal`, "human", "Not HY pull — LTV buffer stays.", false);
+      if (buckets.gaps.loan_buffer > 0 || buckets.gaps.bridge_dry_powder > 0)
+        add(2, "ltv_buffer_stack", `Restore LTV buffer floors`, "human", "USDC HY sleeve vs loan/bridge.", false);
       if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "Throttle buys.", true);
       actions.sort((a, b) => a.priority - b.priority);
       return {
@@ -2579,7 +2581,14 @@
 
     function actionDoHint(a) {
       const k = a.kind || "";
-      if (k.startsWith("ltv") || k === "vault_pull" || k === "vault_unknown")
+      if (
+        k.startsWith("ltv") ||
+        k === "vault_pull" ||
+        k === "vault_unknown" ||
+        k === "card_refinance" ||
+        k === "hy_collateral_defense" ||
+        k === "ltv_buffer_stack"
+      )
         return "Do: Coinbase app → Borrow / Lend";
       if (k.includes("card") || k === "card_paydown" || k === "card_float" || k === "card_unknown")
         return "Do: Coinbase app → Credit card (or fund liquid USDC)";
@@ -3203,7 +3212,7 @@
         if (stress.coinbase_liquid === "red") {
           return toneResult(
             "red",
-            `Working USDC ${money(workingUsdc)} is below configured buffer floors (card float + loan buffer + bridge powder).`
+            `LTV buffer USDC ${money(workingUsdc)} is below loan/bridge floors (USDC HY sleeve — not One Card float).`
           );
         }
         if (stress.coinbase_liquid === "yellow") {
@@ -3568,16 +3577,18 @@
       const sleeves = ev.sleeves || {};
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
-          "Card float",
-          sleeves.card_float?.filled,
-          sleeves.card_float?.target,
-          sleeves.card_float?.gap
-        ),
-        sleeveHtml(
-          "Loan buffer",
+          "Loan / LTV buffer",
           sleeves.loan_buffer?.filled,
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
+        ),
+        sleeveHtml(
+          "Card (refinance path)",
+          sleeves.one_card?.balance != null
+            ? Math.max(0, (sleeves.one_card.deposit || 0) - (sleeves.one_card.balance || 0))
+            : sleeves.card_float?.filled,
+          sleeves.one_card?.deposit != null ? sleeves.one_card.deposit : sleeves.card_float?.target,
+          sleeves.one_card?.balance != null ? sleeves.one_card.balance : sleeves.card_float?.gap
         ),
         sleeveHtml(
           "Bridge powder",
@@ -3591,12 +3602,15 @@
       const man = snap.coinbase_manual || {};
       const cashCreditRows = [
         metric(
-          "Working USDC (spot+vault)",
+          "LTV sleeve USDC (spot+HY)",
           money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
         ),
-        metric("One Card owed", money(inp.card_balance ?? oc.balance_owed)),
         metric(
-          "High Yield vault",
+          "One Card owed",
+          money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
+        ),
+        metric(
+          "USDC HY (LTV buffer)",
           inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
         ),
         metric(
@@ -4046,9 +4060,9 @@
       document.getElementById("policy-grid").innerHTML = [
         metric("LTV max", pct(pol.cb_target_ltv_max)),
         metric("LTV alert", pct(pol.cb_ltv_alert)),
-        metric("Card float $", money(pol.cb_card_float_usdc)),
-        metric("Loan buffer $", money(pol.cb_loan_buffer_usdc)),
+        metric("Loan / LTV buffer $", money(pol.cb_loan_buffer_usdc)),
         metric("Bridge powder $", money(pol.cb_bridge_dry_powder_usdc)),
+        metric("Spot card reserve $", money(pol.cb_card_float_usdc)),
         metric("RH BP floor $", money(pol.rh_bp_floor)),
         metric("Margin max", pct(pol.rh_margin_use_max)),
       ].join("");

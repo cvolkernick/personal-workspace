@@ -30,7 +30,9 @@ class TestClassifyLiquid(unittest.TestCase):
         )
         self.assertGreater(r["shortfall"], 0)
         self.assertEqual(r["status"], "red")
-        self.assertEqual(r["filled"]["card_float"], 100)
+        # Fill order: loan_buffer first (LTV), then bridge, then card_float
+        self.assertEqual(r["filled"]["loan_buffer"], 100)
+        self.assertEqual(r["filled"]["card_float"], 0)
         self.assertEqual(r["excess"], 0)
 
     def test_excess_after_floors(self):
@@ -140,7 +142,7 @@ class TestOneCardAvailableCredit(unittest.TestCase):
 
 class TestVaultWorkingUsdc(unittest.TestCase):
     def test_zero_spot_vault_covers_buffers(self):
-        """Idle spot ~0 is OK when High Yield vault holds working float."""
+        """Idle spot ~0 is OK when High Yield vault holds LTV buffer floors."""
         snap = {
             "coinbase": {"liquid_usdc": 0.0, "liquid_btc": 0.1, "source": "live"},
             "coinbase_manual": {
@@ -167,6 +169,10 @@ class TestVaultWorkingUsdc(unittest.TestCase):
         self.assertEqual(ev["buckets"]["spot_only_status"], "red")
         kinds = [a["kind"] for a in ev["actions"]]
         self.assertNotIn("card_float", kinds)
+        # Card owed → Morpho refinance, not vault-funded card float
+        self.assertIn("card_refinance", kinds)
+        self.assertEqual(ev["stress"]["coinbase_card"], "yellow")
+        self.assertFalse(ev["buckets"].get("count_vault_toward_card_float"))
 
     def test_zero_spot_unknown_vault_is_yellow_not_false_red(self):
         snap = {
@@ -215,7 +221,7 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertEqual(kinds[0], "ltv_protect")
 
     def test_under_card_float_and_low_bp(self):
-        # Spot low AND vault too small to cover buffer floors
+        # Spot low AND vault too small to cover LTV floors; card has balance
         snap = {
             "coinbase": {"liquid_usdc": 50, "liquid_btc": 0, "source": "live"},
             "coinbase_manual": {
@@ -233,14 +239,16 @@ class TestEvaluateTreasury(unittest.TestCase):
         }
         ev = evaluate_treasury(snap)
         kinds = [a["kind"] for a in ev["actions"]]
-        # SNR: one cash_stack hero (not card_float + vault_pull + card_paydown)
-        self.assertIn("cash_stack", kinds)
+        # Card → refinance; LTV floors → buffer stack (not vault-as-card-float)
+        self.assertIn("card_refinance", kinds)
+        self.assertIn("ltv_buffer_stack", kinds)
         self.assertNotIn("card_float", kinds)
         self.assertNotIn("vault_pull", kinds)
+        self.assertNotIn("cash_stack", kinds)
         # MO: rh_bp_floor=0 → dust BP is deployable, not DCA pause
         self.assertNotIn("dca_pause", kinds)
         self.assertTrue(ev["dca"]["allow_dca"])
-        stack = [a for a in ev["actions"] if a["kind"] == "cash_stack"][0]
+        stack = [a for a in ev["actions"] if a["kind"] == "ltv_buffer_stack"][0]
         self.assertEqual(stack["actor"], "human")
         self.assertIn("meta", stack)
         self.assertGreater(stack["meta"]["shortfall"], 0)
@@ -249,6 +257,7 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertIn("data_quality", ev)
         self.assertIn("agent_brief", ev)
         self.assertTrue(ev["agent_brief"])
+        self.assertIn("Morpho refinance", ev["agent_brief"])
 
     def test_unknown_card_not_green(self):
         snap = {

@@ -2,7 +2,7 @@
   "policy": {
     "cb_target_ltv_max": 0.5,
     "cb_ltv_alert": 0.45,
-    "cb_card_float_usdc": 500,
+    "cb_card_float_usdc": 0,
     "cb_loan_buffer_usdc": 1000,
     "cb_bridge_dry_powder_usdc": 200,
     "rh_bp_floor": 0,
@@ -11,7 +11,10 @@
     "excess_split_rh": 0.4,
     "bridge_max_recommend_usdc": 5000,
     "count_vault_toward_buffers": true,
-    "one_card_security_deposit_usdc": "500"
+    "count_vault_toward_card_float": false,
+    "one_card_security_deposit_usdc": "500",
+    "morpho_borrow_apr_est": 0.05,
+    "one_card_apr_est": 0.29
   },
   "coinbase_manual": {
     "loan_principal_usdc": "738.35",
@@ -21,7 +24,7 @@
     "card_balance": null,
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = High Yield Morpho (working float). one_card_security_deposit_usdc = USDC securing the One Card; available credit \u2248 deposit \u2212 balance owed. card_balance left null so live YNAB (one_card_latest) always wins \u2014 do not re-save a stale app figure here.",
+    "notes": "vault_usdc = USDC HY LTV/margin buffer (not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
     "variable_apr": ".0486",
     "liquidation_price_btc_usd": "37152"
   },
