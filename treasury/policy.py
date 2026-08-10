@@ -1204,7 +1204,7 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # LTV heat: HY may deploy to Collateral defense only
+    # Morpho LTV heat: USDC HY → BTC collateral (control valve), not free deploy
     if (
         ltv is not None
         and ltv >= _f(p["cb_ltv_alert"])
@@ -1214,12 +1214,28 @@ def evaluate_treasury(
         add(
             1,
             "hy_collateral_defense",
-            f"LTV {ltv:.1%} hot — USDC HY → Collateral defense only "
+            f"LTV {ltv:.1%} hot — USDC HY → BTC collateral defense "
             f"(up to ${vault_usdc:.0f} buffer)",
             actor="human",
             detail=(
-                "Owner MO: HY → Collateral only when leverage too high; else HY stays buffer floor. "
-                "In-app: add BTC collateral and/or repay Morpho principal. Not routine capital deploy."
+                "Capital Flows: USDC HY → BTC when Morpho LTV too high; else HY stays buffer floor. "
+                "In-app: buy/add BTC collateral and/or repay Morpho. Not One Card funding."
+            ),
+            api_reachable=False,
+        )
+
+    # RH margin heat: USDG HY → Agentic / stock defense (twin of USDC HY → BTC)
+    mu_max = _f(p["rh_margin_use_max"])
+    if margin_use is not None and margin_use > mu_max * 0.85:
+        add(
+            1,
+            "usdg_margin_defense",
+            f"RH margin use {margin_use:.0%} hot — USDG HY → Agentic/Stock defense only",
+            actor="human",
+            detail=(
+                "Capital Flows · Equities: USDG HY is the RH margin governor (twin of USDC HY for Morpho). "
+                "Defense-only under heat; else USDG stays buffer floor. "
+                "Do not extract margin loan as 'income' to fund dual leverage."
             ),
             api_reachable=False,
         )
@@ -1452,6 +1468,9 @@ def evaluate_treasury(
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else "")
         + " | path=Morpho refinance (not HY pull)",
+        f"Engines: Morpho LTV={ltv if ltv is not None else 'UNKNOWN'}"
+        + f" | RH margin_use={margin_use if margin_use is not None else 'n/a'}"
+        + " | USDG HY = RH margin governor (twin of USDC HY)",
         f"Upcoming expense estimates (sheet Personal+Fleet): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
@@ -1653,35 +1672,40 @@ def evaluate_treasury(
             },
         },
         "strategy_context": {
-            "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
+            "goal": "Keep invested (BTC + Agentic equities) with twin digital-credit engines and paired HY governors",
             "usdc_model": (
-                "Capital Flows: BTC → Morpho → USDC to Liquidity Engine "
-                "(X Money · One Card via new principal · USDC HY LTV buffer · USDG HY agentic buffer). "
-                "Deploy: Essential → Fleet → Productive → Consumer → Collateral. "
-                "HY→Collateral only for LTV/margin defense. "
-                "X Money → RH Agentic monthly (1st). Card refinance ~5% Morpho vs ~29% card APR."
+                "Capital Flows v33 dual engines: "
+                "(1) Digital Credit · BTC: Coinbase → BTC → Morpho → LE "
+                "(X Money · One Card refinance · USDC HY · USDG HY). "
+                "(2) Digital Credit · Equities: Agentic → Stock → RH margin loan. "
+                "Deploy spend: Essential → Fleet → Productive → Consumer. "
+                "USDC HY → BTC only when Morpho LTV hot; USDG HY → Agentic only when RH margin hot. "
+                "X Money → Agentic on the 1st. Margin loan extract to LE/CB is optional leverage — not income. "
+                "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
                 "Personal + Fleet expenses current (sheet burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
-                "LTV buffer floors (USDC HY / loan buffer · bridge)",
-                "HY → Collateral only if LTV/margin too high; else HY stays floor",
-                "X Money → Agentic Fund (scheduled 1st) under Collateral",
+                "USDC HY loan/bridge floors (Morpho LTV defense)",
+                "USDC HY → BTC only if Morpho LTV too high",
+                "X Money → Agentic Fund (scheduled 1st)",
                 "Productive Discretionary before Consumer wishlist",
-                "Protect CB Morpho LTV (<50% target) — keep loan open",
-                "RH margin heat cap still binds BP deployment",
+                "USDG HY → Agentic/Stock only if RH margin heat too high",
+                "RH margin heat cap still binds BP / leverage extract",
             ],
             "double_leverage_warning": (
-                "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly "
-                "borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities "
-                "often dump together — dual Morpho loops stack liquidation risk."
+                "DUAL ENGINE RISK: Do not fund RH margin growth or USDG Earn with freshly "
+                "borrowed Coinbase Morpho USDC without an explicit risk budget. "
+                "BTC and equities often dump together — Morpho + RH margin stack liquidation risk. "
+                "Margin loan → LE/CB extract is not free income."
             ),
             "in_app_only": [
                 "loan protection",
-                "Morpho repay/add collateral (CB)",
-                "Morpho borrow / One Card pay (refinance path)",
-                "High Yield vault deposit/withdraw (CB) — LTV buffer",
-                "Robinhood Earn USDG lend/withdraw",
+                "Morpho repay/add BTC collateral (CB)",
+                "Morpho borrow / One Card pay (refinance)",
+                "USDC HY deposit/withdraw — Morpho LTV buffer",
+                "USDG HY / RH Earn — Agentic margin buffer",
+                "RH margin borrow / repay",
                 "X Money → RH Agentic scheduled transfer",
                 "external USDC send (bridge)",
             ],
