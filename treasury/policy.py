@@ -1672,24 +1672,23 @@ def evaluate_treasury(
             },
         },
         "strategy_context": {
-            "goal": "Keep invested (BTC + Agentic equities) with twin digital-credit engines as HY ↔ borrowing rotations",
+            "goal": "Keep invested (BTC + Agentic equities) via LE credit cards: Digital Credit + Margin",
             "usdc_model": (
-                "Capital Flows v35: Income → DC·BTC → LE (X Money · One Card) → DC·Equities → Deploy. "
-                "Each DC column is a constant HY ↔ borrowing rotation: liquidity enters and allocates "
-                "immediately to spot collateral; if LTV/margin use is below target, additional principal "
-                "parks in the co-located HY buffer; if above target, pull HY into additional collateral. "
-                "USDC HY ↔ Morpho (BTC); USDG HY ↔ RH margin (equities). "
-                "X Money → Agentic on the 1st. Margin extract to LE is optional — not income. "
+                "Capital Flows v36: Income → LE (Digital Credit → X Money → Margin) → Deploy. "
+                "No separate DC·BTC or DC·Equities columns — both engines are LE cards. "
+                "Digital Credit = Morpho/BTC/USDC HY rotation (+ One Card refinance). "
+                "Margin = Agentic/stocks/USDG HY rotation. "
+                "Inside each credit card: liquidity → spot; cool → HY; hot → collateral. "
+                "X Money → Margin (Agentic) on the 1st. Margin extract to X Money is optional — not income. "
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
                 "Personal + Fleet expenses current (sheet burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
-                "Liquidity → spot collateral first (both engines)",
-                "LTV cool: Morpho principal → USDC HY; LTV hot: USDC HY → BTC",
-                "X Money → Agentic Fund (scheduled 1st) → stock spot",
+                "Digital Credit: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → BTC",
+                "X Money float for Deploy + scheduled 1st → Margin (Agentic)",
                 "Productive Discretionary before Consumer wishlist",
-                "Margin cool: principal → USDG HY; heat: USDG HY → stock",
+                "Margin: liquidity → stock; cool → USDG HY; heat → stock",
                 "RH margin heat cap still binds BP / leverage extract",
             ],
             "double_leverage_warning": (
