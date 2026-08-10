@@ -94,6 +94,11 @@ if [[ -x "${ROOT}/treasury/rh_refresh.sh" ]]; then
   bash "${ROOT}/treasury/rh_refresh.sh" || echo "WARN: rh_refresh failed"
 fi
 
+# Live YNAB + treasury before notify (prevents frozen rh_checking as_of → false stale ntfy)
+echo "YNAB + treasury live before BP rules…"
+python3 -m treasury.ynab_sync || echo "WARN: ynab_sync failed"
+python3 -m treasury.run_treasury || echo "WARN: run_treasury live failed"
+
 # Rules: any cash>0 or BP>0 → need_llm
 set +e
 python3 -m treasury.fund_manager --rules-review --notify
