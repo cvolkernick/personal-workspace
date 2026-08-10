@@ -309,9 +309,13 @@ def infer_habits(
     oc = snapshots.get("one_card") or {}
     rhc = snapshots.get("rh_checking") or {}
 
-    personal_daily = _f(summary.get("personal_daily"))
+    # Burn daily = Personal + Fleet (combined_daily); fall back to personal_daily.
+    personal_daily = _f(
+        summary.get("combined_daily"), _f(summary.get("personal_daily"))
+    )
     personal_monthly = _f(
-        summary.get("upcoming_expense_monthly"), _f(summary.get("personal_monthly"))
+        summary.get("upcoming_expense_monthly"),
+        _f(summary.get("combined_monthly"), _f(summary.get("personal_monthly"))),
     )
     if personal_daily <= 0 and personal_monthly > 0:
         personal_daily = personal_monthly / 30.0
@@ -341,9 +345,16 @@ def infer_habits(
         if o.get("gap") is not None
     )
 
-    by_src = (
-        ((exp.get("tabs") or {}).get("Personal") or {}).get("by_source_monthly") or {}
-    )
+    by_src = (exp.get("summary") or {}).get("by_source_monthly") or {}
+    if not by_src:
+        # Merge Personal + Fleet when summary lacks combined pay-from
+        by_src = {}
+        for tab_name in ("Personal", "Fleet"):
+            part = ((exp.get("tabs") or {}).get(tab_name) or {}).get(
+                "by_source_monthly"
+            ) or {}
+            for k, v in part.items():
+                by_src[k] = (by_src.get(k) or 0) + float(v or 0)
 
     return {
         "personal_daily_burn_est": round(personal_daily, 2) if personal_daily else None,
@@ -371,7 +382,7 @@ def infer_habits(
             _f(inp.get("card_balance"), _f(oc.get("balance_owed"))), 2
         ),
         "notes": [
-            "Sheet burn is forward-looking estimates (Personal tab), not YNAB actuals.",
+            "Sheet burn is forward-looking estimates (Personal + Fleet tabs), not YNAB actuals.",
             "YNAB spend_30d is realized card/checking outflow where present.",
             "Runway uses total liquid across Coinbase working + X Money + RH Checking vs sheet daily burn.",
         ],
@@ -480,15 +491,32 @@ def collect_data_requests(
 
 
 def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Prefer Personal items list; fall back to upcoming_by_date."""
+    """Personal + Fleet burn items; fall back to upcoming_by_date or flat list.
+
+    Fleet is auto-fleet obligations (loans/insurance/ops). Collateral and
+    discretionary tabs are capital — not included in the pay plan.
+    """
     tabs = expenses.get("tabs") or {}
-    personal = tabs.get("Personal") or {}
-    items = personal.get("items")
-    if isinstance(items, list) and items:
-        return [i for i in items if isinstance(i, dict)]
-    upcoming = personal.get("upcoming_by_date")
-    if isinstance(upcoming, list) and upcoming:
-        return [i for i in upcoming if isinstance(i, dict)]
+    out: List[Dict[str, Any]] = []
+    for tab_name in ("Personal", "Fleet"):
+        tab = tabs.get(tab_name) or {}
+        items = tab.get("items")
+        if isinstance(items, list) and items:
+            for i in items:
+                if isinstance(i, dict):
+                    rec = dict(i)
+                    rec.setdefault("tab", tab_name)
+                    out.append(rec)
+            continue
+        upcoming = tab.get("upcoming_by_date")
+        if isinstance(upcoming, list) and upcoming:
+            for i in upcoming:
+                if isinstance(i, dict):
+                    rec = dict(i)
+                    rec.setdefault("tab", tab_name)
+                    out.append(rec)
+    if out:
+        return out
     # flat list on root
     if isinstance(expenses.get("items"), list):
         return [i for i in expenses["items"] if isinstance(i, dict)]

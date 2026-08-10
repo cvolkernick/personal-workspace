@@ -2133,7 +2133,9 @@
     <details class="panel" id="panel-capital" data-m-panel="more">
       <summary>Capital targets (not expenses)</summary>
       <div class="body">
-        <p class="hint">Productive Discretionary (priority) — capital outlay growing productive assets</p>
+        <p class="hint">Collateral — investments / capital at work (not burn)</p>
+        <div id="expenses-top-collateral"></div>
+        <p class="hint" style="margin-top:0.75rem">Productive Discretionary (priority) — capital outlay growing productive assets</p>
         <div id="expenses-top-disc"></div>
         <p class="hint" style="margin-top:0.75rem">Consumer Discretionary — wishlist / qualitative (lower priority)</p>
         <div id="expenses-top-consumer"></div>
@@ -3678,7 +3680,10 @@
         .join("");
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
+      // Burn = Personal + Fleet; capital tabs (Collateral / Productive / Consumer) excluded.
       const persTab = (ex.tabs && ex.tabs.Personal) || {};
+      const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
+      const collTab = (ex.tabs && ex.tabs.Collateral) || {};
       const discTab =
         (ex.tabs &&
           (ex.tabs["Productive Discretionary"] ||
@@ -3686,7 +3691,15 @@
         {};
       const consumerTab =
         (ex.tabs && ex.tabs["Consumer Discretionary"]) || {};
-      const allItems = persTab.items || persTab.upcoming_by_date || [];
+      const burnItems = []
+        .concat(persTab.items || [])
+        .concat(fleetTab.items || []);
+      const allItems =
+        burnItems.length > 0
+          ? burnItems
+          : []
+              .concat(persTab.upcoming_by_date || [])
+              .concat(fleetTab.upcoming_by_date || []);
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
       // Fallback list until /api/coach returns (same urgency colors)
       if (!window.__coachPlan || !window.__coachPlan.ok) {
@@ -3703,8 +3716,15 @@
 
       document.getElementById("expense-kpis").innerHTML = [
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
+        metric("Personal / mo", money(es.personal_monthly)),
+        metric("Fleet / mo", money(es.fleet_monthly)),
         metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
         metric("RH Checking / mo", money(es.rh_funded_monthly)),
+        metric("X Money / mo", money(es.x_money_funded_monthly)),
+        metric(
+          "Collateral / mo",
+          money(es.collateral_investments_monthly ?? es.collateral_monthly)
+        ),
         metric(
           "Productive / mo",
           money(
@@ -3719,7 +3739,17 @@
         ),
       ].join("");
 
-      const bySrc = persTab.by_source_monthly || {};
+      const bySrc =
+        es.by_source_monthly ||
+        (() => {
+          const a = persTab.by_source_monthly || {};
+          const b = fleetTab.by_source_monthly || {};
+          const m = { ...a };
+          for (const [k, v] of Object.entries(b)) {
+            m[k] = (Number(m[k]) || 0) + (Number(v) || 0);
+          }
+          return m;
+        })();
       const srcEntries = Object.entries(bySrc).slice(0, 6);
       const srcTotal = srcEntries.reduce((a, [, v]) => a + (Number(v) || 0), 0) || 1;
       const barEl = document.getElementById("expenses-pay-from-bar");
@@ -3942,6 +3972,22 @@
             .join("")
         : `<p class="hint">No X Money txs</p>`;
 
+      const collEl = document.getElementById("expenses-top-collateral");
+      if (collEl) {
+        collEl.innerHTML = (
+          collTab.top_targets ||
+          collTab.top_monthly ||
+          []
+        )
+          .slice(0, 8)
+          .map(
+            (r) =>
+              `<div class="metric"><span class="label">${escapeHtml(
+                r.item || "—"
+              )}</span><span class="val">${money(r.monthly)}</span></div>`
+          )
+          .join("") || `<p class="hint">No collateral investment items</p>`;
+      }
       document.getElementById("expenses-top-disc").innerHTML = (
         discTab.top_targets ||
         discTab.top_monthly ||
