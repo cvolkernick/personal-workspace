@@ -1,8 +1,8 @@
 {
-  "version": 26,
-  "as_of": "2026-08-07",
-  "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income order: Turo · Lyft · X Creator (planned) · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy expense buckets. No edge text labels.",
+  "version": 31,
+  "as_of": "2026-08-10",
+  "title": "Capital Flows — income → digital credit → liquidity → deploy",
+  "notes": "Liquidity Engine top→bottom: X Money · One Card · USDC HY · USDG HY. Deploy top→bottom: Essential · Fleet · Productive Disc. · Consumer Disc. · Collateral (incl. Agentic Fund). Morpho new principal → One Card; USDC/USDG HY → Collateral. X Money → Essential/Fleet/disc (+ sheet Collateral lines). No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -23,17 +23,17 @@
       {
         "id": "liquidity_engine",
         "label": "Liquidity Engine",
-        "ids": ["x_money", "usdc_hy", "usdg_hy"]
+        "ids": ["x_money", "one_card", "usdc_hy", "usdg_hy"]
       },
       {
         "id": "deploy",
         "label": "Deploy",
         "ids": [
           "bills_essential",
+          "bills_fleet",
           "bills_productive",
           "bills_consumer",
-          "one_card",
-          "rh_agentic"
+          "bills_collateral"
         ]
       }
     ]
@@ -126,7 +126,7 @@
       "kind": "leverage",
       "subtitle": "Collateralize BTC · borrow USDC",
       "confidence": "owner_stated",
-      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC fans out to X Money, USDC HY, and USDG HY (Liquidity Engine)."
+      "notes": "Digital Credit terminus: BTC-backed Morpho loan. Borrowed USDC fans to Liquidity Engine (X Money, One Card via new principal, USDC HY, USDG HY)."
     },
     {
       "id": "x_money",
@@ -135,47 +135,49 @@
       "stroke": "liq-gray",
       "subtitle": "~6% APY · Turo land + ops",
       "confidence": "owner_stated",
-      "notes": "Liquidity Engine cash sleeve (gray border) — Turo first-touch + Morpho USDC share + ops float."
+      "notes": "Liquidity Engine cash sleeve — Turo first-touch + Morpho USDC share + ops float. Funds Deploy Essential/Fleet/disc (+ sheet Collateral lines)."
+    },
+    {
+      "id": "one_card",
+      "label": "One Card",
+      "kind": "credit",
+      "subtitle": "Credit sleeve · Morpho principal",
+      "confidence": "owner_stated",
+      "notes": "Liquidity Engine credit product. Paydowns / float from new Morpho USDC principal (borrow against BTC), not USDC HY vault pull. Sheet Personal line tracks paydown est under Essential burn; deposit is non-burn float (YNAB/FCC)."
     },
     {
       "id": "usdc_hy",
       "label": "USDC High Yield",
       "kind": "yield",
       "stroke": "liq-blue",
-      "subtitle": "Idle Morpho USDC",
+      "subtitle": "BTC Morpho LTV buffer",
       "confidence": "owner_stated",
-      "notes": "Blue border. Morpho-borrowed USDC park sleeve."
+      "notes": "Blue border. Parked Morpho USDC as LTV / extra BTC collateral buffer. Can flow to Deploy Collateral (capital at work / topping collateral books)."
     },
     {
       "id": "usdg_hy",
       "label": "USDG High Yield",
       "kind": "yield",
       "stroke": "liq-green",
-      "subtitle": "Idle Morpho → USDG yield",
+      "subtitle": "Agentic margin buffer",
       "confidence": "owner_stated",
-      "notes": "Green border. Morpho USDC path into USDG high-yield sleeve."
-    },
-    {
-      "id": "rh_agentic",
-      "label": "Agentic Fund",
-      "kind": "invest",
-      "subtitle": "40/60 · funded via USDG HY",
-      "confidence": "owner_stated"
-    },
-    {
-      "id": "one_card",
-      "label": "One Card",
-      "kind": "credit",
-      "subtitle": "Card float · from vault/CB",
-      "confidence": "observed"
+      "notes": "Green border. Margin / liquidity buffer for the RH Agentic Fund book. Can flow to Deploy Collateral (Agentic sits under Collateral)."
     },
     {
       "id": "bills_essential",
       "label": "Essential",
       "kind": "expense",
-      "subtitle": "Personal · must-pay bills",
+      "subtitle": "Personal tab · must-pays",
       "confidence": "owner_stated",
-      "notes": "Expense sheet Personal / essential burn — priority over discretionary. Funded via X Money ops."
+      "notes": "Expense sheet Personal tab (incl. Coinbase One Card paydown est. line). Highest spend priority. Ops/personal funded via X Money; card credit product lives in Liquidity Engine (One Card)."
+    },
+    {
+      "id": "bills_fleet",
+      "label": "Fleet",
+      "kind": "expense",
+      "subtitle": "Auto fleet · loans / ops",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Fleet tab — auto fleet expenses (loans, insurance, wash, repairs). Burn; funded primarily via X Money."
     },
     {
       "id": "bills_productive",
@@ -183,7 +185,7 @@
       "kind": "expense",
       "subtitle": "Capex · grow assets",
       "confidence": "owner_stated",
-      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base (ASICs, fleet, etc.). Priority over consumer wishlist."
+      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base. Priority over consumer wishlist."
     },
     {
       "id": "bills_consumer",
@@ -192,6 +194,14 @@
       "subtitle": "Wishlist · after productive",
       "confidence": "owner_stated",
       "notes": "Expense sheet Consumer Discretionary — consumer goods / personal wishlist; lower priority than Productive."
+    },
+    {
+      "id": "bills_collateral",
+      "label": "Collateral",
+      "kind": "invest",
+      "subtitle": "Sheet + Agentic Fund",
+      "confidence": "owner_stated",
+      "notes": "Deploy sink for collateral capital: expense-sheet Collateral tab plus RH Agentic Fund book. Funded by X Money (sheet lines) and USDC/USDG HY buffers flowing into capital at work."
     }
   ],
   "edges": [
@@ -234,21 +244,24 @@
     },
     {
       "from": "cb_morpho",
+      "to": "one_card",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "One Card credit sleeve funded by new Morpho USDC principal (borrow against BTC), not vault pull."
+    },
+    {
+      "from": "cb_morpho",
       "to": "usdc_hy",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Idle borrowed USDC parks in HY as BTC LTV / collateral buffer."
     },
     {
       "from": "cb_morpho",
       "to": "usdg_hy",
       "confidence": "owner_stated",
-      "weight": 4
-    },
-    {
-      "from": "usdc_hy",
-      "to": "one_card",
-      "confidence": "owner_stated",
-      "weight": 2
+      "weight": 4,
+      "notes": "USDC→USDG parks as Agentic Fund margin buffer."
     },
     {
       "from": "x_money",
@@ -259,10 +272,17 @@
     },
     {
       "from": "x_money",
+      "to": "bills_fleet",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Auto fleet expenses (loans/insurance/ops) paid from X Money."
+    },
+    {
+      "from": "x_money",
       "to": "bills_productive",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Productive Discretionary funded after essentials."
+      "notes": "Productive Discretionary funded after essentials + fleet."
     },
     {
       "from": "x_money",
@@ -272,11 +292,25 @@
       "notes": "Consumer Discretionary funded last among expense buckets."
     },
     {
-      "from": "usdg_hy",
-      "to": "rh_agentic",
+      "from": "x_money",
+      "to": "bills_collateral",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Agentic Fund funded from USDG High Yield."
+      "notes": "Collateral sheet investment lines from X Money."
+    },
+    {
+      "from": "usdc_hy",
+      "to": "bills_collateral",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "USDC HY buffer can flow into Collateral deploy (BTC-side capital / collateral books)."
+    },
+    {
+      "from": "usdg_hy",
+      "to": "bills_collateral",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "USDG HY buffer can flow into Collateral deploy (Agentic Fund sits under Collateral)."
     }
   ],
   "open_questions": [
@@ -284,7 +318,8 @@
     "Morpho LTV targets when income adds collateral",
     "Monthly $ once Turo/Lyft/ASICs stabilize — for Sankey weights",
     "Turo: map arrow is Turo→Coinbase (engine); first-touch ACH still X Money on-card — confirm residual ops vs capitalization split",
-    "Morpho USDC split across X Money / USDC HY / USDG HY — target weights?",
-    "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics"
+    "Morpho USDC split across X Money / One Card / USDC HY / USDG HY — target weights?",
+    "USDG HY conversion path (USDC→USDG) on CB — confirm mechanics",
+    "When do HY→Collateral flows fire vs remaining pure buffer?"
   ]
 }

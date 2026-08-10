@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="favicon.svg" />
-  <title>₿ Capital flows · FCC</title>
+  <title>₿ Capital Flows · FCC</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -220,7 +220,7 @@
   <div class="sticky-top">
     <div class="row">
       <div>
-        <h1>Capital flows</h1>
+        <h1>Capital Flows</h1>
         <div class="sub" id="subtitle">Income → channels (reconstructed)</div>
       </div>
       <div class="controls">
@@ -237,7 +237,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential · Productive Discretionary · Consumer Discretionary · One Card · Agentic Fund).</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> (X Money · One Card · USDC HY · USDG HY) → <strong>Deploy</strong> (Essential · Fleet · Productive · Consumer · Collateral <em>incl. Agentic</em>).</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -248,18 +248,18 @@
             <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
             <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — USDC HY · Coinbase · Lyft · ASICs</span></div></div>
             <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY</span></div></div>
-            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Agentic Fund</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Collateral (incl. Agentic Fund)</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
-            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Productive · Consumer</span></div></div>
+            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card (Liquidity Engine)</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Fleet · Productive · Consumer</span></div></div>
             <div class="leg-item"><span class="swatch-node planned-brown"></span><div><strong>Brown dashed</strong><span class="desc"> — Planned future income (not active)</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Essential → Productive Disc. → Consumer Disc. → One Card → Agentic Fund)</span></div>
-            <div class="leg-item"><span class="desc">Expense buckets match sheet MO. DC→LE only Morpho → three liquidity cards.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Liquidity Engine</strong> (X Money → One Card → USDC HY → USDG HY) · <strong>Deploy</strong> (Essential → Fleet → Productive → Consumer → Collateral)</span></div>
+            <div class="leg-item"><span class="desc">Morpho → One Card (new principal). USDC HY + USDG HY → Collateral. X Money → Essential / Fleet / disc / Collateral sheet lines.</span></div>
           </div>
         </div>
       </div>
@@ -333,17 +333,17 @@
           {
             id: "liquidity_engine",
             label: "Liquidity Engine",
-            ids: ["x_money", "usdc_hy", "usdg_hy"],
+            ids: ["x_money", "one_card", "usdc_hy", "usdg_hy"],
           },
           {
             id: "deploy",
             label: "Deploy",
             ids: [
               "bills_essential",
+              "bills_fleet",
               "bills_productive",
               "bills_consumer",
-              "one_card",
-              "rh_agentic",
+              "bills_collateral",
             ],
           },
         ];
@@ -384,24 +384,30 @@
 
       const positions = {};
       const colMeta = {};
-      const colH = 560;
+      // Extra height when Deploy has 7 sheet tabs (+ card / fund)
+      const maxColLen = Math.max(
+        ...layoutCols.map((c) => (c.ids || []).filter((id) => byId[id]).length),
+        1
+      );
+      const colH = maxColLen >= 7 ? 640 : 560;
       const top = 52;
       layoutCols.forEach((col, ci) => {
         const x = xByIndex[ci] != null ? xByIndex[ci] : leftPad + ci * colGap;
         const ids = (col.ids || []).filter((id) => byId[id]);
         colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
-        // Dense columns (5 deploy cards): slightly shorter nodes so gaps stay readable
+        // Dense columns (5+ cards): slightly shorter nodes so gaps stay readable
         const dense = ids.length >= 5;
+        const veryDense = ids.length >= 7;
         ids.forEach((id, i) => {
           const node = byId[id];
           // Income cards need room for title + cadence + italic landing channel
           const isIncome = node && node.layer === "income";
-          const h = isIncome ? 68 : dense ? 48 : 54;
+          const h = isIncome ? 68 : veryDense ? 44 : dense ? 48 : 54;
           positions[id] = {
             ...node,
             x,
-            y: top + gap * i + gap * 0.1,
+            y: top + gap * i + gap * 0.08,
             w: nodeW,
             h,
             colIndex: ci,
@@ -413,10 +419,7 @@
         leftPad + (colCount - 1) * colGap + nodeW + 40
       );
       // Taller canvas when a column is dense
-      const svgH = Math.max(
-        620,
-        top + colH + 40
-      );
+      const svgH = Math.max(620, top + colH + 48);
       return { positions, colMeta, layoutCols, xByIndex, svgW, svgH };
     }
 
@@ -540,6 +543,16 @@
           `X Money bills est $${Number(data.live.x_money_funded_monthly_est).toFixed(0)}/mo`
         );
       }
+      if (data.live && data.live.fleet_monthly_est != null) {
+        liveBits.push(
+          `Fleet est $${Number(data.live.fleet_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.collateral_monthly_est != null) {
+        liveBits.push(
+          `Collateral est $${Number(data.live.collateral_monthly_est).toFixed(0)}/mo`
+        );
+      }
       if (data.live && data.live.braiins) {
         const br = data.live.braiins;
         if (br.error) {
@@ -578,7 +591,7 @@
 
     function render(data) {
       document.getElementById("subtitle").textContent =
-        (data.title || "Capital flows") +
+        (data.title || "Capital Flows") +
         (data.as_of ? " · model " + String(data.as_of).slice(0, 10) : "");
 
       draw(data);

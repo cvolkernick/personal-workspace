@@ -484,12 +484,22 @@ def _capital_flows_payload() -> dict:
             live["rh_checking_funded_monthly_est"] = sm.get(
                 "rh_checking_funded_monthly"
             ) or sm.get("rh_funded_monthly")
-            # Sheet pay-from breakdown (Personal tab)
-            by_src = (
+            live["fleet_monthly_est"] = sm.get("fleet_monthly")
+            live["collateral_monthly_est"] = sm.get(
+                "collateral_investments_monthly"
+            ) or sm.get("collateral_monthly")
+            live["personal_monthly_est"] = sm.get("personal_monthly")
+            live["upcoming_expense_monthly_est"] = sm.get(
+                "upcoming_expense_monthly"
+            ) or sm.get("combined_monthly")
+            # Burn pay-from: summary.by_source (Personal+Fleet); fall back to Personal tab
+            by_src = sm.get("by_source_monthly") or (
                 ((ed.get("tabs") or {}).get("Personal") or {}).get("by_source_monthly")
                 or {}
             )
-            if by_src.get("X Money") is not None:
+            if sm.get("x_money_funded_monthly") is not None:
+                live["x_money_funded_monthly_est"] = sm.get("x_money_funded_monthly")
+            elif by_src.get("X Money") is not None:
                 live["x_money_funded_monthly_est"] = by_src.get("X Money")
             if by_src.get("Coinbase") is not None:
                 live["coinbase_funded_monthly_est"] = by_src.get(
@@ -1075,7 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Financial Command Center → {url}")
     print(f"Watchlist research        → {wl}")
     print(
-        f"Capital flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
+        f"Capital Flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
     )
     print(f"[fcc] bind {bind_host}:{args.port}", file=sys.stderr)
     httpd = ThreadingHTTPServer((bind_host, args.port), FCCHandler)

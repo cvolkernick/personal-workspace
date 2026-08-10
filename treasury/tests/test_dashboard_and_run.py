@@ -60,7 +60,7 @@ class TestDashboardArtifact(unittest.TestCase):
         html = (ROOT / "financial-command" / "capital-flows.html").read_text(
             encoding="utf-8"
         )
-        self.assertIn("Capital flows", html)
+        self.assertIn("Capital Flows", html)
         self.assertIn("/api/capital-flows", html)
         import json
 
