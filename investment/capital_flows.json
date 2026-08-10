@@ -1,8 +1,8 @@
 {
-  "version": 27,
+  "version": 28,
   "as_of": "2026-08-10",
   "title": "Capital Flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income order: Turo · Lyft · X Creator (planned) · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy: Essential (Personal) · Fleet · Collateral · Productive Disc. · Consumer Disc. · One Card · Agentic Fund. X Money funds Essential/Fleet/Collateral/disc buckets. No edge text labels.",
+  "notes": "Col 1 Income · Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy. One Card paydown is Morpho new USDC principal (borrow), not vault pull. USDC HY is LTV/collateral margin buffer only — no Deploy edge to card. X Money funds Essential/Fleet/Collateral/disc. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -128,7 +128,7 @@
       "kind": "leverage",
       "subtitle": "Collateralize BTC · borrow USDC",
       "confidence": "owner_stated",
-      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC fans out to X Money, USDC HY, and USDG HY (Liquidity Engine)."
+      "notes": "Conclusion of Digital Credit: BTC-backed Morpho loan. Borrowed USDC fans out to X Money, USDC HY (margin buffer), USDG HY, and One Card paydowns via new principal (not vault pull)."
     },
     {
       "id": "x_money",
@@ -144,9 +144,9 @@
       "label": "USDC High Yield",
       "kind": "yield",
       "stroke": "liq-blue",
-      "subtitle": "Idle Morpho USDC",
+      "subtitle": "LTV / collateral margin buffer",
       "confidence": "owner_stated",
-      "notes": "Blue border. Morpho-borrowed USDC park sleeve."
+      "notes": "Blue border. Parked Morpho USDC as liquidity buffer for additional BTC collateral / LTV defense — not a One Card funding source."
     },
     {
       "id": "usdg_hy",
@@ -168,8 +168,9 @@
       "id": "one_card",
       "label": "One Card",
       "kind": "credit",
-      "subtitle": "Card float · from vault/CB",
-      "confidence": "observed"
+      "subtitle": "Paydown · Morpho new principal",
+      "confidence": "owner_stated",
+      "notes": "Card paydowns come from additional BTC-backed Morpho USDC borrow (loan principal up), not from USDC HY vault pulls. Security deposit is separate float."
     },
     {
       "id": "bills_essential",
@@ -177,7 +178,7 @@
       "kind": "expense",
       "subtitle": "Personal · must-pay bills",
       "confidence": "owner_stated",
-      "notes": "Expense sheet Personal tab — essential burn; highest spend priority. Funded via X Money + Coinbase."
+      "notes": "Expense sheet Personal tab — essential burn; highest spend priority. Ops bills via X Money; optional One Card paydown est. is Morpho-funded (see Morpho→One Card edge) if kept separate, or dual-edge Essential if folded."
     },
     {
       "id": "bills_fleet",
@@ -254,7 +255,8 @@
       "from": "cb_morpho",
       "to": "usdc_hy",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Idle borrowed USDC parks in HY as LTV/collateral margin buffer — not card paydown path."
     },
     {
       "from": "cb_morpho",
@@ -263,10 +265,11 @@
       "weight": 4
     },
     {
-      "from": "usdc_hy",
+      "from": "cb_morpho",
       "to": "one_card",
       "confidence": "owner_stated",
-      "weight": 2
+      "weight": 3,
+      "notes": "One Card paydown funded by new Morpho USDC principal (borrow against BTC), not vault withdrawal."
     },
     {
       "from": "x_money",
