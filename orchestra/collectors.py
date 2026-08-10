@@ -274,10 +274,38 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
     ]
     if dirty_n:
         bits.append(f"{dirty_n} dirty file(s)")
+
+    # Optional Board day packet (P1 stub path; live buzz-board is P3/Cadence).
+    # Prefer ops/board/day_constraints.json — never invent Ready/IP zeros when absent.
+    board_path = ws / "ops" / "board" / "day_constraints.json"
+    board_pkt = _read_json(board_path)
+    board_signals: dict[str, Any] = {}
+    if isinstance(board_pkt, dict):
+        board_signals = {
+            "as_of": board_pkt.get("as_of"),
+            "fresh_for_hours": board_pkt.get("fresh_for_hours", 4),
+            "stale": bool(board_pkt.get("stale")),
+            "fetch_ok": board_pkt.get("fetch_ok", True),
+            "ready_count": board_pkt.get("ready_count"),
+            "ready_top": board_pkt.get("ready_top") or [],
+            "in_progress": board_pkt.get("in_progress") or [],
+            "pending_review_count": board_pkt.get("pending_review_count"),
+            "blocked": board_pkt.get("blocked") or [],
+            "wip_overload": board_pkt.get("wip_overload"),
+            "free_agent_count": board_pkt.get("free_agent_count"),
+            "pipeline_pressure": board_pkt.get("pipeline_pressure"),
+            "summary": board_pkt.get("summary"),
+            "confidence": board_pkt.get("confidence"),
+            "deep_link": board_pkt.get("deep_link"),
+            "source": "ops/board/day_constraints.json",
+        }
+        if board_pkt.get("summary"):
+            bits.insert(0, str(board_pkt["summary"]))
+
     return {
         "id": "workflow",
         "label": "Workflow / Projects",
-        "status": "ok" if backlog.get("ok") or session_n else "partial",
+        "status": "ok" if backlog.get("ok") or session_n or board_signals else "partial",
         "summary": "; ".join(bits),
         "signals": {
             "backlog": backlog,
@@ -286,13 +314,19 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
             "session_index": "ops/session-index/latest.json"
             if idx_path.is_file()
             else None,
+            "board": board_signals,
         },
         "available": True,
         "live": None,
         "url": _svc_url("projects-dashboard"),
         "launch": "bash deploy/open_dashboard.sh projects-dashboard",
         "port": 8765,
-        "sources": ["ops/backlog/", "ops/session-index/", "projects-dashboard/"],
+        "sources": [
+            "ops/backlog/",
+            "ops/session-index/",
+            "ops/board/",
+            "projects-dashboard/",
+        ],
     }
 
 
@@ -339,11 +373,35 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
     rh = snap.get("robinhood") or {}
     actions = evaluation.get("actions") or []
     next_steps = evaluation.get("next_steps") or []
-    stress = evaluation.get("stress") or {}
+    stress = evaluation.get("stress") if isinstance(evaluation.get("stress"), dict) else {}
+    dca = evaluation.get("dca") if isinstance(evaluation.get("dca"), dict) else {}
+    buckets = evaluation.get("buckets") if isinstance(evaluation.get("buckets"), dict) else {}
     action_titles = []
-    for a in actions[:6]:
+    day_actions: list[dict[str, Any]] = []
+    whitelist = {
+        "fill_manual",
+        "ltv_check",
+        "card_float",
+        "card_paydown",
+        "vault_pull",
+        "loan_buffer",
+        "bridge_powder",
+        "dca_pause",
+    }
+    for a in actions[:12]:
         if isinstance(a, dict) and a.get("title"):
             action_titles.append(a["title"])
+            kind = str(a.get("kind") or "").strip().lower()
+            if kind in whitelist or not kind:
+                day_actions.append(
+                    {
+                        "kind": kind or None,
+                        "title": a.get("title"),
+                        "detail": a.get("detail"),
+                        "priority": a.get("priority"),
+                        "actor": a.get("actor"),
+                    }
+                )
         elif isinstance(a, str):
             action_titles.append(a)
     if isinstance(next_steps, list):
@@ -365,11 +423,97 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
         bits.append(f"RH ${rh_value:,.2f}")
     if action_titles:
         bits.append(f"{len(action_titles)} treasury action(s)")
-    stress_label = stress.get("level") or stress.get("label") if isinstance(stress, dict) else None
+
+    # Real FCC field is stress.overall (not level/label)
+    stress_overall = stress.get("overall")
+    if stress_overall is None:
+        stress_overall = stress.get("level") or stress.get("label")
+    stress_label = stress_overall
+
+    # Dual-tier age + red_mode / free_cash for day_plan composer
+    as_of = snap.get("as_of")
+    try:
+        from .day_plan import (
+            compute_red_mode,
+            finance_freshness_tier,
+            free_cash_gate_value,
+        )
+    except ImportError:
+        from day_plan import (
+            compute_red_mode,
+            finance_freshness_tier,
+            free_cash_gate_value,
+        )
+
+    tier = finance_freshness_tier(as_of)
+    known = tier["freshness"] in ("fresh", "soft_stale")
+    red_mode, red_reasons = compute_red_mode(
+        stress_overall if known else None,
+        dca,
+        known=known,
+    )
+    fcg = free_cash_gate_value(red_mode=red_mode, freshness=tier["freshness"])
+    if not known:
+        red_mode = None
+        fcg = "unknown"
+        stress_for_display = "unknown"
+    else:
+        stress_for_display = str(stress_overall or "unknown").lower()
+
+    # Margin-heat dca_pause as day action when applicable
+    throttle = str(dca.get("throttle") or "").lower()
+    dca_reason = str(dca.get("reason") or "").lower()
+    if (
+        known
+        and throttle in ("pause", "paused")
+        and "margin" in dca_reason
+        and not any(a.get("kind") == "dca_pause" for a in day_actions)
+    ):
+        day_actions.append(
+            {
+                "kind": "dca_pause",
+                "title": "DCA paused (margin heat) — owner review",
+                "detail": dca.get("reason"),
+                "priority": 0,
+                "actor": "human",
+            }
+        )
+
+    bp = rh.get("buying_power")
+    rh_bp_deployable: Optional[bool]
+    if not known or bp is None:
+        rh_bp_deployable = None
+    elif red_mode is True and "margin_heat" in red_reasons:
+        rh_bp_deployable = False
+    else:
+        rh_bp_deployable = True
+
+    ltv = cb.get("ltv") or stress.get("coinbase_ltv")
+    ltv_known = ltv is not None and str(ltv).lower() not in ("", "unknown", "none")
+
+    if stress_for_display:
+        bits.append(f"stress={stress_for_display}")
+    if red_mode is True:
+        bits.append("RED-MODE")
+    if tier["freshness"] != "fresh":
+        bits.append(f"fcc={tier['freshness']}")
 
     inv_path = ws / "investment" / "treasury-action-items.md"
     inv_text = _read_text(inv_path, 2000)
     inv_open = _checklist_open(inv_text) if inv_text else []
+
+    stress_parts = {
+        k: stress.get(k)
+        for k in (
+            "coinbase_ltv",
+            "coinbase_liquid",
+            "coinbase_card",
+            "robinhood",
+            "data_quality",
+            "overall",
+        )
+        if k in stress
+    }
 
     return {
         "id": "finance",
@@ -378,14 +522,28 @@ def collect_finance(workspace: Path) -> dict[str, Any]:
         "summary": "; ".join(bits) or "Treasury snapshot loaded",
         "signals": {
             "source": source,
-            "as_of": snap.get("as_of"),
+            "as_of": as_of,
             "btc_usd_price": btc_price,
             "liquid_btc_usd": liquid_btc_usd,
             "liquid_usdc": cb.get("liquid_usdc"),
             "robinhood_total": rh_value,
-            "buying_power": rh.get("buying_power"),
+            "buying_power": bp,
             "action_titles": action_titles,
+            "day_actions": day_actions[:6],
             "stress": stress_label,
+            "stress_overall": stress_for_display if known else "unknown",
+            "stress_parts": stress_parts or None,
+            "dca": dca or None,
+            "red_mode": red_mode,
+            "red_mode_reasons": red_reasons,
+            "free_cash_gate": fcg,
+            "rh_bp_deployable": rh_bp_deployable,
+            "working_usdc": buckets.get("working_usdc"),
+            "floors_shortfall_usd": buckets.get("shortfall"),
+            "ltv_known": ltv_known,
+            "freshness": tier["freshness"],
+            "age_hours": tier.get("age_hours"),
+            "fcc_stale": tier["stale"],
             "investment_open": inv_open[:8],
         },
         "available": True,
@@ -433,7 +591,35 @@ def collect_fitness(workspace: Path) -> dict[str, Any]:
     if nutrition_targets:
         bits.append("nutrition targets present")
 
-    available = bool(metrics or workout_files or nutrition_targets or goals)
+    # Optional Fit day packet (P1 stub; live coach export is P3/Frankenfit)
+    day_path = ws / "fitness" / "data" / "day_constraints.json"
+    day_pkt = _read_json(day_path)
+    day_signals: dict[str, Any] = {}
+    if isinstance(day_pkt, dict):
+        day_signals = {
+            "session_due": day_pkt.get("session_due"),
+            "session_type": day_pkt.get("session_type"),
+            "train_recommendation": day_pkt.get("train_recommendation"),
+            "recovery_label": day_pkt.get("recovery_label"),
+            "recovery_score": day_pkt.get("recovery_score"),
+            "protein_gap_band": day_pkt.get("protein_gap_band"),
+            "protein_remaining_g": day_pkt.get("protein_remaining_g"),
+            "protein_target_g": day_pkt.get("protein_target_g"),
+            "protein_as_of": day_pkt.get("protein_as_of") or day_pkt.get("as_of"),
+            "sleep_last_night_h": day_pkt.get("sleep_last_night_h"),
+            "sleep_ok": day_pkt.get("sleep_ok"),
+            "sleep_battery": day_pkt.get("sleep_battery"),
+            "as_of": day_pkt.get("as_of"),
+            "summary": day_pkt.get("summary"),
+            "confidence": day_pkt.get("confidence"),
+            "deep_link": day_pkt.get("deep_link"),
+        }
+        if day_pkt.get("summary"):
+            bits.insert(0, str(day_pkt["summary"]))
+        elif day_pkt.get("train_recommendation"):
+            bits.insert(0, f"train_rec={day_pkt.get('train_recommendation')}")
+
+    available = bool(metrics or workout_files or nutrition_targets or goals or day_signals)
     return {
         "id": "fitness",
         "label": "Fitness / Health",
@@ -447,13 +633,20 @@ def collect_fitness(workspace: Path) -> dict[str, Any]:
             "metrics_path": "fitness/data/health-metrics.json"
             if metrics_path.is_file()
             else None,
+            "day": day_signals,
+            "as_of": day_signals.get("as_of") if day_signals else None,
         },
         "available": available,
         "live": None,
         "url": _svc_url("resistance-dashboard"),
         "launch": "bash deploy/open_dashboard.sh resistance-dashboard",
         "port": 8787,
-        "sources": ["fitness/data/", "fitness/workouts/", "resistance-dashboard/"],
+        "sources": [
+            "fitness/data/",
+            "fitness/workouts/",
+            "fitness/data/day_constraints.json",
+            "resistance-dashboard/",
+        ],
     }
 
 
@@ -492,6 +685,48 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
         bits.append(f"{len(linked)} backlog-linked")
     if blocks:
         bits.append(f"{len(blocks)} plan block(s)")
+
+    # Full block objects for day_plan spine (keep legacy id list under plan_block_ids)
+    plan_blocks_full: list[dict[str, Any]] = []
+    for b in blocks[:20]:
+        if not isinstance(b, dict):
+            continue
+        plan_blocks_full.append(
+            {
+                "id": b.get("id") or b.get("title"),
+                "title": b.get("title") or b.get("id"),
+                "minutes": b.get("minutes"),
+                "role": b.get("role"),
+                "kind": b.get("kind"),
+                "priority": b.get("priority"),
+                "start": b.get("start"),
+                "end": b.get("end"),
+                "source": b.get("source") or "target",
+            }
+        )
+
+    free_minutes = None
+    sleep_reserve = None
+    if isinstance(plan, dict):
+        free_minutes = plan.get("unallocated_active_minutes")
+        if free_minutes is None:
+            free_minutes = plan.get("free_minutes")
+        sleep_reserve = plan.get("sleep_reserve_minutes")
+        if free_minutes is not None:
+            bits.append(f"{free_minutes} free min")
+
+    # Target ids for sleep/Duchess reserve detection
+    target_objs = []
+    for t in targets:
+        if isinstance(t, dict):
+            target_objs.append(
+                {
+                    "id": t.get("id"),
+                    "title": t.get("title"),
+                    "reserve_minutes": t.get("reserve_minutes") or t.get("minutes"),
+                }
+            )
+
     return {
         "id": "holistic",
         "label": "Time Allocation",
@@ -499,15 +734,23 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
         "summary": "; ".join(bits) if state else "No holistic state found",
         "signals": {
             "targets": target_titles[:12],
+            "target_objects": target_objs[:12],
             "target_count": len(targets),
             "item_count": len(items),
             "backlog_linked": linked[:12],
             "backlog_linked_count": len(linked),
-            "plan_blocks": [
+            # Full objects for day_plan; ids kept for backward compat
+            "plan_blocks": plan_blocks_full,
+            "plan_block_ids": [
                 b.get("id") or b.get("title")
                 for b in blocks[:10]
                 if isinstance(b, dict)
             ],
+            "free_minutes": free_minutes,
+            "unallocated_active_minutes": free_minutes,
+            "sleep_reserve_minutes": sleep_reserve,
+            "window_start": plan.get("window_start") if isinstance(plan, dict) else None,
+            "window_end": plan.get("window_end") if isinstance(plan, dict) else None,
             "source": "holistic/data/tasks.json" if data_path.is_file() else None,
         },
         "available": bool(state),

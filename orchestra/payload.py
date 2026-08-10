@@ -9,6 +9,7 @@ from typing import Any, Optional
 try:
     from .attention import compute_freshness, synthesize_attention
     from .collectors import collect_all_domains
+    from .day_plan import compose_day_plan
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
     from .recommendations import synthesize_recommendations
@@ -16,6 +17,7 @@ try:
 except ImportError:
     from attention import compute_freshness, synthesize_attention
     from collectors import collect_all_domains
+    from day_plan import compose_day_plan
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
     from recommendations import synthesize_recommendations
@@ -197,6 +199,12 @@ def build_orchestra_payload(
     # Primary operator-facing action list (recommendations.items)
     recommended_actions = list(recommendations.get("items") or [])
 
+    day_plan = compose_day_plan(
+        domains,
+        recommendations=recommendations,
+        now=generated_at,
+    )
+
     try:
         from fan_in import build_fan_in
     except ImportError:
@@ -240,6 +248,8 @@ def build_orchestra_payload(
         # Primary synthesized output for operators / agents
         "recommendations": recommendations,
         "recommended_actions": recommended_actions,
+        # Unitary daily planner (P1): Next 3 + blocks + gates + domain sources
+        "day_plan": day_plan,
         # Intermediate streams (detail / debug; UI demotes vs recommendations)
         "synergies": synergies,
         "priorities": priorities,
@@ -255,6 +265,8 @@ def build_orchestra_payload(
             "synergies_high": high_synergies,
             "priorities": len(priorities),
             "recommendations": len(recommended_actions),
+            "day_plan_next3": len(day_plan.get("next3") or []),
+            "day_plan_gates": len(day_plan.get("gates") or []),
             "initiatives": len(initiatives),
             "today_items": len(today_items),
             "bridge_candidates": len(bridge_candidates),
@@ -271,6 +283,7 @@ def build_orchestra_payload(
             "primary_output": "recommendations",
             "streams": {
                 "recommendations": "Merged automated next actions (primary)",
+                "day_plan": "Unitary daily planner: next3 + blocks + gates",
                 "priorities": "Raw priority synthesis (input to recommendations)",
                 "attention": "Hygiene/attention digest (input to recommendations)",
                 "synergies": "Cross-domain links (input; high preferred, medium fallback)",
