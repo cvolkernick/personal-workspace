@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-09T23:07:30.180721+00:00",
+    "as_of": "2026-08-10T02:11:11.851883+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-05T06:00:59.014651+00:00",
@@ -1861,7 +1861,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-09T23:07:30.035558+00:00",
+      "as_of": "2026-08-10T02:11:11.741178+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -1875,9 +1875,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-09T23:07:30.035553+00:00",
-        "total_value": 187.5542342378,
-        "equity_value": 187.4642342378,
+        "as_of": "2026-08-10T02:11:11.741174+00:00",
+        "total_value": 188.16016612,
+        "equity_value": 188.07016612,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -2139,7 +2139,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 187.5542342378,
+      "rh_agentic_total_value": 188.16016612,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2215,25 +2215,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-05T06:00:59.014651+00:00",
-        "robinhood_as_of": "2026-08-09T23:07:30.035558+00:00",
+        "robinhood_as_of": "2026-08-10T02:11:11.741178+00:00",
         "one_card_as_of": "2026-08-08T06:11:54.636171+00:00",
         "rh_checking_as_of": "2026-08-08T06:11:54.810541+00:00",
         "x_money_as_of": "2026-08-08T06:11:55.050012+00:00",
         "expenses_as_of": "2026-08-07T02:55:45.879123+00:00"
       },
       "stale": [
-        "coinbase data 113.1h old (>6.0h)",
-        "one_card data 40.9h old (>6.0h)",
-        "rh_checking data 40.9h old (>6.0h)",
-        "x_money data 40.9h old (>6.0h)",
-        "expenses data 68.2h old (>6.0h)"
+        "coinbase data 116.2h old (>6.0h)",
+        "one_card data 44.0h old (>6.0h)",
+        "rh_checking data 44.0h old (>6.0h)",
+        "x_money data 44.0h old (>6.0h)",
+        "expenses data 71.3h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 113.1h old (>6.0h)",
-        "one_card data 40.9h old (>6.0h)",
-        "rh_checking data 40.9h old (>6.0h)",
-        "x_money data 40.9h old (>6.0h)",
-        "expenses data 68.2h old (>6.0h)"
+        "coinbase data 116.2h old (>6.0h)",
+        "one_card data 44.0h old (>6.0h)",
+        "rh_checking data 44.0h old (>6.0h)",
+        "x_money data 44.0h old (>6.0h)",
+        "expenses data 71.3h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -2331,16 +2331,16 @@
           "id": "expenses",
           "title": "Expenses paid & current",
           "status": "partial",
-          "need": 16071.78,
+          "need": 16098.78,
           "allocated": 300.11,
-          "gap": 15771.67,
-          "detail": "4 overdue \u00b7 2 due \u22647d \u00b7 critical $16,072",
+          "gap": 15798.67,
+          "detail": "4 overdue \u00b7 3 due \u22647d \u00b7 critical $16,099",
           "fund_from": "venue_cash",
           "meta": {
             "overdue_count": 4,
-            "due_soon_count": 2,
+            "due_soon_count": 3,
             "overdue_total": 14800.73,
-            "due_soon_total": 1271.05
+            "due_soon_total": 1298.05
           }
         },
         {
@@ -2385,7 +2385,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 17783.85,
+          "gap": 17810.85,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -2435,10 +2435,10 @@
         }
       ],
       "expense_window": {
-        "critical_total": 16071.78,
+        "critical_total": 16098.78,
         "overdue_count": 4,
-        "due_soon_count": 2,
-        "as_of_date": "2026-08-09"
+        "due_soon_count": 3,
+        "as_of_date": "2026-08-10"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -2504,25 +2504,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-09T23:07:30.185917+00:00",
+      "as_of": "2026-08-10T02:11:11.856427+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-09T23:07:30.183192+00:00",
+        "as_of": "2026-08-10T02:11:11.853745+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 187.5542,
+        "nav_usd": 188.1602,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3722,
-          "stocks_growth": 0.5582,
+          "btc_digital_credit": 0.371,
+          "stocks_growth": 0.5564,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -5581,25 +5581,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-09T23:07:30.185917+00:00",
+    "as_of": "2026-08-10T02:11:11.856427+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-09T23:07:30.183192+00:00",
+      "as_of": "2026-08-10T02:11:11.853745+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 187.5542,
+      "nav_usd": 188.1602,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3722,
-        "stocks_growth": 0.5582,
+        "btc_digital_credit": 0.371,
+        "stocks_growth": 0.5564,
         "other": 0.0,
         "cash": 0.0005
       },
