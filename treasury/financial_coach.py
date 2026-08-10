@@ -154,6 +154,8 @@ def rank_obligations(
                 "item": row.get("item") or row.get("name") or "—",
                 "from_label": row.get("from") or row.get("pay_from") or "",
                 "venue": venue,
+                # Preserve sheet tab so UI can show Essential vs Fleet (not dropped)
+                "tab": row.get("tab") or None,
                 "due_date": due_d.isoformat() if due_d else None,
                 "due_date_raw": due_raw,
                 "days_until_due": days,

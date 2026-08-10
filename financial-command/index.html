@@ -2368,6 +2368,11 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
+    function sheetTabTag(tab) {
+      const t = String(tab || "").trim();
+      if (!t) return "";
+      return `<span class="src-tag" title="Sheet tab">${escapeHtml(t)}</span>`;
+    }
     function billRowHtml(r) {
       const u = dueUrgency(r.date);
       const src = r.from || "?";
@@ -2377,7 +2382,8 @@
         `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(r.date))}</span>` +
         `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
         `<div class="bill-main"><div class="name">${escapeHtml(r.item || "—")}</div>` +
-        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
+        `<div class="meta">${sheetTabTag(r.tab)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
         `<div class="bill-amt">${money(r.monthly)}</div></div>`
       );
     }
@@ -2431,7 +2437,8 @@
           ? `<span class="status-pill ${stCls}">${escapeHtml(st)}</span>`
           : "") +
         `</div>` +
-        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        `<div class="meta">${sheetTabTag(o.tab)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
         (o.urgency_rank != null ? ` · #${o.urgency_rank}` : "") +
         `</div></div>` +
         `<div class="bill-amt">${amt}` +
