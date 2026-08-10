@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-10T10:11:43.782528+00:00",
+  "as_of": "2026-08-10T10:14:35.149721+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -21,14 +21,14 @@
   "tabs": {
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 22,
       "totals": {
-        "daily": 500.02,
-        "weekly": 3500.12,
-        "biweekly": 7000.25,
-        "monthly": 15206.96,
-        "annually": 55662.52,
-        "quarterly": 17473.88
+        "daily": 482.31,
+        "weekly": 3376.15,
+        "biweekly": 6752.31,
+        "monthly": 14669.76,
+        "annually": 49216.12,
+        "quarterly": 15862.28
       },
       "items": [
         {
@@ -40,7 +40,7 @@
           "biweekly": 5189.59,
           "monthly": 11275.0,
           "annually": 24000.0,
-          "budget_allocation": 0.7413,
+          "budget_allocation": 0.7686,
           "quarterly": 6000.0,
           "tab": "Personal"
         },
@@ -53,7 +53,7 @@
           "biweekly": 414.25,
           "monthly": 900.0,
           "annually": 10800.0,
-          "budget_allocation": 0.0592,
+          "budget_allocation": 0.0613,
           "quarterly": 2700.0,
           "tab": "Personal"
         },
@@ -79,7 +79,7 @@
           "biweekly": 8.75,
           "monthly": 19.0,
           "annually": 228.0,
-          "budget_allocation": 0.0012,
+          "budget_allocation": 0.0013,
           "quarterly": 57.0,
           "tab": "Personal"
         },
@@ -92,7 +92,7 @@
           "biweekly": 30.84,
           "monthly": 67.0,
           "annually": 804.0,
-          "budget_allocation": 0.0044,
+          "budget_allocation": 0.0046,
           "quarterly": 201.0,
           "tab": "Personal"
         },
@@ -105,7 +105,7 @@
           "biweekly": 39.12,
           "monthly": 85.0,
           "annually": 1020.0,
-          "budget_allocation": 0.005600000000000001,
+          "budget_allocation": 0.0058,
           "quarterly": 255.0,
           "tab": "Personal"
         },
@@ -118,7 +118,7 @@
           "biweekly": 45.57,
           "monthly": 99.0,
           "annually": 1188.0,
-          "budget_allocation": 0.006500000000000001,
+          "budget_allocation": 0.0067,
           "quarterly": 297.0,
           "tab": "Personal"
         },
@@ -131,7 +131,7 @@
           "biweekly": 15.55,
           "monthly": 33.78,
           "annually": 405.36,
-          "budget_allocation": 0.0022,
+          "budget_allocation": 0.0023,
           "quarterly": 101.34,
           "tab": "Personal"
         },
@@ -164,39 +164,13 @@
         {
           "date": "9/1/2026",
           "from": "X Money",
-          "item": "ASIC Fleet OpEx",
-          "daily": 14.41,
-          "weekly": 100.89,
-          "biweekly": 201.78,
-          "monthly": 437.2,
-          "annually": 5246.4,
-          "budget_allocation": 0.0288,
-          "quarterly": 1311.6,
-          "tab": "Personal"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Agentic Fund Allocation",
-          "daily": 3.3,
-          "weekly": 23.08,
-          "biweekly": 46.15,
-          "monthly": 100.0,
-          "annually": 1200.0,
-          "budget_allocation": 0.0066,
-          "quarterly": 300.0,
-          "tab": "Personal"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
           "item": "Student Loan",
           "daily": 2.74,
           "weekly": 19.18,
           "biweekly": 38.36,
           "monthly": 83.33,
           "annually": 1000.0,
-          "budget_allocation": 0.0055000000000000005,
+          "budget_allocation": 0.005699999999999999,
           "quarterly": 250.0,
           "tab": "Personal"
         },
@@ -209,7 +183,7 @@
           "biweekly": 57.53,
           "monthly": 125.0,
           "annually": 1500.0,
-          "budget_allocation": 0.008199999999999999,
+          "budget_allocation": 0.0085,
           "quarterly": 375.0,
           "tab": "Personal"
         },
@@ -235,7 +209,7 @@
           "biweekly": 12.6,
           "monthly": 27.0,
           "annually": 324.0,
-          "budget_allocation": 0.0018,
+          "budget_allocation": 0.0019,
           "quarterly": 81.0,
           "tab": "Personal"
         },
@@ -248,7 +222,7 @@
           "biweekly": 158.79,
           "monthly": 345.0,
           "annually": 4140.0,
-          "budget_allocation": 0.0227,
+          "budget_allocation": 0.0235,
           "quarterly": 1035.0,
           "tab": "Personal"
         },
@@ -261,7 +235,7 @@
           "biweekly": 74.1,
           "monthly": 161.0,
           "annually": 161.0,
-          "budget_allocation": 0.0106,
+          "budget_allocation": 0.011000000000000001,
           "quarterly": 161.0,
           "tab": "Personal"
         },
@@ -300,7 +274,7 @@
           "biweekly": 9.23,
           "monthly": 19.99,
           "annually": 239.88,
-          "budget_allocation": 0.0013,
+          "budget_allocation": 0.0014000000000000002,
           "quarterly": 59.97,
           "tab": "Personal"
         },
@@ -313,7 +287,7 @@
           "biweekly": 10.55,
           "monthly": 22.92,
           "annually": 275.0,
-          "budget_allocation": 0.0015,
+          "budget_allocation": 0.0016,
           "quarterly": 68.75,
           "tab": "Personal"
         },
@@ -326,7 +300,7 @@
           "biweekly": 575.34,
           "monthly": 1250.0,
           "annually": 1250.0,
-          "budget_allocation": 0.08220000000000001,
+          "budget_allocation": 0.0852,
           "quarterly": 3750.0,
           "tab": "Personal"
         },
@@ -339,14 +313,14 @@
           "biweekly": 23.01,
           "monthly": 50.0,
           "annually": 600.0,
-          "budget_allocation": 0.0033,
+          "budget_allocation": 0.0034000000000000002,
           "quarterly": 150.0,
           "tab": "Personal"
         }
       ],
       "by_source_monthly": {
         "Coinbase": 13527.91,
-        "X Money": 1679.05
+        "X Money": 1141.85
       },
       "top_monthly": [
         {
@@ -354,7 +328,7 @@
           "monthly": 11275.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.7413,
+          "budget_allocation": 0.7686,
           "tab": "Personal"
         },
         {
@@ -362,7 +336,7 @@
           "monthly": 1250.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.08220000000000001,
+          "budget_allocation": 0.0852,
           "tab": "Personal"
         },
         {
@@ -370,15 +344,7 @@
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "8/10/2026",
-          "budget_allocation": 0.0592,
-          "tab": "Personal"
-        },
-        {
-          "item": "ASIC Fleet OpEx",
-          "monthly": 437.2,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.0288,
+          "budget_allocation": 0.0613,
           "tab": "Personal"
         },
         {
@@ -386,7 +352,7 @@
           "monthly": 345.0,
           "from": "X Money",
           "date": "9/5/2026",
-          "budget_allocation": 0.0227,
+          "budget_allocation": 0.0235,
           "tab": "Personal"
         },
         {
@@ -394,7 +360,7 @@
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": 0.0106,
+          "budget_allocation": 0.011000000000000001,
           "tab": "Personal"
         },
         {
@@ -402,15 +368,7 @@
           "monthly": 125.0,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.008199999999999999,
-          "tab": "Personal"
-        },
-        {
-          "item": "Agentic Fund Allocation",
-          "monthly": 100.0,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.0066,
+          "budget_allocation": 0.0085,
           "tab": "Personal"
         },
         {
@@ -418,7 +376,7 @@
           "monthly": 99.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.006500000000000001,
+          "budget_allocation": 0.0067,
           "tab": "Personal"
         },
         {
@@ -426,7 +384,7 @@
           "monthly": 85.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.005600000000000001,
+          "budget_allocation": 0.0058,
           "tab": "Personal"
         },
         {
@@ -434,7 +392,7 @@
           "monthly": 83.33,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.0055000000000000005,
+          "budget_allocation": 0.005699999999999999,
           "tab": "Personal"
         },
         {
@@ -442,7 +400,23 @@
           "monthly": 67.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0044,
+          "budget_allocation": 0.0046,
+          "tab": "Personal"
+        },
+        {
+          "item": "AT&T Final Bill",
+          "monthly": 50.0,
+          "from": "Coinbase",
+          "date": "7/15/2027",
+          "budget_allocation": 0.0034000000000000002,
+          "tab": "Personal"
+        },
+        {
+          "item": "Rythm Health",
+          "monthly": 33.78,
+          "from": "X Money",
+          "date": "8/22/2026",
+          "budget_allocation": 0.0023,
           "tab": "Personal"
         }
       ],
@@ -529,22 +503,6 @@
         },
         {
           "date": "9/1/2026",
-          "item": "ASIC Fleet OpEx",
-          "from": "X Money",
-          "monthly": 437.2,
-          "weekly": 100.89,
-          "tab": "Personal"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Agentic Fund Allocation",
-          "from": "X Money",
-          "monthly": 100.0,
-          "weekly": 23.08,
-          "tab": "Personal"
-        },
-        {
-          "date": "9/1/2026",
           "item": "Dog Food",
           "from": "X Money",
           "monthly": 125.0,
@@ -605,6 +563,22 @@
           "from": "X Money",
           "monthly": 11.67,
           "weekly": 2.68,
+          "tab": "Personal"
+        },
+        {
+          "date": "2/14/2027",
+          "item": "Google One",
+          "from": "X Money",
+          "monthly": 19.99,
+          "weekly": 4.61,
+          "tab": "Personal"
+        },
+        {
+          "date": "7/15/2027",
+          "item": "AT&T Final Bill",
+          "from": "Coinbase",
+          "monthly": 50.0,
+          "weekly": 11.51,
           "tab": "Personal"
         }
       ]
@@ -1295,11 +1269,11 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 19713.86,
-    "personal_monthly": 15206.96,
-    "personal_daily": 500.02,
-    "personal_weekly": 3500.12,
-    "personal_annually": 55662.52,
+    "upcoming_expense_monthly": 19176.66,
+    "personal_monthly": 14669.76,
+    "personal_daily": 482.31,
+    "personal_weekly": 3376.15,
+    "personal_annually": 49216.12,
     "fleet_monthly": 4506.9,
     "fleet_daily": 149.78,
     "fleet_annually": 10847.17,
@@ -1311,16 +1285,16 @@
     "discretionary_daily": 18.27,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 19713.86,
-    "combined_daily": 649.8,
+    "combined_monthly": 19176.66,
+    "combined_daily": 632.09,
     "by_source_monthly": {
       "Coinbase": 13527.91,
-      "X Money": 6185.95
+      "X Money": 5648.75
     },
     "coinbase_funded_monthly": 13527.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 6185.95
+    "x_money_funded_monthly": 5648.75
   },
   "notes": "Personal = estimated personal bills by pay-from account. Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Personal + Fleet only. Actual spend = YNAB."
 }
