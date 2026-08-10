@@ -1,8 +1,8 @@
 {
-  "version": 26,
-  "as_of": "2026-08-07",
+  "version": 27,
+  "as_of": "2026-08-10",
   "title": "Capital flows — income → digital credit → liquidity → deploy",
-  "notes": "Col 1 Income order: Turo · Lyft · X Creator (planned) · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy expense buckets. No edge text labels.",
+  "notes": "Col 1 Income order: Turo · Lyft · X Creator (planned) · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy: Essential (Personal) · Fleet · Collateral · Productive Disc. · Consumer Disc. · One Card · Agentic Fund. X Money funds Essential/Fleet/Collateral/disc buckets. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -30,6 +30,8 @@
         "label": "Deploy",
         "ids": [
           "bills_essential",
+          "bills_fleet",
+          "bills_collateral",
           "bills_productive",
           "bills_consumer",
           "one_card",
@@ -175,7 +177,23 @@
       "kind": "expense",
       "subtitle": "Personal · must-pay bills",
       "confidence": "owner_stated",
-      "notes": "Expense sheet Personal / essential burn — priority over discretionary. Funded via X Money ops."
+      "notes": "Expense sheet Personal tab — essential burn; highest spend priority. Funded via X Money + Coinbase."
+    },
+    {
+      "id": "bills_fleet",
+      "label": "Fleet",
+      "kind": "expense",
+      "subtitle": "Auto fleet · loans / ops",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Fleet tab — auto fleet expenses (loans, insurance, wash, repairs). Burn; funded primarily via X Money."
+    },
+    {
+      "id": "bills_collateral",
+      "label": "Collateral",
+      "kind": "invest",
+      "subtitle": "Capital · investments",
+      "confidence": "owner_stated",
+      "notes": "Expense sheet Collateral tab — collateral / productive capital investments (not expense burn). Funded via X Money."
     },
     {
       "id": "bills_productive",
@@ -183,7 +201,7 @@
       "kind": "expense",
       "subtitle": "Capex · grow assets",
       "confidence": "owner_stated",
-      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base (ASICs, fleet, etc.). Priority over consumer wishlist."
+      "notes": "Expense sheet Productive Discretionary — capital outlay that grows productive base. Priority over consumer wishlist."
     },
     {
       "id": "bills_consumer",
@@ -259,10 +277,24 @@
     },
     {
       "from": "x_money",
+      "to": "bills_fleet",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Auto fleet expenses (loans/insurance/ops) paid from X Money."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_collateral",
+      "confidence": "owner_stated",
+      "weight": 3,
+      "notes": "Collateral investments funded from X Money (not burn)."
+    },
+    {
+      "from": "x_money",
       "to": "bills_productive",
       "confidence": "owner_stated",
       "weight": 3,
-      "notes": "Productive Discretionary funded after essentials."
+      "notes": "Productive Discretionary funded after essentials + fleet."
     },
     {
       "from": "x_money",
