@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-10T10:14:35.149721+00:00",
+  "as_of": "2026-08-10T10:34:24.015584+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -21,7 +21,7 @@
   "tabs": {
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 22,
+      "item_count": 23,
       "totals": {
         "daily": 482.31,
         "weekly": 3376.15,
@@ -138,7 +138,7 @@
         {
           "date": "8/23/2026",
           "from": "Coinbase",
-          "item": "Coinbase One",
+          "item": "Coinbase One Membership",
           "daily": 0.99,
           "weekly": 6.9,
           "biweekly": 13.8,
@@ -159,6 +159,19 @@
           "annually": 120.0,
           "budget_allocation": 0.0007000000000000001,
           "quarterly": 30.0,
+          "tab": "Personal"
+        },
+        {
+          "date": "8/24/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Card",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "budget_allocation": 0.0,
+          "quarterly": 0.0,
           "tab": "Personal"
         },
         {
@@ -495,10 +508,18 @@
         },
         {
           "date": "8/23/2026",
-          "item": "Coinbase One",
+          "item": "Coinbase One Membership",
           "from": "Coinbase",
           "monthly": 29.99,
           "weekly": 6.9,
+          "tab": "Personal"
+        },
+        {
+          "date": "8/24/2026",
+          "item": "Coinbase One Card",
+          "from": "Coinbase",
+          "monthly": 0.0,
+          "weekly": 0.0,
           "tab": "Personal"
         },
         {
@@ -571,14 +592,6 @@
           "from": "X Money",
           "monthly": 19.99,
           "weekly": 4.61,
-          "tab": "Personal"
-        },
-        {
-          "date": "7/15/2027",
-          "item": "AT&T Final Bill",
-          "from": "Coinbase",
-          "monthly": 50.0,
-          "weekly": 11.51,
           "tab": "Personal"
         }
       ]

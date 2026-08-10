@@ -237,7 +237,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential · Fleet · Collateral <em>incl. Agentic Fund</em> · Productive Discretionary · Consumer Discretionary · One Card).</p>
+      <p class="hint">Left → right: <strong>Income</strong> → <strong>Digital Credit</strong> → <strong>Liquidity Engine</strong> → <strong>Deploy</strong> (Essential <em>Personal + One Card</em> · Fleet · Collateral <em>incl. Agentic Fund</em> · Productive Discretionary · Consumer Discretionary).</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -250,16 +250,15 @@
             <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — USDG HY (Agentic margin buffer)</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — BTC · Collateral (incl. Agentic Fund)</span></div></div>
             <div class="leg-item"><span class="swatch-node leverage"></span><div><strong>Leverage</strong><span class="desc"> — Morpho</span></div></div>
-            <div class="leg-item"><span class="swatch-node credit"></span><div><strong>Credit</strong><span class="desc"> — One Card (paydown via Morpho borrow)</span></div></div>
-            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential · Fleet · Productive · Consumer</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Essential (Personal + One Card) · Fleet · Productive · Consumer</span></div></div>
             <div class="leg-item"><span class="swatch-node planned-brown"></span><div><strong>Brown dashed</strong><span class="desc"> — Planned future income (not active)</span></div></div>
           </div>
         </div>
         <div>
           <h3>Layout</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Essential → Fleet → Collateral <em>incl. Agentic</em> → Productive Disc. → Consumer Disc. → One Card)</span></div>
-            <div class="leg-item"><span class="desc">X Money → Essential / Fleet / Collateral / disc. Morpho → One Card (new principal). USDC HY = BTC LTV buffer; USDG HY = Agentic margin buffer — neither spends into Deploy.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> · <strong>Digital Credit</strong> · <strong>Liquidity Engine</strong> · <strong>Deploy</strong> (Essential <em>Personal + One Card</em> → Fleet → Collateral <em>incl. Agentic</em> → Productive Disc. → Consumer Disc.)</span></div>
+            <div class="leg-item"><span class="desc">Essential dual funders: X Money (ops) + Morpho new principal (card). X Money → Fleet / Collateral / disc. USDC HY = BTC LTV buffer; USDG HY = Agentic margin buffer — neither spends into Deploy.</span></div>
           </div>
         </div>
       </div>
@@ -344,7 +343,6 @@
               "bills_collateral",
               "bills_productive",
               "bills_consumer",
-              "one_card",
             ],
           },
         ];
