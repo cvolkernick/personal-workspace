@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="favicon.svg" />
-  <title>₿ Capital flows · FCC</title>
+  <title>₿ Capital Flows · FCC</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -220,7 +220,7 @@
   <div class="sticky-top">
     <div class="row">
       <div>
-        <h1>Capital flows</h1>
+        <h1>Capital Flows</h1>
         <div class="sub" id="subtitle">Income → channels (reconstructed)</div>
       </div>
       <div class="controls">
@@ -593,7 +593,7 @@
 
     function render(data) {
       document.getElementById("subtitle").textContent =
-        (data.title || "Capital flows") +
+        (data.title || "Capital Flows") +
         (data.as_of ? " · model " + String(data.as_of).slice(0, 10) : "");
 
       draw(data);

@@ -1,7 +1,7 @@
 {
   "version": 27,
   "as_of": "2026-08-10",
-  "title": "Capital flows — income → digital credit → liquidity → deploy",
+  "title": "Capital Flows — income → digital credit → liquidity → deploy",
   "notes": "Col 1 Income order: Turo · Lyft · X Creator (planned) · TREAD (planned) · ASICs. Planned cards: brown dashed border, no flow edges. Active: Turo→Coinbase funnel; Lyft/ASICs→Coinbase. Col 2 Digital Credit · Col 3 Liquidity Engine · Col 4 Deploy: Essential (Personal) · Fleet · Collateral · Productive Disc. · Consumer Disc. · One Card · Agentic Fund. X Money funds Essential/Fleet/Collateral/disc buckets. No edge text labels.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",

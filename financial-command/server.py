@@ -1085,7 +1085,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Financial Command Center → {url}")
     print(f"Watchlist research        → {wl}")
     print(
-        f"Capital flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
+        f"Capital Flows             → http://127.0.0.1:{args.port}/financial-command/capital-flows.html"
     )
     print(f"[fcc] bind {bind_host}:{args.port}", file=sys.stderr)
     httpd = ThreadingHTTPServer((bind_host, args.port), FCCHandler)
