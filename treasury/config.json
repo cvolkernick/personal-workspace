@@ -48,9 +48,18 @@
     "sheet_name": "Personal Expense Sheet",
     "tabs": [
       "Personal",
+      "Fleet",
+      "Collateral",
       "Productive Discretionary",
       "Consumer Discretionary"
-    ]
+    ],
+    "tab_gids": {
+      "Personal": "0",
+      "Fleet": "1189472679",
+      "Collateral": "1072275501",
+      "Productive Discretionary": "1837986973",
+      "Consumer Discretionary": "192074825"
+    }
   },
   "braiins": {
     "payout_threshold_btc": 0.01,

@@ -23,8 +23,19 @@ from treasury.policy import evaluate_treasury  # noqa: E402
 PERSONAL_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
 4/1/2026,Coinbase,Rent,$276.16,"$1,933.15",3866.30,"$8,400.00","$8,400.00",51.67%
 7/17/2026,Coinbase,Gym,$0.89,$6.21,12.43,$27.00,$324.00,0.17%
-7/21/2026,RH Checking,Fleet Insurance,$18.41,$128.88,257.75,$560.00,"$6,720.00",3.44%
-,,Total,$534.51,"$3,741.56","$7,483.11","$16,211.68","$53,285.38",100.00%
+,,Total,$277.05,"$1,939.36","$3,878.73","$8,427.00","$8,724.00",100.00%
+"""
+
+FLEET_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
+5/21/2026,X Money,Santander,$36.08,$252.59,$505.18,"$1,082.52","$1,082.52",24.09%
+8/21/2026,X Money,Fleet Insurance,$18.48,$129.34,$258.67,$562.00,"$6,744.00",12.34%
+,,Total,$54.56,$381.93,$763.85,"$1,644.52","$7,826.52",100.00%
+"""
+
+COLLATERAL_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
+9/1/2026,X Money,ASIC Fleet OpEx,$14.41,$100.89,$201.78,$437.20,"$5,246.40",81.38%
+9/1/2026,X Money,Agentic Fund Allocation,$3.30,$23.08,$46.15,$100.00,"$1,200.00",18.62%
+,,Total,$17.71,$123.97,$247.94,$537.20,"$6,446.40",100.00%
 """
 
 DISC_CSV = """Item,Date,Daily,Weekly,Bi-Weekly,Monthly,Annually,From,To
@@ -48,8 +59,8 @@ class TestParseMoney(unittest.TestCase):
 class TestPersonal(unittest.TestCase):
     def test_rows_and_totals(self):
         items, totals = parse_personal_rows(rows_from_csv(PERSONAL_CSV))
-        self.assertEqual(len(items), 3)
-        self.assertAlmostEqual(totals["monthly"], 16211.68)
+        self.assertEqual(len(items), 2)
+        self.assertAlmostEqual(totals["monthly"], 8427.0)
         rent = [i for i in items if i["item"] == "Rent"][0]
         self.assertAlmostEqual(rent["monthly"], 8400.0)
         self.assertEqual(rent["from"], "Coinbase")
@@ -81,13 +92,13 @@ class TestSnapshot(unittest.TestCase):
         )
         self.assertEqual(snap["source"], "test")
         s = snap["summary"]
-        self.assertAlmostEqual(s["personal_monthly"], 16211.68)
-        self.assertAlmostEqual(s["upcoming_expense_monthly"], 16211.68)
+        self.assertAlmostEqual(s["personal_monthly"], 8427.0)
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0)
         # Discretionary is capital targets, not expense burn
         self.assertAlmostEqual(s["capital_targets_monthly"], 2548.0)
         self.assertAlmostEqual(s["discretionary_monthly"], 2548.0)
-        # combined burn = personal only
-        self.assertAlmostEqual(s["combined_monthly"], 16211.68)
+        # combined burn = personal only when no fleet tab
+        self.assertAlmostEqual(s["combined_monthly"], 8427.0)
         self.assertGreater(s["coinbase_funded_monthly"], 8000)
         self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
@@ -97,11 +108,36 @@ class TestSnapshot(unittest.TestCase):
         # Legacy alias still present
         self.assertEqual(snap["tabs"]["Discretionary"]["alias_of"], "Productive Discretionary")
         self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
-        # Chronological order: Rent (4/1) before Gym (7/17) before Fleet (7/21)
+        # Chronological order: Rent (4/1) before Gym (7/17)
         by_date = snap["tabs"]["Personal"]["upcoming_by_date"]
         self.assertEqual(by_date[0]["item"], "Rent")
         self.assertEqual(by_date[1]["item"], "Gym")
 
+    def test_fleet_and_collateral(self):
+        snap = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            consumer_csv=CONSUMER_CSV,
+            fleet_csv=FLEET_CSV,
+            collateral_csv=COLLATERAL_CSV,
+            sheet_id="abc",
+            source="test",
+        )
+        s = snap["summary"]
+        self.assertAlmostEqual(s["personal_monthly"], 8427.0)
+        self.assertAlmostEqual(s["fleet_monthly"], 1644.52)
+        # Burn = Personal + Fleet; Collateral is not burn
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0 + 1644.52)
+        self.assertAlmostEqual(s["combined_monthly"], 8427.0 + 1644.52)
+        self.assertAlmostEqual(s["collateral_investments_monthly"], 537.20)
+        self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
+        self.assertAlmostEqual(s["consumer_discretionary_monthly"], 30.0)
+        self.assertEqual(snap["tabs"]["Fleet"]["role"], "auto_fleet_expenses")
+        self.assertEqual(snap["tabs"]["Collateral"]["role"], "collateral_investments")
+        self.assertIn("X Money", s["by_source_monthly"])
+        self.assertGreater(s["x_money_funded_monthly"], 1600)
+        # Fleet items tagged
+        self.assertEqual(snap["tabs"]["Fleet"]["items"][0]["tab"], "Fleet")
 
     def test_productive_and_consumer(self):
         snap = build_expenses_snapshot(
@@ -117,7 +153,7 @@ class TestSnapshot(unittest.TestCase):
         # Capital targets / burn aliases
         self.assertAlmostEqual(s["capital_targets_monthly"], 2548.0)
         self.assertAlmostEqual(s["discretionary_monthly"], 2548.0)  # productive alias
-        self.assertAlmostEqual(s["combined_monthly"], 16211.68)  # personal only
+        self.assertAlmostEqual(s["combined_monthly"], 8427.0)  # personal only
         self.assertEqual(
             snap["tabs"]["Consumer Discretionary"]["role"], "consumer_wishlist"
         )
@@ -132,7 +168,12 @@ class TestPolicyExpenses(unittest.TestCase):
             "coinbase_manual": {"ltv": 0.3},
             "one_card": {"source": "ynab", "card_balance": 100},
             "expenses": build_expenses_snapshot(
-                PERSONAL_CSV, DISC_CSV, sheet_id="x", source="google_sheets"
+                PERSONAL_CSV,
+                DISC_CSV,
+                fleet_csv=FLEET_CSV,
+                collateral_csv=COLLATERAL_CSV,
+                sheet_id="x",
+                source="google_sheets",
             ),
             "robinhood": {
                 "buying_power": 2000,
@@ -142,8 +183,12 @@ class TestPolicyExpenses(unittest.TestCase):
             },
         }
         ev = evaluate_treasury(snap)
-        # burn uses Personal only
-        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], 16211.68)
+        burn = 8427.0 + 1644.52
+        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], burn)
+        self.assertAlmostEqual(ev["inputs"]["expenses_fleet_monthly"], 1644.52)
+        self.assertAlmostEqual(
+            ev["inputs"]["expenses_collateral_investments_monthly"], 537.20
+        )
         self.assertAlmostEqual(ev["inputs"]["expenses_capital_targets_monthly"], 2548.0)
         self.assertIn("expense_burn", [a["kind"] for a in ev["actions"]])
         self.assertIn("expenses", ev["data_quality"]["sources"])

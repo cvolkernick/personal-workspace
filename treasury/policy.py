@@ -1397,10 +1397,15 @@ def evaluate_treasury(
         f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else ""),
-        f"Upcoming expense estimates (sheet Personal): "
+        f"Upcoming expense estimates (sheet Personal+Fleet): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
+        + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
+        + f" + fleet ${((snapshot.get('expenses') or {}).get('summary') or {}).get('fleet_monthly') or 0:.2f})"
         + f" | CB-funded est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}"
         + f" | RH-checking est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('rh_funded_monthly') or 0:.2f}"
+        + f" | X Money est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('x_money_funded_monthly') or 0:.2f}"
+        + f" | Collateral investments (not burn) $"
+        f"{((snapshot.get('expenses') or {}).get('summary') or {}).get('collateral_investments_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('collateral_monthly') or 0:.2f}/mo"
         + f" | Productive Discretionary (capital, not burn) "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('capital_targets_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('productive_discretionary_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('discretionary_monthly') or 0:.2f}/mo"
         + f" | Consumer Discretionary $"
@@ -1451,6 +1456,13 @@ def evaluate_treasury(
             "expenses_personal_monthly": (snapshot.get("expenses") or {}).get("summary", {}).get(
                 "personal_monthly"
             ),
+            "expenses_fleet_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("fleet_monthly"),
+            "expenses_collateral_investments_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("collateral_investments_monthly")
+            or (snapshot.get("expenses") or {}).get("summary", {}).get("collateral_monthly"),
             "expenses_capital_targets_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("capital_targets_monthly")
@@ -1470,7 +1482,7 @@ def evaluate_treasury(
             "expenses_consumer_discretionary_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("consumer_discretionary_monthly"),
-            # combined = upcoming only (Personal); discretionary excluded from burn
+            # combined = Personal + Fleet burn; capital tabs excluded
             "expenses_combined_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("combined_monthly"),
@@ -1480,6 +1492,9 @@ def evaluate_treasury(
             "expenses_rh_funded_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("rh_funded_monthly"),
+            "expenses_x_money_funded_monthly": (snapshot.get("expenses") or {})
+            .get("summary", {})
+            .get("x_money_funded_monthly"),
             "rh_buying_power": bp,
             "rh_cash": cash,
             "rh_checking_cash": rh_checking_cash,

@@ -29,7 +29,8 @@ Opens: http://localhost:8000/financial-command/index.html
 1. Live Coinbase balances + BTC-USD price via CLI.
 2. Robinhood dual-account snapshot (`primary` margin + **Agentic**) via MCP → `treasury/rh_sync.py` → `robinhood_latest.json`.
 3. **Coinbase One Card** via YNAB API (`~/.config/ynab/token`) → `treasury/snapshots/one_card_latest.json`.
-4. **Personal Expense Sheet** (Google) via gviz CSV → `treasury/snapshots/expenses_latest.json`.
+4. **Personal Expense Sheet** (Google) via CSV export-by-gid → `treasury/snapshots/expenses_latest.json`.
+   Tabs: **Personal** + **Fleet** = burn; **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
 6. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
 
