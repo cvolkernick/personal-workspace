@@ -225,6 +225,90 @@
       padding: 1rem; border-top: 1px solid var(--border);
     }
     code { font-size: 0.8em; background: #0a1018; padding: 0.1rem 0.3rem; border-radius: 4px; }
+    /* Unitary day plan (P2) — primary Today strip */
+    .day-plan {
+      margin-bottom: 1.5rem;
+      border: 1px solid #3a4a6a;
+      border-radius: 14px;
+      padding: 1rem 1.1rem 1.15rem;
+      background:
+        linear-gradient(145deg, #152238 0%, var(--panel) 55%, var(--panel2) 100%);
+      box-shadow: 0 0 0 1px rgba(91, 159, 212, 0.08);
+    }
+    .day-plan > header.dp-head {
+      display: flex; flex-wrap: wrap; gap: 0.5rem 1rem;
+      align-items: baseline; justify-content: space-between;
+      margin-bottom: 0.85rem;
+      padding: 0; border: 0; background: transparent;
+      position: static; backdrop-filter: none;
+    }
+    .day-plan > header.dp-head h2 {
+      margin: 0; font-size: 1.15rem; font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .day-plan .dp-summary {
+      color: var(--muted); font-size: 0.88rem; max-width: 48rem;
+    }
+    .day-plan .dp-grid {
+      display: grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap: 0.85rem;
+    }
+    @media (max-width: 900px) {
+      .day-plan .dp-grid { grid-template-columns: 1fr; }
+    }
+    .day-plan .dp-col h3 {
+      margin: 0 0 0.5rem; font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em; color: var(--cyan);
+    }
+    .day-plan .dp-col .list { gap: 0.45rem; }
+    .day-plan .row.dp-next {
+      border-color: #3a5a8a;
+      background: linear-gradient(135deg, #152238 0%, var(--panel) 60%);
+    }
+    .day-plan .row.dp-gate-block {
+      border-color: #6b2e2e;
+      background: linear-gradient(135deg, #1a1010 0%, var(--panel) 55%);
+    }
+    .day-plan .row.dp-gate-warn {
+      border-color: #5a4a20;
+      background: linear-gradient(135deg, #1a1810 0%, var(--panel) 55%);
+    }
+    .day-plan .row.dp-gate-unknown {
+      border-color: #4a4a30;
+      background: linear-gradient(135deg, #161610 0%, var(--panel) 55%);
+    }
+    .pill.block { color: var(--red); border-color: var(--red); }
+    .pill.warn { color: var(--yellow); border-color: var(--yellow); }
+    .pill.unknown { color: var(--orange); border-color: var(--orange); }
+    .pill.domain-fitness { color: #f472b6; }
+    .pill.domain-finance { color: var(--yellow); }
+    .pill.domain-workflow { color: var(--accent); }
+    .pill.domain-holistic { color: var(--cyan); }
+    .timeline {
+      display: flex; flex-direction: column; gap: 0.35rem;
+    }
+    .timeline .tl-item {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr auto;
+      gap: 0.45rem;
+      align-items: center;
+      padding: 0.45rem 0.65rem;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.88rem;
+    }
+    .timeline .tl-kind {
+      font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted);
+    }
+    .timeline .tl-min {
+      font-size: 0.75rem; color: var(--muted); white-space: nowrap;
+    }
+    .day-plan .empty-hint {
+      color: var(--muted); font-size: 0.85rem; padding: 0.5rem 0.15rem;
+    }
   </style>
 </head>
 <body>
@@ -240,6 +324,32 @@
   </header>
   <main>
     <div class="error-banner" id="error"></div>
+
+    <!-- P2: Unitary daily planner — primary focus (reads payload.day_plan only) -->
+    <section class="day-plan" id="sec-day-plan" aria-label="Today unitary day plan">
+      <header class="dp-head">
+        <div>
+          <h2>Today <span class="badge" id="dp-badge">day plan</span></h2>
+          <div class="dp-summary" id="dp-summary">Loading day plan…</div>
+        </div>
+        <div class="meta" id="dp-meta"></div>
+      </header>
+      <div class="dp-grid">
+        <div class="dp-col">
+          <h3>Next 3</h3>
+          <div class="list" id="dp-next3"></div>
+        </div>
+        <div class="dp-col">
+          <h3>Day blocks</h3>
+          <div class="timeline" id="dp-blocks"></div>
+        </div>
+        <div class="dp-col">
+          <h3>Gates</h3>
+          <div class="list" id="dp-gates"></div>
+        </div>
+      </div>
+    </section>
+
     <div class="fan-in" id="fan-in" aria-label="Awareness fan-in strip"></div>
     <div class="summary" id="summary"></div>
 
@@ -251,7 +361,7 @@
     <section id="sec-recommendations">
       <h2>Recommended next actions <span class="badge" id="rec-count">0</span></h2>
       <p class="sub" style="color:var(--muted);font-size:0.88rem;margin:0 0 0.65rem">
-        Fully automated from domains, synergies (high preferred; medium fallback), attention hygiene, and priorities — no manual triage required.
+        Supporting stream (hygiene / synergies / priorities). <strong>Today</strong> above is the unitary day plan.
       </p>
       <div class="list" id="recommendations"></div>
     </section>
@@ -362,6 +472,139 @@
       return (s / 86400).toFixed(1) + "d";
     }
 
+    function fmtBlockTime(start, end) {
+      const s = start ? String(start) : "";
+      const e = end ? String(end) : "";
+      // Prefer local clock HH:MM if ISO or already short
+      const short = (t) => {
+        if (!t) return "";
+        const m = t.match(/T(\d{2}:\d{2})/) || t.match(/^(\d{1,2}:\d{2})/);
+        if (m) return m[1];
+        if (t.length <= 8) return t;
+        return t.slice(0, 16);
+      };
+      const a = short(s);
+      const b = short(e);
+      if (a && b) return a + "–" + b;
+      return a || b || "";
+    }
+
+    function sourceStalePills(sources) {
+      if (!sources || typeof sources !== "object") return "";
+      return ["finance", "fitness", "workflow", "holistic"].map((id) => {
+        const src = sources[id];
+        if (!src || typeof src !== "object") return "";
+        const stale = !!src.stale;
+        const conf = src.confidence;
+        const label = id.slice(0, 3);
+        if (stale) {
+          return `<span class="pill stale" title="${esc(src.summary || id + " stale")}">${esc(label)} stale</span>`;
+        }
+        if (conf != null && Number(conf) === 0) {
+          return `<span class="pill unknown" title="${esc(src.summary || id + " unknown")}">${esc(label)} ?</span>`;
+        }
+        return `<span class="pill domain-${esc(id)}" title="${esc(src.summary || id)}">${esc(label)}</span>`;
+      }).filter(Boolean).join(" ");
+    }
+
+    function renderDayPlan(dp) {
+      const badge = $("dp-badge");
+      const summaryEl = $("dp-summary");
+      const metaEl = $("dp-meta");
+      const nextEl = $("dp-next3");
+      const blocksEl = $("dp-blocks");
+      const gatesEl = $("dp-gates");
+      if (!dp || typeof dp !== "object") {
+        badge.textContent = "missing";
+        summaryEl.textContent = "No day_plan on payload — composer not wired or server outdated.";
+        metaEl.innerHTML = "";
+        nextEl.innerHTML = '<div class="empty-hint">—</div>';
+        blocksEl.innerHTML = '<div class="empty-hint">—</div>';
+        gatesEl.innerHTML = '<div class="empty-hint">—</div>';
+        return;
+      }
+
+      const next3 = Array.isArray(dp.next3) ? dp.next3 : [];
+      const blocks = Array.isArray(dp.blocks) ? dp.blocks : [];
+      const gates = Array.isArray(dp.gates) ? dp.gates : [];
+      const sources = dp.sources || {};
+
+      badge.textContent = "v" + (dp.schema_version != null ? dp.schema_version : "?");
+      summaryEl.textContent = dp.summary || "day_plan empty — check domain freshness";
+      const genRel = relAge(dp.generated_at);
+      metaEl.innerHTML = [
+        genRel ? `<span class="tag">${esc(genRel)}</span>` : "",
+        sourceStalePills(sources),
+      ].filter(Boolean).join(" ");
+
+      // Next 3: title, domain, why-now, deep link only (existing dashboard URLs)
+      nextEl.innerHTML = next3.length
+        ? next3.map((item, i) => {
+            const domain = item.domain || "unknown";
+            const sev = item.severity || "info";
+            const link = item.deep_link
+              ? `<a class="link" href="${esc(item.deep_link)}" target="_blank" rel="noopener">Open →</a>`
+              : "";
+            return `<div class="row dp-next">
+              <div class="title">
+                <span class="rank">${esc(i + 1)}</span>
+                <span class="pill domain-${esc(domain)}">${esc(domain)}</span>
+                <span class="pill ${esc(sev)}">${esc(sev)}</span>
+                ${esc(item.title || "")}
+              </div>
+              <div class="detail">${esc(item.why || item.why_now || "")}</div>
+              <div class="meta">${link}${item.kind ? ` <span class="tag">${esc(item.kind)}</span>` : ""}</div>
+            </div>`;
+          }).join("")
+        : '<div class="empty-hint">No Next actions — gates or stale sources may be blocking, or domains empty.</div>';
+
+      // Blocks: Holistic-derived timeline (sleep + active when present)
+      blocksEl.innerHTML = blocks.length
+        ? blocks.map((b) => {
+            const time = fmtBlockTime(b.start, b.end);
+            const mins = b.minutes != null && Number(b.minutes) > 0
+              ? Number(b.minutes) + "m"
+              : "";
+            return `<div class="tl-item">
+              <span class="tl-kind">${esc(b.kind || "block")}</span>
+              <span>${esc(b.title || b.id || "block")}${time ? ` <span class="detail">· ${esc(time)}</span>` : ""}</span>
+              <span class="tl-min">${esc(mins)}</span>
+            </div>`;
+          }).join("")
+        : '<div class="empty-hint">No day blocks — Holistic plan empty or unavailable.</div>';
+
+      // Gates: capital / body / WIP — never invent green; surface stale/unknown
+      gatesEl.innerHTML = gates.length
+        ? gates.map((g) => {
+            const sev = String(g.severity || "info").toLowerCase();
+            const rowClass = sev === "block" ? "dp-gate-block"
+              : sev === "unknown" ? "dp-gate-unknown"
+              : sev === "warn" ? "dp-gate-warn" : "";
+            const domain = g.domain || "";
+            const staleChip = g.stale || sev === "unknown" || (g.freshness && g.freshness !== "fresh")
+              ? (g.stale || sev === "unknown"
+                ? `<span class="pill stale">${esc(sev === "unknown" ? "unknown" : "stale")}</span>`
+                : `<span class="pill warn">${esc(g.freshness)}</span>`)
+              : "";
+            // Do not paint green for gates — only severity truth
+            const sevPill = `<span class="pill ${esc(sev === "info" ? "info" : sev)}">${esc(sev)}</span>`;
+            const link = g.deep_link
+              ? `<a class="link" href="${esc(g.deep_link)}" target="_blank" rel="noopener">Open →</a>`
+              : "";
+            return `<div class="row ${rowClass}">
+              <div class="title">
+                ${sevPill}
+                ${domain ? `<span class="pill domain-${esc(domain)}">${esc(domain)}</span>` : ""}
+                ${staleChip}
+                ${esc(g.title || g.id || "gate")}
+              </div>
+              <div class="detail">${esc(g.detail || "")}</div>
+              <div class="meta">${link}</div>
+            </div>`;
+          }).join("")
+        : '<div class="empty-hint">No gates — domains may still be loading or all clear (not invented green).</div>';
+    }
+
     function renderFanIn(fan) {
       const el = $("fan-in");
       if (!fan) {
@@ -449,25 +692,31 @@
 
       renderFanIn(data.fan_in);
 
+      // Primary: unitary day plan (read-only from payload.day_plan — no dual write)
+      renderDayPlan(data.day_plan);
+
       const strategySub = bets.length
         ? bets.slice(0, 5).join(" · ")
         : (strategy.available ? "files ok" : "missing");
       const rec = data.recommendations || {};
       const recItems = data.recommended_actions || rec.items || data.action_plan || [];
       const recMode = rec.mode || "—";
+      const dp = data.day_plan || {};
+      const dpNext = Array.isArray(dp.next3) ? dp.next3.length : (c.day_plan_next3 ?? "—");
+      const dpGates = Array.isArray(dp.gates) ? dp.gates.length : (c.day_plan_gates ?? "—");
       $("summary").innerHTML = [
+        ["Next 3", dpNext, "day plan"],
+        ["Gates", dpGates, "capital · body · WIP"],
         ["Recommended", c.recommendations ?? recItems.length ?? "—", recMode],
         ["Strategy", bets.length || (strategy.available ? "✓" : "—"), strategySub],
         ["Domains", dashAvailable || c.domains_available || "—", "dashboards"],
-        ["High synergies", c.synergies_high ?? "—", "of " + (c.synergies ?? "—")],
         ["Stale", staleN, "sources"],
-        ["Today", c.today_items ?? "—", "open"],
         ["Bridge", c.bridge_candidates ?? "—", "to allocate"],
       ].map(([l, n, sub]) =>
         `<div class="stat"><div class="n">${esc(n)}</div><div class="l">${esc(l)} · ${esc(sub)}</div></div>`
       ).join("");
 
-      // Primary: automated briefing + recommended actions
+      // Supporting: automated briefing + recommended actions
       const briefing = $("briefing");
       if (rec.summary) {
         briefing.hidden = false;
