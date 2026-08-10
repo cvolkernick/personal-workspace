@@ -2368,10 +2368,13 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
-    function sheetTabTag(tab) {
+    function sheetTabTag(tab, capitalOutlay) {
       const t = String(tab || "").trim();
       if (!t) return "";
-      return `<span class="src-tag" title="Sheet tab">${escapeHtml(t)}</span>`;
+      const title = capitalOutlay
+        ? "Capital outlay (awareness — not Essential/Fleet burn)"
+        : "Sheet tab";
+      return `<span class="src-tag" title="${escapeHtml(title)}">${escapeHtml(t)}</span>`;
     }
     function billRowHtml(r) {
       const u = dueUrgency(r.date);
@@ -2382,7 +2385,7 @@
         `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(r.date))}</span>` +
         `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
         `<div class="bill-main"><div class="name">${escapeHtml(r.item || "—")}</div>` +
-        `<div class="meta">${sheetTabTag(r.tab)}` +
+        `<div class="meta">${sheetTabTag(r.tab, r.capital_outlay)}` +
         `<span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
         `<div class="bill-amt">${money(r.monthly)}</div></div>`
       );
@@ -2437,8 +2440,9 @@
           ? `<span class="status-pill ${stCls}">${escapeHtml(st)}</span>`
           : "") +
         `</div>` +
-        `<div class="meta">${sheetTabTag(o.tab)}` +
+        `<div class="meta">${sheetTabTag(o.tab, o.capital_outlay)}` +
         `<span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        (o.capital_outlay ? ` · capital` : "") +
         (o.urgency_rank != null ? ` · #${o.urgency_rank}` : "") +
         `</div></div>` +
         `<div class="bill-amt">${amt}` +
@@ -3701,8 +3705,8 @@
         .join("");
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
-      // Burn = Essential + Fleet; capital tabs (Collateral / Productive / Consumer) excluded.
-      // Essential was renamed from Personal (2026-08-10); accept both keys.
+      // Pay-urgency list: Essential + Fleet (burn) + Collateral (awareness / capital outlay).
+      // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
       const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
       const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
       const collTab = (ex.tabs && ex.tabs.Collateral) || {};
@@ -3713,15 +3717,31 @@
         {};
       const consumerTab =
         (ex.tabs && ex.tabs["Consumer Discretionary"]) || {};
+      const tagTab = (items, tab) =>
+        (items || []).map((r) =>
+          r && typeof r === "object" ? { ...r, tab: r.tab || tab } : r
+        );
       const burnItems = []
-        .concat(persTab.items || [])
-        .concat(fleetTab.items || []);
+        .concat(tagTab(persTab.items, "Essential"))
+        .concat(tagTab(fleetTab.items, "Fleet"))
+        .concat(
+          tagTab(collTab.items, "Collateral").map((r) => ({
+            ...r,
+            capital_outlay: true,
+          }))
+        );
       const allItems =
         burnItems.length > 0
           ? burnItems
           : []
-              .concat(persTab.upcoming_by_date || [])
-              .concat(fleetTab.upcoming_by_date || []);
+              .concat(tagTab(persTab.upcoming_by_date, "Essential"))
+              .concat(tagTab(fleetTab.upcoming_by_date, "Fleet"))
+              .concat(
+                tagTab(collTab.upcoming_by_date, "Collateral").map((r) => ({
+                  ...r,
+                  capital_outlay: true,
+                }))
+              );
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
       // Fallback list until /api/coach returns (same urgency colors)
       if (!window.__coachPlan || !window.__coachPlan.ok) {
