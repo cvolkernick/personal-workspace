@@ -413,14 +413,15 @@ def expense_due_window(
     today: Optional[datetime] = None,
     due_within_days: int = 7,
 ) -> Dict[str, Any]:
-    """Personal-sheet pressure: overdue + due-soon line items (not Discretionary)."""
+    """Essential-sheet pressure: overdue + due-soon line items (not Discretionary)."""
     now = today or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
     today_d = now.date()
     ex = snapshot.get("expenses") or {}
     tabs = ex.get("tabs") or {}
-    personal = tabs.get("Personal") or {}
+    # Tab renamed Personal → Essential (2026-08-10); accept both keys.
+    personal = tabs.get("Essential") or tabs.get("Personal") or {}
     items = personal.get("items") or personal.get("upcoming_by_date") or []
     critical: List[Dict[str, Any]] = []
     overdue_total = 0.0
@@ -560,7 +561,7 @@ def cashflow_allocation_guidance(
     """Simplified free-dollar waterfall + margin-only capex guidance.
 
     Priority (free dollars):
-      1. Personal expenses paid & current (overdue / ≤7d window)
+      1. Essential expenses paid & current (overdue / ≤7d window)
       2. Coinbase One Card balance paid down
       3. LTV buffers (loan / USDC HY sleeve · bridge powder) — not card float from vault
       4. Excess beyond floors → collateral; HY→Collateral only under LTV heat
@@ -699,7 +700,7 @@ def cashflow_allocation_guidance(
                 f"{exp_overdue} overdue · {exp_soon} due ≤{expense_window.get('due_within_days', 7)}d · "
                 f"critical ${exp_need:,.0f}"
                 if exp_need > 0
-                else "No overdue / due-soon Personal sheet lines"
+                else "No overdue / due-soon Essential sheet lines"
             ),
             fund_from="venue_cash",
             meta={
@@ -829,7 +830,7 @@ def cashflow_allocation_guidance(
 
     # Next free dollar label
     next_map = {
-        "expenses": "Pay Personal sheet obligations (overdue / due soon)",
+        "expenses": "Pay Essential sheet obligations (overdue / due soon)",
         "card_paydown": "Refinance One Card via Morpho principal (not HY pull)",
         "cash_buffers": "Fill cash stack buffers (float · loan · bridge)",
         "collateral": "Deploy excess to collateral (BTC or RH securities)",
@@ -1372,7 +1373,7 @@ def evaluate_treasury(
             )
 
     exp_sum = (snapshot.get("expenses") or {}).get("summary") or {}
-    # Upcoming estimates only (Personal tab) — not Discretionary capital targets
+    # Upcoming estimates only (Essential tab) — not Discretionary capital targets
     cb_burn = exp_sum.get("coinbase_funded_monthly")
     rh_checking_burn = exp_sum.get("rh_funded_monthly") or exp_sum.get("rh_checking_funded_monthly")
     has_primary_stack = any(
@@ -1471,7 +1472,7 @@ def evaluate_treasury(
         f"Engines: Morpho LTV={ltv if ltv is not None else 'UNKNOWN'}"
         + f" | RH margin_use={margin_use if margin_use is not None else 'n/a'}"
         + " | USDG HY = RH margin governor (twin of USDC HY)",
-        f"Upcoming expense estimates (sheet Personal+Fleet): "
+        f"Upcoming expense estimates (sheet Essential+Fleet): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
         + f" + fleet ${((snapshot.get('expenses') or {}).get('summary') or {}).get('fleet_monthly') or 0:.2f})"
@@ -1556,7 +1557,7 @@ def evaluate_treasury(
             "expenses_consumer_discretionary_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("consumer_discretionary_monthly"),
-            # combined = Personal + Fleet burn; capital tabs excluded
+            # combined = Essential + Fleet burn; capital tabs excluded
             "expenses_combined_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("combined_monthly"),
@@ -1683,7 +1684,7 @@ def evaluate_treasury(
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "priority_order": [
-                "Personal + Fleet expenses current (sheet burn)",
+                "Essential + Fleet expenses current (sheet burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
                 "Digital Credit: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → BTC",
                 "X Money float for Deploy + scheduled 1st → Margin (Agentic)",

@@ -492,10 +492,11 @@ def _capital_flows_payload() -> dict:
             live["upcoming_expense_monthly_est"] = sm.get(
                 "upcoming_expense_monthly"
             ) or sm.get("combined_monthly")
-            # Burn pay-from: summary.by_source (Personal+Fleet); fall back to Personal tab
+            # Burn pay-from: summary.by_source (Essential+Fleet); fall back to Essential/Personal tab
+            tabs = ed.get("tabs") or {}
+            ess_tab = tabs.get("Essential") or tabs.get("Personal") or {}
             by_src = sm.get("by_source_monthly") or (
-                ((ed.get("tabs") or {}).get("Personal") or {}).get("by_source_monthly")
-                or {}
+                ess_tab.get("by_source_monthly") or {}
             )
             if sm.get("x_money_funded_monthly") is not None:
                 live["x_money_funded_monthly_est"] = sm.get("x_money_funded_monthly")

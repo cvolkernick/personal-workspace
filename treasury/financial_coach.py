@@ -347,12 +347,16 @@ def infer_habits(
 
     by_src = (exp.get("summary") or {}).get("by_source_monthly") or {}
     if not by_src:
-        # Merge Personal + Fleet when summary lacks combined pay-from
+        # Merge Essential (+ legacy Personal) + Fleet when summary lacks combined pay-from
         by_src = {}
-        for tab_name in ("Personal", "Fleet"):
-            part = ((exp.get("tabs") or {}).get(tab_name) or {}).get(
-                "by_source_monthly"
-            ) or {}
+        tabs = exp.get("tabs") or {}
+        burn_tabs = []
+        if tabs.get("Essential") or tabs.get("Personal"):
+            burn_tabs.append(tabs.get("Essential") or tabs.get("Personal") or {})
+        if tabs.get("Fleet"):
+            burn_tabs.append(tabs.get("Fleet") or {})
+        for tab in burn_tabs:
+            part = tab.get("by_source_monthly") or {}
             for k, v in part.items():
                 by_src[k] = (by_src.get(k) or 0) + float(v or 0)
 
@@ -382,7 +386,7 @@ def infer_habits(
             _f(inp.get("card_balance"), _f(oc.get("balance_owed"))), 2
         ),
         "notes": [
-            "Sheet burn is forward-looking estimates (Personal + Fleet tabs), not YNAB actuals.",
+            "Sheet burn is forward-looking estimates (Essential + Fleet tabs), not YNAB actuals.",
             "YNAB spend_30d is realized card/checking outflow where present.",
             "Runway uses total liquid across Coinbase working + X Money + RH Checking vs sheet daily burn.",
         ],
@@ -491,21 +495,30 @@ def collect_data_requests(
 
 
 def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Personal + Fleet burn items; fall back to upcoming_by_date or flat list.
+    """Essential + Fleet burn items; fall back to upcoming_by_date or flat list.
 
     Fleet is auto-fleet obligations (loans/insurance/ops). Collateral and
     discretionary tabs are capital — not included in the pay plan.
+    Essential tab was renamed from Personal (2026-08-10); both keys accepted.
     """
     tabs = expenses.get("tabs") or {}
     out: List[Dict[str, Any]] = []
-    for tab_name in ("Personal", "Fleet"):
+    burn_names: List[str] = []
+    if tabs.get("Essential"):
+        burn_names.append("Essential")
+    elif tabs.get("Personal"):
+        burn_names.append("Personal")
+    if tabs.get("Fleet"):
+        burn_names.append("Fleet")
+    for tab_name in burn_names:
         tab = tabs.get(tab_name) or {}
+        label = "Essential" if tab_name == "Personal" else tab_name
         items = tab.get("items")
         if isinstance(items, list) and items:
             for i in items:
                 if isinstance(i, dict):
                     rec = dict(i)
-                    rec.setdefault("tab", tab_name)
+                    rec.setdefault("tab", label)
                     out.append(rec)
             continue
         upcoming = tab.get("upcoming_by_date")
@@ -513,7 +526,7 @@ def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
             for i in upcoming:
                 if isinstance(i, dict):
                     rec = dict(i)
-                    rec.setdefault("tab", tab_name)
+                    rec.setdefault("tab", label)
                     out.append(rec)
     if out:
         return out
