@@ -88,6 +88,9 @@ from rt_dashboard.dashboard_cache import (  # noqa: E402
 )
 from rt_dashboard.coach import build_coach_payload  # noqa: E402
 from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
+from rt_dashboard.day_constraints import (  # noqa: E402
+    export_day_constraints_from_dashboard,
+)
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
@@ -858,6 +861,27 @@ def load_dashboard_data(
             "needs_sync": True,
         }
 
+    # Orchestra day packet (P3-F): freeze fields → fitness/data/day_constraints.json
+    # Best-effort — never fail the dashboard if disk write fails.
+    try:
+        day_pkt = export_day_constraints_from_dashboard(
+            payload,
+            workspace=local_dir or None,
+            sessions=sessions,
+            sleep=health.sleep or [],
+            write=bool(local_dir),
+        )
+        # Internal path keys stay off the public payload
+        public_pkt = {
+            k: v for k, v in day_pkt.items() if not str(k).startswith("_")
+        }
+        payload["day_constraints"] = public_pkt
+        if day_pkt.get("_write_error"):
+            errors.append(f"day_constraints_write: {day_pkt['_write_error']}")
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"day_constraints: {e}")
+        payload["day_constraints"] = None
+
     elapsed_ms = int((datetime.utcnow() - t0).total_seconds() * 1000)
     payload["meta"] = {
         "source": source,
@@ -1341,6 +1365,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     }
                 )
             except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/day_constraints":
+            # Orchestra Fit freeze packet (also written to fitness/data/ on load).
+            user = self._require_user()
+            if user is None and _auth_required():
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                pkt = data.get("day_constraints")
+                if not isinstance(pkt, dict):
+                    pkt = export_day_constraints_from_dashboard(
+                        data,
+                        workspace=os.environ.get("LOCAL_WORKSPACE_DIR")
+                        or _default_local_workspace()
+                        or None,
+                        write=True,
+                    )
+                    pkt = {k: v for k, v in pkt.items() if not str(k).startswith("_")}
+                self._send_json({"ok": True, "day_constraints": pkt})
+            except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/dashboard":
