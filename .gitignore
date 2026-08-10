@@ -31,6 +31,12 @@ test-results/
 orchestra/data/heartbeat/latest.json
 orchestra/data/heartbeat/.*.tmp.*
 
+# Domain day-constraint snapshots (refresh writers; Orchestra reads only)
+ops/board/day_constraints.json
+ops/board/.day_constraints.*.tmp
+fitness/data/day_constraints.json
+fitness/data/.day_constraints.*.tmp
+
 # Local Playwright install (scratch / accidental)
 **/node_modules/
 playwright-report/

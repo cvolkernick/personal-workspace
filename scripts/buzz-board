@@ -11,6 +11,7 @@ Examples:
   scripts/buzz-board create --title "..." --body "..." --status Ready
   scripts/buzz-board set-status 21 "In Progress"
   scripts/buzz-board add 20 --status Ready
+  scripts/buzz-board day-export          # → ops/board/day_constraints.json (P3-W)
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ import os
 import sys
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 OWNER_LOGIN = "cvolkernick"
@@ -157,6 +159,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                           url
                           state
                           body
+                          assignees(first:8) { nodes { login name } }
                           repository { nameWithOwner }
                         }
                         ... on PullRequest {
@@ -164,6 +167,8 @@ def fetch_items(first: int = 100) -> list[dict]:
                           title
                           url
                           state
+                          body
+                          assignees(first:8) { nodes { login name } }
                           repository { nameWithOwner }
                         }
                         ... on DraftIssue { title }
@@ -190,6 +195,14 @@ def fetch_items(first: int = 100) -> list[dict]:
             if fv:
                 status = fv.get("name")
             kind = content.get("__typename") or "Unknown"
+            assignees: list[str] = []
+            for an in ((content.get("assignees") or {}).get("nodes") or []):
+                login = (an.get("login") or "").strip()
+                name = (an.get("name") or "").strip()
+                if login:
+                    assignees.append(login)
+                elif name:
+                    assignees.append(name)
             items.append(
                 {
                     "item_id": node["id"],
@@ -201,6 +214,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                     "state": content.get("state"),
                     "repo": (content.get("repository") or {}).get("nameWithOwner"),
                     "body": content.get("body"),
+                    "assignees": assignees,
                 }
             )
         if not conn["pageInfo"]["hasNextPage"]:
@@ -413,6 +427,96 @@ def cmd_whoami(_: argparse.Namespace) -> None:
     print(f"project: https://github.com/users/{OWNER_LOGIN}/projects/{PROJECT_NUMBER}")
 
 
+def _workspace_root() -> Path:
+    """Monorepo root (parent of scripts/)."""
+    return Path(__file__).resolve().parent.parent
+
+
+def cmd_day_export(args: argparse.Namespace) -> None:
+    """P3-W: export Project #1 → ops/board/day_constraints.json for Orchestra."""
+    # Import pure builder from ops/board (monorepo-relative)
+    root = Path(args.workspace) if args.workspace else _workspace_root()
+    board_dir = root / "ops" / "board"
+    if str(board_dir.parent) not in sys.path:
+        sys.path.insert(0, str(board_dir.parent))
+    try:
+        from board.day_constraints import (  # type: ignore
+            build_day_constraints_packet,
+            build_fetch_failed_packet,
+            day_constraints_path,
+            load_ceremony_helpers,
+            write_day_constraints,
+        )
+    except ImportError as e:
+        print(f"error: cannot import ops/board/day_constraints: {e}", file=sys.stderr)
+        sys.exit(4)
+
+    agents, overlays = load_ceremony_helpers(root)
+    board_url = f"https://github.com/users/{OWNER_LOGIN}/projects/{PROJECT_NUMBER}"
+    packet: dict[str, Any]
+    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not tok:
+        packet = build_fetch_failed_packet(
+            detail="GITHUB_TOKEN/GH_TOKEN missing",
+            deep_link=args.deep_link,
+            board_url=board_url,
+        )
+    else:
+        try:
+            items = fetch_items(first=args.limit)
+            # Open issues/PRs only (same default as list)
+            items = [
+                i
+                for i in items
+                if i.get("kind") in ("Issue", "PullRequest")
+                and (i.get("state") or "").upper() == "OPEN"
+            ]
+            packet = build_day_constraints_packet(
+                items,
+                agents=agents,
+                overlays=overlays,
+                deep_link=args.deep_link,
+                board_url=board_url,
+                fetch_ok=True,
+            )
+        except SystemExit as se:
+            # rest/gql helpers exit(1) on HTTP/GraphQL errors — still write fail packet
+            packet = build_fetch_failed_packet(
+                detail=f"board fetch failed (exit {se.code})",
+                deep_link=args.deep_link,
+                board_url=board_url,
+            )
+        except Exception as e:
+            packet = build_fetch_failed_packet(
+                detail=str(e),
+                deep_link=args.deep_link,
+                board_url=board_url,
+            )
+
+    if args.dry_run:
+        print(json.dumps(packet, indent=2))
+        return
+
+    path = write_day_constraints(root, packet)
+    out = {
+        "ok": bool(packet.get("fetch_ok")),
+        "path": str(path),
+        "as_of": packet.get("as_of"),
+        "stale": packet.get("stale"),
+        "fetch_ok": packet.get("fetch_ok"),
+        "summary": packet.get("summary"),
+        "ready_count": packet.get("ready_count"),
+        "wip_overload": packet.get("wip_overload"),
+    }
+    if args.json:
+        print(json.dumps(out, indent=2))
+        return
+    print(f"wrote {path}")
+    print(packet.get("summary") or "(no summary)")
+    if not packet.get("fetch_ok"):
+        sys.exit(1)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description="Buzz Board (GitHub Project #1) agent CLI")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -451,6 +555,28 @@ def main() -> None:
 
     pw = sub.add_parser("whoami", help="Show token identity")
     pw.set_defaults(func=cmd_whoami)
+
+    pe = sub.add_parser(
+        "day-export",
+        help="Export Project #1 day constraints → ops/board/day_constraints.json (P3-W)",
+    )
+    pe.add_argument(
+        "--workspace",
+        help="Monorepo root (default: parent of scripts/)",
+    )
+    pe.add_argument("--limit", type=int, default=100, help="Max project items to fetch")
+    pe.add_argument(
+        "--deep-link",
+        default="http://127.0.0.1:8765/",
+        help="Workflow dashboard URL for deep_link field",
+    )
+    pe.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Print packet JSON only; do not write file",
+    )
+    pe.add_argument("--json", action="store_true", help="Machine-readable write summary")
+    pe.set_defaults(func=cmd_day_export)
 
     args = p.parse_args()
     args.func(args)
