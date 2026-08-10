@@ -1,8 +1,8 @@
 {
-  "version": 36,
+  "version": 37,
   "as_of": "2026-08-10",
-  "title": "Capital Flows — LE holds Digital Credit + Margin",
-  "notes": "v36: Drop standalone DC·BTC and DC·Equities columns. Liquidity Engine is three cards top→bottom: Digital Credit → X Money → Margin. Digital Credit = Morpho/BTC/USDC HY rotation (and One Card refinance). Margin = Agentic/stocks/USDG HY rotation. Deploy stays spend-only.",
+  "title": "Capital Flows — LE credit cards + Deploy Collateral",
+  "notes": "v37: Deploy adds Collateral mid-column (Essential · Fleet · Collateral · Productive · Consumer). LE unchanged: Digital Credit → X Money → Margin. Collateral = free-dollar invest sink (Agentic / BTC collateral) after ops, before discretionary.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -26,6 +26,7 @@
         "ids": [
           "bills_essential",
           "bills_fleet",
+          "bills_collateral",
           "bills_productive",
           "bills_consumer"
         ]
@@ -139,6 +140,14 @@
       "confidence": "owner_stated"
     },
     {
+      "id": "bills_collateral",
+      "label": "Collateral",
+      "kind": "invest",
+      "subtitle": "Agentic · BTC stack",
+      "confidence": "owner_stated",
+      "notes": "Deploy sink for free dollars into investable collateral (Agentic / BTC) after Essential + Fleet, before discretionary."
+    },
+    {
       "id": "bills_productive",
       "label": "Productive Discretionary",
       "kind": "expense",
@@ -192,6 +201,14 @@
       "to": "bills_fleet",
       "confidence": "owner_stated",
       "weight": 4
+    },
+    {
+      "from": "x_money",
+      "to": "bills_collateral",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "invest collateral",
+      "notes": "Free dollars into Agentic / BTC collateral after ops floors."
     },
     {
       "from": "x_money",
