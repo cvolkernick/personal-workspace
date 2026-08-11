@@ -624,6 +624,21 @@
 
     async function openDomain(domainId, fallbackUrl) {
       const pubFallback = publicizeUrl(fallbackUrl);
+      // Prefer POST ensure-and-open (starts local server when offline); fall back to GET URL probe.
+      try {
+        const res = await fetch("/api/launch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: domainId }),
+          cache: "no-store",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (body && body.url) {
+          window.open(publicizeUrl(body.url), "_blank", "noopener");
+          if (body.ok) setTimeout(() => load(true), 600);
+          return;
+        }
+      } catch (_) { /* fall through */ }
       try {
         const res = await fetch("/api/launch?domain=" + encodeURIComponent(domainId), {
           cache: "no-store",
@@ -980,6 +995,10 @@
       const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
 
       renderFanIn(data.fan_in);
+
+      // Grouped sticky dock (Today / Decide / Home)
+      renderDock(data);
+      bindDockClicks();
 
       // Primary: unitary day plan (read-only from payload.day_plan — no dual write)
       renderDayPlan(data.day_plan);
