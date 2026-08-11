@@ -513,7 +513,21 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* Recovery card: cap reasons so battery panel fits without ballooning layout */
+/* Recovery Status: sleep-battery | score/reasons side-by-side */
+.recovery-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.85rem 1.1rem;
+  align-items: start;
+}
+
+.recovery-status-col {
+  min-width: 0;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--border);
+}
+
+/* Cap reasons so right column stays compact next to battery */
 #recovery-card .reasons {
   max-height: 4.8rem;
   overflow: hidden;
@@ -530,11 +544,26 @@ button:disabled {
   overflow: hidden;
 }
 
-/* Sleep battery — Time Allocator style, compact at bottom of recovery */
+/* Sleep battery — left half of Recovery Status (above score on narrow) */
 .sleep-battery-panel {
-  margin-top: 0.65rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid var(--border);
+  margin-top: 0;
+  padding-top: 0;
+  padding-left: 0;
+  border-top: none;
+  border-left: none;
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .recovery-split {
+    grid-template-columns: 1fr;
+  }
+  .recovery-status-col {
+    padding-left: 0;
+    padding-top: 0.55rem;
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
 }
 
 .sb-panel-head {
