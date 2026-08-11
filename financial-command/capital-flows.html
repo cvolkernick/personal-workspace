@@ -88,7 +88,8 @@
       background: #0d141c;
       padding: 0.5rem;
     }
-    svg.flow-svg { display: block; min-width: 1480px; width: 100%; height: auto; }
+    /* Fit page max-width (~1100); avoid fixed min-width that forces horizontal scroll */
+    svg.flow-svg { display: block; width: 100%; max-width: 100%; height: auto; min-width: 0; }
     .node-box {
       fill: #15202c;
       stroke: var(--border);
@@ -245,7 +246,7 @@
       <h2>Flow map</h2>
       <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(Digital Credit → X Money → Margin)</em> → <strong>Deploy</strong>. Credit engines are LE cards, not separate columns. Each credit card still runs HY ↔ borrowing rotation inside.</p>
       <div class="flow-wrap">
-        <svg class="flow-svg" id="flow-svg" viewBox="0 0 1240 620" role="img" aria-label="Capital flow diagram"></svg>
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 620" role="img" aria-label="Capital flow diagram"></svg>
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
         <div>
@@ -346,11 +347,13 @@
             ],
           },
         ];
-      // Five columns: slightly narrower nodes / gaps so map fits
+      // Scale to ~1100px content width (3-col map is the common case post-v36)
       const colCount = Math.max(layoutCols.length, 1);
-      const nodeW = colCount >= 5 ? 168 : colCount >= 4 ? 185 : 200;
-      const colGap = colCount >= 5 ? 230 : colCount >= 4 ? 250 : 320;
-      const leftPad = 24;
+      const nodeW =
+        colCount >= 5 ? 150 : colCount >= 4 ? 165 : colCount >= 3 ? 200 : 220;
+      const colGap =
+        colCount >= 5 ? 200 : colCount >= 4 ? 220 : colCount >= 3 ? 260 : 300;
+      const leftPad = 16;
       const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
       const byId = {};
       (data.channels || []).forEach((n) => {
@@ -414,8 +417,8 @@
         });
       });
       const svgW = Math.max(
-        1000,
-        leftPad + (colCount - 1) * colGap + nodeW + 40
+        720,
+        leftPad + (colCount - 1) * colGap + nodeW + 32
       );
       // Taller canvas when a column is dense
       const svgH = Math.max(620, top + colH + 48);
@@ -461,7 +464,7 @@
     function draw(data) {
       const svg = document.getElementById("flow-svg");
       const { positions, layoutCols, xByIndex, svgW, svgH } = layoutNodes(data);
-      const W = svgW || 1240;
+      const W = svgW || 900;
       const H = svgH || 620;
 
       // defs for arrows
