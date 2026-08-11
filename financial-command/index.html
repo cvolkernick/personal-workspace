@@ -3588,7 +3588,7 @@
       const sleeves = ev.sleeves || {};
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
-          "Loan / LTV buffer (USDC HY)",
+          "HY LTV Buffer",
           sleeves.loan_buffer?.filled,
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
@@ -3615,7 +3615,7 @@
           money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
         ),
         metric(
-          "USDC HY (LTV buffer)",
+          "HY LTV Buffer",
           inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
         ),
         metric(
@@ -4074,14 +4074,14 @@
       // Settings (pol declared above with KPI tones)
       document.getElementById("policy-grid").innerHTML = [
         sleeveHtml("Card float target", pol.cb_card_float_usdc, pol.cb_card_float_usdc, 0),
-        sleeveHtml("Loan buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
+        sleeveHtml("HY LTV Buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
         sleeveHtml("RH BP floor", pol.rh_bp_floor, pol.rh_bp_floor, 0),
       ].join("");
       // simpler display for targets (bridge powder retired — HY covers residual)
       document.getElementById("policy-grid").innerHTML = [
         metric("LTV max", pct(pol.cb_target_ltv_max)),
         metric("LTV alert", pct(pol.cb_ltv_alert)),
-        metric("Loan / LTV buffer $ (USDC HY)", money(pol.cb_loan_buffer_usdc)),
+        metric("HY LTV Buffer $", money(pol.cb_loan_buffer_usdc)),
         metric("Spot card reserve $", money(pol.cb_card_float_usdc)),
         metric("RH BP floor $", money(pol.rh_bp_floor)),
         metric("Margin max", pct(pol.rh_margin_use_max)),
