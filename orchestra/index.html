@@ -38,7 +38,51 @@
       align-items: center; justify-content: space-between;
       background: rgba(8,12,18,0.75);
       backdrop-filter: blur(8px);
-      position: sticky; top: 0; z-index: 10;
+      position: sticky; top: 0; z-index: 12;
+    }
+    /* Grouped sticky dock — plane sections, not flat equal pills */
+    .domain-nav {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 0.85rem;
+      padding: 0.5rem 1.5rem 0.6rem;
+      border-bottom: 1px solid var(--border);
+      background: rgba(10,14,20,0.94);
+      backdrop-filter: blur(8px);
+      position: sticky; top: 3.35rem; z-index: 11;
+      align-items: center;
+    }
+    .domain-nav .nav-group {
+      display: inline-flex; flex-wrap: wrap; gap: 0.35rem;
+      align-items: center;
+    }
+    .domain-nav .nav-group-label {
+      color: var(--muted); font-size: 0.68rem; font-weight: 700;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      margin-right: 0.15rem;
+    }
+    .domain-nav a.nav-chip {
+      display: inline-flex; align-items: center; gap: 0.3rem;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 650;
+      text-decoration: none; white-space: nowrap; cursor: pointer;
+    }
+    .domain-nav a.nav-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .domain-nav a.nav-chip.offline { opacity: 0.72; }
+    .domain-nav a.nav-chip.stale .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
+    .domain-nav a.nav-chip .dot {
+      width: 0.42rem; height: 0.42rem; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .domain-nav a.nav-chip.live .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+    .domain-nav a.nav-chip.offline .dot { background: var(--yellow); }
+    button.gate-cta {
+      background: #1a3a55; border-color: #2d6a9f; color: var(--text);
+      font-size: 0.78rem; padding: 0.28rem 0.65rem; border-radius: 8px;
+    }
+    button.gate-cta:hover { border-color: var(--accent); color: var(--accent); }
+    #launch-toast {
+      display: none; margin: 0 0 0.75rem; padding: 0.55rem 0.85rem;
+      border-radius: 8px; border: 1px solid var(--border); font-size: 0.88rem;
     }
     header h1 {
       margin: 0; font-size: 1.3rem; font-weight: 700;
@@ -309,18 +353,79 @@
     .day-plan .empty-hint {
       color: var(--muted); font-size: 0.85rem; padding: 0.5rem 0.15rem;
     }
+
+    /* #128: grouped sticky dock */
+    header.orch-chrome {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.65rem;
+    }
+    header.orch-chrome .orch-chrome-top {
+      display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem;
+      align-items: center; justify-content: space-between;
+    }
+    .domain-nav {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 1rem;
+      align-items: center;
+      padding-top: 0.35rem;
+      border-top: 1px solid var(--border);
+    }
+    .nav-group {
+      display: flex; flex-wrap: wrap; gap: 0.35rem 0.4rem;
+      align-items: center;
+    }
+    .nav-group-label {
+      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted);
+      margin-right: 0.15rem;
+    }
+    .nav-chip {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: var(--panel); color: var(--text);
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 0.28rem 0.65rem; font-size: 0.82rem; font-weight: 650;
+      text-decoration: none; cursor: pointer;
+    }
+    .nav-chip:hover { border-color: var(--accent); color: var(--accent); }
+    .nav-chip .dot {
+      width: 0.45rem; height: 0.45rem; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+    }
+    .nav-chip.live .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
+    .nav-chip.offline .dot { background: var(--yellow); }
+    .nav-chip.stale { border-color: #6b2e2e; }
+    .nav-chip.stale .dot { background: var(--red); }
+    .nav-chip.unknown .dot { background: var(--orange); }
+    .dp-gate-ctas {
+      display: flex; flex-wrap: wrap; gap: 0.45rem;
+      margin: 0.65rem 0 0.15rem;
+    }
+    .dp-gate-ctas:empty { display: none; }
+    .dp-gate-ctas a, .dp-gate-ctas button.cta {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      background: #1a3a55; color: var(--text);
+      border: 1px solid #2d6a9f; border-radius: 8px;
+      padding: 0.4rem 0.85rem; font-size: 0.88rem; font-weight: 700;
+      text-decoration: none; cursor: pointer;
+    }
+    .dp-gate-ctas a:hover, .dp-gate-ctas button.cta:hover {
+      border-color: var(--cyan); color: var(--cyan);
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <h1>Orchestrator</h1>
-      <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
+  <header class="orch-chrome">
+    <div class="orch-chrome-top">
+      <div>
+        <h1>Orchestrator</h1>
+        <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
+      </div>
+      <div class="actions">
+        <button class="primary" id="btn-refresh" type="button">Refresh</button>
+        <button id="btn-probe" type="button" title="Probe child server ports">Probe ports</button>
+      </div>
     </div>
-    <div class="actions">
-      <button class="primary" id="btn-refresh" type="button">Refresh</button>
-      <button id="btn-probe" type="button" title="Probe child server ports">Probe ports</button>
-    </div>
+    <nav class="domain-nav" id="domain-nav" aria-label="Grouped dashboard dock"></nav>
   </header>
   <main>
     <div class="error-banner" id="error"></div>
@@ -345,6 +450,7 @@
         </div>
         <div class="dp-col">
           <h3>Gates</h3>
+          <div class="dp-gate-ctas" id="dp-gate-ctas" aria-label="Gate open actions"></div>
           <div class="list" id="dp-gates"></div>
         </div>
       </div>
@@ -371,10 +477,13 @@
       <div class="grid" id="domains"></div>
     </section>
 
-    <section id="sec-links">
-      <h2>Launch subordinates</h2>
+    <details class="secondary" id="sec-links">
+      <summary>Advanced · Launch commands &amp; raw URLs</summary>
+      <p class="sub" style="color:var(--muted);font-size:0.85rem;margin:0.5rem 0 0.65rem">
+        Ops path. Prefer the sticky dock and gate <strong>Open</strong> CTAs above.
+      </p>
       <div class="list" id="links"></div>
-    </section>
+    </details>
 
     <details class="secondary" id="sec-detail-streams">
       <summary>Supporting analysis (attention · synergies · raw priorities · day bridge)</summary>
@@ -409,6 +518,166 @@
     let lastProbe = false;
     let lastData = null;
     let synFilter = "all";
+
+    /** #128 nav groups — plane-grouped dock (no new domains beyond known ports). */
+    const NAV_GROUPS = [
+      {
+        id: "today",
+        label: "Today",
+        chips: [
+          { id: "holistic", short: "Holistic", port: 8770, path: "/" },
+          { id: "fitness", short: "FitDash", port: 8787, path: "/" },
+          { id: "workflow", short: "Workflow", port: 8765, path: "/" },
+          { id: "finance", short: "FCC", port: 8000, path: "/financial-command/index.html" },
+        ],
+      },
+      {
+        id: "decide",
+        label: "Decide",
+        chips: [
+          { id: "horizon", short: "Horizon", port: 8795, path: "/" },
+          { id: "seasonal", short: "Seasonal", port: 8791, path: "/" },
+          { id: "b2", short: "B2", port: 8792, path: "/" },
+        ],
+      },
+      {
+        id: "home",
+        label: "Home",
+        chips: [
+          { id: "iot", short: "IoT", port: 8780, path: "/" },
+        ],
+      },
+    ];
+    const GATE_CTA = {
+      finance: { short: "Open FCC", domainId: "finance" },
+      fitness: { short: "Open FitDash", domainId: "fitness" },
+      workflow: { short: "Open Workflow", domainId: "workflow" },
+    };
+
+    function pageHost() {
+      const h = (window.location && window.location.hostname) || "";
+      return h || "127.0.0.1";
+    }
+
+    /** Rewrite loopback deep-links to the host the operator used (Pi/Tailscale). */
+    function publicizeUrl(url) {
+      if (!url) return url;
+      const host = pageHost();
+      if (!host || host === "127.0.0.1" || host === "localhost") return url;
+      return String(url)
+        .replace(/:\/\/127\.0\.0\.1/g, "://" + host)
+        .replace(/:\/\/localhost/g, "://" + host)
+        .replace(/:\/\/\[::1\]/g, "://" + host);
+    }
+
+    function urlForChip(chip, domainById) {
+      const d = domainById[chip.id];
+      if (d && d.url) return publicizeUrl(d.url);
+      const host = pageHost();
+      const path = chip.path || "/";
+      return "http://" + host + ":" + chip.port + path;
+    }
+
+    function chipState(chip, domainById) {
+      const d = domainById[chip.id] || {};
+      let klass = "unknown";
+      if (d.live === true) klass = "live";
+      else if (d.live === false) klass = "offline";
+      if (d.stale) klass = (klass === "live" ? "stale" : klass + " stale").trim();
+      return { klass, domain: d };
+    }
+
+    function renderDock(data) {
+      const el = $("domain-nav");
+      if (!el) return;
+      const domains = data.domains || [];
+      const domainById = {};
+      domains.forEach((d) => { if (d && d.id) domainById[d.id] = d; });
+      // Strategy meta only if present in payload (files-only — no chip force)
+      const strategy = domainById.strategy;
+      el.innerHTML = NAV_GROUPS.map((g) => {
+        const chips = g.chips.map((chip) => {
+          const { klass, domain } = chipState(chip, domainById);
+          const href = urlForChip(chip, domainById);
+          const portTip = chip.port != null ? "port " + chip.port : "";
+          const age = domain.age_hours != null ? " · " + formatAgeHours(domain.age_hours) : "";
+          const staleTip = domain.stale ? " · stale" : "";
+          const title = [chip.short || chip.id, portTip, (domain.status || ""), age + staleTip]
+            .filter(Boolean).join(" · ");
+          return `<a class="nav-chip ${klass}" href="${esc(href)}" data-domain="${esc(chip.id)}"
+            target="_blank" rel="noopener" title="${esc(title)}">
+            <span class="dot" aria-hidden="true"></span>${esc(chip.short || chip.id)}
+          </a>`;
+        }).join("");
+        return `<div class="nav-group" data-group="${esc(g.id)}">
+          <span class="nav-group-label">${esc(g.label)}</span>${chips}
+        </div>`;
+      }).join("") + (strategy
+        ? `<div class="nav-group" data-group="meta">
+            <span class="nav-group-label">Meta</span>
+            <span class="nav-chip unknown" title="files only — Strategy">
+              <span class="dot"></span>Strategy
+            </span>
+          </div>`
+        : "");
+    }
+
+    async function openDomain(domainId, fallbackUrl) {
+      const pubFallback = publicizeUrl(fallbackUrl);
+      // Prefer POST ensure-and-open (starts local server when offline); fall back to GET URL probe.
+      try {
+        const res = await fetch("/api/launch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: domainId }),
+          cache: "no-store",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (body && body.url) {
+          window.open(publicizeUrl(body.url), "_blank", "noopener");
+          if (body.ok) setTimeout(() => load(true), 600);
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      try {
+        const res = await fetch("/api/launch?domain=" + encodeURIComponent(domainId), {
+          cache: "no-store",
+        });
+        if (res.ok) {
+          const body = await res.json();
+          if (body && body.ok && body.url) {
+            window.open(publicizeUrl(body.url), "_blank", "noopener");
+            return;
+          }
+        }
+      } catch (_) { /* fall through */ }
+      if (pubFallback) window.open(pubFallback, "_blank", "noopener");
+    }
+
+    function bindDockClicks() {
+      const el = $("domain-nav");
+      if (!el || el._bound) return;
+      el._bound = true;
+      el.addEventListener("click", (ev) => {
+        const a = ev.target.closest("a.nav-chip[data-domain]");
+        if (!a) return;
+        const live = a.classList.contains("live");
+        // Live chips: normal navigation with publicized href.
+        // Offline/unknown: ensure path via /api/launch then open.
+        if (!live) {
+          ev.preventDefault();
+          openDomain(a.getAttribute("data-domain"), a.getAttribute("href"));
+        } else {
+          // still publicize in case href was built before host known
+          const href = publicizeUrl(a.getAttribute("href"));
+          if (href && href !== a.getAttribute("href")) {
+            ev.preventDefault();
+            window.open(href, "_blank", "noopener");
+          }
+        }
+      });
+    }
+
 
     function showError(msg) {
       const el = $("error");
@@ -543,7 +812,7 @@
             const domain = item.domain || "unknown";
             const sev = item.severity || "info";
             const link = item.deep_link
-              ? `<a class="link" href="${esc(item.deep_link)}" target="_blank" rel="noopener">Open →</a>`
+              ? `<a class="link" href="${esc(publicizeUrl(item.deep_link))}" target="_blank" rel="noopener">Open →</a>`
               : "";
             return `<div class="row dp-next">
               <div class="title">
@@ -574,6 +843,7 @@
         : '<div class="empty-hint">No day blocks — Holistic plan empty or unavailable.</div>';
 
       // Gates: capital / body / WIP — never invent green; surface stale/unknown
+      const activeGateDomains = new Set();
       gatesEl.innerHTML = gates.length
         ? gates.map((g) => {
             const sev = String(g.severity || "info").toLowerCase();
@@ -581,6 +851,9 @@
               : sev === "unknown" ? "dp-gate-unknown"
               : sev === "warn" ? "dp-gate-warn" : "";
             const domain = g.domain || "";
+            if (domain && (sev === "block" || sev === "warn" || sev === "unknown")) {
+              activeGateDomains.add(domain);
+            }
             const staleChip = g.stale || sev === "unknown" || (g.freshness && g.freshness !== "fresh")
               ? (g.stale || sev === "unknown"
                 ? `<span class="pill stale">${esc(sev === "unknown" ? "unknown" : "stale")}</span>`
@@ -588,8 +861,9 @@
               : "";
             // Do not paint green for gates — only severity truth
             const sevPill = `<span class="pill ${esc(sev === "info" ? "info" : sev)}">${esc(sev)}</span>`;
-            const link = g.deep_link
-              ? `<a class="link" href="${esc(g.deep_link)}" target="_blank" rel="noopener">Open →</a>`
+            const deep = publicizeUrl(g.deep_link);
+            const link = deep
+              ? `<a class="link" href="${esc(deep)}" target="_blank" rel="noopener">Open →</a>`
               : "";
             return `<div class="row ${rowClass}">
               <div class="title">
@@ -603,6 +877,36 @@
             </div>`;
           }).join("")
         : '<div class="empty-hint">No gates — domains may still be loading or all clear (not invented green).</div>';
+
+      // Primary gate CTAs (Open FCC / FitDash / Workflow) when block|warn|unknown
+      const ctaEl = $("dp-gate-ctas");
+      if (ctaEl) {
+        const ctas = [];
+        for (const [dom, meta] of Object.entries(GATE_CTA)) {
+          if (!activeGateDomains.has(dom)) continue;
+          const chip = NAV_GROUPS.flatMap((g) => g.chips).find((c) => c.id === dom);
+          const href = chip
+            ? urlForChip(chip, Object.fromEntries(
+                (lastData && lastData.domains || []).map((d) => [d.id, d])
+              ))
+            : publicizeUrl((gates.find((x) => x.domain === dom) || {}).deep_link);
+          if (!href) continue;
+          ctas.push(
+            `<a class="cta" href="${esc(href)}" data-domain="${esc(dom)}" target="_blank" rel="noopener">${esc(meta.short)}</a>`
+          );
+        }
+        ctaEl.innerHTML = ctas.join("");
+        if (!ctaEl._bound) {
+          ctaEl._bound = true;
+          ctaEl.addEventListener("click", (ev) => {
+            const a = ev.target.closest("a.cta[data-domain]");
+            if (!a) return;
+            // Prefer /api/launch path for honesty when offline
+            ev.preventDefault();
+            openDomain(a.getAttribute("data-domain"), a.getAttribute("href"));
+          });
+        }
+      }
     }
 
     function renderFanIn(fan) {
@@ -692,6 +996,10 @@
 
       renderFanIn(data.fan_in);
 
+      // Grouped sticky dock (Today / Decide / Home)
+      renderDock(data);
+      bindDockClicks();
+
       // Primary: unitary day plan (read-only from payload.day_plan — no dual write)
       renderDayPlan(data.day_plan);
 
@@ -778,7 +1086,7 @@
           : (d.age_hours != null
             ? `<span class="pill fresh">${esc(formatAgeHours(d.age_hours))}</span>`
             : "");
-        const url = d.url ? `<a class="link" href="${esc(d.url)}" target="_blank" rel="noopener">Open →</a>` : "";
+        const url = d.url ? `<a class="link" href="${esc(publicizeUrl(d.url))}" target="_blank" rel="noopener">Open →</a>` : "";
         return `<article class="card">
           <h3>${esc(d.label || d.id)}</h3>
           <div class="sum">${esc(d.summary || "")}</div>
@@ -836,8 +1144,9 @@
       const links = (data.links || []).filter((l) => l.id !== "strategy");
       $("links").innerHTML = links.map((l) => {
         const port = l.port != null ? `port ${l.port}` : "files only";
-        const url = l.url
-          ? `<a class="link" href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.url)}</a>`
+        const pub = l.url ? publicizeUrl(l.url) : "";
+        const url = pub
+          ? `<a class="link" href="${esc(pub)}" target="_blank" rel="noopener">${esc(pub)}</a>`
           : "—";
         const launch = l.launch ? `<code>${esc(l.launch)}</code>` : "";
         return `<div class="row">
