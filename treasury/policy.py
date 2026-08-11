@@ -19,7 +19,8 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "cb_card_float_usdc": 0.0,
     # Primary USDC HY purpose: Morpho LTV / BTC collateral defense buffer
     "cb_loan_buffer_usdc": 1000.0,
-    "cb_bridge_dry_powder_usdc": 200.0,
+    # Retired 2026-08-11: bridge residual is served by HY pools (loan buffer), not a separate floor.
+    "cb_bridge_dry_powder_usdc": 0.0,
     "rh_bp_floor": 0.0,  # MO 2026-08-02: no RH BP floor — any in-account BP deployable
     # RH margin-use bands (call ~50%): target home → alert defense → hard max
     "rh_margin_use_target": 0.28,  # cool operating home; below → park in USDG HY
@@ -30,7 +31,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "bridge_max_recommend_usdc": 5000.0,
     "stale_after_hours": 6.0,
     # Capital Flows MO (2026-08-10): USDC HY = LTV/margin buffer; One Card = Morpho new principal
-    # refinance (~5% vs ~29%). Vault counts toward loan/bridge floors only — not card paydown.
+    # refinance (~5% vs ~29%). Vault counts toward LTV/HY floor only — not card paydown.
     "count_vault_toward_buffers": True,
     "count_vault_toward_card_float": False,
     "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers LTV floors
@@ -73,13 +74,14 @@ def classify_liquid_usdc(
 ) -> Dict[str, Any]:
     """Split liquid USDC into required floors vs excess.
 
-    Floor fill order (Capital Flows MO): loan_buffer (LTV) → bridge → card_float
-    (optional spot reserve). Card paydown is *not* scored here when callers pass
-    card_float=0 — One Card is Morpho refinance, not a vault-funded float.
+    Floor fill order (Capital Flows MO): loan_buffer (USDC HY LTV sleeve) →
+    card_float (optional spot reserve). Bridge dry powder is retired (default 0) —
+    CB↔RH residual is served by the HY pool, not a separate cash floor.
+    Card paydown is *not* scored here when callers pass card_float=0.
     """
     floors = {
         "loan_buffer": max(0.0, loan_buffer),
-        "bridge_dry_powder": max(0.0, bridge_dry_powder),
+        "bridge_dry_powder": max(0.0, bridge_dry_powder),  # legacy key; keep 0
         "card_float": max(0.0, card_float),
     }
     required = sum(floors.values())
@@ -89,7 +91,7 @@ def classify_liquid_usdc(
     remaining = liquid_usdc
     filled = {}
     gaps = {}
-    # LTV buffer first, then bridge, then optional spot card reserve
+    # LTV / HY buffer first, then optional spot card reserve (bridge floor is 0)
     for name in ("loan_buffer", "bridge_dry_powder", "card_float"):
         need = floors[name]
         take = min(remaining, need)
@@ -633,7 +635,7 @@ def cashflow_allocation_guidance(
     Priority (free dollars):
       1. Essential expenses paid & current (overdue / ≤7d window)
       2. Coinbase One Card balance paid down
-      3. LTV buffers (loan / USDC HY sleeve · bridge powder) — not card float from vault
+      3. LTV buffer (loan / USDC HY sleeve) — not card float from vault; bridge powder retired
       4. Excess beyond floors → collateral; HY→Collateral only under LTV heat
 
     Capex (Productive Discretionary first, then Consumer) is **not** free-dollar
@@ -1398,19 +1400,13 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # LTV floors shortfall (loan + bridge) — separate from card refinance
-    need_ltv_stack = (
-        buckets["gaps"]["loan_buffer"] > 0
-        or buckets["gaps"]["bridge_dry_powder"] > 0
-        or buckets["shortfall"] > 0
-    )
+    # LTV / HY buffer shortfall — separate from card refinance
+    need_ltv_stack = buckets["gaps"]["loan_buffer"] > 0 or buckets["shortfall"] > 0
     if need_ltv_stack and buckets["shortfall"] > 0:
         bits: List[str] = []
         if buckets["gaps"]["loan_buffer"] > 0:
-            bits.append(f"loan buf −${buckets['gaps']['loan_buffer']:.0f}")
-        if buckets["gaps"]["bridge_dry_powder"] > 0:
-            bits.append(f"bridge −${buckets['gaps']['bridge_dry_powder']:.0f}")
-        title = "Restore LTV buffer stack · " + " · ".join(bits) if bits else "Restore LTV buffer stack"
+            bits.append(f"HY LTV buf −${buckets['gaps']['loan_buffer']:.0f}")
+        title = "Restore LTV buffer (USDC HY) · " + " · ".join(bits) if bits else "Restore LTV buffer (USDC HY)"
         actions.append(
             {
                 "priority": 2,
@@ -1418,7 +1414,8 @@ def evaluate_treasury(
                 "title": title,
                 "actor": "human",
                 "detail": (
-                    "USDC HY + spot vs loan/bridge floors (Capital Flows Liquidity Engine). "
+                    "USDC HY + spot vs Morpho LTV floor (Capital Flows). "
+                    "Bridge powder retired — CB↔RH residual is served by the HY pool. "
                     "Top Morpho LTV buffer in-app; do not treat HY as One Card float."
                 ),
                 "api_reachable": False,
@@ -1485,7 +1482,7 @@ def evaluate_treasury(
             "bridge_rh_to_cb",
             f"Recommend bridge ~${amt:.2f} cash Robinhood → Coinbase",
             actor="human",
-            detail="Recommend-only to refill Morpho LTV buffer (USDC HY) or bridge powder.",
+            detail="Recommend-only to refill Morpho LTV buffer (USDC HY).",
             api_reachable=False,
         )
     elif (
@@ -1496,7 +1493,7 @@ def evaluate_treasury(
             or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
         )
     ):
-        # No BP floor: still allow RH→CB recommend when LTV buffer stack short / LTV hot
+        # No BP floor: still allow RH→CB recommend when LTV buffer short / LTV hot
         amt = min(cash * 0.5, _f(p["bridge_max_recommend_usdc"]), max(buckets["shortfall"], 100.0))
         if amt >= 50:
             add(
@@ -1504,7 +1501,7 @@ def evaluate_treasury(
                 "bridge_rh_to_cb",
                 f"Recommend bridge ~${amt:.2f} RH → Coinbase",
                 actor="human",
-                detail="Recommend-only — refill LTV buffer (USDC HY) / bridge powder, not card float.",
+                detail="Recommend-only — refill LTV buffer (USDC HY), not card float.",
                 api_reachable=False,
             )
 
@@ -1832,6 +1829,7 @@ def evaluate_treasury(
                 "target": _f(p["cb_bridge_dry_powder_usdc"]),
                 "filled": buckets["filled"]["bridge_dry_powder"],
                 "gap": buckets["gaps"]["bridge_dry_powder"],
+                "note": "Retired 2026-08-11 — floor=0; CB↔RH residual served by USDC HY loan buffer",
             },
         },
         "strategy_context": {

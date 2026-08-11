@@ -27,13 +27,14 @@ class TestClassifyLiquid(unittest.TestCase):
             100,
             card_float=500,
             loan_buffer=1000,
-            bridge_dry_powder=200,
+            bridge_dry_powder=0,  # retired — HY covers residual
         )
         self.assertGreater(r["shortfall"], 0)
         self.assertEqual(r["status"], "red")
-        # Fill order: loan_buffer first (LTV), then bridge, then card_float
+        # Fill order: loan_buffer first (LTV/HY), then card_float
         self.assertEqual(r["filled"]["loan_buffer"], 100)
         self.assertEqual(r["filled"]["card_float"], 0)
+        self.assertEqual(r["filled"]["bridge_dry_powder"], 0)
         self.assertEqual(r["excess"], 0)
 
     def test_excess_after_floors(self):
@@ -41,11 +42,23 @@ class TestClassifyLiquid(unittest.TestCase):
             2000,
             card_float=500,
             loan_buffer=1000,
-            bridge_dry_powder=200,
+            bridge_dry_powder=0,
         )
         self.assertEqual(r["shortfall"], 0)
-        self.assertAlmostEqual(r["excess"], 300)
+        # required = 1500; excess = 500
+        self.assertAlmostEqual(r["excess"], 500)
         self.assertEqual(r["status"], "green")
+
+    def test_bridge_powder_zero_not_required(self):
+        r = classify_liquid_usdc(
+            1000,
+            card_float=0,
+            loan_buffer=1000,
+            bridge_dry_powder=0,
+        )
+        self.assertEqual(r["shortfall"], 0)
+        self.assertEqual(r["required_total"], 1000)
+        self.assertEqual(r["gaps"]["bridge_dry_powder"], 0)
 
 
 class TestDcaGovernor(unittest.TestCase):

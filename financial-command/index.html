@@ -2219,9 +2219,9 @@
     const DEFAULT_POLICY = {
       cb_target_ltv_max: 0.5,
       cb_ltv_alert: 0.45,
-      cb_card_float_usdc: 500,
+      cb_card_float_usdc: 0,
       cb_loan_buffer_usdc: 1000,
-      cb_bridge_dry_powder_usdc: 200,
+      cb_bridge_dry_powder_usdc: 0, // retired 2026-08-11 — HY covers residual
       rh_bp_floor: 0,
       rh_margin_use_max: 0.4,
       excess_split_cb: 0.6,
@@ -2499,7 +2499,7 @@
       const floors = {
         card_float: p.cb_card_float_usdc,
         loan_buffer: p.cb_loan_buffer_usdc,
-        bridge_dry_powder: p.cb_bridge_dry_powder_usdc,
+        bridge_dry_powder: p.cb_bridge_dry_powder_usdc || 0, // retired — HY covers residual
       };
       const required = floors.card_float + floors.loan_buffer + floors.bridge_dry_powder;
       const shortfall = Math.max(0, required - liquid);
@@ -2547,8 +2547,8 @@
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
       if (f(man.card_balance) > 0)
         add(1, "card_refinance", `Refinance One Card $${f(man.card_balance).toFixed(0)} via Morpho principal`, "human", "Not HY pull — LTV buffer stays.", false);
-      if (buckets.gaps.loan_buffer > 0 || buckets.gaps.bridge_dry_powder > 0)
-        add(2, "ltv_buffer_stack", `Restore LTV buffer floors`, "human", "USDC HY sleeve vs loan/bridge.", false);
+      if (buckets.gaps.loan_buffer > 0)
+        add(2, "ltv_buffer_stack", `Restore LTV buffer (USDC HY)`, "human", "USDC HY sleeve vs Morpho LTV floor.", false);
       if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "Throttle buys.", true);
       actions.sort((a, b) => a.priority - b.priority);
       return {
@@ -2989,9 +2989,9 @@
         if (s.id === "cash_buffers" && s.meta && s.meta.gaps) {
           const g = s.meta.gaps;
           extra =
-            `<div class="ag-meta">float ${money(g.card_float)} · loan ${money(
+            `<div class="ag-meta">float ${money(g.card_float)} · HY LTV buf ${money(
               g.loan_buffer
-            )} · bridge ${money(g.bridge_dry_powder)}</div>`;
+            )}</div>`;
         }
         if (s.id === "capex_margin" && s.meta) {
           const bits = [];
@@ -3223,7 +3223,7 @@
         if (stress.coinbase_liquid === "red") {
           return toneResult(
             "red",
-            `LTV buffer USDC ${money(workingUsdc)} is below loan/bridge floors (USDC HY sleeve — not One Card float).`
+            `LTV buffer USDC ${money(workingUsdc)} is below USDC HY floor (not One Card float).`
           );
         }
         if (stress.coinbase_liquid === "yellow") {
@@ -3588,7 +3588,7 @@
       const sleeves = ev.sleeves || {};
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
-          "Loan / LTV buffer",
+          "Loan / LTV buffer (USDC HY)",
           sleeves.loan_buffer?.filled,
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
@@ -3600,12 +3600,6 @@
             : sleeves.card_float?.filled,
           sleeves.one_card?.deposit != null ? sleeves.one_card.deposit : sleeves.card_float?.target,
           sleeves.one_card?.balance != null ? sleeves.one_card.balance : sleeves.card_float?.gap
-        ),
-        sleeveHtml(
-          "Bridge powder",
-          sleeves.bridge_dry_powder?.filled,
-          sleeves.bridge_dry_powder?.target,
-          sleeves.bridge_dry_powder?.gap
         ),
       ].join("");
 
@@ -4081,15 +4075,13 @@
       document.getElementById("policy-grid").innerHTML = [
         sleeveHtml("Card float target", pol.cb_card_float_usdc, pol.cb_card_float_usdc, 0),
         sleeveHtml("Loan buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
-        sleeveHtml("Bridge powder", pol.cb_bridge_dry_powder_usdc, pol.cb_bridge_dry_powder_usdc, 0),
         sleeveHtml("RH BP floor", pol.rh_bp_floor, pol.rh_bp_floor, 0),
       ].join("");
-      // simpler display for targets
+      // simpler display for targets (bridge powder retired — HY covers residual)
       document.getElementById("policy-grid").innerHTML = [
         metric("LTV max", pct(pol.cb_target_ltv_max)),
         metric("LTV alert", pct(pol.cb_ltv_alert)),
-        metric("Loan / LTV buffer $", money(pol.cb_loan_buffer_usdc)),
-        metric("Bridge powder $", money(pol.cb_bridge_dry_powder_usdc)),
+        metric("Loan / LTV buffer $ (USDC HY)", money(pol.cb_loan_buffer_usdc)),
         metric("Spot card reserve $", money(pol.cb_card_float_usdc)),
         metric("RH BP floor $", money(pol.rh_bp_floor)),
         metric("Margin max", pct(pol.rh_margin_use_max)),
