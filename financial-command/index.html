@@ -1053,6 +1053,41 @@
     .alloc-bar .fill { display: block; height: 100%; border-radius: 6px; }
     .alloc-bar .fill.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
     .alloc-bar .fill.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    /* Single dual-shade bar: stocks (left) + BTC complex (right) of deployed mix */
+    .alloc-bar.dual {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    .alloc-bar.dual .fill {
+      display: block;
+      height: 100%;
+      border-radius: 0;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .alloc-bar.dual .fill:first-child { border-radius: 6px 0 0 6px; }
+    .alloc-bar.dual .fill:last-of-type { border-radius: 0 6px 6px 0; }
+    .alloc-bar.dual .fill:only-child { border-radius: 6px; }
+    .alloc-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1rem;
+      margin-top: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .alloc-legend .sw {
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 2px;
+      margin-right: 0.28rem;
+      vertical-align: -1px;
+    }
+    .alloc-legend .sw.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    .alloc-legend .sw.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
     .alloc-bar .target-mark {
       position: absolute;
       top: -2px;
@@ -3068,7 +3103,7 @@
       if (fmaEarly.ok) {
         if (inBandB && inBandS) {
           fmHealth = "green";
-          fmHealthLabel = "In band · ~40/60";
+          fmHealthLabel = "In band · ~60/40";
         } else if (wDepEarly.btc_digital_credit == null && (fmaEarly.cash_usd || 0) > 0) {
           fmHealth = "yellow";
           fmHealthLabel = "Cash idle · not deployed";
@@ -3297,23 +3332,24 @@
             : toneResult("orange", "Deployed sleeve weights unavailable.");
         }
         const drift = Math.abs(wDepK.btc_digital_credit - tgtB);
+        // Display as stocks/BTC (60/40), not BTC/stocks (legacy 40/60 label)
         const mix =
-          Math.round(wDepK.btc_digital_credit * 100) +
+          Math.round((wDepK.stocks_growth || 0) * 100) +
           "/" +
-          Math.round((wDepK.stocks_growth || 0) * 100);
+          Math.round(wDepK.btc_digital_credit * 100);
         if (drift > band * 2)
           return toneResult(
             "orange",
-            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 40/60.`
+            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 60/40.`
           );
         if (drift > band)
           return toneResult(
             "yellow",
-            `Deployed mix ${mix} is near the edge of the 40/60 band.`
+            `Deployed mix ${mix} is near the edge of the 60/40 band.`
           );
         return toneResult(
           "green",
-          `Deployed mix ${mix} is in band (~40/60). NAV ${money(agentNav)}.`
+          `Deployed mix ${mix} is in band (~60/40). NAV ${money(agentNav)}.`
         );
       }
       function billsPressureTone() {
@@ -3536,9 +3572,9 @@
           s:
             wDepK.btc_digital_credit == null
               ? "agentic"
-              : Math.round(wDepK.btc_digital_credit * 100) +
+              : Math.round((wDepK.stocks_growth || 0) * 100) +
                 "/" +
-                Math.round((wDepK.stocks_growth || 0) * 100),
+                Math.round(wDepK.btc_digital_credit * 100),
           target: "fund-manager-card",
           tone: tAgent.tone,
           why: tAgent.why,
@@ -3584,8 +3620,28 @@
         });
       });
 
-      // Buffers
+      // Buffers — HY LTV Buffer is generic high-yield defense (not a card float).
+      // One Card sleeve = available credit vs deposit; gap = balance owed (Morpho refinance, not vault pull).
       const sleeves = ev.sleeves || {};
+      const ocSleeve = sleeves.one_card || {};
+      const cardBal =
+        ocSleeve.balance != null
+          ? f(ocSleeve.balance)
+          : inp.card_balance != null
+            ? f(inp.card_balance)
+            : null;
+      const cardDep =
+        ocSleeve.deposit != null
+          ? f(ocSleeve.deposit)
+          : inp.card_security_deposit_usdc != null
+            ? f(inp.card_security_deposit_usdc)
+            : null;
+      const cardAvail =
+        ocSleeve.available_credit != null
+          ? f(ocSleeve.available_credit)
+          : cardBal != null && cardDep != null
+            ? Math.max(0, cardDep - cardBal)
+            : null;
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
           "HY LTV Buffer",
@@ -3593,13 +3649,13 @@
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
         ),
+        // Prefer live One Card numbers; never fall back to retired card_float ($0 target)
+        // which made this sleeve look empty while YNAB still showed ~$447 owed.
         sleeveHtml(
-          "Card (refinance path)",
-          sleeves.one_card?.balance != null
-            ? Math.max(0, (sleeves.one_card.deposit || 0) - (sleeves.one_card.balance || 0))
-            : sleeves.card_float?.filled,
-          sleeves.one_card?.deposit != null ? sleeves.one_card.deposit : sleeves.card_float?.target,
-          sleeves.one_card?.balance != null ? sleeves.one_card.balance : sleeves.card_float?.gap
+          "One Card (Morpho refinance)",
+          cardAvail != null ? cardAvail : 0,
+          cardDep != null ? cardDep : 0,
+          cardBal != null ? cardBal : 0
         ),
       ].join("");
 
@@ -3607,7 +3663,7 @@
       const man = snap.coinbase_manual || {};
       const cashCreditRows = [
         metric(
-          "LTV sleeve USDC (spot+HY)",
+          "LTV sleeve (spot+HY)",
           money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
         ),
         metric(
@@ -3872,26 +3928,33 @@
 
       const btcPct = wDep.btc_digital_credit;
       const stPct = wDep.stocks_growth;
-      const btcOk = btcPct != null && Math.abs(btcPct - 0.4) <= 0.05;
-      const stOk = stPct != null && Math.abs(stPct - 0.6) <= 0.05;
+      const tgtBtc = (fma.targets && fma.targets.btc_digital_credit_pct) || 0.4;
+      const tgtSt = (fma.targets && fma.targets.stocks_growth_pct) || 0.6;
+      const bandAlloc = (fma.targets && fma.targets.band_pct) || 0.05;
+      const btcOk = btcPct != null && Math.abs(btcPct - tgtBtc) <= bandAlloc;
+      const stOk = stPct != null && Math.abs(stPct - tgtSt) <= bandAlloc;
+      const mixOk = btcOk && stOk;
+      const stW = Math.max(0, Math.min(100, Math.round((stPct || 0) * 100)));
+      const btcW = Math.max(0, Math.min(100 - stW, Math.round((btcPct || 0) * 100)));
+      const tgtMarkPct = Math.round(tgtSt * 100); // stocks share from left (60/40)
       document.getElementById("fm-alloc").innerHTML = fma.ok
         ? [
-            `<div class="alloc-row"><div class="top"><span class="name">BTC &amp; digital credit</span>` +
-              `<span class="pct ${btcOk ? "in" : "out"}">${pctLabel(btcPct)} ` +
-              `<span class="hint">target 40%</span></span></div>` +
-              `<div class="alloc-bar"><i class="fill btc" style="width:${Math.min(
-                100,
-                Math.round((btcPct || 0) * 100)
-              )}%"></i>` +
-              `<span class="target-mark" style="left:40%"></span></div></div>`,
-            `<div class="alloc-row"><div class="top"><span class="name">Stocks / growth</span>` +
-              `<span class="pct ${stOk ? "in" : "out"}">${pctLabel(stPct)} ` +
-              `<span class="hint">target 60%</span></span></div>` +
-              `<div class="alloc-bar"><i class="fill stocks" style="width:${Math.min(
-                100,
-                Math.round((stPct || 0) * 100)
-              )}%"></i>` +
-              `<span class="target-mark" style="left:60%"></span></div></div>`,
+            `<div class="alloc-row"><div class="top"><span class="name">Deployed mix · stocks / BTC+</span>` +
+              `<span class="pct ${mixOk ? "in" : "out"}">${pctLabel(stPct)} / ${pctLabel(btcPct)} ` +
+              `<span class="hint">target 60/40</span></span></div>` +
+              `<div class="alloc-bar dual">` +
+              (stW > 0
+                ? `<i class="fill stocks" style="width:${stW}%" title="Stocks / growth ${pctLabel(stPct)}"></i>`
+                : "") +
+              (btcW > 0
+                ? `<i class="fill btc" style="width:${btcW}%" title="BTC &amp; digital credit ${pctLabel(btcPct)}"></i>`
+                : "") +
+              `<span class="target-mark" style="left:${tgtMarkPct}%" title="Target split ${tgtMarkPct}/${100 - tgtMarkPct}"></span>` +
+              `</div>` +
+              `<div class="alloc-legend">` +
+              `<span><i class="sw stocks"></i>Stocks / growth ${pctLabel(stPct)} <span class="hint">tgt ${Math.round(tgtSt * 100)}%</span></span>` +
+              `<span><i class="sw btc"></i>BTC &amp; digital credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
+              `</div></div>`,
           ].join("")
         : `<p class="hint">No allocation yet</p>`;
 

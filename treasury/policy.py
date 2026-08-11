@@ -1622,8 +1622,8 @@ def evaluate_treasury(
     agent_brief_lines = [
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
-        f"USDC LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
-        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — margin buffer, not card float)"
+        f"HY LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
+        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — leverage defense, not card float)"
         f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else "")

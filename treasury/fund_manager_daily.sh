@@ -48,7 +48,7 @@ echo "Pre-review live YNAB + treasury eval…"
 python3 -m treasury.ynab_sync || echo "WARN: ynab_sync failed"
 python3 -m treasury.run_treasury || echo "WARN: run_treasury live failed"
 
-# Rules path first (cheap HOLD when 40/60 ok)
+# Rules path first (cheap HOLD when 60/40 ok)
 set +e
 python3 -m treasury.fund_manager --rules-review --notify
 RR=$?

@@ -112,18 +112,18 @@
       "label": "Digital Credit",
       "kind": "leverage",
       "stroke": "liq-blue",
-      "subtitle": "BTC · Morpho · USDC HY",
+      "subtitle": "BTC · Morpho · HY",
       "confidence": "owner_stated",
-      "notes": "Morpho engine mid-LE: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → HY tops BTC. One Card refinance via Morpho. Two-way with X Money and with Margin."
+      "notes": "Morpho engine mid-LE: liquidity → BTC spot; LTV cool → HY LTV Buffer; LTV hot → HY tops BTC. One Card refinance via Morpho. Two-way with X Money and with Margin. HY is generic high-yield defense (venue product incidental)."
     },
     {
       "id": "margin",
       "label": "Margin",
       "kind": "leverage",
       "stroke": "liq-green",
-      "subtitle": "Agentic · stocks · USDG HY",
+      "subtitle": "Agentic · stocks · HY",
       "confidence": "owner_stated",
-      "notes": "RH equities engine: liquidity → stock spot; margin cool → USDG HY; heat → HY tops stock. Bidirectional with Digital Credit (not X Money). Optional extract is not income."
+      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money). Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
     },
     {
       "id": "bills_essential",
@@ -196,7 +196,7 @@
       "confidence": "owner_stated",
       "weight": 4,
       "label": "cash → DC engine",
-      "notes": "X Money funds Digital Credit (Coinbase / Morpho / BTC / USDC HY)."
+      "notes": "X Money funds Digital Credit (Coinbase / Morpho / BTC / HY LTV Buffer)."
     },
     {
       "from": "digital_credit",

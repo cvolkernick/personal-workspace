@@ -338,7 +338,7 @@ def analyze_agentic_book(
             return None
         return round(actual - target, 4)
 
-    # Among *deployed* equity only, compare sleeve mix to 40/60
+    # Among *deployed* equity only, compare sleeve mix to 60/40 (stocks/BTC+)
     if deployed > 0:
         dep_btc = by_sleeve["btc_digital_credit"] / deployed
         dep_stocks = by_sleeve["stocks_growth"] / deployed
@@ -692,7 +692,7 @@ def rules_based_review(
         kind = "deploy"
         summary = (
             f"Rules → need team/LLM: idle capital cash ${cash:.2f} BP ${bp:.2f} "
-            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f}) toward 40/60"
+            f"(deployable ${deployable:.2f} ≥ min_trade ${min_trade:.2f}) toward 60/40"
         )
         need_llm = True
     elif idle_capital:
@@ -708,7 +708,7 @@ def rules_based_review(
         kind = "rebalance"
         summary = (
             f"Rules → need team/LLM: drift BTC-complex={btc:.0%} stocks={stocks:.0%} "
-            f"(targets 40/60 ±{band:.0%})"
+            f"(targets 60/40 ±{band:.0%})"
         )
         need_llm = True
     else:

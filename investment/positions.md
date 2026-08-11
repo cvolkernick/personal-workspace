@@ -50,7 +50,7 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 | **PLTR** | AI harness/apps (Palantir) | ready | Dive 2026-08-04. Medium priority; high multiple / gov gates. |
 
 **Rules**
-1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.
+1. Prefer **core allowlist** for routine rebalances toward 60/40 when relative value favors it; **strong theme bias**.
 2. Scout/Thesis **must** include every `ready` watchlist name each allocation assessment; reject with reasons if not sized.
 3. **Owner add** → immediately run **`/position-deep-dive symbol=TICKER`** → set `ready` (unless explicit `pass`). Do not leave owner names parked on `monitor`.
 4. Refresh deep-dives on ~**90-day** age, material news/earnings/drawdown, or before first buy if stale.

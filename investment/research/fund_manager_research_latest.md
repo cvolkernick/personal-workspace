@@ -76,7 +76,7 @@ MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, 
 **This pass:** no capital → HOLD.
 
 **When free BP/cash ≥ $1 (next deposit / poll):**
-1. Maintain ~**40/60** of deploy notional.
+1. Maintain ~**60/40** of deploy notional (stocks / BTC+).
 2. Within BTC-complex leg: allocate a **meaningful share to STRC and/or SATA** (owner elevated digital credit) — **not** MSTR-only by habit. MSTR/BITA may still receive residual credit capital.
 3. Miner leg: multi-miner OK (existing MARA/IREN/CLSK; RIOT/WULF eligible if diversifying further — do **not** block on “already have a miner”).
 4. Stocks leg: prefer core **TSLA/SPCX** unless a watchlist AI deep-dive is complete and quorum OK. Note TSLA ~35.4% of equity — elevated single-name but thesis primary; on next stocks deploy prefer SPCX tilt if adding without rebalance.

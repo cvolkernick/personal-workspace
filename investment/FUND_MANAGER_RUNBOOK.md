@@ -24,7 +24,7 @@ Scout → Research/rotate → Thesis → Risk → Critic → Executor (if quorum
 
 1. **Scout** — book, cash, held vs allowlist coverage, watchlist/research  
 2. **Research/rotate** — required; consider held **and** unheld theme names; reject with reasons  
-3. **Thesis** — best allocation *now* for 40/60 + themes  
+3. **Thesis** — best allocation *now* for 60/40 + themes  
 4. **Risk** — size/concentration (small NAV = small tickets, not skipped process)  
 5. **Critic** — block held-only inertia / weak cases  
 6. **Executor** — agentic MCP only; log alternatives + votes  
@@ -124,7 +124,7 @@ python3 -m treasury.fund_manager --rules-review --notify
 
 ## Strategy reminder
 
-Modernized **40% BTC & digital credit / 60% stocks** on **agentic account only**.  
+Modernized **60/40** (**60% stocks / 40% BTC & digital credit**) on **agentic account only**.  
 Cash risk budget = deposits (cash account today). Full allowlist is the menu each deploy; held names are not privileged without a thesis case.
 
 **Owner prefs:**

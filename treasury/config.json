@@ -27,7 +27,7 @@
     "card_balance": null,
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = USDC HY LTV/margin buffer (not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
+    "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense — not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
     "variable_apr": "0",
     "liquidation_price_btc_usd": "0"
   },
