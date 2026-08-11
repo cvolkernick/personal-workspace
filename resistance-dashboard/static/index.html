@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=today-recovery-ia-1" />
+    <link rel="stylesheet" href="/styles.css?v=today-recovery-ia-2" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=today-recovery-ia-1" defer></script>
+    <script src="/app.js?v=today-recovery-ia-2" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -211,26 +211,31 @@
         </div>
       </section>
 
-      <!-- Recovery + sleep-battery: same-wake decision gate → Today (not Trends). -->
+      <!-- Recovery + sleep-battery: same-wake decision gate → Today (not Trends).
+           Score/reasons left · sleep-battery right (stacked on narrow screens). -->
       <section
         class="card"
         style="margin-top: 1rem"
         id="recovery-card"
         data-m-panel="today"
-        aria-label="Recovery status and sleep battery"
+        aria-label="Recovery Status and sleep battery"
       >
-        <h2>Recovery status</h2>
-        <div id="recovery-badge"></div>
-        <ul class="reasons" id="recovery-reasons"></ul>
-        <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
-        <div
-          id="sleep-battery-panel"
-          class="sleep-battery-panel"
-          title="100% at wake · drains over ~16h awake · empty = time to sleep"
-        ></div>
+        <h2>Recovery Status</h2>
+        <div class="recovery-split">
+          <div class="recovery-status-col">
+            <div id="recovery-badge"></div>
+            <ul class="reasons" id="recovery-reasons"></ul>
+            <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
+          </div>
+          <div
+            id="sleep-battery-panel"
+            class="sleep-battery-panel"
+            title="100% at wake · drains over ~16h awake · empty = time to sleep"
+          ></div>
+        </div>
       </section>
 
-      <!-- Full-width: hydration pacing first (wake window), then calorie pacing -->
+      <!-- Pacing group: hydration · calorie pace · in vs out (keep together above meal exec). -->
       <section
         class="card calorie-bar-card"
         style="margin-top: 1rem"
@@ -265,6 +270,30 @@
           <div class="pace-marker" id="calorie-pacing-marker" title="Expected progress now"></div>
         </div>
         <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
+      </section>
+
+      <section
+        class="card calorie-bar-card"
+        style="margin-top: 0.75rem"
+        id="calorie-delta-section"
+        data-m-panel="today"
+        aria-label="Today calories in versus out"
+      >
+        <div class="calorie-bar-header">
+          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
+          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
+        </div>
+        <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
+          <div class="delta-mid" aria-hidden="true"></div>
+          <div class="delta-fill delta-left" id="calorie-delta-fill-left"></div>
+          <div class="delta-fill delta-right" id="calorie-delta-fill-right"></div>
+          <div class="delta-labels" aria-hidden="true">
+            <span>deficit</span>
+            <span>0</span>
+            <span>surplus</span>
+          </div>
+        </div>
+        <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
       </section>
 
       <!-- Macro tiles: same-day Today|Target — Today tab only (not Trends). -->
@@ -327,7 +356,7 @@
         </div>
       </section>
 
-      <!-- Today execution: so-far + meal plan side-by-side (Kitchen = setup only) -->
+      <!-- Today execution: food logs + meal plan (macro totals live in tiles above). -->
       <section
         class="grid two equal-cards inv-meal-row"
         style="margin-top: 1rem"
@@ -337,16 +366,14 @@
         <article
           class="card card-fill"
           id="today-so-far-card"
-          aria-label="Today so far macros versus pace"
+          aria-label="Food logged today"
         >
           <h2>Today so far</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Day totals on the left; bars = <strong>pace now</strong> in the eating window.
-            <strong>pace now</strong> = expected intake by this time;
-            the signed number is how far you are ahead (+) or behind (−) that expected.
-            Targets are set under <strong>More → Daily targets</strong>.
+            Meal-level logs from Google Health. Day totals are in the
+            <strong>macro tiles</strong> above · targets under
+            <strong>More → Daily targets</strong>.
           </p>
-          <div id="remaining-macros" style="margin-top: 0.75rem"></div>
           <div id="food-logs-today" class="food-logs-today" style="margin-top: 0.75rem"></div>
         </article>
 
@@ -369,31 +396,6 @@
           </div>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
-      </section>
-
-      <!-- Full-width: same-day calories in vs out delta (midpoint 0) -->
-      <section
-        class="card calorie-bar-card"
-        style="margin-top: 1rem"
-        id="calorie-delta-section"
-        data-m-panel="today"
-        aria-label="Today calories in versus out"
-      >
-        <div class="calorie-bar-header">
-          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
-          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
-        </div>
-        <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
-          <div class="delta-mid" aria-hidden="true"></div>
-          <div class="delta-fill delta-left" id="calorie-delta-fill-left"></div>
-          <div class="delta-fill delta-right" id="calorie-delta-fill-right"></div>
-          <div class="delta-labels" aria-hidden="true">
-            <span>deficit</span>
-            <span>0</span>
-            <span>surplus</span>
-          </div>
-        </div>
-        <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
       </section>
 
       <!-- Trends: multi-day series only (no same-day recovery / macro tiles). -->

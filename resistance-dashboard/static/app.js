@@ -2564,10 +2564,9 @@
   }
 
   function renderTargetsAndRemaining(store) {
+    // Hydrates More → Daily targets form only.
+    // Macro so-far / remaining UI removed — covered by Today|Target tiles above.
     const t = (store && store.targets) || {};
-    const c = (store && store.today_consumed) || {};
-    const mp =
-      (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
     if ($("tgt-cal")) {
       $("tgt-cal").value = t.calories ?? 2100;
       $("tgt-p").value = t.protein_g ?? 210;
@@ -2579,75 +2578,6 @@
         t.weight_goal_lbs != null && t.weight_goal_lbs !== ""
           ? t.weight_goal_lbs
           : "";
-    }
-    const rem = {
-      calories: Math.max(0, (t.calories || 0) - (c.calories || 0)),
-      protein_g: Math.max(0, (t.protein_g || 0) - (c.protein_g || 0)),
-      carbs_g: Math.max(0, (t.carbs_g || 0) - (c.carbs_g || 0)),
-      fat_g: Math.max(0, (t.fat_g || 0) - (c.fat_g || 0)),
-    };
-    const src =
-      c.source && c.source !== "none"
-        ? c.source.replace(/_/g, " ")
-        : "Google Health";
-    const nLogs =
-      c.food_log_count != null
-        ? c.food_log_count
-        : ((store && store.food_logs_today) || []).length;
-    const soFarPct = macroCalPct(c.protein_g, c.carbs_g, c.fat_g);
-    const remPct = macroCalPct(rem.protein_g, rem.carbs_g, rem.fat_g);
-    const calHit = targetPct(c.calories, t.calories);
-
-    if ($("remaining-macros")) {
-      $("remaining-macros").innerHTML = `
-        <div class="macro-summary">
-          <div class="macro-summary-header">
-            <div>
-              <div class="macro-summary-title">Today so far</div>
-              <div class="macro-summary-meta muted">
-                ${c.date || "today"}
-                <span class="dot-sep">·</span> ${src}
-                ${nLogs ? `<span class="dot-sep">·</span> ${nLogs} meal log${nLogs === 1 ? "" : "s"}` : ""}
-              </div>
-            </div>
-            <div class="macro-kcal-block">
-              <div class="macro-kcal-value">${fmtNum(c.calories)}</div>
-              <div class="macro-kcal-label">kcal${
-                calHit != null ? ` · ${calHit}% of target` : ""
-              }</div>
-            </div>
-          </div>
-          <div class="macro-chip-row">
-            ${macroChip("protein", "Protein", c.protein_g, soFarPct.p)}
-            ${macroChip("carbs", "Carbs", c.carbs_g, soFarPct.c)}
-            ${macroChip("fat", "Fat", c.fat_g, soFarPct.f)}
-          </div>
-          <div class="macro-progress-list">
-            <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
-              Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
-              Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
-            </p>
-            ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
-            ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
-            ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
-            ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
-          </div>
-          <div class="macro-remaining-panel">
-            <div class="macro-summary-header">
-              <div class="macro-summary-title">Remaining to target</div>
-              <div class="macro-kcal-block compact">
-                <div class="macro-kcal-value">${fmtNum(rem.calories)}</div>
-                <div class="macro-kcal-label">kcal left</div>
-              </div>
-            </div>
-            <div class="macro-chip-row">
-              ${macroChip("protein", "Protein", rem.protein_g, remPct.p)}
-              ${macroChip("carbs", "Carbs", rem.carbs_g, remPct.c)}
-              ${macroChip("fat", "Fat", rem.fat_g, remPct.f)}
-            </div>
-          </div>
-        </div>
-      `;
     }
   }
 
