@@ -781,7 +781,7 @@
     const weightVals = weights.map((w) => w.weight_lbs);
     const weightTrend = linearTrend(weightVals);
     const wSlope = trendSlopePerDay(weightVals);
-    // Current body-weight goal from Kitchen targets (optional guide line)
+    // Current body-weight goal from More → Daily targets (optional guide line)
     const weightGoalRaw =
       (data.nutrition_store &&
         data.nutrition_store.targets &&
@@ -884,7 +884,7 @@
           bits.push(`goal ${weightGoal.toFixed(1)} lb`);
         }
       } else {
-        bits.push("no goal line yet — set Weight goal (lb) under Kitchen → Daily targets, then Save");
+        bits.push("no goal line yet — set Weight goal (lb) under More → Daily targets, then Save");
       }
       $("weight-trend-note").textContent = bits.join(" · ");
     }
@@ -2685,7 +2685,8 @@
       (coach && coach.today && coach.today.doordash_restock) ||
       null;
     if (!dd) {
-      panel.innerHTML = "";
+      panel.innerHTML =
+        `<p class="muted" style="margin:0.35rem 0 0">No restock signal yet — load Today meal plan after inventory syncs.</p>`;
       return;
     }
     const items = dd.items || [];
