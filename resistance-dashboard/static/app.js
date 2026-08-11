@@ -12,8 +12,9 @@
   let hydrationChart = null;
   let selectedExercise = null;
   /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
-  // v2: defaults flipped so quests + lift start collapsed (preference still wins after toggle)
-  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v2";
+  // v3: clear sticky open Training from earlier sessions; quests + lift start collapsed
+  // (user toggle still wins for the rest of the browser session).
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v3";
   const COLLAPSE_DEFAULTS = {
     quests: false,
     targets: true,
@@ -2712,7 +2713,7 @@
       <div class="macro-summary compact-panel doordash-panel">
         <div class="macro-summary-header">
           <div>
-            <div class="macro-summary-title">DoorDash meal restock</div>
+            <div class="macro-summary-title">DoorDash Meal Restock</div>
             <div class="macro-summary-meta muted">${dd.summary || ""}${
               cliOk ? "" : " · install dd-cli for live order"
             }</div>
@@ -2942,9 +2943,13 @@
         const label = String(m.muscle || "").replace(/_/g, " ");
         const done = m.done != null ? m.done : 0;
         const planned = m.planned != null ? m.planned : 0;
+        const projected = m.projected != null ? m.projected : done + planned;
         const band = `${m.min}–${m.max}`;
+        // Readable: done + plan → week total  |  weekly target band
         const proj =
-          planned > 0 ? `${done}+${planned}→${m.projected}` : `${done}`;
+          planned > 0
+            ? `${done} done + ${planned} plan → ${projected}`
+            : `${done} done`;
         const status = m.status || "ok";
         const statusHint =
           status === "under" || status === "low"
@@ -2952,10 +2957,10 @@
             : status === "high" || status === "over"
               ? "above weekly band"
               : "in weekly band";
-        return `<span class="vol-chip vol-${status}" title="${label}: ${proj} hard sets this week (target ${band}) — ${statusHint}">
+        return `<span class="vol-chip vol-${status}" title="${label}: ${done} hard sets logged this week + ${planned} in today’s plan → ${projected} projected (target ${band}) — ${statusHint}">
           <span class="vol-chip-m">${label}</span>
           <span class="vol-chip-v">${proj}</span>
-          <span class="vol-chip-b">${band}</span>
+          <span class="vol-chip-b">target ${band}</span>
         </span>`;
       })
       .join("");
@@ -2965,9 +2970,10 @@
     const dayLabel = st
       ? st.charAt(0).toUpperCase() + st.slice(1)
       : "Week";
+    const legendLine = `<p class="muted volume-balance-note"><strong>Chip legend:</strong> <em>done</em> = hard sets already logged this week · <em>plan</em> = hard sets in today’s prescription · <em>→ total</em> = projected week if you complete the plan · <em>target min–max</em> = weekly band. Amber = under · green = in range · red = high/over.</p>`;
     const scopeLine = sessionMuscles
-      ? `<p class="muted volume-balance-note">Showing <strong>${dayLabel}</strong> muscles only (this session). Weekly hard-set credits still count everywhere — amber = under band, green = in range, red = high/over.</p>`
-      : `<p class="muted volume-balance-note">Full-week overview. Amber = under band · green = in range · red = high/over (≈4–8 hard sets/muscle/week w/ overlap).</p>`;
+      ? `<p class="muted volume-balance-note">Showing <strong>${dayLabel}</strong> muscles only (this session). Weekly hard-set credits still count everywhere.</p>`
+      : `<p class="muted volume-balance-note">Full-week overview (≈4–8 hard sets/muscle/week w/ overlap).</p>`;
     const focusLine = focusMuscles.length
       ? `<p class="muted volume-balance-note"><strong>${
           src === "auto" ? "Auto focus" : "Focus"
@@ -2983,8 +2989,9 @@
       ""
     );
     return `<div class="volume-balance">
-      <div class="volume-balance-title">Weekly hard sets · ${dayLabel} · ${frameworkBit}</div>
+      <div class="volume-balance-title">Weekly Hard Sets · ${dayLabel} · ${frameworkBit}</div>
       <div class="volume-balance-chips">${chips}</div>
+      ${legendLine}
       ${scopeLine}
       ${focusLine}
     </div>`;
