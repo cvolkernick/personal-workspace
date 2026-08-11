@@ -147,6 +147,18 @@
       "fat_g": 0.0,
       "in_stock": true,
       "notes": ""
+    },
+    {
+      "id": "sugar-free-vanilla-iced-coffee-large",
+      "name": "Sugar Free Vanilla Iced Coffee, Large",
+      "category": "fat",
+      "serving_label": "1 logged serving (avg)",
+      "calories": 130.0,
+      "protein_g": 2.0,
+      "carbs_g": 9.0,
+      "fat_g": 11.0,
+      "in_stock": true,
+      "notes": ""
     }
   ]
 }
