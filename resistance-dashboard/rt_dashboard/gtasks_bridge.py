@@ -86,3 +86,8 @@ def complete_task(
 ) -> dict[str, Any]:
     gt = load_google_tasks()
     return gt.complete_task(list_id, task_id, completed=completed)
+
+
+def delete_task(list_id: str, task_id: str) -> dict[str, Any]:
+    gt = load_google_tasks()
+    return gt.delete_task(list_id, task_id)

@@ -231,6 +231,138 @@ def _get_task_safe(list_id: str, task_id: str) -> Optional[dict]:
     return None
 
 
+def _is_day_key(key: str) -> bool:
+    return bool(re.match(r"^\d{4}-\d{2}-\d{2}$", str(key or "")))
+
+
+def _delete_order(ids: Dict[str, str]) -> List[Tuple[str, str]]:
+    """Children first, group parents last (so leaves are gone before headers)."""
+    items = [(str(ck), str(tid)) for ck, tid in (ids or {}).items() if ck and tid]
+
+    def sort_key(item: Tuple[str, str]) -> Tuple[int, str]:
+        ck, _tid = item
+        is_parent = ck.endswith("|group")
+        return (1 if is_parent else 0, ck)
+
+    return sorted(items, key=sort_key)
+
+
+def purge_stale_quest_tasks(
+    *,
+    list_id: str,
+    today: str,
+    cache: Optional[dict] = None,
+    save: bool = True,
+) -> Dict[str, Any]:
+    """Delete FitDash quest GT tasks for every cache day other than ``today``.
+
+    On civil-day rollover, incomplete (and completed) prior-day quest tasks
+    would otherwise pile up on the Fitness list. Identity is local cache only
+    (human titles have no marker) — we delete every task id recorded for
+    stale days, then drop those days from the cache.
+
+    Returns stats: ``{days_purged, deleted, failed, errors}``.
+    """
+    today = str(today or "")[:10]
+    if cache is None:
+        cache = _load_cache()
+    if not list_id or not today or not _is_day_key(today):
+        return {
+            "days_purged": [],
+            "deleted": 0,
+            "failed": 0,
+            "errors": [],
+            "ok": False,
+            "error": "missing list_id or today",
+        }
+
+    stale_days = sorted(
+        k
+        for k in list(cache.keys())
+        if _is_day_key(k) and k != today and isinstance(cache.get(k), dict)
+    )
+    deleted = 0
+    failed = 0
+    errors: List[str] = []
+    days_purged: List[str] = []
+
+    already: set = set()
+    for stale in stale_days:
+        entry = cache.get(stale) or {}
+        entry_list = str(entry.get("list_id") or list_id)
+        ids = dict(entry.get("ids") or {})
+        for ck, tid in _delete_order(ids):
+            if tid in already:
+                continue
+            try:
+                # Prefer the list recorded for that day (list may have been renamed)
+                target_list = entry_list or list_id
+                result = gtb.delete_task(target_list, tid)
+                already.add(tid)
+                if result.get("ok"):
+                    deleted += 1
+                else:
+                    failed += 1
+                    err = result.get("error") or "delete failed"
+                    errors.append(f"{stale}/{ck}: {err}")
+            except Exception as e:  # noqa: BLE001
+                failed += 1
+                errors.append(f"{stale}/{ck}: {e}")
+        cache.pop(stale, None)
+        days_purged.append(stale)
+
+    # Safety net for orphans (cache pruned without GT delete, or lost cache):
+    # incomplete Fitness tasks with a due date strictly before today.
+    # The Fitness list is FitDash quest SoT — open past-due items are stale quests.
+    orphan_deleted = 0
+    try:
+        listed = gtb.list_tasks(
+            list_id, show_completed=False, show_hidden=False
+        )
+        if listed.get("ok"):
+            for task in listed.get("tasks") or []:
+                if not isinstance(task, dict):
+                    continue
+                if str(task.get("status") or "") == "completed":
+                    continue
+                due = str(task.get("due") or "")[:10]
+                tid = str(task.get("id") or "")
+                if not tid or not due or not _is_day_key(due):
+                    continue
+                if due >= today:
+                    continue
+                if tid in already:
+                    continue
+                try:
+                    result = gtb.delete_task(list_id, tid)
+                    already.add(tid)
+                    if result.get("ok"):
+                        deleted += 1
+                        orphan_deleted += 1
+                    else:
+                        failed += 1
+                        errors.append(
+                            f"orphan/{tid}: {result.get('error') or 'delete failed'}"
+                        )
+                except Exception as e:  # noqa: BLE001
+                    failed += 1
+                    errors.append(f"orphan/{tid}: {e}")
+    except Exception as e:  # noqa: BLE001
+        errors.append(f"orphan_sweep: {e}")
+
+    if save and (days_purged or orphan_deleted):
+        _save_cache(cache)
+
+    return {
+        "ok": True,
+        "days_purged": days_purged,
+        "deleted": deleted,
+        "orphan_deleted": orphan_deleted,
+        "failed": failed,
+        "errors": errors[:20],
+    }
+
+
 def ensure_daily_tasks(
     today_board: dict,
     *,
@@ -238,7 +370,12 @@ def ensure_daily_tasks(
     day: Optional[str] = None,
     create_missing: bool = True,
 ) -> dict:
-    """Ensure / refresh quests. Uses local cache; human-only GT titles/notes."""
+    """Ensure / refresh quests. Uses local cache; human-only GT titles/notes.
+
+    On each ensure for civil day D: purge all quest task ids cached for days
+    other than D (delete on Google Tasks + drop cache), then create/refresh
+    today's groups and leaves so incomplete prior-day quests never pile up.
+    """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
 
@@ -258,6 +395,11 @@ def ensure_daily_tasks(
             )
 
         cache = _load_cache()
+        # Day rollover cleanup — must run before creating today's tasks
+        purge_stats = purge_stale_quest_tasks(
+            list_id=list_id, today=day, cache=cache, save=True
+        )
+
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
         if day_cache.get("list_id") != list_id:
             day_cache = {"list_id": list_id, "ids": {}}
@@ -379,6 +521,7 @@ def ensure_daily_tasks(
             "day": day,
             "groups": groups_out,
             "summary": {"done": done, "total": total},
+            "purge": purge_stats,
             "error": None,
         }
     except Exception as e:
