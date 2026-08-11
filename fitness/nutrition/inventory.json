@@ -12,7 +12,7 @@
       "protein_g": 45,
       "carbs_g": 0,
       "fat_g": 4,
-      "in_stock": false
+      "in_stock": true
     },
     {
       "id": "eggs-whole",
