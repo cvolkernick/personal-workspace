@@ -92,14 +92,14 @@ def volume_by_month(sessions: Sequence[Session]) -> List[Dict[str, Any]]:
 def volume_by_day(
     sessions: Sequence[Session],
     *,
-    days: int = 30,
+    days: int = 90,
     as_of: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Daily total volume for a contiguous calendar window (default 30 days).
+    Daily total volume for a contiguous calendar window (default 90 days).
 
     Days with no sessions still appear with volume 0 so the chart is a full
-    30-bar month span. If ``as_of`` is omitted and the last 30 days from
+    span (one bar per day). If ``as_of`` is omitted and the last ``days`` from
     local today have no volume, the window ends on the most recent session
     date so the chart still shows recent training.
     """
@@ -233,7 +233,7 @@ def dashboard_payload(sessions: Sequence[Session]) -> Dict[str, Any]:
         "volume_by_session": volume_by_session(clean),
         "volume_by_week": volume_by_week(clean),
         "volume_by_month": volume_by_month(clean),
-        "volume_by_day": volume_by_day(clean, days=30),
+        "volume_by_day": volume_by_day(clean, days=90),
         "top_exercises": exercises,
         "strength_trends": trends,
         "strength_slopes": slopes,

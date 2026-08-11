@@ -13,9 +13,11 @@ sys.path.insert(0, str(ROOT))
 from rt_dashboard.analytics import (  # noqa: E402
     best_e1rm,
     best_working_weight,
+    dashboard_payload,
     exercise_strength_slope_lbs_per_day,
     session_volume,
     strength_trend,
+    volume_by_day,
     volume_by_session,
 )
 from rt_dashboard.google_health import (  # noqa: E402
@@ -326,6 +328,26 @@ class TestRealWorkspaceParse(unittest.TestCase):
             )
             self.assertGreater(len(sessions), 5, msg=name)
             self.assertGreater(session_volume(sessions[0]), 0)
+
+
+class TestVolumeByDayWindow(unittest.TestCase):
+    def test_default_window_is_90_days(self):
+        sessions = [
+            Session(
+                date="2026-08-01",
+                session_type="push",
+                exercises=[
+                    ExerciseEntry(
+                        name="DB Flat Press",
+                        sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+                    )
+                ],
+            )
+        ]
+        rows = volume_by_day(sessions, as_of="2026-08-10")
+        self.assertEqual(len(rows), 90)
+        payload = dashboard_payload(sessions)
+        self.assertEqual(len(payload["volume_by_day"]), 90)
 
 
 if __name__ == "__main__":

@@ -1646,9 +1646,9 @@ footer {
   }
 }
 
-/* Kitchen row: targets (config form) + inventory.
-   Do not stretch targets to inventory height — that left a tall empty card
-   after IA moved "today so far" off Kitchen. Inventory can grow on its own.
+/* Kitchen row: DoorDash restock (left column) + inventory (right).
+   Daily targets live under More with other settings.
+   Do not stretch the short column to inventory height.
 
    Pantry list MUST keep a real min-height. After #118, flex:1 1 0 + min-height:0
    + overflow:hidden on a content-sized card collapsed #inventory-list to 0px —
@@ -1663,11 +1663,21 @@ footer {
   min-height: 0;
 }
 
-#targets-config-card {
+#doordash-restock-card {
   height: auto;
   align-self: start;
-  /* override .equal-cards min-height so form isn't in a hollow shell */
   min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#doordash-restock-card .doordash-restock {
+  flex: 0 1 auto;
+}
+
+/* More tab: daily targets form (was Kitchen left column) */
+#targets-config-section .log-form {
+  flex: 0 0 auto;
 }
 
 #inventory-card {
@@ -1681,8 +1691,7 @@ footer {
 
 #inventory-card .log-form,
 #inventory-card .inv-suggestions,
-#inventory-card .inv-removals,
-#targets-config-card .log-form {
+#inventory-card .inv-removals {
   flex: 0 0 auto;
 }
 
@@ -1946,9 +1955,14 @@ footer {
   color: #d0a4ff;
 }
 
-/* DoorDash meal restock panel (Nutrition Coach) */
+/* DoorDash meal restock panel (Kitchen column beside inventory) */
 .doordash-panel {
   border-left: 3px solid var(--accent-2, #3d9cf0);
+}
+
+#doordash-restock-card .doordash-panel {
+  /* Card already titles the column; nested panel is the live status body */
+  margin-top: 0.15rem;
 }
 
 .doordash-item-list {
@@ -2045,6 +2059,13 @@ footer {
   font-size: 0.78rem;
   padding: 0.3rem 0.55rem;
   min-height: 34px;
+}
+.today-session-force > button.is-active {
+  border-color: rgba(61, 156, 240, 0.65);
+  background: rgba(61, 156, 240, 0.18);
+  color: var(--text, #e8eef7);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(61, 156, 240, 0.25);
 }
 
 .today-actions-compact {
@@ -2866,7 +2887,7 @@ footer {
   opacity: 0.92;
 }
 
-/* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
+/* Weekly hard-set volume balance (≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;
   padding: 0.55rem 0.65rem;
