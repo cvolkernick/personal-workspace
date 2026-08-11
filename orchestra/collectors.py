@@ -372,18 +372,18 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
     }
 
 
-def _personal_worktrees_base() -> Path:
-    """Base dir for domain git worktrees (mirrors launcher.worktree_base)."""
-    return (
-        Path(
-            os.environ.get(
-                "PERSONAL_WORKSPACE_WORKTREES",
-                str(Path.home() / "personal-workspace-worktrees"),
-            )
-        )
-        .expanduser()
-        .resolve()
-    )
+def _personal_worktrees_base() -> Optional[Path]:
+    """Base dir for domain git worktrees (mirrors launcher.worktree_base).
+
+    Set PERSONAL_WORKSPACE_WORKTREES to empty string to disable auto discovery
+    (unit tests / isolated fixtures).
+    """
+    if "PERSONAL_WORKSPACE_WORKTREES" in os.environ:
+        raw = os.environ.get("PERSONAL_WORKSPACE_WORKTREES") or ""
+        if not raw.strip():
+            return None
+        return Path(raw).expanduser().resolve()
+    return (Path.home() / "personal-workspace-worktrees").resolve()
 
 
 def _finance_worktree_roots() -> list[Path]:
@@ -398,9 +398,11 @@ def _finance_worktree_roots() -> list[Path]:
         p = Path(env).expanduser().resolve()
         if p.is_dir():
             roots.append(p)
-    wt = _personal_worktrees_base() / "treasury"
-    if wt.is_dir() and wt not in roots:
-        roots.append(wt)
+    base = _personal_worktrees_base()
+    if base is not None:
+        wt = base / "treasury"
+        if wt.is_dir() and wt not in roots:
+            roots.append(wt)
     return roots
 
 
