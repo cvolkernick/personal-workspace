@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=polish-titles-1" />
+    <link rel="stylesheet" href="/styles.css?v=hub-collapse-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=polish-titles-1" defer></script>
+    <script src="/app.js?v=hub-collapse-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -160,28 +160,29 @@
             <button type="button" id="btn-scroll-meal-plan">Meal plan ↓</button>
           </div>
         </div>
+        <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
+        <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
+        <!-- Daily Quests first; Lift/Meal/Targets pills sit directly above the panels they control -->
+        <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
         <div class="today-mobile-pills" id="today-mobile-pills" hidden role="tablist" aria-label="Today sections">
           <button type="button" class="pill active" data-today-pill="lift" role="tab" aria-selected="true">Lift</button>
           <button type="button" class="pill" data-today-pill="meal" role="tab" aria-selected="false">Meal</button>
           <button type="button" class="pill" data-today-pill="targets" role="tab" aria-selected="false">Targets</button>
         </div>
-        <p class="muted today-headline" id="today-headline" style="margin: 0.5rem 0 0; font-size: 0.9rem"></p>
-        <p class="muted today-overview-line" id="today-overview" style="margin: 0.2rem 0 0; font-size: 0.8rem"></p>
-        <div id="today-actions" class="today-actions today-actions-compact" style="margin-top: 0.55rem"></div>
 
         <div class="today-sections" id="today-hub-grid">
           <div class="today-panel" data-today-panel="targets">
-            <button type="button" class="today-subh collapsible-head" data-collapse="targets" aria-expanded="true">
+            <button type="button" class="today-subh collapsible-head is-collapsed" data-collapse="targets" aria-expanded="false">
               Targets &amp; recovery <span class="collapse-chevron">▾</span>
             </button>
-            <div class="collapsible-body" data-collapse-body="targets">
+            <div class="collapsible-body" data-collapse-body="targets" hidden>
               <div id="today-targets"></div>
               <div id="today-recovery" style="margin-top: 0.5rem"></div>
               <div id="today-adherence" class="muted" style="margin-top: 0.45rem; font-size: 0.82rem"></div>
             </div>
           </div>
           <div class="today-panel" data-today-panel="meal">
-            <button type="button" class="today-subh collapsible-head" data-collapse="meal-sum" aria-expanded="false">
+            <button type="button" class="today-subh collapsible-head is-collapsed" data-collapse="meal-sum" aria-expanded="false">
               Meal snapshot <span class="collapse-chevron">▾</span>
             </button>
             <div class="collapsible-body" data-collapse-body="meal-sum" hidden>
@@ -415,12 +416,12 @@
 
       <section class="grid two equal-cards" style="margin-top: 1rem" id="weight-hydration-row" data-m-panel="trends">
         <article class="card card-fill">
-          <h2>Body Weight - 90d</h2>
+          <h2>Body Weight · 90d</h2>
           <div class="chart-box"><canvas id="chart-weight" aria-label="Body weight chart last 90 days"></canvas></div>
           <p class="muted" id="weight-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
         <article class="card card-fill" id="hydration-card">
-          <h2>Hydration (ml) - 90d</h2>
+          <h2>Hydration (ml) · 90d</h2>
           <div class="chart-box"><canvas id="chart-hydration" aria-label="Hydration chart last 90 days"></canvas></div>
           <p class="muted" id="hydration-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
@@ -653,7 +654,7 @@
       <!-- Lift charts (Trends) — volume + strength -->
       <section class="grid two equal-cards" style="margin-top: 1rem" id="charts-volume-strength" data-m-panel="trends">
         <article class="card card-fill">
-          <h2>Daily Volume - 90d</h2>
+          <h2>Daily Volume · 90d</h2>
           <div class="chart-box chart-box-match"><canvas id="chart-volume" aria-label="Daily volume chart last 90 days"></canvas></div>
           <p class="muted" id="volume-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
