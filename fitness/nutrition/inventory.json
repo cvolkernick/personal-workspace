@@ -102,14 +102,13 @@
       "id": "boneless-skinless-chicken-breast",
       "name": "Boneless skinless chicken breast",
       "category": "protein",
-      "serving_g": 210,
-      "serving_label": "210g cooked",
-      "calories": 347.9,
-      "protein_g": 64.5,
+      "serving_label": "1 logged serving (avg)",
+      "calories": 389.2,
+      "protein_g": 72.8,
       "carbs_g": 0.0,
-      "fat_g": 6.1,
+      "fat_g": 7.3,
       "in_stock": true,
-      "notes": "Macros from logged serving avg; mass \u2248 cooked breast for that P"
+      "notes": ""
     },
     {
       "id": "chocolate-whey-protein",
