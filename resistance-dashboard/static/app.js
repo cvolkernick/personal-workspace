@@ -12,9 +12,9 @@
   let hydrationChart = null;
   let selectedExercise = null;
   /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
-  // v4: quests + lift + meal + targets all start collapsed (pills sit under Daily Quests).
-  // User toggle still wins for the rest of the browser session.
-  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v4";
+  // v5: reset sticky open from v4 so Training stays default-collapsed on Lift
+  // (same as Meal/Targets). User toggle still wins for the rest of the session.
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v5";
   const COLLAPSE_DEFAULTS = {
     quests: false,
     targets: false,
@@ -2564,6 +2564,8 @@
   }
 
   function renderTargetsAndRemaining(store) {
+    // Hydrates More → Daily targets form + optional macro pace bars under Today so far.
+    // Day totals / remaining chips stay in the Today|Target tiles above (not duplicated).
     const t = (store && store.targets) || {};
     const c = (store && store.today_consumed) || {};
     const mp =
@@ -2580,72 +2582,17 @@
           ? t.weight_goal_lbs
           : "";
     }
-    const rem = {
-      calories: Math.max(0, (t.calories || 0) - (c.calories || 0)),
-      protein_g: Math.max(0, (t.protein_g || 0) - (c.protein_g || 0)),
-      carbs_g: Math.max(0, (t.carbs_g || 0) - (c.carbs_g || 0)),
-      fat_g: Math.max(0, (t.fat_g || 0) - (c.fat_g || 0)),
-    };
-    const src =
-      c.source && c.source !== "none"
-        ? c.source.replace(/_/g, " ")
-        : "Google Health";
-    const nLogs =
-      c.food_log_count != null
-        ? c.food_log_count
-        : ((store && store.food_logs_today) || []).length;
-    const soFarPct = macroCalPct(c.protein_g, c.carbs_g, c.fat_g);
-    const remPct = macroCalPct(rem.protein_g, rem.carbs_g, rem.fat_g);
-    const calHit = targetPct(c.calories, t.calories);
-
-    if ($("remaining-macros")) {
-      $("remaining-macros").innerHTML = `
-        <div class="macro-summary">
-          <div class="macro-summary-header">
-            <div>
-              <div class="macro-summary-title">Today so far</div>
-              <div class="macro-summary-meta muted">
-                ${c.date || "today"}
-                <span class="dot-sep">·</span> ${src}
-                ${nLogs ? `<span class="dot-sep">·</span> ${nLogs} meal log${nLogs === 1 ? "" : "s"}` : ""}
-              </div>
-            </div>
-            <div class="macro-kcal-block">
-              <div class="macro-kcal-value">${fmtNum(c.calories)}</div>
-              <div class="macro-kcal-label">kcal${
-                calHit != null ? ` · ${calHit}% of target` : ""
-              }</div>
-            </div>
-          </div>
-          <div class="macro-chip-row">
-            ${macroChip("protein", "Protein", c.protein_g, soFarPct.p)}
-            ${macroChip("carbs", "Carbs", c.carbs_g, soFarPct.c)}
-            ${macroChip("fat", "Fat", c.fat_g, soFarPct.f)}
-          </div>
-          <div class="macro-progress-list">
-            <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
-              Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
-              Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
-            </p>
-            ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
-            ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
-            ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
-            ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
-          </div>
-          <div class="macro-remaining-panel">
-            <div class="macro-summary-header">
-              <div class="macro-summary-title">Remaining to target</div>
-              <div class="macro-kcal-block compact">
-                <div class="macro-kcal-value">${fmtNum(rem.calories)}</div>
-                <div class="macro-kcal-label">kcal left</div>
-              </div>
-            </div>
-            <div class="macro-chip-row">
-              ${macroChip("protein", "Protein", rem.protein_g, remPct.p)}
-              ${macroChip("carbs", "Carbs", rem.carbs_g, remPct.c)}
-              ${macroChip("fat", "Fat", rem.fat_g, remPct.f)}
-            </div>
-          </div>
+    if ($("macro-pace-bars")) {
+      $("macro-pace-bars").innerHTML = `
+        <div class="macro-progress-list">
+          <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
+            Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
+            Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
+          </p>
+          ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
+          ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
+          ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
+          ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
         </div>
       `;
     }
@@ -3180,7 +3127,7 @@
     }
     const ttlMin = meta.cache_ttl_sec ? Math.round(meta.cache_ttl_sec / 60) : 60;
     const cacheNote = cacheBits.length
-      ? ` · cache: ${cacheBits.join(", ")} (ttl ${ttlMin}m; Refresh forces pull)`
+      ? ` · cache: ${cacheBits.join(", ")} (ttl ${ttlMin}m; Refresh data forces pull)`
       : ` · cache ttl ${ttlMin}m`;
     const tzBit = meta.timezone ? ` · tz ${meta.timezone}` : "";
     const todayBit = meta.local_today ? ` · today ${meta.local_today}` : "";
@@ -3208,12 +3155,12 @@
         if (!sessionStorage.getItem(authKey)) {
           sessionStorage.setItem(authKey, "1");
           showAlert(
-            "Google Health sign-in expired — use Refresh Google auth, then Refresh remotes.",
+            "Google Health sign-in expired — More → Reconnect Google Health, then Refresh data.",
             "warn"
           );
         }
         $("health-note").textContent =
-          "Google Health auth needs attention — use Refresh Google auth, then Refresh remotes. Cached health still shown.";
+          "Google Health auth needs attention — More → Reconnect Google Health, then Refresh data. Cached health still shown.";
       } else {
         showAlert(`Google Health: ${err}`, "warn");
         $("health-note").textContent =
@@ -3725,7 +3672,9 @@
       const key = head.getAttribute("data-collapse");
       if (!key || key === "quests") return; // quests re-rendered with state baked in
       if (!(key in collapseOpen)) return;
-      const open = collapseOpen[key] !== false;
+      // Strict true only — default-closed keys (lift/meal/targets) stay shut
+      // unless the user explicitly expanded them this session.
+      const open = collapseOpen[key] === true;
       head.setAttribute("aria-expanded", open ? "true" : "false");
       head.classList.toggle("is-collapsed", !open);
       const body =
@@ -3817,13 +3766,12 @@
       }
     }
 
+    // One-line badge only — full Recovery + sleep-battery card lives above pacing on Today
     if ($("today-recovery")) {
       const r = today.recovery || data.recovery || {};
-      const reasons = (r.reasons || []).slice(0, 4);
       $("today-recovery").innerHTML = `
         <div class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${r.score != null ? Math.round(r.score) : "—"}</div>
         ${r.motivation ? `<p class="muted" style="font-size:0.8rem;margin:0.35rem 0 0">${r.motivation}</p>` : ""}
-        <ul class="reasons" style="margin-top:0.5rem">${reasons.map((x) => `<li>${x}</li>`).join("")}</ul>
       `;
     }
     if ($("today-adherence")) {
@@ -4075,11 +4023,7 @@
         else btn.removeAttribute("aria-current");
       });
     }
-    // Admin card: More tab only (narrow); desktop keeps header actions
-    const admin = $("mobile-admin-card");
-    if (admin) {
-      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
-    }
+    // Connections (Google reconnect) lives under More via data-m-panel — no extra hide logic
     syncMacroStripVisibility();
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     // After layout paints, resize charts that were built while hidden
@@ -4143,14 +4087,9 @@
   function syncMobileShell() {
     const bar = $("mobile-tabbar");
     const pills = $("today-mobile-pills");
-    const admin = $("mobile-admin-card");
     document.body.classList.add("m-shell");
     if (bar) bar.hidden = false;
     if (pills) pills.hidden = false;
-    // More-tab admin only on phone; desktop uses header buttons
-    if (admin) {
-      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
-    }
     goMobileTab(mobileActiveTab);
     const activePill = document.querySelector(
       "#today-hub-grid .today-panel.today-panel-active"
@@ -4187,9 +4126,6 @@
     // More-tab admin mirrors desktop header buttons (phone only)
     if ($("btn-refresh-mobile")) {
       $("btn-refresh-mobile").addEventListener("click", () => loadDashboard(true));
-    }
-    if ($("btn-google-auth-mobile")) {
-      $("btn-google-auth-mobile").addEventListener("click", () => refreshGoogleAuth());
     }
   }
 
@@ -4284,15 +4220,15 @@
     const started = Date.now();
     if (meta) {
       meta.textContent = forceRefresh
-        ? "Refreshing Google Health + GitHub (forced)…"
+        ? "Refreshing Google Health (forced)…"
         : "Loading dashboard (local + cache)…";
     }
     const tick = setInterval(() => {
       if (!meta) return;
       const sec = Math.round((Date.now() - started) / 1000);
       meta.textContent = forceRefresh
-        ? `Refreshing remotes… ${sec}s`
-        : `Loading… ${sec}s (uses 1h cache for Health/GitHub)`;
+        ? `Refreshing data… ${sec}s`
+        : `Loading… ${sec}s (uses ~1h cache for Health)`;
     }, 500);
     try {
       const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
@@ -4769,7 +4705,7 @@
         const flow = (st && st.flow) || {};
         if (flow.status === "ok" || (st.token_ok && flow.status !== "pending")) {
           showAlert(
-            flow.message || "Google Health authorized. Refreshing remotes…",
+            flow.message || "Google Health authorized. Refreshing data…",
             "ok"
           );
           await loadDashboard(true);
@@ -4780,7 +4716,7 @@
         }
       }
       throw new Error(
-        "Timed out waiting for Google consent. Click Refresh Google auth to try again."
+        "Timed out waiting for Google consent. More → Reconnect Google Health to try again."
       );
     } catch (e) {
       showAlert(`Google auth failed: ${e.message}`, "err");
