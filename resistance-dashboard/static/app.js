@@ -12,9 +12,9 @@
   let hydrationChart = null;
   let selectedExercise = null;
   /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
-  // v4: quests + lift + meal + targets all start collapsed (pills sit under Daily Quests).
-  // User toggle still wins for the rest of the browser session.
-  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v4";
+  // v5: reset sticky open from v4 so Training stays default-collapsed on Lift
+  // (same as Meal/Targets). User toggle still wins for the rest of the session.
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v5";
   const COLLAPSE_DEFAULTS = {
     quests: false,
     targets: false,
@@ -2564,9 +2564,12 @@
   }
 
   function renderTargetsAndRemaining(store) {
-    // Hydrates More → Daily targets form only.
-    // Macro so-far / remaining UI removed — covered by Today|Target tiles above.
+    // Hydrates More → Daily targets form + optional macro pace bars under Today so far.
+    // Day totals / remaining chips stay in the Today|Target tiles above (not duplicated).
     const t = (store && store.targets) || {};
+    const c = (store && store.today_consumed) || {};
+    const mp =
+      (state && state.calorie_bars && state.calorie_bars.macro_pace) || {};
     if ($("tgt-cal")) {
       $("tgt-cal").value = t.calories ?? 2100;
       $("tgt-p").value = t.protein_g ?? 210;
@@ -2578,6 +2581,20 @@
         t.weight_goal_lbs != null && t.weight_goal_lbs !== ""
           ? t.weight_goal_lbs
           : "";
+    }
+    if ($("macro-pace-bars")) {
+      $("macro-pace-bars").innerHTML = `
+        <div class="macro-progress-list">
+          <p class="muted macro-pace-legend" style="margin:0 0 0.35rem;font-size:0.78rem">
+            Bars = vs <strong>pace now</strong> in the eating window (center = on target for this time).
+            Green ≤5% · yellow ≤20% · red &gt;20% · protein over stays green longer.
+          </p>
+          ${progressRow("Calories", c.calories, t.calories, "cals", mp.calories)}
+          ${progressRow("Protein", c.protein_g, t.protein_g, "protein", mp.protein_g)}
+          ${progressRow("Carbs", c.carbs_g, t.carbs_g, "carbs", mp.carbs_g)}
+          ${progressRow("Fat", c.fat_g, t.fat_g, "fat", mp.fat_g)}
+        </div>
+      `;
     }
   }
 
@@ -3655,7 +3672,9 @@
       const key = head.getAttribute("data-collapse");
       if (!key || key === "quests") return; // quests re-rendered with state baked in
       if (!(key in collapseOpen)) return;
-      const open = collapseOpen[key] !== false;
+      // Strict true only — default-closed keys (lift/meal/targets) stay shut
+      // unless the user explicitly expanded them this session.
+      const open = collapseOpen[key] === true;
       head.setAttribute("aria-expanded", open ? "true" : "false");
       head.classList.toggle("is-collapsed", !open);
       const body =

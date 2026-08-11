@@ -513,7 +513,7 @@ button:disabled {
   font-size: 0.9rem;
 }
 
-/* Recovery Status: score/reasons | sleep-battery side-by-side */
+/* Recovery Status: sleep-battery | score/reasons side-by-side */
 .recovery-split {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -523,9 +523,11 @@ button:disabled {
 
 .recovery-status-col {
   min-width: 0;
+  padding-left: 0.85rem;
+  border-left: 1px solid var(--border);
 }
 
-/* Cap reasons so left column stays compact next to battery */
+/* Cap reasons so right column stays compact next to battery */
 #recovery-card .reasons {
   max-height: 4.8rem;
   overflow: hidden;
@@ -542,13 +544,13 @@ button:disabled {
   overflow: hidden;
 }
 
-/* Sleep battery — right half of Recovery Status (stacked under score on narrow) */
+/* Sleep battery — left half of Recovery Status (above score on narrow) */
 .sleep-battery-panel {
   margin-top: 0;
   padding-top: 0;
-  padding-left: 0.85rem;
+  padding-left: 0;
   border-top: none;
-  border-left: 1px solid var(--border);
+  border-left: none;
   min-width: 0;
 }
 
@@ -556,7 +558,7 @@ button:disabled {
   .recovery-split {
     grid-template-columns: 1fr;
   }
-  .sleep-battery-panel {
+  .recovery-status-col {
     padding-left: 0;
     padding-top: 0.55rem;
     border-left: none;
