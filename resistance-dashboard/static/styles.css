@@ -1646,14 +1646,28 @@ footer {
   }
 }
 
-/* Inventory matches meal-plan height; pantry scrolls inside, never drives row taller */
+/* Kitchen row: targets (config form) + inventory.
+   Do not stretch targets to inventory height — that left a tall empty card
+   after IA moved "today so far" off Kitchen. Inventory can grow on its own. */
 #inventory-section.equal-cards,
 #inventory-section.inv-meal-row,
 .inv-meal-row {
-  align-items: stretch;
+  align-items: start;
 }
 
 #inventory-section > .card-fill {
+  min-height: 0;
+}
+
+#targets-config-card {
+  height: auto;
+  align-self: start;
+  /* override .equal-cards min-height so form isn't in a hollow shell */
+  min-height: 0;
+}
+
+#inventory-card {
+  /* keep flex column so pantry list can fill remaining card if needed */
   min-height: 0;
   overflow: hidden;
 }

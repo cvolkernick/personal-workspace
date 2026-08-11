@@ -780,45 +780,94 @@
     const weightVals = weights.map((w) => w.weight_lbs);
     const weightTrend = linearTrend(weightVals);
     const wSlope = trendSlopePerDay(weightVals);
+    // Current body-weight goal from Kitchen targets (optional guide line)
+    const weightGoalRaw =
+      (data.nutrition_store &&
+        data.nutrition_store.targets &&
+        data.nutrition_store.targets.weight_goal_lbs) ??
+      null;
+    const weightGoal =
+      weightGoalRaw != null &&
+      Number.isFinite(Number(weightGoalRaw)) &&
+      Number(weightGoalRaw) > 0
+        ? Number(weightGoalRaw)
+        : null;
+    const weightGoalLine =
+      weightGoal != null && weights.length
+        ? weights.map(() => weightGoal)
+        : null;
+    const weightDatasets = [
+      {
+        label: "Weight (lb)",
+        data: weightVals,
+        borderColor: "#5ce1a8",
+        backgroundColor: "rgba(92,225,168,0.12)",
+        tension: 0.25,
+        fill: true,
+        pointRadius: 2,
+        order: 2,
+      },
+      {
+        label: "Trend",
+        data: weightTrend,
+        borderColor: "#3d9cf0",
+        borderDash: [6, 4],
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        order: 1,
+      },
+    ];
+    if (weightGoalLine) {
+      weightDatasets.push({
+        label: `Goal (${weightGoal.toFixed(1)} lb)`,
+        data: weightGoalLine,
+        borderColor: "rgba(192, 132, 252, 0.95)",
+        borderDash: [2, 3],
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+        order: 0,
+      });
+    }
     destroyChart(weightChart);
     weightChart = new Chart($("chart-weight"), {
       type: "line",
       data: {
         labels: weights.map((w) => w.date),
-        datasets: [
-          {
-            label: "Weight (lb)",
-            data: weightVals,
-            borderColor: "#5ce1a8",
-            backgroundColor: "rgba(92,225,168,0.12)",
-            tension: 0.25,
-            fill: true,
-            pointRadius: 2,
-            order: 2,
-          },
-          {
-            label: "Trend",
-            data: weightTrend,
-            borderColor: "#3d9cf0",
-            borderDash: [6, 4],
-            borderWidth: 2,
-            pointRadius: 0,
-            fill: false,
-            tension: 0,
-            order: 1,
-          },
-        ],
+        datasets: weightDatasets,
       },
       options: chartDefaults(),
     });
     if ($("weight-trend-note")) {
+      const bits = [];
       if (wSlope == null || weights.length < 2) {
-        $("weight-trend-note").textContent = "Need more weigh-ins for a trend.";
+        bits.push("Need more weigh-ins for a trend.");
       } else {
         const perWeek = wSlope * 7;
         const dir = perWeek > 0.05 ? "up" : perWeek < -0.05 ? "down" : "flat";
-        $("weight-trend-note").textContent = `90d series · linear trend ${dir} (~${perWeek >= 0 ? "+" : ""}${perWeek.toFixed(2)} lb/week) · ${weights.length} points`;
+        bits.push(
+          `90d series · linear trend ${dir} (~${perWeek >= 0 ? "+" : ""}${perWeek.toFixed(2)} lb/week) · ${weights.length} points`
+        );
       }
+      if (weightGoal != null) {
+        const lastW =
+          [...weightVals].reverse().find((v) => v != null && Number.isFinite(v)) ??
+          null;
+        if (lastW != null) {
+          const gap = lastW - weightGoal;
+          bits.push(
+            `goal ${weightGoal.toFixed(1)} lb · ${gap >= 0 ? "+" : ""}${gap.toFixed(1)} lb vs last`
+          );
+        } else {
+          bits.push(`goal ${weightGoal.toFixed(1)} lb`);
+        }
+      } else {
+        bits.push("set weight goal in Kitchen → Daily targets");
+      }
+      $("weight-trend-note").textContent = bits.join(" · ");
     }
 
     // Prefer server-expanded calendar series (unlogged nights = 0h).
@@ -2429,6 +2478,12 @@
       $("tgt-p").value = t.protein_g ?? 210;
       $("tgt-c").value = t.carbs_g ?? 180;
       $("tgt-f").value = t.fat_g ?? 55;
+    }
+    if ($("tgt-weight-goal")) {
+      $("tgt-weight-goal").value =
+        t.weight_goal_lbs != null && t.weight_goal_lbs !== ""
+          ? t.weight_goal_lbs
+          : "";
     }
     const rem = {
       calories: Math.max(0, (t.calories || 0) - (c.calories || 0)),
@@ -4176,11 +4231,14 @@
     ev.preventDefault();
     const status = $("targets-status");
     if (status) status.textContent = "Saving…";
+    const wgRaw = $("tgt-weight-goal") ? $("tgt-weight-goal").value : "";
     const body = {
       calories: Number($("tgt-cal").value),
       protein_g: Number($("tgt-p").value),
       carbs_g: Number($("tgt-c").value),
       fat_g: Number($("tgt-f").value),
+      // Empty string clears the goal; omit is not used so chart stays in sync
+      weight_goal_lbs: wgRaw === "" || wgRaw == null ? null : Number(wgRaw),
     };
     try {
       const res = await fetch("/api/targets", {
