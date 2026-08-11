@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=hub-collapse-1" />
+    <link rel="stylesheet" href="/styles.css?v=refresh-buttons-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=hub-collapse-1" defer></script>
+    <script src="/app.js?v=refresh-buttons-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -70,13 +70,10 @@
         <div class="actions header-actions-desktop">
           <button
             type="button"
-            id="btn-google-auth"
-            title="Re-authorize Google Health (weight, sleep, food logs, calories)"
+            id="btn-refresh"
+            title="Bypass cache — pull Google Health (weight, sleep, food, hydration) now"
           >
-            Refresh Google auth
-          </button>
-          <button type="button" id="btn-refresh" title="Force pull Google Health + GitHub now">
-            Refresh remotes
+            Refresh data
           </button>
           <button type="button" class="primary" id="btn-focus-log">Log workout</button>
           <a class="btn" id="btn-logout" href="/api/auth/logout">Sign out</a>
@@ -671,19 +668,37 @@
         </article>
       </section>
 
-      <!-- Mobile-only admin actions (desktop uses header buttons) -->
-      <section class="card mobile-only-card" id="mobile-admin-card" data-m-panel="more" hidden>
-        <h2>Admin</h2>
+      <!-- Connections / recovery (More). Google re-auth is rare; not a daily header control. -->
+      <section class="card" id="connections-card" data-m-panel="more">
+        <h2>Connections</h2>
+        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+          Lifts are local SQLite (not GitHub pull). Daily data refresh is in the header
+          (<strong>Refresh data</strong>). Reconnect Google only when Health auth expires.
+        </p>
         <div class="actions mobile-admin-actions">
-          <button type="button" id="btn-refresh-mobile" class="btn-touch">Refresh remotes</button>
-          <button type="button" id="btn-google-auth-mobile" class="btn-touch">Refresh Google auth</button>
+          <button
+            type="button"
+            id="btn-google-auth"
+            class="btn-touch"
+            title="Re-authorize Google Health when token expires"
+          >
+            Reconnect Google Health
+          </button>
+          <button
+            type="button"
+            id="btn-refresh-mobile"
+            class="btn-touch"
+            title="Same as header Refresh data — force Health pull"
+          >
+            Refresh data
+          </button>
           <a class="btn btn-touch" id="btn-logout-mobile" href="/api/auth/logout">Sign out</a>
         </div>
         <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.8rem" id="mobile-meta-line"></p>
       </section>
 
       <footer class="app-footer">
-        Data sources: GitHub lift logs · Google Health (weight, sleep, nutrition, hydration) ·
+        Data sources: local lift log (SQLite) · Google Health (weight, sleep, nutrition, hydration) ·
         SuperGrok ask ·
         <span id="meta-line"></span>
       </footer>

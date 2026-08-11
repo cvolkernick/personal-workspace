@@ -3180,7 +3180,7 @@
     }
     const ttlMin = meta.cache_ttl_sec ? Math.round(meta.cache_ttl_sec / 60) : 60;
     const cacheNote = cacheBits.length
-      ? ` · cache: ${cacheBits.join(", ")} (ttl ${ttlMin}m; Refresh forces pull)`
+      ? ` · cache: ${cacheBits.join(", ")} (ttl ${ttlMin}m; Refresh data forces pull)`
       : ` · cache ttl ${ttlMin}m`;
     const tzBit = meta.timezone ? ` · tz ${meta.timezone}` : "";
     const todayBit = meta.local_today ? ` · today ${meta.local_today}` : "";
@@ -3208,12 +3208,12 @@
         if (!sessionStorage.getItem(authKey)) {
           sessionStorage.setItem(authKey, "1");
           showAlert(
-            "Google Health sign-in expired — use Refresh Google auth, then Refresh remotes.",
+            "Google Health sign-in expired — More → Reconnect Google Health, then Refresh data.",
             "warn"
           );
         }
         $("health-note").textContent =
-          "Google Health auth needs attention — use Refresh Google auth, then Refresh remotes. Cached health still shown.";
+          "Google Health auth needs attention — More → Reconnect Google Health, then Refresh data. Cached health still shown.";
       } else {
         showAlert(`Google Health: ${err}`, "warn");
         $("health-note").textContent =
@@ -4075,11 +4075,7 @@
         else btn.removeAttribute("aria-current");
       });
     }
-    // Admin card: More tab only (narrow); desktop keeps header actions
-    const admin = $("mobile-admin-card");
-    if (admin) {
-      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
-    }
+    // Connections (Google reconnect) lives under More via data-m-panel — no extra hide logic
     syncMacroStripVisibility();
     window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" });
     // After layout paints, resize charts that were built while hidden
@@ -4143,14 +4139,9 @@
   function syncMobileShell() {
     const bar = $("mobile-tabbar");
     const pills = $("today-mobile-pills");
-    const admin = $("mobile-admin-card");
     document.body.classList.add("m-shell");
     if (bar) bar.hidden = false;
     if (pills) pills.hidden = false;
-    // More-tab admin only on phone; desktop uses header buttons
-    if (admin) {
-      admin.hidden = !isNarrowViewport() || mobileActiveTab !== "more";
-    }
     goMobileTab(mobileActiveTab);
     const activePill = document.querySelector(
       "#today-hub-grid .today-panel.today-panel-active"
@@ -4187,9 +4178,6 @@
     // More-tab admin mirrors desktop header buttons (phone only)
     if ($("btn-refresh-mobile")) {
       $("btn-refresh-mobile").addEventListener("click", () => loadDashboard(true));
-    }
-    if ($("btn-google-auth-mobile")) {
-      $("btn-google-auth-mobile").addEventListener("click", () => refreshGoogleAuth());
     }
   }
 
@@ -4284,15 +4272,15 @@
     const started = Date.now();
     if (meta) {
       meta.textContent = forceRefresh
-        ? "Refreshing Google Health + GitHub (forced)…"
+        ? "Refreshing Google Health (forced)…"
         : "Loading dashboard (local + cache)…";
     }
     const tick = setInterval(() => {
       if (!meta) return;
       const sec = Math.round((Date.now() - started) / 1000);
       meta.textContent = forceRefresh
-        ? `Refreshing remotes… ${sec}s`
-        : `Loading… ${sec}s (uses 1h cache for Health/GitHub)`;
+        ? `Refreshing data… ${sec}s`
+        : `Loading… ${sec}s (uses ~1h cache for Health)`;
     }, 500);
     try {
       const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
@@ -4769,7 +4757,7 @@
         const flow = (st && st.flow) || {};
         if (flow.status === "ok" || (st.token_ok && flow.status !== "pending")) {
           showAlert(
-            flow.message || "Google Health authorized. Refreshing remotes…",
+            flow.message || "Google Health authorized. Refreshing data…",
             "ok"
           );
           await loadDashboard(true);
@@ -4780,7 +4768,7 @@
         }
       }
       throw new Error(
-        "Timed out waiting for Google consent. Click Refresh Google auth to try again."
+        "Timed out waiting for Google consent. More → Reconnect Google Health to try again."
       );
     } catch (e) {
       showAlert(`Google auth failed: ${e.message}`, "err");
