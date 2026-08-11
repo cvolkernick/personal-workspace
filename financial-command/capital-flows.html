@@ -120,10 +120,10 @@
       stroke-width: 2;
       stroke-dasharray: 5 4;
     }
-    .node-title { fill: var(--text); font-size: 12px; font-weight: 700; font-family: inherit; }
-    .node-sub { fill: var(--muted); font-size: 9.5px; font-family: inherit; }
+    .node-title { fill: var(--text); font-size: 11px; font-weight: 700; font-family: inherit; }
+    .node-sub { fill: var(--muted); font-size: 9px; font-family: inherit; }
     /* Income third row: payout channel name (italic) */
-    .node-landing { fill: var(--muted); font-size: 9px; font-style: italic; font-family: inherit; }
+    .node-landing { fill: var(--muted); font-size: 8.5px; font-style: italic; font-family: inherit; }
     /* butt caps on dashed edges — round + thick stroke collapses short gaps to solid */
     .edge-path {
       fill: none;
@@ -246,7 +246,7 @@
       <h2>Flow map</h2>
       <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(Digital Credit → X Money → Margin)</em> → <strong>Deploy</strong>. Credit engines are LE cards, not separate columns. Each credit card still runs HY ↔ borrowing rotation inside.</p>
       <div class="flow-wrap">
-        <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 620" role="img" aria-label="Capital flow diagram"></svg>
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 460" role="img" aria-label="Capital flow diagram"></svg>
       </div>
       <div class="map-legend" id="map-legend" aria-label="Flow map legend">
         <div>
@@ -386,30 +386,33 @@
 
       const positions = {};
       const colMeta = {};
-      // Extra height when Deploy has 7 sheet tabs (+ card / fund)
+      // Vertical compress: short nodes + less column band height (fit web view)
       const maxColLen = Math.max(
         ...layoutCols.map((c) => (c.ids || []).filter((id) => byId[id]).length),
         1
       );
-      const colH = maxColLen >= 7 ? 640 : 560;
-      const top = 52;
+      const colH = maxColLen >= 7 ? 460 : maxColLen >= 5 ? 400 : 340;
+      const top = 34;
       layoutCols.forEach((col, ci) => {
         const x = xByIndex[ci] != null ? xByIndex[ci] : leftPad + ci * colGap;
         const ids = (col.ids || []).filter((id) => byId[id]);
         colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
         const gap = colH / Math.max(ids.length, 1);
-        // Dense columns (5+ cards): slightly shorter nodes so gaps stay readable
+        // Dense columns (5+ cards): shorter nodes; leave a little gap between cards
         const dense = ids.length >= 5;
         const veryDense = ids.length >= 7;
         ids.forEach((id, i) => {
           const node = byId[id];
-          // Income cards need room for title + cadence + italic landing channel
+          // Income: title + cadence + italic landing (3 lines, tighter)
           const isIncome = node && node.layer === "income";
-          const h = isIncome ? 68 : veryDense ? 44 : dense ? 48 : 54;
+          const h = isIncome ? 50 : veryDense ? 34 : dense ? 38 : 42;
+          // Center card in its band slot rather than large top offset
+          const bandTop = top + gap * i;
+          const y = bandTop + Math.max(2, (gap - h) * 0.35);
           positions[id] = {
             ...node,
             x,
-            y: top + gap * i + gap * 0.08,
+            y,
             w: nodeW,
             h,
             colIndex: ci,
@@ -420,8 +423,8 @@
         720,
         leftPad + (colCount - 1) * colGap + nodeW + 32
       );
-      // Taller canvas when a column is dense
-      const svgH = Math.max(620, top + colH + 48);
+      // Compact canvas: just past last band + live strip
+      const svgH = Math.max(440, top + colH + 28);
       return { positions, colMeta, layoutCols, xByIndex, svgW, svgH };
     }
 
@@ -465,7 +468,7 @@
       const svg = document.getElementById("flow-svg");
       const { positions, layoutCols, xByIndex, svgW, svgH } = layoutNodes(data);
       const W = svgW || 900;
-      const H = svgH || 620;
+      const H = svgH || 460;
 
       // defs for arrows
       let html = `
@@ -516,15 +519,19 @@
         const sub = cadence
           ? cadence + (n.pool ? " · " + n.pool : "")
           : (n.subtitle || n.evidence || "").slice(0, 42);
-        // Income: bold title · cadence · italic first-touch channel (e.g. Turo / Semi-Daily / X Money)
+        // Compact vertical text metrics (scaled with node height)
+        const titleY = n.h <= 40 ? 14 : 16;
+        const subY = n.h <= 40 ? 28 : 30;
+        const landY = n.h <= 52 ? 42 : 46;
+        // Income: bold title · cadence · italic first-touch channel
         const landingLine =
           n.layer === "income" && n.landingLabel
-            ? `<text class="node-landing" x="10" y="54">${esc(n.landingLabel)}</text>`
+            ? `<text class="node-landing" x="10" y="${landY}">${esc(n.landingLabel)}</text>`
             : "";
         html += `<g transform="translate(${n.x},${n.y})">
           <rect class="node-box ${esc(boxClass)}" width="${n.w}" height="${n.h}" />
-          <text class="node-title" x="10" y="20">${esc(n.label)}</text>
-          <text class="node-sub" x="10" y="38">${esc(sub)}</text>
+          <text class="node-title" x="10" y="${titleY}">${esc(n.label)}</text>
+          <text class="node-sub" x="10" y="${subY}">${esc(sub)}</text>
           ${landingLine}
         </g>`;
       });
