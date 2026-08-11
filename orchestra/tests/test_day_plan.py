@@ -435,7 +435,8 @@ class CollectorDayFieldsTests(unittest.TestCase):
     def test_collect_finance_reads_stress_overall(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             ws = Path(td)
-            as_of = (NOW - timedelta(hours=2)).isoformat()
+            # collect_finance ages against wall clock — keep as_of within fresh tier (≤6h)
+            as_of = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
             _write_json(
                 ws / "treasury" / "snapshots" / "treasury_latest.json",
                 {
@@ -558,8 +559,43 @@ class CollectorDayFieldsTests(unittest.TestCase):
             )
             wf = collect_workflow(ws)
             self.assertEqual(wf["signals"]["board"].get("ready_count"), 1)
+            self.assertEqual(wf["signals"]["board"].get("sot"), "buzz-board-project-1")
+            self.assertTrue(wf["signals"]["backlog"].get("not_board_status"))
+            self.assertEqual(wf["signals"]["backlog"].get("role"), "session_hint")
+            # Summary leads with Board packet, not "N active backlog" Ready fiction
+            self.assertIn("Ready 1", wf["summary"])
+            self.assertNotIn("active backlog", wf["summary"])
+            self.assertEqual(wf["status"], "ok")
+            self.assertTrue(
+                any("day_constraints.json" in s for s in (wf.get("sources") or []))
+            )
             fit = collect_fitness(ws)
             self.assertEqual(fit["signals"]["day"].get("train_recommendation"), "easy")
+
+    def test_collect_workflow_backlog_alone_not_board_ok(self) -> None:
+        """ops/backlog alone must not paint Board Ready / ok work status."""
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write_json(
+                ws / "ops" / "backlog" / "items.json",
+                {
+                    "items": [
+                        {
+                            "id": "b1",
+                            "title": "not a board card",
+                            "status": "open",
+                            "priority": "high",
+                        }
+                    ]
+                },
+            )
+            wf = collect_workflow(ws)
+            self.assertEqual(wf["signals"]["board"], {})
+            self.assertTrue(wf["signals"]["backlog"].get("not_board_status"))
+            self.assertIn("Board unknown", wf["summary"])
+            self.assertNotIn("active backlog", wf["summary"])
+            self.assertIn("not Board Status", wf["summary"])
+            self.assertIn(wf["status"], ("partial", "missing"))
 
 
 class PayloadDayPlanTests(unittest.TestCase):

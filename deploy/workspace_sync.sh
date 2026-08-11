@@ -59,6 +59,8 @@ preserve_durable() {
     ops/backlog/scheduler.json
     ops/backlog/suggestions.json
     ops/sprint
+    ops/board/day_constraints.json
+    fitness/data/day_constraints.json
     financial-command/treasury_latest.json
     orchestra/data/heartbeat/latest.json
     investment/fund_manager_journal.md
@@ -109,6 +111,7 @@ git clean -fd \
   -e 'treasury/snapshots/' \
   -e 'treasury/config.json' \
   -e 'ops/sprint/' \
+  -e 'ops/board/day_constraints.json' \
   -e 'fitness/data/' \
   -e '**/data/schedule_state.json' \
   -e '.env' \

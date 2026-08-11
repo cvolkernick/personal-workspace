@@ -1,0 +1,17 @@
+[Unit]
+Description=Export Board (+ Fit poke) day_constraints packets for Orchestra
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=WORKSPACE_DIR=%h/personal-workspace
+Environment=LOCAL_WORKSPACE_DIR=%h/personal-workspace
+Environment=FITDASH_URL=http://127.0.0.1:8787
+# GITHUB_TOKEN loaded inside script from ~/.config/workflow-scheduler.env or gh auth
+ExecStart=/bin/bash %h/personal-workspace/scripts/export-day-packets.sh
+Nice=10
+
+[Install]
+WantedBy=default.target

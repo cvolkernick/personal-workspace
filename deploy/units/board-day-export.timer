@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: refresh Board/Fit day_constraints for Orchestra day_plan
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=board-day-export.service
+
+[Install]
+WantedBy=timers.target

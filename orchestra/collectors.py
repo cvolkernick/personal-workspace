@@ -19,6 +19,7 @@ def _svc_url(name: str) -> str:
 
 
 import json
+import os
 import re
 import socket
 from datetime import datetime, timezone
@@ -246,37 +247,16 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
 
 
 def collect_workflow(workspace: Path) -> dict[str, Any]:
+    """Workflow domain snapshot for Orchestra.
+
+    **Work Status SoT** = Buzz Board Project #1 via ``ops/board/day_constraints.json``
+    (ready / IP / PR / WIP). ``ops/backlog`` is a **session/bridge hint only** —
+    never treat backlog rows as Board Status (kills dual-SoT narrative).
+    """
     ws = Path(workspace)
-    backlog = collect_backlog_summary(ws)
-    idx_path = ws / "ops" / "session-index" / "latest.json"
-    idx = _read_json(idx_path) or {}
-    sessions = idx.get("sessions") or []
-    session_n = len(sessions) if isinstance(sessions, list) else 0
-    # light git dirty count without full workspace collector
-    dirty_n = 0
-    try:
-        import subprocess
 
-        proc = subprocess.run(
-            ["git", "-C", str(ws), "status", "--porcelain"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        if proc.returncode == 0 and proc.stdout:
-            dirty_n = len([ln for ln in proc.stdout.splitlines() if ln.strip()])
-    except (OSError, subprocess.TimeoutExpired):
-        dirty_n = 0
-
-    bits = [
-        f"{backlog.get('count', 0)} active backlog",
-        f"{session_n} session(s) indexed",
-    ]
-    if dirty_n:
-        bits.append(f"{dirty_n} dirty file(s)")
-
-    # Optional Board day packet (P1 stub path; live buzz-board is P3/Cadence).
-    # Prefer ops/board/day_constraints.json — never invent Ready/IP zeros when absent.
+    # --- Board day packet (work SoT for day_plan gates / Next 3 work) ---
+    # Never invent Ready/IP zeros when absent or fetch_ok=false.
     board_path = ws / "ops" / "board" / "day_constraints.json"
     board_pkt = _read_json(board_path)
     board_signals: dict[str, Any] = {}
@@ -298,23 +278,85 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
             "confidence": board_pkt.get("confidence"),
             "deep_link": board_pkt.get("deep_link"),
             "source": "ops/board/day_constraints.json",
+            "sot": "buzz-board-project-1",
         }
-        if board_pkt.get("summary"):
-            bits.insert(0, str(board_pkt["summary"]))
+
+    # --- Non-status support (session index, dirty, optional ops/backlog hint) ---
+    idx_path = ws / "ops" / "session-index" / "latest.json"
+    idx = _read_json(idx_path) or {}
+    sessions = idx.get("sessions") or []
+    session_n = len(sessions) if isinstance(sessions, list) else 0
+    dirty_n = 0
+    try:
+        import subprocess
+
+        proc = subprocess.run(
+            ["git", "-C", str(ws), "status", "--porcelain"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if proc.returncode == 0 and proc.stdout:
+            dirty_n = len([ln for ln in proc.stdout.splitlines() if ln.strip()])
+    except (OSError, subprocess.TimeoutExpired):
+        dirty_n = 0
+
+    backlog = collect_backlog_summary(ws)
+    # Explicit dual-SoT guard: backlog is not Board Status
+    if isinstance(backlog, dict):
+        backlog = {
+            **backlog,
+            "role": "session_hint",
+            "not_board_status": True,
+            "source": "ops/backlog/items.json",
+        }
+
+    bits: list[str] = []
+    if board_signals:
+        if board_signals.get("summary"):
+            bits.append(str(board_signals["summary"]))
+        elif board_signals.get("fetch_ok") is False or board_signals.get("stale"):
+            bits.append("Board stale/unknown")
+        else:
+            bits.append("Board packet present")
+    else:
+        bits.append("Board unknown — no ops/board/day_constraints.json (run day-export)")
+
+    if session_n:
+        bits.append(f"{session_n} session(s) indexed")
+    if dirty_n:
+        bits.append(f"{dirty_n} dirty file(s)")
+    # Trailing hint only — never "N active backlog" as Ready stand-in
+    if backlog.get("ok") and backlog.get("count"):
+        bits.append(f"{backlog.get('count')} ops-backlog rows (not Board Status)")
+
+    board_ok = bool(
+        board_signals
+        and board_signals.get("fetch_ok") is not False
+        and not board_signals.get("stale")
+        and board_signals.get("ready_count") is not None
+    )
+    if board_ok:
+        status = "ok"
+    elif board_signals or session_n or backlog.get("ok"):
+        status = "partial"
+    else:
+        status = "missing"
 
     return {
         "id": "workflow",
         "label": "Workflow / Projects",
-        "status": "ok" if backlog.get("ok") or session_n or board_signals else "partial",
+        "status": status,
         "summary": "; ".join(bits),
         "signals": {
-            "backlog": backlog,
+            "board": board_signals,
             "session_count": session_n,
             "dirty_files": dirty_n,
             "session_index": "ops/session-index/latest.json"
             if idx_path.is_file()
             else None,
-            "board": board_signals,
+            # session/bridge hint only — day_plan composer ignores this for Status
+            "backlog": backlog,
         },
         "available": True,
         "live": None,
@@ -322,37 +364,97 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
         "launch": "bash deploy/open_dashboard.sh projects-dashboard",
         "port": 8765,
         "sources": [
-            "ops/backlog/",
+            "ops/board/day_constraints.json",
             "ops/session-index/",
-            "ops/board/",
+            "ops/backlog/ (session hint — not Board Status)",
             "projects-dashboard/",
         ],
     }
 
 
+def _personal_worktrees_base() -> Path:
+    """Base dir for domain git worktrees (mirrors launcher.worktree_base)."""
+    return (
+        Path(
+            os.environ.get(
+                "PERSONAL_WORKSPACE_WORKTREES",
+                str(Path.home() / "personal-workspace-worktrees"),
+            )
+        )
+        .expanduser()
+        .resolve()
+    )
+
+
+def _finance_worktree_roots() -> list[Path]:
+    """Canonical FCC worktree roots first (env override, then treasury area).
+
+    SoT remains FCC eval JSON under the treasury worktree — Orchestra is
+    read-only. Prefer worktree over monorepo dual-SoT lag (Nakatoshi / #92).
+    """
+    roots: list[Path] = []
+    env = (os.environ.get("FCC_WORKTREE_ROOT") or "").strip()
+    if env:
+        p = Path(env).expanduser().resolve()
+        if p.is_dir():
+            roots.append(p)
+    wt = _personal_worktrees_base() / "treasury"
+    if wt.is_dir() and wt not in roots:
+        roots.append(wt)
+    return roots
+
+
+def _finance_snapshot_candidates(workspace: Path) -> list[Path]:
+    """Ordered treasury_latest.json paths: worktree FCC first, monorepo last.
+
+    Within each root prefer financial-command eval out, then treasury/snapshots.
+    """
+    ws = Path(workspace).resolve()
+    ordered: list[Path] = []
+    seen: set[str] = set()
+
+    def _add(p: Path) -> None:
+        key = str(p.resolve()) if p.exists() else str(p)
+        # Dedup by resolved path when possible without requiring existence
+        try:
+            key = str(p.expanduser().resolve())
+        except OSError:
+            key = str(p)
+        if key in seen:
+            return
+        seen.add(key)
+        ordered.append(p)
+
+    for root in _finance_worktree_roots():
+        _add(root / "financial-command" / "treasury_latest.json")
+        _add(root / "treasury" / "snapshots" / "treasury_latest.json")
+
+    # Monorepo / Orchestra workspace clone (Pi or Mac tip) — last resort
+    _add(ws / "financial-command" / "treasury_latest.json")
+    _add(ws / "treasury" / "snapshots" / "treasury_latest.json")
+    return ordered
+
+
+def _source_label(path: Path, workspace: Path) -> str:
+    """Prefer workspace-relative label; absolute path for external worktrees."""
+    try:
+        return str(path.resolve().relative_to(Path(workspace).resolve()))
+    except ValueError:
+        return str(path.resolve())
+
+
 def collect_finance(workspace: Path) -> dict[str, Any]:
     ws = Path(workspace)
-    candidates = [
-        ws / "treasury" / "snapshots" / "treasury_latest.json",
-        ws / "financial-command" / "treasury_latest.json",
-    ]
+    candidates = _finance_snapshot_candidates(ws)
     data = None
     source = None
     for p in candidates:
         data = _read_json(p)
         if data:
-            try:
-                source = str(p.relative_to(ws))
-            except ValueError:
-                source = str(p)
+            source = _source_label(p, ws)
             break
     if not data:
-        sources_missing = []
-        for c in candidates:
-            try:
-                sources_missing.append(str(c.relative_to(ws)))
-            except ValueError:
-                sources_missing.append(str(c))
+        sources_missing = [_source_label(c, ws) for c in candidates]
         return {
             "id": "finance",
             "label": "Finance / Treasury",

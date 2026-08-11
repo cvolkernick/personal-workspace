@@ -456,8 +456,25 @@ def cmd_day_export(args: argparse.Namespace) -> None:
     packet: dict[str, Any]
     tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
     if not tok:
+        # Mac operator fallback: gh auth token (never print token)
+        try:
+            import subprocess
+
+            proc = subprocess.run(
+                ["gh", "auth", "token"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if proc.returncode == 0 and (proc.stdout or "").strip():
+                tok = proc.stdout.strip()
+                os.environ["GITHUB_TOKEN"] = tok
+                os.environ["GH_TOKEN"] = tok
+        except (OSError, subprocess.TimeoutExpired):
+            tok = None
+    if not tok:
         packet = build_fetch_failed_packet(
-            detail="GITHUB_TOKEN/GH_TOKEN missing",
+            detail="GITHUB_TOKEN/GH_TOKEN missing (and gh auth token unavailable)",
             deep_link=args.deep_link,
             board_url=board_url,
         )

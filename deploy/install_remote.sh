@@ -65,9 +65,12 @@ ALL_UNITS=(
   resistance-dashboard.service
 )
 # Always install git auto-sync timer (pull master + restart on change)
+# + continuous Board/Fit day packet export for Orchestra day_plan (A)
 SYNC_UNITS=(
   workspace-sync.service
   workspace-sync.timer
+  board-day-export.service
+  board-day-export.timer
 )
 
 select_units() {
@@ -152,7 +155,8 @@ shift
 UNITS="$*"
 
 loginctl enable-linger "$USER" 2>/dev/null || true
-chmod +x "$DIR/deploy/workspace_sync.sh" "$DIR/deploy/open_dashboard.sh" 2>/dev/null || true
+chmod +x "$DIR/deploy/workspace_sync.sh" "$DIR/deploy/open_dashboard.sh" \
+  "$DIR/scripts/export-day-packets.sh" "$DIR/scripts/buzz-board" 2>/dev/null || true
 systemctl --user daemon-reload
 
 # Optional IoT dep
@@ -176,6 +180,11 @@ done
 systemctl --user enable --now workspace-sync.timer 2>/dev/null || true
 systemctl --user start workspace-sync.service 2>/dev/null || true
 systemctl --user list-timers --all 2>/dev/null | grep -i workspace || true
+
+# Continuous Board (+ Fit poke) day packets for Orchestra day_plan
+systemctl --user enable --now board-day-export.timer 2>/dev/null || true
+systemctl --user start board-day-export.service 2>/dev/null || true
+systemctl --user list-timers --all 2>/dev/null | grep -i board-day || true
 
 echo ""
 echo "Listening (ss/netstat if available):"

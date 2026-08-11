@@ -33,17 +33,43 @@ Rules:
 ./scripts/buzz-board day-export --json      # write + print path summary JSON
 ```
 
-### Cron (recommended)
+### Continuous export (recommended — Pi / always-on)
+
+Unified script (Board export + FitDash poke):
+
+```bash
+bash scripts/export-day-packets.sh
+# --board-only / --fit-only / --json supported
+```
+
+systemd user timer (installed by `deploy/install_remote.sh`):
+
+| Unit | Cadence |
+|------|---------|
+| `board-day-export.timer` | every **15m** (+2m after boot) |
+| `board-day-export.service` | oneshot → `scripts/export-day-packets.sh` |
+
+```bash
+systemctl --user enable --now board-day-export.timer
+systemctl --user start board-day-export.service   # run once now
+journalctl --user -u board-day-export.service -n 40 --no-pager
+```
+
+Requires `GITHUB_TOKEN`/`GH_TOKEN` in `~/.config/workflow-scheduler.env` on Pi
+(or `gh auth` on Mac). Fit poke needs FitDash on `FITDASH_URL` (default `:8787`).
+
+### Cron (fallback)
 
 Every 15–30 minutes on Mac or Pi operator host:
 
 ```cron
-*/15 * * * * cd /path/to/personal-workspace && ./scripts/buzz-board day-export >/tmp/board-day-export.log 2>&1
+*/15 * * * * cd /path/to/personal-workspace && bash scripts/export-day-packets.sh >/tmp/board-day-export.log 2>&1
 ```
 
 ### Dashboard boot (optional side path)
 
 Workflow dashboard (`projects-dashboard`, `:8765`) may call the same pure builder after a successful live Board fetch; the CLI remains the durable path when the dashboard is not running.
+
 
 ## Tests
 
