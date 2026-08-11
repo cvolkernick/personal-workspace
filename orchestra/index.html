@@ -40,50 +40,6 @@
       backdrop-filter: blur(8px);
       position: sticky; top: 0; z-index: 12;
     }
-    /* Grouped sticky dock — plane sections, not flat equal pills */
-    .domain-nav {
-      display: flex; flex-wrap: wrap; gap: 0.55rem 0.85rem;
-      padding: 0.5rem 1.5rem 0.6rem;
-      border-bottom: 1px solid var(--border);
-      background: rgba(10,14,20,0.94);
-      backdrop-filter: blur(8px);
-      position: sticky; top: 3.35rem; z-index: 11;
-      align-items: center;
-    }
-    .domain-nav .nav-group {
-      display: inline-flex; flex-wrap: wrap; gap: 0.35rem;
-      align-items: center;
-    }
-    .domain-nav .nav-group-label {
-      color: var(--muted); font-size: 0.68rem; font-weight: 700;
-      letter-spacing: 0.06em; text-transform: uppercase;
-      margin-right: 0.15rem;
-    }
-    .domain-nav a.nav-chip {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      background: var(--panel); color: var(--text);
-      border: 1px solid var(--border); border-radius: 999px;
-      padding: 0.3rem 0.65rem; font-size: 0.8rem; font-weight: 650;
-      text-decoration: none; white-space: nowrap; cursor: pointer;
-    }
-    .domain-nav a.nav-chip:hover { border-color: var(--accent); color: var(--accent); }
-    .domain-nav a.nav-chip.offline { opacity: 0.72; }
-    .domain-nav a.nav-chip.stale .dot { background: var(--red); box-shadow: 0 0 6px var(--red); }
-    .domain-nav a.nav-chip .dot {
-      width: 0.42rem; height: 0.42rem; border-radius: 50%;
-      background: var(--muted); flex-shrink: 0;
-    }
-    .domain-nav a.nav-chip.live .dot { background: var(--cyan); box-shadow: 0 0 6px var(--cyan); }
-    .domain-nav a.nav-chip.offline .dot { background: var(--yellow); }
-    button.gate-cta {
-      background: #1a3a55; border-color: #2d6a9f; color: var(--text);
-      font-size: 0.78rem; padding: 0.28rem 0.65rem; border-radius: 8px;
-    }
-    button.gate-cta:hover { border-color: var(--accent); color: var(--accent); }
-    #launch-toast {
-      display: none; margin: 0 0 0.75rem; padding: 0.55rem 0.85rem;
-      border-radius: 8px; border: 1px solid var(--border); font-size: 0.88rem;
-    }
     header h1 {
       margin: 0; font-size: 1.3rem; font-weight: 700;
       letter-spacing: -0.03em;
@@ -624,6 +580,21 @@
 
     async function openDomain(domainId, fallbackUrl) {
       const pubFallback = publicizeUrl(fallbackUrl);
+      // Prefer POST ensure-and-open (starts local server when offline); fall back to GET URL probe.
+      try {
+        const res = await fetch("/api/launch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain: domainId }),
+          cache: "no-store",
+        });
+        const body = await res.json().catch(() => ({}));
+        if (body && body.url) {
+          window.open(publicizeUrl(body.url), "_blank", "noopener");
+          if (body.ok) setTimeout(() => load(true), 600);
+          return;
+        }
+      } catch (_) { /* fall through */ }
       try {
         const res = await fetch("/api/launch?domain=" + encodeURIComponent(domainId), {
           cache: "no-store",
@@ -980,6 +951,10 @@
       const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
 
       renderFanIn(data.fan_in);
+
+      // Grouped sticky dock (Today / Decide / Home)
+      renderDock(data);
+      bindDockClicks();
 
       // Primary: unitary day plan (read-only from payload.day_plan — no dual write)
       renderDayPlan(data.day_plan);
