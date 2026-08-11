@@ -2053,7 +2053,7 @@
       if (!btn || !root.contains(btn)) return;
       const action = btn.getAttribute("data-action");
 
-      // Horizontal carousel navigation (pantry, staples, meal items)
+      // Carousel navigation — horizontal (pantry/items) or vertical (planned meals)
       if (action === "carousel-nav") {
         ev.preventDefault();
         ev.stopPropagation();
@@ -2061,8 +2061,17 @@
         const dir = Number(btn.getAttribute("data-dir") || 1);
         const scroller = cid ? document.getElementById(cid) : null;
         if (scroller) {
-          const step = Math.max(180, Math.floor(scroller.clientWidth * 0.85));
-          scroller.scrollBy({ left: dir * step, behavior: "smooth" });
+          const axis =
+            btn.getAttribute("data-axis") ||
+            scroller.getAttribute("data-axis") ||
+            "x";
+          if (axis === "y") {
+            const step = Math.max(120, Math.floor(scroller.clientHeight * 0.92));
+            scroller.scrollBy({ top: dir * step, behavior: "smooth" });
+          } else {
+            const step = Math.max(180, Math.floor(scroller.clientWidth * 0.85));
+            scroller.scrollBy({ left: dir * step, behavior: "smooth" });
+          }
         }
         return;
       }
@@ -3053,6 +3062,8 @@
         html += `<p class="muted">No items planned — check in-stock inventory or remaining macros.</p>`;
       }
     } else {
+      // Vertical snap carousel: one meal bucket visible at a time (balances height vs Today so far)
+      let mealSlides = "";
       meals.forEach((m, mi) => {
         const items = m.items || [];
         let slides = "";
@@ -3066,7 +3077,7 @@
           </div>`;
         });
         const cid = `meal-carousel-${mi}`;
-        html += `<div class="meal-bucket">
+        mealSlides += `<div class="meal-vslide meal-bucket" data-meal-idx="${mi}">
           <div class="meal-bucket-head">
             <div class="title">${m.label || "Meal"} · ${items.length} item${
           items.length === 1 ? "" : "s"
@@ -3080,6 +3091,22 @@
           }
         </div>`;
       });
+      html += `<div class="meal-vcarousel-shell">
+        <div class="meal-vcarousel-meta muted">
+          <span id="meal-vcarousel-label">${meals.length} meal${
+        meals.length === 1 ? "" : "s"
+      } · one at a time</span>
+        </div>
+        <div class="meal-vcarousel-row">
+          <button type="button" class="inv-carousel-nav meal-vcarousel-nav prev" data-action="carousel-nav" data-carousel="meal-plan-vcarousel" data-dir="-1" data-axis="y" aria-label="Previous meal">▴</button>
+          <div class="meal-vcarousel" id="meal-plan-vcarousel" data-axis="y" tabindex="0" role="region" aria-label="Planned meals">
+            <div class="meal-vcarousel-track">
+              ${mealSlides}
+            </div>
+          </div>
+          <button type="button" class="inv-carousel-nav meal-vcarousel-nav next" data-action="carousel-nav" data-carousel="meal-plan-vcarousel" data-dir="1" data-axis="y" aria-label="Next meal">▾</button>
+        </div>
+      </div>`;
     }
     html += `</div>`;
     box.innerHTML = html;
@@ -4384,9 +4411,8 @@
     }
   }
 
+  /** Rebuild rest-of-day meal plan (inventory stock toggles; dashboard load also regenerates). */
   async function generatePlan() {
-    const btn = $("btn-generate-plan");
-    if (btn) btn.disabled = true;
     try {
       const res = await fetch("/api/meal-plan/generate", {
         method: "POST",
@@ -4396,11 +4422,8 @@
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || res.status);
       renderMealPlan(data.plan);
-      showAlert("Rest-of-day meal plan generated", "ok");
     } catch (e) {
       showAlert(`Meal plan failed: ${e.message}`, "err");
-    } finally {
-      if (btn) btn.disabled = false;
     }
   }
 
@@ -4777,9 +4800,7 @@
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
     }
-    if ($("btn-generate-plan")) {
-      $("btn-generate-plan").addEventListener("click", generatePlan);
-    }
+
     if ($("exercise-form")) {
       $("exercise-form").addEventListener("submit", submitExerciseCatalog);
     }

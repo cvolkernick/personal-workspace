@@ -1079,6 +1079,107 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+/* Vertical meal carousel — one planned meal visible; balances height vs Today so far */
+.meal-vcarousel-shell {
+  margin-top: 0.55rem;
+  min-width: 0;
+}
+
+.meal-vcarousel-meta {
+  font-size: 0.78rem;
+  margin: 0 0 0.35rem;
+  font-weight: 600;
+}
+
+.meal-vcarousel-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.35rem;
+  align-items: stretch;
+}
+
+.meal-vcarousel {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  /* ~one meal bucket: head + item carousel */
+  max-height: 13.5rem;
+  min-height: 11rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(15, 20, 25, 0.25);
+  padding: 0.35rem 0.4rem;
+}
+
+.meal-vcarousel-track {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.meal-vslide.meal-bucket {
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  flex: 0 0 auto;
+  min-height: 11.5rem;
+  max-height: 12.5rem;
+  margin-top: 0;
+  padding: 0.45rem 0.35rem 0.55rem;
+  border-top: none;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.meal-vslide.meal-bucket + .meal-vslide.meal-bucket {
+  border-top: 1px solid var(--border);
+}
+
+.meal-vcarousel-nav {
+  align-self: center;
+  width: 2rem;
+  height: 2.2rem;
+  font-size: 0.95rem;
+}
+
+/* Keep Today so far + meal plan columns even when plan has many meals */
+#today-exec-row.equal-cards > .card-fill {
+  min-height: 0;
+}
+
+#today-exec-row #meal-plan-result {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#today-exec-row .meal-plan-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#today-exec-row .meal-vcarousel-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+#today-exec-row .meal-vcarousel-row {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#today-exec-row .meal-vcarousel {
+  flex: 1 1 auto;
+  max-height: 14rem;
+}
+
 .meal-item-list {
   list-style: none;
   margin: 0.5rem 0 0;
