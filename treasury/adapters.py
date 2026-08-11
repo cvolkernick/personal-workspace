@@ -30,6 +30,32 @@ def _resolve_coinbase_bin() -> Optional[str]:
     return None
 
 
+def _subprocess_env() -> Dict[str, str]:
+    """Env for coinbase CLI under launchd.
+
+    coinbase is `#!/usr/bin/env node`. Launchd PATH often lacks Homebrew, so
+    even when we resolve the absolute coinbase path, node is missing → live
+    fetch fails and coinbase_latest.json freezes for days.
+    """
+    env = dict(os.environ)
+    # Prefer Homebrew node (coinbase needs modern builtins). Put these first
+    # in order so /opt/homebrew/bin wins over /usr/local/bin (older node).
+    extras = (
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        str(Path.home() / ".local" / "bin"),
+        "/usr/local/bin",
+    )
+    path_parts = [p for p in (env.get("PATH") or "").split(":") if p]
+    # Prepend extras in reverse so first extra ends up leftmost
+    for e in reversed(extras):
+        if e in path_parts:
+            path_parts.remove(e)
+        path_parts.insert(0, e)
+    env["PATH"] = ":".join(path_parts)
+    return env
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -86,6 +112,7 @@ def fetch_btc_usd_price(*, timeout: float = 20.0) -> Tuple[Optional[float], Opti
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_subprocess_env(),
         )
     except FileNotFoundError:
         return None, "coinbase CLI not found"
@@ -121,6 +148,7 @@ def fetch_coinbase_liquid_live(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=_subprocess_env(),
         )
     except FileNotFoundError:
         return None, "coinbase CLI not found"

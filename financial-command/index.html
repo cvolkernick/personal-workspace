@@ -1053,6 +1053,41 @@
     .alloc-bar .fill { display: block; height: 100%; border-radius: 6px; }
     .alloc-bar .fill.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
     .alloc-bar .fill.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    /* Single dual-shade bar: stocks (left) + BTC complex (right) of deployed mix */
+    .alloc-bar.dual {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    .alloc-bar.dual .fill {
+      display: block;
+      height: 100%;
+      border-radius: 0;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .alloc-bar.dual .fill:first-child { border-radius: 6px 0 0 6px; }
+    .alloc-bar.dual .fill:last-of-type { border-radius: 0 6px 6px 0; }
+    .alloc-bar.dual .fill:only-child { border-radius: 6px; }
+    .alloc-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1rem;
+      margin-top: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .alloc-legend .sw {
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 2px;
+      margin-right: 0.28rem;
+      vertical-align: -1px;
+    }
+    .alloc-legend .sw.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    .alloc-legend .sw.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
     .alloc-bar .target-mark {
       position: absolute;
       top: -2px;
@@ -2059,7 +2094,7 @@
       </div>
       <div class="fm-hero">
         <div>
-          <div class="hint">40 / 60 allocation</div>
+          <div class="hint">60 / 40 allocation · stocks / BTC+</div>
           <div class="alloc-stack" id="fm-alloc"></div>
           <div id="fund-manager-metrics" style="margin-top:0.45rem"></div>
         </div>
@@ -2219,9 +2254,9 @@
     const DEFAULT_POLICY = {
       cb_target_ltv_max: 0.5,
       cb_ltv_alert: 0.45,
-      cb_card_float_usdc: 500,
+      cb_card_float_usdc: 0,
       cb_loan_buffer_usdc: 1000,
-      cb_bridge_dry_powder_usdc: 200,
+      cb_bridge_dry_powder_usdc: 0, // retired 2026-08-11 — HY covers residual
       rh_bp_floor: 0,
       rh_margin_use_max: 0.4,
       excess_split_cb: 0.6,
@@ -2368,6 +2403,14 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
+    function sheetTabTag(tab, capitalOutlay) {
+      const t = String(tab || "").trim();
+      if (!t) return "";
+      const title = capitalOutlay
+        ? "Capital outlay (awareness — not Essential/Fleet burn)"
+        : "Sheet tab";
+      return `<span class="src-tag" title="${escapeHtml(title)}">${escapeHtml(t)}</span>`;
+    }
     function billRowHtml(r) {
       const u = dueUrgency(r.date);
       const src = r.from || "?";
@@ -2377,7 +2420,8 @@
         `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(r.date))}</span>` +
         `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
         `<div class="bill-main"><div class="name">${escapeHtml(r.item || "—")}</div>` +
-        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
+        `<div class="meta">${sheetTabTag(r.tab, r.capital_outlay)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
         `<div class="bill-amt">${money(r.monthly)}</div></div>`
       );
     }
@@ -2431,7 +2475,9 @@
           ? `<span class="status-pill ${stCls}">${escapeHtml(st)}</span>`
           : "") +
         `</div>` +
-        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        `<div class="meta">${sheetTabTag(o.tab, o.capital_outlay)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        (o.capital_outlay ? ` · capital` : "") +
         (o.urgency_rank != null ? ` · #${o.urgency_rank}` : "") +
         `</div></div>` +
         `<div class="bill-amt">${amt}` +
@@ -2488,7 +2534,7 @@
       const floors = {
         card_float: p.cb_card_float_usdc,
         loan_buffer: p.cb_loan_buffer_usdc,
-        bridge_dry_powder: p.cb_bridge_dry_powder_usdc,
+        bridge_dry_powder: p.cb_bridge_dry_powder_usdc || 0, // retired — HY covers residual
       };
       const required = floors.card_float + floors.loan_buffer + floors.bridge_dry_powder;
       const shortfall = Math.max(0, required - liquid);
@@ -2536,8 +2582,8 @@
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
       if (f(man.card_balance) > 0)
         add(1, "card_refinance", `Refinance One Card $${f(man.card_balance).toFixed(0)} via Morpho principal`, "human", "Not HY pull — LTV buffer stays.", false);
-      if (buckets.gaps.loan_buffer > 0 || buckets.gaps.bridge_dry_powder > 0)
-        add(2, "ltv_buffer_stack", `Restore LTV buffer floors`, "human", "USDC HY sleeve vs loan/bridge.", false);
+      if (buckets.gaps.loan_buffer > 0)
+        add(2, "ltv_buffer_stack", `Restore HY LTV Buffer`, "human", "HY LTV Buffer vs Morpho LTV floor.", false);
       if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "Throttle buys.", true);
       actions.sort((a, b) => a.priority - b.priority);
       return {
@@ -2978,9 +3024,9 @@
         if (s.id === "cash_buffers" && s.meta && s.meta.gaps) {
           const g = s.meta.gaps;
           extra =
-            `<div class="ag-meta">float ${money(g.card_float)} · loan ${money(
+            `<div class="ag-meta">float ${money(g.card_float)} · HY LTV buf ${money(
               g.loan_buffer
-            )} · bridge ${money(g.bridge_dry_powder)}</div>`;
+            )}</div>`;
         }
         if (s.id === "capex_margin" && s.meta) {
           const bits = [];
@@ -3057,7 +3103,7 @@
       if (fmaEarly.ok) {
         if (inBandB && inBandS) {
           fmHealth = "green";
-          fmHealthLabel = "In band · ~40/60";
+          fmHealthLabel = "In band · ~60/40";
         } else if (wDepEarly.btc_digital_credit == null && (fmaEarly.cash_usd || 0) > 0) {
           fmHealth = "yellow";
           fmHealthLabel = "Cash idle · not deployed";
@@ -3212,7 +3258,7 @@
         if (stress.coinbase_liquid === "red") {
           return toneResult(
             "red",
-            `LTV buffer USDC ${money(workingUsdc)} is below loan/bridge floors (USDC HY sleeve — not One Card float).`
+            `HY LTV Buffer ${money(workingUsdc)} is below floor (not One Card float).`
           );
         }
         if (stress.coinbase_liquid === "yellow") {
@@ -3286,23 +3332,24 @@
             : toneResult("orange", "Deployed sleeve weights unavailable.");
         }
         const drift = Math.abs(wDepK.btc_digital_credit - tgtB);
+        // Display as stocks/BTC (60/40), not BTC/stocks (legacy 40/60 label)
         const mix =
-          Math.round(wDepK.btc_digital_credit * 100) +
+          Math.round((wDepK.stocks_growth || 0) * 100) +
           "/" +
-          Math.round((wDepK.stocks_growth || 0) * 100);
+          Math.round(wDepK.btc_digital_credit * 100);
         if (drift > band * 2)
           return toneResult(
             "orange",
-            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 40/60.`
+            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 60/40.`
           );
         if (drift > band)
           return toneResult(
             "yellow",
-            `Deployed mix ${mix} is near the edge of the 40/60 band.`
+            `Deployed mix ${mix} is near the edge of the 60/40 band.`
           );
         return toneResult(
           "green",
-          `Deployed mix ${mix} is in band (~40/60). NAV ${money(agentNav)}.`
+          `Deployed mix ${mix} is in band (~60/40). NAV ${money(agentNav)}.`
         );
       }
       function billsPressureTone() {
@@ -3525,9 +3572,9 @@
           s:
             wDepK.btc_digital_credit == null
               ? "agentic"
-              : Math.round(wDepK.btc_digital_credit * 100) +
+              : Math.round((wDepK.stocks_growth || 0) * 100) +
                 "/" +
-                Math.round((wDepK.stocks_growth || 0) * 100),
+                Math.round(wDepK.btc_digital_credit * 100),
           target: "fund-manager-card",
           tone: tAgent.tone,
           why: tAgent.why,
@@ -3573,28 +3620,42 @@
         });
       });
 
-      // Buffers
+      // Buffers — HY LTV Buffer is generic high-yield defense (not a card float).
+      // One Card sleeve = available credit vs deposit; gap = balance owed (Morpho refinance, not vault pull).
       const sleeves = ev.sleeves || {};
+      const ocSleeve = sleeves.one_card || {};
+      const cardBal =
+        ocSleeve.balance != null
+          ? f(ocSleeve.balance)
+          : inp.card_balance != null
+            ? f(inp.card_balance)
+            : null;
+      const cardDep =
+        ocSleeve.deposit != null
+          ? f(ocSleeve.deposit)
+          : inp.card_security_deposit_usdc != null
+            ? f(inp.card_security_deposit_usdc)
+            : null;
+      const cardAvail =
+        ocSleeve.available_credit != null
+          ? f(ocSleeve.available_credit)
+          : cardBal != null && cardDep != null
+            ? Math.max(0, cardDep - cardBal)
+            : null;
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
-          "Loan / LTV buffer",
+          "HY LTV Buffer",
           sleeves.loan_buffer?.filled,
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
         ),
+        // Prefer live One Card numbers; never fall back to retired card_float ($0 target)
+        // which made this sleeve look empty while YNAB still showed ~$447 owed.
         sleeveHtml(
-          "Card (refinance path)",
-          sleeves.one_card?.balance != null
-            ? Math.max(0, (sleeves.one_card.deposit || 0) - (sleeves.one_card.balance || 0))
-            : sleeves.card_float?.filled,
-          sleeves.one_card?.deposit != null ? sleeves.one_card.deposit : sleeves.card_float?.target,
-          sleeves.one_card?.balance != null ? sleeves.one_card.balance : sleeves.card_float?.gap
-        ),
-        sleeveHtml(
-          "Bridge powder",
-          sleeves.bridge_dry_powder?.filled,
-          sleeves.bridge_dry_powder?.target,
-          sleeves.bridge_dry_powder?.gap
+          "One Card (Morpho refinance)",
+          cardAvail != null ? cardAvail : 0,
+          cardDep != null ? cardDep : 0,
+          cardBal != null ? cardBal : 0
         ),
       ].join("");
 
@@ -3602,7 +3663,7 @@
       const man = snap.coinbase_manual || {};
       const cashCreditRows = [
         metric(
-          "LTV sleeve USDC (spot+HY)",
+          "LTV sleeve (spot+HY)",
           money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
         ),
         metric(
@@ -3610,7 +3671,7 @@
           money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
         ),
         metric(
-          "USDC HY (LTV buffer)",
+          "HY LTV Buffer",
           inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
         ),
         metric(
@@ -3694,8 +3755,8 @@
         .join("");
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
-      // Burn = Essential + Fleet; capital tabs (Collateral / Productive / Consumer) excluded.
-      // Essential was renamed from Personal (2026-08-10); accept both keys.
+      // Pay-urgency list: Essential + Fleet (burn) + Collateral (awareness / capital outlay).
+      // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
       const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
       const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
       const collTab = (ex.tabs && ex.tabs.Collateral) || {};
@@ -3706,15 +3767,31 @@
         {};
       const consumerTab =
         (ex.tabs && ex.tabs["Consumer Discretionary"]) || {};
+      const tagTab = (items, tab) =>
+        (items || []).map((r) =>
+          r && typeof r === "object" ? { ...r, tab: r.tab || tab } : r
+        );
       const burnItems = []
-        .concat(persTab.items || [])
-        .concat(fleetTab.items || []);
+        .concat(tagTab(persTab.items, "Essential"))
+        .concat(tagTab(fleetTab.items, "Fleet"))
+        .concat(
+          tagTab(collTab.items, "Collateral").map((r) => ({
+            ...r,
+            capital_outlay: true,
+          }))
+        );
       const allItems =
         burnItems.length > 0
           ? burnItems
           : []
-              .concat(persTab.upcoming_by_date || [])
-              .concat(fleetTab.upcoming_by_date || []);
+              .concat(tagTab(persTab.upcoming_by_date, "Essential"))
+              .concat(tagTab(fleetTab.upcoming_by_date, "Fleet"))
+              .concat(
+                tagTab(collTab.upcoming_by_date, "Collateral").map((r) => ({
+                  ...r,
+                  capital_outlay: true,
+                }))
+              );
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
       // Fallback list until /api/coach returns (same urgency colors)
       if (!window.__coachPlan || !window.__coachPlan.ok) {
@@ -3851,26 +3928,33 @@
 
       const btcPct = wDep.btc_digital_credit;
       const stPct = wDep.stocks_growth;
-      const btcOk = btcPct != null && Math.abs(btcPct - 0.4) <= 0.05;
-      const stOk = stPct != null && Math.abs(stPct - 0.6) <= 0.05;
+      const tgtBtc = (fma.targets && fma.targets.btc_digital_credit_pct) || 0.4;
+      const tgtSt = (fma.targets && fma.targets.stocks_growth_pct) || 0.6;
+      const bandAlloc = (fma.targets && fma.targets.band_pct) || 0.05;
+      const btcOk = btcPct != null && Math.abs(btcPct - tgtBtc) <= bandAlloc;
+      const stOk = stPct != null && Math.abs(stPct - tgtSt) <= bandAlloc;
+      const mixOk = btcOk && stOk;
+      const stW = Math.max(0, Math.min(100, Math.round((stPct || 0) * 100)));
+      const btcW = Math.max(0, Math.min(100 - stW, Math.round((btcPct || 0) * 100)));
+      const tgtMarkPct = Math.round(tgtSt * 100); // stocks share from left (60/40)
       document.getElementById("fm-alloc").innerHTML = fma.ok
         ? [
-            `<div class="alloc-row"><div class="top"><span class="name">BTC &amp; digital credit</span>` +
-              `<span class="pct ${btcOk ? "in" : "out"}">${pctLabel(btcPct)} ` +
-              `<span class="hint">target 40%</span></span></div>` +
-              `<div class="alloc-bar"><i class="fill btc" style="width:${Math.min(
-                100,
-                Math.round((btcPct || 0) * 100)
-              )}%"></i>` +
-              `<span class="target-mark" style="left:40%"></span></div></div>`,
-            `<div class="alloc-row"><div class="top"><span class="name">Stocks / growth</span>` +
-              `<span class="pct ${stOk ? "in" : "out"}">${pctLabel(stPct)} ` +
-              `<span class="hint">target 60%</span></span></div>` +
-              `<div class="alloc-bar"><i class="fill stocks" style="width:${Math.min(
-                100,
-                Math.round((stPct || 0) * 100)
-              )}%"></i>` +
-              `<span class="target-mark" style="left:60%"></span></div></div>`,
+            `<div class="alloc-row"><div class="top"><span class="name">Deployed mix · stocks / BTC+</span>` +
+              `<span class="pct ${mixOk ? "in" : "out"}">${pctLabel(stPct)} / ${pctLabel(btcPct)} ` +
+              `<span class="hint">target 60/40</span></span></div>` +
+              `<div class="alloc-bar dual">` +
+              (stW > 0
+                ? `<i class="fill stocks" style="width:${stW}%" title="Stocks / growth ${pctLabel(stPct)}"></i>`
+                : "") +
+              (btcW > 0
+                ? `<i class="fill btc" style="width:${btcW}%" title="BTC &amp; digital credit ${pctLabel(btcPct)}"></i>`
+                : "") +
+              `<span class="target-mark" style="left:${tgtMarkPct}%" title="Target split ${tgtMarkPct}/${100 - tgtMarkPct}"></span>` +
+              `</div>` +
+              `<div class="alloc-legend">` +
+              `<span><i class="sw stocks"></i>Stocks / growth ${pctLabel(stPct)} <span class="hint">tgt ${Math.round(tgtSt * 100)}%</span></span>` +
+              `<span><i class="sw btc"></i>BTC &amp; digital credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
+              `</div></div>`,
           ].join("")
         : `<p class="hint">No allocation yet</p>`;
 
@@ -4053,16 +4137,14 @@
       // Settings (pol declared above with KPI tones)
       document.getElementById("policy-grid").innerHTML = [
         sleeveHtml("Card float target", pol.cb_card_float_usdc, pol.cb_card_float_usdc, 0),
-        sleeveHtml("Loan buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
-        sleeveHtml("Bridge powder", pol.cb_bridge_dry_powder_usdc, pol.cb_bridge_dry_powder_usdc, 0),
+        sleeveHtml("HY LTV Buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
         sleeveHtml("RH BP floor", pol.rh_bp_floor, pol.rh_bp_floor, 0),
       ].join("");
-      // simpler display for targets
+      // simpler display for targets (bridge powder retired — HY covers residual)
       document.getElementById("policy-grid").innerHTML = [
         metric("LTV max", pct(pol.cb_target_ltv_max)),
         metric("LTV alert", pct(pol.cb_ltv_alert)),
-        metric("Loan / LTV buffer $", money(pol.cb_loan_buffer_usdc)),
-        metric("Bridge powder $", money(pol.cb_bridge_dry_powder_usdc)),
+        metric("HY LTV Buffer $", money(pol.cb_loan_buffer_usdc)),
         metric("Spot card reserve $", money(pol.cb_card_float_usdc)),
         metric("RH BP floor $", money(pol.rh_bp_floor)),
         metric("Margin max", pct(pol.rh_margin_use_max)),

@@ -531,8 +531,8 @@
         kv(
           "Book targets",
           targets.btc_digital_credit_pct != null
-            ? `${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex / ${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks`
-            : "40 / 60 modernized"
+            ? `${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks / ${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex (60/40)`
+            : "60 / 40 modernized (stocks / BTC+)"
         ),
         kv("Deep-dive workflow", pol.deep_dive_workflow || "position-deep-dive"),
         kv("Portfolio research", pol.portfolio_research_workflow || "fund-manager-research"),
@@ -585,7 +585,7 @@
       <b>Where it fits</b><br/>
       Sleeve if owned: <code>${esc(sf.sleeve || e.sleeve_if_owned)}</code> ·
       ${esc(sf.role || "")}<br/>
-      Book: ${esc(sf.modernized_60_40 || "40/60")} ·
+      Book: ${esc(sf.modernized_60_40 || "60/40")} ·
       Auto-buy: <strong>no</strong> · Core allowlist: <strong>no</strong>
     </div>
     <div class="grid-2">

@@ -154,6 +154,9 @@ def rank_obligations(
                 "item": row.get("item") or row.get("name") or "—",
                 "from_label": row.get("from") or row.get("pay_from") or "",
                 "venue": venue,
+                # Preserve sheet tab so UI can show Essential vs Fleet vs Collateral
+                "tab": row.get("tab") or None,
+                "capital_outlay": bool(row.get("capital_outlay")),
                 "due_date": due_d.isoformat() if due_d else None,
                 "due_date_raw": due_raw,
                 "days_until_due": days,
@@ -495,39 +498,51 @@ def collect_data_requests(
 
 
 def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Essential + Fleet burn items; fall back to upcoming_by_date or flat list.
+    """Pay-urgency lines: Essential + Fleet burn, plus Collateral for awareness.
 
-    Fleet is auto-fleet obligations (loans/insurance/ops). Collateral and
-    discretionary tabs are capital — not included in the pay plan.
+    - Essential / Fleet: recurring burn (policy burn stack).
+    - Collateral: capital outlay with dates (ASIC/Agentic allocations) — included in
+      pay-urgency so upcoming cash needs are visible, flagged capital_outlay=True.
+    - Productive / Consumer discretionary: still capital targets only (not listed).
     Essential tab was renamed from Personal (2026-08-10); both keys accepted.
     """
     tabs = expenses.get("tabs") or {}
     out: List[Dict[str, Any]] = []
-    burn_names: List[str] = []
-    if tabs.get("Essential"):
-        burn_names.append("Essential")
-    elif tabs.get("Personal"):
-        burn_names.append("Personal")
-    if tabs.get("Fleet"):
-        burn_names.append("Fleet")
-    for tab_name in burn_names:
+
+    def _append_tab(tab_name: str, *, label: str, capital_outlay: bool = False) -> None:
         tab = tabs.get(tab_name) or {}
-        label = "Essential" if tab_name == "Personal" else tab_name
+        if not tab:
+            return
         items = tab.get("items")
         if isinstance(items, list) and items:
             for i in items:
                 if isinstance(i, dict):
                     rec = dict(i)
                     rec.setdefault("tab", label)
+                    if capital_outlay:
+                        rec["capital_outlay"] = True
                     out.append(rec)
-            continue
+            return
         upcoming = tab.get("upcoming_by_date")
         if isinstance(upcoming, list) and upcoming:
             for i in upcoming:
                 if isinstance(i, dict):
                     rec = dict(i)
                     rec.setdefault("tab", label)
+                    if capital_outlay:
+                        rec["capital_outlay"] = True
                     out.append(rec)
+
+    if tabs.get("Essential"):
+        _append_tab("Essential", label="Essential")
+    elif tabs.get("Personal"):
+        _append_tab("Personal", label="Essential")
+    if tabs.get("Fleet"):
+        _append_tab("Fleet", label="Fleet")
+    # Awareness: dated capital allocations (not burn for runway KPIs)
+    if tabs.get("Collateral"):
+        _append_tab("Collateral", label="Collateral", capital_outlay=True)
+
     if out:
         return out
     # flat list on root
@@ -621,6 +636,10 @@ def build_coach_plan(
             "sort": "overdue (more overdue first) → soonest future due → larger amount",
             "allocation": "greedy per-line from matching pay-from venue until cash exhausted",
             "amounts": "prefer amount_due; else monthly sheet estimate (flagged)",
+            "tabs": (
+                "Essential + Fleet = burn; Collateral included in pay-urgency for "
+                "awareness (capital_outlay) but not sheet daily-burn runway"
+            ),
             "no_auto_pay": True,
         },
     }

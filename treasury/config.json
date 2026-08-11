@@ -1,11 +1,14 @@
 {
   "policy": {
-    "cb_target_ltv_max": 0.5,
+    "cb_ltv_target": 0.38,
     "cb_ltv_alert": 0.45,
+    "cb_target_ltv_max": 0.5,
     "cb_card_float_usdc": 0,
     "cb_loan_buffer_usdc": 1000,
-    "cb_bridge_dry_powder_usdc": 200,
+    "cb_bridge_dry_powder_usdc": 0,
     "rh_bp_floor": 0,
+    "rh_margin_use_target": 0.28,
+    "rh_margin_use_alert": 0.35,
     "rh_margin_use_max": 0.4,
     "excess_split_cb": 0.6,
     "excess_split_rh": 0.4,
@@ -17,16 +20,16 @@
     "one_card_apr_est": 0.29
   },
   "coinbase_manual": {
-    "loan_principal_usdc": "738.35",
-    "collateral_btc_usd": "1478.93",
-    "ltv": ".4992",
-    "vault_usdc": "127",
+    "loan_principal_usdc": "0",
+    "collateral_btc_usd": "0",
+    "ltv": "0",
+    "vault_usdc": "0",
     "card_balance": null,
     "card_available_credit": null,
     "one_card_security_deposit_usdc": "500",
-    "notes": "vault_usdc = USDC HY LTV/margin buffer (not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
-    "variable_apr": ".0486",
-    "liquidation_price_btc_usd": "37152"
+    "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense — not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
+    "variable_apr": "0",
+    "liquidation_price_btc_usd": "0"
   },
   "robinhood": {
     "account_number": "5QW39737",

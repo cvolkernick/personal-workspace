@@ -43,6 +43,46 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Re-fetch YNAB if an on-disk snapshot is older than this (matches FCC stale_after_hours).
+# Without this, fetch_rh_checking/fetch_x_money return a "good" cached file forever and
+# as_of freezes → ntfy "rh_checking data Nh old" even while launchd is healthy.
+DEFAULT_YNAB_MAX_AGE_HOURS = 6.0
+
+
+def _parse_as_of(raw: Any) -> Optional[datetime]:
+    if not raw:
+        return None
+    try:
+        t = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        return t
+    except (TypeError, ValueError):
+        return None
+
+
+def _age_hours(as_of: Optional[datetime]) -> Optional[float]:
+    if not as_of:
+        return None
+    return max(0.0, (datetime.now(timezone.utc) - as_of).total_seconds() / 3600.0)
+
+
+def _snapshot_needs_live_refresh(
+    existing: Optional[Dict[str, Any]],
+    *,
+    max_age_hours: float = DEFAULT_YNAB_MAX_AGE_HOURS,
+) -> bool:
+    """True when prefer_live should hit the API (missing, error, or aged past threshold)."""
+    if not existing or existing.get("source") in (None, "empty"):
+        return True
+    if existing.get("live_error"):
+        return True
+    age = _age_hours(_parse_as_of(existing.get("as_of")))
+    if age is None:
+        return True
+    return age > float(max_age_hours)
+
+
 def load_ynab_token() -> Tuple[Optional[str], Optional[str]]:
     env = (os.environ.get("YNAB_TOKEN") or os.environ.get("YNAB_PAT") or "").strip()
     if env and env != "COPY_TOKEN_HERE":
@@ -594,13 +634,18 @@ def fetch_rh_checking(
     *,
     prefer_live: bool = True,
     snapshot_path: Optional[Path] = None,
+    max_age_hours: float = DEFAULT_YNAB_MAX_AGE_HOURS,
 ) -> Dict[str, Any]:
-    """Load RH Checking snapshot (prefer file if one_card already refreshed live)."""
+    """Load RH Checking snapshot; re-sync when missing/error/older than max_age_hours.
+
+    Intent: after one_card live sync writes the YNAB bundle, a fresh file is reused.
+    Previously we reused *any* non-error file forever, so as_of froze and FCC/ntfy
+    reported multi-day rh_checking staleness while the job still looked healthy.
+    """
     snap_path = snapshot_path or (SNAPSHOTS_DIR / "rh_checking_latest.json")
     if prefer_live:
-        # If file is missing or empty, run full sync
         existing = load_json(snap_path)
-        if not existing or existing.get("source") in (None, "empty") or existing.get("live_error"):
+        if _snapshot_needs_live_refresh(existing, max_age_hours=max_age_hours):
             try:
                 bundle = sync_ynab()
                 rh = bundle["rh_checking"]
@@ -620,7 +665,7 @@ def fetch_rh_checking(
                     "cash": None,
                     "live_error": err,
                 }
-        # Prefer existing fresh file after one_card live sync already wrote it
+        # Prefer existing file only when still within max_age_hours
         if existing and not existing.get("live_error"):
             out = dict(existing)
             out.setdefault("source", out.get("source") or "snapshot")
@@ -642,12 +687,13 @@ def fetch_x_money(
     *,
     prefer_live: bool = True,
     snapshot_path: Optional[Path] = None,
+    max_age_hours: float = DEFAULT_YNAB_MAX_AGE_HOURS,
 ) -> Dict[str, Any]:
-    """Load X Money snapshot (written by full YNAB sync)."""
+    """Load X Money snapshot (written by full YNAB sync); re-sync when aged/missing."""
     snap_path = snapshot_path or (SNAPSHOTS_DIR / "x_money_latest.json")
     if prefer_live:
         existing = load_json(snap_path)
-        if not existing or existing.get("source") in (None, "empty") or existing.get("live_error"):
+        if _snapshot_needs_live_refresh(existing, max_age_hours=max_age_hours):
             try:
                 bundle = sync_ynab()
                 xm = bundle["x_money"]

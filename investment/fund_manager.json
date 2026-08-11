@@ -49,14 +49,14 @@
       "consider": [
         "held_positions",
         "core_allowlist_unheld",
-        "sleeve_gaps_vs_40_60",
+        "sleeve_gaps_vs_60_40",
         "themes_btc_digital_credit_ai_energy",
         "digital_credit_strc_sata_emphasis",
         "multi_miner_diversification",
         "watchlist_ready_or_monitor",
         "relative_value_and_concentration"
       ],
-      "deploy_where": "best_fit_at_time_per_themes_and_40_60",
+      "deploy_where": "best_fit_at_time_per_themes_and_60_40",
       "owner_preferences": {
         "as_of": "2026-08-04",
         "digital_credit_bias": "small_within_40pct_stack",

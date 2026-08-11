@@ -11,21 +11,27 @@ from typing import Any, Dict, List, Optional
 
 
 DEFAULT_POLICY: Dict[str, Any] = {
-    "cb_target_ltv_max": 0.50,
-    "cb_ltv_alert": 0.45,
+    # Morpho LTV bands (liq ~86%): target home → alert defense → hard max
+    "cb_ltv_target": 0.38,  # cool operating home; below → park principal in HY LTV buffer
+    "cb_ltv_alert": 0.45,  # warm — HY → BTC defense starts
+    "cb_target_ltv_max": 0.50,  # hot hard ceiling — no new Morpho principal
     # Spot-only optional reserve (rarely used). Card paydown is Morpho refinance, not HY.
     "cb_card_float_usdc": 0.0,
-    # Primary USDC HY purpose: Morpho LTV / BTC collateral defense buffer
+    # HY LTV Buffer floor (generic HY — venue may be USDC/USDG/etc.; not product-specific)
     "cb_loan_buffer_usdc": 1000.0,
-    "cb_bridge_dry_powder_usdc": 200.0,
+    # Retired 2026-08-11: bridge residual is served by HY LTV Buffer, not a separate floor.
+    "cb_bridge_dry_powder_usdc": 0.0,
     "rh_bp_floor": 0.0,  # MO 2026-08-02: no RH BP floor — any in-account BP deployable
-    "rh_margin_use_max": 0.40,
+    # RH margin-use bands (call ~50%): target home → alert defense → hard max
+    "rh_margin_use_target": 0.28,  # cool operating home; below → park in HY LTV buffer
+    "rh_margin_use_alert": 0.35,  # warm — HY → stock defense starts
+    "rh_margin_use_max": 0.40,  # hot hard ceiling — do not raise toward 50% call
     "excess_split_cb": 0.60,
     "excess_split_rh": 0.40,
     "bridge_max_recommend_usdc": 5000.0,
     "stale_after_hours": 6.0,
-    # Capital Flows MO (2026-08-10): USDC HY = LTV/margin buffer; One Card = Morpho new principal
-    # refinance (~5% vs ~29%). Vault counts toward loan/bridge floors only — not card paydown.
+    # Capital Flows MO: HY LTV Buffer is generic high-yield (not USDC/USDG-specific);
+    # One Card = Morpho refinance (~5% vs ~29%). Vault counts toward HY LTV floor only.
     "count_vault_toward_buffers": True,
     "count_vault_toward_card_float": False,
     "min_spot_usdc_warn": 0.0,  # do not require idle spot if vault covers LTV floors
@@ -68,13 +74,14 @@ def classify_liquid_usdc(
 ) -> Dict[str, Any]:
     """Split liquid USDC into required floors vs excess.
 
-    Floor fill order (Capital Flows MO): loan_buffer (LTV) → bridge → card_float
-    (optional spot reserve). Card paydown is *not* scored here when callers pass
-    card_float=0 — One Card is Morpho refinance, not a vault-funded float.
+    Floor fill order (Capital Flows MO): loan_buffer (HY LTV Buffer) →
+    card_float (optional spot reserve). Bridge dry powder is retired (default 0) —
+    CB↔RH residual is served by the HY LTV Buffer, not a separate cash floor.
+    Card paydown is *not* scored here when callers pass card_float=0.
     """
     floors = {
         "loan_buffer": max(0.0, loan_buffer),
-        "bridge_dry_powder": max(0.0, bridge_dry_powder),
+        "bridge_dry_powder": max(0.0, bridge_dry_powder),  # legacy key; keep 0
         "card_float": max(0.0, card_float),
     }
     required = sum(floors.values())
@@ -84,7 +91,7 @@ def classify_liquid_usdc(
     remaining = liquid_usdc
     filled = {}
     gaps = {}
-    # LTV buffer first, then bridge, then optional spot card reserve
+    # LTV / HY buffer first, then optional spot card reserve (bridge floor is 0)
     for name in ("loan_buffer", "bridge_dry_powder", "card_float"):
         need = floors[name]
         take = min(remaining, need)
@@ -157,7 +164,63 @@ def dca_governor(
     }
 
 
-def _ltv_stress(ltv: Optional[float], alert: float, max_ltv: float) -> str:
+def leverage_band(
+    value: Optional[float],
+    *,
+    target: float,
+    alert: float,
+    hard_max: float,
+) -> Dict[str, Any]:
+    """Map a leverage ratio into cool/warm/hot(+critical) for HY ↔ borrow rotation.
+
+    Bands (inclusive upper edges escalate):
+      cool     — value < target  → green  (park principal in HY)
+      warm     — target ≤ value < alert → green (near home; no free-risk expansion)
+      hot      — alert ≤ value < hard_max → yellow (HY → collateral defense)
+      critical — value ≥ hard_max → red (no new borrow; force buffer/repay)
+    """
+    tgt = _f(target)
+    al = _f(alert)
+    mx = _f(hard_max)
+    if value is None:
+        return {
+            "value": None,
+            "band": "unknown",
+            "color": "yellow",
+            "target": tgt,
+            "alert": al,
+            "hard_max": mx,
+            "stance": "confirm_reading",
+        }
+    v = _f(value)
+    if v >= mx:
+        band, color, stance = "critical", "red", "no_new_borrow_force_buffer"
+    elif v >= al:
+        band, color, stance = "hot", "yellow", "hy_to_collateral_defense"
+    elif v >= tgt:
+        band, color, stance = "warm", "green", "hold_near_target"
+    else:
+        band, color, stance = "cool", "green", "principal_to_hy"
+    return {
+        "value": v,
+        "band": band,
+        "color": color,
+        "target": tgt,
+        "alert": al,
+        "hard_max": mx,
+        "stance": stance,
+    }
+
+
+def _ltv_stress(
+    ltv: Optional[float],
+    alert: float,
+    max_ltv: float,
+    *,
+    target: Optional[float] = None,
+) -> str:
+    """Traffic light for Morpho LTV (green until alert; yellow at alert; red at max)."""
+    del target  # target affects band/stance only, not the hard traffic light
     if ltv is None:
         return "yellow"
     if ltv >= max_ltv:
@@ -197,6 +260,8 @@ def _rh_stress(
     bp_floor: float,
     margin_use: Optional[float],
     margin_max: float,
+    *,
+    margin_alert: Optional[float] = None,
 ) -> str:
     gov = dca_governor(
         buying_power,
@@ -207,6 +272,13 @@ def _rh_stress(
     if not gov["allow_dca"] and "margin" in gov["reason"]:
         return "red"
     if not gov["allow_dca"]:
+        return "yellow"
+    # Warm/hot margin use (above alert, still under hard max) → yellow
+    if (
+        margin_use is not None
+        and margin_alert is not None
+        and _f(margin_use) >= _f(margin_alert)
+    ):
         return "yellow"
     if gov["throttle"] == "slow":
         return "yellow"
@@ -563,7 +635,7 @@ def cashflow_allocation_guidance(
     Priority (free dollars):
       1. Essential expenses paid & current (overdue / ≤7d window)
       2. Coinbase One Card balance paid down
-      3. LTV buffers (loan / USDC HY sleeve · bridge powder) — not card float from vault
+      3. HY LTV Buffer — not card float from vault; bridge powder retired
       4. Excess beyond floors → collateral; HY→Collateral only under LTV heat
 
     Capex (Productive Discretionary first, then Consumer) is **not** free-dollar
@@ -1031,6 +1103,40 @@ def evaluate_treasury(
         stale_after_hours=_f(p.get("stale_after_hours"), 6.0),
     )
 
+    morpho_band = leverage_band(
+        ltv,
+        target=_f(p.get("cb_ltv_target"), 0.38),
+        alert=_f(p["cb_ltv_alert"]),
+        hard_max=_f(p["cb_target_ltv_max"]),
+    )
+    margin_band = leverage_band(
+        margin_use,
+        target=_f(p.get("rh_margin_use_target"), 0.28),
+        alert=_f(p.get("rh_margin_use_alert"), 0.35),
+        hard_max=_f(p["rh_margin_use_max"]),
+    )
+    leverage_bands = {
+        "morpho_ltv": morpho_band,
+        "rh_margin_use": margin_band,
+        "joint": {
+            "both_cool": morpho_band["band"] == "cool" and margin_band["band"] == "cool",
+            "either_hot_or_worse": morpho_band["band"] in ("hot", "critical")
+            or margin_band["band"] in ("hot", "critical"),
+            "morpho_at_hard_max": morpho_band["band"] == "critical",
+            "stance": (
+                "block_new_dual_extract"
+                if morpho_band["band"] in ("hot", "critical")
+                or margin_band["band"] in ("hot", "critical")
+                else (
+                    "hy_parks_ok"
+                    if morpho_band["band"] in ("cool", "warm")
+                    and margin_band["band"] in ("cool", "warm", "unknown")
+                    else "monitor"
+                )
+            ),
+        },
+    }
+
     # USDC liquidity stress: red only if working USDC short (or vault unknown + spot empty)
     if not vault_known and liquid_usdc < 1.0 and count_vault:
         usdc_liq_stress = "yellow"  # need vault number to know true float
@@ -1046,7 +1152,12 @@ def evaluate_treasury(
         usdc_liq_stress = "green"
 
     stress = {
-        "coinbase_ltv": _ltv_stress(ltv, _f(p["cb_ltv_alert"]), _f(p["cb_target_ltv_max"])),
+        "coinbase_ltv": _ltv_stress(
+            ltv,
+            _f(p["cb_ltv_alert"]),
+            _f(p["cb_target_ltv_max"]),
+            target=_f(p.get("cb_ltv_target"), 0.38),
+        ),
         "coinbase_liquid": usdc_liq_stress,
         "coinbase_card": _card_stress(
             card_balance_raw=card_balance_raw,
@@ -1055,8 +1166,16 @@ def evaluate_treasury(
             card_avail=card_avail,
             card_float_gap=0.0,  # never vault-float gap (refinance MO)
         ),
-        "robinhood": _rh_stress(bp, _f(p["rh_bp_floor"]), margin_use, _f(p["rh_margin_use_max"])),
+        "robinhood": _rh_stress(
+            bp,
+            _f(p["rh_bp_floor"]),
+            margin_use,
+            _f(p["rh_margin_use_max"]),
+            margin_alert=_f(p.get("rh_margin_use_alert"), 0.35),
+        ),
         "data_quality": data_quality["status"],
+        "morpho_band": morpho_band["band"],
+        "rh_margin_band": margin_band["band"],
     }
     order = {"green": 0, "yellow": 1, "red": 2}
     # Overall ops stress: material dimensions only (exclude pure data_quality from
@@ -1162,11 +1281,11 @@ def evaluate_treasury(
         add(
             0,
             "vault_unknown",
-            "Enter High Yield vault USDC (LTV / margin buffer)",
+            "Enter HY LTV Buffer balance (venue HY vault)",
             actor="human",
             detail=(
-                "USDC HY is the Morpho LTV defense sleeve (not One Card float). "
-                "Spot USDC often ~$0 by design. Enter vault balance so loan/bridge floors score."
+                "HY LTV Buffer is the leverage defense sleeve (generic HY — not product-branded). "
+                "Not One Card float. Enter vault balance so the LTV floor scores."
             ),
             api_reachable=False,
         )
@@ -1190,7 +1309,7 @@ def evaluate_treasury(
             actor="human",
             detail=(
                 "Capital Flows: Morpho → One Card. Borrow additional BTC-backed USDC principal "
-                "and pay the card in-app. Do not pull USDC HY for card — HY is LTV buffer. "
+                "and pay the card in-app. Do not pull HY LTV Buffer for card. "
                 "Watch LTV after principal increases."
             ),
             api_reachable=False,
@@ -1205,7 +1324,7 @@ def evaluate_treasury(
             api_reachable=False,
         )
 
-    # Morpho LTV heat: USDC HY → BTC collateral (control valve), not free deploy
+    # Morpho LTV heat (alert+): HY LTV Buffer → BTC collateral (control valve)
     if (
         ltv is not None
         and ltv >= _f(p["cb_ltv_alert"])
@@ -1215,45 +1334,84 @@ def evaluate_treasury(
         add(
             1,
             "hy_collateral_defense",
-            f"LTV {ltv:.1%} hot — USDC HY → BTC collateral defense "
-            f"(up to ${vault_usdc:.0f} buffer)",
+            f"LTV {ltv:.1%} {morpho_band['band']} (alert {_f(p['cb_ltv_alert']):.0%}) — "
+            f"HY LTV Buffer → BTC collateral defense (up to ${vault_usdc:.0f})",
             actor="human",
             detail=(
-                "Capital Flows: USDC HY → BTC when Morpho LTV too high; else HY stays buffer floor. "
+                "Capital Flows: HY LTV Buffer → BTC when Morpho LTV ≥ alert; else HY stays floor. "
+                f"Bands: target {_f(p.get('cb_ltv_target'), 0.38):.0%} · "
+                f"alert {_f(p['cb_ltv_alert']):.0%} · hard {_f(p['cb_target_ltv_max']):.0%}. "
                 "In-app: buy/add BTC collateral and/or repay Morpho. Not One Card funding."
             ),
             api_reachable=False,
         )
-
-    # RH margin heat: USDG HY → Agentic / stock defense (twin of USDC HY → BTC)
-    mu_max = _f(p["rh_margin_use_max"])
-    if margin_use is not None and margin_use > mu_max * 0.85:
+    elif (
+        ltv is not None
+        and ltv < _f(p.get("cb_ltv_target"), 0.38)
+        and morpho_band["band"] == "cool"
+    ):
         add(
-            1,
-            "usdg_margin_defense",
-            f"RH margin use {margin_use:.0%} hot — USDG HY → Agentic/Stock defense only",
-            actor="human",
+            3,
+            "hy_park_cool",
+            f"LTV {ltv:.1%} cool (< target {_f(p.get('cb_ltv_target'), 0.38):.0%}) — "
+            "prefer Morpho principal → HY LTV Buffer",
+            actor="either",
             detail=(
-                "Capital Flows · Equities: USDG HY is the RH margin governor (twin of USDC HY for Morpho). "
-                "Defense-only under heat; else USDG stays buffer floor. "
-                "Do not extract margin loan as 'income' to fund dual leverage."
+                "HY ↔ borrow rotation: below target, park additional principal in HY LTV Buffer "
+                "rather than expanding free-dollar risk. Not a forced action."
             ),
             api_reachable=False,
         )
 
-    # LTV floors shortfall (loan + bridge) — separate from card refinance
-    need_ltv_stack = (
-        buckets["gaps"]["loan_buffer"] > 0
-        or buckets["gaps"]["bridge_dry_powder"] > 0
-        or buckets["shortfall"] > 0
-    )
+    # RH margin heat at alert (not only hard max): HY → stock defense
+    mu_alert = _f(p.get("rh_margin_use_alert"), 0.35)
+    mu_max = _f(p["rh_margin_use_max"])
+    if margin_use is not None and margin_use >= mu_alert:
+        add(
+            1,
+            "usdg_margin_defense",
+            f"RH margin use {margin_use:.0%} {margin_band['band']} "
+            f"(alert {mu_alert:.0%} / max {mu_max:.0%}) — HY LTV Buffer → Agentic/Stock defense only",
+            actor="human",
+            detail=(
+                "Capital Flows · Equities: HY LTV Buffer is the margin governor "
+                "(same job as Morpho LTV buffer — generic HY, not product-specific). "
+                f"Bands: target {_f(p.get('rh_margin_use_target'), 0.28):.0%} · "
+                f"alert {mu_alert:.0%} · hard {mu_max:.0%} (call ~50%). "
+                "Defense-only under heat; else HY stays buffer floor. "
+                "Do not extract margin loan as 'income' to fund dual leverage."
+            ),
+            api_reachable=False,
+        )
+    elif (
+        margin_use is not None
+        and margin_use < _f(p.get("rh_margin_use_target"), 0.28)
+        and margin_band["band"] == "cool"
+    ):
+        add(
+            3,
+            "usdg_park_cool",
+            f"RH margin {margin_use:.0%} cool "
+            f"(< target {_f(p.get('rh_margin_use_target'), 0.28):.0%}) — prefer principal → HY LTV Buffer",
+            actor="either",
+            detail=(
+                "HY ↔ borrow rotation: below target, park residual margin capacity in HY LTV Buffer "
+                "rather than re-levering. Not a forced action."
+            ),
+            api_reachable=False,
+        )
+
+    # HY LTV Buffer shortfall — separate from card refinance
+    need_ltv_stack = buckets["gaps"]["loan_buffer"] > 0 or buckets["shortfall"] > 0
     if need_ltv_stack and buckets["shortfall"] > 0:
         bits: List[str] = []
         if buckets["gaps"]["loan_buffer"] > 0:
-            bits.append(f"loan buf −${buckets['gaps']['loan_buffer']:.0f}")
-        if buckets["gaps"]["bridge_dry_powder"] > 0:
-            bits.append(f"bridge −${buckets['gaps']['bridge_dry_powder']:.0f}")
-        title = "Restore LTV buffer stack · " + " · ".join(bits) if bits else "Restore LTV buffer stack"
+            bits.append(f"HY LTV Buffer −${buckets['gaps']['loan_buffer']:.0f}")
+        title = (
+            "Restore HY LTV Buffer · " + " · ".join(bits)
+            if bits
+            else "Restore HY LTV Buffer"
+        )
         actions.append(
             {
                 "priority": 2,
@@ -1261,8 +1419,9 @@ def evaluate_treasury(
                 "title": title,
                 "actor": "human",
                 "detail": (
-                    "USDC HY + spot vs loan/bridge floors (Capital Flows Liquidity Engine). "
-                    "Top Morpho LTV buffer in-app; do not treat HY as One Card float."
+                    "HY LTV Buffer + spot vs Morpho LTV floor (Capital Flows). "
+                    "Bridge powder retired — residual is served by HY. "
+                    "Top HY LTV Buffer in-app; do not treat HY as One Card float."
                 ),
                 "api_reachable": False,
                 "meta": {
@@ -1328,7 +1487,7 @@ def evaluate_treasury(
             "bridge_rh_to_cb",
             f"Recommend bridge ~${amt:.2f} cash Robinhood → Coinbase",
             actor="human",
-            detail="Recommend-only to refill Morpho LTV buffer (USDC HY) or bridge powder.",
+            detail="Recommend-only to refill HY LTV Buffer.",
             api_reachable=False,
         )
     elif (
@@ -1339,7 +1498,7 @@ def evaluate_treasury(
             or (ltv is not None and ltv >= _f(p["cb_ltv_alert"]))
         )
     ):
-        # No BP floor: still allow RH→CB recommend when LTV buffer stack short / LTV hot
+        # No BP floor: still allow RH→CB recommend when HY LTV Buffer short / LTV hot
         amt = min(cash * 0.5, _f(p["bridge_max_recommend_usdc"]), max(buckets["shortfall"], 100.0))
         if amt >= 50:
             add(
@@ -1347,7 +1506,7 @@ def evaluate_treasury(
                 "bridge_rh_to_cb",
                 f"Recommend bridge ~${amt:.2f} RH → Coinbase",
                 actor="human",
-                detail="Recommend-only — refill LTV buffer (USDC HY) / bridge powder, not card float.",
+                detail="Recommend-only — refill HY LTV Buffer, not card float.",
                 api_reachable=False,
             )
 
@@ -1463,15 +1622,19 @@ def evaluate_treasury(
     agent_brief_lines = [
         f"Overall stress: {overall}",
         f"LTV: {ltv if ltv is not None else 'UNKNOWN'}",
-        f"USDC LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
-        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — margin buffer, not card float)"
+        f"HY LTV sleeve: ${working_usdc:.2f} (spot ${liquid_usdc:.2f} + HY vault "
+        f"{('$' + format(vault_usdc, '.2f')) if vault_known else 'UNKNOWN'} — leverage defense, not card float)"
         f" | BTC liquid: {liquid_btc:.8f} (~${liquid_btc_usd:.2f})",
         f"One Card owed: ${card_balance:.2f} (source={card_source or 'none'})"
         + (f" | 30d spend ${one_card.get('spend_30d')}" if one_card.get("spend_30d") is not None else "")
         + " | path=Morpho refinance (not HY pull)",
         f"Engines: Morpho LTV={ltv if ltv is not None else 'UNKNOWN'}"
+        + f" [{morpho_band['band']}]"
+        + f" (tgt {_f(p.get('cb_ltv_target'), 0.38):.0%}/alert {_f(p['cb_ltv_alert']):.0%}/max {_f(p['cb_target_ltv_max']):.0%})"
         + f" | RH margin_use={margin_use if margin_use is not None else 'n/a'}"
-        + " | USDG HY = RH margin governor (twin of USDC HY)",
+        + f" [{margin_band['band']}]"
+        + f" (tgt {_f(p.get('rh_margin_use_target'), 0.28):.0%}/alert {_f(p.get('rh_margin_use_alert'), 0.35):.0%}/max {_f(p['rh_margin_use_max']):.0%})"
+        + f" | joint={leverage_bands['joint']['stance']}",
         f"Upcoming expense estimates (sheet Essential+Fleet): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
@@ -1618,6 +1781,7 @@ def evaluate_treasury(
         "buckets": buckets,
         "dca": dca,
         "stress": stress,
+        "leverage_bands": leverage_bands,
         "data_quality": data_quality,
         "actions": actions,
         "next_steps": next_steps,
@@ -1630,7 +1794,7 @@ def evaluate_treasury(
                 "gap": buckets["gaps"]["card_float"],
                 "note": (
                     "Optional spot reserve only; default 0. Card paydown = Morpho refinance, "
-                    "not USDC HY. count_vault_toward_card_float="
+                    "not HY LTV Buffer. count_vault_toward_card_float="
                     f"{count_vault_card}"
                 ),
             },
@@ -1638,13 +1802,13 @@ def evaluate_treasury(
                 "target": _f(p["cb_loan_buffer_usdc"]),
                 "filled": buckets["filled"]["loan_buffer"],
                 "gap": buckets["gaps"]["loan_buffer"],
-                "note": "Primary USDC HY purpose — Morpho LTV / BTC margin defense",
+                "note": "HY LTV Buffer — generic high-yield leverage defense (not USDC/USDG-branded)",
             },
             "yield_sleeve": {
                 "vault_usdc": vault_usdc if vault_known else None,
                 "note": (
-                    "USDC HY = LTV buffer (Liquidity Engine). HY→Collateral only when LTV/margin hot; "
-                    "else buffer floor. Not One Card funder."
+                    "HY LTV Buffer (Liquidity Engine). HY→Collateral only when LTV/margin hot; "
+                    "else buffer floor. Not One Card funder. Venue product is incidental."
                 ),
             },
             "working_usdc": {
@@ -1670,30 +1834,45 @@ def evaluate_treasury(
                 "target": _f(p["cb_bridge_dry_powder_usdc"]),
                 "filled": buckets["filled"]["bridge_dry_powder"],
                 "gap": buckets["gaps"]["bridge_dry_powder"],
+                "note": "Retired 2026-08-11 — floor=0; CB↔RH residual served by HY LTV Buffer",
             },
         },
         "strategy_context": {
             "goal": "Keep invested (BTC + Agentic equities) via LE credit cards: Digital Credit + Margin",
             "usdc_model": (
-                "Capital Flows v36: Income → LE (Digital Credit → X Money → Margin) → Deploy. "
-                "No separate DC·BTC or DC·Equities columns — both engines are LE cards. "
-                "Digital Credit = Morpho/BTC/USDC HY rotation (+ One Card refinance). "
-                "Margin = Agentic/stocks/USDG HY rotation. "
-                "Inside each credit card: liquidity → spot; cool → HY; hot → collateral. "
-                "X Money → Margin (Agentic) on the 1st. Margin extract to X Money is optional — not income. "
+                "Capital Flows: Income → LE (X Money · Digital Credit · Margin) → Deploy. "
+                "HY LTV Buffer is generic high-yield leverage defense (not USDC- or USDG-specific). "
+                "Digital Credit = Morpho/BTC engine; Margin = Agentic/stocks engine; "
+                "each rotates principal ↔ HY LTV Buffer vs borrow. "
+                "X Money is cash hub. Morpho LTV bands: target 38% / alert 45% / hard 50%. "
+                "RH margin bands: target 28% / alert 35% / hard 40% (call ~50%). "
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
+            "leverage_bands": {
+                "morpho_ltv": {
+                    "target": _f(p.get("cb_ltv_target"), 0.38),
+                    "alert": _f(p["cb_ltv_alert"]),
+                    "hard_max": _f(p["cb_target_ltv_max"]),
+                    "liq_ref": 0.86,
+                },
+                "rh_margin_use": {
+                    "target": _f(p.get("rh_margin_use_target"), 0.28),
+                    "alert": _f(p.get("rh_margin_use_alert"), 0.35),
+                    "hard_max": _f(p["rh_margin_use_max"]),
+                    "call_ref": 0.50,
+                },
+            },
             "priority_order": [
                 "Essential + Fleet expenses current (sheet burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
-                "Digital Credit: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → BTC",
-                "X Money float for Deploy + scheduled 1st → Margin (Agentic)",
+                "Morpho: cool (<38%) principal→HY LTV Buffer; hot (≥45%) HY→BTC; hard 50%",
+                "X Money float for Deploy + scheduled capital pipes",
                 "Productive Discretionary before Consumer wishlist",
-                "Margin: liquidity → stock; cool → USDG HY; heat → stock",
-                "RH margin heat cap still binds BP / leverage extract",
+                "RH margin: cool (<28%)→HY LTV Buffer; hot (≥35%) HY→stock; hard 40%",
+                "Either engine hot → no new dual extract",
             ],
             "double_leverage_warning": (
-                "DUAL ENGINE RISK: Do not fund RH margin growth or USDG Earn with freshly "
+                "DUAL ENGINE RISK: Do not fund RH margin growth with freshly "
                 "borrowed Coinbase Morpho USDC without an explicit risk budget. "
                 "BTC and equities often dump together — Morpho + RH margin stack liquidation risk. "
                 "Margin loan → LE/CB extract is not free income."
@@ -1702,8 +1881,7 @@ def evaluate_treasury(
                 "loan protection",
                 "Morpho repay/add BTC collateral (CB)",
                 "Morpho borrow / One Card pay (refinance)",
-                "USDC HY deposit/withdraw — Morpho LTV buffer",
-                "USDG HY / RH Earn — Agentic margin buffer",
+                "HY LTV Buffer deposit/withdraw (venue HY)",
                 "RH margin borrow / repay",
                 "X Money → RH Agentic scheduled transfer",
                 "external USDC send (bridge)",

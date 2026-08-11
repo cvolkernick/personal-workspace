@@ -63,7 +63,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **Bitcoin & digital credit complex** | **~40%** | BTC, digital credit / BTC yield (MSTR, STRC, ASST, SATA, **BITA**), BTC infra/miners (MARA, RIOT, CLSK, WULF, IREN), and optional hard-money metals (gold/silver if held—not required) |
 | **Stocks / growth** | **~60%** | Broader equity and growth names aligned with AI stack and growth equities (e.g. TSLA, SPCX); room for energy or AI names the agent proposes |
 
-Weights are **targets for the investable equity book** (not cash buffers, CB Morpho collateral, RH USDG Earn sleeve, or One Card float). The agentic manager steers equity toward 40/60; **USDG Earn is a separate RH yield sleeve**, parallel to CB High Yield vault.
+Weights are **targets for the investable equity book** (not cash buffers, CB Morpho collateral, RH USDG Earn sleeve, or One Card float). The agentic manager steers equity toward 60/40 (stocks/BTC+); **USDG Earn is a separate RH yield sleeve**, parallel to CB High Yield vault.
 
 **Watchlist:** thematic monitor/consider list in [`watchlist.json`](./watchlist.json) (not the same as core allowlist). Deep-dives via workflow `position-deep-dive` → reports in [`research/`](./research/).
 
@@ -114,7 +114,7 @@ Energy: open for agentic proposals (no fixed list). Gold/silver optional under ~
 | Layer | Role |
 |-------|------|
 | **Policy** | [`fund_manager.json`](./fund_manager.json) — machine-readable rules |
-| **Thesis** | Allowlist, 40/60 targets, themes (energy open) |
+| **Thesis** | Allowlist, 60/40 targets, themes (energy open) |
 | **FCC / treasury** | Live weights via `treasury/fund_manager.py`; dual RH snapshot |
 | **Robinhood MCP** | Quotes, positions, place/cancel **on agentic account only** |
 | **Human** | **Fund agentic book** (sole risk budget); hard kill = withdraw capital |

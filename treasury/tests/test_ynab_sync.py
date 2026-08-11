@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.ynab_sync import (  # noqa: E402
+    _snapshot_needs_live_refresh,
     milli_to_units,
     normalize_one_card,
     normalize_rh_checking,
@@ -25,6 +26,35 @@ from treasury.policy import evaluate_treasury  # noqa: E402
 class TestMilli(unittest.TestCase):
     def test_milli(self):
         self.assertAlmostEqual(milli_to_units(-418550), -418.55)
+
+
+class TestSnapshotNeedsRefresh(unittest.TestCase):
+    def test_missing_and_error_need_refresh(self):
+        self.assertTrue(_snapshot_needs_live_refresh(None))
+        self.assertTrue(_snapshot_needs_live_refresh({"source": "empty"}))
+        self.assertTrue(
+            _snapshot_needs_live_refresh(
+                {"source": "ynab", "as_of": "2026-08-10T00:00:00+00:00", "live_error": "boom"}
+            )
+        )
+
+    def test_fresh_file_skips_refresh(self):
+        from datetime import datetime, timezone
+
+        fresh = datetime.now(timezone.utc).isoformat()
+        self.assertFalse(
+            _snapshot_needs_live_refresh(
+                {"source": "ynab", "as_of": fresh}, max_age_hours=6.0
+            )
+        )
+
+    def test_aged_file_needs_refresh(self):
+        self.assertTrue(
+            _snapshot_needs_live_refresh(
+                {"source": "ynab", "as_of": "2026-08-08T06:00:00+00:00"},
+                max_age_hours=6.0,
+            )
+        )
 
 
 class TestPickAccount(unittest.TestCase):

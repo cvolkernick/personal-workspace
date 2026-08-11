@@ -17,6 +17,7 @@ from treasury.policy import (  # noqa: E402
     dca_governor,
     evaluate_treasury,
     expense_due_window,
+    leverage_band,
 )
 
 
@@ -26,13 +27,14 @@ class TestClassifyLiquid(unittest.TestCase):
             100,
             card_float=500,
             loan_buffer=1000,
-            bridge_dry_powder=200,
+            bridge_dry_powder=0,  # retired — HY covers residual
         )
         self.assertGreater(r["shortfall"], 0)
         self.assertEqual(r["status"], "red")
-        # Fill order: loan_buffer first (LTV), then bridge, then card_float
+        # Fill order: loan_buffer first (LTV/HY), then card_float
         self.assertEqual(r["filled"]["loan_buffer"], 100)
         self.assertEqual(r["filled"]["card_float"], 0)
+        self.assertEqual(r["filled"]["bridge_dry_powder"], 0)
         self.assertEqual(r["excess"], 0)
 
     def test_excess_after_floors(self):
@@ -40,11 +42,23 @@ class TestClassifyLiquid(unittest.TestCase):
             2000,
             card_float=500,
             loan_buffer=1000,
-            bridge_dry_powder=200,
+            bridge_dry_powder=0,
         )
         self.assertEqual(r["shortfall"], 0)
-        self.assertAlmostEqual(r["excess"], 300)
+        # required = 1500; excess = 500
+        self.assertAlmostEqual(r["excess"], 500)
         self.assertEqual(r["status"], "green")
+
+    def test_bridge_powder_zero_not_required(self):
+        r = classify_liquid_usdc(
+            1000,
+            card_float=0,
+            loan_buffer=1000,
+            bridge_dry_powder=0,
+        )
+        self.assertEqual(r["shortfall"], 0)
+        self.assertEqual(r["required_total"], 1000)
+        self.assertEqual(r["gaps"]["bridge_dry_powder"], 0)
 
 
 class TestDcaGovernor(unittest.TestCase):
@@ -63,6 +77,54 @@ class TestDcaGovernor(unittest.TestCase):
         r = dca_governor(2000, bp_floor=500, margin_use=0.1)
         self.assertTrue(r["allow_dca"])
         self.assertEqual(r["throttle"], "normal")
+
+
+class TestLeverageBand(unittest.TestCase):
+    def test_morpho_bands(self):
+        cool = leverage_band(0.30, target=0.38, alert=0.45, hard_max=0.50)
+        self.assertEqual(cool["band"], "cool")
+        self.assertEqual(cool["color"], "green")
+        warm = leverage_band(0.40, target=0.38, alert=0.45, hard_max=0.50)
+        self.assertEqual(warm["band"], "warm")
+        hot = leverage_band(0.47, target=0.38, alert=0.45, hard_max=0.50)
+        self.assertEqual(hot["band"], "hot")
+        self.assertEqual(hot["color"], "yellow")
+        crit = leverage_band(0.50, target=0.38, alert=0.45, hard_max=0.50)
+        self.assertEqual(crit["band"], "critical")
+        self.assertEqual(crit["color"], "red")
+
+    def test_eval_includes_leverage_bands(self):
+        snap = {
+            "coinbase": {"liquid_usdc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.4992,
+                "vault_usdc": 200,
+                "loan_principal_usdc": 700,
+                "collateral_btc_usd": 1400,
+            },
+            "robinhood": {
+                "buying_power": 5000,
+                "cash": 1000,
+                "equity_value": 10000,
+                "total_value": 10000,
+                "margin_use": 0.36,
+            },
+            "one_card": {"source": "ynab", "card_balance": 0, "balance_owed": 0},
+        }
+        ev = evaluate_treasury(snap)
+        bands = ev.get("leverage_bands") or {}
+        self.assertIn("morpho_ltv", bands)
+        self.assertIn("rh_margin_use", bands)
+        # 0.4992 is just under hard max 0.50 → hot (alert 0.45)
+        self.assertEqual(bands["morpho_ltv"]["band"], "hot")
+        self.assertEqual(bands["rh_margin_use"]["band"], "hot")  # 36% ≥ 35% alert
+        self.assertTrue(bands["joint"]["either_hot_or_worse"])
+        kinds = {a["kind"] for a in ev.get("actions") or []}
+        self.assertIn("hy_collateral_defense", kinds)
+        self.assertIn("usdg_margin_defense", kinds)
+        self.assertIn("cb_ltv_target", ev["policy"])
+        self.assertAlmostEqual(ev["policy"]["cb_ltv_target"], 0.38)
+        self.assertAlmostEqual(ev["policy"]["rh_margin_use_alert"], 0.35)
 
 
 class TestOneCardAvailableCredit(unittest.TestCase):

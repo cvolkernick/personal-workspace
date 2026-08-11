@@ -42,7 +42,13 @@ if [[ -x "${ROOT}/treasury/rh_refresh.sh" ]]; then
   bash "${ROOT}/treasury/rh_refresh.sh" || echo "WARN: rh_refresh failed"
 fi
 
-# Rules path first (cheap HOLD when 40/60 ok)
+# Live YNAB + treasury eval *before* rules notify so rh_checking/x_money as_of
+# are current (offline path freezes aged snapshots → false "stale RH" ntfy).
+echo "Pre-review live YNAB + treasury eval…"
+python3 -m treasury.ynab_sync || echo "WARN: ynab_sync failed"
+python3 -m treasury.run_treasury || echo "WARN: run_treasury live failed"
+
+# Rules path first (cheap HOLD when 60/40 ok)
 set +e
 python3 -m treasury.fund_manager --rules-review --notify
 RR=$?
@@ -51,7 +57,6 @@ echo "rules_review exit=${RR}"
 
 if [[ "${LIVE}" != "1" ]]; then
   echo "live:false — stop after rules observe"
-  python3 -m treasury.run_treasury --offline || true
   exit 0
 fi
 
@@ -83,6 +88,7 @@ else
   echo "Rules error path"
 fi
 
+# Final dashboard refresh (live already ran pre-notify; offline is a no-network fallback)
 python3 -m treasury.run_treasury --offline || true
 ln -sfn "${RUN_LOG}" "${LOG_DIR}/fund_manager_daily_latest.log" 2>/dev/null || cp "${RUN_LOG}" "${LOG_DIR}/fund_manager_daily_latest.log"
 echo "=== fund_manager_daily done ==="
