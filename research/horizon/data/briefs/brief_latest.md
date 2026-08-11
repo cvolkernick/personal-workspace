@@ -1,6 +1,6 @@
-# Horizon Daily Brief — 20260727T001251Z
+# Horizon Daily Brief — 20260811T091923Z
 
-_Generated: 2026-07-27T00:12:51.241781+00:00_
+_Generated: 2026-08-11T09:19:23.347045+00:00_
 
 ## 1. Executive Brief
 
@@ -114,7 +114,7 @@ _Generated: 2026-07-27T00:12:51.241781+00:00_
 
 **Thematic bets:** Energy, Bitcoin, AI, Autonomy, Robotics
 
-**Positions (symbols):** BTC, MSTR, STRC, SATA, ASST, BITA, MARA, RIOT, CLSK, WULF, IREN, TSLA, SPCX, BE, GOOGL, AAPL
+**Positions (symbols):** BTC, MSTR, STRC, SATA, ASST, BITA, MARA, RIOT, CLSK, WULF, IREN, TSLA, SPCX, BE, GOOGL, AAPL, NVDA, PLTR
 
 ### Current intent
 - **Frontier AI remains compute- and energy-constrained** (affinity=0.716, conf=0.8)

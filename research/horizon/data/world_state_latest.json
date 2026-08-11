@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "version_id": "20260727T001251Z",
-  "updated_at": "2026-07-27T00:12:51.235901+00:00",
+  "version_id": "20260811T091923Z",
+  "updated_at": "2026-08-11T09:19:23.340861+00:00",
   "domains": {
     "geopolitics": {
       "label": "Geopolitics",
@@ -36,7 +36,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.235915+00:00"
+          "updated_at": "2026-08-11T09:19:23.340873+00:00"
         }
       ],
       "summary": "1 node(s). Top: US–China strategic competition remains the primary geopolitical axis"
@@ -72,7 +72,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.235984+00:00"
+          "updated_at": "2026-08-11T09:19:23.340939+00:00"
         }
       ],
       "summary": "1 node(s). Top: Global policy rates remain elevated vs 2010s baseline"
@@ -110,7 +110,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236029+00:00"
+          "updated_at": "2026-08-11T09:19:23.340985+00:00"
         }
       ],
       "summary": "1 node(s). Top: AI data-center load and grid constraints lift nuclear and firm power narratives"
@@ -148,7 +148,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236074+00:00"
+          "updated_at": "2026-08-11T09:19:23.341038+00:00"
         }
       ],
       "summary": "1 node(s). Top: Frontier AI remains compute- and energy-constrained"
@@ -184,7 +184,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236119+00:00"
+          "updated_at": "2026-08-11T09:19:23.341088+00:00"
         }
       ],
       "summary": "1 node(s). Top: Indo-Pacific force posture and industrial base remain priority theaters"
@@ -220,7 +220,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236161+00:00"
+          "updated_at": "2026-08-11T09:19:23.341130+00:00"
         }
       ],
       "summary": "1 node(s). Top: Advanced-economy aging and tight labor markets constrain growth potential"
@@ -257,7 +257,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236202+00:00"
+          "updated_at": "2026-08-11T09:19:23.341172+00:00"
         }
       ],
       "summary": "1 node(s). Top: Advanced semiconductor manufacturing remains geographically concentrated"
@@ -295,7 +295,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236244+00:00"
+          "updated_at": "2026-08-11T09:19:23.341268+00:00"
         }
       ],
       "summary": "1 node(s). Top: Bitcoin remains a high-beta expression of global liquidity and risk appetite"
@@ -332,7 +332,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236288+00:00"
+          "updated_at": "2026-08-11T09:19:23.341316+00:00"
         }
       ],
       "summary": "1 node(s). Top: Critical minerals and water stress bind energy transition and industrial policy"
@@ -369,7 +369,7 @@
               "url": ""
             }
           ],
-          "updated_at": "2026-07-27T00:12:51.236328+00:00"
+          "updated_at": "2026-08-11T09:19:23.341359+00:00"
         }
       ],
       "summary": "1 node(s). Top: AI and crypto narratives oscillate between euphoria and disillusionment in media cycles"
@@ -454,7 +454,7 @@
       "fixture"
     ],
     "event_count": 10,
-    "run_id": "20260727T001251Z",
+    "run_id": "20260811T091923Z",
     "node_total": 10
   }
 }

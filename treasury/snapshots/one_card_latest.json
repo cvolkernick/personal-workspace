@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-08T06:11:54.636171+00:00",
+  "as_of": "2026-08-11T15:38:36.717344+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -440.18,
-  "balance_owed": 440.18,
-  "card_balance": 440.18,
+  "balance_raw": -447.33,
+  "balance_owed": 447.33,
+  "card_balance": 447.33,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -440.18,
+  "cleared_balance": -447.33,
   "uncleared_balance": 0.0,
-  "spend_30d": 404.77,
+  "spend_30d": 411.92,
   "payments_30d": 430.46,
-  "transaction_count": 39,
+  "transaction_count": 40,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -448,9 +448,20 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "ee89f7cb-7a83-4fa2-afa2-2af309050aa5",
+      "date": "2026-08-07",
+      "payee": "Lyft",
+      "amount": -7.15,
+      "amount_display": -7.15,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-10"
+  "since": "2026-05-13"
 }
