@@ -12,12 +12,13 @@
   let hydrationChart = null;
   let selectedExercise = null;
   /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
-  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v1";
+  // v2: defaults flipped so quests + lift start collapsed (preference still wins after toggle)
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v2";
   const COLLAPSE_DEFAULTS = {
-    quests: true,
+    quests: false,
     targets: true,
     "meal-sum": false,
-    lift: true,
+    lift: false,
   };
   function readCollapseOpen() {
     try {
