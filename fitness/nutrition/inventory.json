@@ -84,7 +84,7 @@
       "protein_g": 4,
       "carbs_g": 11,
       "fat_g": 0,
-      "in_stock": true
+      "in_stock": false
     },
     {
       "id": "oats",
