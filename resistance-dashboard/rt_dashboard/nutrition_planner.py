@@ -20,6 +20,8 @@ DEFAULT_TARGETS = {
     "protein_g": 210,
     "carbs_g": 180,
     "fat_g": 55,
+    # Optional scale goal for Trends weight chart guide line (lb). None = unset.
+    "weight_goal_lbs": None,
     "notes": "Default cutting targets",
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 }
@@ -57,6 +59,8 @@ def normalize_targets(raw: Optional[dict]) -> dict:
         for k in ("calories", "protein_g", "carbs_g", "fat_g"):
             if k in raw and raw[k] is not None:
                 t[k] = float(raw[k])
+        if "weight_goal_lbs" in raw:
+            t["weight_goal_lbs"] = _coerce_weight_goal_lbs(raw.get("weight_goal_lbs"))
         if raw.get("notes"):
             t["notes"] = str(raw["notes"])
         if raw.get("updated_at"):
@@ -75,7 +79,23 @@ def normalize_targets(raw: Optional[dict]) -> dict:
     t["protein_g"] = max(0.0, min(500.0, float(t["protein_g"])))
     t["carbs_g"] = max(0.0, min(800.0, float(t["carbs_g"])))
     t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
+    if "weight_goal_lbs" not in t:
+        t["weight_goal_lbs"] = None
     return t
+
+
+def _coerce_weight_goal_lbs(raw: Any) -> Optional[float]:
+    """Body-weight goal in pounds, or None if unset/invalid."""
+    if raw is None or raw == "":
+        return None
+    try:
+        v = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if v <= 0:
+        return None
+    # Athlete scale band — reject nonsense so the chart never draws 5 lb or 900 lb
+    return round(max(80.0, min(500.0, v)), 1)
 
 
 def _coerce_serving_g(raw: dict) -> Optional[float]:

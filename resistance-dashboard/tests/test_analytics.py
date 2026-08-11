@@ -251,7 +251,10 @@ class TestRecovery(unittest.TestCase):
             SleepSample(date="2026-05-26", sleep_hours=7.5),
             SleepSample(date="2026-05-27", sleep_hours=7.5),
         ]
-        today = datetime.utcnow().strftime("%Y-%m-%d")
+        # Recovery as_of is local civil day (not UTC) — match that clock
+        from rt_dashboard.timeutil import local_today_iso
+
+        today = local_today_iso()
         # Only run the "stale history" assertion when today is outside the May window
         if today <= "2026-05-27":
             self.skipTest("today still within fixture window")

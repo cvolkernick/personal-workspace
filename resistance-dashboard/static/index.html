@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=quests-collapse-3" />
+    <link rel="stylesheet" href="/styles.css?v=weight-goal-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=quests-collapse-3" defer></script>
+    <script src="/app.js?v=weight-goal-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -435,6 +435,12 @@
               <label>Protein<input type="number" id="tgt-p" min="0" step="1" required /></label>
               <label>Carbs<input type="number" id="tgt-c" min="0" step="1" required /></label>
               <label>Fat<input type="number" id="tgt-f" min="0" step="1" required /></label>
+            </div>
+            <div class="row cols-4" style="margin-top: 0.5rem">
+              <label title="Horizontal guide on Trends → Weight chart. Leave blank to hide."
+                >Weight goal (lb)
+                <input type="number" id="tgt-weight-goal" min="80" max="500" step="0.1" placeholder="e.g. 175" />
+              </label>
             </div>
             <div class="actions">
               <button type="submit" class="primary">Save targets</button>
