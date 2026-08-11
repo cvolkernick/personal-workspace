@@ -2548,7 +2548,7 @@
       if (f(man.card_balance) > 0)
         add(1, "card_refinance", `Refinance One Card $${f(man.card_balance).toFixed(0)} via Morpho principal`, "human", "Not HY pull — LTV buffer stays.", false);
       if (buckets.gaps.loan_buffer > 0)
-        add(2, "ltv_buffer_stack", `Restore LTV buffer (USDC HY)`, "human", "USDC HY sleeve vs Morpho LTV floor.", false);
+        add(2, "ltv_buffer_stack", `Restore HY LTV Buffer`, "human", "HY LTV Buffer vs Morpho LTV floor.", false);
       if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "Throttle buys.", true);
       actions.sort((a, b) => a.priority - b.priority);
       return {
@@ -3223,7 +3223,7 @@
         if (stress.coinbase_liquid === "red") {
           return toneResult(
             "red",
-            `LTV buffer USDC ${money(workingUsdc)} is below USDC HY floor (not One Card float).`
+            `HY LTV Buffer ${money(workingUsdc)} is below floor (not One Card float).`
           );
         }
         if (stress.coinbase_liquid === "yellow") {
