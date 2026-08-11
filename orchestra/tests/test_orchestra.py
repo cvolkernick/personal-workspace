@@ -7,10 +7,13 @@ against temporary workspace fixtures — no mocking of units under test.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 ORCH = ROOT / "orchestra"
@@ -44,6 +47,23 @@ from datetime import datetime, timedelta, timezone  # noqa: E402
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+@contextmanager
+def _no_live_fcc_worktree():
+    """Isolate collect_finance from the live treasury worktree (worktree-first SoT)."""
+    with tempfile.TemporaryDirectory() as td:
+        empty = Path(td) / "no-wts"
+        empty.mkdir(parents=True, exist_ok=True)
+        with mock.patch.dict(
+            os.environ,
+            {
+                "FCC_WORKTREE_ROOT": "",
+                "PERSONAL_WORKSPACE_WORKTREES": str(empty),
+            },
+            clear=False,
+        ):
+            yield
 
 
 def _build_fixture_workspace(base: Path) -> Path:
@@ -256,7 +276,7 @@ next_action: "Fill Morpho LTV fields and confirm buying power floor"
 
 class CollectorsAggregationTests(unittest.TestCase):
     def test_multi_domain_status_aggregation_from_fixture(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, _no_live_fcc_worktree():
             ws = _build_fixture_workspace(Path(td))
             domains = collect_all_domains(ws, probe_ports=False)
             ids = {d["id"] for d in domains}
@@ -576,7 +596,7 @@ class FreshnessAndAttentionTests(unittest.TestCase):
             self.assertTrue(a.get("domains"))
 
     def test_payload_includes_attention_and_freshness_on_fixture(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
+        with tempfile.TemporaryDirectory() as td, _no_live_fcc_worktree():
             ws = _build_fixture_workspace(Path(td))
             # Make finance snapshot old so stale flag fires under 48h threshold
             snap_path = ws / "treasury" / "snapshots" / "treasury_latest.json"
