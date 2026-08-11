@@ -89,13 +89,21 @@ MUSCLE_ALIASES: Dict[str, str] = {
 
 VOLUME_FRAMEWORK = {
     "id": "dean_t_balanced_4_8",
-    "label": "DeanT balanced volume (≈4–8 sets/muscle/week)",
+    "label": "Balanced volume (≈4–8 sets/muscle/week)",
     "source": "https://x.com/DeanTTraining/status/2081501543510028437",
     "summary": (
         "Hard sets ~4–8 per major muscle per week with compound overlap counted; "
         "10–20+/muscle is usually unnecessary and exceeds productive weekly capacity. "
         "Prioritize 1–2 muscles only by putting others at maintenance."
     ),
+}
+
+# Primary majors shown for a PPL session day (UI filter; weekly credits still
+# accumulate for the full body). Catalog session_types map into these buckets.
+SESSION_MUSCLES: Dict[str, Tuple[str, ...]] = {
+    "push": ("chest", "delts", "triceps", "traps"),
+    "pull": ("mid_upper_back", "lats", "biceps", "traps"),
+    "legs": ("quads", "hamstrings", "glutes", "calves", "adductors"),
 }
 
 DEFAULT_GOALS = {

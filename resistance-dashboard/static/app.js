@@ -659,7 +659,7 @@
   }
 
   function renderCharts(data) {
-    // Monthly volume = last 30 calendar days, one bar per day (0 if no session).
+    // Daily volume = last 90 calendar days, one bar per day (0 if no session).
     const vol = data.volume_by_day || [];
     const volLabels = vol.map((v) => v.date);
     const volVals = vol.map((v) => v.volume);
@@ -699,7 +699,7 @@
             ...chartDefaults().scales.x,
             ticks: {
               ...chartDefaults().scales.x.ticks,
-              maxTicksLimit: 10,
+              maxTicksLimit: 12,
               maxRotation: 0,
             },
           },
@@ -2896,19 +2896,46 @@
     if ($("wg-split")) $("wg-split").value = g.split || "ppl";
   }
 
-  function renderVolumeBalance(volume) {
+  /** Majors shown for a PPL day (weekly credits still track the full body). */
+  const SESSION_MUSCLES = {
+    push: ["chest", "delts", "triceps", "traps"],
+    pull: ["mid_upper_back", "lats", "biceps", "traps"],
+    legs: ["quads", "hamstrings", "glutes", "calves", "adductors"],
+  };
+
+  function markForcedSessionButtons(sessionType) {
+    const st = String(sessionType || "").toLowerCase();
+    ["push", "pull", "legs"].forEach((key) => {
+      const btn = $(`btn-force-session-${key}`);
+      if (!btn) return;
+      const on = st === key;
+      btn.classList.toggle("is-active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  function renderVolumeBalance(volume, sessionType) {
     if (!volume || !Array.isArray(volume.muscles)) return "";
     const fw = volume.framework || {};
-    const rows = volume.muscles.filter(
-      (m) =>
-        (m.done || 0) > 0 ||
-        (m.planned || 0) > 0 ||
-        m.status === "under" ||
-        m.status === "low" ||
-        m.priority
-    );
-    // Always show majors with any signal; cap list for UI density
-    const show = (rows.length ? rows : volume.muscles).slice(0, 13);
+    const st = String(sessionType || "").toLowerCase();
+    const sessionMuscles = SESSION_MUSCLES[st] || null;
+    let pool = volume.muscles;
+    // Train day: only muscles trained that session — not a mixed full-body list.
+    // Rest day / unknown: full week overview for muscles with signal.
+    if (sessionMuscles) {
+      const allow = new Set(sessionMuscles);
+      pool = volume.muscles.filter((m) => allow.has(String(m.muscle || "")));
+    } else {
+      pool = volume.muscles.filter(
+        (m) =>
+          (m.done || 0) > 0 ||
+          (m.planned || 0) > 0 ||
+          m.status === "under" ||
+          m.status === "low" ||
+          m.priority
+      );
+    }
+    const show = (pool.length ? pool : volume.muscles).slice(0, 13);
     let chips = show
       .map((m) => {
         const label = String(m.muscle || "").replace(/_/g, " ");
@@ -2917,7 +2944,14 @@
         const band = `${m.min}–${m.max}`;
         const proj =
           planned > 0 ? `${done}+${planned}→${m.projected}` : `${done}`;
-        return `<span class="vol-chip vol-${m.status || "ok"}" title="${label}: ${proj} sets this week (target ${band})">
+        const status = m.status || "ok";
+        const statusHint =
+          status === "under" || status === "low"
+            ? "below weekly band"
+            : status === "high" || status === "over"
+              ? "above weekly band"
+              : "in weekly band";
+        return `<span class="vol-chip vol-${status}" title="${label}: ${proj} hard sets this week (target ${band}) — ${statusHint}">
           <span class="vol-chip-m">${label}</span>
           <span class="vol-chip-v">${proj}</span>
           <span class="vol-chip-b">${band}</span>
@@ -2927,6 +2961,12 @@
     const focus = volume.focus || {};
     const focusMuscles = Array.isArray(focus.muscles) ? focus.muscles : [];
     const src = focus.source || "auto";
+    const dayLabel = st
+      ? st.charAt(0).toUpperCase() + st.slice(1)
+      : "Week";
+    const scopeLine = sessionMuscles
+      ? `<p class="muted volume-balance-note">Showing <strong>${dayLabel}</strong> muscles only (this session). Weekly hard-set credits still count everywhere — amber = under band, green = in range, red = high/over.</p>`
+      : `<p class="muted volume-balance-note">Full-week overview. Amber = under band · green = in range · red = high/over (≈4–8 hard sets/muscle/week w/ overlap).</p>`;
     const focusLine = focusMuscles.length
       ? `<p class="muted volume-balance-note"><strong>${
           src === "auto" ? "Auto focus" : "Focus"
@@ -2935,12 +2975,16 @@
           .join(", ")}${
           focus.reason ? ` — ${focus.reason}` : ""
         }. Priority volume; others near maintenance.</p>`
-      : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial. Avoids 10–20+/muscle.</p>`;
+      : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial.</p>`;
+    // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading
+    const frameworkBit = (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
+      /^DeanT\s+/i,
+      ""
+    );
     return `<div class="volume-balance">
-      <div class="volume-balance-title">Weekly hard sets · ${
-        fw.label || "≈4–8 / muscle (w/ overlap)"
-      }</div>
+      <div class="volume-balance-title">Weekly hard sets · ${dayLabel} · ${frameworkBit}</div>
       <div class="volume-balance-chips">${chips}</div>
+      ${scopeLine}
       ${focusLine}
     </div>`;
   }
@@ -2950,21 +2994,25 @@
     if (!box) return;
     if (!plan) {
       box.innerHTML = "";
+      markForcedSessionButtons("");
       return;
     }
     let html = `<p class="muted">${plan.message || ""}</p>`;
     if (plan.is_rest_day) {
       html += `<p><strong>Rest day</strong> — recovery below threshold.</p>`;
-      html += renderVolumeBalance(plan.volume);
+      html += renderVolumeBalance(plan.volume, null);
+      markForcedSessionButtons("");
       box.innerHTML = html;
       return;
     }
-    const st = (plan.session_type || "").toUpperCase();
+    const stRaw = String(plan.session_type || "").toLowerCase();
+    const st = stRaw.toUpperCase();
     const hard = (plan.context && plan.context.session_hard_sets) || null;
     html += `<p><strong>${st || "Session"}</strong> · ${(plan.exercises || []).length} lifts${
       hard != null ? ` · ${hard} hard sets` : ""
     }</p>`;
-    html += renderVolumeBalance(plan.volume);
+    html += renderVolumeBalance(plan.volume, stRaw);
+    markForcedSessionButtons(stRaw);
     const items = plan.exercises || [];
     if (!items.length) {
       html += `<p class="muted">No exercises planned — expand the catalog or enable exercises.</p>`;

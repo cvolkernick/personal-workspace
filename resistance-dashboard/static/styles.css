@@ -2046,6 +2046,13 @@ footer {
   padding: 0.3rem 0.55rem;
   min-height: 34px;
 }
+.today-session-force > button.is-active {
+  border-color: rgba(61, 156, 240, 0.65);
+  background: rgba(61, 156, 240, 0.18);
+  color: var(--text, #e8eef7);
+  font-weight: 700;
+  box-shadow: 0 0 0 1px rgba(61, 156, 240, 0.25);
+}
 
 .today-actions-compact {
   gap: 0.3rem;
@@ -2866,7 +2873,7 @@ footer {
   opacity: 0.92;
 }
 
-/* Weekly hard-set volume balance (DeanT ≈4–8 / muscle) */
+/* Weekly hard-set volume balance (≈4–8 / muscle) */
 .volume-balance {
   margin: 0.65rem 0 0.35rem;
   padding: 0.55rem 0.65rem;
