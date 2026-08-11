@@ -4411,9 +4411,8 @@
     }
   }
 
+  /** Rebuild rest-of-day meal plan (inventory stock toggles; dashboard load also regenerates). */
   async function generatePlan() {
-    const btn = $("btn-generate-plan");
-    if (btn) btn.disabled = true;
     try {
       const res = await fetch("/api/meal-plan/generate", {
         method: "POST",
@@ -4423,11 +4422,8 @@
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || res.status);
       renderMealPlan(data.plan);
-      showAlert("Rest-of-day meal plan generated", "ok");
     } catch (e) {
       showAlert(`Meal plan failed: ${e.message}`, "err");
-    } finally {
-      if (btn) btn.disabled = false;
     }
   }
 
@@ -4804,9 +4800,7 @@
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
     }
-    if ($("btn-generate-plan")) {
-      $("btn-generate-plan").addEventListener("click", generatePlan);
-    }
+
     if ($("exercise-form")) {
       $("exercise-form").addEventListener("submit", submitExerciseCatalog);
     }

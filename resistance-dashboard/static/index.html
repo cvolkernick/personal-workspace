@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=today-meal-vscroll-1" />
+    <link rel="stylesheet" href="/styles.css?v=today-meal-vscroll-2" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=today-meal-vscroll-1" defer></script>
+    <script src="/app.js?v=today-meal-vscroll-2" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -383,18 +383,12 @@
           id="meal-plan-card"
           aria-label="Today meal plan from in-stock inventory"
         >
-          <div class="calorie-bar-header" style="align-items: flex-start">
-            <div>
-              <h2 class="calorie-bar-title" style="margin: 0">Today · meal plan</h2>
-              <p class="muted desktop-help" style="margin: 0.35rem 0 0; font-size: 0.85rem">
-                Rest-of-day plan from <strong>in-stock</strong> only · portions in grams.
-                Stock toggles under <strong>Kitchen</strong>.
-              </p>
-            </div>
-            <div class="actions" style="margin: 0; flex-shrink: 0">
-              <button type="button" class="primary" id="btn-generate-plan">Refresh plan</button>
-            </div>
-          </div>
+          <h2>Today · meal plan</h2>
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+            Rest-of-day plan from <strong>in-stock</strong> only · portions in grams.
+            Stock toggles under <strong>Kitchen</strong>. Rebuilds on dashboard
+            <strong>Refresh data</strong> (and after stock edits).
+          </p>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
       </section>
@@ -511,7 +505,8 @@
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Day targets in <code>fitness/nutrition/targets.json</code>. Live intake,
           pace bars, and today’s meal plan are on the <strong>Today</strong> tab.
-          After stock edits, open Today and hit <strong>Refresh plan</strong>.
+          After stock edits the meal plan rebuilds automatically; use header
+          <strong>Refresh data</strong> anytime.
         </p>
         <form class="log-form" id="targets-form">
           <div class="row cols-4">
