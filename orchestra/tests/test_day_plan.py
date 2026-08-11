@@ -6,11 +6,13 @@ Fixtures only — no live child servers / HTTP.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 ORCH = ROOT / "orchestra"
@@ -42,6 +44,23 @@ def _write_json(path: Path, data: object) -> None:
 
 
 NOW = datetime(2026, 8, 10, 18, 0, 0, tzinfo=timezone.utc)
+
+
+def _wall_as_of(*, hours_ago: float) -> str:
+    """as_of relative to wall clock — collect_finance ages against now(), not fixture NOW."""
+    return (datetime.now(timezone.utc) - timedelta(hours=hours_ago)).isoformat()
+
+
+def _isolate_fcc_worktrees(worktree_root: Path | None = None):
+    """Prevent collect_finance from reading the live ~/…/treasury worktree."""
+    empty = tempfile.TemporaryDirectory()
+    empty_path = Path(empty.name) / "no-worktrees"
+    empty_path.mkdir(parents=True, exist_ok=True)
+    env = {
+        "PERSONAL_WORKSPACE_WORKTREES": str(empty_path),
+        "FCC_WORKTREE_ROOT": str(worktree_root) if worktree_root else "",
+    }
+    return mock.patch.dict(os.environ, env, clear=False), empty
 
 
 def _finance_domain(
@@ -435,7 +454,8 @@ class CollectorDayFieldsTests(unittest.TestCase):
     def test_collect_finance_reads_stress_overall(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             ws = Path(td)
-            as_of = (NOW - timedelta(hours=2)).isoformat()
+            # collect_finance ages against wall clock — keep as_of within fresh tier (≤6h)
+            as_of = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
             _write_json(
                 ws / "treasury" / "snapshots" / "treasury_latest.json",
                 {
@@ -475,7 +495,12 @@ class CollectorDayFieldsTests(unittest.TestCase):
                     },
                 },
             )
-            fin = collect_finance(ws)
+            patcher, empty = _isolate_fcc_worktrees()
+            with patcher:
+                try:
+                    fin = collect_finance(ws)
+                finally:
+                    empty.cleanup()
             sig = fin["signals"]
             self.assertEqual(sig.get("stress_overall"), "red")
             self.assertTrue(sig.get("red_mode"))
@@ -483,6 +508,120 @@ class CollectorDayFieldsTests(unittest.TestCase):
             self.assertEqual(sig.get("freshness"), "fresh")
             kinds = {a.get("kind") for a in sig.get("day_actions") or []}
             self.assertIn("fill_manual", kinds)
+
+    def test_collect_finance_prefers_worktree_over_stale_monorepo(self) -> None:
+        """Worktree FCC path wins even when monorepo snapshot exists (dual-SoT)."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            ws = base / "monorepo"
+            wt = base / "treasury-wt"
+            monorepo_as = _wall_as_of(hours_ago=300)
+            worktree_as = _wall_as_of(hours_ago=2)
+            # Stale monorepo: looks "green" if naively trusted
+            _write_json(
+                ws / "treasury" / "snapshots" / "treasury_latest.json",
+                {
+                    "snapshot": {
+                        "as_of": monorepo_as,
+                        "coinbase": {"btc_usd_price": 1},
+                        "robinhood": {},
+                    },
+                    "evaluation": {
+                        "stress": {"overall": "green"},
+                        "dca": {},
+                        "buckets": {},
+                        "actions": [],
+                    },
+                },
+            )
+            _write_json(
+                wt / "financial-command" / "treasury_latest.json",
+                {
+                    "snapshot": {
+                        "as_of": worktree_as,
+                        "coinbase": {"btc_usd_price": 99},
+                        "robinhood": {"buying_power": 10},
+                    },
+                    "evaluation": {
+                        "stress": {
+                            "overall": "red",
+                            "coinbase_liquid": "red",
+                            "coinbase_card": "red",
+                        },
+                        "dca": {
+                            "allow_dca": False,
+                            "throttle": "ok",
+                            "reason": "",
+                        },
+                        "buckets": {"working_usdc": 50, "shortfall": 100},
+                        "actions": [
+                            {
+                                "kind": "card_float",
+                                "title": "Fill card float",
+                                "priority": 1,
+                            }
+                        ],
+                    },
+                },
+            )
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "FCC_WORKTREE_ROOT": str(wt),
+                    # Isolate from real ~/personal-workspace-worktrees
+                    "PERSONAL_WORKSPACE_WORKTREES": str(base / "no-such-worktrees"),
+                },
+                clear=False,
+            ):
+                fin = collect_finance(ws)
+            sig = fin["signals"]
+            self.assertEqual(sig.get("btc_usd_price"), 99)
+            self.assertEqual(sig.get("stress_overall"), "red")
+            self.assertTrue(sig.get("red_mode"))
+            self.assertEqual(sig.get("free_cash_gate"), "block_new_risk")
+            self.assertEqual(sig.get("freshness"), "fresh")
+            # Source should point at worktree (absolute or containing financial-command)
+            src = str(sig.get("source") or "")
+            self.assertIn("financial-command", src)
+            self.assertNotIn("snapshots/treasury_latest", src.replace("\\", "/"))
+
+    def test_collect_finance_hard_stale_monorepo_never_green(self) -> None:
+        """Monorepo-only hard-stale snapshot must not paint stress green."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            ws = base / "monorepo"
+            hard_as = _wall_as_of(hours_ago=72)
+            _write_json(
+                ws / "financial-command" / "treasury_latest.json",
+                {
+                    "snapshot": {
+                        "as_of": hard_as,
+                        "coinbase": {"btc_usd_price": 1},
+                        "robinhood": {},
+                    },
+                    "evaluation": {
+                        "stress": {"overall": "green"},
+                        "dca": {},
+                        "buckets": {},
+                        "actions": [{"kind": "ltv_check", "title": "Check LTV"}],
+                    },
+                },
+            )
+            patcher, empty = _isolate_fcc_worktrees()
+            with patcher:
+                try:
+                    fin = collect_finance(ws)
+                finally:
+                    empty.cleanup()
+            sig = fin["signals"]
+            self.assertEqual(sig.get("freshness"), "unknown")
+            self.assertEqual(sig.get("stress_overall"), "unknown")
+            self.assertIsNone(sig.get("red_mode"))
+            self.assertEqual(sig.get("free_cash_gate"), "unknown")
+            self.assertTrue(sig.get("fcc_stale"))
+            # Must not surface raw green from hard-stale SoT
+            self.assertNotEqual(sig.get("stress_overall"), "green")
+            self.assertIn("unknown", (fin.get("summary") or "").lower())
 
     def test_collect_holistic_full_blocks_and_free_minutes(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -558,8 +697,43 @@ class CollectorDayFieldsTests(unittest.TestCase):
             )
             wf = collect_workflow(ws)
             self.assertEqual(wf["signals"]["board"].get("ready_count"), 1)
+            self.assertEqual(wf["signals"]["board"].get("sot"), "buzz-board-project-1")
+            self.assertTrue(wf["signals"]["backlog"].get("not_board_status"))
+            self.assertEqual(wf["signals"]["backlog"].get("role"), "session_hint")
+            # Summary leads with Board packet, not "N active backlog" Ready fiction
+            self.assertIn("Ready 1", wf["summary"])
+            self.assertNotIn("active backlog", wf["summary"])
+            self.assertEqual(wf["status"], "ok")
+            self.assertTrue(
+                any("day_constraints.json" in s for s in (wf.get("sources") or []))
+            )
             fit = collect_fitness(ws)
             self.assertEqual(fit["signals"]["day"].get("train_recommendation"), "easy")
+
+    def test_collect_workflow_backlog_alone_not_board_ok(self) -> None:
+        """ops/backlog alone must not paint Board Ready / ok work status."""
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write_json(
+                ws / "ops" / "backlog" / "items.json",
+                {
+                    "items": [
+                        {
+                            "id": "b1",
+                            "title": "not a board card",
+                            "status": "open",
+                            "priority": "high",
+                        }
+                    ]
+                },
+            )
+            wf = collect_workflow(ws)
+            self.assertEqual(wf["signals"]["board"], {})
+            self.assertTrue(wf["signals"]["backlog"].get("not_board_status"))
+            self.assertIn("Board unknown", wf["summary"])
+            self.assertNotIn("active backlog", wf["summary"])
+            self.assertIn("not Board Status", wf["summary"])
+            self.assertIn(wf["status"], ("partial", "missing"))
 
 
 class PayloadDayPlanTests(unittest.TestCase):
@@ -593,7 +767,7 @@ class PayloadDayPlanTests(unittest.TestCase):
                 ws / "treasury" / "snapshots" / "treasury_latest.json",
                 {
                     "snapshot": {
-                        "as_of": (NOW - timedelta(hours=72)).isoformat(),
+                        "as_of": _wall_as_of(hours_ago=72),
                         "coinbase": {"btc_usd_price": 1},
                         "robinhood": {},
                     },
@@ -646,7 +820,12 @@ class PayloadDayPlanTests(unittest.TestCase):
                     },
                 },
             )
-            payload = build_orchestra_payload(ws, probe_ports=False)
+            patcher, empty = _isolate_fcc_worktrees()
+            with patcher:
+                try:
+                    payload = build_orchestra_payload(ws, probe_ports=False)
+                finally:
+                    empty.cleanup()
             self.assertTrue(payload["ok"])
             self.assertIn("day_plan", payload)
             dp = payload["day_plan"]
@@ -654,7 +833,7 @@ class PayloadDayPlanTests(unittest.TestCase):
             self.assertIn("gates", dp)
             self.assertIn("blocks", dp)
             self.assertIn("sources", dp)
-            # hard-unknown finance from 72h as_of
+            # hard-unknown finance from 72h as_of (monorepo only; live worktree isolated)
             self.assertEqual(dp["sources"]["finance"]["freshness"], "unknown")
             self.assertIn("day_plan_next3", payload["counts"])
 
