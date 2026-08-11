@@ -330,6 +330,8 @@ def pace_vs_expected(
         kind_key = "carbs"
     elif kind_key in ("fat", "fat_g", "f"):
         kind_key = "fat"
+    elif kind_key in ("hydration", "water", "water_ml", "ml"):
+        kind_key = "hydration"
     else:
         kind_key = "calories"
 
@@ -389,7 +391,12 @@ def pace_vs_expected(
             band, color = "red", "red"
             status = f"{side}_off"
 
-        unit = "kcal" if kind_key == "calories" else "g"
+        if kind_key == "calories":
+            unit = "kcal"
+        elif kind_key == "hydration":
+            unit = "ml"
+        else:
+            unit = "g"
         if side == "on":
             summary = (
                 f"{consumed:g} / paced ~{paced:.0f} {unit} · on pace "
