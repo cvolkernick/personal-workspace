@@ -1,8 +1,8 @@
 {
-  "version": 38,
+  "version": 39,
   "as_of": "2026-08-11",
-  "title": "Capital Flows — X Money ↔ Digital Credit + Margin",
-  "notes": "v38: X Money flows both ways with Digital Credit (cash → Morpho/BTC engine) and with Margin (1st auto / optional extract). Deploy mid-column still Essential · Fleet · Collateral · Productive · Consumer.",
+  "title": "Capital Flows — X Money · Digital Credit ↔ Margin",
+  "notes": "v39: reverse LE order to X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. Digital Credit ↔ Margin (replaces X Money ↔ Margin as the equities loop). X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -18,7 +18,7 @@
       {
         "id": "liquidity_engine",
         "label": "Liquidity Engine",
-        "ids": ["digital_credit", "x_money", "margin"]
+        "ids": ["x_money", "digital_credit", "margin"]
       },
       {
         "id": "deploy",
@@ -39,9 +39,8 @@
       "label": "Turo",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "First-touch ops land X Money. Engine funnel Turo→Digital Credit for capitalization.",
+      "evidence": "Turo payouts land X Money (ops cash sleeve).",
       "typical_landing": "x_money",
-      "engine_target": "digital_credit",
       "cadence": "semi_daily"
     },
     {
@@ -49,8 +48,9 @@
       "label": "Lyft",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Weekly payout → Digital Credit (Coinbase/Morpho engine).",
-      "typical_landing": "digital_credit",
+      "evidence": "Lyft splits to both X Money (ops) and Digital Credit (Coinbase/Morpho engine).",
+      "typical_landing": "x_money",
+      "landing_label": "X Money · Digital Credit",
       "engine_target": "digital_credit",
       "cadence": "weekly"
     },
@@ -99,22 +99,22 @@
   },
   "channels": [
     {
-      "id": "digital_credit",
-      "label": "Digital Credit",
-      "kind": "leverage",
-      "stroke": "liq-blue",
-      "subtitle": "BTC · Morpho · USDC HY",
-      "confidence": "owner_stated",
-      "notes": "Collapsed Morpho engine: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → HY tops BTC. Also One Card refinance via Morpho principal (~5% vs ~29%)."
-    },
-    {
       "id": "x_money",
       "label": "X Money",
       "kind": "cash",
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Cash sleeve between Digital Credit and Margin. Bidirectional with both engines: Morpho borrow → X Money and X Money → Digital Credit (fund Morpho/BTC); 1st auto → Margin and optional margin extract back."
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + half of Lyft; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+    },
+    {
+      "id": "digital_credit",
+      "label": "Digital Credit",
+      "kind": "leverage",
+      "stroke": "liq-blue",
+      "subtitle": "BTC · Morpho · USDC HY",
+      "confidence": "owner_stated",
+      "notes": "Morpho engine mid-LE: liquidity → BTC spot; LTV cool → USDC HY; LTV hot → HY tops BTC. One Card refinance via Morpho. Two-way with X Money and with Margin."
     },
     {
       "id": "margin",
@@ -123,7 +123,7 @@
       "stroke": "liq-green",
       "subtitle": "Agentic · stocks · USDG HY",
       "confidence": "owner_stated",
-      "notes": "Collapsed RH equities engine: liquidity → stock spot; margin cool → USDG HY; heat → HY tops stock. Optional extract back to X Money is not income."
+      "notes": "RH equities engine: liquidity → stock spot; margin cool → USDG HY; heat → HY tops stock. Bidirectional with Digital Credit (not X Money). Optional extract is not income."
     },
     {
       "id": "bills_essential",
@@ -165,16 +165,24 @@
   "edges": [
     {
       "from": "turo",
-      "to": "digital_credit",
+      "to": "x_money",
       "confidence": "owner_stated",
       "weight": 4,
-      "notes": "Engine funnel — capitalizes Morpho/BTC stack."
+      "notes": "Turo ops land X Money."
+    },
+    {
+      "from": "lyft",
+      "to": "x_money",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Lyft share to ops cash."
     },
     {
       "from": "lyft",
       "to": "digital_credit",
       "confidence": "owner_stated",
-      "weight": 4
+      "weight": 4,
+      "notes": "Lyft share to Morpho/BTC engine."
     },
     {
       "from": "asics",
@@ -183,20 +191,20 @@
       "weight": 4
     },
     {
+      "from": "x_money",
+      "to": "digital_credit",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "cash → DC engine",
+      "notes": "X Money funds Digital Credit (Coinbase / Morpho / BTC / USDC HY)."
+    },
+    {
       "from": "digital_credit",
       "to": "x_money",
       "confidence": "owner_stated",
       "weight": 5,
       "label": "borrow → cash",
       "notes": "Morpho USDC (and ops surplus) into X Money cash sleeve."
-    },
-    {
-      "from": "x_money",
-      "to": "digital_credit",
-      "confidence": "owner_stated",
-      "weight": 4,
-      "label": "cash → DC engine",
-      "notes": "X Money can fund Digital Credit (Coinbase / Morpho / BTC / USDC HY) — same hub role as X Money → Margin on the equities side."
     },
     {
       "from": "x_money",
@@ -231,26 +239,27 @@
       "weight": 2
     },
     {
-      "from": "x_money",
+      "from": "digital_credit",
       "to": "margin",
       "confidence": "owner_stated",
       "weight": 4,
-      "label": "1st auto → equities",
-      "notes": "Scheduled X Money → RH Agentic; then stock/margin/USDG rotation lives inside Margin card."
+      "label": "→ equities engine",
+      "notes": "Digital Credit funds / rebalances into Margin (RH Agentic · stocks · USDG). Replaces prior X Money → Margin auto as the DC–Margin spine."
     },
     {
       "from": "margin",
-      "to": "x_money",
+      "to": "digital_credit",
       "confidence": "inferred",
       "weight": 2,
       "style": "risk",
       "label": "optional extract",
-      "notes": "Optional leverage extract to cash — NOT income. Dual-engine risk."
+      "notes": "Optional loop back Digital Credit ← Margin — NOT income. Dual-engine risk."
     }
   ],
   "open_questions": [
     "Exact Morpho LTV target band (cool park-to-HY vs hot pull-to-BTC)",
     "Exact RH margin-use target band (cool park-to-USDG vs heat pull-to-stock)",
+    "Cadence of Digital Credit → Margin vs former 1st-of-month X Money auto",
     "When to allow margin extract vs dual-leverage hard block"
   ]
 }

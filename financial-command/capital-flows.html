@@ -245,7 +245,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(Digital Credit ↔ X Money ↔ Margin)</em> → <strong>Deploy</strong>. X Money is the cash hub both ways with each credit engine. HY ↔ borrowing rotation lives inside each credit card.</p>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(X Money ↔ Digital Credit ↔ Margin)</em> → <strong>Deploy</strong>. Turo → X Money; Lyft → both X Money and Digital Credit; Digital Credit ↔ Margin. HY ↔ borrowing rotation lives inside each credit card.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 460" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -262,10 +262,10 @@
           </div>
         </div>
         <div>
-          <h3>Layout (v38 · X Money hub both engines)</h3>
+          <h3>Layout (v39 · X Money · Digital Credit ↔ Margin)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (Digital Credit ↔ X Money ↔ Margin) → <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">X Money ↔ Digital Credit (cash → Morpho/BTC) and X Money ↔ Margin (1st auto / extract). Deploy: Essential · Fleet · Collateral · Productive · Consumer.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (X Money ↔ Digital Credit ↔ Margin) → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Turo → X Money · Lyft → X Money + Digital Credit · ASICs → Digital Credit. X Money ↔ Digital Credit; Digital Credit ↔ Margin. Deploy from X Money: Essential · Fleet · Collateral · Productive · Consumer.</span></div>
           </div>
         </div>
       </div>
@@ -322,7 +322,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model: Income → LE (Digital Credit → X Money → Margin) → Deploy
+      // Prefer model: Income → LE (X Money → Digital Credit → Margin) → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
@@ -334,7 +334,7 @@
           {
             id: "liquidity_engine",
             label: "Liquidity Engine",
-            ids: ["digital_credit", "x_money", "margin"],
+            ids: ["x_money", "digital_credit", "margin"],
           },
           {
             id: "deploy",
