@@ -143,11 +143,12 @@
       stroke: #c9a0ff;
       stroke-dasharray: 10 8;
     }
-    /* Optional leverage extract — not income (margin loan feedback) */
+    /* Optional leverage extract — not income (margin loan feedback).
+       Same purple family as owner_stated; dashed keeps it visually secondary. */
     .edge-path.risk {
-      stroke: #ff6b6b;
+      stroke: #c9a0ff;
       stroke-dasharray: 4 6;
-      opacity: 0.75;
+      opacity: 0.8;
     }
     /* Live strip + optional labels (labels off by default in model) */
     .edge-label {
@@ -257,7 +258,7 @@
             <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — Margin (Agentic · stocks · USDG HY)</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Deploy · Collateral</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
-            <div class="leg-item"><span class="desc"><strong>Red dashed</strong> — margin extract (not income)</span></div></div>
+            <div class="leg-item"><span class="desc"><strong>Purple dashed</strong> — margin extract (not income)</span></div></div>
           </div>
         </div>
         <div>
