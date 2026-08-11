@@ -1646,8 +1646,8 @@ footer {
   }
 }
 
-/* Kitchen row: DoorDash restock (left column) + inventory (right).
-   Daily targets live under More with other settings.
+/* Kitchen row: Ingredient Inventory (left) + DoorDash Meal Restock (right).
+   Daily Targets live under More with other settings.
    Do not stretch the short column to inventory height.
 
    Pantry list MUST keep a real min-height. After #118, flex:1 1 0 + min-height:0
@@ -2909,9 +2909,11 @@ footer {
 }
 .vol-chip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.28rem;
-  padding: 0.2rem 0.45rem;
+  max-width: 100%;
+  padding: 0.25rem 0.55rem;
   border-radius: 999px;
   font-size: 0.72rem;
   border: 1px solid rgba(255, 255, 255, 0.1);
