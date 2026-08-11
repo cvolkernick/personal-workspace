@@ -2976,7 +2976,8 @@ footer {
 .today-mobile-pills {
   display: none;
   gap: 0.4rem;
-  margin: 0.65rem 0 0.35rem;
+  /* Sit under Daily Quests, directly above the panels they control */
+  margin: 0.55rem 0 0.4rem;
   flex-wrap: wrap;
 }
 

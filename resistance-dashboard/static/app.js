@@ -12,12 +12,12 @@
   let hydrationChart = null;
   let selectedExercise = null;
   /** Collapse open/closed — memory + sessionStorage so GT re-renders / soft reloads keep preference. */
-  // v3: clear sticky open Training from earlier sessions; quests + lift start collapsed
-  // (user toggle still wins for the rest of the browser session).
-  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v3";
+  // v4: quests + lift + meal + targets all start collapsed (pills sit under Daily Quests).
+  // User toggle still wins for the rest of the browser session.
+  const COLLAPSE_STORAGE_KEY = "fitdash-collapse-v4";
   const COLLAPSE_DEFAULTS = {
     quests: false,
-    targets: true,
+    targets: false,
     "meal-sum": false,
     lift: false,
   };
@@ -2981,7 +2981,11 @@
           .map((m) => String(m).replace(/_/g, " "))
           .join(", ")}${
           focus.reason ? ` — ${focus.reason}` : ""
-        }. Priority volume; others near maintenance.</p>`
+        }. ${
+          src === "auto"
+            ? "Planner picked these as this week’s priority muscles (lagging vs the weekly hard-set band); other groups stay nearer maintenance."
+            : "Manual priority muscles; others near maintenance."
+        }</p>`
       : `<p class="muted volume-balance-note">Balanced volume (no priority muscles). Primary sets full credit; secondary partial.</p>`;
     // fw.label is already "Balanced volume (≈4–8…)" — no coach brand in heading
     const frameworkBit = (fw.label || "Balanced volume (≈4–8 / muscle)").replace(
@@ -4084,6 +4088,31 @@
     });
   }
 
+  /** Map Lift/Meal/Targets pill → collapsible key in the hub grid. */
+  const TODAY_PILL_COLLAPSE = {
+    lift: "lift",
+    meal: "meal-sum",
+    targets: "targets",
+  };
+
+  function setPanelCollapse(key, open) {
+    if (!key) return;
+    const root = $("today-hub") || document;
+    const head =
+      root.querySelector(`[data-collapse="${key}"]`) ||
+      document.querySelector(`[data-collapse="${key}"]`);
+    const body =
+      root.querySelector(`[data-collapse-body="${key}"]`) ||
+      document.querySelector(`[data-collapse-body="${key}"]`);
+    if (!head || !body) return;
+    const next = !!open;
+    head.setAttribute("aria-expanded", next ? "true" : "false");
+    head.classList.toggle("is-collapsed", !next);
+    body.hidden = !next;
+    collapseOpen[key] = next;
+    persistCollapseOpen();
+  }
+
   function setTodayPill(name) {
     const pills = $("today-mobile-pills");
     if (!pills) return;
@@ -4097,6 +4126,17 @@
         "today-panel-active",
         panel.getAttribute("data-today-panel") === name
       );
+    });
+    // When switching pills: force inactive sections collapsed so Meal/Targets
+    // don't stay open from a previous visit. Active section keeps preference
+    // (defaults all closed — user expands the subhead if they want content).
+    Object.entries(TODAY_PILL_COLLAPSE).forEach(([pill, key]) => {
+      if (pill === name) {
+        setPanelCollapse(key, collapseOpen[key] === true);
+      } else {
+        // Leaving a pill always collapses it so the next visit starts closed
+        setPanelCollapse(key, false);
+      }
     });
   }
 
