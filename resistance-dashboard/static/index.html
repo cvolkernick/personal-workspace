@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=weight-goal-2" />
+    <link rel="stylesheet" href="/styles.css?v=log-inv-goal-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=weight-goal-2" defer></script>
+    <script src="/app.js?v=log-inv-goal-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -452,8 +452,8 @@
         <article class="card card-fill" id="inventory-card">
           <h2>Ingredient inventory</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Pantry for meal plans (Today). Mark in/out of stock; suggestions stay as a
-            compact carousel. Data:
+            Full pantry first (in/out of stock). Suggested staples and removals
+            are secondary. Data:
             <code>fitness/nutrition/inventory.json</code>.
           </p>
           <form class="log-form" id="ingredient-form">
@@ -492,9 +492,10 @@
             </div>
             <p class="muted" id="ing-status" style="margin: 0"></p>
           </form>
+          <!-- Full current inventory before recommendations (was collapsing under carousels) -->
+          <div id="inventory-list" class="inv-list inv-list-scroll" style="margin-top: 0.85rem"></div>
           <div id="inventory-suggestions" class="inv-suggestions" style="margin-top: 0.85rem"></div>
           <div id="inventory-removals" class="inv-removals" style="margin-top: 0.85rem"></div>
-          <div id="inventory-list" class="inv-list inv-list-scroll" style="margin-top: 0.85rem"></div>
         </article>
       </section>
 
@@ -616,7 +617,13 @@
         </form>
       </section>
 
-      <!-- Lift charts sit above history (after body composition / hydration) -->
+      <!-- Bottom of Log tab: session list after the log form -->
+      <section class="card" style="margin-top: 1rem" id="history-card" data-m-panel="log">
+        <h2>Workout history</h2>
+        <ul class="session-list" id="session-list"></ul>
+      </section>
+
+      <!-- Lift charts (Trends) — volume + strength -->
       <section class="grid two equal-cards" style="margin-top: 1rem" id="charts-volume-strength" data-m-panel="trends">
         <article class="card card-fill">
           <h2>Monthly volume (daily)</h2>
@@ -634,11 +641,6 @@
           <div class="chart-box chart-box-match"><canvas id="chart-strength" aria-label="Strength chart"></canvas></div>
           <p class="muted" id="strength-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
         </article>
-      </section>
-
-      <section class="card" style="margin-top: 1rem" id="history-card" data-m-panel="trends">
-        <h2>Workout history</h2>
-        <ul class="session-list" id="session-list"></ul>
       </section>
 
       <!-- Mobile-only admin actions (desktop uses header buttons) -->

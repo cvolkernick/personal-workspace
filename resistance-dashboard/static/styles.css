@@ -1648,7 +1648,11 @@ footer {
 
 /* Kitchen row: targets (config form) + inventory.
    Do not stretch targets to inventory height — that left a tall empty card
-   after IA moved "today so far" off Kitchen. Inventory can grow on its own. */
+   after IA moved "today so far" off Kitchen. Inventory can grow on its own.
+
+   Pantry list MUST keep a real min-height. After #118, flex:1 1 0 + min-height:0
+   + overflow:hidden on a content-sized card collapsed #inventory-list to 0px —
+   Chris only saw Suggested staples / removals, never the full pantry. */
 #inventory-section.equal-cards,
 #inventory-section.inv-meal-row,
 .inv-meal-row {
@@ -1667,9 +1671,12 @@ footer {
 }
 
 #inventory-card {
-  /* keep flex column so pantry list can fill remaining card if needed */
+  display: flex;
+  flex-direction: column;
+  height: auto;
   min-height: 0;
-  overflow: hidden;
+  /* visible: pantry is content-sized; do not clip a zero-flex child */
+  overflow: visible;
 }
 
 #inventory-card .log-form,
@@ -1679,12 +1686,12 @@ footer {
   flex: 0 0 auto;
 }
 
-/* flex-basis 0 so pantry items don't expand the grid past the meal-plan card */
+/* Full pantry: content height with a floor + internal scroll when long */
 #inventory-list.inv-list-scroll,
 .inv-list-scroll {
-  flex: 1 1 0;
-  min-height: 0;
-  max-height: none;
+  flex: 0 1 auto;
+  min-height: 12rem;
+  max-height: min(55vh, 480px);
   overflow-y: auto;
   margin-top: 0.85rem;
   border-top: 1px solid var(--border);

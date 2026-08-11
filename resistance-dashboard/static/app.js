@@ -825,12 +825,30 @@
         data: weightGoalLine,
         borderColor: "rgba(192, 132, 252, 0.95)",
         borderDash: [2, 3],
-        borderWidth: 2,
+        borderWidth: 2.5,
         pointRadius: 0,
         fill: false,
         tension: 0,
         order: 0,
+        spanGaps: true,
       });
+    }
+    // Include goal in Y domain so a far target still draws inside the plot
+    const weightOpts = chartDefaults();
+    const finiteW = weightVals.filter((v) => v != null && Number.isFinite(Number(v))).map(Number);
+    if (weightGoal != null) finiteW.push(weightGoal);
+    if (finiteW.length) {
+      const lo = Math.min(...finiteW);
+      const hi = Math.max(...finiteW);
+      const pad = Math.max(1.5, (hi - lo) * 0.12 || 2);
+      weightOpts.scales = {
+        ...weightOpts.scales,
+        y: {
+          ...weightOpts.scales.y,
+          suggestedMin: lo - pad,
+          suggestedMax: hi + pad,
+        },
+      };
     }
     destroyChart(weightChart);
     weightChart = new Chart($("chart-weight"), {
@@ -839,7 +857,7 @@
         labels: weights.map((w) => w.date),
         datasets: weightDatasets,
       },
-      options: chartDefaults(),
+      options: weightOpts,
     });
     if ($("weight-trend-note")) {
       const bits = [];
@@ -865,7 +883,7 @@
           bits.push(`goal ${weightGoal.toFixed(1)} lb`);
         }
       } else {
-        bits.push("set weight goal in Kitchen → Daily targets");
+        bits.push("no goal line yet — set Weight goal (lb) under Kitchen → Daily targets, then Save");
       }
       $("weight-trend-note").textContent = bits.join(" · ");
     }
@@ -1880,8 +1898,8 @@
     });
     if (!items.length) {
       list.innerHTML = `<div class="macro-summary inv-panel compact-panel">
-        <div class="macro-summary-title">Pantry</div>
-        <p class="muted" style="margin:0.35rem 0 0">No ingredients yet — add above or accept a suggestion.</p>
+        <div class="macro-summary-title">Current inventory</div>
+        <p class="muted" style="margin:0.35rem 0 0">No ingredients yet — add above or accept a suggestion below.</p>
       </div>`;
       return;
     }
@@ -1910,7 +1928,7 @@
     list.innerHTML = `<div class="macro-summary inv-panel compact-panel inv-panel-fill">
       <div class="macro-summary-header">
         <div>
-          <div class="macro-summary-title">Pantry</div>
+          <div class="macro-summary-title">Current inventory</div>
           <div class="macro-summary-meta muted">${stocked} in · ${items.length - stocked} out · scroll</div>
         </div>
         <div class="inv-carousel-count muted">${items.length}</div>
