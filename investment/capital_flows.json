@@ -1,8 +1,8 @@
 {
-  "version": 37,
-  "as_of": "2026-08-10",
-  "title": "Capital Flows — LE credit cards + Deploy Collateral",
-  "notes": "v37: Deploy adds Collateral mid-column (Essential · Fleet · Collateral · Productive · Consumer). LE unchanged: Digital Credit → X Money → Margin. Collateral = free-dollar invest sink (Agentic / BTC collateral) after ops, before discretionary.",
+  "version": 38,
+  "as_of": "2026-08-11",
+  "title": "Capital Flows — X Money ↔ Digital Credit + Margin",
+  "notes": "v38: X Money flows both ways with Digital Credit (cash → Morpho/BTC engine) and with Margin (1st auto / optional extract). Deploy mid-column still Essential · Fleet · Collateral · Productive · Consumer.",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -114,7 +114,7 @@
       "stroke": "liq-gray",
       "subtitle": "~6% · ops float",
       "confidence": "owner_stated",
-      "notes": "Cash sleeve between Digital Credit and Margin. Funds Deploy; 1st auto → Margin (Agentic)."
+      "notes": "Cash sleeve between Digital Credit and Margin. Bidirectional with both engines: Morpho borrow → X Money and X Money → Digital Credit (fund Morpho/BTC); 1st auto → Margin and optional margin extract back."
     },
     {
       "id": "margin",
@@ -189,6 +189,14 @@
       "weight": 5,
       "label": "borrow → cash",
       "notes": "Morpho USDC (and ops surplus) into X Money cash sleeve."
+    },
+    {
+      "from": "x_money",
+      "to": "digital_credit",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "cash → DC engine",
+      "notes": "X Money can fund Digital Credit (Coinbase / Morpho / BTC / USDC HY) — same hub role as X Money → Margin on the equities side."
     },
     {
       "from": "x_money",

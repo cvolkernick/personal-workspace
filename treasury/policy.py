@@ -1837,11 +1837,12 @@ def evaluate_treasury(
         "strategy_context": {
             "goal": "Keep invested (BTC + Agentic equities) via LE credit cards: Digital Credit + Margin",
             "usdc_model": (
-                "Capital Flows v36: Income → LE (Digital Credit → X Money → Margin) → Deploy. "
+                "Capital Flows v38: Income → LE (Digital Credit ↔ X Money ↔ Margin) → Deploy. "
                 "Digital Credit = Morpho/BTC/USDC HY; Margin = Agentic/stocks/USDG HY. "
+                "X Money is cash hub both ways: Morpho borrow → X Money and X Money → Digital Credit; "
+                "X Money → Margin (1st auto) and optional margin extract back (not income). "
                 "Morpho LTV bands: target 38% cool → HY, alert 45% HY→BTC, hard 50%. "
                 "RH margin bands: target 28% cool → USDG, alert 35% USDG→stock, hard 40% (call ~50%). "
-                "X Money → Margin (Agentic) on the 1st. Margin extract optional — not income. "
                 "Card refinance ~5% Morpho vs ~29% card APR."
             ),
             "leverage_bands": {
