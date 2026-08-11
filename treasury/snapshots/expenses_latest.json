@@ -1,1107 +1,14 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-10T20:05:19.699128+00:00",
+  "as_of": "2026-08-11T03:43:10.760640+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
-    "essential": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
-    "personal": "Alias for Essential (legacy tab title). Estimated upcoming essential expenses \u2014 not actual spend.",
-    "fleet": "Auto fleet expenses (loans, insurance, ops). Expense burn; combined with Essential for upcoming bills and pay-from pressure.",
-    "collateral": "Collateral / capital investments. Not expense burn.",
-    "productive_discretionary": "Capital outlay that grows productive asset base. Quantitative targets. Priority over consumer wishlist. Not expense burn.",
-    "consumer_discretionary": "Consumer goods / personal wishlist (qualitative). Lower priority. Not expense burn and not ops expansion capital targets.",
-    "discretionary": "Alias for Productive Discretionary (legacy name). Capital outlay that grows productive asset base \u2014 not expense burn.",
-    "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
-    "priority_order": [
-      "Essential + Fleet expenses paid & current",
-      "Collateral investments (as planned)",
-      "Productive Discretionary (margin-funded capex)",
-      "Consumer Discretionary (wishlist; after productive)"
-    ]
+    "personal": "Estimated upcoming expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
+    "discretionary": "Hypothetical destinations for excess capital (assets / goals). Not a spending plan and not included in expense burn.",
+    "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal."
   },
   "tabs": {
-    "Essential": {
-      "role": "upcoming_expense_estimates",
-      "item_count": 23,
-      "totals": {
-        "daily": 483.1,
-        "weekly": 3381.68,
-        "biweekly": 6763.35,
-        "monthly": 14693.76,
-        "annually": 49504.12,
-        "quarterly": 15934.28
-      },
-      "items": [
-        {
-          "date": "4/1/2026",
-          "from": "Coinbase",
-          "item": "Rent (April / May / June / July / August / September)",
-          "daily": 370.68,
-          "weekly": 2594.79,
-          "biweekly": 5189.59,
-          "monthly": 11275.0,
-          "annually": 24000.0,
-          "budget_allocation": 0.7673000000000001,
-          "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/10/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": 0.061200000000000004,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/17/2026",
-          "from": "X Money",
-          "item": "Planet Fitness",
-          "daily": 0.89,
-          "weekly": 6.21,
-          "biweekly": 12.43,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": 0.0018,
-          "quarterly": 81.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/18/2026",
-          "from": "X Money",
-          "item": "Pawp",
-          "daily": 0.62,
-          "weekly": 4.37,
-          "biweekly": 8.75,
-          "monthly": 19.0,
-          "annually": 228.0,
-          "budget_allocation": 0.0013,
-          "quarterly": 57.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Water",
-          "daily": 2.2,
-          "weekly": 15.42,
-          "biweekly": 30.84,
-          "monthly": 67.0,
-          "annually": 804.0,
-          "budget_allocation": 0.0046,
-          "quarterly": 201.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Banfield",
-          "daily": 2.79,
-          "weekly": 19.56,
-          "biweekly": 39.12,
-          "monthly": 85.0,
-          "annually": 1020.0,
-          "budget_allocation": 0.0058,
-          "quarterly": 255.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "SuperGrok Heavy",
-          "daily": 3.25,
-          "weekly": 22.78,
-          "biweekly": 45.57,
-          "monthly": 99.0,
-          "annually": 1188.0,
-          "budget_allocation": 0.0067,
-          "quarterly": 297.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "from": "X Money",
-          "item": "Rythm Health",
-          "daily": 1.11,
-          "weekly": 7.77,
-          "biweekly": 15.55,
-          "monthly": 33.78,
-          "annually": 405.36,
-          "budget_allocation": 0.0023,
-          "quarterly": 101.34,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Membership",
-          "daily": 0.99,
-          "weekly": 6.9,
-          "biweekly": 13.8,
-          "monthly": 29.99,
-          "annually": 359.88,
-          "budget_allocation": 0.002,
-          "quarterly": 89.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "X Money",
-          "item": "7-Eleven Gold Pass",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 10.0,
-          "annually": 120.0,
-          "budget_allocation": 0.0007000000000000001,
-          "quarterly": 30.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/24/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Card",
-          "daily": 0.79,
-          "weekly": 5.52,
-          "biweekly": 11.05,
-          "monthly": 24.0,
-          "annually": 288.0,
-          "budget_allocation": 0.0016,
-          "quarterly": 72.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
-          "budget_allocation": 0.005699999999999999,
-          "quarterly": 250.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Dog Food",
-          "daily": 4.11,
-          "weekly": 28.77,
-          "biweekly": 57.53,
-          "monthly": 125.0,
-          "annually": 1500.0,
-          "budget_allocation": 0.0085,
-          "quarterly": 375.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Google Health",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 9.99,
-          "annually": 119.88,
-          "budget_allocation": 0.0007000000000000001,
-          "quarterly": 29.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "from": "X Money",
-          "item": "YouTube Premium",
-          "daily": 0.9,
-          "weekly": 6.3,
-          "biweekly": 12.6,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": 0.0019,
-          "quarterly": 81.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/5/2026",
-          "from": "X Money",
-          "item": "Electric",
-          "daily": 11.34,
-          "weekly": 79.4,
-          "biweekly": 158.79,
-          "monthly": 345.0,
-          "annually": 4140.0,
-          "budget_allocation": 0.0235,
-          "quarterly": 1035.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/9/2026",
-          "from": "X Money",
-          "item": "Lee County Citation",
-          "daily": 5.29,
-          "weekly": 37.05,
-          "biweekly": 74.1,
-          "monthly": 161.0,
-          "annually": 161.0,
-          "budget_allocation": 0.011000000000000001,
-          "quarterly": 161.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/29/2026",
-          "from": "X Money",
-          "item": "SodaStream Refills",
-          "daily": 0.59,
-          "weekly": 4.16,
-          "biweekly": 8.33,
-          "monthly": 18.09,
-          "annually": 217.12,
-          "budget_allocation": 0.0012,
-          "quarterly": 54.28,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "from": "X Money",
-          "item": "Amazon Prime",
-          "daily": 0.38,
-          "weekly": 2.68,
-          "biweekly": 5.37,
-          "monthly": 11.67,
-          "annually": 140.0,
-          "budget_allocation": 0.0008,
-          "quarterly": 35.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "2/14/2027",
-          "from": "X Money",
-          "item": "Google One",
-          "daily": 0.66,
-          "weekly": 4.61,
-          "biweekly": 9.23,
-          "monthly": 19.99,
-          "annually": 239.88,
-          "budget_allocation": 0.0014000000000000002,
-          "quarterly": 59.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "Lawn Mower",
-          "daily": 0.75,
-          "weekly": 5.27,
-          "biweekly": 10.55,
-          "monthly": 22.92,
-          "annually": 275.0,
-          "budget_allocation": 0.0016,
-          "quarterly": 68.75,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "Final VA Payments",
-          "daily": 41.1,
-          "weekly": 287.67,
-          "biweekly": 575.34,
-          "monthly": 1250.0,
-          "annually": 1250.0,
-          "budget_allocation": 0.0851,
-          "quarterly": 3750.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "AT&T Final Bill",
-          "daily": 1.64,
-          "weekly": 11.51,
-          "biweekly": 23.01,
-          "monthly": 50.0,
-          "annually": 600.0,
-          "budget_allocation": 0.0034000000000000002,
-          "quarterly": 150.0,
-          "tab": "Essential"
-        }
-      ],
-      "by_source_monthly": {
-        "Coinbase": 13551.91,
-        "X Money": 1141.85
-      },
-      "top_monthly": [
-        {
-          "item": "Rent (April / May / June / July / August / September)",
-          "monthly": 11275.0,
-          "from": "Coinbase",
-          "date": "4/1/2026",
-          "budget_allocation": 0.7673000000000001,
-          "tab": "Essential"
-        },
-        {
-          "item": "Final VA Payments",
-          "monthly": 1250.0,
-          "from": "Coinbase",
-          "date": "7/15/2027",
-          "budget_allocation": 0.0851,
-          "tab": "Essential"
-        },
-        {
-          "item": "Tha\u00eds",
-          "monthly": 900.0,
-          "from": "Coinbase",
-          "date": "8/10/2026",
-          "budget_allocation": 0.061200000000000004,
-          "tab": "Essential"
-        },
-        {
-          "item": "Electric",
-          "monthly": 345.0,
-          "from": "X Money",
-          "date": "9/5/2026",
-          "budget_allocation": 0.0235,
-          "tab": "Essential"
-        },
-        {
-          "item": "Lee County Citation",
-          "monthly": 161.0,
-          "from": "X Money",
-          "date": "9/9/2026",
-          "budget_allocation": 0.011000000000000001,
-          "tab": "Essential"
-        },
-        {
-          "item": "Dog Food",
-          "monthly": 125.0,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.0085,
-          "tab": "Essential"
-        },
-        {
-          "item": "SuperGrok Heavy",
-          "monthly": 99.0,
-          "from": "X Money",
-          "date": "8/19/2026",
-          "budget_allocation": 0.0067,
-          "tab": "Essential"
-        },
-        {
-          "item": "Banfield",
-          "monthly": 85.0,
-          "from": "X Money",
-          "date": "8/19/2026",
-          "budget_allocation": 0.0058,
-          "tab": "Essential"
-        },
-        {
-          "item": "Student Loan",
-          "monthly": 83.33,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.005699999999999999,
-          "tab": "Essential"
-        },
-        {
-          "item": "Water",
-          "monthly": 67.0,
-          "from": "X Money",
-          "date": "8/19/2026",
-          "budget_allocation": 0.0046,
-          "tab": "Essential"
-        },
-        {
-          "item": "AT&T Final Bill",
-          "monthly": 50.0,
-          "from": "Coinbase",
-          "date": "7/15/2027",
-          "budget_allocation": 0.0034000000000000002,
-          "tab": "Essential"
-        },
-        {
-          "item": "Rythm Health",
-          "monthly": 33.78,
-          "from": "X Money",
-          "date": "8/22/2026",
-          "budget_allocation": 0.0023,
-          "tab": "Essential"
-        }
-      ],
-      "upcoming_by_date": [
-        {
-          "date": "4/1/2026",
-          "item": "Rent (April / May / June / July / August / September)",
-          "from": "Coinbase",
-          "monthly": 11275.0,
-          "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/10/2026",
-          "item": "Tha\u00eds",
-          "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/17/2026",
-          "item": "Planet Fitness",
-          "from": "X Money",
-          "monthly": 27.0,
-          "weekly": 6.21,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/18/2026",
-          "item": "Pawp",
-          "from": "X Money",
-          "monthly": 19.0,
-          "weekly": 4.37,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Banfield",
-          "from": "X Money",
-          "monthly": 85.0,
-          "weekly": 19.56,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "SuperGrok Heavy",
-          "from": "X Money",
-          "monthly": 99.0,
-          "weekly": 22.78,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Water",
-          "from": "X Money",
-          "monthly": 67.0,
-          "weekly": 15.42,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "item": "Rythm Health",
-          "from": "X Money",
-          "monthly": 33.78,
-          "weekly": 7.77,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "7-Eleven Gold Pass",
-          "from": "X Money",
-          "monthly": 10.0,
-          "weekly": 2.3,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "Coinbase One Membership",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/24/2026",
-          "item": "Coinbase One Card",
-          "from": "Coinbase",
-          "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Dog Food",
-          "from": "X Money",
-          "monthly": 125.0,
-          "weekly": 28.77,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Google Health",
-          "from": "X Money",
-          "monthly": 9.99,
-          "weekly": 2.3,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Student Loan",
-          "from": "X Money",
-          "monthly": 83.33,
-          "weekly": 19.18,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "item": "YouTube Premium",
-          "from": "X Money",
-          "monthly": 27.0,
-          "weekly": 6.3,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/5/2026",
-          "item": "Electric",
-          "from": "X Money",
-          "monthly": 345.0,
-          "weekly": 79.4,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/9/2026",
-          "item": "Lee County Citation",
-          "from": "X Money",
-          "monthly": 161.0,
-          "weekly": 37.05,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/29/2026",
-          "item": "SodaStream Refills",
-          "from": "X Money",
-          "monthly": 18.09,
-          "weekly": 4.16,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "item": "Amazon Prime",
-          "from": "X Money",
-          "monthly": 11.67,
-          "weekly": 2.68,
-          "tab": "Essential"
-        },
-        {
-          "date": "2/14/2027",
-          "item": "Google One",
-          "from": "X Money",
-          "monthly": 19.99,
-          "weekly": 4.61,
-          "tab": "Essential"
-        }
-      ],
-      "label": "Essential",
-      "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend."
-    },
-    "Fleet": {
-      "role": "auto_fleet_expenses",
-      "item_count": 6,
-      "totals": {
-        "daily": 137.15,
-        "weekly": 960.03,
-        "biweekly": 1920.06,
-        "monthly": 4122.56,
-        "annually": 10687.69,
-        "quarterly": 1790.49
-      },
-      "items": [
-        {
-          "date": "5/21/2026",
-          "from": "X Money",
-          "item": "Santander (May / June / July)",
-          "daily": 36.08,
-          "weekly": 252.59,
-          "biweekly": 505.18,
-          "monthly": 1082.52,
-          "annually": 1082.52,
-          "budget_allocation": 0.2631,
-          "tab": "Fleet"
-        },
-        {
-          "date": "5/23/2026",
-          "from": "X Money",
-          "item": "GM Financial (May / June / July)",
-          "daily": 44.06,
-          "weekly": 308.39,
-          "biweekly": 616.77,
-          "monthly": 1321.66,
-          "annually": 1321.66,
-          "budget_allocation": 0.3212,
-          "tab": "Fleet"
-        },
-        {
-          "date": "6/21/2026",
-          "from": "X Money",
-          "item": "Capital One (June / July / August)",
-          "daily": 37.39,
-          "weekly": 261.7,
-          "biweekly": 523.39,
-          "monthly": 1121.55,
-          "annually": 1121.55,
-          "budget_allocation": 0.2726,
-          "tab": "Fleet"
-        },
-        {
-          "date": "8/20/2026",
-          "from": "X Money",
-          "item": "Sud Stop Car Wash",
-          "daily": 0.87,
-          "weekly": 6.12,
-          "biweekly": 12.23,
-          "monthly": 26.58,
-          "annually": 318.96,
-          "budget_allocation": 0.0064,
-          "quarterly": 79.74,
-          "tab": "Fleet"
-        },
-        {
-          "date": "8/21/2026",
-          "from": "X Money",
-          "item": "Fleet Insurance",
-          "daily": 18.48,
-          "weekly": 129.34,
-          "biweekly": 258.67,
-          "monthly": 562.0,
-          "annually": 6744.0,
-          "budget_allocation": 0.13470000000000001,
-          "quarterly": 1686.0,
-          "tab": "Fleet"
-        },
-        {
-          "date": "2/1/2027",
-          "from": "X Money",
-          "item": "Premium Connectivity",
-          "daily": 0.27,
-          "weekly": 1.9,
-          "biweekly": 3.81,
-          "monthly": 8.25,
-          "annually": 99.0,
-          "budget_allocation": 0.002,
-          "quarterly": 24.75,
-          "tab": "Fleet"
-        }
-      ],
-      "by_source_monthly": {
-        "X Money": 4122.56
-      },
-      "top_monthly": [
-        {
-          "item": "GM Financial (May / June / July)",
-          "monthly": 1321.66,
-          "from": "X Money",
-          "date": "5/23/2026",
-          "budget_allocation": 0.3212,
-          "tab": "Fleet"
-        },
-        {
-          "item": "Capital One (June / July / August)",
-          "monthly": 1121.55,
-          "from": "X Money",
-          "date": "6/21/2026",
-          "budget_allocation": 0.2726,
-          "tab": "Fleet"
-        },
-        {
-          "item": "Santander (May / June / July)",
-          "monthly": 1082.52,
-          "from": "X Money",
-          "date": "5/21/2026",
-          "budget_allocation": 0.2631,
-          "tab": "Fleet"
-        },
-        {
-          "item": "Fleet Insurance",
-          "monthly": 562.0,
-          "from": "X Money",
-          "date": "8/21/2026",
-          "budget_allocation": 0.13470000000000001,
-          "tab": "Fleet"
-        },
-        {
-          "item": "Sud Stop Car Wash",
-          "monthly": 26.58,
-          "from": "X Money",
-          "date": "8/20/2026",
-          "budget_allocation": 0.0064,
-          "tab": "Fleet"
-        },
-        {
-          "item": "Premium Connectivity",
-          "monthly": 8.25,
-          "from": "X Money",
-          "date": "2/1/2027",
-          "budget_allocation": 0.002,
-          "tab": "Fleet"
-        }
-      ],
-      "upcoming_by_date": [
-        {
-          "date": "5/21/2026",
-          "item": "Santander (May / June / July)",
-          "from": "X Money",
-          "monthly": 1082.52,
-          "weekly": 252.59,
-          "tab": "Fleet"
-        },
-        {
-          "date": "5/23/2026",
-          "item": "GM Financial (May / June / July)",
-          "from": "X Money",
-          "monthly": 1321.66,
-          "weekly": 308.39,
-          "tab": "Fleet"
-        },
-        {
-          "date": "6/21/2026",
-          "item": "Capital One (June / July / August)",
-          "from": "X Money",
-          "monthly": 1121.55,
-          "weekly": 261.7,
-          "tab": "Fleet"
-        },
-        {
-          "date": "8/20/2026",
-          "item": "Sud Stop Car Wash",
-          "from": "X Money",
-          "monthly": 26.58,
-          "weekly": 6.12,
-          "tab": "Fleet"
-        },
-        {
-          "date": "8/21/2026",
-          "item": "Fleet Insurance",
-          "from": "X Money",
-          "monthly": 562.0,
-          "weekly": 129.34,
-          "tab": "Fleet"
-        },
-        {
-          "date": "2/1/2027",
-          "item": "Premium Connectivity",
-          "from": "X Money",
-          "monthly": 8.25,
-          "weekly": 1.9,
-          "tab": "Fleet"
-        }
-      ],
-      "label": "Fleet",
-      "description": "Auto fleet expenses (loans, insurance, wash, repairs). Included in upcoming expense burn with Essential."
-    },
-    "Collateral": {
-      "role": "collateral_investments",
-      "item_count": 2,
-      "totals": {
-        "daily": 17.71,
-        "weekly": 123.97,
-        "biweekly": 247.94,
-        "monthly": 537.2,
-        "annually": 6446.4,
-        "quarterly": 1611.6
-      },
-      "items": [
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "ASIC Fleet OpEx",
-          "daily": 14.41,
-          "weekly": 100.89,
-          "biweekly": 201.78,
-          "monthly": 437.2,
-          "annually": 5246.4,
-          "budget_allocation": 0.8138,
-          "quarterly": 1311.6,
-          "tab": "Collateral"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Agentic Fund Allocation",
-          "daily": 3.3,
-          "weekly": 23.08,
-          "biweekly": 46.15,
-          "monthly": 100.0,
-          "annually": 1200.0,
-          "budget_allocation": 0.1862,
-          "quarterly": 300.0,
-          "tab": "Collateral"
-        }
-      ],
-      "top_targets": [
-        {
-          "item": "ASIC Fleet OpEx",
-          "monthly": 437.2,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.8138,
-          "tab": "Collateral"
-        },
-        {
-          "item": "Agentic Fund Allocation",
-          "monthly": 100.0,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.1862,
-          "tab": "Collateral"
-        }
-      ],
-      "top_monthly": [
-        {
-          "item": "ASIC Fleet OpEx",
-          "monthly": 437.2,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.8138,
-          "tab": "Collateral"
-        },
-        {
-          "item": "Agentic Fund Allocation",
-          "monthly": 100.0,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": 0.1862,
-          "tab": "Collateral"
-        }
-      ],
-      "priority": 1,
-      "label": "Collateral",
-      "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
-    },
-    "Productive Discretionary": {
-      "role": "productive_capital_outlay",
-      "item_count": 9,
-      "totals": {
-        "daily": 100.0,
-        "weekly": 700.0,
-        "biweekly": 1400.0,
-        "monthly": 3000.0,
-        "annually": 3000.0
-      },
-      "items": [
-        {
-          "item": "ASIC",
-          "date": "9/1/2026",
-          "daily": 83.33,
-          "weekly": 583.33,
-          "biweekly": 1166.67,
-          "monthly": 2500.0,
-          "annually": 2500.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Collateral (Bitcoin)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Collateral (Stock)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Fractals",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Glow",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Balance & Rotation",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Rims Repair / Replace",
-          "date": "9/1/2026",
-          "daily": 16.67,
-          "weekly": 116.67,
-          "biweekly": 233.33,
-          "monthly": 500.0,
-          "annually": 500.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Seat Sensor",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": null,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Wiper Blades",
-          "date": "9/1/2026",
-          "daily": 1.6,
-          "weekly": 11.2,
-          "biweekly": 22.4,
-          "monthly": 48.0,
-          "annually": 48.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        }
-      ],
-      "top_targets": [
-        {
-          "item": "ASIC",
-          "monthly": 2500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Rims Repair / Replace",
-          "monthly": 500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Wiper Blades",
-          "monthly": 48.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        }
-      ],
-      "top_monthly": [
-        {
-          "item": "ASIC",
-          "monthly": 2500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Rims Repair / Replace",
-          "monthly": 500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Wiper Blades",
-          "monthly": 48.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
-        }
-      ],
-      "priority": 1,
-      "label": "Productive Discretionary",
-      "description": "Capital outlay that grows productive asset base (quantitative). Priority over Consumer Discretionary. Fund from collateralized margin."
-    },
-    "Consumer Discretionary": {
-      "role": "consumer_wishlist",
-      "item_count": 3,
-      "totals": {
-        "daily": 0.0,
-        "weekly": 0.0,
-        "biweekly": 0.0,
-        "monthly": 0.0,
-        "annually": 0.0
-      },
-      "items": [
-        {
-          "item": "Airfryer",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        },
-        {
-          "item": "Collateral (Stock)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        },
-        {
-          "item": "Robot Vac",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        }
-      ],
-      "top_targets": [],
-      "top_monthly": [],
-      "priority": 2,
-      "label": "Consumer Discretionary",
-      "description": "Consumer goods / personal wishlist (qualitative). Lower priority than Productive Discretionary. Not expense burn."
-    },
     "Personal": {
       "role": "upcoming_expense_estimates",
       "item_count": 23,
@@ -1110,310 +17,8 @@
         "weekly": 3381.68,
         "biweekly": 6763.35,
         "monthly": 14693.76,
-        "annually": 49504.12,
-        "quarterly": 15934.28
+        "annually": 49504.12
       },
-      "items": [
-        {
-          "date": "4/1/2026",
-          "from": "Coinbase",
-          "item": "Rent (April / May / June / July / August / September)",
-          "daily": 370.68,
-          "weekly": 2594.79,
-          "biweekly": 5189.59,
-          "monthly": 11275.0,
-          "annually": 24000.0,
-          "budget_allocation": 0.7673000000000001,
-          "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/10/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": 0.061200000000000004,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/17/2026",
-          "from": "X Money",
-          "item": "Planet Fitness",
-          "daily": 0.89,
-          "weekly": 6.21,
-          "biweekly": 12.43,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": 0.0018,
-          "quarterly": 81.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/18/2026",
-          "from": "X Money",
-          "item": "Pawp",
-          "daily": 0.62,
-          "weekly": 4.37,
-          "biweekly": 8.75,
-          "monthly": 19.0,
-          "annually": 228.0,
-          "budget_allocation": 0.0013,
-          "quarterly": 57.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Water",
-          "daily": 2.2,
-          "weekly": 15.42,
-          "biweekly": 30.84,
-          "monthly": 67.0,
-          "annually": 804.0,
-          "budget_allocation": 0.0046,
-          "quarterly": 201.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Banfield",
-          "daily": 2.79,
-          "weekly": 19.56,
-          "biweekly": 39.12,
-          "monthly": 85.0,
-          "annually": 1020.0,
-          "budget_allocation": 0.0058,
-          "quarterly": 255.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "SuperGrok Heavy",
-          "daily": 3.25,
-          "weekly": 22.78,
-          "biweekly": 45.57,
-          "monthly": 99.0,
-          "annually": 1188.0,
-          "budget_allocation": 0.0067,
-          "quarterly": 297.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "from": "X Money",
-          "item": "Rythm Health",
-          "daily": 1.11,
-          "weekly": 7.77,
-          "biweekly": 15.55,
-          "monthly": 33.78,
-          "annually": 405.36,
-          "budget_allocation": 0.0023,
-          "quarterly": 101.34,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Membership",
-          "daily": 0.99,
-          "weekly": 6.9,
-          "biweekly": 13.8,
-          "monthly": 29.99,
-          "annually": 359.88,
-          "budget_allocation": 0.002,
-          "quarterly": 89.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "X Money",
-          "item": "7-Eleven Gold Pass",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 10.0,
-          "annually": 120.0,
-          "budget_allocation": 0.0007000000000000001,
-          "quarterly": 30.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/24/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Card",
-          "daily": 0.79,
-          "weekly": 5.52,
-          "biweekly": 11.05,
-          "monthly": 24.0,
-          "annually": 288.0,
-          "budget_allocation": 0.0016,
-          "quarterly": 72.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
-          "budget_allocation": 0.005699999999999999,
-          "quarterly": 250.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Dog Food",
-          "daily": 4.11,
-          "weekly": 28.77,
-          "biweekly": 57.53,
-          "monthly": 125.0,
-          "annually": 1500.0,
-          "budget_allocation": 0.0085,
-          "quarterly": 375.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Google Health",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 9.99,
-          "annually": 119.88,
-          "budget_allocation": 0.0007000000000000001,
-          "quarterly": 29.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/3/2026",
-          "from": "X Money",
-          "item": "YouTube Premium",
-          "daily": 0.9,
-          "weekly": 6.3,
-          "biweekly": 12.6,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": 0.0019,
-          "quarterly": 81.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/5/2026",
-          "from": "X Money",
-          "item": "Electric",
-          "daily": 11.34,
-          "weekly": 79.4,
-          "biweekly": 158.79,
-          "monthly": 345.0,
-          "annually": 4140.0,
-          "budget_allocation": 0.0235,
-          "quarterly": 1035.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/9/2026",
-          "from": "X Money",
-          "item": "Lee County Citation",
-          "daily": 5.29,
-          "weekly": 37.05,
-          "biweekly": 74.1,
-          "monthly": 161.0,
-          "annually": 161.0,
-          "budget_allocation": 0.011000000000000001,
-          "quarterly": 161.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/29/2026",
-          "from": "X Money",
-          "item": "SodaStream Refills",
-          "daily": 0.59,
-          "weekly": 4.16,
-          "biweekly": 8.33,
-          "monthly": 18.09,
-          "annually": 217.12,
-          "budget_allocation": 0.0012,
-          "quarterly": 54.28,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "from": "X Money",
-          "item": "Amazon Prime",
-          "daily": 0.38,
-          "weekly": 2.68,
-          "biweekly": 5.37,
-          "monthly": 11.67,
-          "annually": 140.0,
-          "budget_allocation": 0.0008,
-          "quarterly": 35.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "2/14/2027",
-          "from": "X Money",
-          "item": "Google One",
-          "daily": 0.66,
-          "weekly": 4.61,
-          "biweekly": 9.23,
-          "monthly": 19.99,
-          "annually": 239.88,
-          "budget_allocation": 0.0014000000000000002,
-          "quarterly": 59.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "Lawn Mower",
-          "daily": 0.75,
-          "weekly": 5.27,
-          "biweekly": 10.55,
-          "monthly": 22.92,
-          "annually": 275.0,
-          "budget_allocation": 0.0016,
-          "quarterly": 68.75,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "Final VA Payments",
-          "daily": 41.1,
-          "weekly": 287.67,
-          "biweekly": 575.34,
-          "monthly": 1250.0,
-          "annually": 1250.0,
-          "budget_allocation": 0.0851,
-          "quarterly": 3750.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "7/15/2027",
-          "from": "Coinbase",
-          "item": "AT&T Final Bill",
-          "daily": 1.64,
-          "weekly": 11.51,
-          "biweekly": 23.01,
-          "monthly": 50.0,
-          "annually": 600.0,
-          "budget_allocation": 0.0034000000000000002,
-          "quarterly": 150.0,
-          "tab": "Essential"
-        }
-      ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
         "X Money": 1141.85
@@ -1424,96 +29,84 @@
           "monthly": 11275.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.7673000000000001,
-          "tab": "Essential"
+          "budget_allocation": 0.7673000000000001
         },
         {
           "item": "Final VA Payments",
           "monthly": 1250.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.0851,
-          "tab": "Essential"
+          "budget_allocation": 0.0851
         },
         {
           "item": "Tha\u00eds",
           "monthly": 900.0,
           "from": "Coinbase",
-          "date": "8/10/2026",
-          "budget_allocation": 0.061200000000000004,
-          "tab": "Essential"
+          "date": "9/9/2026",
+          "budget_allocation": 0.061200000000000004
         },
         {
           "item": "Electric",
           "monthly": 345.0,
           "from": "X Money",
           "date": "9/5/2026",
-          "budget_allocation": 0.0235,
-          "tab": "Essential"
+          "budget_allocation": 0.0235
         },
         {
           "item": "Lee County Citation",
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": 0.011000000000000001,
-          "tab": "Essential"
+          "budget_allocation": 0.011000000000000001
         },
         {
           "item": "Dog Food",
           "monthly": 125.0,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.0085,
-          "tab": "Essential"
+          "budget_allocation": 0.0085
         },
         {
           "item": "SuperGrok Heavy",
           "monthly": 99.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0067,
-          "tab": "Essential"
+          "budget_allocation": 0.0067
         },
         {
           "item": "Banfield",
           "monthly": 85.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0058,
-          "tab": "Essential"
+          "budget_allocation": 0.0058
         },
         {
           "item": "Student Loan",
           "monthly": 83.33,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.005699999999999999,
-          "tab": "Essential"
+          "budget_allocation": 0.005699999999999999
         },
         {
           "item": "Water",
           "monthly": 67.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0046,
-          "tab": "Essential"
+          "budget_allocation": 0.0046
         },
         {
           "item": "AT&T Final Bill",
           "monthly": 50.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.0034000000000000002,
-          "tab": "Essential"
+          "budget_allocation": 0.0034000000000000002
         },
         {
           "item": "Rythm Health",
           "monthly": 33.78,
           "from": "X Money",
           "date": "8/22/2026",
-          "budget_allocation": 0.0023,
-          "tab": "Essential"
+          "budget_allocation": 0.0023
         }
       ],
       "upcoming_by_date": [
@@ -1522,373 +115,580 @@
           "item": "Rent (April / May / June / July / August / September)",
           "from": "Coinbase",
           "monthly": 11275.0,
-          "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/10/2026",
-          "item": "Tha\u00eds",
-          "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
-          "tab": "Essential"
+          "weekly": 2594.79
         },
         {
           "date": "8/17/2026",
           "item": "Planet Fitness",
           "from": "X Money",
           "monthly": 27.0,
-          "weekly": 6.21,
-          "tab": "Essential"
+          "weekly": 6.21
         },
         {
           "date": "8/18/2026",
           "item": "Pawp",
           "from": "X Money",
           "monthly": 19.0,
-          "weekly": 4.37,
-          "tab": "Essential"
+          "weekly": 4.37
         },
         {
           "date": "8/19/2026",
           "item": "Banfield",
           "from": "X Money",
           "monthly": 85.0,
-          "weekly": 19.56,
-          "tab": "Essential"
+          "weekly": 19.56
         },
         {
           "date": "8/19/2026",
           "item": "SuperGrok Heavy",
           "from": "X Money",
           "monthly": 99.0,
-          "weekly": 22.78,
-          "tab": "Essential"
+          "weekly": 22.78
         },
         {
           "date": "8/19/2026",
           "item": "Water",
           "from": "X Money",
           "monthly": 67.0,
-          "weekly": 15.42,
-          "tab": "Essential"
+          "weekly": 15.42
         },
         {
           "date": "8/22/2026",
           "item": "Rythm Health",
           "from": "X Money",
           "monthly": 33.78,
-          "weekly": 7.77,
-          "tab": "Essential"
+          "weekly": 7.77
         },
         {
           "date": "8/23/2026",
           "item": "7-Eleven Gold Pass",
           "from": "X Money",
           "monthly": 10.0,
-          "weekly": 2.3,
-          "tab": "Essential"
+          "weekly": 2.3
         },
         {
           "date": "8/23/2026",
           "item": "Coinbase One Membership",
           "from": "Coinbase",
           "monthly": 29.99,
-          "weekly": 6.9,
-          "tab": "Essential"
+          "weekly": 6.9
         },
         {
           "date": "8/24/2026",
           "item": "Coinbase One Card",
           "from": "Coinbase",
           "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
+          "weekly": 5.52
         },
         {
           "date": "9/1/2026",
           "item": "Dog Food",
           "from": "X Money",
           "monthly": 125.0,
-          "weekly": 28.77,
-          "tab": "Essential"
+          "weekly": 28.77
         },
         {
           "date": "9/1/2026",
           "item": "Google Health",
           "from": "X Money",
           "monthly": 9.99,
-          "weekly": 2.3,
-          "tab": "Essential"
+          "weekly": 2.3
         },
         {
           "date": "9/1/2026",
           "item": "Student Loan",
           "from": "X Money",
           "monthly": 83.33,
-          "weekly": 19.18,
-          "tab": "Essential"
+          "weekly": 19.18
         },
         {
           "date": "9/3/2026",
           "item": "YouTube Premium",
           "from": "X Money",
           "monthly": 27.0,
-          "weekly": 6.3,
-          "tab": "Essential"
+          "weekly": 6.3
         },
         {
           "date": "9/5/2026",
           "item": "Electric",
           "from": "X Money",
           "monthly": 345.0,
-          "weekly": 79.4,
-          "tab": "Essential"
+          "weekly": 79.4
         },
         {
           "date": "9/9/2026",
           "item": "Lee County Citation",
           "from": "X Money",
           "monthly": 161.0,
-          "weekly": 37.05,
-          "tab": "Essential"
+          "weekly": 37.05
+        },
+        {
+          "date": "9/9/2026",
+          "item": "Tha\u00eds",
+          "from": "Coinbase",
+          "monthly": 900.0,
+          "weekly": 207.12
         },
         {
           "date": "10/29/2026",
           "item": "SodaStream Refills",
           "from": "X Money",
           "monthly": 18.09,
-          "weekly": 4.16,
-          "tab": "Essential"
+          "weekly": 4.16
         },
         {
           "date": "1/9/2027",
           "item": "Amazon Prime",
           "from": "X Money",
           "monthly": 11.67,
-          "weekly": 2.68,
-          "tab": "Essential"
+          "weekly": 2.68
         },
         {
           "date": "2/14/2027",
           "item": "Google One",
           "from": "X Money",
           "monthly": 19.99,
-          "weekly": 4.61,
-          "tab": "Essential"
+          "weekly": 4.61
         }
       ],
-      "label": "Essential",
-      "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend.",
-      "alias_of": "Essential"
+      "items": [
+        {
+          "date": "4/1/2026",
+          "from": "Coinbase",
+          "item": "Rent (April / May / June / July / August / September)",
+          "daily": 370.68,
+          "weekly": 2594.79,
+          "biweekly": 5189.59,
+          "monthly": 11275.0,
+          "annually": 24000.0,
+          "budget_allocation": 0.7673000000000001
+        },
+        {
+          "date": "8/17/2026",
+          "from": "X Money",
+          "item": "Planet Fitness",
+          "daily": 0.89,
+          "weekly": 6.21,
+          "biweekly": 12.43,
+          "monthly": 27.0,
+          "annually": 324.0,
+          "budget_allocation": 0.0018
+        },
+        {
+          "date": "8/18/2026",
+          "from": "X Money",
+          "item": "Pawp",
+          "daily": 0.62,
+          "weekly": 4.37,
+          "biweekly": 8.75,
+          "monthly": 19.0,
+          "annually": 228.0,
+          "budget_allocation": 0.0013
+        },
+        {
+          "date": "8/19/2026",
+          "from": "X Money",
+          "item": "Water",
+          "daily": 2.2,
+          "weekly": 15.42,
+          "biweekly": 30.84,
+          "monthly": 67.0,
+          "annually": 804.0,
+          "budget_allocation": 0.0046
+        },
+        {
+          "date": "8/19/2026",
+          "from": "X Money",
+          "item": "Banfield",
+          "daily": 2.79,
+          "weekly": 19.56,
+          "biweekly": 39.12,
+          "monthly": 85.0,
+          "annually": 1020.0,
+          "budget_allocation": 0.0058
+        },
+        {
+          "date": "8/19/2026",
+          "from": "X Money",
+          "item": "SuperGrok Heavy",
+          "daily": 3.25,
+          "weekly": 22.78,
+          "biweekly": 45.57,
+          "monthly": 99.0,
+          "annually": 1188.0,
+          "budget_allocation": 0.0067
+        },
+        {
+          "date": "8/22/2026",
+          "from": "X Money",
+          "item": "Rythm Health",
+          "daily": 1.11,
+          "weekly": 7.77,
+          "biweekly": 15.55,
+          "monthly": 33.78,
+          "annually": 405.36,
+          "budget_allocation": 0.0023
+        },
+        {
+          "date": "8/23/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Membership",
+          "daily": 0.99,
+          "weekly": 6.9,
+          "biweekly": 13.8,
+          "monthly": 29.99,
+          "annually": 359.88,
+          "budget_allocation": 0.002
+        },
+        {
+          "date": "8/23/2026",
+          "from": "X Money",
+          "item": "7-Eleven Gold Pass",
+          "daily": 0.33,
+          "weekly": 2.3,
+          "biweekly": 4.6,
+          "monthly": 10.0,
+          "annually": 120.0,
+          "budget_allocation": 0.0007000000000000001
+        },
+        {
+          "date": "8/24/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Card",
+          "daily": 0.79,
+          "weekly": 5.52,
+          "biweekly": 11.05,
+          "monthly": 24.0,
+          "annually": 288.0,
+          "budget_allocation": 0.0016
+        },
+        {
+          "date": "9/1/2026",
+          "from": "X Money",
+          "item": "Student Loan",
+          "daily": 2.74,
+          "weekly": 19.18,
+          "biweekly": 38.36,
+          "monthly": 83.33,
+          "annually": 1000.0,
+          "budget_allocation": 0.005699999999999999
+        },
+        {
+          "date": "9/1/2026",
+          "from": "X Money",
+          "item": "Dog Food",
+          "daily": 4.11,
+          "weekly": 28.77,
+          "biweekly": 57.53,
+          "monthly": 125.0,
+          "annually": 1500.0,
+          "budget_allocation": 0.0085
+        },
+        {
+          "date": "9/1/2026",
+          "from": "X Money",
+          "item": "Google Health",
+          "daily": 0.33,
+          "weekly": 2.3,
+          "biweekly": 4.6,
+          "monthly": 9.99,
+          "annually": 119.88,
+          "budget_allocation": 0.0007000000000000001
+        },
+        {
+          "date": "9/3/2026",
+          "from": "X Money",
+          "item": "YouTube Premium",
+          "daily": 0.9,
+          "weekly": 6.3,
+          "biweekly": 12.6,
+          "monthly": 27.0,
+          "annually": 324.0,
+          "budget_allocation": 0.0019
+        },
+        {
+          "date": "9/5/2026",
+          "from": "X Money",
+          "item": "Electric",
+          "daily": 11.34,
+          "weekly": 79.4,
+          "biweekly": 158.79,
+          "monthly": 345.0,
+          "annually": 4140.0,
+          "budget_allocation": 0.0235
+        },
+        {
+          "date": "9/9/2026",
+          "from": "Coinbase",
+          "item": "Tha\u00eds",
+          "daily": 29.59,
+          "weekly": 207.12,
+          "biweekly": 414.25,
+          "monthly": 900.0,
+          "annually": 10800.0,
+          "budget_allocation": 0.061200000000000004
+        },
+        {
+          "date": "9/9/2026",
+          "from": "X Money",
+          "item": "Lee County Citation",
+          "daily": 5.29,
+          "weekly": 37.05,
+          "biweekly": 74.1,
+          "monthly": 161.0,
+          "annually": 161.0,
+          "budget_allocation": 0.011000000000000001
+        },
+        {
+          "date": "10/29/2026",
+          "from": "X Money",
+          "item": "SodaStream Refills",
+          "daily": 0.59,
+          "weekly": 4.16,
+          "biweekly": 8.33,
+          "monthly": 18.09,
+          "annually": 217.12,
+          "budget_allocation": 0.0012
+        },
+        {
+          "date": "1/9/2027",
+          "from": "X Money",
+          "item": "Amazon Prime",
+          "daily": 0.38,
+          "weekly": 2.68,
+          "biweekly": 5.37,
+          "monthly": 11.67,
+          "annually": 140.0,
+          "budget_allocation": 0.0008
+        },
+        {
+          "date": "2/14/2027",
+          "from": "X Money",
+          "item": "Google One",
+          "daily": 0.66,
+          "weekly": 4.61,
+          "biweekly": 9.23,
+          "monthly": 19.99,
+          "annually": 239.88,
+          "budget_allocation": 0.0014000000000000002
+        },
+        {
+          "date": "7/15/2027",
+          "from": "Coinbase",
+          "item": "Lawn Mower",
+          "daily": 0.75,
+          "weekly": 5.27,
+          "biweekly": 10.55,
+          "monthly": 22.92,
+          "annually": 275.0,
+          "budget_allocation": 0.0016
+        },
+        {
+          "date": "7/15/2027",
+          "from": "Coinbase",
+          "item": "Final VA Payments",
+          "daily": 41.1,
+          "weekly": 287.67,
+          "biweekly": 575.34,
+          "monthly": 1250.0,
+          "annually": 1250.0,
+          "budget_allocation": 0.0851
+        },
+        {
+          "date": "7/15/2027",
+          "from": "Coinbase",
+          "item": "AT&T Final Bill",
+          "daily": 1.64,
+          "weekly": 11.51,
+          "biweekly": 23.01,
+          "monthly": 50.0,
+          "annually": 600.0,
+          "budget_allocation": 0.0034000000000000002
+        }
+      ]
     },
     "Discretionary": {
       "role": "excess_capital_targets",
-      "item_count": 9,
+      "item_count": 6,
       "totals": {
-        "daily": 100.0,
-        "weekly": 700.0,
-        "biweekly": 1400.0,
-        "monthly": 3000.0,
-        "annually": 3000.0
+        "daily": 137.15,
+        "weekly": 960.03,
+        "biweekly": 1920.06,
+        "monthly": 4122.56,
+        "annually": 10687.69
       },
-      "items": [
-        {
-          "item": "ASIC",
-          "date": "9/1/2026",
-          "daily": 83.33,
-          "weekly": 583.33,
-          "biweekly": 1166.67,
-          "monthly": 2500.0,
-          "annually": 2500.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Collateral (Bitcoin)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Collateral (Stock)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Fractals",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Glow",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Balance & Rotation",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Rims Repair / Replace",
-          "date": "9/1/2026",
-          "daily": 16.67,
-          "weekly": 116.67,
-          "biweekly": 233.33,
-          "monthly": 500.0,
-          "annually": 500.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Seat Sensor",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": null,
-          "annually": null,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        },
-        {
-          "item": "Tesla Wiper Blades",
-          "date": "9/1/2026",
-          "daily": 1.6,
-          "weekly": 11.2,
-          "biweekly": 22.4,
-          "monthly": 48.0,
-          "annually": 48.0,
-          "from": null,
-          "to": null,
-          "tab": "Productive Discretionary"
-        }
-      ],
       "top_targets": [
         {
-          "item": "ASIC",
-          "monthly": 2500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "GM Financial (May / June / July)",
+          "monthly": 1321.66,
+          "from": "X Money",
+          "date": "5/23/2026",
+          "budget_allocation": null
         },
         {
-          "item": "Tesla Rims Repair / Replace",
-          "monthly": 500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "Capital One (June / July / August)",
+          "monthly": 1121.55,
+          "from": "X Money",
+          "date": "6/21/2026",
+          "budget_allocation": null
         },
         {
-          "item": "Tesla Wiper Blades",
-          "monthly": 48.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "Santander (May / June / July)",
+          "monthly": 1082.52,
+          "from": "X Money",
+          "date": "5/21/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Fleet Insurance",
+          "monthly": 562.0,
+          "from": "X Money",
+          "date": "8/21/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Sud Stop Car Wash",
+          "monthly": 26.58,
+          "from": "X Money",
+          "date": "8/20/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Premium Connectivity",
+          "monthly": 8.25,
+          "from": "X Money",
+          "date": "2/1/2027",
+          "budget_allocation": null
         }
       ],
       "top_monthly": [
         {
-          "item": "ASIC",
-          "monthly": 2500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "GM Financial (May / June / July)",
+          "monthly": 1321.66,
+          "from": "X Money",
+          "date": "5/23/2026",
+          "budget_allocation": null
         },
         {
-          "item": "Tesla Rims Repair / Replace",
-          "monthly": 500.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "Capital One (June / July / August)",
+          "monthly": 1121.55,
+          "from": "X Money",
+          "date": "6/21/2026",
+          "budget_allocation": null
         },
         {
-          "item": "Tesla Wiper Blades",
-          "monthly": 48.0,
-          "from": null,
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Productive Discretionary"
+          "item": "Santander (May / June / July)",
+          "monthly": 1082.52,
+          "from": "X Money",
+          "date": "5/21/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Fleet Insurance",
+          "monthly": 562.0,
+          "from": "X Money",
+          "date": "8/21/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Sud Stop Car Wash",
+          "monthly": 26.58,
+          "from": "X Money",
+          "date": "8/20/2026",
+          "budget_allocation": null
+        },
+        {
+          "item": "Premium Connectivity",
+          "monthly": 8.25,
+          "from": "X Money",
+          "date": "2/1/2027",
+          "budget_allocation": null
         }
       ],
-      "priority": 1,
-      "label": "Productive Discretionary",
-      "description": "Capital outlay that grows productive asset base (quantitative). Priority over Consumer Discretionary. Fund from collateralized margin.",
-      "alias_of": "Productive Discretionary"
+      "items": [
+        {
+          "item": "Santander (May / June / July)",
+          "date": "5/21/2026",
+          "daily": 36.08,
+          "weekly": 252.59,
+          "biweekly": 505.18,
+          "monthly": 1082.52,
+          "annually": 1082.52,
+          "from": "X Money",
+          "to": null
+        },
+        {
+          "item": "GM Financial (May / June / July)",
+          "date": "5/23/2026",
+          "daily": 44.06,
+          "weekly": 308.39,
+          "biweekly": 616.77,
+          "monthly": 1321.66,
+          "annually": 1321.66,
+          "from": "X Money",
+          "to": null
+        },
+        {
+          "item": "Capital One (June / July / August)",
+          "date": "6/21/2026",
+          "daily": 37.39,
+          "weekly": 261.7,
+          "biweekly": 523.39,
+          "monthly": 1121.55,
+          "annually": 1121.55,
+          "from": "X Money",
+          "to": null
+        },
+        {
+          "item": "Sud Stop Car Wash",
+          "date": "8/20/2026",
+          "daily": 0.87,
+          "weekly": 6.12,
+          "biweekly": 12.23,
+          "monthly": 26.58,
+          "annually": 318.96,
+          "from": "X Money",
+          "to": null
+        },
+        {
+          "item": "Fleet Insurance",
+          "date": "8/21/2026",
+          "daily": 18.48,
+          "weekly": 129.34,
+          "biweekly": 258.67,
+          "monthly": 562.0,
+          "annually": 6744.0,
+          "from": "X Money",
+          "to": null
+        },
+        {
+          "item": "Premium Connectivity",
+          "date": "2/1/2027",
+          "daily": 0.27,
+          "weekly": 1.9,
+          "biweekly": 3.81,
+          "monthly": 8.25,
+          "annually": 99.0,
+          "from": "X Money",
+          "to": null
+        }
+      ]
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18816.32,
-    "essential_monthly": 14693.76,
+    "upcoming_expense_monthly": 14693.76,
     "personal_monthly": 14693.76,
     "personal_daily": 483.1,
-    "essential_daily": 483.1,
     "personal_weekly": 3381.68,
     "personal_annually": 49504.12,
-    "fleet_monthly": 4122.56,
-    "fleet_daily": 137.15,
-    "fleet_annually": 10687.69,
-    "collateral_investments_monthly": 537.2,
-    "collateral_monthly": 537.2,
-    "capital_targets_monthly": 3000.0,
-    "productive_discretionary_monthly": 3000.0,
-    "discretionary_monthly": 3000.0,
-    "discretionary_daily": 100.0,
-    "consumer_discretionary_monthly": 0.0,
-    "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18816.32,
-    "combined_daily": 620.25,
-    "by_source_monthly": {
-      "Coinbase": 13551.91,
-      "X Money": 5264.41
-    },
+    "capital_targets_monthly": 4122.56,
+    "discretionary_monthly": 4122.56,
+    "discretionary_daily": 137.15,
+    "combined_monthly": 14693.76,
+    "combined_daily": 483.1,
     "coinbase_funded_monthly": 13551.91,
     "rh_funded_monthly": 0,
-    "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5264.41
+    "rh_checking_funded_monthly": 0
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
+  "notes": "Personal = estimated future bills by pay-from account. Discretionary = theoretical excess-capital targets (not expenses). Actual card/spend history comes from YNAB, not this sheet."
 }
