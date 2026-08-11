@@ -1,37 +1,37 @@
 {
   "snapshot": {
-    "as_of": "2026-08-10T11:17:01.715667+00:00",
+    "as_of": "2026-08-11T19:16:05.826427+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-08-05T06:00:59.014651+00:00",
-      "liquid_usdc": 1.0022281255613998,
-      "liquid_btc": 2.77294815e-08,
-      "btc_usd_price": 64270.01,
-      "liquid_btc_usd": 0.001782174053299815,
+      "as_of": "2026-08-11T18:59:29.036121+00:00",
+      "liquid_usdc": 0.0021611255614,
+      "liquid_btc": 7.7294815e-09,
+      "btc_usd_price": 63300.93,
+      "liquid_btc_usd": 0.000489283367367795,
       "by_currency": {
-        "USDC": 1.0015421904,
+        "USDC": 0.0014751904,
         "USD": 0.0006859351614,
-        "BTC": 2.77294815e-08
+        "BTC": 7.7294815e-09
       },
-      "account_count": 20,
+      "account_count": 19,
       "coinbase_bin": "/opt/homebrew/bin/coinbase"
     },
     "coinbase_manual": {
-      "loan_principal_usdc": "738.35",
-      "collateral_btc_usd": "1478.93",
-      "ltv": ".4992",
-      "vault_usdc": "127",
-      "card_balance": 440.18,
+      "loan_principal_usdc": "0",
+      "collateral_btc_usd": "0",
+      "ltv": "0",
+      "vault_usdc": "0",
+      "card_balance": 447.33,
       "card_available_credit": null,
       "one_card_security_deposit_usdc": "500",
-      "notes": "vault_usdc = USDC HY LTV/margin buffer (not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
-      "variable_apr": ".0486",
-      "liquidation_price_btc_usd": "37152",
+      "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense \u2014 not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
+      "variable_apr": "0",
+      "liquidation_price_btc_usd": "0",
       "card_balance_source": "ynab"
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-08T06:11:54.636171+00:00",
+      "as_of": "2026-08-11T18:59:29.787352+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -40,16 +40,16 @@
       "account_type": "creditCard",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -440.18,
-      "balance_owed": 440.18,
-      "card_balance": 440.18,
+      "balance_raw": -447.33,
+      "balance_owed": 447.33,
+      "card_balance": 447.33,
       "available_credit": null,
       "card_available_credit": null,
-      "cleared_balance": -440.18,
+      "cleared_balance": -447.33,
       "uncleared_balance": 0.0,
-      "spend_30d": 404.77,
+      "spend_30d": 411.92,
       "payments_30d": 430.46,
-      "transaction_count": 39,
+      "transaction_count": 40,
       "transactions": [
         {
           "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -479,15 +479,26 @@
           "cleared": "cleared",
           "approved": false,
           "category_name": "Uncategorized"
+        },
+        {
+          "id": "ee89f7cb-7a83-4fa2-afa2-2af309050aa5",
+          "date": "2026-08-07",
+          "payee": "Lyft",
+          "amount": -7.15,
+          "amount_display": -7.15,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": false,
+          "category_name": "Uncategorized"
         }
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-10"
+      "since": "2026-05-13"
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-08T06:11:54.810541+00:00",
+      "as_of": "2026-08-11T18:59:30.050299+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -530,11 +541,11 @@
       ],
       "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-10"
+      "since": "2026-05-13"
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-08T06:11:55.050012+00:00",
+      "as_of": "2026-08-11T18:59:30.450046+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -543,14 +554,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 172.11,
-      "cash": 172.11,
-      "available": 172.11,
-      "cleared_balance": 172.11,
+      "balance_raw": 72.24,
+      "cash": 72.24,
+      "available": 72.24,
+      "cleared_balance": 72.24,
       "uncleared_balance": 0.0,
-      "spend_30d": 1491.85,
-      "inflow_30d": 1663.96,
-      "transaction_count": 119,
+      "spend_30d": 1959.72,
+      "inflow_30d": 2031.96,
+      "transaction_count": 138,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -1105,40 +1116,41 @@
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-10",
+      "since": "2026-05-13",
       "apy_est": 0.06
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-10T10:34:24.015584+00:00",
+      "as_of": "2026-08-11T18:59:35.264768+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
-        "personal": "Estimated upcoming personal expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
-        "fleet": "Auto fleet expenses (loans, insurance, ops). Expense burn; combined with Personal for upcoming bills and pay-from pressure.",
+        "essential": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
+        "personal": "Alias for Essential (legacy tab title). Estimated upcoming essential expenses \u2014 not actual spend.",
+        "fleet": "Auto fleet expenses (loans, insurance, ops). Expense burn; combined with Essential for upcoming bills and pay-from pressure.",
         "collateral": "Collateral / capital investments. Not expense burn.",
         "productive_discretionary": "Capital outlay that grows productive asset base. Quantitative targets. Priority over consumer wishlist. Not expense burn.",
         "consumer_discretionary": "Consumer goods / personal wishlist (qualitative). Lower priority. Not expense burn and not ops expansion capital targets.",
         "discretionary": "Alias for Productive Discretionary (legacy name). Capital outlay that grows productive asset base \u2014 not expense burn.",
-        "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal/Fleet.",
+        "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
         "priority_order": [
-          "Personal + Fleet expenses paid & current",
+          "Essential + Fleet expenses paid & current",
           "Collateral investments (as planned)",
           "Productive Discretionary (margin-funded capex)",
           "Consumer Discretionary (wishlist; after productive)"
         ]
       },
       "tabs": {
-        "Personal": {
+        "Essential": {
           "role": "upcoming_expense_estimates",
-          "item_count": 23,
+          "item_count": 24,
           "totals": {
-            "daily": 482.31,
-            "weekly": 3376.15,
-            "biweekly": 6752.31,
-            "monthly": 14669.76,
-            "annually": 49216.12,
-            "quarterly": 15862.28
+            "daily": 483.23,
+            "weekly": 3382.64,
+            "biweekly": 6765.27,
+            "monthly": 14697.93,
+            "annually": 49554.12,
+            "quarterly": 15946.78
           },
           "items": [
             {
@@ -1150,22 +1162,9 @@
               "biweekly": 5189.59,
               "monthly": 11275.0,
               "annually": 24000.0,
-              "budget_allocation": 0.7686,
+              "budget_allocation": 0.7670999999999999,
               "quarterly": 6000.0,
-              "tab": "Personal"
-            },
-            {
-              "date": "8/10/2026",
-              "from": "Coinbase",
-              "item": "Tha\u00eds",
-              "daily": 29.59,
-              "weekly": 207.12,
-              "biweekly": 414.25,
-              "monthly": 900.0,
-              "annually": 10800.0,
-              "budget_allocation": 0.0613,
-              "quarterly": 2700.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/17/2026",
@@ -1178,7 +1177,7 @@
               "annually": 324.0,
               "budget_allocation": 0.0018,
               "quarterly": 81.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/18/2026",
@@ -1191,7 +1190,7 @@
               "annually": 228.0,
               "budget_allocation": 0.0013,
               "quarterly": 57.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1204,7 +1203,7 @@
               "annually": 804.0,
               "budget_allocation": 0.0046,
               "quarterly": 201.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1217,7 +1216,7 @@
               "annually": 1020.0,
               "budget_allocation": 0.0058,
               "quarterly": 255.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1230,7 +1229,7 @@
               "annually": 1188.0,
               "budget_allocation": 0.0067,
               "quarterly": 297.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/22/2026",
@@ -1243,7 +1242,7 @@
               "annually": 405.36,
               "budget_allocation": 0.0023,
               "quarterly": 101.34,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/23/2026",
@@ -1256,7 +1255,7 @@
               "annually": 359.88,
               "budget_allocation": 0.002,
               "quarterly": 89.97,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/23/2026",
@@ -1269,20 +1268,20 @@
               "annually": 120.0,
               "budget_allocation": 0.0007000000000000001,
               "quarterly": 30.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/24/2026",
               "from": "Coinbase",
               "item": "Coinbase One Card",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": 0.0,
-              "annually": 0.0,
-              "budget_allocation": 0.0,
-              "quarterly": 0.0,
-              "tab": "Personal"
+              "daily": 0.79,
+              "weekly": 5.52,
+              "biweekly": 11.05,
+              "monthly": 24.0,
+              "annually": 288.0,
+              "budget_allocation": 0.0016,
+              "quarterly": 72.0,
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1295,7 +1294,7 @@
               "annually": 1000.0,
               "budget_allocation": 0.005699999999999999,
               "quarterly": 250.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1308,7 +1307,7 @@
               "annually": 1500.0,
               "budget_allocation": 0.0085,
               "quarterly": 375.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1321,7 +1320,7 @@
               "annually": 119.88,
               "budget_allocation": 0.0007000000000000001,
               "quarterly": 29.97,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/3/2026",
@@ -1334,7 +1333,7 @@
               "annually": 324.0,
               "budget_allocation": 0.0019,
               "quarterly": 81.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/5/2026",
@@ -1347,7 +1346,20 @@
               "annually": 4140.0,
               "budget_allocation": 0.0235,
               "quarterly": 1035.0,
-              "tab": "Personal"
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "from": "Coinbase",
+              "item": "Tha\u00eds",
+              "daily": 29.59,
+              "weekly": 207.12,
+              "biweekly": 414.25,
+              "monthly": 900.0,
+              "annually": 10800.0,
+              "budget_allocation": 0.061200000000000004,
+              "quarterly": 2700.0,
+              "tab": "Essential"
             },
             {
               "date": "9/9/2026",
@@ -1360,7 +1372,20 @@
               "annually": 161.0,
               "budget_allocation": 0.011000000000000001,
               "quarterly": 161.0,
-              "tab": "Personal"
+              "tab": "Essential"
+            },
+            {
+              "date": "9/10/2026",
+              "from": "X Money",
+              "item": "Robinhood Gold",
+              "daily": 0.14,
+              "weekly": 0.96,
+              "biweekly": 1.92,
+              "monthly": 4.17,
+              "annually": 50.0,
+              "budget_allocation": 0.0003,
+              "quarterly": 12.5,
+              "tab": "Essential"
             },
             {
               "date": "10/29/2026",
@@ -1373,7 +1398,7 @@
               "annually": 217.12,
               "budget_allocation": 0.0012,
               "quarterly": 54.28,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "1/9/2027",
@@ -1386,7 +1411,7 @@
               "annually": 140.0,
               "budget_allocation": 0.0008,
               "quarterly": 35.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "2/14/2027",
@@ -1399,7 +1424,7 @@
               "annually": 239.88,
               "budget_allocation": 0.0014000000000000002,
               "quarterly": 59.97,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "7/15/2027",
@@ -1412,7 +1437,7 @@
               "annually": 275.0,
               "budget_allocation": 0.0016,
               "quarterly": 68.75,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "7/15/2027",
@@ -1423,9 +1448,9 @@
               "biweekly": 575.34,
               "monthly": 1250.0,
               "annually": 1250.0,
-              "budget_allocation": 0.0852,
+              "budget_allocation": 0.085,
               "quarterly": 3750.0,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "7/15/2027",
@@ -1438,12 +1463,12 @@
               "annually": 600.0,
               "budget_allocation": 0.0034000000000000002,
               "quarterly": 150.0,
-              "tab": "Personal"
+              "tab": "Essential"
             }
           ],
           "by_source_monthly": {
-            "Coinbase": 13527.91,
-            "X Money": 1141.85
+            "Coinbase": 13551.91,
+            "X Money": 1146.02
           },
           "top_monthly": [
             {
@@ -1451,24 +1476,24 @@
               "monthly": 11275.0,
               "from": "Coinbase",
               "date": "4/1/2026",
-              "budget_allocation": 0.7686,
-              "tab": "Personal"
+              "budget_allocation": 0.7670999999999999,
+              "tab": "Essential"
             },
             {
               "item": "Final VA Payments",
               "monthly": 1250.0,
               "from": "Coinbase",
               "date": "7/15/2027",
-              "budget_allocation": 0.0852,
-              "tab": "Personal"
+              "budget_allocation": 0.085,
+              "tab": "Essential"
             },
             {
               "item": "Tha\u00eds",
               "monthly": 900.0,
               "from": "Coinbase",
-              "date": "8/10/2026",
-              "budget_allocation": 0.0613,
-              "tab": "Personal"
+              "date": "9/9/2026",
+              "budget_allocation": 0.061200000000000004,
+              "tab": "Essential"
             },
             {
               "item": "Electric",
@@ -1476,7 +1501,7 @@
               "from": "X Money",
               "date": "9/5/2026",
               "budget_allocation": 0.0235,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Lee County Citation",
@@ -1484,7 +1509,7 @@
               "from": "X Money",
               "date": "9/9/2026",
               "budget_allocation": 0.011000000000000001,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Dog Food",
@@ -1492,7 +1517,7 @@
               "from": "X Money",
               "date": "9/1/2026",
               "budget_allocation": 0.0085,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "SuperGrok Heavy",
@@ -1500,7 +1525,7 @@
               "from": "X Money",
               "date": "8/19/2026",
               "budget_allocation": 0.0067,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Banfield",
@@ -1508,7 +1533,7 @@
               "from": "X Money",
               "date": "8/19/2026",
               "budget_allocation": 0.0058,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Student Loan",
@@ -1516,7 +1541,7 @@
               "from": "X Money",
               "date": "9/1/2026",
               "budget_allocation": 0.005699999999999999,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Water",
@@ -1524,7 +1549,7 @@
               "from": "X Money",
               "date": "8/19/2026",
               "budget_allocation": 0.0046,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "AT&T Final Bill",
@@ -1532,7 +1557,7 @@
               "from": "Coinbase",
               "date": "7/15/2027",
               "budget_allocation": 0.0034000000000000002,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "item": "Rythm Health",
@@ -1540,7 +1565,7 @@
               "from": "X Money",
               "date": "8/22/2026",
               "budget_allocation": 0.0023,
-              "tab": "Personal"
+              "tab": "Essential"
             }
           ],
           "upcoming_by_date": [
@@ -1550,15 +1575,7 @@
               "from": "Coinbase",
               "monthly": 11275.0,
               "weekly": 2594.79,
-              "tab": "Personal"
-            },
-            {
-              "date": "8/10/2026",
-              "item": "Tha\u00eds",
-              "from": "Coinbase",
-              "monthly": 900.0,
-              "weekly": 207.12,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/17/2026",
@@ -1566,7 +1583,7 @@
               "from": "X Money",
               "monthly": 27.0,
               "weekly": 6.21,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/18/2026",
@@ -1574,7 +1591,7 @@
               "from": "X Money",
               "monthly": 19.0,
               "weekly": 4.37,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1582,7 +1599,7 @@
               "from": "X Money",
               "monthly": 85.0,
               "weekly": 19.56,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1590,7 +1607,7 @@
               "from": "X Money",
               "monthly": 99.0,
               "weekly": 22.78,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/19/2026",
@@ -1598,7 +1615,7 @@
               "from": "X Money",
               "monthly": 67.0,
               "weekly": 15.42,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/22/2026",
@@ -1606,7 +1623,7 @@
               "from": "X Money",
               "monthly": 33.78,
               "weekly": 7.77,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/23/2026",
@@ -1614,7 +1631,7 @@
               "from": "X Money",
               "monthly": 10.0,
               "weekly": 2.3,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/23/2026",
@@ -1622,15 +1639,15 @@
               "from": "Coinbase",
               "monthly": 29.99,
               "weekly": 6.9,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "8/24/2026",
               "item": "Coinbase One Card",
               "from": "Coinbase",
-              "monthly": 0.0,
-              "weekly": 0.0,
-              "tab": "Personal"
+              "monthly": 24.0,
+              "weekly": 5.52,
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1638,7 +1655,7 @@
               "from": "X Money",
               "monthly": 125.0,
               "weekly": 28.77,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1646,7 +1663,7 @@
               "from": "X Money",
               "monthly": 9.99,
               "weekly": 2.3,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/1/2026",
@@ -1654,7 +1671,7 @@
               "from": "X Money",
               "monthly": 83.33,
               "weekly": 19.18,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/3/2026",
@@ -1662,7 +1679,7 @@
               "from": "X Money",
               "monthly": 27.0,
               "weekly": 6.3,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/5/2026",
@@ -1670,7 +1687,7 @@
               "from": "X Money",
               "monthly": 345.0,
               "weekly": 79.4,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "9/9/2026",
@@ -1678,7 +1695,23 @@
               "from": "X Money",
               "monthly": 161.0,
               "weekly": 37.05,
-              "tab": "Personal"
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "item": "Tha\u00eds",
+              "from": "Coinbase",
+              "monthly": 900.0,
+              "weekly": 207.12,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/10/2026",
+              "item": "Robinhood Gold",
+              "from": "X Money",
+              "monthly": 4.17,
+              "weekly": 0.96,
+              "tab": "Essential"
             },
             {
               "date": "10/29/2026",
@@ -1686,7 +1719,7 @@
               "from": "X Money",
               "monthly": 18.09,
               "weekly": 4.16,
-              "tab": "Personal"
+              "tab": "Essential"
             },
             {
               "date": "1/9/2027",
@@ -1694,28 +1727,22 @@
               "from": "X Money",
               "monthly": 11.67,
               "weekly": 2.68,
-              "tab": "Personal"
-            },
-            {
-              "date": "2/14/2027",
-              "item": "Google One",
-              "from": "X Money",
-              "monthly": 19.99,
-              "weekly": 4.61,
-              "tab": "Personal"
+              "tab": "Essential"
             }
-          ]
+          ],
+          "label": "Essential",
+          "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend."
         },
         "Fleet": {
           "role": "auto_fleet_expenses",
-          "item_count": 7,
+          "item_count": 6,
           "totals": {
-            "daily": 149.78,
-            "weekly": 1048.48,
-            "biweekly": 2096.96,
-            "monthly": 4506.9,
-            "annually": 10847.17,
-            "quarterly": 1830.36
+            "daily": 137.15,
+            "weekly": 960.03,
+            "biweekly": 1920.06,
+            "monthly": 4122.56,
+            "annually": 10687.69,
+            "quarterly": 1790.49
           },
           "items": [
             {
@@ -1727,7 +1754,7 @@
               "biweekly": 505.18,
               "monthly": 1082.52,
               "annually": 1082.52,
-              "budget_allocation": 0.2409,
+              "budget_allocation": 0.2631,
               "tab": "Fleet"
             },
             {
@@ -1739,7 +1766,7 @@
               "biweekly": 616.77,
               "monthly": 1321.66,
               "annually": 1321.66,
-              "budget_allocation": 0.29410000000000003,
+              "budget_allocation": 0.3212,
               "tab": "Fleet"
             },
             {
@@ -1751,32 +1778,20 @@
               "biweekly": 523.39,
               "monthly": 1121.55,
               "annually": 1121.55,
-              "budget_allocation": 0.24960000000000002,
-              "tab": "Fleet"
-            },
-            {
-              "date": "8/12/2026",
-              "from": "X Money",
-              "item": "Tesla Cameras / Seat Repairs",
-              "daily": 12.2,
-              "weekly": 85.39,
-              "biweekly": 170.78,
-              "monthly": 371.05,
-              "annually": null,
-              "budget_allocation": 0.0814,
+              "budget_allocation": 0.2726,
               "tab": "Fleet"
             },
             {
               "date": "8/20/2026",
               "from": "X Money",
               "item": "Sud Stop Car Wash",
-              "daily": 1.31,
-              "weekly": 9.18,
-              "biweekly": 18.35,
-              "monthly": 39.87,
-              "annually": 478.44,
-              "budget_allocation": 0.0088,
-              "quarterly": 119.61,
+              "daily": 0.87,
+              "weekly": 6.12,
+              "biweekly": 12.23,
+              "monthly": 26.58,
+              "annually": 318.96,
+              "budget_allocation": 0.0064,
+              "quarterly": 79.74,
               "tab": "Fleet"
             },
             {
@@ -1788,7 +1803,7 @@
               "biweekly": 258.67,
               "monthly": 562.0,
               "annually": 6744.0,
-              "budget_allocation": 0.1234,
+              "budget_allocation": 0.13470000000000001,
               "quarterly": 1686.0,
               "tab": "Fleet"
             },
@@ -1801,13 +1816,13 @@
               "biweekly": 3.81,
               "monthly": 8.25,
               "annually": 99.0,
-              "budget_allocation": 0.0018,
+              "budget_allocation": 0.002,
               "quarterly": 24.75,
               "tab": "Fleet"
             }
           ],
           "by_source_monthly": {
-            "X Money": 4506.9
+            "X Money": 4122.56
           },
           "top_monthly": [
             {
@@ -1815,7 +1830,7 @@
               "monthly": 1321.66,
               "from": "X Money",
               "date": "5/23/2026",
-              "budget_allocation": 0.29410000000000003,
+              "budget_allocation": 0.3212,
               "tab": "Fleet"
             },
             {
@@ -1823,7 +1838,7 @@
               "monthly": 1121.55,
               "from": "X Money",
               "date": "6/21/2026",
-              "budget_allocation": 0.24960000000000002,
+              "budget_allocation": 0.2726,
               "tab": "Fleet"
             },
             {
@@ -1831,7 +1846,7 @@
               "monthly": 1082.52,
               "from": "X Money",
               "date": "5/21/2026",
-              "budget_allocation": 0.2409,
+              "budget_allocation": 0.2631,
               "tab": "Fleet"
             },
             {
@@ -1839,23 +1854,15 @@
               "monthly": 562.0,
               "from": "X Money",
               "date": "8/21/2026",
-              "budget_allocation": 0.1234,
-              "tab": "Fleet"
-            },
-            {
-              "item": "Tesla Cameras / Seat Repairs",
-              "monthly": 371.05,
-              "from": "X Money",
-              "date": "8/12/2026",
-              "budget_allocation": 0.0814,
+              "budget_allocation": 0.13470000000000001,
               "tab": "Fleet"
             },
             {
               "item": "Sud Stop Car Wash",
-              "monthly": 39.87,
+              "monthly": 26.58,
               "from": "X Money",
               "date": "8/20/2026",
-              "budget_allocation": 0.0088,
+              "budget_allocation": 0.0064,
               "tab": "Fleet"
             },
             {
@@ -1863,7 +1870,7 @@
               "monthly": 8.25,
               "from": "X Money",
               "date": "2/1/2027",
-              "budget_allocation": 0.0018,
+              "budget_allocation": 0.002,
               "tab": "Fleet"
             }
           ],
@@ -1893,19 +1900,11 @@
               "tab": "Fleet"
             },
             {
-              "date": "8/12/2026",
-              "item": "Tesla Cameras / Seat Repairs",
-              "from": "X Money",
-              "monthly": 371.05,
-              "weekly": 85.39,
-              "tab": "Fleet"
-            },
-            {
               "date": "8/20/2026",
               "item": "Sud Stop Car Wash",
               "from": "X Money",
-              "monthly": 39.87,
-              "weekly": 9.18,
+              "monthly": 26.58,
+              "weekly": 6.12,
               "tab": "Fleet"
             },
             {
@@ -1926,7 +1925,7 @@
             }
           ],
           "label": "Fleet",
-          "description": "Auto fleet expenses (loans, insurance, wash, repairs). Included in upcoming expense burn with Personal."
+          "description": "Auto fleet expenses (loans, insurance, wash, repairs). Included in upcoming expense burn with Essential."
         },
         "Collateral": {
           "role": "collateral_investments",
@@ -2005,17 +2004,17 @@
           ],
           "priority": 1,
           "label": "Collateral",
-          "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Personal/Fleet obligations."
+          "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
         },
         "Productive Discretionary": {
           "role": "productive_capital_outlay",
-          "item_count": 8,
+          "item_count": 9,
           "totals": {
-            "daily": 18.27,
-            "weekly": 127.87,
-            "biweekly": 255.73,
-            "monthly": 548.0,
-            "annually": 548.0
+            "daily": 100.0,
+            "weekly": 700.0,
+            "biweekly": 1400.0,
+            "monthly": 3000.0,
+            "annually": 3000.0
           },
           "items": [
             {
@@ -2098,6 +2097,18 @@
               "biweekly": 233.33,
               "monthly": 500.0,
               "annually": 500.0,
+              "from": null,
+              "to": null,
+              "tab": "Productive Discretionary"
+            },
+            {
+              "item": "Tesla Seat Sensor",
+              "date": "9/1/2026",
+              "daily": 0.0,
+              "weekly": 0.0,
+              "biweekly": 0.0,
+              "monthly": null,
+              "annually": null,
               "from": null,
               "to": null,
               "tab": "Productive Discretionary"
@@ -2225,15 +2236,608 @@
           "label": "Consumer Discretionary",
           "description": "Consumer goods / personal wishlist (qualitative). Lower priority than Productive Discretionary. Not expense burn."
         },
+        "Personal": {
+          "role": "upcoming_expense_estimates",
+          "item_count": 24,
+          "totals": {
+            "daily": 483.23,
+            "weekly": 3382.64,
+            "biweekly": 6765.27,
+            "monthly": 14697.93,
+            "annually": 49554.12,
+            "quarterly": 15946.78
+          },
+          "items": [
+            {
+              "date": "4/1/2026",
+              "from": "Coinbase",
+              "item": "Rent (April / May / June / July / August / September)",
+              "daily": 370.68,
+              "weekly": 2594.79,
+              "biweekly": 5189.59,
+              "monthly": 11275.0,
+              "annually": 24000.0,
+              "budget_allocation": 0.7670999999999999,
+              "quarterly": 6000.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/17/2026",
+              "from": "X Money",
+              "item": "Planet Fitness",
+              "daily": 0.89,
+              "weekly": 6.21,
+              "biweekly": 12.43,
+              "monthly": 27.0,
+              "annually": 324.0,
+              "budget_allocation": 0.0018,
+              "quarterly": 81.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/18/2026",
+              "from": "X Money",
+              "item": "Pawp",
+              "daily": 0.62,
+              "weekly": 4.37,
+              "biweekly": 8.75,
+              "monthly": 19.0,
+              "annually": 228.0,
+              "budget_allocation": 0.0013,
+              "quarterly": 57.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "from": "X Money",
+              "item": "Water",
+              "daily": 2.2,
+              "weekly": 15.42,
+              "biweekly": 30.84,
+              "monthly": 67.0,
+              "annually": 804.0,
+              "budget_allocation": 0.0046,
+              "quarterly": 201.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "from": "X Money",
+              "item": "Banfield",
+              "daily": 2.79,
+              "weekly": 19.56,
+              "biweekly": 39.12,
+              "monthly": 85.0,
+              "annually": 1020.0,
+              "budget_allocation": 0.0058,
+              "quarterly": 255.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "from": "X Money",
+              "item": "SuperGrok Heavy",
+              "daily": 3.25,
+              "weekly": 22.78,
+              "biweekly": 45.57,
+              "monthly": 99.0,
+              "annually": 1188.0,
+              "budget_allocation": 0.0067,
+              "quarterly": 297.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/22/2026",
+              "from": "X Money",
+              "item": "Rythm Health",
+              "daily": 1.11,
+              "weekly": 7.77,
+              "biweekly": 15.55,
+              "monthly": 33.78,
+              "annually": 405.36,
+              "budget_allocation": 0.0023,
+              "quarterly": 101.34,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/23/2026",
+              "from": "Coinbase",
+              "item": "Coinbase One Membership",
+              "daily": 0.99,
+              "weekly": 6.9,
+              "biweekly": 13.8,
+              "monthly": 29.99,
+              "annually": 359.88,
+              "budget_allocation": 0.002,
+              "quarterly": 89.97,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/23/2026",
+              "from": "X Money",
+              "item": "7-Eleven Gold Pass",
+              "daily": 0.33,
+              "weekly": 2.3,
+              "biweekly": 4.6,
+              "monthly": 10.0,
+              "annually": 120.0,
+              "budget_allocation": 0.0007000000000000001,
+              "quarterly": 30.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/24/2026",
+              "from": "Coinbase",
+              "item": "Coinbase One Card",
+              "daily": 0.79,
+              "weekly": 5.52,
+              "biweekly": 11.05,
+              "monthly": 24.0,
+              "annually": 288.0,
+              "budget_allocation": 0.0016,
+              "quarterly": 72.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "from": "X Money",
+              "item": "Student Loan",
+              "daily": 2.74,
+              "weekly": 19.18,
+              "biweekly": 38.36,
+              "monthly": 83.33,
+              "annually": 1000.0,
+              "budget_allocation": 0.005699999999999999,
+              "quarterly": 250.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "from": "X Money",
+              "item": "Dog Food",
+              "daily": 4.11,
+              "weekly": 28.77,
+              "biweekly": 57.53,
+              "monthly": 125.0,
+              "annually": 1500.0,
+              "budget_allocation": 0.0085,
+              "quarterly": 375.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "from": "X Money",
+              "item": "Google Health",
+              "daily": 0.33,
+              "weekly": 2.3,
+              "biweekly": 4.6,
+              "monthly": 9.99,
+              "annually": 119.88,
+              "budget_allocation": 0.0007000000000000001,
+              "quarterly": 29.97,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/3/2026",
+              "from": "X Money",
+              "item": "YouTube Premium",
+              "daily": 0.9,
+              "weekly": 6.3,
+              "biweekly": 12.6,
+              "monthly": 27.0,
+              "annually": 324.0,
+              "budget_allocation": 0.0019,
+              "quarterly": 81.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/5/2026",
+              "from": "X Money",
+              "item": "Electric",
+              "daily": 11.34,
+              "weekly": 79.4,
+              "biweekly": 158.79,
+              "monthly": 345.0,
+              "annually": 4140.0,
+              "budget_allocation": 0.0235,
+              "quarterly": 1035.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "from": "Coinbase",
+              "item": "Tha\u00eds",
+              "daily": 29.59,
+              "weekly": 207.12,
+              "biweekly": 414.25,
+              "monthly": 900.0,
+              "annually": 10800.0,
+              "budget_allocation": 0.061200000000000004,
+              "quarterly": 2700.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "from": "X Money",
+              "item": "Lee County Citation",
+              "daily": 5.29,
+              "weekly": 37.05,
+              "biweekly": 74.1,
+              "monthly": 161.0,
+              "annually": 161.0,
+              "budget_allocation": 0.011000000000000001,
+              "quarterly": 161.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/10/2026",
+              "from": "X Money",
+              "item": "Robinhood Gold",
+              "daily": 0.14,
+              "weekly": 0.96,
+              "biweekly": 1.92,
+              "monthly": 4.17,
+              "annually": 50.0,
+              "budget_allocation": 0.0003,
+              "quarterly": 12.5,
+              "tab": "Essential"
+            },
+            {
+              "date": "10/29/2026",
+              "from": "X Money",
+              "item": "SodaStream Refills",
+              "daily": 0.59,
+              "weekly": 4.16,
+              "biweekly": 8.33,
+              "monthly": 18.09,
+              "annually": 217.12,
+              "budget_allocation": 0.0012,
+              "quarterly": 54.28,
+              "tab": "Essential"
+            },
+            {
+              "date": "1/9/2027",
+              "from": "X Money",
+              "item": "Amazon Prime",
+              "daily": 0.38,
+              "weekly": 2.68,
+              "biweekly": 5.37,
+              "monthly": 11.67,
+              "annually": 140.0,
+              "budget_allocation": 0.0008,
+              "quarterly": 35.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "2/14/2027",
+              "from": "X Money",
+              "item": "Google One",
+              "daily": 0.66,
+              "weekly": 4.61,
+              "biweekly": 9.23,
+              "monthly": 19.99,
+              "annually": 239.88,
+              "budget_allocation": 0.0014000000000000002,
+              "quarterly": 59.97,
+              "tab": "Essential"
+            },
+            {
+              "date": "7/15/2027",
+              "from": "Coinbase",
+              "item": "Lawn Mower",
+              "daily": 0.75,
+              "weekly": 5.27,
+              "biweekly": 10.55,
+              "monthly": 22.92,
+              "annually": 275.0,
+              "budget_allocation": 0.0016,
+              "quarterly": 68.75,
+              "tab": "Essential"
+            },
+            {
+              "date": "7/15/2027",
+              "from": "Coinbase",
+              "item": "Final VA Payments",
+              "daily": 41.1,
+              "weekly": 287.67,
+              "biweekly": 575.34,
+              "monthly": 1250.0,
+              "annually": 1250.0,
+              "budget_allocation": 0.085,
+              "quarterly": 3750.0,
+              "tab": "Essential"
+            },
+            {
+              "date": "7/15/2027",
+              "from": "Coinbase",
+              "item": "AT&T Final Bill",
+              "daily": 1.64,
+              "weekly": 11.51,
+              "biweekly": 23.01,
+              "monthly": 50.0,
+              "annually": 600.0,
+              "budget_allocation": 0.0034000000000000002,
+              "quarterly": 150.0,
+              "tab": "Essential"
+            }
+          ],
+          "by_source_monthly": {
+            "Coinbase": 13551.91,
+            "X Money": 1146.02
+          },
+          "top_monthly": [
+            {
+              "item": "Rent (April / May / June / July / August / September)",
+              "monthly": 11275.0,
+              "from": "Coinbase",
+              "date": "4/1/2026",
+              "budget_allocation": 0.7670999999999999,
+              "tab": "Essential"
+            },
+            {
+              "item": "Final VA Payments",
+              "monthly": 1250.0,
+              "from": "Coinbase",
+              "date": "7/15/2027",
+              "budget_allocation": 0.085,
+              "tab": "Essential"
+            },
+            {
+              "item": "Tha\u00eds",
+              "monthly": 900.0,
+              "from": "Coinbase",
+              "date": "9/9/2026",
+              "budget_allocation": 0.061200000000000004,
+              "tab": "Essential"
+            },
+            {
+              "item": "Electric",
+              "monthly": 345.0,
+              "from": "X Money",
+              "date": "9/5/2026",
+              "budget_allocation": 0.0235,
+              "tab": "Essential"
+            },
+            {
+              "item": "Lee County Citation",
+              "monthly": 161.0,
+              "from": "X Money",
+              "date": "9/9/2026",
+              "budget_allocation": 0.011000000000000001,
+              "tab": "Essential"
+            },
+            {
+              "item": "Dog Food",
+              "monthly": 125.0,
+              "from": "X Money",
+              "date": "9/1/2026",
+              "budget_allocation": 0.0085,
+              "tab": "Essential"
+            },
+            {
+              "item": "SuperGrok Heavy",
+              "monthly": 99.0,
+              "from": "X Money",
+              "date": "8/19/2026",
+              "budget_allocation": 0.0067,
+              "tab": "Essential"
+            },
+            {
+              "item": "Banfield",
+              "monthly": 85.0,
+              "from": "X Money",
+              "date": "8/19/2026",
+              "budget_allocation": 0.0058,
+              "tab": "Essential"
+            },
+            {
+              "item": "Student Loan",
+              "monthly": 83.33,
+              "from": "X Money",
+              "date": "9/1/2026",
+              "budget_allocation": 0.005699999999999999,
+              "tab": "Essential"
+            },
+            {
+              "item": "Water",
+              "monthly": 67.0,
+              "from": "X Money",
+              "date": "8/19/2026",
+              "budget_allocation": 0.0046,
+              "tab": "Essential"
+            },
+            {
+              "item": "AT&T Final Bill",
+              "monthly": 50.0,
+              "from": "Coinbase",
+              "date": "7/15/2027",
+              "budget_allocation": 0.0034000000000000002,
+              "tab": "Essential"
+            },
+            {
+              "item": "Rythm Health",
+              "monthly": 33.78,
+              "from": "X Money",
+              "date": "8/22/2026",
+              "budget_allocation": 0.0023,
+              "tab": "Essential"
+            }
+          ],
+          "upcoming_by_date": [
+            {
+              "date": "4/1/2026",
+              "item": "Rent (April / May / June / July / August / September)",
+              "from": "Coinbase",
+              "monthly": 11275.0,
+              "weekly": 2594.79,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/17/2026",
+              "item": "Planet Fitness",
+              "from": "X Money",
+              "monthly": 27.0,
+              "weekly": 6.21,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/18/2026",
+              "item": "Pawp",
+              "from": "X Money",
+              "monthly": 19.0,
+              "weekly": 4.37,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "item": "Banfield",
+              "from": "X Money",
+              "monthly": 85.0,
+              "weekly": 19.56,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "item": "SuperGrok Heavy",
+              "from": "X Money",
+              "monthly": 99.0,
+              "weekly": 22.78,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/19/2026",
+              "item": "Water",
+              "from": "X Money",
+              "monthly": 67.0,
+              "weekly": 15.42,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/22/2026",
+              "item": "Rythm Health",
+              "from": "X Money",
+              "monthly": 33.78,
+              "weekly": 7.77,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/23/2026",
+              "item": "7-Eleven Gold Pass",
+              "from": "X Money",
+              "monthly": 10.0,
+              "weekly": 2.3,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/23/2026",
+              "item": "Coinbase One Membership",
+              "from": "Coinbase",
+              "monthly": 29.99,
+              "weekly": 6.9,
+              "tab": "Essential"
+            },
+            {
+              "date": "8/24/2026",
+              "item": "Coinbase One Card",
+              "from": "Coinbase",
+              "monthly": 24.0,
+              "weekly": 5.52,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "item": "Dog Food",
+              "from": "X Money",
+              "monthly": 125.0,
+              "weekly": 28.77,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "item": "Google Health",
+              "from": "X Money",
+              "monthly": 9.99,
+              "weekly": 2.3,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/1/2026",
+              "item": "Student Loan",
+              "from": "X Money",
+              "monthly": 83.33,
+              "weekly": 19.18,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/3/2026",
+              "item": "YouTube Premium",
+              "from": "X Money",
+              "monthly": 27.0,
+              "weekly": 6.3,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/5/2026",
+              "item": "Electric",
+              "from": "X Money",
+              "monthly": 345.0,
+              "weekly": 79.4,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "item": "Lee County Citation",
+              "from": "X Money",
+              "monthly": 161.0,
+              "weekly": 37.05,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/9/2026",
+              "item": "Tha\u00eds",
+              "from": "Coinbase",
+              "monthly": 900.0,
+              "weekly": 207.12,
+              "tab": "Essential"
+            },
+            {
+              "date": "9/10/2026",
+              "item": "Robinhood Gold",
+              "from": "X Money",
+              "monthly": 4.17,
+              "weekly": 0.96,
+              "tab": "Essential"
+            },
+            {
+              "date": "10/29/2026",
+              "item": "SodaStream Refills",
+              "from": "X Money",
+              "monthly": 18.09,
+              "weekly": 4.16,
+              "tab": "Essential"
+            },
+            {
+              "date": "1/9/2027",
+              "item": "Amazon Prime",
+              "from": "X Money",
+              "monthly": 11.67,
+              "weekly": 2.68,
+              "tab": "Essential"
+            }
+          ],
+          "label": "Essential",
+          "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend.",
+          "alias_of": "Essential"
+        },
         "Discretionary": {
           "role": "excess_capital_targets",
-          "item_count": 8,
+          "item_count": 9,
           "totals": {
-            "daily": 18.27,
-            "weekly": 127.87,
-            "biweekly": 255.73,
-            "monthly": 548.0,
-            "annually": 548.0
+            "daily": 100.0,
+            "weekly": 700.0,
+            "biweekly": 1400.0,
+            "monthly": 3000.0,
+            "annually": 3000.0
           },
           "items": [
             {
@@ -2321,6 +2925,18 @@
               "tab": "Productive Discretionary"
             },
             {
+              "item": "Tesla Seat Sensor",
+              "date": "9/1/2026",
+              "daily": 0.0,
+              "weekly": 0.0,
+              "biweekly": 0.0,
+              "monthly": null,
+              "annually": null,
+              "from": null,
+              "to": null,
+              "tab": "Productive Discretionary"
+            },
+            {
               "item": "Tesla Wiper Blades",
               "date": "9/1/2026",
               "daily": 1.6,
@@ -2392,38 +3008,40 @@
         }
       },
       "summary": {
-        "upcoming_expense_monthly": 19176.66,
-        "personal_monthly": 14669.76,
-        "personal_daily": 482.31,
-        "personal_weekly": 3376.15,
-        "personal_annually": 49216.12,
-        "fleet_monthly": 4506.9,
-        "fleet_daily": 149.78,
-        "fleet_annually": 10847.17,
+        "upcoming_expense_monthly": 18820.49,
+        "essential_monthly": 14697.93,
+        "personal_monthly": 14697.93,
+        "personal_daily": 483.23,
+        "essential_daily": 483.23,
+        "personal_weekly": 3382.64,
+        "personal_annually": 49554.12,
+        "fleet_monthly": 4122.56,
+        "fleet_daily": 137.15,
+        "fleet_annually": 10687.69,
         "collateral_investments_monthly": 537.2,
         "collateral_monthly": 537.2,
-        "capital_targets_monthly": 548.0,
-        "productive_discretionary_monthly": 548.0,
-        "discretionary_monthly": 548.0,
-        "discretionary_daily": 18.27,
+        "capital_targets_monthly": 3000.0,
+        "productive_discretionary_monthly": 3000.0,
+        "discretionary_monthly": 3000.0,
+        "discretionary_daily": 100.0,
         "consumer_discretionary_monthly": 0.0,
         "consumer_discretionary_daily": 0.0,
-        "combined_monthly": 19176.66,
-        "combined_daily": 632.09,
+        "combined_monthly": 18820.49,
+        "combined_daily": 620.38,
         "by_source_monthly": {
-          "Coinbase": 13527.91,
-          "X Money": 5648.75
+          "Coinbase": 13551.91,
+          "X Money": 5268.58
         },
-        "coinbase_funded_monthly": 13527.91,
+        "coinbase_funded_monthly": 13551.91,
         "rh_funded_monthly": 0,
         "rh_checking_funded_monthly": 0,
-        "x_money_funded_monthly": 5648.75
+        "x_money_funded_monthly": 5268.58
       },
-      "notes": "Personal = estimated personal bills by pay-from account. Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Personal + Fleet only. Actual spend = YNAB."
+      "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-10T11:17:01.570913+00:00",
+      "as_of": "2026-08-11T19:16:05.697864+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -2437,9 +3055,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-10T11:17:01.570909+00:00",
-        "total_value": 188.71934946,
-        "equity_value": 188.62934946,
+        "as_of": "2026-08-11T19:16:05.697860+00:00",
+        "total_value": 184.847112305,
+        "equity_value": 184.757112305,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -2589,12 +3207,15 @@
       "equity_collateral_usd": null
     },
     "policy_overrides": {
-      "cb_target_ltv_max": 0.5,
+      "cb_ltv_target": 0.38,
       "cb_ltv_alert": 0.45,
+      "cb_target_ltv_max": 0.5,
       "cb_card_float_usdc": 0,
       "cb_loan_buffer_usdc": 1000,
-      "cb_bridge_dry_powder_usdc": 200,
+      "cb_bridge_dry_powder_usdc": 0,
       "rh_bp_floor": 0,
+      "rh_margin_use_target": 0.28,
+      "rh_margin_use_alert": 0.35,
       "rh_margin_use_max": 0.4,
       "excess_split_cb": 0.6,
       "excess_split_rh": 0.4,
@@ -2634,7 +3255,7 @@
         "one_card": "ynab/plaid (balance + txs)",
         "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
         "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking \u2013 ####)",
-        "expenses": "google sheet: Personal+Fleet=burn; Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
+        "expenses": "google sheet: Essential+Fleet=burn; Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
         "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
@@ -2642,12 +3263,15 @@
   },
   "evaluation": {
     "policy": {
-      "cb_target_ltv_max": 0.5,
+      "cb_ltv_target": 0.38,
       "cb_ltv_alert": 0.45,
+      "cb_target_ltv_max": 0.5,
       "cb_card_float_usdc": 0,
       "cb_loan_buffer_usdc": 1000,
-      "cb_bridge_dry_powder_usdc": 200,
+      "cb_bridge_dry_powder_usdc": 0,
       "rh_bp_floor": 0,
+      "rh_margin_use_target": 0.28,
+      "rh_margin_use_alert": 0.35,
       "rh_margin_use_max": 0.4,
       "excess_split_cb": 0.6,
       "excess_split_rh": 0.4,
@@ -2661,46 +3285,46 @@
       "one_card_apr_est": 0.29
     },
     "inputs": {
-      "liquid_usdc": 1.0022281255613998,
-      "working_usdc": 128.0022281255614,
+      "liquid_usdc": 0.0021611255614,
+      "working_usdc": 0.0021611255614,
       "vault_known": true,
       "count_vault_toward_buffers": true,
-      "liquid_btc": 2.77294815e-08,
-      "liquid_btc_usd": 0.001782174053299815,
-      "btc_usd_price": 64270.01,
-      "ltv": 0.4992,
-      "loan_principal_usdc": 738.35,
-      "collateral_btc_usd": 1478.93,
-      "vault_usdc": 127.0,
-      "card_balance": 440.18,
-      "card_available_credit": 59.81999999999999,
+      "liquid_btc": 7.7294815e-09,
+      "liquid_btc_usd": 0.000489283367367795,
+      "btc_usd_price": 63300.93,
+      "ltv": 0.0,
+      "loan_principal_usdc": null,
+      "collateral_btc_usd": null,
+      "vault_usdc": 0.0,
+      "card_balance": 447.33,
+      "card_available_credit": 52.670000000000016,
       "card_security_deposit_usdc": 500.0,
       "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
-      "one_card_spend_30d": 404.77,
+      "one_card_spend_30d": 411.92,
       "one_card_account": "Coinbase One Card \u2013 5361",
-      "expenses_upcoming_monthly": 19176.66,
-      "expenses_personal_monthly": 14669.76,
-      "expenses_fleet_monthly": 4506.9,
+      "expenses_upcoming_monthly": 18820.49,
+      "expenses_personal_monthly": 14697.93,
+      "expenses_fleet_monthly": 4122.56,
       "expenses_collateral_investments_monthly": 537.2,
-      "expenses_capital_targets_monthly": 548.0,
-      "expenses_discretionary_monthly": 548.0,
-      "expenses_productive_discretionary_monthly": 548.0,
+      "expenses_capital_targets_monthly": 3000.0,
+      "expenses_discretionary_monthly": 3000.0,
+      "expenses_productive_discretionary_monthly": 3000.0,
       "expenses_consumer_discretionary_monthly": 0.0,
-      "expenses_combined_monthly": 19176.66,
-      "expenses_coinbase_funded_monthly": 13527.91,
+      "expenses_combined_monthly": 18820.49,
+      "expenses_coinbase_funded_monthly": 13551.91,
       "expenses_rh_funded_monthly": 0,
-      "expenses_x_money_funded_monthly": 5648.75,
+      "expenses_x_money_funded_monthly": 5268.58,
       "rh_buying_power": 0.09,
       "rh_cash": 0.09,
       "rh_checking_cash": 0.0,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 2.43,
-      "x_money_cash": 172.11,
+      "x_money_cash": 72.24,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 1491.85,
+      "x_money_spend_30d": 1959.72,
       "x_money_apy_est": 0.06,
-      "bank_cash": 172.11,
+      "bank_cash": 72.24,
       "bill_pay_cash": 0.0,
       "rh_equity": 0.0,
       "rh_total_value": 0.094046,
@@ -2710,7 +3334,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 188.71934946,
+      "rh_agentic_total_value": 184.847112305,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -2720,33 +3344,33 @@
       "rh_equity_collateral_usd": null
     },
     "buckets": {
-      "liquid_usdc": 128.0022281255614,
-      "required_total": 1200.0,
-      "shortfall": 1071.9977718744385,
+      "liquid_usdc": 0.0021611255614,
+      "required_total": 1000.0,
+      "shortfall": 999.9978388744386,
       "excess": 0.0,
       "floors": {
         "loan_buffer": 1000.0,
-        "bridge_dry_powder": 200.0,
+        "bridge_dry_powder": 0.0,
         "card_float": 0.0
       },
       "filled": {
-        "loan_buffer": 128.0022281255614,
+        "loan_buffer": 0.0021611255614,
         "bridge_dry_powder": 0.0,
         "card_float": 0.0
       },
       "gaps": {
-        "loan_buffer": 871.9977718744386,
-        "bridge_dry_powder": 200.0,
+        "loan_buffer": 999.9978388744386,
+        "bridge_dry_powder": 0.0,
         "card_float": 0.0
       },
       "status": "red",
-      "liquid_spot_usdc": 1.0022281255613998,
-      "vault_usdc": 127.0,
-      "working_usdc": 128.0022281255614,
+      "liquid_spot_usdc": 0.0021611255614,
+      "vault_usdc": 0.0,
+      "working_usdc": 0.0021611255614,
       "count_vault_toward_buffers": true,
       "count_vault_toward_card_float": false,
       "spot_only_status": "red",
-      "spot_only_shortfall": 1198.9977718744385
+      "spot_only_shortfall": 999.9978388744386
     },
     "dca": {
       "allow_dca": true,
@@ -2758,23 +3382,53 @@
       "cash": 0.09
     },
     "stress": {
-      "coinbase_ltv": "yellow",
+      "coinbase_ltv": "green",
       "coinbase_liquid": "red",
       "coinbase_card": "yellow",
       "robinhood": "green",
-      "data_quality": "yellow",
+      "data_quality": "green",
+      "morpho_band": "cool",
+      "rh_margin_band": "unknown",
       "overall": "red",
       "dimensions": {
-        "coinbase_ltv": "yellow",
+        "coinbase_ltv": "green",
         "coinbase_liquid": "red",
         "coinbase_card": "yellow",
         "robinhood": "green",
-        "data_quality": "yellow",
+        "data_quality": "green",
+        "morpho_band": "cool",
+        "rh_margin_band": "unknown",
         "overall": "red"
       }
     },
+    "leverage_bands": {
+      "morpho_ltv": {
+        "value": 0.0,
+        "band": "cool",
+        "color": "green",
+        "target": 0.38,
+        "alert": 0.45,
+        "hard_max": 0.5,
+        "stance": "principal_to_hy"
+      },
+      "rh_margin_use": {
+        "value": null,
+        "band": "unknown",
+        "color": "yellow",
+        "target": 0.28,
+        "alert": 0.35,
+        "hard_max": 0.4,
+        "stance": "confirm_reading"
+      },
+      "joint": {
+        "both_cool": false,
+        "either_hot_or_worse": false,
+        "morpho_at_hard_max": false,
+        "stance": "hy_parks_ok"
+      }
+    },
     "data_quality": {
-      "status": "yellow",
+      "status": "green",
       "completeness_score": 1.0,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -2786,25 +3440,15 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-08-05T06:00:59.014651+00:00",
-        "robinhood_as_of": "2026-08-10T11:17:01.570913+00:00",
-        "one_card_as_of": "2026-08-08T06:11:54.636171+00:00",
-        "rh_checking_as_of": "2026-08-08T06:11:54.810541+00:00",
-        "x_money_as_of": "2026-08-08T06:11:55.050012+00:00",
-        "expenses_as_of": "2026-08-10T10:34:24.015584+00:00"
+        "coinbase_as_of": "2026-08-11T18:59:29.036121+00:00",
+        "robinhood_as_of": "2026-08-11T19:16:05.697864+00:00",
+        "one_card_as_of": "2026-08-11T18:59:29.787352+00:00",
+        "rh_checking_as_of": "2026-08-11T18:59:30.050299+00:00",
+        "x_money_as_of": "2026-08-11T18:59:30.450046+00:00",
+        "expenses_as_of": "2026-08-11T18:59:35.264768+00:00"
       },
-      "stale": [
-        "coinbase data 125.3h old (>6.0h)",
-        "one_card data 53.1h old (>6.0h)",
-        "rh_checking data 53.1h old (>6.0h)",
-        "x_money data 53.1h old (>6.0h)"
-      ],
-      "warnings": [
-        "coinbase data 125.3h old (>6.0h)",
-        "one_card data 53.1h old (>6.0h)",
-        "rh_checking data 53.1h old (>6.0h)",
-        "x_money data 53.1h old (>6.0h)"
-      ],
+      "stale": [],
+      "warnings": [],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
@@ -2820,51 +3464,43 @@
     "actions": [
       {
         "priority": 1,
-        "kind": "ltv_watch",
-        "title": "LTV 49.9% above alert 45% \u2014 prepare buffer",
-        "actor": "either",
-        "detail": "Agent can hold liquid USDC/BTC; human enables loan protection / tops up in app.",
-        "api_reachable": false
-      },
-      {
-        "priority": 1,
         "kind": "card_refinance",
-        "title": "Refinance One Card $440 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Refinance One Card $447 via Morpho principal (~5% vs ~29% APR)",
         "actor": "human",
-        "detail": "Capital Flows: Morpho \u2192 One Card. Borrow additional BTC-backed USDC principal and pay the card in-app. Do not pull USDC HY for card \u2014 HY is LTV buffer. Watch LTV after principal increases.",
-        "api_reachable": false
-      },
-      {
-        "priority": 1,
-        "kind": "hy_collateral_defense",
-        "title": "LTV 49.9% hot \u2014 USDC HY \u2192 Collateral defense only (up to $127 buffer)",
-        "actor": "human",
-        "detail": "Owner MO: HY \u2192 Collateral only when leverage too high; else HY stays buffer floor. In-app: add BTC collateral and/or repay Morpho principal. Not routine capital deploy.",
+        "detail": "Capital Flows: Morpho \u2192 One Card. Borrow additional BTC-backed USDC principal and pay the card in-app. Do not pull HY LTV Buffer for card. Watch LTV after principal increases.",
         "api_reachable": false
       },
       {
         "priority": 2,
         "kind": "ltv_buffer_stack",
-        "title": "Restore LTV buffer stack \u00b7 loan buf \u2212$872 \u00b7 bridge \u2212$200",
+        "title": "Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000",
         "actor": "human",
-        "detail": "USDC HY + spot vs loan/bridge floors (Capital Flows Liquidity Engine). Top Morpho LTV buffer in-app; do not treat HY as One Card float.",
+        "detail": "HY LTV Buffer + spot vs Morpho LTV floor (Capital Flows). Bridge powder retired \u2014 residual is served by HY. Top HY LTV Buffer in-app; do not treat HY as One Card float.",
         "api_reachable": false,
         "meta": {
-          "working_usdc": 128.0022281255614,
-          "floors_required": 1200.0,
-          "shortfall": 1071.9977718744385,
-          "vault_usdc": 127.0,
+          "working_usdc": 0.0021611255614,
+          "floors_required": 1000.0,
+          "shortfall": 999.9978388744386,
+          "vault_usdc": 0.0,
           "gaps": {
-            "loan_buffer": 871.9977718744386,
-            "bridge_dry_powder": 200.0,
+            "loan_buffer": 999.9978388744386,
+            "bridge_dry_powder": 0.0,
             "card_float": 0.0
           }
         }
       },
       {
+        "priority": 3,
+        "kind": "hy_park_cool",
+        "title": "LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer",
+        "actor": "either",
+        "detail": "HY \u2194 borrow rotation: below target, park additional principal in HY LTV Buffer rather than expanding free-dollar risk. Not a forced action.",
+        "api_reachable": false
+      },
+      {
         "priority": 5,
         "kind": "expense_burn",
-        "title": "Bills ~$13528/mo vs USDC $128",
+        "title": "Bills ~$13552/mo vs USDC $0",
         "actor": "either",
         "detail": "Secondary \u2014 vault/spot runway vs sheet bills (not card float).",
         "api_reachable": false
@@ -2873,36 +3509,30 @@
     "next_steps": [
       {
         "n": 1,
-        "actor": "either",
-        "title": "LTV 49.9% above alert 45% \u2014 prepare buffer",
+        "actor": "human",
+        "title": "Refinance One Card $447 via Morpho principal (~5% vs ~29% APR)",
         "api_reachable": false
       },
       {
         "n": 2,
         "actor": "human",
-        "title": "Refinance One Card $440 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000",
         "api_reachable": false
       },
       {
         "n": 3,
-        "actor": "human",
-        "title": "LTV 49.9% hot \u2014 USDC HY \u2192 Collateral defense only (up to $127 buffer)",
+        "actor": "either",
+        "title": "LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer",
         "api_reachable": false
       },
       {
         "n": 4,
-        "actor": "human",
-        "title": "Restore LTV buffer stack \u00b7 loan buf \u2212$872 \u00b7 bridge \u2212$200",
-        "api_reachable": false
-      },
-      {
-        "n": 5,
         "actor": "either",
-        "title": "Bills ~$13528/mo vs USDC $128",
+        "title": "Bills ~$13552/mo vs USDC $0",
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.4992\nUSDC LTV sleeve: $128.00 (spot $1.00 + HY vault $127.00 \u2014 margin buffer, not card float) | BTC liquid: 0.00000003 (~$0.00)\nOne Card owed: $440.18 (source=ynab) | 30d spend $404.77 | path=Morpho refinance (not HY pull)\nUpcoming expense estimates (sheet Personal+Fleet): $19176.66/mo (personal $14669.76 + fleet $4506.90) | CB-funded est $13527.91 | RH-checking est $0.00 | X Money est $5648.75 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $548.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $172.11 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [either|manual] LTV 49.9% above alert 45% \u2014 prepare buffer\n  P1 [human|manual] Refinance One Card $440 via Morpho principal (~5% vs ~29% APR)\n  P1 [human|manual] LTV 49.9% hot \u2014 USDC HY \u2192 Collateral defense only (up to $127 buffer)\n  P2 [human|manual] Restore LTV buffer stack \u00b7 loan buf \u2212$872 \u00b7 bridge \u2212$200\n  P5 [either|manual] Bills ~$13528/mo vs USDC $128\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.00 (spot $0.00 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00000001 (~$0.00)\nOne Card owed: $447.33 (source=ynab) | 30d spend $411.92 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (sheet Essential+Fleet): $18820.49/mo (personal $14697.93 + fleet $4122.56) | CB-funded est $13551.91 | RH-checking est $0.00 | X Money est $5268.58 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $72.24 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $447 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13552/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -2912,29 +3542,29 @@
         "collateral_excess",
         "capex_from_margin"
       ],
-      "free_liquid_start": 300.11,
+      "free_liquid_start": 72.24,
       "free_liquid_residual": 0.0,
-      "working_usdc": 128.0,
-      "bank_cash": 172.11,
+      "working_usdc": 0.0,
+      "bank_cash": 72.24,
       "free_dollar_red": true,
       "active_step_id": "expenses",
-      "next_free_dollar": "Pay Personal sheet obligations (overdue / due soon)",
+      "next_free_dollar": "Pay Essential sheet obligations (overdue / due soon)",
       "steps": [
         {
           "rank": 1,
           "id": "expenses",
           "title": "Expenses paid & current",
           "status": "partial",
-          "need": 12202.0,
-          "allocated": 300.11,
-          "gap": 11901.89,
-          "detail": "1 overdue \u00b7 2 due \u22647d \u00b7 critical $12,202",
+          "need": 11321.0,
+          "allocated": 72.24,
+          "gap": 11248.76,
+          "detail": "1 overdue \u00b7 2 due \u22647d \u00b7 critical $11,321",
           "fund_from": "venue_cash",
           "meta": {
             "overdue_count": 1,
             "due_soon_count": 2,
             "overdue_total": 11275.0,
-            "due_soon_total": 927.0
+            "due_soon_total": 46.0
           }
         },
         {
@@ -2942,13 +3572,13 @@
           "id": "card_paydown",
           "title": "Coinbase One Card paydown",
           "status": "gap",
-          "need": 440.18,
+          "need": 447.33,
           "allocated": 0.0,
-          "gap": 440.18,
-          "detail": "Owed $440.18 \u2014 pay down before buffer residual risk",
+          "gap": 447.33,
+          "detail": "Owed $447.33 \u2014 pay down before buffer residual risk",
           "fund_from": "free_dollar",
           "meta": {
-            "card_balance": 440.18
+            "card_balance": 447.33
           }
         },
         {
@@ -2956,19 +3586,19 @@
           "id": "cash_buffers",
           "title": "Cash stack buffers",
           "status": "gap",
-          "need": 1072.0,
+          "need": 1000.0,
           "allocated": 0.0,
-          "gap": 1072.0,
-          "detail": "Floors $1,200 \u00b7 working USDC $128 \u00b7 shortfall $1,072",
+          "gap": 1000.0,
+          "detail": "Floors $1,000 \u00b7 working USDC $0 \u00b7 shortfall $1,000",
           "fund_from": "free_dollar",
           "meta": {
-            "floors_required": 1200.0,
-            "working_usdc": 128.0,
-            "shortfall": 1072.0,
+            "floors_required": 1000.0,
+            "working_usdc": 0.0,
+            "shortfall": 1000.0,
             "gaps": {
               "card_float": 0.0,
-              "loan_buffer": 872.0,
-              "bridge_dry_powder": 200.0
+              "loan_buffer": 1000.0,
+              "bridge_dry_powder": 0.0
             }
           }
         },
@@ -2979,7 +3609,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 13414.07,
+          "gap": 12696.09,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -2995,10 +3625,10 @@
           "id": "capex_margin",
           "title": "Capex \u00b7 Productive Discretionary (margin)",
           "status": "no_bp",
-          "need": 548.0,
+          "need": 3000.0,
           "allocated": 0.0,
-          "gap": 547.91,
-          "detail": "Productive ~$548/mo \u00b7 RH BP $0.09 \u00b7 no BP",
+          "gap": 2999.91,
+          "detail": "Productive ~$3,000/mo \u00b7 RH BP $0.09 \u00b7 no BP",
           "fund_from": "collateralized_margin",
           "meta": {
             "rh_buying_power": 0.09,
@@ -3019,7 +3649,7 @@
               }
             ],
             "consumer_items": [],
-            "productive_monthly": 548.0,
+            "productive_monthly": 3000.0,
             "consumer_monthly": 0.0,
             "priority_order": [
               "productive",
@@ -3029,14 +3659,14 @@
         }
       ],
       "expense_window": {
-        "critical_total": 12202.0,
+        "critical_total": 11321.0,
         "overdue_count": 1,
         "due_soon_count": 2,
-        "as_of_date": "2026-08-10"
+        "as_of_date": "2026-08-11"
       },
       "capex": {
         "fund_from": "collateralized_margin",
-        "monthly": 548.0,
+        "monthly": 3000.0,
         "rh_buying_power": 0.09,
         "status": "no_bp",
         "note": "Productive Discretionary = capital outlay growing productive assets (priority over Consumer). Consumer Discretionary = wishlist / qualitative. Fund from collateralized margin (RH BP), not free-dollar cash stack."
@@ -3047,27 +3677,27 @@
         "target": 0.0,
         "filled": 0.0,
         "gap": 0.0,
-        "note": "Optional spot reserve only; default 0. Card paydown = Morpho refinance, not USDC HY. count_vault_toward_card_float=False"
+        "note": "Optional spot reserve only; default 0. Card paydown = Morpho refinance, not HY LTV Buffer. count_vault_toward_card_float=False"
       },
       "loan_buffer": {
         "target": 1000.0,
-        "filled": 128.0022281255614,
-        "gap": 871.9977718744386,
-        "note": "Primary USDC HY purpose \u2014 Morpho LTV / BTC margin defense"
+        "filled": 0.0021611255614,
+        "gap": 999.9978388744386,
+        "note": "HY LTV Buffer \u2014 generic high-yield leverage defense (not USDC/USDG-branded)"
       },
       "yield_sleeve": {
-        "vault_usdc": 127.0,
-        "note": "USDC HY = LTV buffer (Liquidity Engine). HY\u2192Collateral only when LTV/margin hot; else buffer floor. Not One Card funder."
+        "vault_usdc": 0.0,
+        "note": "HY LTV Buffer (Liquidity Engine). HY\u2192Collateral only when LTV/margin hot; else buffer floor. Not One Card funder. Venue product is incidental."
       },
       "working_usdc": {
-        "spot": 1.0022281255613998,
-        "vault": 127.0,
-        "total": 128.0022281255614,
+        "spot": 0.0021611255614,
+        "vault": 0.0,
+        "total": 0.0021611255614,
         "role": "ltv_buffer_sleeve"
       },
       "one_card": {
-        "balance": 440.18,
-        "available_credit": 59.81999999999999,
+        "balance": 447.33,
+        "available_credit": 52.670000000000016,
         "deposit": 500.0,
         "path": "morpho_refinance",
         "note": "Morpho new principal \u2192 pay card (~5% vs ~29%); raises LTV deliberately"
@@ -3079,56 +3709,70 @@
         "total_value": 0.094046
       },
       "bridge_dry_powder": {
-        "target": 200.0,
+        "target": 0.0,
         "filled": 0.0,
-        "gap": 200.0
+        "gap": 0.0,
+        "note": "Retired 2026-08-11 \u2014 floor=0; CB\u2194RH residual served by HY LTV Buffer"
       }
     },
     "strategy_context": {
-      "goal": "Keep invested (BTC collateral + RH equities) while preserving liquidity optionality",
-      "usdc_model": "Capital Flows: BTC \u2192 Morpho \u2192 USDC to Liquidity Engine (X Money \u00b7 One Card via new principal \u00b7 USDC HY LTV buffer \u00b7 USDG HY agentic buffer). Deploy: Essential \u2192 Fleet \u2192 Productive \u2192 Consumer \u2192 Collateral. HY\u2192Collateral only for LTV/margin defense. X Money \u2192 RH Agentic monthly (1st). Card refinance ~5% Morpho vs ~29% card APR.",
+      "goal": "Keep invested (BTC + Agentic equities) via LE credit cards: Digital Credit + Margin",
+      "usdc_model": "Capital Flows: Income \u2192 LE (X Money \u00b7 Digital Credit \u00b7 Margin) \u2192 Deploy. HY LTV Buffer is generic high-yield leverage defense (not USDC- or USDG-specific). Digital Credit = Morpho/BTC engine; Margin = Agentic/stocks engine; each rotates principal \u2194 HY LTV Buffer vs borrow. X Money is cash hub. Morpho LTV bands: target 38% / alert 45% / hard 50%. RH margin bands: target 28% / alert 35% / hard 40% (call ~50%). Card refinance ~5% Morpho vs ~29% card APR.",
+      "leverage_bands": {
+        "morpho_ltv": {
+          "target": 0.38,
+          "alert": 0.45,
+          "hard_max": 0.5,
+          "liq_ref": 0.86
+        },
+        "rh_margin_use": {
+          "target": 0.28,
+          "alert": 0.35,
+          "hard_max": 0.4,
+          "call_ref": 0.5
+        }
+      },
       "priority_order": [
-        "Personal + Fleet expenses current (sheet burn)",
+        "Essential + Fleet expenses current (sheet burn)",
         "One Card: Morpho refinance when balance owed (not HY pull)",
-        "LTV buffer floors (USDC HY / loan buffer \u00b7 bridge)",
-        "HY \u2192 Collateral only if LTV/margin too high; else HY stays floor",
-        "X Money \u2192 Agentic Fund (scheduled 1st) under Collateral",
+        "Morpho: cool (<38%) principal\u2192HY LTV Buffer; hot (\u226545%) HY\u2192BTC; hard 50%",
+        "X Money float for Deploy + scheduled capital pipes",
         "Productive Discretionary before Consumer wishlist",
-        "Protect CB Morpho LTV (<50% target) \u2014 keep loan open",
-        "RH margin heat cap still binds BP deployment"
+        "RH margin: cool (<28%)\u2192HY LTV Buffer; hot (\u226535%) HY\u2192stock; hard 40%",
+        "Either engine hot \u2192 no new dual extract"
       ],
-      "double_leverage_warning": "Do not fund RH margin-driven USDG Earn or agentic equity buys with freshly borrowed Coinbase USDC without an explicit risk budget. BTC and growth equities often dump together \u2014 dual Morpho loops stack liquidation risk.",
+      "double_leverage_warning": "DUAL ENGINE RISK: Do not fund RH margin growth with freshly borrowed Coinbase Morpho USDC without an explicit risk budget. BTC and equities often dump together \u2014 Morpho + RH margin stack liquidation risk. Margin loan \u2192 LE/CB extract is not free income.",
       "in_app_only": [
         "loan protection",
-        "Morpho repay/add collateral (CB)",
-        "Morpho borrow / One Card pay (refinance path)",
-        "High Yield vault deposit/withdraw (CB) \u2014 LTV buffer",
-        "Robinhood Earn USDG lend/withdraw",
+        "Morpho repay/add BTC collateral (CB)",
+        "Morpho borrow / One Card pay (refinance)",
+        "HY LTV Buffer deposit/withdraw (venue HY)",
+        "RH margin borrow / repay",
         "X Money \u2192 RH Agentic scheduled transfer",
         "external USDC send (bridge)"
       ]
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-10T11:17:01.722226+00:00",
+      "as_of": "2026-08-11T19:16:05.831017+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-10T11:17:01.719359+00:00",
+        "as_of": "2026-08-11T19:16:05.828194+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 188.7193,
+        "nav_usd": 184.8471,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3699,
-          "stocks_growth": 0.5548,
+          "btc_digital_credit": 0.3776,
+          "stocks_growth": 0.5664,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -3391,6 +4035,58 @@
         "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
       },
       "recent_decisions": [
+        {
+          "kind": "hold",
+          "outcome": "hold",
+          "need_llm": false,
+          "path": "rules",
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "nav_usd": 187.9728,
+          "buying_power_usd": 0.09,
+          "weights_before": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "weights_after_expected": {
+            "btc_digital_credit": 0.4,
+            "stocks_growth": 0.6
+          },
+          "rationale": {
+            "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+            "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+            "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+            "thesis_tags": [
+              "rules_engine",
+              "modernized_60_40"
+            ]
+          },
+          "team_votes": {
+            "scout": {
+              "vote": "observe",
+              "note": "NAV $187.97 BP $0.09 cash $0.09"
+            },
+            "thesis": {
+              "vote": "ok",
+              "note": "deployed BTC 0.4 stocks 0.6"
+            },
+            "risk": {
+              "vote": "ok",
+              "note": "Agentic capital only; no trade if hold"
+            },
+            "critic": {
+              "vote": "ok",
+              "note": "Hold preferred when bands ok \u2014 avoid churn"
+            },
+            "executor": {
+              "vote": "hold",
+              "note": "No MCP orders on pure rules HOLD"
+            }
+          },
+          "actions": [],
+          "as_of": "2026-08-11T13:37:22.498757+00:00",
+          "schema_version": 1,
+          "account_scope": "agentic_only"
+        },
         {
           "kind": "hold",
           "outcome": "hold",
@@ -5909,240 +6605,6 @@
           "as_of": "2026-08-03T15:58:33.262196+00:00",
           "schema_version": 1,
           "account_scope": "agentic_only"
-        },
-        {
-          "as_of": "2026-08-03T15:43:10.137984+00:00",
-          "kind": "hold",
-          "summary": "Fund-manager review 2026-08-03 (~11:42 ET mid-session): agentic \u2022\u2022\u2022\u20221752 NAV RH $177.24 / Yahoo marks+cash ~$177.26, cash/BP $0.09/$0.09 HOLD. Deployed sleeves policy 40/60 \u00b7 Yahoo live ~39.5/60.5 of equity \u2014 in \u00b15% band. Full size-invariant research/rotate under owner prefs (elevate STRC/SATA; multi-miner diversify OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP tools unavailable this Grok session. RH snapshot 2026-08-03T14:49:39Z (Pi pull ~15:41Z). Next free capital \u2265$1 \u2192 prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).",
-          "nav_usd": 177.2362,
-          "cash_usd": 0.09,
-          "buying_power_usd": 0.09,
-          "account_scope": "agentic_only",
-          "account_number_last4": "1752",
-          "weights_before": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6,
-            "source": "policy_deployed_rh_marks",
-            "of_nav_rh": {
-              "btc_digital_credit": 0.3938,
-              "stocks_growth": 0.5907,
-              "cash": 0.0005
-            },
-            "yahoo_of_equity": {
-              "btc_digital_credit": 0.3952,
-              "stocks_growth": 0.6048
-            },
-            "sub_sleeves_yahoo": {
-              "digital_credit_mstr_bita": 42.72,
-              "miners_mara_iren_clsk": 27.29,
-              "credit_pct_of_complex": 0.61,
-              "miners_pct_of_complex": 0.39
-            },
-            "position_mv_yahoo": {
-              "MSTR": 27.82,
-              "BITA": 14.9,
-              "MARA": 11.33,
-              "IREN": 10.73,
-              "CLSK": 5.23,
-              "TSLA": 62.78,
-              "SPCX": 44.38
-            }
-          },
-          "weights_after_expected": {
-            "btc_digital_credit": 0.4,
-            "stocks_growth": 0.6,
-            "cash": 0.0005,
-            "note": "HOLD \u2014 no portfolio change"
-          },
-          "names_considered": [
-            "MSTR",
-            "BITA",
-            "MARA",
-            "IREN",
-            "CLSK",
-            "RIOT",
-            "WULF",
-            "STRC",
-            "SATA",
-            "ASST",
-            "TSLA",
-            "SPCX",
-            "BTC",
-            "BE",
-            "GOOGL",
-            "AAPL",
-            "NVDA",
-            "held_only_topup",
-            "forced_rotate_to_strc_sata"
-          ],
-          "names_chosen": [
-            {
-              "symbol": "MSTR",
-              "theme": "digital_credit",
-              "stance": "hold"
-            },
-            {
-              "symbol": "BITA",
-              "theme": "digital_credit_btc_yield",
-              "stance": "hold"
-            },
-            {
-              "symbol": "MARA",
-              "theme": "btc_infrastructure_miner",
-              "stance": "hold"
-            },
-            {
-              "symbol": "IREN",
-              "theme": "btc_infrastructure_miner",
-              "stance": "hold"
-            },
-            {
-              "symbol": "CLSK",
-              "theme": "btc_infrastructure_miner",
-              "stance": "hold"
-            },
-            {
-              "symbol": "TSLA",
-              "theme": "growth_equity",
-              "stance": "hold"
-            },
-            {
-              "symbol": "SPCX",
-              "theme": "growth_equity",
-              "stance": "hold"
-            }
-          ],
-          "names_rejected": [
-            {
-              "symbol": "any_buy",
-              "reason": "cash/BP $0.09 < min_trade $1.00 \u2014 no spendable free capital"
-            },
-            {
-              "symbol": "STRC",
-              "reason": "Not rejected on thesis \u2014 preferred next BTC-complex deploy (owner elevate digital credit). Blocked this pass by dust + MCP unavailable"
-            },
-            {
-              "symbol": "SATA",
-              "reason": "Same as STRC \u2014 elevated digital credit for next deploy, not this pass"
-            },
-            {
-              "symbol": "forced_rotate_to_strc_sata",
-              "reason": "Sleeves in \u00b15% band; prefer free-capital path; cash-account settlement risk on sell-to-buy without thesis break"
-            },
-            {
-              "symbol": "ASST",
-              "reason": "Secondary digital credit; prefer STRC/SATA first when capital returns"
-            },
-            {
-              "symbol": "RIOT",
-              "reason": "Valid multi-miner diversifier \u2014 not rejected for overlap; skip for capital only"
-            },
-            {
-              "symbol": "WULF",
-              "reason": "Valid multi-miner diversifier \u2014 not rejected for overlap; skip for capital only"
-            },
-            {
-              "symbol": "BTC",
-              "reason": "Prefer equity vehicles on agentic RH; spot/vault via Coinbase stack"
-            },
-            {
-              "symbol": "BE",
-              "reason": "Watchlist monitor; prior dive monitor_no_buy; post Q2 print needs deep-dive refresh before first buy; dust cannot size"
-            },
-            {
-              "symbol": "GOOGL",
-              "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-            },
-            {
-              "symbol": "AAPL",
-              "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-            },
-            {
-              "symbol": "NVDA",
-              "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-            },
-            {
-              "symbol": "held_only_topup",
-              "reason": "Rejected as default strategy \u2014 next free capital must re-run full consider list with STRC/SATA priority"
-            }
-          ],
-          "theme_allocation": {
-            "btc_digital_credit": {
-              "target_pct": 0.4,
-              "current_yahoo_of_equity": 0.3952,
-              "held": [
-                "MSTR",
-                "BITA",
-                "MARA",
-                "IREN",
-                "CLSK"
-              ],
-              "next_deploy_priority": [
-                "STRC",
-                "SATA"
-              ],
-              "notes": "Credit ~61% of complex (MSTR+BITA); miners ~39% multi-name OK; STRC/SATA seat still open for next capital"
-            },
-            "stocks_growth": {
-              "target_pct": 0.6,
-              "current_yahoo_of_equity": 0.6048,
-              "held": [
-                "TSLA",
-                "SPCX"
-              ],
-              "next_deploy_priority": [
-                "SPCX",
-                "TSLA"
-              ],
-              "notes": "TSLA ~35% equity elevated single-name; prefer SPCX tilt on next stocks leg if adding without rebalance"
-            },
-            "watchlist_monitor_only": [
-              "BE",
-              "GOOGL",
-              "AAPL",
-              "NVDA"
-            ]
-          },
-          "rationale": {
-            "summary": "HOLD \u2014 dust cash, book in 40/60 band, full research/rotate complete",
-            "why_now": "Mid-session fund-manager review (ET regular hours). Rules path flagged need_llm on residual cash/BP $0.09. Size-invariant process requires research/rotate even when tickets cannot fire. Not open/close scalp; not day-trading.",
-            "why_not_alternatives": "No buys: free capital below min_trade $1. Forced rotate into STRC/SATA deferred while sleeves in band and no free capital. Watchlist AI/energy blocked pending deep-dives. Held-only top-up rejected as next-deploy default. Primary margin out of scope. MCP tools unavailable this session (ops constraint). Next deploy blueprint: 40/60 with meaningful STRC/SATA share of BTC-complex leg; multi-miner OK.",
-            "thesis_tags": [
-              "modernized_60_40",
-              "digital_credit_strc_sata_elevated",
-              "multi_miner_diversification",
-              "size_invariant",
-              "hold_dust"
-            ],
-            "research_path": "investment/research/fund_manager_research_latest.md"
-          },
-          "team_votes": {
-            "scout": {
-              "vote": "ok",
-              "note": "Agentic \u2022\u2022\u2022\u20221752 NAV RH $177.24; Yahoo equity ~$177.17 + cash $0.09. cash/BP $0.09/$0.09. Held: MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX. Deployed 40/60 in band; Yahoo equity ~39.5/60.5. Gaps: STRC/SATA/ASST unheld; RIOT/WULF optional; watchlist BE/GOOGL/AAPL/NVDA. RH snapshot 2026-08-03T14:49:39Z; MCP tools unavailable; ~11:42 ET regular hours."
-            },
-            "thesis": {
-              "vote": "ok_hold",
-              "note": "Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA seat (owner 2026-07-27), not MSTR-only; multi-miner retained (MARA/IREN/CLSK; RIOT/WULF eligible). Stocks: core TSLA/SPCX with SPCX tilt if adding given TSLA ~35% equity. Watchlist not first-buy ready (deep-dives missing/stale)."
-            },
-            "risk": {
-              "vote": "ok_hold",
-              "note": "No trade: BP dust below min $1. Agentic-only cash account; no leverage. TSLA ~35% of equity is elevated single-name in stocks sleeve but thesis primary \u2014 no forced cut while band OK. Multi-miner is diversification not concentration block. Small NAV does not simplify process."
-            },
-            "critic": {
-              "vote": "ok_hold",
-              "note": "Force HOLD on residual dust. Challenge: STRC/SATA under-allocation remains a process flag for NEXT capital \u2014 do not accept 'MSTR+BITA already cover credit' without strong liquidity/structure rebuttal. Reject false miner-overlap blocks for RIOT/WULF. BE post-print strength \u2260 first-buy authority without deep-dive refresh. Block undived GOOGL/AAPL/NVDA first-buys. Reject held-only top-up as next-deploy default. MCP outage is ops constraint, not research skip. No day-trading / no open-close scalp."
-            },
-            "executor": {
-              "vote": "hold",
-              "note": "No orders. robinhood-trading MCP tools unavailable (search_tool empty / auth required). Even if live:true and tools present, $0.09 cash cannot meet min_trade $1.00. Primary margin never traded."
-            }
-          },
-          "actions": [],
-          "live": true,
-          "mcp_available": false,
-          "notes": "Yahoo marks ~11:42 ET: MSTR 94.73 MARA 11.79 TSLA 323.03 SPCX 111.285 BITA 51.875 IREN 39.06 CLSK 14.45 STRC 92.07 SATA 97.30. BTC-USD ~63799.",
-          "schema_version": 1
         }
       ],
       "policy_summary": {
@@ -6187,25 +6649,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-10T11:17:01.722226+00:00",
+    "as_of": "2026-08-11T19:16:05.831017+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-10T11:17:01.719359+00:00",
+      "as_of": "2026-08-11T19:16:05.828194+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 188.7193,
+      "nav_usd": 184.8471,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3699,
-        "stocks_growth": 0.5548,
+        "btc_digital_credit": 0.3776,
+        "stocks_growth": 0.5664,
         "other": 0.0,
         "cash": 0.0005
       },
@@ -6468,6 +6930,58 @@
       "notes": "Agentic-only weights. No trade approval in v1. Downside capped by agentic deposits. Order size at manager discretion. Public watchlist is monitor/consider only \u2014 not auto-buy. Private watchlist is IPO/list monitor only \u2014 never deployable while private."
     },
     "recent_decisions": [
+      {
+        "kind": "hold",
+        "outcome": "hold",
+        "need_llm": false,
+        "path": "rules",
+        "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+        "nav_usd": 187.9728,
+        "buying_power_usd": 0.09,
+        "weights_before": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "weights_after_expected": {
+          "btc_digital_credit": 0.4,
+          "stocks_growth": 0.6
+        },
+        "rationale": {
+          "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
+          "why_now": "Scheduled daily review (rules path). Mid-session style; no day-trading.",
+          "why_not_alternatives": "In-band + low cash \u2192 skip LLM cost/latency. Drift or deploy needs thesis/risk/critic debate before Executor trades.",
+          "thesis_tags": [
+            "rules_engine",
+            "modernized_60_40"
+          ]
+        },
+        "team_votes": {
+          "scout": {
+            "vote": "observe",
+            "note": "NAV $187.97 BP $0.09 cash $0.09"
+          },
+          "thesis": {
+            "vote": "ok",
+            "note": "deployed BTC 0.4 stocks 0.6"
+          },
+          "risk": {
+            "vote": "ok",
+            "note": "Agentic capital only; no trade if hold"
+          },
+          "critic": {
+            "vote": "ok",
+            "note": "Hold preferred when bands ok \u2014 avoid churn"
+          },
+          "executor": {
+            "vote": "hold",
+            "note": "No MCP orders on pure rules HOLD"
+          }
+        },
+        "actions": [],
+        "as_of": "2026-08-11T13:37:22.498757+00:00",
+        "schema_version": 1,
+        "account_scope": "agentic_only"
+      },
       {
         "kind": "hold",
         "outcome": "hold",
@@ -8986,240 +9500,6 @@
         "as_of": "2026-08-03T15:58:33.262196+00:00",
         "schema_version": 1,
         "account_scope": "agentic_only"
-      },
-      {
-        "as_of": "2026-08-03T15:43:10.137984+00:00",
-        "kind": "hold",
-        "summary": "Fund-manager review 2026-08-03 (~11:42 ET mid-session): agentic \u2022\u2022\u2022\u20221752 NAV RH $177.24 / Yahoo marks+cash ~$177.26, cash/BP $0.09/$0.09 HOLD. Deployed sleeves policy 40/60 \u00b7 Yahoo live ~39.5/60.5 of equity \u2014 in \u00b15% band. Full size-invariant research/rotate under owner prefs (elevate STRC/SATA; multi-miner diversify OK). No orders: residual dust (<$1 min_trade) + robinhood-trading MCP tools unavailable this Grok session. RH snapshot 2026-08-03T14:49:39Z (Pi pull ~15:41Z). Next free capital \u2265$1 \u2192 prioritize STRC/SATA seat in BTC-complex leg (not MSTR-only).",
-        "nav_usd": 177.2362,
-        "cash_usd": 0.09,
-        "buying_power_usd": 0.09,
-        "account_scope": "agentic_only",
-        "account_number_last4": "1752",
-        "weights_before": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6,
-          "source": "policy_deployed_rh_marks",
-          "of_nav_rh": {
-            "btc_digital_credit": 0.3938,
-            "stocks_growth": 0.5907,
-            "cash": 0.0005
-          },
-          "yahoo_of_equity": {
-            "btc_digital_credit": 0.3952,
-            "stocks_growth": 0.6048
-          },
-          "sub_sleeves_yahoo": {
-            "digital_credit_mstr_bita": 42.72,
-            "miners_mara_iren_clsk": 27.29,
-            "credit_pct_of_complex": 0.61,
-            "miners_pct_of_complex": 0.39
-          },
-          "position_mv_yahoo": {
-            "MSTR": 27.82,
-            "BITA": 14.9,
-            "MARA": 11.33,
-            "IREN": 10.73,
-            "CLSK": 5.23,
-            "TSLA": 62.78,
-            "SPCX": 44.38
-          }
-        },
-        "weights_after_expected": {
-          "btc_digital_credit": 0.4,
-          "stocks_growth": 0.6,
-          "cash": 0.0005,
-          "note": "HOLD \u2014 no portfolio change"
-        },
-        "names_considered": [
-          "MSTR",
-          "BITA",
-          "MARA",
-          "IREN",
-          "CLSK",
-          "RIOT",
-          "WULF",
-          "STRC",
-          "SATA",
-          "ASST",
-          "TSLA",
-          "SPCX",
-          "BTC",
-          "BE",
-          "GOOGL",
-          "AAPL",
-          "NVDA",
-          "held_only_topup",
-          "forced_rotate_to_strc_sata"
-        ],
-        "names_chosen": [
-          {
-            "symbol": "MSTR",
-            "theme": "digital_credit",
-            "stance": "hold"
-          },
-          {
-            "symbol": "BITA",
-            "theme": "digital_credit_btc_yield",
-            "stance": "hold"
-          },
-          {
-            "symbol": "MARA",
-            "theme": "btc_infrastructure_miner",
-            "stance": "hold"
-          },
-          {
-            "symbol": "IREN",
-            "theme": "btc_infrastructure_miner",
-            "stance": "hold"
-          },
-          {
-            "symbol": "CLSK",
-            "theme": "btc_infrastructure_miner",
-            "stance": "hold"
-          },
-          {
-            "symbol": "TSLA",
-            "theme": "growth_equity",
-            "stance": "hold"
-          },
-          {
-            "symbol": "SPCX",
-            "theme": "growth_equity",
-            "stance": "hold"
-          }
-        ],
-        "names_rejected": [
-          {
-            "symbol": "any_buy",
-            "reason": "cash/BP $0.09 < min_trade $1.00 \u2014 no spendable free capital"
-          },
-          {
-            "symbol": "STRC",
-            "reason": "Not rejected on thesis \u2014 preferred next BTC-complex deploy (owner elevate digital credit). Blocked this pass by dust + MCP unavailable"
-          },
-          {
-            "symbol": "SATA",
-            "reason": "Same as STRC \u2014 elevated digital credit for next deploy, not this pass"
-          },
-          {
-            "symbol": "forced_rotate_to_strc_sata",
-            "reason": "Sleeves in \u00b15% band; prefer free-capital path; cash-account settlement risk on sell-to-buy without thesis break"
-          },
-          {
-            "symbol": "ASST",
-            "reason": "Secondary digital credit; prefer STRC/SATA first when capital returns"
-          },
-          {
-            "symbol": "RIOT",
-            "reason": "Valid multi-miner diversifier \u2014 not rejected for overlap; skip for capital only"
-          },
-          {
-            "symbol": "WULF",
-            "reason": "Valid multi-miner diversifier \u2014 not rejected for overlap; skip for capital only"
-          },
-          {
-            "symbol": "BTC",
-            "reason": "Prefer equity vehicles on agentic RH; spot/vault via Coinbase stack"
-          },
-          {
-            "symbol": "BE",
-            "reason": "Watchlist monitor; prior dive monitor_no_buy; post Q2 print needs deep-dive refresh before first buy; dust cannot size"
-          },
-          {
-            "symbol": "GOOGL",
-            "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-          },
-          {
-            "symbol": "AAPL",
-            "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-          },
-          {
-            "symbol": "NVDA",
-            "reason": "deep_dive_required_before_buy; no completed deep-dive \u2014 not first-buy ready"
-          },
-          {
-            "symbol": "held_only_topup",
-            "reason": "Rejected as default strategy \u2014 next free capital must re-run full consider list with STRC/SATA priority"
-          }
-        ],
-        "theme_allocation": {
-          "btc_digital_credit": {
-            "target_pct": 0.4,
-            "current_yahoo_of_equity": 0.3952,
-            "held": [
-              "MSTR",
-              "BITA",
-              "MARA",
-              "IREN",
-              "CLSK"
-            ],
-            "next_deploy_priority": [
-              "STRC",
-              "SATA"
-            ],
-            "notes": "Credit ~61% of complex (MSTR+BITA); miners ~39% multi-name OK; STRC/SATA seat still open for next capital"
-          },
-          "stocks_growth": {
-            "target_pct": 0.6,
-            "current_yahoo_of_equity": 0.6048,
-            "held": [
-              "TSLA",
-              "SPCX"
-            ],
-            "next_deploy_priority": [
-              "SPCX",
-              "TSLA"
-            ],
-            "notes": "TSLA ~35% equity elevated single-name; prefer SPCX tilt on next stocks leg if adding without rebalance"
-          },
-          "watchlist_monitor_only": [
-            "BE",
-            "GOOGL",
-            "AAPL",
-            "NVDA"
-          ]
-        },
-        "rationale": {
-          "summary": "HOLD \u2014 dust cash, book in 40/60 band, full research/rotate complete",
-          "why_now": "Mid-session fund-manager review (ET regular hours). Rules path flagged need_llm on residual cash/BP $0.09. Size-invariant process requires research/rotate even when tickets cannot fire. Not open/close scalp; not day-trading.",
-          "why_not_alternatives": "No buys: free capital below min_trade $1. Forced rotate into STRC/SATA deferred while sleeves in band and no free capital. Watchlist AI/energy blocked pending deep-dives. Held-only top-up rejected as next-deploy default. Primary margin out of scope. MCP tools unavailable this session (ops constraint). Next deploy blueprint: 40/60 with meaningful STRC/SATA share of BTC-complex leg; multi-miner OK.",
-          "thesis_tags": [
-            "modernized_60_40",
-            "digital_credit_strc_sata_elevated",
-            "multi_miner_diversification",
-            "size_invariant",
-            "hold_dust"
-          ],
-          "research_path": "investment/research/fund_manager_research_latest.md"
-        },
-        "team_votes": {
-          "scout": {
-            "vote": "ok",
-            "note": "Agentic \u2022\u2022\u2022\u20221752 NAV RH $177.24; Yahoo equity ~$177.17 + cash $0.09. cash/BP $0.09/$0.09. Held: MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX. Deployed 40/60 in band; Yahoo equity ~39.5/60.5. Gaps: STRC/SATA/ASST unheld; RIOT/WULF optional; watchlist BE/GOOGL/AAPL/NVDA. RH snapshot 2026-08-03T14:49:39Z; MCP tools unavailable; ~11:42 ET regular hours."
-          },
-          "thesis": {
-            "vote": "ok_hold",
-            "note": "Book already on 40/60 deployed. No idle capital to reallocate. Next deploy blueprint: ~40% complex with meaningful STRC and/or SATA seat (owner 2026-07-27), not MSTR-only; multi-miner retained (MARA/IREN/CLSK; RIOT/WULF eligible). Stocks: core TSLA/SPCX with SPCX tilt if adding given TSLA ~35% equity. Watchlist not first-buy ready (deep-dives missing/stale)."
-          },
-          "risk": {
-            "vote": "ok_hold",
-            "note": "No trade: BP dust below min $1. Agentic-only cash account; no leverage. TSLA ~35% of equity is elevated single-name in stocks sleeve but thesis primary \u2014 no forced cut while band OK. Multi-miner is diversification not concentration block. Small NAV does not simplify process."
-          },
-          "critic": {
-            "vote": "ok_hold",
-            "note": "Force HOLD on residual dust. Challenge: STRC/SATA under-allocation remains a process flag for NEXT capital \u2014 do not accept 'MSTR+BITA already cover credit' without strong liquidity/structure rebuttal. Reject false miner-overlap blocks for RIOT/WULF. BE post-print strength \u2260 first-buy authority without deep-dive refresh. Block undived GOOGL/AAPL/NVDA first-buys. Reject held-only top-up as next-deploy default. MCP outage is ops constraint, not research skip. No day-trading / no open-close scalp."
-          },
-          "executor": {
-            "vote": "hold",
-            "note": "No orders. robinhood-trading MCP tools unavailable (search_tool empty / auth required). Even if live:true and tools present, $0.09 cash cannot meet min_trade $1.00. Primary margin never traded."
-          }
-        },
-        "actions": [],
-        "live": true,
-        "mcp_available": false,
-        "notes": "Yahoo marks ~11:42 ET: MSTR 94.73 MARA 11.79 TSLA 323.03 SPCX 111.285 BITA 51.875 IREN 39.06 CLSK 14.45 STRC 92.07 SATA 97.30. BTC-USD ~63799.",
-        "schema_version": 1
       }
     ],
     "policy_summary": {
