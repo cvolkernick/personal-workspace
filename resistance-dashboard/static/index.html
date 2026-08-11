@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=refresh-buttons-1" />
+    <link rel="stylesheet" href="/styles.css?v=today-recovery-ia-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=refresh-buttons-1" defer></script>
+    <script src="/app.js?v=today-recovery-ia-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -211,25 +211,23 @@
         </div>
       </section>
 
-      <!-- Recovery detail + sleep chart: multi-day / deep status → Trends.
-           Today keeps the recovery chip inside full-day guide (targets panel). -->
-      <section class="grid two equal-cards" style="margin-top: 1rem" id="recovery-sleep-row" data-m-panel="trends">
-        <article class="card card-fill" id="recovery-card">
-          <h2>Recovery status</h2>
-          <div id="recovery-badge"></div>
-          <ul class="reasons" id="recovery-reasons"></ul>
-          <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
-          <div
-            id="sleep-battery-panel"
-            class="sleep-battery-panel"
-            title="100% at wake · drains over ~16h awake · empty = time to sleep"
-          ></div>
-        </article>
-        <article class="card card-fill">
-          <h2>Sleep (hours) · 7d rolling avg</h2>
-          <div class="chart-box"><canvas id="chart-sleep" aria-label="Sleep chart"></canvas></div>
-          <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
-        </article>
+      <!-- Recovery + sleep-battery: same-wake decision gate → Today (not Trends). -->
+      <section
+        class="card"
+        style="margin-top: 1rem"
+        id="recovery-card"
+        data-m-panel="today"
+        aria-label="Recovery status and sleep battery"
+      >
+        <h2>Recovery status</h2>
+        <div id="recovery-badge"></div>
+        <ul class="reasons" id="recovery-reasons"></ul>
+        <p class="muted" id="health-note" style="margin-top: 0.5rem; font-size: 0.8rem"></p>
+        <div
+          id="sleep-battery-panel"
+          class="sleep-battery-panel"
+          title="100% at wake · drains over ~16h awake · empty = time to sleep"
+        ></div>
       </section>
 
       <!-- Full-width: hydration pacing first (wake window), then calorie pacing -->
@@ -269,8 +267,8 @@
         <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
       </section>
 
-      <!-- Macro tiles: detail for Trends (sticky strip + hub targets cover Today) -->
-      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" data-m-panel="trends" aria-label="Nutrition summary">
+      <!-- Macro tiles: same-day Today|Target — Today tab only (not Trends). -->
+      <section class="grid stats" style="margin-top: 1rem" id="nutrition-stats" data-m-panel="today" aria-label="Nutrition summary">
         <div class="card stat macro-stat macro-cals">
           <div class="label">Calories</div>
           <div class="macro-split" id="stat-calories" aria-live="polite">
@@ -329,31 +327,6 @@
         </div>
       </section>
 
-      <!-- Full-width: same-day calories in vs out delta (midpoint 0) -->
-      <section
-        class="card calorie-bar-card"
-        style="margin-top: 1rem"
-        id="calorie-delta-section"
-        data-m-panel="today"
-        aria-label="Today calories in versus out"
-      >
-        <div class="calorie-bar-header">
-          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
-          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
-        </div>
-        <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
-          <div class="delta-mid" aria-hidden="true"></div>
-          <div class="delta-fill delta-left" id="calorie-delta-fill-left"></div>
-          <div class="delta-fill delta-right" id="calorie-delta-fill-right"></div>
-          <div class="delta-labels" aria-hidden="true">
-            <span>deficit</span>
-            <span>0</span>
-            <span>surplus</span>
-          </div>
-        </div>
-        <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
-      </section>
-
       <!-- Today execution: so-far + meal plan side-by-side (Kitchen = setup only) -->
       <section
         class="grid two equal-cards inv-meal-row"
@@ -396,6 +369,38 @@
           </div>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
+      </section>
+
+      <!-- Full-width: same-day calories in vs out delta (midpoint 0) -->
+      <section
+        class="card calorie-bar-card"
+        style="margin-top: 1rem"
+        id="calorie-delta-section"
+        data-m-panel="today"
+        aria-label="Today calories in versus out"
+      >
+        <div class="calorie-bar-header">
+          <h2 class="calorie-bar-title">Today · calories in vs out</h2>
+          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
+        </div>
+        <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
+          <div class="delta-mid" aria-hidden="true"></div>
+          <div class="delta-fill delta-left" id="calorie-delta-fill-left"></div>
+          <div class="delta-fill delta-right" id="calorie-delta-fill-right"></div>
+          <div class="delta-labels" aria-hidden="true">
+            <span>deficit</span>
+            <span>0</span>
+            <span>surplus</span>
+          </div>
+        </div>
+        <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
+      </section>
+
+      <!-- Trends: multi-day series only (no same-day recovery / macro tiles). -->
+      <section class="card" style="margin-top: 1rem" id="sleep-trend-card" data-m-panel="trends" aria-label="Sleep hours trend">
+        <h2>Sleep (hours) · 7d rolling avg</h2>
+        <div class="chart-box"><canvas id="chart-sleep" aria-label="Sleep chart"></canvas></div>
+        <p class="muted" id="sleep-trend-note" style="margin-top: 0.5rem; font-size: 0.85rem"></p>
       </section>
 
       <section class="grid two" style="margin-top: 1rem" id="calories-macros-charts" data-m-panel="trends">

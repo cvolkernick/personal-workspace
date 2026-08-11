@@ -3817,13 +3817,12 @@
       }
     }
 
+    // One-line badge only — full Recovery + sleep-battery card lives above pacing on Today
     if ($("today-recovery")) {
       const r = today.recovery || data.recovery || {};
-      const reasons = (r.reasons || []).slice(0, 4);
       $("today-recovery").innerHTML = `
         <div class="badge ${recoveryClass(r.label)}">${r.label || "—"} · ${r.score != null ? Math.round(r.score) : "—"}</div>
         ${r.motivation ? `<p class="muted" style="font-size:0.8rem;margin:0.35rem 0 0">${r.motivation}</p>` : ""}
-        <ul class="reasons" style="margin-top:0.5rem">${reasons.map((x) => `<li>${x}</li>`).join("")}</ul>
       `;
     }
     if ($("today-adherence")) {
