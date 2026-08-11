@@ -531,8 +531,8 @@
         kv(
           "Book targets",
           targets.btc_digital_credit_pct != null
-            ? `${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex / ${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks`
-            : "40 / 60 modernized"
+            ? `${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks / ${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex (60/40)`
+            : "60 / 40 modernized (stocks / BTC+)"
         ),
         kv("Deep-dive workflow", pol.deep_dive_workflow || "position-deep-dive"),
         kv("Portfolio research", pol.portfolio_research_workflow || "fund-manager-research"),
