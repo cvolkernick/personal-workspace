@@ -779,7 +779,6 @@ class PayloadDayPlanTests(unittest.TestCase):
                     },
                 },
             )
-            # (continued below — worktree isolation wraps collect/payload)
             _write_json(
                 ws / "fitness" / "data" / "day_constraints.json",
                 {
