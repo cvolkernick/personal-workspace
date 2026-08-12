@@ -13,10 +13,10 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>💪 FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=today-meal-vscroll-2" />
+    <link rel="stylesheet" href="/styles.css?v=dd-restock-remove-139" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/app.js?v=today-meal-vscroll-2" defer></script>
+    <script src="/app.js?v=dd-restock-remove-139" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -430,15 +430,15 @@
         <h2>Nutrition Coach</h2>
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Rolling assessment of logged foods, macros, and micronutrients — what is
-          working and what to improve. Missing pantry items for the meal plan show
-          under <strong>DoorDash Meal Restock</strong> beside inventory.
+          working and what to improve. Use inventory stock flags and staple suggestions
+          when the meal plan is blocked by missing pantry items.
         </p>
         <div id="food-coach-commentary" class="food-coach" style="margin-top: 0.5rem"></div>
         <div id="labs-summary" class="labs-summary muted" style="margin-top: 0.75rem; font-size: 0.85rem"></div>
       </section>
 
-      <!-- Kitchen ops: Ingredient Inventory | DoorDash Meal Restock (Daily Targets under More) -->
-      <section class="grid two equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section" data-m-panel="kitchen">
+      <!-- Kitchen ops: Ingredient Inventory (Daily Targets under More) -->
+      <section class="grid equal-cards inv-meal-row" style="margin-top: 1rem" id="inventory-section" data-m-panel="kitchen">
         <article class="card card-fill" id="inventory-card">
           <h2>Ingredient Inventory</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
@@ -489,14 +489,6 @@
           <div id="inventory-removals" class="inv-removals" style="margin-top: 0.85rem"></div>
         </article>
 
-        <article class="card card-fill" id="doordash-restock-card">
-          <h2>DoorDash Meal Restock</h2>
-          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            When stock blocks the meal plan, preview and order missing ingredients
-            via <code>dd-cli</code>. Column next to the pantry for quick restock.
-          </p>
-          <div id="doordash-restock-panel" class="doordash-restock" style="margin-top: 0.5rem"></div>
-        </article>
       </section>
 
       <!-- Settings / config (More): daily targets + training plan + exercise catalog -->

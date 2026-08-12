@@ -2634,119 +2634,6 @@
     </div>`;
   }
 
-  function renderDoorDashRestock(coach) {
-    const panel = $("doordash-restock-panel");
-    if (!panel) return;
-    const dd =
-      (coach && coach.doordash_restock) ||
-      (coach && coach.today && coach.today.doordash_restock) ||
-      null;
-    if (!dd) {
-      panel.innerHTML =
-        `<p class="muted" style="margin:0.35rem 0 0">No restock signal yet — load Today meal plan after inventory syncs.</p>`;
-      return;
-    }
-    const items = dd.items || [];
-    const needs = !!dd.needs_order && items.length > 0;
-    const cliOk = dd.dd_cli_available !== false;
-    let listHtml = "";
-    if (items.length) {
-      listHtml =
-        `<ul class="reasons doordash-item-list">` +
-        items
-          .slice(0, 8)
-          .map((it) => {
-            const tag = it.action === "restock" ? "restock" : "add";
-            const why = it.reason ? ` — ${it.reason}` : "";
-            return `<li><strong>${it.name || "Item"}</strong> <span class="muted">(${tag})</span>${why}</li>`;
-          })
-          .join("") +
-        `</ul>`;
-    } else {
-      listHtml = `<p class="muted" style="margin:0.35rem 0 0">Pantry covers planned meals — nothing to order.</p>`;
-    }
-    panel.innerHTML = `
-      <div class="macro-summary compact-panel doordash-panel">
-        <div class="macro-summary-header">
-          <div>
-            <div class="macro-summary-title">DoorDash Meal Restock</div>
-            <div class="macro-summary-meta muted">${dd.summary || ""}${
-              cliOk ? "" : " · install dd-cli for live order"
-            }</div>
-          </div>
-          <div class="inv-carousel-count muted">${items.length}</div>
-        </div>
-        ${listHtml}
-        <div class="actions" style="margin-top:0.65rem; flex-wrap:wrap; gap:0.4rem">
-          <button type="button" id="btn-dd-preview" ${needs ? "" : "disabled"}>Preview list</button>
-          <button type="button" class="primary" id="btn-dd-execute" ${
-            needs && cliOk ? "" : "disabled"
-          }>Build cart (dd-cli)</button>
-          <button type="button" id="btn-dd-confirm" ${
-            needs && cliOk ? "" : "disabled"
-          }>Place order…</button>
-        </div>
-        <p class="muted" id="dd-restock-status" style="margin:0.4rem 0 0; font-size:0.85rem"></p>
-      </div>`;
-
-    const statusEl = $("dd-restock-status");
-    const setStatus = (t, ok) => {
-      if (!statusEl) return;
-      statusEl.textContent = t || "";
-      statusEl.style.color = ok === false ? "var(--danger)" : "";
-    };
-
-    async function postRestock(body) {
-      setStatus("Working…");
-      try {
-        const res = await fetch("/api/doordash/restock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body || {}),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.ok === false) {
-          setStatus(data.error || data.message || `HTTP ${res.status}`, false);
-          return data;
-        }
-        const n = ((data.restock || {}).items || data.items || []).length;
-        let msg = data.message || `OK · ${n} item(s)`;
-        if (data.checkout_url) msg += ` · checkout: ${data.checkout_url}`;
-        setStatus(msg, true);
-        if (data.checkout_url) {
-          showAlert(`DoorDash checkout ready`, "ok");
-        }
-        return data;
-      } catch (e) {
-        setStatus(String(e.message || e), false);
-        return null;
-      }
-    }
-
-    if ($("btn-dd-preview")) {
-      $("btn-dd-preview").addEventListener("click", () =>
-        postRestock({ execute: false, confirm: false })
-      );
-    }
-    if ($("btn-dd-execute")) {
-      $("btn-dd-execute").addEventListener("click", () =>
-        postRestock({ execute: true, confirm: false })
-      );
-    }
-    if ($("btn-dd-confirm")) {
-      $("btn-dd-confirm").addEventListener("click", () => {
-        const ok = window.confirm(
-          "Place a real DoorDash order for the missing meal ingredients? This may charge your saved payment method."
-        );
-        if (!ok) {
-          setStatus("Order cancelled.");
-          return;
-        }
-        postRestock({ execute: true, confirm: true });
-      });
-    }
-  }
-
   function renderFoodCoach(coach, store) {
     const box = $("food-coach-commentary");
     if (!box) return;
@@ -2770,7 +2657,6 @@
       box.innerHTML = html;
     }
 
-    renderDoorDashRestock(coach);
 
     const labsBox = $("labs-summary");
     if (labsBox) {
