@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-06",
+  "as_of": "2026-08-12",
   "purpose": "Private (pre-IPO / pre-listing) companies to monitor for a possible public-market allocation when/if they become tradable. Not investable on the agentic book today. Not part of the public equities deploy consider set.",
   "policy": {
     "auto_buy": false,
@@ -153,6 +153,50 @@
       "last_deep_dive": "2026-08-06",
       "last_deep_dive_path": "investment/research/private/BOOM_deep_dive.md",
       "last_verdict": "private_watch_energy_ai_power_show_me"
+    },
+    {
+      "id": "ORNN",
+      "name": "Ornn",
+      "legal_name": "Ornn AI Inc. (press; confirm on any diligence)",
+      "status": "private",
+      "liquidity": "private",
+      "rank": 4,
+      "priority": "medium",
+      "theme": "ai_stack",
+      "themes": [
+        "ai_stack",
+        "ai_infra",
+        "compute_markets",
+        "commodities",
+        "financial_infrastructure",
+        "gpus"
+      ],
+      "sleeve_if_public": "stocks_growth",
+      "public_symbol": null,
+      "listing_status": "private_no_filed_ipo",
+      "last_reported_valuation": "n/a disclosed post-money; $33M seed led a16z / a16z crypto (~2026-06 press)",
+      "thesis_fit": "Financial infrastructure so AI GPU compute can be priced/hedged/financed like a commodity (OCPI index on Bloomberg; planned ICE cash-settled GPU futures; residual-value and capital products). Complements silicon (NVDA residual narrative) and energy/AI-power sleeves; not a GPU cloud operator. Fits AI-stack market plumbing when/if public.",
+      "why_watch": "Owner watch 2026-08-12 (Yahoo/Axios seed coverage). a16z-backed seed + ICE futures path is a real institutional signal; agentic cannot buy private equity — track listing and live futures as allocation gates. Public proxy track: ICE + existing NVDA.",
+      "monitor_for": [
+        "S-1 / confidential IPO filing or other liquidity event",
+        "ICE OCPI GPU futures regulatory approval and first trade",
+        "OCPI/OTPI adoption beyond Bloomberg marketing claims",
+        "Residual-value / financing products with real offtake",
+        "Next funding / valuation step-up or down",
+        "Competing exchange-listed compute products",
+        "Material spillover into NVDA residual-value or ICE equity narrative"
+      ],
+      "next_catalyst": "ICE futures approval / first trade, next financing, or any S-1; no confirmed IPO date as of 2026-08-12",
+      "added": "2026-08-12",
+      "added_by": "owner",
+      "last_review": "2026-08-12",
+      "last_review_path": "investment/research/private/ORNN_brief.md",
+      "notes": "Owner-added via #general watch (article). Homework v0 done same day. Rank provisional #4 behind Anduril/Saronic/Boom. Not in public deploy consider set. No private-market authority. On listing → public watchlist + deep-dive before size.",
+      "deep_dive_required": true,
+      "last_deep_dive": "2026-08-12",
+      "last_deep_dive_path": "investment/research/private/ORNN_deep_dive.md",
+      "last_verdict": "private_watch_ai_compute_markets_homework_done",
+      "source_url": "https://finance.yahoo.com/markets/commodities/articles/startup-bets-investors-want-trade-092007400.html"
     }
   ]
 }
