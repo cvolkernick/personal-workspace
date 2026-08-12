@@ -1,7 +1,4 @@
 {
-  "fetched_at": "2026-08-10T11:16:35Z",
-  "primary_account": "5QW39737",
-  "agentic_account": "674601752",
   "accounts": {
     "data": {
       "accounts": [
@@ -63,8 +60,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "188.71934946",
-      "equity_value": "188.62934946",
+      "total_value": "186.12621715",
+      "equity_value": "186.03621715",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",

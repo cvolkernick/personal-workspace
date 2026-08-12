@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-08-11T19:16:05.826427+00:00",
+    "as_of": "2026-08-12T05:53:54.824217+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-08-11T18:59:29.036121+00:00",
+      "as_of": "2026-08-11T20:51:07.991036+00:00",
       "liquid_usdc": 0.0021611255614,
       "liquid_btc": 7.7294815e-09,
-      "btc_usd_price": 63300.93,
-      "liquid_btc_usd": 0.000489283367367795,
+      "btc_usd_price": 63644.22,
+      "liquid_btc_usd": 0.0004919368210719301,
       "by_currency": {
         "USDC": 0.0014751904,
         "USD": 0.0006859351614,
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-11T18:59:29.787352+00:00",
+      "as_of": "2026-08-11T20:51:08.788956+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -498,7 +498,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-11T18:59:30.050299+00:00",
+      "as_of": "2026-08-11T20:51:09.102927+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -545,7 +545,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-11T18:59:30.450046+00:00",
+      "as_of": "2026-08-11T20:51:09.498564+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -554,14 +554,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 72.24,
-      "cash": 72.24,
-      "available": 72.24,
-      "cleared_balance": 72.24,
+      "balance_raw": 174.36,
+      "cash": 174.36,
+      "available": 174.36,
+      "cleared_balance": 174.36,
       "uncleared_balance": 0.0,
-      "spend_30d": 1959.72,
-      "inflow_30d": 2031.96,
-      "transaction_count": 138,
+      "spend_30d": 1996.91,
+      "inflow_30d": 2171.27,
+      "transaction_count": 142,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -1121,7 +1121,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-11T18:59:35.264768+00:00",
+      "as_of": "2026-08-11T21:20:54.100701+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -1929,79 +1929,17 @@
         },
         "Collateral": {
           "role": "collateral_investments",
-          "item_count": 2,
+          "item_count": 0,
           "totals": {
-            "daily": 17.71,
-            "weekly": 123.97,
-            "biweekly": 247.94,
-            "monthly": 537.2,
-            "annually": 6446.4,
-            "quarterly": 1611.6
+            "daily": 0.0,
+            "weekly": 0.0,
+            "biweekly": 0.0,
+            "monthly": 0.0,
+            "annually": 0.0
           },
-          "items": [
-            {
-              "date": "9/1/2026",
-              "from": "X Money",
-              "item": "ASIC Fleet OpEx",
-              "daily": 14.41,
-              "weekly": 100.89,
-              "biweekly": 201.78,
-              "monthly": 437.2,
-              "annually": 5246.4,
-              "budget_allocation": 0.8138,
-              "quarterly": 1311.6,
-              "tab": "Collateral"
-            },
-            {
-              "date": "9/1/2026",
-              "from": "X Money",
-              "item": "Agentic Fund Allocation",
-              "daily": 3.3,
-              "weekly": 23.08,
-              "biweekly": 46.15,
-              "monthly": 100.0,
-              "annually": 1200.0,
-              "budget_allocation": 0.1862,
-              "quarterly": 300.0,
-              "tab": "Collateral"
-            }
-          ],
-          "top_targets": [
-            {
-              "item": "ASIC Fleet OpEx",
-              "monthly": 437.2,
-              "from": "X Money",
-              "date": "9/1/2026",
-              "budget_allocation": 0.8138,
-              "tab": "Collateral"
-            },
-            {
-              "item": "Agentic Fund Allocation",
-              "monthly": 100.0,
-              "from": "X Money",
-              "date": "9/1/2026",
-              "budget_allocation": 0.1862,
-              "tab": "Collateral"
-            }
-          ],
-          "top_monthly": [
-            {
-              "item": "ASIC Fleet OpEx",
-              "monthly": 437.2,
-              "from": "X Money",
-              "date": "9/1/2026",
-              "budget_allocation": 0.8138,
-              "tab": "Collateral"
-            },
-            {
-              "item": "Agentic Fund Allocation",
-              "monthly": 100.0,
-              "from": "X Money",
-              "date": "9/1/2026",
-              "budget_allocation": 0.1862,
-              "tab": "Collateral"
-            }
-          ],
+          "items": [],
+          "top_targets": [],
+          "top_monthly": [],
           "priority": 1,
           "label": "Collateral",
           "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
@@ -2184,7 +2122,7 @@
         },
         "Consumer Discretionary": {
           "role": "consumer_wishlist",
-          "item_count": 3,
+          "item_count": 0,
           "totals": {
             "daily": 0.0,
             "weekly": 0.0,
@@ -2192,44 +2130,7 @@
             "monthly": 0.0,
             "annually": 0.0
           },
-          "items": [
-            {
-              "item": "Airfryer",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": 0.0,
-              "annually": 0.0,
-              "from": null,
-              "to": null,
-              "tab": "Consumer Discretionary"
-            },
-            {
-              "item": "Collateral (Stock)",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": 0.0,
-              "annually": 0.0,
-              "from": null,
-              "to": null,
-              "tab": "Consumer Discretionary"
-            },
-            {
-              "item": "Robot Vac",
-              "date": "9/1/2026",
-              "daily": 0.0,
-              "weekly": 0.0,
-              "biweekly": 0.0,
-              "monthly": 0.0,
-              "annually": 0.0,
-              "from": null,
-              "to": null,
-              "tab": "Consumer Discretionary"
-            }
-          ],
+          "items": [],
           "top_targets": [],
           "top_monthly": [],
           "priority": 2,
@@ -3018,8 +2919,8 @@
         "fleet_monthly": 4122.56,
         "fleet_daily": 137.15,
         "fleet_annually": 10687.69,
-        "collateral_investments_monthly": 537.2,
-        "collateral_monthly": 537.2,
+        "collateral_investments_monthly": 0.0,
+        "collateral_monthly": 0.0,
         "capital_targets_monthly": 3000.0,
         "productive_discretionary_monthly": 3000.0,
         "discretionary_monthly": 3000.0,
@@ -3037,11 +2938,15 @@
         "rh_checking_funded_monthly": 0,
         "x_money_funded_monthly": 5268.58
       },
-      "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
+      "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB.",
+      "tab_warnings": [
+        "Collateral tab unavailable: The read operation timed out",
+        "Consumer Discretionary tab unavailable: Sheet HTTP 400 for tab 'Consumer Discretionary' (gid=192074825)"
+      ]
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-11T19:16:05.697864+00:00",
+      "as_of": "2026-08-12T05:53:54.673909+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3055,9 +2960,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-11T19:16:05.697860+00:00",
-        "total_value": 184.847112305,
-        "equity_value": 184.757112305,
+        "as_of": "2026-08-12T05:53:54.673904+00:00",
+        "total_value": 186.12621715,
+        "equity_value": 186.03621715,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3290,8 +3195,8 @@
       "vault_known": true,
       "count_vault_toward_buffers": true,
       "liquid_btc": 7.7294815e-09,
-      "liquid_btc_usd": 0.000489283367367795,
-      "btc_usd_price": 63300.93,
+      "liquid_btc_usd": 0.0004919368210719301,
+      "btc_usd_price": 63644.22,
       "ltv": 0.0,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
@@ -3306,7 +3211,7 @@
       "expenses_upcoming_monthly": 18820.49,
       "expenses_personal_monthly": 14697.93,
       "expenses_fleet_monthly": 4122.56,
-      "expenses_collateral_investments_monthly": 537.2,
+      "expenses_collateral_investments_monthly": 0.0,
       "expenses_capital_targets_monthly": 3000.0,
       "expenses_discretionary_monthly": 3000.0,
       "expenses_productive_discretionary_monthly": 3000.0,
@@ -3320,11 +3225,11 @@
       "rh_checking_cash": 0.0,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 2.43,
-      "x_money_cash": 72.24,
+      "x_money_cash": 174.36,
       "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 1959.72,
+      "x_money_spend_30d": 1996.91,
       "x_money_apy_est": 0.06,
-      "bank_cash": 72.24,
+      "bank_cash": 174.36,
       "bill_pay_cash": 0.0,
       "rh_equity": 0.0,
       "rh_total_value": 0.094046,
@@ -3334,7 +3239,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 184.847112305,
+      "rh_agentic_total_value": 186.12621715,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -3386,7 +3291,7 @@
       "coinbase_liquid": "red",
       "coinbase_card": "yellow",
       "robinhood": "green",
-      "data_quality": "green",
+      "data_quality": "yellow",
       "morpho_band": "cool",
       "rh_margin_band": "unknown",
       "overall": "red",
@@ -3395,7 +3300,7 @@
         "coinbase_liquid": "red",
         "coinbase_card": "yellow",
         "robinhood": "green",
-        "data_quality": "green",
+        "data_quality": "yellow",
         "morpho_band": "cool",
         "rh_margin_band": "unknown",
         "overall": "red"
@@ -3428,7 +3333,7 @@
       }
     },
     "data_quality": {
-      "status": "green",
+      "status": "yellow",
       "completeness_score": 1.0,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -3440,15 +3345,27 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-08-11T18:59:29.036121+00:00",
-        "robinhood_as_of": "2026-08-11T19:16:05.697864+00:00",
-        "one_card_as_of": "2026-08-11T18:59:29.787352+00:00",
-        "rh_checking_as_of": "2026-08-11T18:59:30.050299+00:00",
-        "x_money_as_of": "2026-08-11T18:59:30.450046+00:00",
-        "expenses_as_of": "2026-08-11T18:59:35.264768+00:00"
+        "coinbase_as_of": "2026-08-11T20:51:07.991036+00:00",
+        "robinhood_as_of": "2026-08-12T05:53:54.673909+00:00",
+        "one_card_as_of": "2026-08-11T20:51:08.788956+00:00",
+        "rh_checking_as_of": "2026-08-11T20:51:09.102927+00:00",
+        "x_money_as_of": "2026-08-11T20:51:09.498564+00:00",
+        "expenses_as_of": "2026-08-11T21:20:54.100701+00:00"
       },
-      "stale": [],
-      "warnings": [],
+      "stale": [
+        "coinbase data 9.0h old (>6.0h)",
+        "one_card data 9.0h old (>6.0h)",
+        "rh_checking data 9.0h old (>6.0h)",
+        "x_money data 9.0h old (>6.0h)",
+        "expenses data 8.6h old (>6.0h)"
+      ],
+      "warnings": [
+        "coinbase data 9.0h old (>6.0h)",
+        "one_card data 9.0h old (>6.0h)",
+        "rh_checking data 9.0h old (>6.0h)",
+        "x_money data 9.0h old (>6.0h)",
+        "expenses data 8.6h old (>6.0h)"
+      ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
         "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
@@ -3532,7 +3449,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.00 (spot $0.00 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00000001 (~$0.00)\nOne Card owed: $447.33 (source=ynab) | 30d spend $411.92 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (sheet Essential+Fleet): $18820.49/mo (personal $14697.93 + fleet $4122.56) | CB-funded est $13551.91 | RH-checking est $0.00 | X Money est $5268.58 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $72.24 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $447 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13552/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.00 (spot $0.00 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00000001 (~$0.00)\nOne Card owed: $447.33 (source=ynab) | 30d spend $411.92 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (sheet Essential+Fleet): $18820.49/mo (personal $14697.93 + fleet $4122.56) | CB-funded est $13551.91 | RH-checking est $0.00 | X Money est $5268.58 | Collateral investments (not burn) $0.00/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $174.36 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $447 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13552/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -3542,10 +3459,10 @@
         "collateral_excess",
         "capex_from_margin"
       ],
-      "free_liquid_start": 72.24,
+      "free_liquid_start": 174.36,
       "free_liquid_residual": 0.0,
       "working_usdc": 0.0,
-      "bank_cash": 72.24,
+      "bank_cash": 174.36,
       "free_dollar_red": true,
       "active_step_id": "expenses",
       "next_free_dollar": "Pay Essential sheet obligations (overdue / due soon)",
@@ -3555,16 +3472,16 @@
           "id": "expenses",
           "title": "Expenses paid & current",
           "status": "partial",
-          "need": 11321.0,
-          "allocated": 72.24,
-          "gap": 11248.76,
-          "detail": "1 overdue \u00b7 2 due \u22647d \u00b7 critical $11,321",
+          "need": 11572.0,
+          "allocated": 174.36,
+          "gap": 11397.64,
+          "detail": "1 overdue \u00b7 5 due \u22647d \u00b7 critical $11,572",
           "fund_from": "venue_cash",
           "meta": {
             "overdue_count": 1,
-            "due_soon_count": 2,
+            "due_soon_count": 5,
             "overdue_total": 11275.0,
-            "due_soon_total": 46.0
+            "due_soon_total": 297.0
           }
         },
         {
@@ -3609,7 +3526,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 12696.09,
+          "gap": 12844.97,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -3659,10 +3576,10 @@
         }
       ],
       "expense_window": {
-        "critical_total": 11321.0,
+        "critical_total": 11572.0,
         "overdue_count": 1,
-        "due_soon_count": 2,
-        "as_of_date": "2026-08-11"
+        "due_soon_count": 5,
+        "as_of_date": "2026-08-12"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -3754,25 +3671,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-11T19:16:05.831017+00:00",
+      "as_of": "2026-08-12T05:53:54.829355+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-11T19:16:05.828194+00:00",
+        "as_of": "2026-08-12T05:53:54.826444+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 184.8471,
+        "nav_usd": 186.1262,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3776,
-          "stocks_growth": 0.5664,
+          "btc_digital_credit": 0.375,
+          "stocks_growth": 0.5625,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -4041,7 +3958,7 @@
           "need_llm": false,
           "path": "rules",
           "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-          "nav_usd": 187.9728,
+          "nav_usd": 184.8471,
           "buying_power_usd": 0.09,
           "weights_before": {
             "btc_digital_credit": 0.4,
@@ -4063,7 +3980,7 @@
           "team_votes": {
             "scout": {
               "vote": "observe",
-              "note": "NAV $187.97 BP $0.09 cash $0.09"
+              "note": "NAV $184.85 BP $0.09 cash $0.09"
             },
             "thesis": {
               "vote": "ok",
@@ -4083,7 +4000,7 @@
             }
           },
           "actions": [],
-          "as_of": "2026-08-11T13:37:22.498757+00:00",
+          "as_of": "2026-08-11T19:18:56.664903+00:00",
           "schema_version": 1,
           "account_scope": "agentic_only"
         },
@@ -6649,25 +6566,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-11T19:16:05.831017+00:00",
+    "as_of": "2026-08-12T05:53:54.829355+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-11T19:16:05.828194+00:00",
+      "as_of": "2026-08-12T05:53:54.826444+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 184.8471,
+      "nav_usd": 186.1262,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3776,
-        "stocks_growth": 0.5664,
+        "btc_digital_credit": 0.375,
+        "stocks_growth": 0.5625,
         "other": 0.0,
         "cash": 0.0005
       },
@@ -6936,7 +6853,7 @@
         "need_llm": false,
         "path": "rules",
         "summary": "Rules HOLD: deployed mix in \u00b15% band (BTC-complex 40%, stocks 60%); dust cash/BP $0.09/$0.09 < min_trade $1.00 (not deployable)",
-        "nav_usd": 187.9728,
+        "nav_usd": 184.8471,
         "buying_power_usd": 0.09,
         "weights_before": {
           "btc_digital_credit": 0.4,
@@ -6958,7 +6875,7 @@
         "team_votes": {
           "scout": {
             "vote": "observe",
-            "note": "NAV $187.97 BP $0.09 cash $0.09"
+            "note": "NAV $184.85 BP $0.09 cash $0.09"
           },
           "thesis": {
             "vote": "ok",
@@ -6978,7 +6895,7 @@
           }
         },
         "actions": [],
-        "as_of": "2026-08-11T13:37:22.498757+00:00",
+        "as_of": "2026-08-11T19:18:56.664903+00:00",
         "schema_version": 1,
         "account_scope": "agentic_only"
       },
