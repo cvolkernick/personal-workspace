@@ -891,12 +891,12 @@
     }
 
     // Prefer server-expanded calendar series (unlogged nights = 0h).
-    // Chart span: last 45 calendar days (zeros for unlogged nights).
+    // Chart span: last 90 calendar days (zeros for unlogged nights) — same window as volume/weight/hydration.
     const sleepRaw = [...((data.health && data.health.sleep) || [])].sort((a, b) =>
       String(a.date).localeCompare(String(b.date))
     );
-    const sleepFilled = fillSleepCalendarDays(sleepRaw, 45);
-    const sleep = downsamplePoints(sleepFilled, 45);
+    const sleepFilled = fillSleepCalendarDays(sleepRaw, 90);
+    const sleep = downsamplePoints(sleepFilled, 90);
     const sleepVals = sleep.map((s) => Number(s.sleep_hours) || 0);
     const sleepTrend = linearTrend(sleepVals);
     const sleepRoll7 = rollingAverage(sleepVals, 7);
@@ -960,6 +960,14 @@
         ...chartDefaults(),
         scales: {
           ...chartDefaults().scales,
+          x: {
+            ...chartDefaults().scales.x,
+            ticks: {
+              ...chartDefaults().scales.x.ticks,
+              maxTicksLimit: 12,
+              maxRotation: 0,
+            },
+          },
           y: {
             ...chartDefaults().scales.y,
             suggestedMin: 0,
