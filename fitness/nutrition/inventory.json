@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-08-11",
+  "updated_at": "2026-08-12",
   "notes": "Curated pantry/fridge inventory. Macros are per serving_g (weigh on food scale). serving_label is the display string (prefer grams).",
   "ingredients": [
     {
@@ -169,6 +169,18 @@
       "protein_g": 56.0,
       "carbs_g": 87.0,
       "fat_g": 33.0,
+      "in_stock": true,
+      "notes": ""
+    },
+    {
+      "id": "double-cheeseburger",
+      "name": "Double Cheeseburger",
+      "category": "carb",
+      "serving_label": "1 logged serving (avg)",
+      "calories": 430.0,
+      "protein_g": 24.0,
+      "carbs_g": 35.0,
+      "fat_g": 22.0,
       "in_stock": true,
       "notes": ""
     }
