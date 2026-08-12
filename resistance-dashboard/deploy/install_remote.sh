@@ -8,6 +8,15 @@
 # Serves UI + API on 0.0.0.0:8787.
 # Off-LAN: use Tailscale (or equivalent) — do NOT port-forward bare HTTP to the internet
 # while FitDash is still single-user / no multi-tenant auth.
+#
+# === Deploy path (read before using) ===
+# Default prod path after merge: Pi workspace-sync.timer → origin/master + path restart
+#   (ops/SDLC_MERGE_DEPLOY.md). This script is **emergency / pre-merge hot deploy only**.
+# It rsyncs files into ~/personal-workspace without advancing git. The next successful
+# workspace-sync hard-reset will replace this tree with whatever is on master — so either
+# merge the same commit first, or expect a snap-back. Prefer:
+#   bash deploy/install_remote.sh prism-agent@HOST --only resistance
+# after the change is on master, or just wait ≤5m for workspace-sync.
 set -euo pipefail
 
 REMOTE=""

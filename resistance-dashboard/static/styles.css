@@ -1776,9 +1776,9 @@ footer {
   }
 }
 
-/* Kitchen row: Ingredient Inventory (left) + DoorDash Meal Restock (right).
+/* Kitchen row: Ingredient Inventory.
    Daily Targets live under More with other settings.
-   Do not stretch the short column to inventory height.
+   Do not stretch sibling cards to inventory height.
 
    Pantry list MUST keep a real min-height. After #118, flex:1 1 0 + min-height:0
    + overflow:hidden on a content-sized card collapsed #inventory-list to 0px —
@@ -1793,17 +1793,6 @@ footer {
   min-height: 0;
 }
 
-#doordash-restock-card {
-  height: auto;
-  align-self: start;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-#doordash-restock-card .doordash-restock {
-  flex: 0 1 auto;
-}
 
 /* More tab: daily targets form (was Kitchen left column) */
 #targets-config-section .log-form {
@@ -2085,25 +2074,6 @@ footer {
   color: #d0a4ff;
 }
 
-/* DoorDash meal restock panel (Kitchen column beside inventory) */
-.doordash-panel {
-  border-left: 3px solid var(--accent-2, #3d9cf0);
-}
-
-#doordash-restock-card .doordash-panel {
-  /* Card already titles the column; nested panel is the live status body */
-  margin-top: 0.15rem;
-}
-
-.doordash-item-list {
-  margin: 0.45rem 0 0;
-  padding-left: 1.1rem;
-  font-size: 0.88rem;
-}
-
-.doordash-item-list li {
-  margin: 0.25rem 0;
-}
 
 .inv-card-actions {
   margin-top: 0.55rem;

@@ -71,15 +71,18 @@ python3 orchestra/server.py --backend http://PI_OR_TAILSCALE:8790 --no-browser
 
 (`remote_backend.py` + per-package `backend.json` / `--backend` / `--local`.)
 
-## Autonomous git sync on the Pi
+## Autonomous git sync on the Pi (default prod path)
 
 `workspace-sync.timer` runs `deploy/workspace_sync.sh` every 5 minutes:
 
 1. Uses `GITHUB_TOKEN` from `~/.config/workflow-scheduler.env` when present  
-2. Checks out / fast-forwards **`master`** (stashes dirty tracked files if needed)  
-3. If `HEAD` moved → `systemctl --user try-restart` all six dashboard units  
+2. Clears stuck rebase/merge/cherry-pick if any (prod must not sit detached)  
+3. Hard-resets **`master`** to **`origin/master`** (durable runtime paths restored after)  
+4. If `HEAD` moved → `deploy/on_merge.sh` path-scoped restart (**not** thrash-all)
 
 Manual: `systemctl --user start workspace-sync.service`
+
+**Keep the timer enabled.** Package-level rsync installers are emergency/hot only; the next successful sync replaces app trees with merged `master`. See `ops/SDLC_MERGE_DEPLOY.md`.
 
 ## Off-network access (Tailscale or equivalent)
 

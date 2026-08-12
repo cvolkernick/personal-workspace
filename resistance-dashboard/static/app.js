@@ -2642,119 +2642,6 @@
     </div>`;
   }
 
-  function renderDoorDashRestock(coach) {
-    const panel = $("doordash-restock-panel");
-    if (!panel) return;
-    const dd =
-      (coach && coach.doordash_restock) ||
-      (coach && coach.today && coach.today.doordash_restock) ||
-      null;
-    if (!dd) {
-      panel.innerHTML =
-        `<p class="muted" style="margin:0.35rem 0 0">No restock signal yet — load Today meal plan after inventory syncs.</p>`;
-      return;
-    }
-    const items = dd.items || [];
-    const needs = !!dd.needs_order && items.length > 0;
-    const cliOk = dd.dd_cli_available !== false;
-    let listHtml = "";
-    if (items.length) {
-      listHtml =
-        `<ul class="reasons doordash-item-list">` +
-        items
-          .slice(0, 8)
-          .map((it) => {
-            const tag = it.action === "restock" ? "restock" : "add";
-            const why = it.reason ? ` — ${it.reason}` : "";
-            return `<li><strong>${it.name || "Item"}</strong> <span class="muted">(${tag})</span>${why}</li>`;
-          })
-          .join("") +
-        `</ul>`;
-    } else {
-      listHtml = `<p class="muted" style="margin:0.35rem 0 0">Pantry covers planned meals — nothing to order.</p>`;
-    }
-    panel.innerHTML = `
-      <div class="macro-summary compact-panel doordash-panel">
-        <div class="macro-summary-header">
-          <div>
-            <div class="macro-summary-title">DoorDash Meal Restock</div>
-            <div class="macro-summary-meta muted">${dd.summary || ""}${
-              cliOk ? "" : " · install dd-cli for live order"
-            }</div>
-          </div>
-          <div class="inv-carousel-count muted">${items.length}</div>
-        </div>
-        ${listHtml}
-        <div class="actions" style="margin-top:0.65rem; flex-wrap:wrap; gap:0.4rem">
-          <button type="button" id="btn-dd-preview" ${needs ? "" : "disabled"}>Preview list</button>
-          <button type="button" class="primary" id="btn-dd-execute" ${
-            needs && cliOk ? "" : "disabled"
-          }>Build cart (dd-cli)</button>
-          <button type="button" id="btn-dd-confirm" ${
-            needs && cliOk ? "" : "disabled"
-          }>Place order…</button>
-        </div>
-        <p class="muted" id="dd-restock-status" style="margin:0.4rem 0 0; font-size:0.85rem"></p>
-      </div>`;
-
-    const statusEl = $("dd-restock-status");
-    const setStatus = (t, ok) => {
-      if (!statusEl) return;
-      statusEl.textContent = t || "";
-      statusEl.style.color = ok === false ? "var(--danger)" : "";
-    };
-
-    async function postRestock(body) {
-      setStatus("Working…");
-      try {
-        const res = await fetch("/api/doordash/restock", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body || {}),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || data.ok === false) {
-          setStatus(data.error || data.message || `HTTP ${res.status}`, false);
-          return data;
-        }
-        const n = ((data.restock || {}).items || data.items || []).length;
-        let msg = data.message || `OK · ${n} item(s)`;
-        if (data.checkout_url) msg += ` · checkout: ${data.checkout_url}`;
-        setStatus(msg, true);
-        if (data.checkout_url) {
-          showAlert(`DoorDash checkout ready`, "ok");
-        }
-        return data;
-      } catch (e) {
-        setStatus(String(e.message || e), false);
-        return null;
-      }
-    }
-
-    if ($("btn-dd-preview")) {
-      $("btn-dd-preview").addEventListener("click", () =>
-        postRestock({ execute: false, confirm: false })
-      );
-    }
-    if ($("btn-dd-execute")) {
-      $("btn-dd-execute").addEventListener("click", () =>
-        postRestock({ execute: true, confirm: false })
-      );
-    }
-    if ($("btn-dd-confirm")) {
-      $("btn-dd-confirm").addEventListener("click", () => {
-        const ok = window.confirm(
-          "Place a real DoorDash order for the missing meal ingredients? This may charge your saved payment method."
-        );
-        if (!ok) {
-          setStatus("Order cancelled.");
-          return;
-        }
-        postRestock({ execute: true, confirm: true });
-      });
-    }
-  }
-
   function renderFoodCoach(coach, store) {
     const box = $("food-coach-commentary");
     if (!box) return;
@@ -2778,7 +2665,6 @@
       box.innerHTML = html;
     }
 
-    renderDoorDashRestock(coach);
 
     const labsBox = $("labs-summary");
     if (labsBox) {
@@ -2965,6 +2851,25 @@
     </div>`;
   }
 
+  function renderContinuityBanner(ctx) {
+    const c = (ctx && ctx.training_continuity) || null;
+    if (!c || !c.phase || c.phase === "normal") return "";
+    const days =
+      c.days_since != null ? `${c.days_since}d since last log` : "no recent logs";
+    const cut =
+      c.load_cut_pct != null ? `loads −${c.load_cut_pct}%` : "loads reduced";
+    const ramp = c.volume_band_scale != null
+      ? `volume ramp ~${Math.round(Number(c.volume_band_scale) * 100)}%`
+      : "volume ramping";
+    return `<div class="continuity-banner" role="status" style="margin:0.5rem 0 0.75rem;padding:0.65rem 0.75rem;border-radius:8px;border:1px solid rgba(240,180,41,0.45);background:rgba(240,180,41,0.1)">
+      <strong>${c.label || "Return phase"}</strong>
+      <span class="muted"> · ${days} · ${cut} · ${ramp}</span>
+      <div class="muted" style="margin-top:0.25rem;font-size:0.85rem">${
+        c.summary || "Re-establish pattern before chasing prior loads."
+      }</div>
+    </div>`;
+  }
+
   function renderWorkoutPlan(plan) {
     const box = $("workout-plan-result");
     if (!box) return;
@@ -2973,7 +2878,9 @@
       markForcedSessionButtons("");
       return;
     }
-    let html = `<p class="muted">${plan.message || ""}</p>`;
+    const ctx0 = plan.context || {};
+    let html = renderContinuityBanner(ctx0);
+    html += `<p class="muted">${plan.message || ""}</p>`;
     if (plan.is_rest_day) {
       html += `<p><strong>Rest day</strong> — recovery below threshold.</p>`;
       html += renderVolumeBalance(plan.volume, null);
@@ -3021,9 +2928,11 @@
       html += `</ul>`;
     }
     const ctx = plan.context || {};
-    if (ctx.last_session_type != null || ctx.days_since_last != null) {
+    if (ctx.last_session_type != null || ctx.days_since_last != null || ctx.training_continuity) {
+      const phase = (ctx.training_continuity && ctx.training_continuity.phase) || "—";
       html += `<p class="muted" style="margin-top:0.75rem;font-size:0.85rem">
         Context: last=${ctx.last_session_type || "—"} · days since log=${ctx.days_since_last ?? "—"}
+        · continuity=${phase}
         · catalog pool=${ctx.pool_for_session ?? "—"}
         · session cap=${ctx.session_working_set_cap ?? "—"} hard sets
       </p>`;

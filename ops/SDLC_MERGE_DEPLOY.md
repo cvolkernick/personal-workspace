@@ -86,18 +86,53 @@ To kick Pi immediately on every `master` push, set repo secrets:
 
 Failures exit non-zero so the systemd oneshot / CI can surface them. Buzz notify is best-effort.
 
-## Rollout after this PR merges
+## Deploy path contract (read this)
 
-1. Chris merges the automation PR (this file ships inactive until then).
-2. Next `workspace-sync` pull installs new scripts on Pi.
-3. First real merge with dashboard paths exercises path-scoped restart.
-4. Optional: add `PI_SSH_*` secrets for sub-minute kick.
+| Path | When to use | What it does | Git on Pi |
+|------|-------------|--------------|-----------|
+| **Default:** merge → `workspace-sync.timer` | After PR lands on `master` | `git` hard-reset to `origin/master` + path-scoped unit restart | Always matches `master` tip |
+| **Mac `deploy/install_remote.sh --only …`** | Unit files changed, first-time install, or sync broken | rsync selected packages + reinstall systemd units | Does **not** advance git; next sync overwrites code from `master` |
+| **Package rsync** (e.g. `resistance-dashboard/deploy/install_remote.sh`) | Emergency / pre-merge hot fix only | rsync one app tree | Leaves monorepo **dirty vs git**; next successful `workspace-sync` **replaces** rsynced code with `master` |
+
+**Do not** treat package rsync as durable prod. If you hot-fix, either merge the same tree to `master` before the next sync cycle, or expect prod to snap back to merged tip.
+
+**Do not** disable `workspace-sync.timer` without a written reason + re-enable plan. When it is off, Pi freezes at whatever last landed (the 2026-08-11 FitDash “old shell” incident).
+
+## Recovery: stuck rebase / missing `deploy/` / timer dead
+
+Symptoms:
+
+- `git status` shows `(no branch, rebasing master)` or detached HEAD far behind `origin/master`
+- `systemctl --user status workspace-sync.service` → status 127 / `deploy/workspace_sync.sh: No such file`
+- `workspace-sync.timer` inactive/disabled while dashboards still run stale trees
+
+On Pi (`prism-agent@prism-gateway`):
+
+```bash
+cd ~/personal-workspace
+# Prefer the script once any copy exists (Mac can scp deploy/workspace_sync.sh first):
+bash deploy/workspace_sync.sh
+# Or force:
+git rebase --abort 2>/dev/null || rm -rf .git/rebase-merge .git/rebase-apply
+git fetch origin master
+git checkout -f -B master origin/master
+git reset --hard origin/master
+# re-enable timer (unit files live under deploy/units/)
+cp -f deploy/units/workspace-sync.{service,timer} ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now workspace-sync.timer
+systemctl --user start workspace-sync.service
+journalctl --user -u workspace-sync.service -n 40 --no-pager
+```
+
+`workspace_sync.sh` preserves durable runtime (fitness data, treasury snapshots, iot secrets, backlog, etc.) across hard reset.
 
 ## Related
 
 - Plan: nest `PLANS/GENERALIZED_SDLC_PIPELINE.md`
 - Policy: nest `GUIDES/PI_PROD_MAC_DEV.md`
 - Deploy base: `deploy/README.md`, `deploy/install_remote.sh`, `deploy/workspace_sync.sh`
+- Incident recovery notes: nest `RESEARCH/PI_MONOREPO_SYNC_RECOVERY_2026_08_11.md`
 - Issue: https://github.com/cvolkernick/personal-workspace/issues/25
 
 

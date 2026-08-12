@@ -794,26 +794,133 @@ def days_since_last_session(sessions: Sequence[Session], as_of: Optional[str] = 
         return None
 
 
+# Continuity phases after training silence (not the same as in-cycle weekly volume gaps).
+# Long-term target stays ≈4–8 hard sets/muscle/week; these scales only control
+# how fast we approach that band after a layoff (load + volume ramp).
+_CONTINUITY_PHASES: Tuple[Tuple[Optional[int], str, str, float, float, float, bool], ...] = (
+    # max_days (inclusive), id, label, load_mult, volume_band_scale, session_cap_scale, allow_progression
+    (6, "normal", "Normal", 1.0, 1.0, 1.0, True),
+    (13, "rusty", "Rusty", 0.925, 1.0, 0.95, False),
+    (27, "return", "Return", 0.85, 0.78, 0.85, False),
+    (59, "reentry", "Re-entry", 0.775, 0.60, 0.70, False),
+    (None, "restart", "Restart", 0.70, 0.50, 0.65, False),
+)
+
+
+def training_continuity(
+    days_since: Optional[int],
+) -> Dict[str, Any]:
+    """Map days since last real session → load/volume ramp for prescriptions.
+
+    ``days_since is None`` (no logs) is treated as restart — starter-friendly
+    volume, not a full 4–8 chase on day one.
+    """
+    if days_since is None:
+        days_key: Optional[int] = None
+        phase = _CONTINUITY_PHASES[-1]
+    else:
+        days_key = max(0, int(days_since))
+        phase = _CONTINUITY_PHASES[-1]
+        for max_d, pid, label, load_m, vol_s, cap_s, allow_prog in _CONTINUITY_PHASES:
+            if max_d is None or days_key <= max_d:
+                phase = (max_d, pid, label, load_m, vol_s, cap_s, allow_prog)
+                break
+
+    _max_d, pid, label, load_m, vol_s, cap_s, allow_prog = phase
+    load_cut_pct = int(round((1.0 - float(load_m)) * 100))
+    if pid == "normal":
+        summary = "Continuity normal — full progression and volume band."
+    elif days_key is None:
+        summary = (
+            "No recent lift logs — restart: conservative volume, "
+            "build continuity before chasing prior loads."
+        )
+    else:
+        summary = (
+            f"{label} · {days_key}d since last log · loads −{load_cut_pct}% vs last "
+            f"working weight · volume ramping (don’t chase old PRs this week)."
+        )
+    return {
+        "phase": pid,
+        "label": label,
+        "days_since": days_key,
+        "load_multiplier": float(load_m),
+        "volume_band_scale": float(vol_s),
+        "session_cap_scale": float(cap_s),
+        "allow_load_progression": bool(allow_prog),
+        "load_cut_pct": load_cut_pct,
+        "summary": summary,
+    }
+
+
+def scale_muscle_targets_for_continuity(
+    bands: Dict[str, Dict[str, float]],
+    continuity: Dict[str, Any],
+) -> Dict[str, Dict[str, float]]:
+    """Shrink weekly min/max bands during return phases (don’t fill multi-week debt)."""
+    scale = float(continuity.get("volume_band_scale") or 1.0)
+    if scale >= 0.999:
+        return bands
+    out: Dict[str, Dict[str, float]] = {}
+    for m, band in bands.items():
+        lo = float(band.get("min") or 4)
+        hi = float(band.get("max") or 8)
+        # Keep a usable band; floor so zeros don’t collapse the model
+        new_lo = max(1.0, round(lo * scale, 2))
+        new_hi = max(new_lo + 1.0, round(hi * scale, 2))
+        out[m] = {
+            "min": new_lo,
+            "max": new_hi,
+            "priority": bool(band.get("priority")),
+        }
+    return out
+
+
 def prescribe(
     catalog_ex: dict,
     last: Optional[dict],
     *,
     recovery_score: Optional[float] = None,
+    continuity: Optional[Dict[str, Any]] = None,
 ) -> dict:
-    """Double-progression style prescription from last logged set."""
+    """Double-progression style prescription from last logged set.
+
+    When ``continuity`` is not normal, hold or cut load vs last log instead of
+    progressing — re-establish pattern/work capacity after silence.
+    """
     lo, hi = catalog_ex["rep_range"]
     sets = int(catalog_ex["default_sets"])
     reps = int(catalog_ex["default_reps"])
     weight: Optional[float] = None
     rationale = "Default starter prescription (no history for this lift)."
+    cont = continuity or training_continuity(0)
+    allow_prog = bool(cont.get("allow_load_progression", True))
+    load_m = float(cont.get("load_multiplier") or 1.0)
 
     if last:
-        weight = float(last["weight_lbs"])
+        base_w = float(last["weight_lbs"])
+        weight = base_w
         sets = int(last.get("sets") or sets)
         reps = int(last.get("reps") or reps)
         # Cap sets to productive hard-set range (DeanT: more is rarely better)
         sets = max(1, min(4, sets))
-        if reps >= hi:
+        if not allow_prog:
+            # Re-entry: technique loads, bottom of rep range, thinner sets
+            weight = round(base_w * load_m, 1)
+            reps = lo
+            if cont.get("phase") in ("reentry", "restart"):
+                sets = max(1, min(sets, 2))
+            elif cont.get("phase") == "return":
+                sets = max(1, min(sets, 3))
+            cut = int(cont.get("load_cut_pct") or round((1.0 - load_m) * 100))
+            days = cont.get("days_since")
+            days_txt = f"{days}d since last log" if days is not None else "no recent logs"
+            rationale = (
+                f"{cont.get('label') or 'Return'} ({days_txt}): "
+                f"{base_w:g} lb last on {last['date']} → {weight:g} lb "
+                f"(−{cut}%), {sets}×{reps} to re-establish before progressing."
+            )
+        elif reps >= hi:
             # progress load
             bump = 5.0 if weight >= 40 else 2.5
             weight = weight + bump
@@ -839,8 +946,10 @@ def prescribe(
             reps = target_reps
 
     if recovery_score is not None and recovery_score < 50 and weight is not None:
+        before = weight
         weight = round(weight * 0.9, 1)
-        rationale += " Recovery moderate/low → ~10% load deload."
+        if weight < before:
+            rationale += " Recovery moderate/low → ~10% load deload."
 
     return {
         "weight_lbs": weight,
@@ -849,6 +958,7 @@ def prescribe(
         "rep_range": [lo, hi],
         "rationale": rationale,
         "last": last,
+        "continuity_phase": cont.get("phase"),
     }
 
 
@@ -888,6 +998,8 @@ def generate_workout_plan(
 
     rest_threshold = int(goals.get("rest_if_recovery_below") or 40)
     sec_frac = float(goals.get("secondary_set_fraction") or 0.5)
+    days = days_since_last_session(sessions, as_of=day)
+    continuity = training_continuity(days)
     tally = weekly_set_tally(
         sessions,
         catalog,
@@ -895,8 +1007,32 @@ def generate_workout_plan(
         window_days=7,
         secondary_fraction=sec_frac,
     )
-    # Autonomous coach: pick focus from logs before volume bands / selection
-    focus_res = resolve_focus_for_plan(goals, tally, max_focus=2)
+    # Autonomous coach: pick focus from logs before volume bands / selection.
+    # During re-entry/restart, lagging-everything is noise — prefer balanced bands
+    # so we don't invent a "priority blast" after a long layoff.
+    focus_goals = goals
+    if continuity.get("phase") in ("reentry", "restart", "return"):
+        focus_goals = {
+            **goals,
+            "auto_focus_muscles": False,
+            "focus_muscles": list(goals.get("focus_muscles") or []),
+        }
+        # Drop empty manual focus so bands stay balanced during ramp
+        if not focus_goals.get("focus_muscles"):
+            focus_goals = {**focus_goals, "focus_muscles": []}
+    focus_res = resolve_focus_for_plan(focus_goals, tally, max_focus=2)
+    if continuity.get("phase") in ("reentry", "restart") and focus_res.get("source") == "auto":
+        # Suppress auto lagging picks in deep return phases
+        focus_res = {
+            **focus_res,
+            "muscles": list(goals.get("focus_muscles") or []),
+            "source": "continuity" if not goals.get("focus_muscles") else focus_res.get("source"),
+            "reason": (
+                f"{continuity.get('label')}: volume ramp — no auto-priority "
+                "until continuity is normal (don’t fill multi-week debt)."
+            ),
+            "auto": False,
+        }
     goals = {**goals, "focus_muscles": list(focus_res.get("muscles") or [])}
     goals["_focus_resolution"] = {
         "source": focus_res.get("source"),
@@ -933,7 +1069,8 @@ def generate_workout_plan(
                 "recovery_label": recovery_label,
                 "recovery_score": recovery_score,
                 "last_session_type": last_session_type(sessions),
-                "days_since_last": days_since_last_session(sessions, as_of=day),
+                "days_since_last": days,
+                "training_continuity": continuity,
                 "volume_framework": VOLUME_FRAMEWORK,
                 "weekly_sets": tally,
                 "focus": balance["focus"],
@@ -945,7 +1082,7 @@ def generate_workout_plan(
     if not pool:
         pool = list(available)
 
-    bands = muscle_targets(goals)
+    bands = scale_muscle_targets_for_continuity(muscle_targets(goals), continuity)
     focus = {normalize_muscle(m) for m in (goals.get("focus_muscles") or [])}
     done: Dict[str, float] = dict(tally.get("by_muscle") or {})
 
@@ -961,8 +1098,18 @@ def generate_workout_plan(
     )
 
     n = max(3, min(8, int(goals.get("exercises_per_session") or 5)))
-    session_cap = max(6, int(goals.get("session_working_set_cap") or 14))
+    # Fewer movements during deep re-entry — finish the session, don’t pile debt
+    if continuity.get("phase") in ("reentry", "restart"):
+        n = max(3, min(n, 4))
+    elif continuity.get("phase") == "return":
+        n = max(3, min(n, 5))
+    base_cap = max(6, int(goals.get("session_working_set_cap") or 14))
+    session_cap = max(4, int(round(base_cap * float(continuity.get("session_cap_scale") or 1.0))))
     default_hard = max(1, min(4, int(goals.get("default_hard_sets") or 2)))
+    if continuity.get("phase") in ("reentry", "restart"):
+        default_hard = min(default_hard, 2)
+    elif continuity.get("phase") == "return":
+        default_hard = min(default_hard, 2)
 
     chosen: List[dict] = []
     # Seed with top compound if compounds preferred
@@ -1000,7 +1147,9 @@ def generate_workout_plan(
         ex_rx = dict(ex)
         if not last:
             ex_rx["default_sets"] = min(int(ex.get("default_sets") or 3), default_hard)
-        rx = prescribe(ex_rx, last, recovery_score=recovery_score)
+        rx = prescribe(
+            ex_rx, last, recovery_score=recovery_score, continuity=continuity
+        )
         hard = int(rx["sets"] or default_hard)
         hard = _cap_sets_for_muscles(
             hard,
@@ -1014,10 +1163,13 @@ def generate_workout_plan(
         hard = max(1, min(hard, session_cap - session_sets))
         rx["sets"] = hard
         if hard < int((last or {}).get("sets") or ex.get("default_sets") or hard):
-            rx["rationale"] = (
-                f"{rx['rationale']} Volume cap: {hard} hard sets "
-                f"(≈4–8/muscle/week framework)."
-            ).strip()
+            framework_note = (
+                f"Volume cap: {hard} hard sets "
+                f"(ramped band · continuity {continuity.get('label')})."
+                if continuity.get("phase") != "normal"
+                else f"Volume cap: {hard} hard sets (≈4–8/muscle/week framework)."
+            )
+            rx["rationale"] = f"{rx['rationale']} {framework_note}".strip()
 
         credits = credit_sets_for_exercise(
             ex.get("primary_muscles") or [],
@@ -1049,7 +1201,22 @@ def generate_workout_plan(
             }
         )
 
+    # Report volume against long-term bands, but annotate ramped planning bands
     balance = volume_balance_report(tally, goals, planned_credits=planned_credits)
+    balance["planning_bands"] = {
+        m: {"min": bands[m]["min"], "max": bands[m]["max"], "priority": bands[m]["priority"]}
+        for m in bands
+    }
+    balance["continuity"] = {
+        "phase": continuity.get("phase"),
+        "volume_band_scale": continuity.get("volume_band_scale"),
+        "note": (
+            "Weekly under-target fill uses ramped planning bands during return — "
+            "not multi-week catch-up."
+            if continuity.get("phase") != "normal"
+            else "Full weekly band."
+        ),
+    }
     balance["suggested_focus"] = focus_res.get("suggested") or suggest_focus_muscles(
         tally, goals
     )
@@ -1060,10 +1227,11 @@ def generate_workout_plan(
     }
 
     last_st = last_session_type(sessions)
-    days = days_since_last_session(sessions, as_of=day)
     msg_parts = [
         f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
     ]
+    if continuity.get("phase") != "normal":
+        msg_parts.insert(0, continuity.get("summary") or continuity.get("label") or "Return phase")
     if last_st:
         msg_parts.append(f"Last trained: {last_st}")
     if days is not None:
@@ -1077,12 +1245,23 @@ def generate_workout_plan(
         label = "Auto focus" if src == "auto" else "Focus"
         msg_parts.append(f"{label}: {pretty}")
     under = balance.get("under_target") or []
-    if under:
+    if under and continuity.get("phase") == "normal":
         msg_parts.append(
             f"Volume fill: {', '.join(under[:4])}"
             + ("…" if len(under) > 4 else "")
         )
-    msg_parts.append("Framework: ≈4–8 sets/muscle/week (w/ overlap)")
+    elif under and continuity.get("phase") != "normal":
+        msg_parts.append(
+            f"Ramp targets (not catch-up): {', '.join(under[:3])}"
+            + ("…" if len(under) > 3 else "")
+        )
+    if continuity.get("phase") == "normal":
+        msg_parts.append("Framework: ≈4–8 sets/muscle/week (w/ overlap)")
+    else:
+        scale_pct = int(round(float(continuity.get("volume_band_scale") or 1) * 100))
+        msg_parts.append(
+            f"Framework: ≈4–8 long-term · this week planning band ~{scale_pct}% ramp"
+        )
 
     return {
         "date": day,
@@ -1097,6 +1276,7 @@ def generate_workout_plan(
             "recovery_score": recovery_score,
             "last_session_type": last_st,
             "days_since_last": days,
+            "training_continuity": continuity,
             "catalog_available": len(available),
             "pool_for_session": len(pool),
             "session_hard_sets": session_sets,
