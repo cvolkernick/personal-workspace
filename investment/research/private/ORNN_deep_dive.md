@@ -1,5 +1,8 @@
 # Ornn (private) — deep dive v0
 
+> **Frame update 2026-08-12 (owner):** Ornn is watched as the **project that enables commoditized compute futures** — not as a private-equity allocation candidate / ticker. Removed from `private_watchlist.json`. Deep dive kept as background on the OCPI/ICE path only.
+
+
 **As of:** 2026-08-12  
 **Id:** `ORNN`  
 **Liquidity:** private (pre-IPO)  
