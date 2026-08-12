@@ -12,8 +12,11 @@ from rt_dashboard.workout_planner import (
     next_session_type,
     prescribe,
     resolve_focus_for_plan,
+    scale_muscle_targets_for_continuity,
+    training_continuity,
     weekly_set_tally,
     volume_balance_report,
+    muscle_targets,
 )
 
 
@@ -221,6 +224,78 @@ class TestWorkoutPlanner(unittest.TestCase):
         )
         self.assertEqual(res["source"], "manual")
         self.assertEqual(res["muscles"], ["glutes"])
+
+    def test_training_continuity_phases(self):
+        self.assertEqual(training_continuity(0)["phase"], "normal")
+        self.assertEqual(training_continuity(6)["phase"], "normal")
+        self.assertEqual(training_continuity(7)["phase"], "rusty")
+        self.assertEqual(training_continuity(20)["phase"], "return")
+        self.assertEqual(training_continuity(40)["phase"], "reentry")
+        self.assertEqual(training_continuity(90)["phase"], "restart")
+        none_c = training_continuity(None)
+        self.assertEqual(none_c["phase"], "restart")
+        self.assertLess(none_c["load_multiplier"], 1.0)
+        self.assertFalse(training_continuity(40)["allow_load_progression"])
+        self.assertTrue(training_continuity(3)["allow_load_progression"])
+
+    def test_prescribe_reentry_cuts_load_no_progression(self):
+        ex = {
+            "default_sets": 3,
+            "default_reps": 10,
+            "rep_range": [8, 12],
+        }
+        cont = training_continuity(40)
+        # Last hit top of range — normal mode would add weight; re-entry must not
+        rx = prescribe(
+            ex,
+            {"weight_lbs": 50, "sets": 3, "reps": 12, "date": "2026-06-01"},
+            recovery_score=80,
+            continuity=cont,
+        )
+        self.assertAlmostEqual(rx["weight_lbs"], round(50 * cont["load_multiplier"], 1))
+        self.assertLess(rx["weight_lbs"], 50)
+        self.assertEqual(rx["reps"], 8)  # bottom of range for technique
+        self.assertLessEqual(rx["sets"], 2)
+        self.assertIn("Re-entry", rx["rationale"])
+
+    def test_scale_bands_for_continuity(self):
+        bands = muscle_targets(self.goals)
+        cont = training_continuity(40)
+        scaled = scale_muscle_targets_for_continuity(bands, cont)
+        for m in ("chest", "quads"):
+            self.assertLess(scaled[m]["min"], bands[m]["min"])
+            self.assertLess(scaled[m]["max"], bands[m]["max"])
+
+    def test_plan_after_long_layoff_uses_continuity(self):
+        # Last session ~40 days before as_of
+        sessions = [
+            _session("2026-06-10", "push", "DB Flat Press", 100, 3, 10),
+        ]
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            sessions,
+            recovery_score=80,
+            session_type="push",
+            as_of="2026-07-20",
+        )
+        self.assertFalse(plan["is_rest_day"])
+        cont = (plan.get("context") or {}).get("training_continuity") or {}
+        self.assertEqual(cont.get("phase"), "reentry")
+        self.assertEqual(cont.get("days_since"), 40)
+        # Press history should be cut, not progressed
+        press = next(
+            (e for e in plan["exercises"] if "Flat Press" in (e.get("name") or "")),
+            None,
+        )
+        self.assertIsNotNone(press)
+        w = float((press.get("prescription") or {}).get("weight_lbs") or 0)
+        self.assertAlmostEqual(w, round(100 * cont["load_multiplier"], 1))
+        self.assertLess(
+            int((plan.get("context") or {}).get("session_working_set_cap") or 99),
+            14,
+        )
+        self.assertIn("Re-entry", plan.get("message") or "")
 
 
 if __name__ == "__main__":

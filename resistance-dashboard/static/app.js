@@ -2843,6 +2843,25 @@
     </div>`;
   }
 
+  function renderContinuityBanner(ctx) {
+    const c = (ctx && ctx.training_continuity) || null;
+    if (!c || !c.phase || c.phase === "normal") return "";
+    const days =
+      c.days_since != null ? `${c.days_since}d since last log` : "no recent logs";
+    const cut =
+      c.load_cut_pct != null ? `loads −${c.load_cut_pct}%` : "loads reduced";
+    const ramp = c.volume_band_scale != null
+      ? `volume ramp ~${Math.round(Number(c.volume_band_scale) * 100)}%`
+      : "volume ramping";
+    return `<div class="continuity-banner" role="status" style="margin:0.5rem 0 0.75rem;padding:0.65rem 0.75rem;border-radius:8px;border:1px solid rgba(240,180,41,0.45);background:rgba(240,180,41,0.1)">
+      <strong>${c.label || "Return phase"}</strong>
+      <span class="muted"> · ${days} · ${cut} · ${ramp}</span>
+      <div class="muted" style="margin-top:0.25rem;font-size:0.85rem">${
+        c.summary || "Re-establish pattern before chasing prior loads."
+      }</div>
+    </div>`;
+  }
+
   function renderWorkoutPlan(plan) {
     const box = $("workout-plan-result");
     if (!box) return;
@@ -2851,7 +2870,9 @@
       markForcedSessionButtons("");
       return;
     }
-    let html = `<p class="muted">${plan.message || ""}</p>`;
+    const ctx0 = plan.context || {};
+    let html = renderContinuityBanner(ctx0);
+    html += `<p class="muted">${plan.message || ""}</p>`;
     if (plan.is_rest_day) {
       html += `<p><strong>Rest day</strong> — recovery below threshold.</p>`;
       html += renderVolumeBalance(plan.volume, null);
@@ -2899,9 +2920,11 @@
       html += `</ul>`;
     }
     const ctx = plan.context || {};
-    if (ctx.last_session_type != null || ctx.days_since_last != null) {
+    if (ctx.last_session_type != null || ctx.days_since_last != null || ctx.training_continuity) {
+      const phase = (ctx.training_continuity && ctx.training_continuity.phase) || "—";
       html += `<p class="muted" style="margin-top:0.75rem;font-size:0.85rem">
         Context: last=${ctx.last_session_type || "—"} · days since log=${ctx.days_since_last ?? "—"}
+        · continuity=${phase}
         · catalog pool=${ctx.pool_for_session ?? "—"}
         · session cap=${ctx.session_working_set_cap ?? "—"} hard sets
       </p>`;
