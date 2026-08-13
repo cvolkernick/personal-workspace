@@ -3,15 +3,15 @@
 > **Frame update 2026-08-12 (owner):** Ornn is watched as the **project that enables commoditized compute futures** — not as a private-equity allocation candidate / ticker. Removed from `private_watchlist.json`. Deep dive kept as background on the OCPI/ICE path only.
 
 
-**Status:** `private` · **Rank:** 4 (provisional; after Anduril/Saronic/Boom until owner re-ranks)  
+**Status:** `instrument_enabler` · **not** private equity rank  
 **As of:** 2026-08-12  
-**Public symbol:** none  
-**Lane:** `investment/private_watchlist.json` (not deploy consider set)  
-**Source trigger:** Chris `#general` — [Yahoo Finance / Axios-class coverage](https://finance.yahoo.com/markets/commodities/articles/startup-bets-investors-want-trade-092007400.html) · a16z seed note
+**Public symbol:** none · **futures:** ICE×OCPI pending reg (not live)  
+**Lane:** nest instrument watch only — **not** on `private_watchlist.json`  
+**Source trigger:** Chris `#general` — futures-enabling project, not ticker
 
 ## One-line
 
-Private **financial infrastructure for AI compute as a commodity** — price index (OCPI on Bloomberg), planned ICE GPU futures, residual-value / capital products — not a GPU cloud operator and **not buyable** on the agentic book today.
+**Background** on Ornn’s role building OCPI + planned ICE GPU compute futures so **we can eventually trade commoditized compute** — not a GPU cloud, **not** an agentic equity buy, **not** ranked vs Anduril/Saronic/Boom.
 
 ## Thesis fit
 
