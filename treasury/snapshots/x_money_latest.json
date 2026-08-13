@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-12T18:58:01.238041+00:00",
+  "as_of": "2026-08-13T14:07:48.698132+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": 152.01,
-  "cash": 152.01,
-  "available": 152.01,
-  "cleared_balance": 152.01,
+  "balance_raw": 67.48,
+  "cash": 67.48,
+  "available": 67.48,
+  "cleared_balance": 67.48,
   "uncleared_balance": 0.0,
-  "spend_30d": 2019.26,
+  "spend_30d": 2103.79,
   "inflow_30d": 2171.27,
-  "transaction_count": 144,
+  "transaction_count": 153,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -437,7 +437,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
+      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -448,7 +448,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "e7632ab7-da11-406c-bb00-9033dc999914",
+      "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
       "date": "2026-07-26",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -571,5 +571,5 @@
   ],
   "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-14"
+  "since": "2026-05-15"
 }
