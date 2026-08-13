@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-11T21:20:54.100701+00:00",
+  "as_of": "2026-08-12T18:58:05.103230+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,14 +22,14 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 25,
       "totals": {
-        "daily": 483.23,
-        "weekly": 3382.64,
-        "biweekly": 6765.27,
-        "monthly": 14697.93,
-        "annually": 49554.12,
-        "quarterly": 15946.78
+        "daily": 483.58,
+        "weekly": 3385.09,
+        "biweekly": 6770.17,
+        "monthly": 14708.58,
+        "annually": 49681.92,
+        "quarterly": 15978.73
       },
       "items": [
         {
@@ -41,7 +41,7 @@
           "biweekly": 5189.59,
           "monthly": 11275.0,
           "annually": 24000.0,
-          "budget_allocation": 0.7670999999999999,
+          "budget_allocation": null,
           "quarterly": 6000.0,
           "tab": "Essential"
         },
@@ -54,7 +54,7 @@
           "biweekly": 12.43,
           "monthly": 27.0,
           "annually": 324.0,
-          "budget_allocation": 0.0018,
+          "budget_allocation": null,
           "quarterly": 81.0,
           "tab": "Essential"
         },
@@ -67,7 +67,7 @@
           "biweekly": 8.75,
           "monthly": 19.0,
           "annually": 228.0,
-          "budget_allocation": 0.0013,
+          "budget_allocation": null,
           "quarterly": 57.0,
           "tab": "Essential"
         },
@@ -80,7 +80,7 @@
           "biweekly": 30.84,
           "monthly": 67.0,
           "annually": 804.0,
-          "budget_allocation": 0.0046,
+          "budget_allocation": null,
           "quarterly": 201.0,
           "tab": "Essential"
         },
@@ -93,7 +93,7 @@
           "biweekly": 39.12,
           "monthly": 85.0,
           "annually": 1020.0,
-          "budget_allocation": 0.0058,
+          "budget_allocation": null,
           "quarterly": 255.0,
           "tab": "Essential"
         },
@@ -106,7 +106,7 @@
           "biweekly": 45.57,
           "monthly": 99.0,
           "annually": 1188.0,
-          "budget_allocation": 0.0067,
+          "budget_allocation": null,
           "quarterly": 297.0,
           "tab": "Essential"
         },
@@ -119,7 +119,7 @@
           "biweekly": 15.55,
           "monthly": 33.78,
           "annually": 405.36,
-          "budget_allocation": 0.0023,
+          "budget_allocation": null,
           "quarterly": 101.34,
           "tab": "Essential"
         },
@@ -132,7 +132,7 @@
           "biweekly": 13.8,
           "monthly": 29.99,
           "annually": 359.88,
-          "budget_allocation": 0.002,
+          "budget_allocation": null,
           "quarterly": 89.97,
           "tab": "Essential"
         },
@@ -145,7 +145,7 @@
           "biweekly": 4.6,
           "monthly": 10.0,
           "annually": 120.0,
-          "budget_allocation": 0.0007000000000000001,
+          "budget_allocation": null,
           "quarterly": 30.0,
           "tab": "Essential"
         },
@@ -158,7 +158,7 @@
           "biweekly": 11.05,
           "monthly": 24.0,
           "annually": 288.0,
-          "budget_allocation": 0.0016,
+          "budget_allocation": null,
           "quarterly": 72.0,
           "tab": "Essential"
         },
@@ -171,7 +171,7 @@
           "biweekly": 38.36,
           "monthly": 83.33,
           "annually": 1000.0,
-          "budget_allocation": 0.005699999999999999,
+          "budget_allocation": null,
           "quarterly": 250.0,
           "tab": "Essential"
         },
@@ -184,7 +184,7 @@
           "biweekly": 57.53,
           "monthly": 125.0,
           "annually": 1500.0,
-          "budget_allocation": 0.0085,
+          "budget_allocation": null,
           "quarterly": 375.0,
           "tab": "Essential"
         },
@@ -197,7 +197,7 @@
           "biweekly": 4.6,
           "monthly": 9.99,
           "annually": 119.88,
-          "budget_allocation": 0.0007000000000000001,
+          "budget_allocation": null,
           "quarterly": 29.97,
           "tab": "Essential"
         },
@@ -210,7 +210,7 @@
           "biweekly": 12.6,
           "monthly": 27.0,
           "annually": 324.0,
-          "budget_allocation": 0.0019,
+          "budget_allocation": null,
           "quarterly": 81.0,
           "tab": "Essential"
         },
@@ -223,7 +223,7 @@
           "biweekly": 158.79,
           "monthly": 345.0,
           "annually": 4140.0,
-          "budget_allocation": 0.0235,
+          "budget_allocation": null,
           "quarterly": 1035.0,
           "tab": "Essential"
         },
@@ -236,7 +236,7 @@
           "biweekly": 414.25,
           "monthly": 900.0,
           "annually": 10800.0,
-          "budget_allocation": 0.061200000000000004,
+          "budget_allocation": null,
           "quarterly": 2700.0,
           "tab": "Essential"
         },
@@ -249,7 +249,7 @@
           "biweekly": 74.1,
           "monthly": 161.0,
           "annually": 161.0,
-          "budget_allocation": 0.011000000000000001,
+          "budget_allocation": null,
           "quarterly": 161.0,
           "tab": "Essential"
         },
@@ -262,8 +262,21 @@
           "biweekly": 1.92,
           "monthly": 4.17,
           "annually": 50.0,
-          "budget_allocation": 0.0003,
+          "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "10/11/2026",
+          "from": "X Money",
+          "item": "FilterEasy",
+          "daily": 0.35,
+          "weekly": 2.45,
+          "biweekly": 4.9,
+          "monthly": 10.65,
+          "annually": 127.8,
+          "budget_allocation": null,
+          "quarterly": 31.95,
           "tab": "Essential"
         },
         {
@@ -275,7 +288,7 @@
           "biweekly": 8.33,
           "monthly": 18.09,
           "annually": 217.12,
-          "budget_allocation": 0.0012,
+          "budget_allocation": null,
           "quarterly": 54.28,
           "tab": "Essential"
         },
@@ -288,7 +301,7 @@
           "biweekly": 5.37,
           "monthly": 11.67,
           "annually": 140.0,
-          "budget_allocation": 0.0008,
+          "budget_allocation": null,
           "quarterly": 35.0,
           "tab": "Essential"
         },
@@ -301,7 +314,7 @@
           "biweekly": 9.23,
           "monthly": 19.99,
           "annually": 239.88,
-          "budget_allocation": 0.0014000000000000002,
+          "budget_allocation": null,
           "quarterly": 59.97,
           "tab": "Essential"
         },
@@ -314,7 +327,7 @@
           "biweekly": 10.55,
           "monthly": 22.92,
           "annually": 275.0,
-          "budget_allocation": 0.0016,
+          "budget_allocation": null,
           "quarterly": 68.75,
           "tab": "Essential"
         },
@@ -327,7 +340,7 @@
           "biweekly": 575.34,
           "monthly": 1250.0,
           "annually": 1250.0,
-          "budget_allocation": 0.085,
+          "budget_allocation": null,
           "quarterly": 3750.0,
           "tab": "Essential"
         },
@@ -340,14 +353,14 @@
           "biweekly": 23.01,
           "monthly": 50.0,
           "annually": 600.0,
-          "budget_allocation": 0.0034000000000000002,
+          "budget_allocation": null,
           "quarterly": 150.0,
           "tab": "Essential"
         }
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1146.02
+        "X Money": 1156.67
       },
       "top_monthly": [
         {
@@ -355,7 +368,7 @@
           "monthly": 11275.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.7670999999999999,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -363,7 +376,7 @@
           "monthly": 1250.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.085,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -371,7 +384,7 @@
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "9/9/2026",
-          "budget_allocation": 0.061200000000000004,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -379,7 +392,7 @@
           "monthly": 345.0,
           "from": "X Money",
           "date": "9/5/2026",
-          "budget_allocation": 0.0235,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -387,7 +400,7 @@
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": 0.011000000000000001,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -395,7 +408,7 @@
           "monthly": 125.0,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.0085,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -403,7 +416,7 @@
           "monthly": 99.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0067,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -411,7 +424,7 @@
           "monthly": 85.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0058,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -419,7 +432,7 @@
           "monthly": 83.33,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.005699999999999999,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -427,7 +440,7 @@
           "monthly": 67.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0046,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -435,7 +448,7 @@
           "monthly": 50.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.0034000000000000002,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -443,7 +456,7 @@
           "monthly": 33.78,
           "from": "X Money",
           "date": "8/22/2026",
-          "budget_allocation": 0.0023,
+          "budget_allocation": null,
           "tab": "Essential"
         }
       ],
@@ -593,19 +606,19 @@
           "tab": "Essential"
         },
         {
+          "date": "10/11/2026",
+          "item": "FilterEasy",
+          "from": "X Money",
+          "monthly": 10.65,
+          "weekly": 2.45,
+          "tab": "Essential"
+        },
+        {
           "date": "10/29/2026",
           "item": "SodaStream Refills",
           "from": "X Money",
           "monthly": 18.09,
           "weekly": 4.16,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "item": "Amazon Prime",
-          "from": "X Money",
-          "monthly": 11.67,
-          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -633,7 +646,7 @@
           "biweekly": 505.18,
           "monthly": 1082.52,
           "annually": 1082.52,
-          "budget_allocation": 0.2631,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -645,7 +658,7 @@
           "biweekly": 616.77,
           "monthly": 1321.66,
           "annually": 1321.66,
-          "budget_allocation": 0.3212,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -657,7 +670,7 @@
           "biweekly": 523.39,
           "monthly": 1121.55,
           "annually": 1121.55,
-          "budget_allocation": 0.2726,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -669,7 +682,7 @@
           "biweekly": 12.23,
           "monthly": 26.58,
           "annually": 318.96,
-          "budget_allocation": 0.0064,
+          "budget_allocation": null,
           "quarterly": 79.74,
           "tab": "Fleet"
         },
@@ -682,7 +695,7 @@
           "biweekly": 258.67,
           "monthly": 562.0,
           "annually": 6744.0,
-          "budget_allocation": 0.13470000000000001,
+          "budget_allocation": null,
           "quarterly": 1686.0,
           "tab": "Fleet"
         },
@@ -695,7 +708,7 @@
           "biweekly": 3.81,
           "monthly": 8.25,
           "annually": 99.0,
-          "budget_allocation": 0.002,
+          "budget_allocation": null,
           "quarterly": 24.75,
           "tab": "Fleet"
         }
@@ -709,7 +722,7 @@
           "monthly": 1321.66,
           "from": "X Money",
           "date": "5/23/2026",
-          "budget_allocation": 0.3212,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -717,7 +730,7 @@
           "monthly": 1121.55,
           "from": "X Money",
           "date": "6/21/2026",
-          "budget_allocation": 0.2726,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -725,7 +738,7 @@
           "monthly": 1082.52,
           "from": "X Money",
           "date": "5/21/2026",
-          "budget_allocation": 0.2631,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -733,7 +746,7 @@
           "monthly": 562.0,
           "from": "X Money",
           "date": "8/21/2026",
-          "budget_allocation": 0.13470000000000001,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -741,7 +754,7 @@
           "monthly": 26.58,
           "from": "X Money",
           "date": "8/20/2026",
-          "budget_allocation": 0.0064,
+          "budget_allocation": null,
           "tab": "Fleet"
         },
         {
@@ -749,7 +762,7 @@
           "monthly": 8.25,
           "from": "X Money",
           "date": "2/1/2027",
-          "budget_allocation": 0.002,
+          "budget_allocation": null,
           "tab": "Fleet"
         }
       ],
@@ -808,17 +821,76 @@
     },
     "Collateral": {
       "role": "collateral_investments",
-      "item_count": 0,
+      "item_count": 2,
       "totals": {
-        "daily": 0.0,
-        "weekly": 0.0,
-        "biweekly": 0.0,
-        "monthly": 0.0,
-        "annually": 0.0
+        "daily": 17.71,
+        "weekly": 123.97,
+        "biweekly": 247.94,
+        "monthly": 537.2,
+        "annually": 6446.4
       },
-      "items": [],
-      "top_targets": [],
-      "top_monthly": [],
+      "items": [
+        {
+          "item": "ASIC Fleet OpEx",
+          "date": "9/1/2026",
+          "daily": 14.41,
+          "weekly": 100.89,
+          "biweekly": 201.78,
+          "monthly": 437.2,
+          "annually": 5246.4,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "Agentic Fund Allocation",
+          "date": "9/1/2026",
+          "daily": 3.3,
+          "weekly": 23.08,
+          "biweekly": 46.15,
+          "monthly": 100.0,
+          "annually": 1200.0,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        }
+      ],
+      "top_targets": [
+        {
+          "item": "ASIC Fleet OpEx",
+          "monthly": 437.2,
+          "from": "X Money",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "Agentic Fund Allocation",
+          "monthly": 100.0,
+          "from": "X Money",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        }
+      ],
+      "top_monthly": [
+        {
+          "item": "ASIC Fleet OpEx",
+          "monthly": 437.2,
+          "from": "X Money",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        },
+        {
+          "item": "Agentic Fund Allocation",
+          "monthly": 100.0,
+          "from": "X Money",
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Collateral"
+        }
+      ],
       "priority": 1,
       "label": "Collateral",
       "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
@@ -1001,7 +1073,7 @@
     },
     "Consumer Discretionary": {
       "role": "consumer_wishlist",
-      "item_count": 0,
+      "item_count": 3,
       "totals": {
         "daily": 0.0,
         "weekly": 0.0,
@@ -1009,7 +1081,44 @@
         "monthly": 0.0,
         "annually": 0.0
       },
-      "items": [],
+      "items": [
+        {
+          "item": "Airfryer",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        },
+        {
+          "item": "Collateral (Stock)",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        },
+        {
+          "item": "Robot Vac",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        }
+      ],
       "top_targets": [],
       "top_monthly": [],
       "priority": 2,
@@ -1018,14 +1127,14 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 25,
       "totals": {
-        "daily": 483.23,
-        "weekly": 3382.64,
-        "biweekly": 6765.27,
-        "monthly": 14697.93,
-        "annually": 49554.12,
-        "quarterly": 15946.78
+        "daily": 483.58,
+        "weekly": 3385.09,
+        "biweekly": 6770.17,
+        "monthly": 14708.58,
+        "annually": 49681.92,
+        "quarterly": 15978.73
       },
       "items": [
         {
@@ -1037,7 +1146,7 @@
           "biweekly": 5189.59,
           "monthly": 11275.0,
           "annually": 24000.0,
-          "budget_allocation": 0.7670999999999999,
+          "budget_allocation": null,
           "quarterly": 6000.0,
           "tab": "Essential"
         },
@@ -1050,7 +1159,7 @@
           "biweekly": 12.43,
           "monthly": 27.0,
           "annually": 324.0,
-          "budget_allocation": 0.0018,
+          "budget_allocation": null,
           "quarterly": 81.0,
           "tab": "Essential"
         },
@@ -1063,7 +1172,7 @@
           "biweekly": 8.75,
           "monthly": 19.0,
           "annually": 228.0,
-          "budget_allocation": 0.0013,
+          "budget_allocation": null,
           "quarterly": 57.0,
           "tab": "Essential"
         },
@@ -1076,7 +1185,7 @@
           "biweekly": 30.84,
           "monthly": 67.0,
           "annually": 804.0,
-          "budget_allocation": 0.0046,
+          "budget_allocation": null,
           "quarterly": 201.0,
           "tab": "Essential"
         },
@@ -1089,7 +1198,7 @@
           "biweekly": 39.12,
           "monthly": 85.0,
           "annually": 1020.0,
-          "budget_allocation": 0.0058,
+          "budget_allocation": null,
           "quarterly": 255.0,
           "tab": "Essential"
         },
@@ -1102,7 +1211,7 @@
           "biweekly": 45.57,
           "monthly": 99.0,
           "annually": 1188.0,
-          "budget_allocation": 0.0067,
+          "budget_allocation": null,
           "quarterly": 297.0,
           "tab": "Essential"
         },
@@ -1115,7 +1224,7 @@
           "biweekly": 15.55,
           "monthly": 33.78,
           "annually": 405.36,
-          "budget_allocation": 0.0023,
+          "budget_allocation": null,
           "quarterly": 101.34,
           "tab": "Essential"
         },
@@ -1128,7 +1237,7 @@
           "biweekly": 13.8,
           "monthly": 29.99,
           "annually": 359.88,
-          "budget_allocation": 0.002,
+          "budget_allocation": null,
           "quarterly": 89.97,
           "tab": "Essential"
         },
@@ -1141,7 +1250,7 @@
           "biweekly": 4.6,
           "monthly": 10.0,
           "annually": 120.0,
-          "budget_allocation": 0.0007000000000000001,
+          "budget_allocation": null,
           "quarterly": 30.0,
           "tab": "Essential"
         },
@@ -1154,7 +1263,7 @@
           "biweekly": 11.05,
           "monthly": 24.0,
           "annually": 288.0,
-          "budget_allocation": 0.0016,
+          "budget_allocation": null,
           "quarterly": 72.0,
           "tab": "Essential"
         },
@@ -1167,7 +1276,7 @@
           "biweekly": 38.36,
           "monthly": 83.33,
           "annually": 1000.0,
-          "budget_allocation": 0.005699999999999999,
+          "budget_allocation": null,
           "quarterly": 250.0,
           "tab": "Essential"
         },
@@ -1180,7 +1289,7 @@
           "biweekly": 57.53,
           "monthly": 125.0,
           "annually": 1500.0,
-          "budget_allocation": 0.0085,
+          "budget_allocation": null,
           "quarterly": 375.0,
           "tab": "Essential"
         },
@@ -1193,7 +1302,7 @@
           "biweekly": 4.6,
           "monthly": 9.99,
           "annually": 119.88,
-          "budget_allocation": 0.0007000000000000001,
+          "budget_allocation": null,
           "quarterly": 29.97,
           "tab": "Essential"
         },
@@ -1206,7 +1315,7 @@
           "biweekly": 12.6,
           "monthly": 27.0,
           "annually": 324.0,
-          "budget_allocation": 0.0019,
+          "budget_allocation": null,
           "quarterly": 81.0,
           "tab": "Essential"
         },
@@ -1219,7 +1328,7 @@
           "biweekly": 158.79,
           "monthly": 345.0,
           "annually": 4140.0,
-          "budget_allocation": 0.0235,
+          "budget_allocation": null,
           "quarterly": 1035.0,
           "tab": "Essential"
         },
@@ -1232,7 +1341,7 @@
           "biweekly": 414.25,
           "monthly": 900.0,
           "annually": 10800.0,
-          "budget_allocation": 0.061200000000000004,
+          "budget_allocation": null,
           "quarterly": 2700.0,
           "tab": "Essential"
         },
@@ -1245,7 +1354,7 @@
           "biweekly": 74.1,
           "monthly": 161.0,
           "annually": 161.0,
-          "budget_allocation": 0.011000000000000001,
+          "budget_allocation": null,
           "quarterly": 161.0,
           "tab": "Essential"
         },
@@ -1258,8 +1367,21 @@
           "biweekly": 1.92,
           "monthly": 4.17,
           "annually": 50.0,
-          "budget_allocation": 0.0003,
+          "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "10/11/2026",
+          "from": "X Money",
+          "item": "FilterEasy",
+          "daily": 0.35,
+          "weekly": 2.45,
+          "biweekly": 4.9,
+          "monthly": 10.65,
+          "annually": 127.8,
+          "budget_allocation": null,
+          "quarterly": 31.95,
           "tab": "Essential"
         },
         {
@@ -1271,7 +1393,7 @@
           "biweekly": 8.33,
           "monthly": 18.09,
           "annually": 217.12,
-          "budget_allocation": 0.0012,
+          "budget_allocation": null,
           "quarterly": 54.28,
           "tab": "Essential"
         },
@@ -1284,7 +1406,7 @@
           "biweekly": 5.37,
           "monthly": 11.67,
           "annually": 140.0,
-          "budget_allocation": 0.0008,
+          "budget_allocation": null,
           "quarterly": 35.0,
           "tab": "Essential"
         },
@@ -1297,7 +1419,7 @@
           "biweekly": 9.23,
           "monthly": 19.99,
           "annually": 239.88,
-          "budget_allocation": 0.0014000000000000002,
+          "budget_allocation": null,
           "quarterly": 59.97,
           "tab": "Essential"
         },
@@ -1310,7 +1432,7 @@
           "biweekly": 10.55,
           "monthly": 22.92,
           "annually": 275.0,
-          "budget_allocation": 0.0016,
+          "budget_allocation": null,
           "quarterly": 68.75,
           "tab": "Essential"
         },
@@ -1323,7 +1445,7 @@
           "biweekly": 575.34,
           "monthly": 1250.0,
           "annually": 1250.0,
-          "budget_allocation": 0.085,
+          "budget_allocation": null,
           "quarterly": 3750.0,
           "tab": "Essential"
         },
@@ -1336,14 +1458,14 @@
           "biweekly": 23.01,
           "monthly": 50.0,
           "annually": 600.0,
-          "budget_allocation": 0.0034000000000000002,
+          "budget_allocation": null,
           "quarterly": 150.0,
           "tab": "Essential"
         }
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1146.02
+        "X Money": 1156.67
       },
       "top_monthly": [
         {
@@ -1351,7 +1473,7 @@
           "monthly": 11275.0,
           "from": "Coinbase",
           "date": "4/1/2026",
-          "budget_allocation": 0.7670999999999999,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1359,7 +1481,7 @@
           "monthly": 1250.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.085,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1367,7 +1489,7 @@
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "9/9/2026",
-          "budget_allocation": 0.061200000000000004,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1375,7 +1497,7 @@
           "monthly": 345.0,
           "from": "X Money",
           "date": "9/5/2026",
-          "budget_allocation": 0.0235,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1383,7 +1505,7 @@
           "monthly": 161.0,
           "from": "X Money",
           "date": "9/9/2026",
-          "budget_allocation": 0.011000000000000001,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1391,7 +1513,7 @@
           "monthly": 125.0,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.0085,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1399,7 +1521,7 @@
           "monthly": 99.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0067,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1407,7 +1529,7 @@
           "monthly": 85.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0058,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1415,7 +1537,7 @@
           "monthly": 83.33,
           "from": "X Money",
           "date": "9/1/2026",
-          "budget_allocation": 0.005699999999999999,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1423,7 +1545,7 @@
           "monthly": 67.0,
           "from": "X Money",
           "date": "8/19/2026",
-          "budget_allocation": 0.0046,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1431,7 +1553,7 @@
           "monthly": 50.0,
           "from": "Coinbase",
           "date": "7/15/2027",
-          "budget_allocation": 0.0034000000000000002,
+          "budget_allocation": null,
           "tab": "Essential"
         },
         {
@@ -1439,7 +1561,7 @@
           "monthly": 33.78,
           "from": "X Money",
           "date": "8/22/2026",
-          "budget_allocation": 0.0023,
+          "budget_allocation": null,
           "tab": "Essential"
         }
       ],
@@ -1589,19 +1711,19 @@
           "tab": "Essential"
         },
         {
+          "date": "10/11/2026",
+          "item": "FilterEasy",
+          "from": "X Money",
+          "monthly": 10.65,
+          "weekly": 2.45,
+          "tab": "Essential"
+        },
+        {
           "date": "10/29/2026",
           "item": "SodaStream Refills",
           "from": "X Money",
           "monthly": 18.09,
           "weekly": 4.16,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "item": "Amazon Prime",
-          "from": "X Money",
-          "monthly": 11.67,
-          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -1788,38 +1910,34 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18820.49,
-    "essential_monthly": 14697.93,
-    "personal_monthly": 14697.93,
-    "personal_daily": 483.23,
-    "essential_daily": 483.23,
-    "personal_weekly": 3382.64,
-    "personal_annually": 49554.12,
+    "upcoming_expense_monthly": 18831.14,
+    "essential_monthly": 14708.58,
+    "personal_monthly": 14708.58,
+    "personal_daily": 483.58,
+    "essential_daily": 483.58,
+    "personal_weekly": 3385.09,
+    "personal_annually": 49681.92,
     "fleet_monthly": 4122.56,
     "fleet_daily": 137.15,
     "fleet_annually": 10687.69,
-    "collateral_investments_monthly": 0.0,
-    "collateral_monthly": 0.0,
+    "collateral_investments_monthly": 537.2,
+    "collateral_monthly": 537.2,
     "capital_targets_monthly": 3000.0,
     "productive_discretionary_monthly": 3000.0,
     "discretionary_monthly": 3000.0,
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18820.49,
-    "combined_daily": 620.38,
+    "combined_monthly": 18831.14,
+    "combined_daily": 620.73,
     "by_source_monthly": {
       "Coinbase": 13551.91,
-      "X Money": 5268.58
+      "X Money": 5279.23
     },
     "coinbase_funded_monthly": 13551.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5268.58
+    "x_money_funded_monthly": 5279.23
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB.",
-  "tab_warnings": [
-    "Collateral tab unavailable: The read operation timed out",
-    "Consumer Discretionary tab unavailable: Sheet HTTP 400 for tab 'Consumer Discretionary' (gid=192074825)"
-  ]
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
 }
