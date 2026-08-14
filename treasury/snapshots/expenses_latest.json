@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-13T18:58:14.044894+00:00",
+  "as_of": "2026-08-14T15:38:09.037731+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -229,19 +229,6 @@
         },
         {
           "date": "9/9/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": null,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/9/2026",
           "from": "X Money",
           "item": "Lee County Citation",
           "daily": 5.29,
@@ -251,6 +238,19 @@
           "annually": 161.0,
           "budget_allocation": null,
           "quarterly": 161.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/10/2026",
+          "from": "Coinbase",
+          "item": "Tha\u00eds",
+          "daily": 29.59,
+          "weekly": 207.12,
+          "biweekly": 414.25,
+          "monthly": 900.0,
+          "annually": 10800.0,
+          "budget_allocation": null,
+          "quarterly": 2700.0,
           "tab": "Essential"
         },
         {
@@ -383,7 +383,7 @@
           "item": "Tha\u00eds",
           "monthly": 900.0,
           "from": "Coinbase",
-          "date": "9/9/2026",
+          "date": "9/10/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -590,19 +590,19 @@
           "tab": "Essential"
         },
         {
-          "date": "9/9/2026",
-          "item": "Tha\u00eds",
-          "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
-          "tab": "Essential"
-        },
-        {
           "date": "9/10/2026",
           "item": "Robinhood Gold",
           "from": "X Money",
           "monthly": 4.17,
           "weekly": 0.96,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/10/2026",
+          "item": "Tha\u00eds",
+          "from": "Coinbase",
+          "monthly": 900.0,
+          "weekly": 207.12,
           "tab": "Essential"
         },
         {
@@ -627,14 +627,14 @@
     },
     "Fleet": {
       "role": "auto_fleet_expenses",
-      "item_count": 6,
+      "item_count": 7,
       "totals": {
-        "daily": 137.15,
-        "weekly": 960.03,
-        "biweekly": 1920.06,
-        "monthly": 4122.56,
-        "annually": 10687.69,
-        "quarterly": 1790.49
+        "daily": 184.49,
+        "weekly": 1291.41,
+        "biweekly": 2582.83,
+        "monthly": 5543.76,
+        "annually": 27742.09,
+        "quarterly": 6054.09
       },
       "items": [
         {
@@ -650,18 +650,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "5/23/2026",
-          "from": "X Money",
-          "item": "GM Financial (May / June / July)",
-          "daily": 44.06,
-          "weekly": 308.39,
-          "biweekly": 616.77,
-          "monthly": 1321.66,
-          "annually": 1321.66,
-          "budget_allocation": null,
-          "tab": "Fleet"
-        },
-        {
           "date": "6/21/2026",
           "from": "X Money",
           "item": "Capital One (June / July / August)",
@@ -670,6 +658,18 @@
           "biweekly": 523.39,
           "monthly": 1121.55,
           "annually": 1121.55,
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "date": "6/23/2026",
+          "from": "X Money",
+          "item": "GM Financial (June / July / August)",
+          "daily": 44.06,
+          "weekly": 308.39,
+          "biweekly": 616.77,
+          "monthly": 1321.66,
+          "annually": 1321.66,
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -690,13 +690,26 @@
           "date": "8/21/2026",
           "from": "X Money",
           "item": "Fleet Insurance",
-          "daily": 18.48,
-          "weekly": 129.34,
-          "biweekly": 258.67,
-          "monthly": 562.0,
-          "annually": 6744.0,
+          "daily": 20.82,
+          "weekly": 145.72,
+          "biweekly": 291.45,
+          "monthly": 633.2,
+          "annually": 7598.4,
           "budget_allocation": null,
-          "quarterly": 1686.0,
+          "quarterly": 1899.6,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/1/2026",
+          "from": null,
+          "item": "Rivian R1S",
+          "daily": 45.0,
+          "weekly": 315.0,
+          "biweekly": 630.0,
+          "monthly": 1350.0,
+          "annually": 16200.0,
+          "budget_allocation": null,
+          "quarterly": 4050.0,
           "tab": "Fleet"
         },
         {
@@ -714,14 +727,23 @@
         }
       ],
       "by_source_monthly": {
-        "X Money": 4122.56
+        "X Money": 4193.76,
+        "Unspecified": 1350.0
       },
       "top_monthly": [
         {
-          "item": "GM Financial (May / June / July)",
+          "item": "Rivian R1S",
+          "monthly": 1350.0,
+          "from": null,
+          "date": "9/1/2026",
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "item": "GM Financial (June / July / August)",
           "monthly": 1321.66,
           "from": "X Money",
-          "date": "5/23/2026",
+          "date": "6/23/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -743,7 +765,7 @@
         },
         {
           "item": "Fleet Insurance",
-          "monthly": 562.0,
+          "monthly": 633.2,
           "from": "X Money",
           "date": "8/21/2026",
           "budget_allocation": null,
@@ -776,19 +798,19 @@
           "tab": "Fleet"
         },
         {
-          "date": "5/23/2026",
-          "item": "GM Financial (May / June / July)",
-          "from": "X Money",
-          "monthly": 1321.66,
-          "weekly": 308.39,
-          "tab": "Fleet"
-        },
-        {
           "date": "6/21/2026",
           "item": "Capital One (June / July / August)",
           "from": "X Money",
           "monthly": 1121.55,
           "weekly": 261.7,
+          "tab": "Fleet"
+        },
+        {
+          "date": "6/23/2026",
+          "item": "GM Financial (June / July / August)",
+          "from": "X Money",
+          "monthly": 1321.66,
+          "weekly": 308.39,
           "tab": "Fleet"
         },
         {
@@ -803,8 +825,16 @@
           "date": "8/21/2026",
           "item": "Fleet Insurance",
           "from": "X Money",
-          "monthly": 562.0,
-          "weekly": 129.34,
+          "monthly": 633.2,
+          "weekly": 145.72,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/1/2026",
+          "item": "Rivian R1S",
+          "from": null,
+          "monthly": 1350.0,
+          "weekly": 315.0,
           "tab": "Fleet"
         },
         {
@@ -1334,19 +1364,6 @@
         },
         {
           "date": "9/9/2026",
-          "from": "Coinbase",
-          "item": "Tha\u00eds",
-          "daily": 29.59,
-          "weekly": 207.12,
-          "biweekly": 414.25,
-          "monthly": 900.0,
-          "annually": 10800.0,
-          "budget_allocation": null,
-          "quarterly": 2700.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/9/2026",
           "from": "X Money",
           "item": "Lee County Citation",
           "daily": 5.29,
@@ -1356,6 +1373,19 @@
           "annually": 161.0,
           "budget_allocation": null,
           "quarterly": 161.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/10/2026",
+          "from": "Coinbase",
+          "item": "Tha\u00eds",
+          "daily": 29.59,
+          "weekly": 207.12,
+          "biweekly": 414.25,
+          "monthly": 900.0,
+          "annually": 10800.0,
+          "budget_allocation": null,
+          "quarterly": 2700.0,
           "tab": "Essential"
         },
         {
@@ -1488,7 +1518,7 @@
           "item": "Tha\u00eds",
           "monthly": 900.0,
           "from": "Coinbase",
-          "date": "9/9/2026",
+          "date": "9/10/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1695,19 +1725,19 @@
           "tab": "Essential"
         },
         {
-          "date": "9/9/2026",
-          "item": "Tha\u00eds",
-          "from": "Coinbase",
-          "monthly": 900.0,
-          "weekly": 207.12,
-          "tab": "Essential"
-        },
-        {
           "date": "9/10/2026",
           "item": "Robinhood Gold",
           "from": "X Money",
           "monthly": 4.17,
           "weekly": 0.96,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/10/2026",
+          "item": "Tha\u00eds",
+          "from": "Coinbase",
+          "monthly": 900.0,
+          "weekly": 207.12,
           "tab": "Essential"
         },
         {
@@ -1910,16 +1940,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18831.14,
+    "upcoming_expense_monthly": 20252.34,
     "essential_monthly": 14708.58,
     "personal_monthly": 14708.58,
     "personal_daily": 483.58,
     "essential_daily": 483.58,
     "personal_weekly": 3385.09,
     "personal_annually": 49681.92,
-    "fleet_monthly": 4122.56,
-    "fleet_daily": 137.15,
-    "fleet_annually": 10687.69,
+    "fleet_monthly": 5543.76,
+    "fleet_daily": 184.49,
+    "fleet_annually": 27742.09,
     "collateral_investments_monthly": 537.2,
     "collateral_monthly": 537.2,
     "capital_targets_monthly": 3000.0,
@@ -1928,16 +1958,18 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18831.14,
-    "combined_daily": 620.73,
+    "combined_monthly": 20252.34,
+    "combined_daily": 668.07,
     "by_source_monthly": {
       "Coinbase": 13551.91,
-      "X Money": 5279.23
+      "X Money": 5350.43,
+      "Unspecified": 1350.0
     },
     "coinbase_funded_monthly": 13551.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5279.23
+    "x_money_funded_monthly": 5350.43
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB.",
+  "live_error": "<urlopen error [Errno 8] nodename nor servname provided, or not known>"
 }
