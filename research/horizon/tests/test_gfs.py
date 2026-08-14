@@ -71,6 +71,10 @@ class TestGfsPacket(unittest.TestCase):
         aliases = {n.get("horizon_alias") for n in pkt["nodes"]}
         self.assertIn("capital-btc-liquidity", aliases)
         self.assertIn("macro-rates-regime", aliases)
+        self.assertNotIn("energy-nuclear-renaissance", aliases)
+        hashprice = next(n for n in pkt["nodes"] if n["id"] == "hashprice_power")
+        self.assertIsNone(hashprice.get("horizon_alias"))
+        self.assertIn("energy", hashprice["horizon_domains"])
         rels = {e["relation"] for e in pkt["edges"]}
         self.assertTrue({"tightens", "vents", "exposes"} <= rels)
         self.assertTrue(rels <= {"tightens", "vents", "funds", "exposes"})

@@ -189,8 +189,7 @@
         "name": "Hashrate Index + EIA Today in Energy",
         "url": "https://hashrateindex.com/hashprice",
         "kind": "fixture"
-      },
-      "horizon_alias": "energy-nuclear-renaissance"
+      }
     },
     {
       "id": "strc_credit",
