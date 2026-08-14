@@ -12,14 +12,16 @@ Live freeze packet for Orchestra workflow gates / Next 3 work candidates.
 
 ## Fields (frozen)
 
-`ready_count`, `ready_top` (≤3), `in_progress`, `pending_review_count`, `blocked`, `wip_overload`, `free_agent_count`, `pipeline_pressure`, `as_of`, `fresh_for_hours=4`, `stale`, `fetch_ok`, `summary`, `confidence`, `deep_link`.
+`ready_count` (eng-only), `process_ready_count`, `ready_top` (≤3, eng-only), `in_progress`, `pending_review_count`, `blocked`, `wip_overload`, `free_agent_count`, `pipeline_pressure`, `as_of`, `fresh_for_hours=4`, `stale`, `fetch_ok`, `summary`, `confidence`, `deep_link`.
 
 Rules:
 
 - Fetch fail **or** age **>4h** → `stale=true`; fail → `fetch_ok=false` and **no invented Ready 0 / free agents**
+- Ready + label `process` → `process_ready_count` only (not `ready_count` / `ready_top`)
+- Ready + label `human-only` → exclude from both Ready counts
 - `wip_overload` when any `primary_owner` has **>1** In Progress (Pending Review does **not** busy)
 - Missing owner on IP → `blocked` (process), not overload
-- `pipeline_pressure`: `dry` = Ready0 + free≥1; `stuck` = Ready>0 + free0 + PR0 + IP busy; else `ok`
+- `pipeline_pressure`: `dry` = eng Ready0 + free≥1; `stuck` = eng Ready>0 + free0 + PR0 + IP busy; else `ok`. Process-only Ready is **dry**.
 
 ## Refresh path (keep age &lt;4h)
 

@@ -192,6 +192,25 @@ def _status_of(item: Mapping[str, Any]) -> str:
     return str(item.get("status") or item.get("board_status") or "").strip()
 
 
+def _label_names(item: Mapping[str, Any]) -> set[str]:
+    """Normalize issue labels from list[str], list[{name}], or a single string."""
+    raw = item.get("labels")
+    if raw is None:
+        return set()
+    if isinstance(raw, str):
+        n = raw.strip().lower()
+        return {n} if n else set()
+    names: set[str] = set()
+    for lab in raw:
+        if isinstance(lab, Mapping):
+            n = str(lab.get("name") or "").strip().lower()
+        else:
+            n = str(lab or "").strip().lower()
+        if n:
+            names.add(n)
+    return names
+
+
 def _is_open_issue_like(item: Mapping[str, Any]) -> bool:
     kind = str(item.get("kind") or item.get("type") or "Issue")
     if kind not in ("Issue", "PullRequest") and not item.get("is_issue") and not item.get(
@@ -285,6 +304,7 @@ def build_day_constraints_packet(
                 continue
 
     ready: list[dict[str, Any]] = []
+    process_ready_count = 0
     in_progress: list[dict[str, Any]] = []
     pending_review: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
@@ -304,15 +324,23 @@ def build_day_constraints_packet(
         ov = ov_map.get(number) if number is not None else None
         owner = resolve_primary_owner(raw, overlay=ov, roster=roster)
         size = _size_of(raw, ov)
+        label_names = _label_names(raw)
 
         if status == STATUS_READY:
-            ready.append(
-                {
-                    "number": number,
-                    "title": title,
-                    **({"size": size} if size is not None else {}),
-                }
-            )
+            # human-only is excluded from both eng Ready and process Ready.
+            # process is counted only in process_ready_count (pipe stays dry).
+            if "human-only" in label_names:
+                pass
+            elif "process" in label_names:
+                process_ready_count += 1
+            else:
+                ready.append(
+                    {
+                        "number": number,
+                        "title": title,
+                        **({"size": size} if size is not None else {}),
+                    }
+                )
         elif status == STATUS_IP:
             card = {
                 "number": number,
@@ -342,11 +370,6 @@ def build_day_constraints_packet(
                 }
             )
         # Explicit blocked markers in title/labels (optional process)
-        labels = raw.get("labels") or []
-        label_names = {
-            (lab.get("name") if isinstance(lab, Mapping) else str(lab) or "").lower()
-            for lab in labels
-        }
         title_l = title.lower()
         if "blocked" in label_names or title_l.startswith("[blocked]"):
             if not any(b.get("number") == number for b in blocked):
@@ -384,7 +407,8 @@ def build_day_constraints_packet(
     )
 
     summary = (
-        f"Ready {ready_count} · IP {len(in_progress)} · PR {pr_count} "
+        f"Ready {ready_count} · process {process_ready_count} · "
+        f"IP {len(in_progress)} · PR {pr_count} "
         f"· free agents {free_agent_count}"
     )
     if wip_overload:
@@ -404,6 +428,7 @@ def build_day_constraints_packet(
         "fetch_ok": True,
         "confidence": 0.9,
         "ready_count": ready_count,
+        "process_ready_count": process_ready_count,
         "ready_top": ready_top,
         "in_progress": in_progress,
         "pending_review_count": pr_count,

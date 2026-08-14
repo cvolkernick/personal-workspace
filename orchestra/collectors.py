@@ -267,6 +267,7 @@ def collect_workflow(workspace: Path) -> dict[str, Any]:
             "stale": bool(board_pkt.get("stale")),
             "fetch_ok": board_pkt.get("fetch_ok", True),
             "ready_count": board_pkt.get("ready_count"),
+            "process_ready_count": board_pkt.get("process_ready_count"),
             "ready_top": board_pkt.get("ready_top") or [],
             "in_progress": board_pkt.get("in_progress") or [],
             "pending_review_count": board_pkt.get("pending_review_count"),
