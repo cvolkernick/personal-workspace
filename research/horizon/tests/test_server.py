@@ -23,6 +23,7 @@ class TestDashboardArtifacts(unittest.TestCase):
             "Executive brief",
             "Implications for my strategy",
             "Watchlist",
+            "GFS monitor",
             "/api/dashboard",
             "/api/refresh",
             "fact-box",
