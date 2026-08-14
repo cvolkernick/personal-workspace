@@ -160,6 +160,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                           state
                           body
                           assignees(first:8) { nodes { login name } }
+                          labels(first:20) { nodes { name } }
                           repository { nameWithOwner }
                         }
                         ... on PullRequest {
@@ -169,6 +170,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                           state
                           body
                           assignees(first:8) { nodes { login name } }
+                          labels(first:20) { nodes { name } }
                           repository { nameWithOwner }
                         }
                         ... on DraftIssue { title }
@@ -203,6 +205,11 @@ def fetch_items(first: int = 100) -> list[dict]:
                     assignees.append(login)
                 elif name:
                     assignees.append(name)
+            labels = [
+                str(ln.get("name") or "").strip()
+                for ln in ((content.get("labels") or {}).get("nodes") or [])
+                if (ln.get("name") or "").strip()
+            ]
             items.append(
                 {
                     "item_id": node["id"],
@@ -215,6 +222,7 @@ def fetch_items(first: int = 100) -> list[dict]:
                     "repo": (content.get("repository") or {}).get("nameWithOwner"),
                     "body": content.get("body"),
                     "assignees": assignees,
+                    "labels": labels,
                 }
             )
         if not conn["pageInfo"]["hasNextPage"]:
@@ -523,6 +531,7 @@ def cmd_day_export(args: argparse.Namespace) -> None:
         "fetch_ok": packet.get("fetch_ok"),
         "summary": packet.get("summary"),
         "ready_count": packet.get("ready_count"),
+        "process_ready_count": packet.get("process_ready_count"),
         "wip_overload": packet.get("wip_overload"),
     }
     if args.json:

@@ -40,6 +40,7 @@ def _item(
     assignees: list | None = None,
     body: str = "",
     state: str = "OPEN",
+    labels: list | None = None,
 ) -> dict:
     return {
         "number": number,
@@ -50,6 +51,7 @@ def _item(
         "owner": owner,
         "assignees": assignees or [],
         "body": body,
+        "labels": labels or [],
     }
 
 
@@ -139,6 +141,7 @@ class PacketShapeTests(unittest.TestCase):
         )
         for key in (
             "ready_count",
+            "process_ready_count",
             "ready_top",
             "in_progress",
             "pending_review_count",
@@ -157,6 +160,7 @@ class PacketShapeTests(unittest.TestCase):
             self.assertIn(key, pkt)
         self.assertEqual(pkt["fresh_for_hours"], FRESH_FOR_HOURS)
         self.assertEqual(pkt["ready_count"], 4)
+        self.assertEqual(pkt["process_ready_count"], 0)
         self.assertLessEqual(len(pkt["ready_top"]), 3)
         self.assertEqual(pkt["pending_review_count"], 1)
         self.assertEqual(len(pkt["in_progress"]), 1)
@@ -217,6 +221,7 @@ class PacketShapeTests(unittest.TestCase):
         self.assertFalse(pkt["fetch_ok"])
         self.assertEqual(pkt["confidence"], 0.0)
         self.assertNotIn("ready_count", pkt)
+        self.assertNotIn("process_ready_count", pkt)
         self.assertNotIn("free_agent_count", pkt)
         self.assertIsNone(pkt.get("wip_overload"))
 
@@ -228,6 +233,54 @@ class PacketShapeTests(unittest.TestCase):
         )
         self.assertFalse(pkt["fetch_ok"])
         self.assertNotIn("ready_count", pkt)
+        self.assertNotIn("process_ready_count", pkt)
+
+    def test_mixed_process_eng_and_human_only_ready(self) -> None:
+        """Ready+process → process_ready_count; human-only excluded; eng-only in ready_*."""
+        items = [
+            _item(108, "Extractor ingest", "Ready", labels=["process"]),
+            _item(112, "Portfolio unpark", "Ready", labels=["process"]),
+            _item(144, "Tech debt loop", "Ready", labels=["process"]),
+            _item(145, "Extractor feedback", "Ready", labels=["process"]),
+            _item(147, "Packet honesty", "Ready"),
+            _item(99, "Chris decision", "Ready", labels=["human-only"]),
+            _item(20, "Work", "In Progress", owner="Forge"),
+        ]
+        pkt = build_day_constraints_packet(
+            items,
+            agents=[
+                {"name": "Forge", "seat": "implement"},
+                {"name": "Grok", "seat": "gate"},
+                {"name": "Meridian", "seat": "implement"},
+            ],
+            now=NOW,
+        )
+        self.assertEqual(pkt["ready_count"], 1)
+        self.assertEqual(pkt["process_ready_count"], 4)
+        self.assertEqual([c["number"] for c in pkt["ready_top"]], [147])
+        self.assertEqual(pkt["pipeline_pressure"], "ok")
+        self.assertIn("Ready 1 · process 4 ·", pkt["summary"])
+        self.assertNotIn(99, [c.get("number") for c in pkt["ready_top"]])
+        self.assertNotIn(108, [c.get("number") for c in pkt["ready_top"]])
+
+    def test_process_only_ready_is_pipeline_dry(self) -> None:
+        items = [
+            _item(108, "Extractor ingest", "Ready", labels=["process"]),
+            _item(112, "Portfolio unpark", "Ready", labels=[{"name": "process"}]),
+        ]
+        pkt = build_day_constraints_packet(
+            items,
+            agents=[
+                {"name": "Forge", "seat": "implement"},
+                {"name": "Meridian", "seat": "implement"},
+            ],
+            now=NOW,
+        )
+        self.assertEqual(pkt["ready_count"], 0)
+        self.assertEqual(pkt["process_ready_count"], 2)
+        self.assertEqual(pkt["ready_top"], [])
+        self.assertEqual(pkt["pipeline_pressure"], "dry")
+        self.assertIn("Ready 0 · process 2 ·", pkt["summary"])
 
 
 class WriteAndCollectorTests(unittest.TestCase):
@@ -244,6 +297,7 @@ class WriteAndCollectorTests(unittest.TestCase):
             self.assertEqual(path, day_constraints_path(ws))
             loaded = json.loads(path.read_text(encoding="utf-8"))
             self.assertEqual(loaded["ready_count"], 1)
+            self.assertEqual(loaded["process_ready_count"], 0)
             self.assertEqual(loaded["in_progress"][0]["number"], 96)
 
             # Collector consumption (no invented zeros when file present)
@@ -255,6 +309,7 @@ class WriteAndCollectorTests(unittest.TestCase):
             snap = collect_workflow(ws)
             board = (snap.get("signals") or {}).get("board") or {}
             self.assertEqual(board.get("ready_count"), 1)
+            self.assertEqual(board.get("process_ready_count"), 0)
             self.assertEqual(board.get("fetch_ok"), True)
             self.assertFalse(board.get("stale"))
 
