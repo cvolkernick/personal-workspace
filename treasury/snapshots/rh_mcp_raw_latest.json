@@ -1,5 +1,9 @@
 {
-  "fetched_at": "2026-08-14T18:51:35.620701+00:00",
+  "fetched_via": "mcp_http_direct",
+  "server": {
+    "name": "robinhood-trading",
+    "version": "1.1.4"
+  },
   "accounts": {
     "data": {
       "accounts": [
@@ -61,8 +65,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "189.331252266",
-      "equity_value": "189.241252266",
+      "total_value": "189.4028603958",
+      "equity_value": "189.3128603958",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
