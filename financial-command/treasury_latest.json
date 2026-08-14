@@ -1,13 +1,13 @@
 {
   "snapshot": {
-    "as_of": "2026-08-13T18:57:24.320581+00:00",
+    "as_of": "2026-08-14T00:20:57.207590+00:00",
     "coinbase": {
       "source": "live",
-      "as_of": "2026-08-13T18:39:51.636651+00:00",
+      "as_of": "2026-08-13T18:58:07.436654+00:00",
       "liquid_usdc": 0.0051521255614,
       "liquid_btc": 5.2377294815e-06,
-      "btc_usd_price": 63066.16,
-      "liquid_btc_usd": 0.33032348551699603,
+      "btc_usd_price": 63279.4,
+      "liquid_btc_usd": 0.3314403789516311,
       "by_currency": {
         "USDC": 0.0044661904,
         "USD": 0.0006859351614,
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-13T18:39:53.098008+00:00",
+      "as_of": "2026-08-13T18:58:08.675824+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -498,7 +498,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-13T18:39:53.361002+00:00",
+      "as_of": "2026-08-13T18:58:09.223287+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -545,7 +545,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-13T18:39:53.713257+00:00",
+      "as_of": "2026-08-13T18:58:09.649060+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -1121,7 +1121,7 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-13T18:40:00.841638+00:00",
+      "as_of": "2026-08-13T18:58:14.044894+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
@@ -3064,7 +3064,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-13T18:57:24.206812+00:00",
+      "as_of": "2026-08-14T00:20:57.082045+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3078,9 +3078,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-13T18:57:24.206807+00:00",
-        "total_value": 191.1934731088,
-        "equity_value": 191.1034731088,
+        "as_of": "2026-08-14T00:20:57.082041+00:00",
+        "total_value": 191.53789643,
+        "equity_value": 191.44789643,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3313,8 +3313,8 @@
       "vault_known": true,
       "count_vault_toward_buffers": true,
       "liquid_btc": 5.2377294815e-06,
-      "liquid_btc_usd": 0.33032348551699603,
-      "btc_usd_price": 63066.16,
+      "liquid_btc_usd": 0.3314403789516311,
+      "btc_usd_price": 63279.4,
       "ltv": 0.0,
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
@@ -3357,7 +3357,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 191.1934731088,
+      "rh_agentic_total_value": 191.53789643,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -3463,12 +3463,12 @@
         "rh_checking": "ynab",
         "x_money": "ynab",
         "expenses": "google_sheets",
-        "coinbase_as_of": "2026-08-13T18:39:51.636651+00:00",
-        "robinhood_as_of": "2026-08-13T18:57:24.206812+00:00",
-        "one_card_as_of": "2026-08-13T18:39:53.098008+00:00",
-        "rh_checking_as_of": "2026-08-13T18:39:53.361002+00:00",
-        "x_money_as_of": "2026-08-13T18:39:53.713257+00:00",
-        "expenses_as_of": "2026-08-13T18:40:00.841638+00:00"
+        "coinbase_as_of": "2026-08-13T18:58:07.436654+00:00",
+        "robinhood_as_of": "2026-08-14T00:20:57.082045+00:00",
+        "one_card_as_of": "2026-08-13T18:58:08.675824+00:00",
+        "rh_checking_as_of": "2026-08-13T18:58:09.223287+00:00",
+        "x_money_as_of": "2026-08-13T18:58:09.649060+00:00",
+        "expenses_as_of": "2026-08-13T18:58:14.044894+00:00"
       },
       "stale": [],
       "warnings": [],
@@ -3685,7 +3685,7 @@
         "critical_total": 11572.0,
         "overdue_count": 1,
         "due_soon_count": 5,
-        "as_of_date": "2026-08-13"
+        "as_of_date": "2026-08-14"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -3777,25 +3777,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-13T18:57:24.325387+00:00",
+      "as_of": "2026-08-14T00:20:57.212200+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-13T18:57:24.322624+00:00",
+        "as_of": "2026-08-14T00:20:57.209528+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 191.1935,
+        "nav_usd": 191.5379,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.5,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3651,
-          "stocks_growth": 0.5476,
+          "btc_digital_credit": 0.3644,
+          "stocks_growth": 0.5466,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -6487,25 +6487,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-13T18:57:24.325387+00:00",
+    "as_of": "2026-08-14T00:20:57.212200+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-13T18:57:24.322624+00:00",
+      "as_of": "2026-08-14T00:20:57.209528+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 191.1935,
+      "nav_usd": 191.5379,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.5,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3651,
-        "stocks_growth": 0.5476,
+        "btc_digital_credit": 0.3644,
+        "stocks_growth": 0.5466,
         "other": 0.0,
         "cash": 0.0005
       },
