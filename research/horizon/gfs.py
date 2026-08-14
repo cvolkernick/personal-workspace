@@ -1,7 +1,8 @@
 """GFS pressure / valve packet — Horizon Macro layer (not a third dashboard).
 
-Fixture-backed MVP. Nakatoshi can replace node ids in
-``fixtures/gfs_graph.json`` without a schema break.
+Fixture-backed MVP. Node set is Nakatoshi's 2026-08-14 schema remap
+(``fixtures/gfs_graph.json``). Not an FCC tab. Valve open/loose does
+not authorize residual while FCC stress is red.
 """
 
 from __future__ import annotations
@@ -156,6 +157,7 @@ def _normalize_node(raw: Mapping[str, Any]) -> dict[str, Any]:
         "confidence": max(0.0, min(1.0, confidence)),
         "our_book": [str(x) for x in _as_list(raw.get("our_book"))],
         "watch_if": str(raw.get("watch_if") or ""),
+        "horizon_alias": str(raw.get("horizon_alias") or "") or None,
         "source": {
             "name": str(src.get("name") or ""),
             "url": str(src.get("url") or ""),

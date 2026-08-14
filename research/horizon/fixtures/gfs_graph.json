@@ -1,31 +1,36 @@
 {
   "schema_version": 1,
-  "honesty": "fixture-backed draft — Nakatoshi table can replace ids without a schema break",
+  "honesty": "fixture-backed \u2014 Nakatoshi swap 2026-08-14. Not live FRED. SIC: loose/open \u2260 residual deploy while FCC red.",
   "book_channels": {
-    "btc_morpho_ltv": "BTC as Morpho collateral / LTV (our book)",
-    "usdc_cash": "USDC / free-cash buffer (FCC red-mode)",
-    "rh_sleeve": "Robinhood sleeve / buying power",
-    "strc_jr": "Listed STRC / JR as emergency dollars — not a GFS valve"
+    "btc_morpho_ltv": "Morpho BTC-backed USDC loan \u2014 keep-open, manage LTV only (alert 0.45 / max 0.50). Latent while collateral $0.",
+    "usdc_cash": "Working USDC + HY LTV Buffer ($1k floor) + One Card deposit. Float, not the store. Red-mode freeze applies to new free dollars.",
+    "rh_sleeve": "Agentic 40/60 (btc_digital_credit + stocks_growth) + BP (no floor) + RH margin bands if used.",
+    "strc_jr": "Listed STRC/SATA seat inside the 40% complex only. JR/SR is NOT this channel \u2014 Morpho never funds it."
   },
   "nodes": [
     {
       "id": "usd_liquidity",
       "kind": "pressure",
-      "title": "USD liquidity",
+      "title": "USD overnight funding",
       "state": "tight",
       "level": 4,
       "strength": "strong",
-      "horizon_domains": ["capital_flows", "macroeconomics"],
-      "facts": [
-        "Post-2022 QT + TGA rebuild + scarce reserves is the default USD funding regime unless a facility offsets it.",
-        "Offshore dollar (swap, basis) is how tightness shows up before the FOMC statement."
+      "horizon_domains": [
+        "capital_flows",
+        "macroeconomics"
       ],
-      "interpretation": "Hinge node. Tight USD funding transmits into carry, crypto, and HY before it shows in headline payrolls.",
+      "facts": [
+        "Overnight dollar (SOFR vs IORB) is the hinge that reprices BTC collateral and DeFi borrow in hours."
+      ],
+      "interpretation": "Tight funding marks Morpho LTV (when collateral exists) and USDC mint. Not a recession forecast.",
       "confidence": 0.48,
-      "our_book": ["btc_morpho_ltv", "usdc_cash"],
-      "watch_if": "SOFR-FF widens, RRP near zero with TGA rising, or FX basis blows out.",
+      "our_book": [
+        "btc_morpho_ltv",
+        "usdc_cash"
+      ],
+      "watch_if": "SOFR\u2212IORB widens or SOFR stale >2 sessions.",
       "source": {
-        "name": "NY Fed — reference rates / SOFR",
+        "name": "NY Fed SOFR / FRED IORB",
         "url": "https://www.newyorkfed.org/markets/reference-rates/sofr",
         "kind": "fixture"
       }
@@ -33,265 +38,403 @@
     {
       "id": "real_rates",
       "kind": "pressure",
-      "title": "Real policy / term rates",
+      "title": "Real yields",
       "state": "tight",
       "level": 4,
       "strength": "strong",
-      "horizon_domains": ["macroeconomics"],
-      "facts": [
-        "Real rates are the discount factor on duration and on every long-duration risk asset, including BTC as a duration-like collateral."
+      "horizon_domains": [
+        "macroeconomics"
       ],
-      "interpretation": "A cut that does not drop *real* rates (sticky inflation) is not a release valve.",
+      "facts": [
+        "10y TIPS is the duration + BTC-liquidity factor. Hits listed STRC mark."
+      ],
+      "interpretation": "A cut that does not drop real rates is not a release. Do not rotate 40/60 on a 10bp print.",
       "confidence": 0.46,
-      "our_book": ["btc_morpho_ltv", "rh_sleeve"],
-      "watch_if": "TIPS 10y or 5y5y re-prices >25bp in a week without a matching valve.",
+      "our_book": [
+        "btc_morpho_ltv",
+        "strc_jr",
+        "rh_sleeve"
+      ],
+      "watch_if": "DFII10 re-prices >25bp in a week without a matching valve.",
       "source": {
-        "name": "FRED — DFII10",
+        "name": "FRED \u2014 DFII10",
         "url": "https://fred.stlouisfed.org/series/DFII10",
         "kind": "fixture"
       }
     },
     {
-      "id": "credit_spreads",
+      "id": "dollar",
       "kind": "pressure",
-      "title": "Credit spreads (HY / IG)",
+      "title": "Broad dollar",
       "state": "neutral",
       "level": 2,
       "strength": "mixed",
-      "horizon_domains": ["capital_flows", "macroeconomics"],
-      "facts": [
-        "HY OAS is the market's private-sector stress gauge; it can stay tight while public-sector plumbing is already stressed."
+      "horizon_domains": [
+        "capital_flows"
       ],
-      "interpretation": "Do not treat equity-at-ATH as 'system healthy' if HY is the only calm node.",
-      "confidence": 0.42,
-      "our_book": ["rh_sleeve"],
-      "watch_if": "HY OAS +75bp in 10 sessions or IG CDX jumps with treasury_function stress.",
+      "facts": [
+        "Broad dollar up is typically BTC and risk down; confirmation for usd_liquidity, not a standalone trade."
+      ],
+      "interpretation": "Ignore DXY tweets. Need BTC/equity confirmation.",
+      "confidence": 0.4,
+      "our_book": [
+        "btc_morpho_ltv"
+      ],
+      "watch_if": "DTWEXBGS breaks a 20-session range with BTC confirmation.",
       "source": {
-        "name": "FRED — BAMLH0A0HYM2",
-        "url": "https://fred.stlouisfed.org/series/BAMLH0A0HYM2",
+        "name": "FRED \u2014 DTWEXBGS",
+        "url": "https://fred.stlouisfed.org/series/DTWEXBGS",
         "kind": "fixture"
       }
     },
     {
-      "id": "treasury_function",
+      "id": "btc_liquidity",
       "kind": "pressure",
-      "title": "Treasury / collateral function",
-      "state": "neutral",
-      "level": 3,
-      "strength": "strong",
-      "horizon_domains": ["capital_flows"],
-      "facts": [
-        "UST market function (MOVE, futures basis, coupon supply) is the collateral backbone of USD credit."
-      ],
-      "interpretation": "A disorderly UST tape is a pressure even if equities ignore it for a week. 2020 and 2023 were the lesson.",
-      "confidence": 0.44,
-      "our_book": ["usdc_cash", "strc_jr"],
-      "watch_if": "MOVE >130 or on-the-run / off-the-run dislocations without buybacks.",
-      "source": {
-        "name": "Treasury — buyback / marketable debt",
-        "url": "https://home.treasury.gov/policy-issues/financing-the-government",
-        "kind": "fixture"
-      }
-    },
-    {
-      "id": "boj_carry",
-      "kind": "pressure",
-      "title": "BoJ / JPY carry",
+      "title": "BTC liquidity beta",
       "state": "tight",
-      "level": 3,
+      "level": 4,
       "strength": "strong",
-      "horizon_domains": ["capital_flows", "macroeconomics"],
-      "facts": [
-        "USDJPY and JGB yields are a global carry hinge; 2024 unwind showed it hits US risk assets the same session."
+      "horizon_domains": [
+        "capital_flows"
       ],
-      "interpretation": "A BoJ hike or lost-control JPY is a *pressure* on USD liquidity, not a Japan-only story.",
-      "confidence": 0.43,
-      "our_book": ["btc_morpho_ltv", "rh_sleeve"],
-      "watch_if": "USDJPY >10-day realized vol spike + JGB 10y unanchored.",
+      "facts": [
+        "BTC is Morpho collateral and the 40% sleeve factor (MSTR / miners / BITA)."
+      ],
+      "interpretation": "Do not invent off-FCC BTC. ETF-flow theater is not this node. Alias Horizon capital-btc-liquidity.",
+      "confidence": 0.45,
+      "our_book": [
+        "btc_morpho_ltv",
+        "rh_sleeve"
+      ],
+      "watch_if": "Spot gaps that would heat LTV if collateral were on; miners mark with it.",
       "source": {
-        "name": "BoJ — statements / market operations",
-        "url": "https://www.boj.or.jp/en/",
+        "name": "Coinbase BTC-USD (already in FCC)",
+        "url": "https://www.coinbase.com/price/bitcoin",
         "kind": "fixture"
-      }
+      },
+      "horizon_alias": "capital-btc-liquidity"
     },
     {
-      "id": "china_credit",
+      "id": "onchain_credit",
       "kind": "pressure",
-      "title": "China credit impulse",
-      "state": "tight",
-      "level": 3,
+      "title": "On-chain USD credit",
+      "state": "loose",
+      "level": 1,
       "strength": "mixed",
-      "horizon_domains": ["macroeconomics", "energy"],
-      "facts": [
-        "China property/credit impulse is still the second engine of global demand and of industrial metals / energy."
+      "horizon_domains": [
+        "capital_flows"
       ],
-      "interpretation": "A CNY slide without a PBOC/fiscal valve is deflationary for the world and tightening for commodity-exporters.",
+      "facts": [
+        "Morpho-class USDC borrow APR is the keep-open loan's cost. Card refi is ~5% vs ~29% only while this stays cheap."
+      ],
+      "interpretation": "Ignore while principal and collateral are $0 and no refinance is on the table this week. Re-arm on a draw. Flag if borrow \u2265 ~15%.",
+      "confidence": 0.4,
+      "our_book": [
+        "btc_morpho_ltv",
+        "usdc_cash"
+      ],
+      "watch_if": "Public Morpho USDC utilization spikes or APR \u2265 15%.",
+      "source": {
+        "name": "Morpho \u2014 public USDC borrow (read-only)",
+        "url": "https://app.morpho.org/",
+        "kind": "fixture"
+      }
+    },
+    {
+      "id": "equity_risk",
+      "kind": "pressure",
+      "title": "Equity vol",
+      "state": "neutral",
+      "level": 2,
+      "strength": "mixed",
+      "horizon_domains": [
+        "capital_flows"
+      ],
+      "facts": [
+        "60% sleeve is TSLA / SPCX. DCA pause is RH margin heat >0.40, not VIX."
+      ],
+      "interpretation": "Not a trade signal. Still show when VIX >30 as watch. Cash account \u2192 rh_margin latent.",
+      "confidence": 0.4,
+      "our_book": [
+        "rh_sleeve"
+      ],
+      "watch_if": "VIX >30 or TSLA/SPCX gap with margin on.",
+      "source": {
+        "name": "CBOE VIX",
+        "url": "https://www.cboe.com/tradable_products/vix/",
+        "kind": "fixture"
+      }
+    },
+    {
+      "id": "hashprice_power",
+      "kind": "pressure",
+      "title": "Hashprice \u00d7 power",
+      "state": "neutral",
+      "level": 2,
+      "strength": "mixed",
+      "horizon_domains": [
+        "energy",
+        "capital_flows"
+      ],
+      "facts": [
+        "Held miner sleeve (MARA / IREN / CLSK). ASIC engine MO exists and is SIC-parked."
+      ],
+      "interpretation": "Miner-mark pressure is in-policy. ASIC deploy recs are not, while cash-stack / red holds.",
+      "confidence": 0.4,
+      "our_book": [
+        "rh_sleeve"
+      ],
+      "watch_if": "Hashprice breaks a 30d range or EIA power narrative shifts miner margins.",
+      "source": {
+        "name": "Hashrate Index + EIA Today in Energy",
+        "url": "https://hashrateindex.com/hashprice",
+        "kind": "fixture"
+      },
+      "horizon_alias": "energy-nuclear-renaissance"
+    },
+    {
+      "id": "strc_credit",
+      "kind": "pressure",
+      "title": "Listed Strategy preferred",
+      "state": "neutral",
+      "level": 2,
+      "strength": "weak",
+      "horizon_domains": [
+        "capital_flows"
+      ],
+      "facts": [
+        "Listed STRC/SATA is the in-policy 40% credit seat. Unheld today. JR-strcUSX is a different product and is vetoed."
+      ],
+      "interpretation": "Ignore while unheld and no residual. Do not count JR toward this node or toward HY.",
       "confidence": 0.38,
-      "our_book": [],
-      "watch_if": "New TSF / credit impulse prints negative while CNY breaks a prior range.",
-      "source": {
-        "name": "PBOC — statistics",
-        "url": "http://www.pbc.gov.cn/en/3688006/index.html",
-        "kind": "fixture"
-      }
-    },
-    {
-      "id": "energy",
-      "kind": "pressure",
-      "title": "Energy shock",
-      "state": "neutral",
-      "level": 2,
-      "strength": "mixed",
-      "horizon_domains": ["energy", "macroeconomics"],
-      "facts": [
-        "Brent / Henry Hub shocks re-price inflation expectations and therefore the room for the Fed valve to open."
+      "our_book": [
+        "strc_jr"
       ],
-      "interpretation": "Energy is a pressure *on real rates* and on fiscal; it is not itself a valve.",
-      "confidence": 0.41,
-      "our_book": ["usdc_cash"],
-      "watch_if": "Brent +15% in 15 sessions with no SPR/OPEC offset.",
+      "watch_if": "STRC spread vs DTB3 blows out, or BP \u2265 $1 after red exit (seat becomes live).",
       "source": {
-        "name": "EIA — petroleum / STEO",
-        "url": "https://www.eia.gov/petroleum/",
+        "name": "Nasdaq STRC / FRED DTB3",
+        "url": "https://www.nasdaq.com/market-activity/stocks/strc",
         "kind": "fixture"
       }
     },
     {
-      "id": "fed_balance_sheet",
+      "id": "policy_rate",
       "kind": "valve",
-      "title": "Fed balance sheet / standing facilities",
+      "title": "Fed funds",
+      "state": "shut",
+      "level": 1,
+      "strength": "strong",
+      "horizon_domains": [
+        "macroeconomics"
+      ],
+      "facts": [
+        "Official rate valve. Sets Morpho/HY opportunity cost and STRC duration. Alias Horizon macro-rates-regime."
+      ],
+      "interpretation": "shut = restrictive. A cut without real-rate relief is not a vent. Kill dot-plot sleeve rotates.",
+      "confidence": 0.45,
+      "our_book": [
+        "usdc_cash",
+        "strc_jr"
+      ],
+      "watch_if": "FOMC changes DFF or the statement changes QT language.",
+      "source": {
+        "name": "FRED DFF + Fed press RSS",
+        "url": "https://fred.stlouisfed.org/series/DFF",
+        "kind": "fixture"
+      },
+      "horizon_alias": "macro-rates-regime"
+    },
+    {
+      "id": "fed_plumbing",
+      "kind": "valve",
+      "title": "Fed balance sheet + RRP/TGA",
       "state": "partial",
       "level": 3,
       "strength": "strong",
-      "horizon_domains": ["macroeconomics", "capital_flows"],
-      "facts": [
-        "QT, QE, SRF, and standing repo are the primary official USD release valves. Rate cuts without balance-sheet or facility use may not vent funding stress."
+      "horizon_domains": [
+        "macroeconomics",
+        "capital_flows"
       ],
-      "interpretation": "Treat 'Fed put' as this node, not as the funds rate alone.",
-      "confidence": 0.5,
-      "our_book": ["btc_morpho_ltv", "usdc_cash"],
-      "watch_if": "SRF take-up jumps, QT taper, or a named facility is announced.",
+      "facts": [
+        "QT/QE/SRF plus RRP drain and TGA spend are the USD release family. Rate cuts without this may not vent funding stress."
+      ],
+      "interpretation": "Do not split TGA vs SOMA on a 12-node board. Do not treat a TGA draw as an easing cycle. Loose/open \u2260 residual deploy while FCC red.",
+      "confidence": 0.47,
+      "our_book": [
+        "btc_morpho_ltv",
+        "usdc_cash"
+      ],
+      "watch_if": "SRF take-up, QT taper, RRP collapse with TGA refill, or WALCL turns up.",
       "source": {
-        "name": "NY Fed — SOMA / SRF",
+        "name": "NY Fed SOMA / FRED RRPONTSYD + WTREGEN",
         "url": "https://www.newyorkfed.org/markets/domestic-market-operations",
         "kind": "fixture"
       }
     },
     {
-      "id": "tga_rrp",
+      "id": "usdc_integrity",
       "kind": "valve",
-      "title": "TGA / RRP plumbing",
-      "state": "partial",
-      "level": 3,
+      "title": "USDC peg + reserves",
+      "state": "open",
+      "level": 4,
       "strength": "strong",
-      "horizon_domains": ["capital_flows"],
-      "facts": [
-        "TGA draw and RRP drain inject reserves without an FOMC vote. They are mechanical valves, not policy signals."
+      "horizon_domains": [
+        "capital_flows"
       ],
-      "interpretation": "Do not confuse a TGA draw (valve open) with a Fed easing cycle.",
-      "confidence": 0.47,
-      "our_book": ["usdc_cash"],
-      "watch_if": "TGA weekly change >$80B or RRP < $100B while QT still runs.",
+      "facts": [
+        "USDC is working capital and Morpho principal denomination (MO \u00a71). Peg break is a book event."
+      ],
+      "interpretation": "open = par / mint working. shut = depeg. Social rumors off. Escalate CEX print <0.995 or attestation miss.",
+      "confidence": 0.5,
+      "our_book": [
+        "usdc_cash",
+        "btc_morpho_ltv"
+      ],
+      "watch_if": "USDC-USD <0.995 on a major CEX or Circle attestation miss.",
       "source": {
-        "name": "Treasury — TGA / NY Fed RRP",
-        "url": "https://fiscaldata.treasury.gov/datasets/daily-treasury-statement/",
+        "name": "Coinbase USDC-USD + Circle attestation",
+        "url": "https://www.circle.com/en/usdc/transparency",
         "kind": "fixture"
       }
     },
     {
-      "id": "fx_swap_lines",
+      "id": "onchain_usd_float",
       "kind": "valve",
-      "title": "CB FX swap lines",
-      "state": "shut",
-      "level": 1,
-      "strength": "strong",
-      "horizon_domains": ["capital_flows", "geopolitics"],
-      "facts": [
-        "Standing dollar swap lines are the offshore USD backstop. Usage is rare and loud."
+      "title": "On-chain USD float",
+      "state": "partial",
+      "level": 3,
+      "strength": "mixed",
+      "horizon_domains": [
+        "capital_flows"
       ],
-      "interpretation": "If this valve opens, usd_liquidity is already in seize territory. That is a regime change, not a trade signal by itself.",
-      "confidence": 0.52,
-      "our_book": ["btc_morpho_ltv", "usdc_cash"],
-      "watch_if": "Any announced 7-day or 84-day dollar auction by Fed swap-line counterparties.",
+      "facts": [
+        "USDC+USDT supply is the crypto-dollar mint/burn valve. Distinct from peg integrity."
+      ],
+      "interpretation": "Ignore day-to-day. Not a BTC timer. Re-read on \u00b15% 30d change.",
+      "confidence": 0.4,
+      "our_book": [
+        "btc_morpho_ltv",
+        "usdc_cash"
+      ],
+      "watch_if": "Combined USDC+USDT mcap \u00b15% in 30 days.",
       "source": {
-        "name": "NY Fed — central bank swap arrangements",
-        "url": "https://www.newyorkfed.org/markets/international-market-operations/central-bank-swap-arrangements",
+        "name": "DefiLlama stablecoins (USDC+USDT)",
+        "url": "https://defillama.com/stablecoins",
         "kind": "fixture"
       }
     }
   ],
   "edges": [
     {
-      "from_id": "real_rates",
-      "to_id": "credit_spreads",
-      "relation": "tightens",
-      "note": "Higher real rates re-price credit; spreads are the private-sector tell."
-    },
-    {
       "from_id": "usd_liquidity",
-      "to_id": "boj_carry",
+      "to_id": "btc_liquidity",
       "relation": "tightens",
-      "note": "Scarce USD forces carry unwind through JPY."
+      "note": "Overnight $ squeeze marks BTC the same week."
     },
     {
       "from_id": "usd_liquidity",
       "to_id": "btc_morpho_ltv",
       "relation": "exposes",
-      "note": "Tight dollars hit BTC collateral and Morpho LTV the same week."
+      "note": "Tight $ \u2192 collateral mark \u2192 LTV. Latent while collateral $0."
     },
     {
-      "from_id": "credit_spreads",
-      "to_id": "rh_sleeve",
-      "relation": "exposes",
-      "note": "HY stress is the path into the brokerage sleeve."
-    },
-    {
-      "from_id": "fed_balance_sheet",
-      "to_id": "usd_liquidity",
-      "relation": "vents",
-      "note": "QE / SRF / QT taper is the official vent."
-    },
-    {
-      "from_id": "tga_rrp",
-      "to_id": "usd_liquidity",
-      "relation": "vents",
-      "note": "Mechanical reserve injection."
-    },
-    {
-      "from_id": "fx_swap_lines",
-      "to_id": "usd_liquidity",
-      "relation": "vents",
-      "note": "Offshore dollar backstop — last official vent."
-    },
-    {
-      "from_id": "energy",
-      "to_id": "real_rates",
+      "from_id": "dollar",
+      "to_id": "btc_liquidity",
       "relation": "tightens",
-      "note": "Energy up → inflation expectations → less room for the Fed valve."
-    },
-    {
-      "from_id": "china_credit",
-      "to_id": "energy",
-      "relation": "funds",
-      "note": "China impulse supports energy demand."
-    },
-    {
-      "from_id": "treasury_function",
-      "to_id": "usdc_cash",
-      "relation": "exposes",
-      "note": "Collateral stress raises the value of true cash / T-bill optionality."
-    },
-    {
-      "from_id": "treasury_function",
-      "to_id": "strc_jr",
-      "relation": "exposes",
-      "note": "Emergency-dollar sleeve, not a GFS valve."
+      "note": "Broad $ up \u2192 BTC down."
     },
     {
       "from_id": "real_rates",
       "to_id": "btc_morpho_ltv",
       "relation": "exposes",
       "note": "Duration-like collateral."
+    },
+    {
+      "from_id": "real_rates",
+      "to_id": "strc_credit",
+      "relation": "tightens",
+      "note": "Pref vs T-bill."
+    },
+    {
+      "from_id": "real_rates",
+      "to_id": "rh_sleeve",
+      "relation": "exposes",
+      "note": "40% BTC-complex + 60% growth marks."
+    },
+    {
+      "from_id": "btc_liquidity",
+      "to_id": "btc_morpho_ltv",
+      "relation": "exposes",
+      "note": "Manage LTV; do not repay just to clean the card."
+    },
+    {
+      "from_id": "btc_liquidity",
+      "to_id": "rh_sleeve",
+      "relation": "exposes",
+      "note": "Held MSTR / miners / BITA."
+    },
+    {
+      "from_id": "onchain_credit",
+      "to_id": "usdc_cash",
+      "relation": "exposes",
+      "note": "Morpho APR vs 29% card; cool-LTV parks in HY, not JR."
+    },
+    {
+      "from_id": "onchain_credit",
+      "to_id": "btc_morpho_ltv",
+      "relation": "exposes",
+      "note": "Borrow cost of the keep-open loan."
+    },
+    {
+      "from_id": "equity_risk",
+      "to_id": "rh_sleeve",
+      "relation": "exposes",
+      "note": "TSLA/SPCX. Margin pause only if margin is on."
+    },
+    {
+      "from_id": "hashprice_power",
+      "to_id": "rh_sleeve",
+      "relation": "exposes",
+      "note": "MARA/IREN/CLSK marks. Not an ASIC deploy signal under SIC."
+    },
+    {
+      "from_id": "strc_credit",
+      "to_id": "strc_jr",
+      "relation": "exposes",
+      "note": "Listed STRC/SATA seat only."
+    },
+    {
+      "from_id": "policy_rate",
+      "to_id": "real_rates",
+      "relation": "vents",
+      "note": "Easing can vent real-rate pressure; shut does not."
+    },
+    {
+      "from_id": "fed_plumbing",
+      "to_id": "usd_liquidity",
+      "relation": "vents",
+      "note": "QT/QE/SRF + RRP drain / TGA spend."
+    },
+    {
+      "from_id": "usdc_integrity",
+      "to_id": "usdc_cash",
+      "relation": "exposes",
+      "note": "Working-capital denomination + card deposit."
+    },
+    {
+      "from_id": "usdc_integrity",
+      "to_id": "btc_morpho_ltv",
+      "relation": "exposes",
+      "note": "Loan principal is USDC."
+    },
+    {
+      "from_id": "onchain_usd_float",
+      "to_id": "btc_liquidity",
+      "relation": "vents",
+      "note": "Expanding stable supply vents crypto-dollar squeeze."
     }
-  ]
+  ],
+  "source_research": "RESEARCH/GFS_MONITOR_FIXTURE_SWAP_2026_08_14.md",
+  "parent_table": "RESEARCH/GFS_MONITOR_NODE_SET_2026_08_14.md",
+  "red_bind": "Valve open/loose does not authorize free-dollar residual while FCC stress.overall=red. SIC + MO \u00a73/3a."
 }

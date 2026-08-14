@@ -1056,7 +1056,7 @@
             <div class="ttl">${esc(n.title || n.id)}</div>
             <div class="st-${esc(st)}">${esc(st)} · L${esc(n.level)} · ${esc(n.strength)}</div>
           </div>
-          <div class="meta">conf ${Number(n.confidence || 0).toFixed(2)} · ${srcBit}${n.watch_if ? " · watch: " + esc(n.watch_if) : ""}</div>
+          <div class="meta">conf ${Number(n.confidence || 0).toFixed(2)} · ${srcBit}${n.horizon_alias ? " · alias " + esc(n.horizon_alias) : ""}${n.watch_if ? " · watch: " + esc(n.watch_if) : ""}</div>
           ${facts}${interp}
           ${bookish ? `<div class="meta" style="margin-top:0.4rem">${bookish}</div>` : ""}
         </div>`;
