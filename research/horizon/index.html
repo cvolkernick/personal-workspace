@@ -389,6 +389,34 @@
     }
     .empty { color: var(--muted); padding: 1.5rem; text-align: center; }
     .loading { color: var(--muted); padding: 2rem; text-align: center; }
+
+    /* GFS board */
+    .gfs-honesty {
+      font-size: 0.82rem; color: var(--yellow); background: rgba(245,197,66,0.08);
+      border: 1px solid rgba(245,197,66,0.35); border-radius: 10px;
+      padding: 0.55rem 0.75rem; margin-bottom: 0.85rem;
+    }
+    .gfs-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.55rem; margin-bottom: 0.9rem; }
+    @media (max-width: 800px) { .gfs-kpis { grid-template-columns: 1fr 1fr; } }
+    .gfs-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.85rem; }
+    @media (max-width: 900px) { .gfs-split { grid-template-columns: 1fr; } }
+    .gfs-card {
+      background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+      padding: 0.7rem 0.8rem; margin-bottom: 0.5rem;
+    }
+    .gfs-card .row1 { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; }
+    .gfs-card .ttl { font-weight: 700; }
+    .gfs-card .meta { color: var(--muted); font-size: 0.75rem; margin-top: 0.2rem; }
+    .st-tight, .st-seize { color: var(--red); }
+    .st-neutral { color: var(--yellow); }
+    .st-loose { color: var(--green); }
+    .st-open { color: var(--green); }
+    .st-partial { color: var(--orange); }
+    .st-shut { color: var(--muted); }
+    .kind-valve { border-left: 3px solid var(--cyan); }
+    .kind-pressure { border-left: 3px solid var(--orange); }
+    .gfs-xmit { font-size: 0.8rem; color: var(--muted); }
+    .gfs-xmit code { color: var(--cyan); font-size: 0.76rem; }
   </style>
 </head>
 <body class="m-shell" data-m-active="overview">
@@ -430,6 +458,7 @@
       <button type="button" class="tab" data-tab="strategy"><span class="tab-ico">🎯</span> Strategy</button>
       <button type="button" class="tab" data-tab="watchlist"><span class="tab-ico">📡</span> Watch</button>
       <button type="button" class="tab" data-tab="graph"><span class="tab-ico">🔗</span> Graph</button>
+      <button type="button" class="tab" data-tab="gfs"><span class="tab-ico">⚖</span> GFS</button>
     </nav>
 
     <section class="panel active" id="panel-overview">
@@ -499,6 +528,24 @@
       </div>
     </section>
 
+    <section class="panel" id="panel-gfs">
+      <h2>GFS monitor <span class="hint">pressures · valves · knock-ons · our book</span></h2>
+      <div class="gfs-honesty" id="gfs-honesty">Loading GFS packet…</div>
+      <div class="gfs-kpis" id="gfs-kpis"></div>
+      <div class="gfs-split">
+        <div>
+          <div class="card-block"><h3>Pressures</h3><div id="gfs-pressures"></div></div>
+        </div>
+        <div>
+          <div class="card-block"><h3>Release valves</h3><div id="gfs-valves"></div></div>
+        </div>
+      </div>
+      <div class="card-block" style="margin-top:0.85rem">
+        <h3>Transmission / our book</h3>
+        <div id="gfs-xmit" class="gfs-xmit"></div>
+      </div>
+    </section>
+
     <footer class="note">
       Horizon · objective synthesis · fact / interpretation split · confidence explicit ·
       data from <code>research/horizon/data/</code>
@@ -513,6 +560,7 @@
     <button type="button" class="tab-btn" data-tab="strategy"><span class="tab-ico">🎯</span><span class="tab-lbl">Strategy</span></button>
     <button type="button" class="tab-btn" data-tab="watchlist"><span class="tab-ico">📡</span><span class="tab-lbl">Watch</span></button>
     <button type="button" class="tab-btn" data-tab="graph"><span class="tab-ico">🔗</span><span class="tab-lbl">Graph</span></button>
+    <button type="button" class="tab-btn" data-tab="gfs"><span class="tab-ico">⚖</span><span class="tab-lbl">GFS</span></button>
   </nav>
 
   <script>
@@ -558,7 +606,7 @@
       el.classList.add("show");
     }
 
-    const TAB_IDS = ["overview", "brief", "world", "strategy", "watchlist", "graph"];
+    const TAB_IDS = ["overview", "brief", "world", "strategy", "watchlist", "graph", "gfs"];
 
     function switchTab(name) {
       if (!TAB_IDS.includes(name)) name = "overview";
@@ -974,6 +1022,66 @@
           }).join("") || '<div class="empty">No cross-domain edges yet</div>';
     }
 
+    function renderGfs(payload) {
+      const g = payload.gfs || {};
+      const honesty = g.honesty || "no GFS packet";
+      const live = g.live_node_count || 0;
+      $("gfs-honesty").textContent = `${honesty} · source=${g.source_kind || "?"} · live nodes ${live}/${g.node_count || 0}`;
+      $("gfs-kpis").innerHTML = [
+        ["Pressure index", g.pressure_index ?? "—", "orange"],
+        ["Pressures", g.pressure_count ?? "—", ""],
+        ["Valves", g.valve_count ?? "—", "cyan"],
+        ["Open / partial", (g.open_valves || []).length, "green"],
+      ].map(([l, n, cls]) => `<div class="kpi"><div class="n ${cls}">${esc(n)}</div><div class="l">${esc(l)}</div></div>`).join("");
+
+      const book = g.book_channels || {};
+      const labelOf = (id) => {
+        const n = (g.nodes || []).find(x => x.id === id);
+        if (n) return n.title || id;
+        return book[id] || id;
+      };
+      const card = (n) => {
+        const st = String(n.state || "");
+        const src = n.source || {};
+        const facts = (n.facts || []).slice(0, 2).map(f => `<div class="fact-box" style="margin-top:0.4rem"><div class="lbl">Fact</div>${esc(f)}</div>`).join("");
+        const interp = n.interpretation
+          ? `<div class="interp-box" style="margin-top:0.35rem"><div class="lbl">Interpretation</div>${esc(n.interpretation)}</div>`
+          : "";
+        const bookish = (n.our_book || []).map(id => `<span class="chip">${esc(book[id] || id)}</span>`).join(" ");
+        const srcBit = src.url
+          ? `<a href="${esc(src.url)}" target="_blank" rel="noopener">${esc(src.name || src.kind || "source")}</a>`
+          : esc(src.name || src.kind || "");
+        return `<div class="gfs-card kind-${esc(n.kind)}">
+          <div class="row1">
+            <div class="ttl">${esc(n.title || n.id)}</div>
+            <div class="st-${esc(st)}">${esc(st)} · L${esc(n.level)} · ${esc(n.strength)}</div>
+          </div>
+          <div class="meta">conf ${Number(n.confidence || 0).toFixed(2)} · ${srcBit}${n.watch_if ? " · watch: " + esc(n.watch_if) : ""}</div>
+          ${facts}${interp}
+          ${bookish ? `<div class="meta" style="margin-top:0.4rem">${bookish}</div>` : ""}
+        </div>`;
+      };
+      const pressures = (g.nodes || []).filter(n => n.kind === "pressure");
+      const valves = (g.nodes || []).filter(n => n.kind === "valve");
+      $("gfs-pressures").innerHTML = pressures.map(card).join("") || '<div class="empty">No pressures</div>';
+      $("gfs-valves").innerHTML = valves.map(card).join("") || '<div class="empty">No valves</div>';
+
+      const xmit = (g.transmissions || []).map(p => {
+        const path = (p.path || []).map(labelOf).join(" → ");
+        const rels = (p.relations || []).join(" / ");
+        return `<div class="edge-item">
+          <div class="rel">${esc(rels)}</div>
+          <div class="ids">${esc(path)}</div>
+          ${p.note ? `<div style="color:var(--dim);font-size:0.76rem;margin-top:0.2rem">${esc(p.note)}</div>` : ""}
+        </div>`;
+      }).join("");
+      const bookList = Object.entries(book).map(([id, title]) =>
+        `<div class="meta"><code>${esc(id)}</code> — ${esc(title)}</div>`
+      ).join("");
+      $("gfs-xmit").innerHTML = (xmit || '<div class="empty">No transmissions</div>')
+        + (bookList ? `<div style="margin-top:0.75rem"><strong>Book channels</strong>${bookList}</div>` : "");
+    }
+
     function renderAll(payload) {
       DATA = payload;
       renderKpis(payload);
@@ -983,6 +1091,7 @@
       renderStrategy(payload);
       renderWatchlist(payload);
       renderGraph(payload);
+      renderGfs(payload);
     }
 
     async function loadDashboard() {

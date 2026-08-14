@@ -7,6 +7,7 @@
   GET  /api/world-state  — latest world-state JSON
   GET  /api/dashboard    — combined payload for UI
   GET  /api/implications — L0 implication packet (alias: /api/packets/latest)
+  GET  /api/gfs          — GFS pressure / valve packet
   POST /api/refresh      — re-run pipeline (body: {"offline": true})
 
 Usage (Mac dev):
@@ -32,6 +33,7 @@ ROOT = HORIZON_DIR.parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from research.horizon.gfs import ensure_gfs_packet  # noqa: E402
 from research.horizon.packets import validate_packet  # noqa: E402
 from research.horizon.pipeline import run_pipeline  # noqa: E402
 from research.horizon.store import (  # noqa: E402
@@ -88,6 +90,7 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         regime = state["regime"]
 
     packet = load_packet(data_dir)
+    gfs = ensure_gfs_packet(data_dir=data_dir)
 
     return {
         "ok": True,
@@ -97,6 +100,7 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         "has_world_state": state is not None,
         "has_brief": brief is not None,
         "has_packet": packet is not None,
+        "has_gfs": bool(gfs.get("nodes")),
         "version_id": (brief or state or {}).get("version_id"),
         "generated_at": (brief or {}).get("generated_at") or (state or {}).get("updated_at"),
         "domain_stats": domain_stats,
@@ -104,10 +108,12 @@ def build_dashboard_payload(workspace: Path | None = None, data_dir: Path | None
         "world_state": state,
         "brief": brief,
         "packet": packet,
+        "gfs": gfs,
         "paths": {
             "world_state": str(world_state_latest_path(data_dir)),
             "brief_json": str(brief_path),
             "packet_latest": str(packet_latest_path(data_dir)),
+            "gfs_latest": str(Path(data_dir) / "gfs_latest.json"),
         },
     }
 
@@ -234,6 +240,14 @@ class HorizonHandler(SimpleHTTPRequestHandler):
             self._json(code, body)
             return
 
+        if path == "/api/gfs":
+            try:
+                packet = ensure_gfs_packet(data_dir=DEFAULT_DATA_DIR)
+                self._json(200, packet)
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+
         if path in ("/favicon.svg", "/favicon.ico"):
             fav = HORIZON_DIR / "favicon.svg"
             if fav.is_file():
@@ -265,6 +279,7 @@ class HorizonHandler(SimpleHTTPRequestHandler):
                 offline=bool(offline),
                 link_only=link_only,
             )
+            ensure_gfs_packet(data_dir=DEFAULT_DATA_DIR, rebuild=True)
             payload = build_dashboard_payload(ROOT, DEFAULT_DATA_DIR)
             payload["refresh"] = {
                 "ok": result.get("ok"),
