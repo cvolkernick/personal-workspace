@@ -130,12 +130,83 @@ class DashboardServerTests(unittest.TestCase):
                 self.assertIn("dash-1", {it["id"] for it in state["items"]})
                 self.assertTrue(any(k["id"] == "sleep" for k in state.get("kpi_status") or []))
 
+                code, packet = _http_json("GET", f"{base}/api/now")
+                self.assertEqual(code, 200, packet)
+                self.assertIn("now", packet)
+                self.assertIn("next", packet)
+                self.assertIn("then", packet)
+                self.assertIn("generated_at", packet)
+                self.assertIn("stale", packet)
+                self.assertFalse(packet.get("stale"), packet)
+                self.assertIsNotNone(packet.get("now"), packet)
+                self.assertIn("title", packet["now"])
+                self.assertIn("role", packet["now"])
+                self.assertIn("start", packet["now"])
+                self.assertIn("end", packet["now"])
+                if packet.get("next"):
+                    self.assertNotEqual(packet["now"]["id"], packet["next"]["id"])
+                if packet.get("then"):
+                    self.assertNotEqual(packet["now"]["id"], packet["then"]["id"])
+
                 # index.html served
                 req = urllib.request.Request(f"{base}/")
                 with urllib.request.urlopen(req, timeout=5) as resp:
                     html = resp.read().decode("utf-8")
                     self.assertEqual(resp.status, 200)
                     self.assertIn("Time Allocator", html)
+                    self.assertIn("now-strip", html)
+                    self.assertIn("no live plan — rebuild", html)
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    def test_api_now_empty_store_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            data = Path(td) / "empty.json"
+            port = 18771
+            env = {**dict(**__import__("os").environ), "PYTHONPATH": str(ROOT)}
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(port),
+                    "--host",
+                    "127.0.0.1",
+                    "--data",
+                    str(data),
+                    "--no-browser",
+                ],
+                cwd=str(ROOT),
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            base = f"http://127.0.0.1:{port}"
+            try:
+                deadline = time.time() + 8
+                last_err: Exception | None = None
+                while time.time() < deadline:
+                    try:
+                        code, health = _http_json("GET", f"{base}/api/health")
+                        if code == 200 and health.get("ok"):
+                            break
+                    except Exception as e:  # noqa: BLE001
+                        last_err = e
+                        time.sleep(0.1)
+                else:
+                    err = (proc.stderr.read() if proc.stderr else "") or str(last_err)
+                    self.fail(f"server did not become ready: {err}")
+
+                code, packet = _http_json("GET", f"{base}/api/now")
+                self.assertEqual(code, 200, packet)
+                self.assertTrue(packet.get("stale"), packet)
+                self.assertIsNone(packet.get("now"))
+                self.assertEqual(packet.get("reason"), "no live plan — rebuild")
             finally:
                 proc.terminate()
                 try:
