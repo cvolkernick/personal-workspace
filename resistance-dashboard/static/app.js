@@ -324,7 +324,7 @@
     );
     const level = String(b.level || "critical").toLowerCase();
     const mode = b.mode || "no_data";
-    const awakeBudget = Number(b.awake_budget_hours) || 16;
+    const awakeBudget = Number(b.awake_budget_hours) || 15;
     const hoursAwake = Number(b.hours_awake) || 0;
     const untilEmpty = Number(b.hours_until_empty) || 0;
     const sleepTgt = Number(b.sleep_target_hours || b.target_hours) || 8;
@@ -336,7 +336,7 @@
 
     const tip =
       b.summary ||
-      "Charge at wake scales with last night vs 8h target (capped ≤2h earlier empty) · drains over awake budget · empty = wind-down";
+      "Charge at wake scales with last night vs 8h target (capped ≤2h earlier empty) · 9h around sleep (30m wind-down + 30m onset) · 15h awake · empty = start wind-down";
     el.title = tip;
 
     // Compact awake-window timeline (wake → bedtime empty)
@@ -394,7 +394,7 @@
       <p class="sb-meta muted">${
         mode === "no_data"
           ? "No sleep cycle yet"
-          : `~${sleepTgt}h sleep target${
+          : `~${sleepTgt}h sleep · ${Number(b.sleep_around_hours || sleepTgt + 1).toFixed(0)}h around sleep${
               b.last_wake_at ? ` · woke ${fmtBatteryWhen(b.last_wake_at)}` : ""
             }${
               b.last_sleep_hours != null

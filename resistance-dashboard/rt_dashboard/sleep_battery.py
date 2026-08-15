@@ -5,6 +5,10 @@ linear drain at full-budget rate (100% / awake_budget per hour). Short nights
 start below 100% so empty_at arrives earlier — soft-capped so one bad night
 cannot pull bedtime more than ``max_earlier_hours`` (default 2h) early.
 
+Awake budget is not ``24 − sleep_target``. An 8h sleep target reserves **9h
+around sleep** (30 min wind-down + 30 min sleep onset) so ``empty_at`` is
+when wind-down should start, not when you must already be asleep.
+
 Multi-day sleep debt stays in recovery/coach (zero-filled nights), not here.
 Unlogged / zero nights do not create wake cycles.
 """
@@ -18,6 +22,12 @@ from .models import SleepSample
 
 # Soft cap: never empty more than this many hours earlier than a full charge.
 DEFAULT_MAX_EARLIER_HOURS = 2.0
+DEFAULT_SLEEP_TARGET_HOURS = 8.0
+# 30 min wind-down + 30 min falling asleep. Empty = start of this block.
+DEFAULT_ONSET_BUFFER_HOURS = 1.0
+DEFAULT_AWAKE_BUDGET_HOURS = (
+    24.0 - DEFAULT_SLEEP_TARGET_HOURS - DEFAULT_ONSET_BUFFER_HOURS
+)  # 15.0
 
 
 def _parse_dt(value: Any) -> Optional[datetime]:
@@ -153,8 +163,8 @@ def _active_sleep(intervals: List[dict], now: datetime) -> Optional[dict]:
 def start_charge_fraction(
     last_sleep_hours: float,
     *,
-    sleep_target_hours: float = 8.0,
-    awake_budget_hours: float = 16.0,
+    sleep_target_hours: float = DEFAULT_SLEEP_TARGET_HOURS,
+    awake_budget_hours: float = DEFAULT_AWAKE_BUDGET_HOURS,
     max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
 ) -> Dict[str, float]:
     """Map last-night sleep to start-of-day charge fraction (0–1).
@@ -192,8 +202,9 @@ def compute_sleep_battery(
     intervals: Optional[List[dict]],
     *,
     now: Optional[datetime] = None,
-    sleep_target_hours: float = 8.0,
+    sleep_target_hours: float = DEFAULT_SLEEP_TARGET_HOURS,
     awake_hours: Optional[float] = None,
+    onset_buffer_hours: float = DEFAULT_ONSET_BUFFER_HOURS,
     max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
 ) -> Dict[str, Any]:
     """Partial-charge-at-wake / drain-over-awake battery."""
@@ -203,8 +214,9 @@ def compute_sleep_battery(
         now = now.replace(tzinfo=timezone.utc).astimezone()
 
     sleep_target = max(0.5, float(sleep_target_hours))
+    onset_buffer = max(0.0, float(onset_buffer_hours))
     if awake_hours is None:
-        awake_hours = max(1.0, 24.0 - sleep_target)
+        awake_hours = max(1.0, 24.0 - sleep_target - onset_buffer)
     else:
         awake_hours = max(1.0, float(awake_hours))
 
@@ -288,6 +300,8 @@ def compute_sleep_battery(
         "mode": mode,
         "awake_budget_hours": round(awake_hours, 2),
         "sleep_target_hours": round(sleep_target, 2),
+        "onset_buffer_hours": round(onset_buffer, 2),
+        "sleep_around_hours": round(sleep_target + onset_buffer, 2),
         "pct_charged": round(pct, 1),
         "start_pct_charged": round(start_frac * 100.0, 1) if mode == "awake" else None,
         "proportional_start_pct": (
@@ -325,7 +339,8 @@ def sleep_battery_from_fitdash_sleep(
     sleep: Sequence[SleepSample],
     *,
     now: Optional[datetime] = None,
-    sleep_target_hours: float = 8.0,
+    sleep_target_hours: float = DEFAULT_SLEEP_TARGET_HOURS,
+    onset_buffer_hours: float = DEFAULT_ONSET_BUFFER_HOURS,
     sleep_intervals: Optional[List[dict]] = None,
     max_earlier_hours: float = DEFAULT_MAX_EARLIER_HOURS,
 ) -> Dict[str, Any]:
@@ -368,6 +383,7 @@ def sleep_battery_from_fitdash_sleep(
         intervals,
         now=now,
         sleep_target_hours=sleep_target_hours,
+        onset_buffer_hours=onset_buffer_hours,
         max_earlier_hours=max_earlier_hours,
     )
     bat["data_source"] = source

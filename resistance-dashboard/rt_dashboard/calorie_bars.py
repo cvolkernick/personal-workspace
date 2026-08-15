@@ -162,7 +162,7 @@ def eating_window_fraction(
     now: Optional[datetime] = None,
     last_wake_at: Any = None,
     empty_at: Any = None,
-    awake_budget_hours: float = 16.0,
+    awake_budget_hours: float = 15.0,
 ) -> Dict[str, Any]:
     """Fraction of the eating/wake window elapsed in [0, 1].
 
@@ -176,7 +176,7 @@ def eating_window_fraction(
 
     wake = _parse_dt(last_wake_at)
     end = _parse_dt(empty_at)
-    budget = max(1.0, float(awake_budget_hours or 16.0))
+    budget = max(1.0, float(awake_budget_hours or 15.0))
     source = "sleep_battery"
 
     def _civil_day_window(src: str) -> Dict[str, Any]:
@@ -526,7 +526,7 @@ def build_calorie_bars_payload(
         now=now,
         last_wake_at=bat.get("last_wake_at"),
         empty_at=bat.get("empty_at"),
-        awake_budget_hours=float(bat.get("awake_budget_hours") or 16.0),
+        awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),
     )
     win_intake = sum_intake_in_window(
         food_logs,
