@@ -7,7 +7,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .crypto_box import open_str, seal_str
 from .workout_repo import default_db_path
@@ -149,6 +149,31 @@ class UserStore:
             return open_str(row["health_refresh_token_enc"], aad=f"user:{user_id}:health_rt")
         except ValueError:
             return None
+
+    def list_users_with_health_token(self) -> List[Dict[str, Any]]:
+        """Users that have a sealed Health refresh token, newest login first.
+
+        Used by the Pi incremental warmer when no browser session is present.
+        """
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, email, display_name, last_login_at
+                FROM users
+                WHERE health_refresh_token_enc IS NOT NULL
+                  AND health_refresh_token_enc != ''
+                ORDER BY last_login_at DESC
+                """
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "email": row["email"],
+                "display_name": row["display_name"],
+                "last_login_at": row["last_login_at"],
+            }
+            for row in rows
+        ]
 
     def create_session(self, user_id: str) -> str:
         sid = secrets.token_urlsafe(32)

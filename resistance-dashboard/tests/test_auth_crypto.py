@@ -68,6 +68,39 @@ class UserStoreTests(unittest.TestCase):
         self.store.destroy_session(sid)
         self.assertIsNone(self.store.resolve_session(sid))
 
+    def test_list_users_with_health_token_newest_first(self) -> None:
+        self.store.upsert_user_from_google(
+            sub="older",
+            email="old@example.com",
+            display_name="Old",
+            health_refresh_token="1//old",
+        )
+        self.store.upsert_user_from_google(
+            sub="no-token",
+            email="none@example.com",
+            display_name="None",
+        )
+        self.store.upsert_user_from_google(
+            sub="newer",
+            email="new@example.com",
+            display_name="New",
+            health_refresh_token="1//new",
+        )
+        with self.store._connect() as conn:
+            conn.execute(
+                "UPDATE users SET last_login_at=? WHERE id=?",
+                ("2026-01-01T00:00:00Z", "older"),
+            )
+            conn.execute(
+                "UPDATE users SET last_login_at=? WHERE id=?",
+                ("2026-08-15T12:00:00Z", "newer"),
+            )
+            conn.commit()
+        listed = self.store.list_users_with_health_token()
+        ids = [u["id"] for u in listed]
+        self.assertEqual(ids, ["newer", "older"])
+        self.assertNotIn("no-token", ids)
+
     def test_claim_legacy_default(self) -> None:
         repo = WorkoutRepository(db_path=self.db, user_id="default")
         repo.upsert_session(

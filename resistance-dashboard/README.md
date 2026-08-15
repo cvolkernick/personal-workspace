@@ -65,6 +65,8 @@ Without Google credentials the UI still loads lift charts and recovery from trai
 
 - `GET /api/healthz` — liveness
 - `GET /api/dashboard` — sessions, analytics, health, recovery
+- `GET /api/dashboard?refresh=1` — force 90-day Google Health pull (Refresh data)
+- `GET /api/warm` — incremental 14-day Health + Hidrate cache warm (loopback / service token; no page load)
 - `POST /api/workouts` — log a session  
   ```json
   {

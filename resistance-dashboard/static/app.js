@@ -3029,9 +3029,35 @@
     box.innerHTML = html;
   }
 
-  function render(data) {
+  function liveFingerprint(data) {
+    const rec = data.recovery || {};
+    const health = data.health || {};
+    const sleep = (health.sleep || []).slice(-1)[0] || {};
+    const hydr = (health.hydration || []).slice(-1)[0] || {};
+    const nut = (health.nutrition || []).slice(-1)[0] || {};
+    const sessions = data.sessions || [];
+    const last = sessions[0] || {};
+    return JSON.stringify({
+      recScore: rec.score,
+      recLabel: rec.label,
+      sleepH: sleep.sleep_hours,
+      sleepD: sleep.date,
+      hydrMl: hydr.water_ml,
+      hydrD: hydr.date,
+      cals: nut.calories,
+      protein: nut.protein_g,
+      nutD: nut.date,
+      foodN: (health.food_logs || []).length,
+      sessN: sessions.length,
+      lastSess: `${last.date || ""}:${last.session_type || ""}`,
+      healthErr: health.error || "",
+    });
+  }
+
+  function render(data, opts) {
+    const quiet = !!(opts && opts.quiet);
     state = data;
-    clearAlerts();
+    if (!quiet) clearAlerts();
 
     const rec = data.recovery || {};
     if ($("recovery-badge")) {
@@ -4148,32 +4174,49 @@
     }
   }
 
-  async function loadDashboard(forceRefresh = false) {
+  let quietLoadInFlight = false;
+  let blockingLoadInFlight = false;
+  let dashboardLoadGen = 0;
+  let lastLiveFingerprint = "";
+  const QUIET_POLL_MS = 3 * 60 * 1000;
+
+  async function loadDashboard(forceRefresh = false, opts) {
     // Guard: if used as a raw click handler, first arg is an Event (truthy).
     if (forceRefresh && typeof forceRefresh !== "boolean") {
       forceRefresh = false;
     }
+    const quiet = !!(opts && opts.quiet);
     // Never hit /api/dashboard until boot confirmed auth (avoids 401 toast on cold open)
     if (!bootAllowsData) {
-      showLoginGate();
+      if (!quiet) showLoginGate();
       return;
     }
-    if ($("btn-refresh")) $("btn-refresh").disabled = true;
+    if (quiet && (quietLoadInFlight || blockingLoadInFlight)) return;
+    if (quiet) quietLoadInFlight = true;
+    else {
+      blockingLoadInFlight = true;
+      dashboardLoadGen += 1;
+    }
+    const loadGen = dashboardLoadGen;
+    if (!quiet && $("btn-refresh")) $("btn-refresh").disabled = true;
     // Don't wipe success toasts from inventory remove/add mid-action.
     const meta = $("meta-line");
     const started = Date.now();
-    if (meta) {
-      meta.textContent = forceRefresh
-        ? "Refreshing Google Health (forced)…"
-        : "Loading dashboard (local + cache)…";
+    let tick = null;
+    if (!quiet) {
+      if (meta) {
+        meta.textContent = forceRefresh
+          ? "Refreshing Google Health (forced)…"
+          : "Loading dashboard (local + cache)…";
+      }
+      tick = setInterval(() => {
+        if (!meta) return;
+        const sec = Math.round((Date.now() - started) / 1000);
+        meta.textContent = forceRefresh
+          ? `Refreshing data… ${sec}s`
+          : `Loading… ${sec}s (uses ~1h cache for Health)`;
+      }, 500);
     }
-    const tick = setInterval(() => {
-      if (!meta) return;
-      const sec = Math.round((Date.now() - started) / 1000);
-      meta.textContent = forceRefresh
-        ? `Refreshing data… ${sec}s`
-        : `Loading… ${sec}s (uses ~1h cache for Health)`;
-    }, 500);
     try {
       const url = forceRefresh === true ? "/api/dashboard?refresh=1" : "/api/dashboard";
       const res = await fetch(url, { cache: "no-store", credentials: "same-origin" });
@@ -4191,8 +4234,14 @@
       if (data.error && !data.sessions && !data.meta) {
         throw new Error(data.error);
       }
-      render(data);
-      if (data.meta && data.meta.error) {
+      if (quiet && (blockingLoadInFlight || loadGen !== dashboardLoadGen)) return;
+      const fp = liveFingerprint(data);
+      if (quiet && fp === lastLiveFingerprint) {
+        return;
+      }
+      lastLiveFingerprint = fp;
+      render(data, { quiet });
+      if (!quiet && data.meta && data.meta.error) {
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
     } catch (e) {
@@ -4200,13 +4249,29 @@
         showLoginGate("Session expired — sign in again.");
         return;
       }
+      if (quiet) return;
       clearAlerts();
       showAlert(`Failed to load dashboard: ${e.message}`, "err");
       if (meta) meta.textContent = `Load failed: ${e.message}`;
     } finally {
-      clearInterval(tick);
-      if ($("btn-refresh")) $("btn-refresh").disabled = false;
+      if (tick) clearInterval(tick);
+      if (!quiet && $("btn-refresh")) $("btn-refresh").disabled = false;
+      if (quiet) quietLoadInFlight = false;
+      else blockingLoadInFlight = false;
     }
+  }
+
+  function startQuietPoll() {
+    if (window.__fitdashQuietPoll) return;
+    window.__fitdashQuietPoll = true;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      loadDashboard(false, { quiet: true });
+    };
+    setInterval(tick, QUIET_POLL_MS);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") tick();
+    });
   }
 
   async function submitWorkout(ev) {
@@ -4742,6 +4807,7 @@
     if ($("btn-ask-clear")) {
       $("btn-ask-clear").addEventListener("click", clearAskChat);
     }
+    startQuietPoll();
     // Auth gate first — do not fetch /api/dashboard or /api/ask/* until signed in
     checkAuthAndBoot();
   }
