@@ -55,9 +55,28 @@ class TestStartChargeFraction(unittest.TestCase):
 
 
 class TestSleepBattery(unittest.TestCase):
+    def test_full_night_reserves_9h_around_sleep(self):
+        tz = timezone.utc
+        # 8h sleep + 1h (30m wind-down + 30m onset) → 15h awake budget
+        wake = datetime(2026, 7, 20, 7, 0, 0, tzinfo=tz)
+        intervals = [
+            {
+                "start": (wake - timedelta(hours=8)).isoformat(),
+                "end": wake.isoformat(),
+                "source": "test",
+            }
+        ]
+        bat = compute_sleep_battery(intervals, now=wake, sleep_target_hours=8.0)
+        self.assertEqual(bat["awake_budget_hours"], 15.0)
+        self.assertEqual(bat["onset_buffer_hours"], 1.0)
+        self.assertEqual(bat["sleep_around_hours"], 9.0)
+        self.assertEqual(bat["start_pct_charged"], 100.0)
+        empty = datetime.fromisoformat(bat["empty_at"])
+        self.assertEqual(empty, wake + timedelta(hours=15))
+
     def test_full_just_after_wake(self):
         tz = timezone.utc
-        # Woke at 07:00 after 8h, now 08:00 → ~94% left of 16h budget
+        # Woke at 07:00 after 8h, now 08:00 → 14/15 ≈ 93.3% of 15h budget
         wake = datetime(2026, 7, 20, 7, 0, 0, tzinfo=tz)
         sleep_start = wake - timedelta(hours=8)
         intervals = [
@@ -71,14 +90,16 @@ class TestSleepBattery(unittest.TestCase):
         bat = compute_sleep_battery(intervals, now=now, sleep_target_hours=8.0)
         self.assertEqual(bat["mode"], "awake")
         self.assertEqual(bat["model"], "wake_partial_drain_awake")
+        self.assertAlmostEqual(bat["awake_budget_hours"], 15.0)
         self.assertGreaterEqual(bat["pct_charged"], 90)
+        self.assertAlmostEqual(bat["pct_charged"], 100.0 * 14.0 / 15.0, places=0)
         self.assertEqual(bat["start_pct_charged"], 100.0)
         self.assertEqual(bat["level"], "full")
 
     def test_short_night_starts_partial_and_empties_earlier(self):
         tz = timezone.utc
         wake = datetime(2026, 7, 20, 7, 0, 0, tzinfo=tz)
-        # 5h sleep → capped start 87.5%, empty at wake+14h
+        # 5h sleep → floor 13/15 ≈ 86.7%, empty at wake+13h (not +15h)
         intervals = [
             {
                 "start": (wake - timedelta(hours=5)).isoformat(),
@@ -91,14 +112,13 @@ class TestSleepBattery(unittest.TestCase):
             intervals, now=now, sleep_target_hours=8.0, max_earlier_hours=2.0
         )
         self.assertEqual(bat["mode"], "awake")
-        self.assertAlmostEqual(bat["start_pct_charged"], 87.5)
+        self.assertAlmostEqual(bat["start_pct_charged"], 100.0 * 13.0 / 15.0, places=1)
         self.assertAlmostEqual(bat["proportional_start_pct"], 62.5)
-        self.assertAlmostEqual(bat["charge_budget_hours"], 14.0)
-        self.assertAlmostEqual(bat["pct_charged"], 87.5)
-        self.assertAlmostEqual(bat["hours_until_empty"], 14.0)
-        # empty_at = wake + 14h (not +16h)
+        self.assertAlmostEqual(bat["charge_budget_hours"], 13.0)
+        self.assertAlmostEqual(bat["pct_charged"], 100.0 * 13.0 / 15.0, places=1)
+        self.assertAlmostEqual(bat["hours_until_empty"], 13.0)
         empty = datetime.fromisoformat(bat["empty_at"])
-        self.assertEqual(empty, wake + timedelta(hours=14))
+        self.assertEqual(empty, wake + timedelta(hours=13))
 
     def test_short_night_midday_pct(self):
         tz = timezone.utc
@@ -110,13 +130,13 @@ class TestSleepBattery(unittest.TestCase):
                 "source": "test",
             }
         ]
-        # 7h awake: remaining_frac = 0.875 - 7/16 = 0.4375 → 43.75%
+        # 7h awake: remaining_frac = 13/15 - 7/15 = 6/15 → 40%
         now = wake + timedelta(hours=7)
         bat = compute_sleep_battery(
             intervals, now=now, sleep_target_hours=8.0, max_earlier_hours=2.0
         )
-        self.assertAlmostEqual(bat["pct_charged"], 43.8, places=0)
-        self.assertAlmostEqual(bat["hours_until_empty"], 7.0)
+        self.assertAlmostEqual(bat["pct_charged"], 40.0, places=0)
+        self.assertAlmostEqual(bat["hours_until_empty"], 6.0)
 
     def test_empty_after_long_awake(self):
         tz = timezone.utc

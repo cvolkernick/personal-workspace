@@ -211,7 +211,7 @@ def build_hydration_bars_payload(
         now=now,
         last_wake_at=bat.get("last_wake_at"),
         empty_at=bat.get("empty_at"),
-        awake_budget_hours=float(bat.get("awake_budget_hours") or 16.0),
+        awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),
     )
     frac = float(window["fraction"])
 
