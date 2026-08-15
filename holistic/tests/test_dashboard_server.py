@@ -148,6 +148,21 @@ class DashboardServerTests(unittest.TestCase):
                 if packet.get("then"):
                     self.assertNotEqual(packet["now"]["id"], packet["then"]["id"])
 
+                code, advise = _http_json("GET", f"{base}/api/advise")
+                self.assertEqual(code, 200, advise)
+                self.assertIn("now", advise)
+                self.assertIn("schedule", advise)
+                self.assertIsInstance(advise.get("schedule"), list)
+                self.assertIn("generated_at", advise)
+                self.assertIn("stale", advise)
+                sources = advise.get("sources") or {}
+                for key in ("calendar", "objectives", "day_plan", "board", "body", "capital"):
+                    self.assertIn(key, sources, key)
+                    self.assertIn(sources[key].get("status"), ("ok", "not_loaded", "stale"), key)
+                self.assertIn("advise", state)
+                if advise.get("now"):
+                    self.assertTrue(advise["now"].get("why"))
+
                 # index.html served
                 req = urllib.request.Request(f"{base}/")
                 with urllib.request.urlopen(req, timeout=5) as resp:
@@ -155,6 +170,8 @@ class DashboardServerTests(unittest.TestCase):
                     self.assertEqual(resp.status, 200)
                     self.assertIn("Time Allocator", html)
                     self.assertIn("now-strip", html)
+                    self.assertIn("advise-now", html)
+                    self.assertIn("Advise now", html)
                     self.assertIn("no live plan — rebuild", html)
             finally:
                 proc.terminate()
@@ -207,6 +224,14 @@ class DashboardServerTests(unittest.TestCase):
                 self.assertTrue(packet.get("stale"), packet)
                 self.assertIsNone(packet.get("now"))
                 self.assertEqual(packet.get("reason"), "no live plan — rebuild")
+
+                code, advise = _http_json("GET", f"{base}/api/advise")
+                self.assertEqual(code, 200, advise)
+                self.assertIn("sources", advise)
+                self.assertEqual((advise.get("sources") or {}).get("calendar", {}).get("status"), "not_loaded")
+                if advise.get("now"):
+                    self.assertTrue(advise["now"].get("why"))
+                    self.assertNotEqual(advise["now"].get("role"), "calendar")
             finally:
                 proc.terminate()
                 try:

@@ -41,6 +41,10 @@ class CalendarSyncTests(unittest.TestCase):
             "summary": "Dentist",
             "start": {"dateTime": "2026-07-26T14:00:00-04:00"},
             "end": {"dateTime": "2026-07-26T15:00:00-04:00"},
+            "attendees": [
+                {"displayName": "Sam Lee", "email": "sam@example.com"},
+                {"email": "sam@example.com"},
+            ],
         }
         self.assertIsNone(normalize_event(all_day))
         self.assertIsNone(normalize_event(free))
@@ -49,6 +53,7 @@ class CalendarSyncTests(unittest.TestCase):
         assert n is not None
         self.assertEqual(n["title"], "Dentist")
         self.assertIn("2026-07-26", n["start"])
+        self.assertEqual(n["attendees"], ["Sam Lee"])
 
     def test_merge_overlapping(self) -> None:
         tz = timezone(timedelta(hours=-4))
