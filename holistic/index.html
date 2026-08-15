@@ -220,9 +220,87 @@
     .now-cell .when { color: var(--muted); font-size: 0.85rem; }
     .now-strip.stale .now-cell { box-shadow: none; border-color: var(--border); }
     .now-strip.stale .remain { display: none; }
+    .advise-now {
+      background: var(--bg);
+      border: 1px solid #2a5a80;
+      box-shadow: inset 3px 0 0 var(--green);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+    .advise-now.empty {
+      box-shadow: none;
+      border-color: var(--border);
+    }
+    .advise-now .lane {
+      color: var(--green);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 650;
+    }
+    .advise-now h3 {
+      margin: 0.2rem 0 0.15rem;
+      font-size: 1.15rem;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    .advise-now .remain {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1.15;
+      margin: 0.25rem 0 0.15rem;
+    }
+    .advise-now .why { color: var(--text); font-size: 0.92rem; margin: 0.25rem 0 0; }
+    .advise-now .when { color: var(--muted); font-size: 0.85rem; }
+    .advise-sched {
+      list-style: none;
+      padding: 0;
+      margin: 0.65rem 0 0;
+      display: grid;
+      gap: 0.4rem;
+    }
+    .advise-sched li {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.65rem;
+      display: grid;
+      grid-template-columns: minmax(4.5rem, auto) 1fr;
+      gap: 0.45rem 0.7rem;
+      align-items: baseline;
+    }
+    .advise-sched .when {
+      color: var(--muted);
+      font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .advise-sched .title { font-weight: 600; overflow-wrap: anywhere; }
+    .advise-sources {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.65rem;
+    }
+    .src {
+      display: inline-block;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      text-transform: lowercase;
+    }
+    .src.ok { color: var(--green); border-color: #245c42; }
+    .src.stale { color: var(--yellow); border-color: #6b5a1e; }
+    .src.not_loaded { color: var(--muted); }
     @media (max-width: 520px) {
       .now-strip { grid-template-columns: 1fr; }
       .now-cell .remain { font-size: 1.85rem; }
+      .advise-now .remain { font-size: 1.85rem; }
+      .advise-sched li { grid-template-columns: 1fr; }
     }
     .battery-card {
       display: grid;
@@ -652,8 +730,15 @@
       </div>
     </section>
 
+    <section class="card" id="advise-card" aria-label="Advise now">
+      <h2>Advise now</h2>
+      <div id="advise-now" class="advise-now empty"><p class="empty">no objectives</p></div>
+      <ol id="advise-schedule" class="advise-sched" hidden></ol>
+      <div id="advise-sources" class="advise-sources"></div>
+    </section>
+
     <section class="card" id="now-card" aria-label="Live agenda">
-      <h2>Now · Next · Then</h2>
+      <h2>Filed plan · Now · Next · Then</h2>
       <div id="now-strip" class="now-strip stale">
         <p class="empty">no live plan — rebuild</p>
       </div>
@@ -1702,9 +1787,11 @@
     }
 
     let nowPacket = null;
+    let advisePacket = null;
     let nowTickStarted = false;
     let nowPollStarted = false;
     let nowRefreshInFlight = false;
+    let adviseRefreshInFlight = false;
 
     const fmtClock = (iso) => {
       if (!iso) return "—";
@@ -1768,6 +1855,99 @@
       paintNowStrip();
     }
 
+    const remainingToEnd = (iso) => {
+      if (!iso) return 0;
+      const end = new Date(iso).getTime();
+      if (Number.isNaN(end)) return 0;
+      return Math.max(0, Math.floor((end - Date.now()) / 1000));
+    };
+
+    function paintAdvise() {
+      const box = $("advise-now");
+      const sched = $("advise-schedule");
+      const srcs = $("advise-sources");
+      if (!box) return;
+      const pkt = advisePacket;
+      const sources = (pkt && pkt.sources) || {};
+      if (srcs) {
+        const keys = ["calendar", "objectives", "day_plan", "board", "body", "capital"];
+        srcs.innerHTML = keys.map((k) => {
+          const row = sources[k] || {};
+          const st = row.status || "not_loaded";
+          const label = st === "not_loaded" ? "not loaded" : st;
+          return `<span class="src ${escapeAttr(st)}">${escapeHtml(k.replace("_", " "))} ${escapeHtml(label)}</span>`;
+        }).join("");
+      }
+      const action = pkt && pkt.now;
+      if (!action) {
+        box.className = "advise-now empty";
+        box.innerHTML = `<p class="empty">${escapeHtml((pkt && pkt.reason) || "no objectives")}</p>`;
+        if (sched) { sched.hidden = true; sched.innerHTML = ""; }
+        return;
+      }
+      const rem = remainingToEnd(action.end);
+      const remainHtml = action.end
+        ? `<div class="remain" id="advise-remain">${escapeHtml(fmtMmss(rem))}</div>`
+        : "";
+      const until = action.end
+        ? `${fmtClock(action.start)} → ${fmtClock(action.end)}`
+        : (action.minutes ? `${action.minutes}m` : "");
+      const differ = action.disagrees_with_filed
+        ? `<span class="pill">differs from filed NOW</span>`
+        : "";
+      const people = (action.people || []).filter(Boolean);
+      const peopleHtml = people.length
+        ? `<div class="when">with ${escapeHtml(people.join(", "))}</div>`
+        : "";
+      box.className = "advise-now";
+      box.innerHTML = `
+        <div class="lane">advise now</div>
+        <h3>${escapeHtml(action.title || action.id || "—")}</h3>
+        ${remainHtml}
+        <p class="why">${escapeHtml(action.why || "")}</p>
+        <div class="meta" style="margin-top:0.2rem">
+          <span class="role ${escapeAttr(action.role || "")}">${escapeHtml(action.role || "")}</span>
+          ${differ}
+        </div>
+        <div class="when">${escapeHtml(until)}</div>
+        ${peopleHtml}
+      `;
+      const rows = (pkt.schedule || []).filter((row) => row && row.title);
+      if (sched) {
+        if (!rows.length) {
+          sched.hidden = true;
+          sched.innerHTML = "";
+        } else {
+          sched.hidden = false;
+          sched.innerHTML = rows.map((row) => `
+            <li>
+              <span class="when">${escapeHtml(fmtClock(row.start))} → ${escapeHtml(fmtClock(row.end))}</span>
+              <span class="title">${escapeHtml(row.title)}
+                <span class="role ${escapeAttr(row.role || "")}">${escapeHtml(row.role || "")}</span>
+              </span>
+            </li>`).join("");
+        }
+      }
+    }
+
+    function applyAdvisePacket(pkt) {
+      advisePacket = pkt || null;
+      paintAdvise();
+    }
+
+    async function refreshAdvise() {
+      if (adviseRefreshInFlight) return;
+      adviseRefreshInFlight = true;
+      try {
+        const pkt = await api("/api/advise");
+        applyAdvisePacket(pkt);
+      } catch (e) {
+        applyAdvisePacket({ stale: true, now: null, schedule: [], sources: {}, reason: "advise unavailable" });
+      } finally {
+        adviseRefreshInFlight = false;
+      }
+    }
+
     async function refreshNow() {
       if (nowRefreshInFlight) return;
       nowRefreshInFlight = true;
@@ -1787,14 +1967,18 @@
         setInterval(async () => {
           const rem = remainingFromPacket(nowPacket);
           paintNowStrip();
+          paintAdvise();
           if (nowPacket && nowPacket.now && rem <= 0) {
             await refreshNow();
+          }
+          if (advisePacket && advisePacket.now && advisePacket.now.end && remainingToEnd(advisePacket.now.end) <= 0) {
+            await refreshAdvise();
           }
         }, 1000);
       }
       if (!nowPollStarted) {
         nowPollStarted = true;
-        setInterval(() => { refreshNow(); }, 30 * 1000);
+        setInterval(() => { refreshNow(); refreshAdvise(); }, 30 * 1000);
       }
     }
 
@@ -1808,6 +1992,7 @@
       renderCalendar(state.calendar);
       renderSleepBattery(state.sleep_battery);
       if (state.now_next) applyNowPacket(state.now_next);
+      if (state.advise) applyAdvisePacket(state.advise);
       renderSuggestions(
         state.suggestions || [],
         state.walk_candidates || [],

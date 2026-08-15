@@ -17,6 +17,7 @@
   GET  /api/calendar/status   — Google Calendar OAuth + last sync
   POST /api/calendar/sync     — pull busy events into plan
   GET  /api/now               — NOW/NEXT/THEN from the filed plan (no rebuild)
+  GET  /api/advise            — best action now + remaining-day schedule (scored)
 
 Usage:
   python3 holistic/server.py
@@ -80,6 +81,7 @@ from holistic.time_allocator.grok_ask import (  # noqa: E402
 )
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
 from holistic.time_allocator.now_next import compose_now_next  # noqa: E402
+from holistic.time_allocator.advise import compose_advise, load_advise_inputs  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
 from holistic.time_allocator.calendar_sync import (  # noqa: E402
     calendar_credentials_status,
@@ -126,6 +128,9 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     # Secretary packet uses the filed plan only — never invent NOW
     now_next = compose_now_next(filed_plan if isinstance(filed_plan, dict) else None)
     sleep_battery = sleep_battery_for_state(state)
+    advise = compose_advise(
+        load_advise_inputs(state, sleep_battery=sleep_battery)
+    )
     walk_candidates = pending_walk_candidates(state, days=2)
     lyft_tgt = next((t for t in targets if str(t.get("id")) == "lyft"), None)
     lyft_duty = lyft_duty_status(state, target=lyft_tgt)
@@ -151,6 +156,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "allocation_delta": delta,
         "suggestions": suggestions,
         "now_next": now_next,
+        "advise": advise,
         "sleep_battery": sleep_battery,
         "health": health_credentials_status(),
     }
@@ -231,6 +237,18 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 state = load_state(_data())
                 filed = state.get("plan")
                 packet = compose_now_next(filed if isinstance(filed, dict) else None)
+                packet["ok"] = True
+                self._json(200, packet)
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/advise":
+            try:
+                state = load_state(_data())
+                battery = sleep_battery_for_state(state)
+                packet = compose_advise(
+                    load_advise_inputs(state, sleep_battery=battery)
+                )
                 packet["ok"] = True
                 self._json(200, packet)
             except Exception as e:  # noqa: BLE001

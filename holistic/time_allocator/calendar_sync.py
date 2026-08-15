@@ -252,6 +252,27 @@ def normalize_event(raw: dict[str, Any], *, calendar_id: str = "primary") -> dic
         return None
     title = str(raw.get("summary") or "(no title)").strip() or "(no title)"
     eid = str(raw.get("id") or raw.get("iCalUID") or f"{st.isoformat()}-{title}")
+    attendees: list[str] = []
+    seen_names: set[str] = set()
+    seen_emails: set[str] = set()
+    for row in raw.get("attendees") or []:
+        email = ""
+        if isinstance(row, str):
+            name = row.strip()
+        elif isinstance(row, dict):
+            email = str(row.get("email") or "").strip().lower()
+            name = str(row.get("displayName") or row.get("email") or "").strip()
+        else:
+            name = ""
+        if email and email in seen_emails:
+            continue
+        key = name.lower()
+        if not name or key in seen_names:
+            continue
+        if email:
+            seen_emails.add(email)
+        seen_names.add(key)
+        attendees.append(name)
     return {
         "id": eid,
         "title": title,
@@ -263,6 +284,7 @@ def normalize_event(raw: dict[str, Any], *, calendar_id: str = "primary") -> dic
         "status": status,
         "html_link": raw.get("htmlLink"),
         "target_hint": target_hint_for_title(title),
+        "attendees": attendees,
         "source": "google_calendar",
     }
 
