@@ -74,7 +74,12 @@ def _bootstrap_env() -> None:
 _bootstrap_env()
 
 from rt_dashboard.analytics import dashboard_payload  # noqa: E402
-from rt_dashboard.background_refresh import maybe_schedule_background_refresh  # noqa: E402
+from rt_dashboard.background_refresh import (  # noqa: E402
+    maybe_schedule_background_refresh,
+    schedule_incremental_warm,
+    start_warm_loop,
+    warm_interval_sec,
+)
 from rt_dashboard.dashboard_cache import (  # noqa: E402
     cache_status,
     health_cache_is_fresh,
@@ -189,8 +194,8 @@ def _service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     Env:
       FITDASH_SERVICE_TOKEN — required for non-loopback machine access
       FITDASH_SERVICE_LOOPBACK — when 1 (default), 127.0.0.1/::1 may call
-        /api/sleep_battery and /api/day_constraints without a browser session
-        (same-host IoT worker / Orchestra 15m poke).
+        /api/sleep_battery, /api/day_constraints, and /api/warm without a
+        browser session (same-host IoT worker / Orchestra poke / Pi warmer).
     """
     expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
     provided = _service_token_from_headers(headers)
@@ -205,6 +210,29 @@ def _service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     if loopback_ok and client_host in ("127.0.0.1", "::1", "localhost"):
         return True
     return False
+
+
+def _resolve_warm_user_and_token(
+    user_id: Optional[str] = None,
+) -> Tuple[Optional[str], str]:
+    """Health user + refresh token for the incremental warmer.
+
+    Prefer the explicit session user, then the most recently logged-in user
+    who has a sealed token, then ``GOOGLE_REFRESH_TOKEN`` from env.
+    """
+    store = UserStore()
+    uid = (user_id or "").strip() or None
+    token = ""
+    if uid:
+        token = store.get_health_refresh_token(uid) or ""
+    if not token:
+        users = store.list_users_with_health_token()
+        if users:
+            uid = users[0]["id"]
+            token = store.get_health_refresh_token(uid) or ""
+    if not token:
+        token = (os.environ.get("GOOGLE_REFRESH_TOKEN") or "").strip()
+    return uid, token
 
 
 def _parse_cookie_header(header: str) -> Dict[str, str]:
@@ -931,6 +959,7 @@ def load_dashboard_data(
             local_dir=local_dir or "",
             token=token,
             health_age_sec=(health_cache_meta or {}).get("age_sec"),
+            health_refresh_token=os.environ.get("GOOGLE_REFRESH_TOKEN") or "",
         )
     # Restore process-wide Health token after per-user override
     if uid:
@@ -1317,6 +1346,52 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._set_session_cookie("", clear=True)
             self.send_header("Location", "/")
             self.end_headers()
+            return
+        if parsed.path == "/api/warm":
+            # Incremental Health + Hidrate cache warm. Loopback / service-token
+            # (Pi timer or curl). Never a 90-day ?refresh=1 pull.
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            if _auth_required() and not user and not _service_auth_ok(
+                self.headers, client_host
+            ):
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "auth_required",
+                        "message": (
+                            "Sign in, or call from loopback / with "
+                            "FITDASH_SERVICE_TOKEN to warm the cache."
+                        ),
+                    },
+                    status=401,
+                )
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                warm_uid, health_rt = _resolve_warm_user_and_token(uid)
+                local_dir = (
+                    os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
+                )
+                scheduled = schedule_incremental_warm(
+                    local_dir=local_dir or "",
+                    token=os.environ.get("GITHUB_TOKEN") or "",
+                    health_refresh_token=health_rt,
+                    force_schedule=True,
+                )
+                self._send_json(
+                    {
+                        "ok": True,
+                        "scheduled": scheduled,
+                        "incremental": True,
+                        "force_refresh": False,
+                        "interval_sec": warm_interval_sec(),
+                        "user_id": warm_uid,
+                        "health_token": bool(health_rt),
+                    }
+                )
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/sleep_battery":
             # Machine-friendly: IoT post-sunset bedroom dim. No browser session
@@ -1963,6 +2038,15 @@ def main(argv: Optional[List[str]] = None) -> None:
         print("mode → local full stack (UI + API on this process)", flush=True)
     # --no-browser: intentional no-op for FitDash (never auto-opens a browser)
     _ = args.no_browser
+    local_dir = os.environ.get("LOCAL_WORKSPACE_DIR") or _default_local_workspace()
+    if start_warm_loop(
+        local_dir=local_dir or "",
+        token=os.environ.get("GITHUB_TOKEN") or "",
+    ):
+        print(
+            f"warm loop → incremental Health + Hidrate every {warm_interval_sec():.0f}s",
+            flush=True,
+        )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

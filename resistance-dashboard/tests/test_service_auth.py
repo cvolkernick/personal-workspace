@@ -191,5 +191,91 @@ class DayConstraintsHttpTests(unittest.TestCase):
         self.assertTrue(bearer_body.get("ok"))
 
 
+class WarmHttpTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved = {
+            k: os.environ.get(k)
+            for k in (
+                "FITDASH_REQUIRE_AUTH",
+                "FITDASH_SERVICE_TOKEN",
+                "FITDASH_SERVICE_LOOPBACK",
+            )
+        }
+        os.environ["FITDASH_REQUIRE_AUTH"] = "1"
+        os.environ.pop("FITDASH_SERVICE_TOKEN", None)
+        os.environ["FITDASH_SERVICE_LOOPBACK"] = "1"
+        self._warm_patch = mock.patch.object(
+            fitdash_server,
+            "schedule_incremental_warm",
+            return_value=True,
+        )
+        self._resolve_patch = mock.patch.object(
+            fitdash_server,
+            "_resolve_warm_user_and_token",
+            return_value=("google-sub-1", "1//rt"),
+        )
+        self._load_patch = mock.patch.object(
+            fitdash_server,
+            "load_dashboard_data",
+            side_effect=AssertionError("warm must not build a full dashboard"),
+        )
+        self._warm_patch.start()
+        self._resolve_patch.start()
+        self._load_patch.start()
+        self.httpd = ThreadingHTTPServer(
+            ("127.0.0.1", 0), fitdash_server.DashboardHandler
+        )
+        self.port = int(self.httpd.server_address[1])
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self._warm_patch.stop()
+        self._resolve_patch.stop()
+        self._load_patch.stop()
+        for key, val in self._saved.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+
+    def _url(self, path: str) -> str:
+        return f"http://127.0.0.1:{self.port}{path}"
+
+    def _get(self, path: str, headers: Optional[Dict[str, str]] = None) -> tuple[int, dict]:
+        req = Request(self._url(path), headers=headers or {})
+        try:
+            with urlopen(req, timeout=5) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                return int(resp.status), body
+        except HTTPError as exc:
+            raw = exc.read().decode("utf-8")
+            try:
+                body = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                body = {"raw": raw}
+            return int(exc.code), body
+
+    def test_loopback_warm_ok_without_session(self) -> None:
+        status, body = self._get("/api/warm")
+        self.assertEqual(status, 200)
+        self.assertTrue(body.get("ok"))
+        self.assertTrue(body.get("scheduled"))
+        self.assertTrue(body.get("incremental"))
+        self.assertFalse(body.get("force_refresh"))
+        self.assertEqual(body.get("user_id"), "google-sub-1")
+        fitdash_server.schedule_incremental_warm.assert_called_once()
+        kwargs = fitdash_server.schedule_incremental_warm.call_args.kwargs
+        self.assertTrue(kwargs.get("force_schedule"))
+        self.assertEqual(kwargs.get("health_refresh_token"), "1//rt")
+
+    def test_warm_stays_off_dashboard_full_pull(self) -> None:
+        _, body = self._get("/api/warm")
+        self.assertNotEqual(body.get("force_refresh"), True)
+        fitdash_server.load_dashboard_data.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()
