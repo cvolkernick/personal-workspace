@@ -189,7 +189,8 @@ def _service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
     Env:
       FITDASH_SERVICE_TOKEN — required for non-loopback machine access
       FITDASH_SERVICE_LOOPBACK — when 1 (default), 127.0.0.1/::1 may call
-        /api/sleep_battery without a browser session (same-host IoT worker).
+        /api/sleep_battery and /api/day_constraints without a browser session
+        (same-host IoT worker / Orchestra 15m poke).
     """
     expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
     provided = _service_token_from_headers(headers)
@@ -1356,9 +1357,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return
         if parsed.path == "/api/day_constraints":
-            # Orchestra Fit freeze packet (also written to fitness/data/ on load).
-            user = self._require_user()
-            if user is None and _auth_required():
+            # Machine-friendly: Orchestra 15m poke. Same loopback / service-token
+            # path as /api/sleep_battery (see _service_auth_ok). Writes
+            # fitness/data/day_constraints.json via load_dashboard_data.
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            if _auth_required() and not user and not _service_auth_ok(
+                self.headers, client_host
+            ):
+                self._send_json(
+                    {
+                        "ok": False,
+                        "error": "auth_required",
+                        "message": (
+                            "Sign in, or call from loopback / with "
+                            "FITDASH_SERVICE_TOKEN for Orchestra."
+                        ),
+                    },
+                    status=401,
+                )
                 return
             try:
                 uid = user.get("user_id") if user else None
