@@ -179,6 +179,51 @@
     }
     .quick { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
     .window-range { color: var(--muted); font-size: 0.88rem; margin: 0.25rem 0 0.5rem; }
+    .now-strip {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr);
+      gap: 0.65rem;
+      align-items: stretch;
+    }
+    .now-cell {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.7rem 0.8rem;
+      min-width: 0;
+    }
+    .now-cell.now {
+      border-color: #2a5a80;
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .now-cell .lane {
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 650;
+    }
+    .now-cell h3 {
+      margin: 0.2rem 0 0.15rem;
+      font-size: 1.05rem;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+    .now-cell .remain {
+      font-variant-numeric: tabular-nums;
+      font-size: 1.65rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1.15;
+      margin: 0.25rem 0 0.15rem;
+    }
+    .now-cell .when { color: var(--muted); font-size: 0.85rem; }
+    .now-strip.stale .now-cell { box-shadow: none; border-color: var(--border); }
+    .now-strip.stale .remain { display: none; }
+    @media (max-width: 520px) {
+      .now-strip { grid-template-columns: 1fr; }
+      .now-cell .remain { font-size: 1.85rem; }
+    }
     .battery-card {
       display: grid;
       grid-template-columns: minmax(140px, 180px) 1fr;
@@ -604,6 +649,13 @@
           <p class="sleep-meta" id="battery-summary">Loading sleep battery…</p>
           <p class="path" id="battery-source"></p>
         </div>
+      </div>
+    </section>
+
+    <section class="card" id="now-card" aria-label="Live agenda">
+      <h2>Now · Next · Then</h2>
+      <div id="now-strip" class="now-strip stale">
+        <p class="empty">no live plan — rebuild</p>
       </div>
     </section>
 
@@ -1649,6 +1701,103 @@
       }
     }
 
+    let nowPacket = null;
+    let nowTickStarted = false;
+    let nowPollStarted = false;
+    let nowRefreshInFlight = false;
+
+    const fmtClock = (iso) => {
+      if (!iso) return "—";
+      try {
+        return new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+      } catch { return iso; }
+    };
+    const fmtMmss = (sec) => {
+      const s = Math.max(0, Math.floor(Number(sec) || 0));
+      const m = Math.floor(s / 60);
+      const r = s % 60;
+      return String(m).padStart(2, "0") + ":" + String(r).padStart(2, "0");
+    };
+    const remainingFromPacket = (pkt) => {
+      if (!pkt || !pkt.now || !pkt.now.end) return 0;
+      const end = new Date(pkt.now.end).getTime();
+      if (Number.isNaN(end)) return 0;
+      return Math.max(0, Math.floor((end - Date.now()) / 1000));
+    };
+    const nowLaneCell = (lane, block, { remain, emptyLabel }) => {
+      if (!block) {
+        return `<article class="now-cell ${escapeAttr(lane)}">
+          <div class="lane">${escapeHtml(lane)}</div>
+          <h3>${escapeHtml(emptyLabel || "—")}</h3>
+          <div class="when">empty</div>
+        </article>`;
+      }
+      const remainHtml = remain != null
+        ? `<div class="remain" id="now-remain">${escapeHtml(fmtMmss(remain))}</div>`
+        : "";
+      return `<article class="now-cell ${escapeAttr(lane)}">
+        <div class="lane">${escapeHtml(lane)}</div>
+        <h3>${escapeHtml(block.title || block.id || "—")}</h3>
+        ${remainHtml}
+        <div class="meta" style="margin-top:0.15rem">
+          <span class="role ${escapeAttr(block.role || "")}">${escapeHtml(block.role || "")}</span>
+        </div>
+        <div class="when">${escapeHtml(fmtClock(block.start))} → ${escapeHtml(fmtClock(block.end))}</div>
+      </article>`;
+    };
+
+    function paintNowStrip() {
+      const wrap = $("now-strip");
+      if (!wrap) return;
+      const pkt = nowPacket;
+      const stale = !pkt || pkt.stale || !pkt.now;
+      if (stale) {
+        wrap.className = "now-strip stale";
+        wrap.innerHTML = `<p class="empty">no live plan — rebuild</p>`;
+        return;
+      }
+      wrap.className = "now-strip";
+      wrap.innerHTML =
+        nowLaneCell("now", pkt.now, { remain: remainingFromPacket(pkt) }) +
+        nowLaneCell("next", pkt.next, { emptyLabel: "—" }) +
+        nowLaneCell("then", pkt.then, { emptyLabel: "—" });
+    }
+
+    function applyNowPacket(pkt) {
+      nowPacket = pkt || null;
+      paintNowStrip();
+    }
+
+    async function refreshNow() {
+      if (nowRefreshInFlight) return;
+      nowRefreshInFlight = true;
+      try {
+        const pkt = await api("/api/now");
+        applyNowPacket(pkt);
+      } catch (e) {
+        applyNowPacket({ stale: true, now: null, next: null, then: null, reason: "no live plan — rebuild" });
+      } finally {
+        nowRefreshInFlight = false;
+      }
+    }
+
+    function startNowClock() {
+      if (!nowTickStarted) {
+        nowTickStarted = true;
+        setInterval(async () => {
+          const rem = remainingFromPacket(nowPacket);
+          paintNowStrip();
+          if (nowPacket && nowPacket.now && rem <= 0) {
+            await refreshNow();
+          }
+        }, 1000);
+      }
+      if (!nowPollStarted) {
+        nowPollStarted = true;
+        setInterval(() => { refreshNow(); }, 30 * 1000);
+      }
+    }
+
     function render(state) {
       $("data-path").textContent = state.path ? `data: ${state.path}` : "";
       const h = state.health || {};
@@ -1658,6 +1807,7 @@
       window.__lastLyftDuty = state.lyft_duty || {};
       renderCalendar(state.calendar);
       renderSleepBattery(state.sleep_battery);
+      if (state.now_next) applyNowPacket(state.now_next);
       renderSuggestions(
         state.suggestions || [],
         state.walk_candidates || [],
@@ -1963,6 +2113,7 @@
     // Page load: one external sync (sleep + calendar + walks), then local ticks
     loadAskStatus();
     syncAllOnLoad();
+    startNowClock();
     // Local recompute only (battery drain / Lyft countdown) — not Google APIs
     setInterval(() => refresh(), 60 * 1000);
   </script>

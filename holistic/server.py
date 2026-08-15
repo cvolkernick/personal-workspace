@@ -16,6 +16,7 @@
   POST /api/ask               — {question} about current time allocations
   GET  /api/calendar/status   — Google Calendar OAuth + last sync
   POST /api/calendar/sync     — pull busy events into plan
+  GET  /api/now               — NOW/NEXT/THEN from the filed plan (no rebuild)
 
 Usage:
   python3 holistic/server.py
@@ -78,6 +79,7 @@ from holistic.time_allocator.grok_ask import (  # noqa: E402
     auth_status as grok_auth_status,
 )
 from holistic.time_allocator.recommend import recommend_next  # noqa: E402
+from holistic.time_allocator.now_next import compose_now_next  # noqa: E402
 from holistic.time_allocator.sleep_battery import sleep_battery_for_state  # noqa: E402
 from holistic.time_allocator.calendar_sync import (  # noqa: E402
     calendar_credentials_status,
@@ -114,12 +116,15 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     targets = list_targets(state)
     total = sum(int(it.get("minutes") or 0) for it in items)
     # Remaining work plan (drives next actions)
-    plan = state.get("plan") or build_rolling_plan(state)
+    filed_plan = state.get("plan")
+    plan = filed_plan or build_rolling_plan(state)
     # Full recommended split (ignores progress) for planned pie
     plan_recommended = build_rolling_plan(state, ignore_progress=True)
     actual = build_actual_allocation(state)
     delta = allocation_delta(plan_recommended, actual)
     suggestions = recommend_next(state, plan=plan)
+    # Secretary packet uses the filed plan only — never invent NOW
+    now_next = compose_now_next(filed_plan if isinstance(filed_plan, dict) else None)
     sleep_battery = sleep_battery_for_state(state)
     walk_candidates = pending_walk_candidates(state, days=2)
     lyft_tgt = next((t for t in targets if str(t.get("id")) == "lyft"), None)
@@ -145,6 +150,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "actual": actual,
         "allocation_delta": delta,
         "suggestions": suggestions,
+        "now_next": now_next,
         "sleep_battery": sleep_battery,
         "health": health_credentials_status(),
     }
@@ -217,6 +223,16 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 # Keep transport ok=True even when calendar auth is not ready
                 body = {**summary, "auth": auth, "ok": True, "calendar_ready": bool(auth.get("ok"))}
                 self._json(200, body)
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/now":
+            try:
+                state = load_state(_data())
+                filed = state.get("plan")
+                packet = compose_now_next(filed if isinstance(filed, dict) else None)
+                packet["ok"] = True
+                self._json(200, packet)
             except Exception as e:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(e)})
             return
