@@ -1,81 +1,14 @@
 {
-  "ok": true,
-  "as_of": "2026-08-15T03:49:47.100509+00:00",
+  "ok": false,
+  "as_of": "2026-08-15T15:50:51.635023+00:00",
   "source": "braiins_pool_api",
   "coin": "btc",
-  "username": "cvolkernick",
-  "hash_rate_unit": "Gh/s",
-  "hash_rate_5m": 273968.97733170516,
-  "hash_rate_60m": 365604.71974972985,
-  "hash_rate_24h": 386397.7063105604,
-  "hash_rate_yesterday": 388632.56550064735,
-  "ok_workers": 2,
-  "low_workers": 0,
-  "off_workers": 0,
-  "dis_workers": 0,
-  "current_balance_btc": 0.00188259,
-  "today_reward_btc": 2.819e-05,
-  "estimated_reward_btc": 0.00018695,
-  "all_time_reward_btc": 0.01931131,
-  "workers": [
-    {
-      "name": "cvolkernick.s211",
-      "state": "ok",
-      "hash_rate_5m": 108836.990994787,
-      "hash_rate_60m": 172325.23574174606,
-      "hash_rate_24h": 193509.15977023033,
-      "hash_rate_unit": "Gh/s",
-      "last_share": 1786765489
-    },
-    {
-      "name": "cvolkernick.s212",
-      "state": "ok",
-      "hash_rate_5m": 165131.9863369182,
-      "hash_rate_60m": 193279.4840079838,
-      "hash_rate_24h": 192888.5465403301,
-      "hash_rate_unit": "Gh/s",
-      "last_share": 1786765481
-    }
-  ],
-  "worker_count": 2,
-  "last_payout": {
-    "kind": "onchain",
-    "status": "confirmed",
-    "amount_btc": 0.00217342,
-    "amount_sats": 217342,
-    "fee_sats": 10000,
-    "destination_redacted": "3K9pyUuf\u2026mF3TLg",
-    "tx_id": "06aacb2f719c17dd5bb11e3d5ef0a713712f5132a9cd92793b8cce8a77a2a5a3",
-    "at": "2026-08-06T03:10:09+00:00",
-    "trigger_type": "manual"
+  "error": "profile: URL error: [Errno 8] nodename nor servname provided, or not known; workers: URL error: [Errno 8] nodename nor servname provided, or not known; payouts: URL error: [Errno 8] nodename nor servname provided, or not known; rewards: URL error: [Errno 8] nodename nor servname provided, or not known",
+  "errors": {
+    "profile": "URL error: [Errno 8] nodename nor servname provided, or not known",
+    "workers": "URL error: [Errno 8] nodename nor servname provided, or not known",
+    "payouts": "URL error: [Errno 8] nodename nor servname provided, or not known",
+    "rewards": "URL error: [Errno 8] nodename nor servname provided, or not known"
   },
-  "last_payout_btc": 0.00217342,
-  "last_payout_at": "2026-08-06T03:10:09+00:00",
-  "daily_reward_avg_btc": 0.00018831357142857146,
-  "payout_outlook": {
-    "rule_inferred": "threshold",
-    "threshold_btc": 0.01,
-    "threshold_source": "config",
-    "balance_btc": 0.00188259,
-    "remaining_btc": 0.00811741,
-    "progress_pct": 18.8,
-    "daily_reward_avg_btc": 0.00018831,
-    "days_to_threshold_est": 43.1,
-    "next_payout_est_at": "2026-09-27T09:00:00+00:00",
-    "next_payout_eval_note": "Braiins evaluates payout rules daily at 09:00 UTC",
-    "median_payout_interval_days": 27.9,
-    "confirmed_payout_count": 4,
-    "median_payout_btc": 0.00501407
-  },
-  "next_payout_est_at": "2026-09-27T09:00:00+00:00",
-  "next_payout_threshold_btc": 0.01,
-  "next_payout_progress_pct": 18.8,
-  "days_to_next_payout_est": 43.1,
-  "raw_keys": [
-    "payouts",
-    "profile",
-    "rewards",
-    "workers"
-  ],
   "token_source": "/Users/cvolkernick/.config/braiins/token"
 }
