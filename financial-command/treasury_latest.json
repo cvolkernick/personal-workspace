@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-15T22:20:00.935922+00:00",
+    "as_of": "2026-08-16T01:22:27.496386+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-14T19:58:04.032792+00:00",
@@ -3106,7 +3106,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-15T22:20:00.804162+00:00",
+      "as_of": "2026-08-16T01:22:27.372497+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3120,7 +3120,7 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-15T22:20:00.804157+00:00",
+        "as_of": "2026-08-16T01:22:27.372493+00:00",
         "total_value": 189.7412681759,
         "equity_value": 189.6512681759,
         "cash": 0.09,
@@ -3506,25 +3506,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-14T19:58:04.032792+00:00",
-        "robinhood_as_of": "2026-08-15T22:20:00.804162+00:00",
+        "robinhood_as_of": "2026-08-16T01:22:27.372497+00:00",
         "one_card_as_of": "2026-08-14T19:58:04.945095+00:00",
         "rh_checking_as_of": "2026-08-14T19:58:05.253794+00:00",
         "x_money_as_of": "2026-08-14T19:58:05.629546+00:00",
         "expenses_as_of": "2026-08-14T19:58:11.454881+00:00"
       },
       "stale": [
-        "coinbase data 26.4h old (>6.0h)",
-        "one_card data 26.4h old (>6.0h)",
-        "rh_checking data 26.4h old (>6.0h)",
-        "x_money data 26.4h old (>6.0h)",
-        "expenses data 26.4h old (>6.0h)"
+        "coinbase data 29.4h old (>6.0h)",
+        "one_card data 29.4h old (>6.0h)",
+        "rh_checking data 29.4h old (>6.0h)",
+        "x_money data 29.4h old (>6.0h)",
+        "expenses data 29.4h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 26.4h old (>6.0h)",
-        "one_card data 26.4h old (>6.0h)",
-        "rh_checking data 26.4h old (>6.0h)",
-        "x_money data 26.4h old (>6.0h)",
-        "expenses data 26.4h old (>6.0h)"
+        "coinbase data 29.4h old (>6.0h)",
+        "one_card data 29.4h old (>6.0h)",
+        "rh_checking data 29.4h old (>6.0h)",
+        "x_money data 29.4h old (>6.0h)",
+        "expenses data 29.4h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -3632,16 +3632,16 @@
           "id": "expenses",
           "title": "Expenses paid & current",
           "status": "partial",
-          "need": 11605.78,
+          "need": 11645.77,
           "allocated": 3.41,
-          "gap": 11602.37,
-          "detail": "1 overdue \u00b7 6 due \u22647d \u00b7 critical $11,606",
+          "gap": 11642.36,
+          "detail": "1 overdue \u00b7 8 due \u22647d \u00b7 critical $11,646",
           "fund_from": "venue_cash",
           "meta": {
             "overdue_count": 1,
-            "due_soon_count": 6,
+            "due_soon_count": 8,
             "overdue_total": 11275.0,
-            "due_soon_total": 330.78
+            "due_soon_total": 370.77
           }
         },
         {
@@ -3686,7 +3686,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 13032.15,
+          "gap": 13072.14,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -3736,10 +3736,10 @@
         }
       ],
       "expense_window": {
-        "critical_total": 11605.78,
+        "critical_total": 11645.77,
         "overdue_count": 1,
-        "due_soon_count": 6,
-        "as_of_date": "2026-08-15"
+        "due_soon_count": 8,
+        "as_of_date": "2026-08-16"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -3831,12 +3831,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-15T22:20:00.941459+00:00",
+      "as_of": "2026-08-16T01:22:27.501078+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-15T22:20:00.938681+00:00",
+        "as_of": "2026-08-16T01:22:27.498333+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -6541,12 +6541,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-15T22:20:00.941459+00:00",
+    "as_of": "2026-08-16T01:22:27.501078+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-15T22:20:00.938681+00:00",
+      "as_of": "2026-08-16T01:22:27.498333+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
