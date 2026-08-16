@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-16T10:50:14.742608+00:00",
+    "as_of": "2026-08-16T13:52:38.817926+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-14T19:58:04.032792+00:00",
@@ -3106,7 +3106,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-16T10:50:14.621298+00:00",
+      "as_of": "2026-08-16T13:52:34.827610+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3120,7 +3120,7 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-16T10:50:14.621294+00:00",
+        "as_of": "2026-08-16T13:52:34.827600+00:00",
         "total_value": 189.7412681759,
         "equity_value": 189.6512681759,
         "cash": 0.09,
@@ -3506,25 +3506,25 @@
         "x_money": "ynab",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-14T19:58:04.032792+00:00",
-        "robinhood_as_of": "2026-08-16T10:50:14.621298+00:00",
+        "robinhood_as_of": "2026-08-16T13:52:34.827610+00:00",
         "one_card_as_of": "2026-08-14T19:58:04.945095+00:00",
         "rh_checking_as_of": "2026-08-14T19:58:05.253794+00:00",
         "x_money_as_of": "2026-08-14T19:58:05.629546+00:00",
         "expenses_as_of": "2026-08-14T19:58:11.454881+00:00"
       },
       "stale": [
-        "coinbase data 38.9h old (>6.0h)",
-        "one_card data 38.9h old (>6.0h)",
-        "rh_checking data 38.9h old (>6.0h)",
-        "x_money data 38.9h old (>6.0h)",
-        "expenses data 38.9h old (>6.0h)"
+        "coinbase data 41.9h old (>6.0h)",
+        "one_card data 41.9h old (>6.0h)",
+        "rh_checking data 41.9h old (>6.0h)",
+        "x_money data 41.9h old (>6.0h)",
+        "expenses data 41.9h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 38.9h old (>6.0h)",
-        "one_card data 38.9h old (>6.0h)",
-        "rh_checking data 38.9h old (>6.0h)",
-        "x_money data 38.9h old (>6.0h)",
-        "expenses data 38.9h old (>6.0h)"
+        "coinbase data 41.9h old (>6.0h)",
+        "one_card data 41.9h old (>6.0h)",
+        "rh_checking data 41.9h old (>6.0h)",
+        "x_money data 41.9h old (>6.0h)",
+        "expenses data 41.9h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -3831,12 +3831,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-16T10:50:14.747659+00:00",
+      "as_of": "2026-08-16T13:52:38.822924+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-16T10:50:14.744883+00:00",
+        "as_of": "2026-08-16T13:52:38.819876+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -6541,12 +6541,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-16T10:50:14.747659+00:00",
+    "as_of": "2026-08-16T13:52:38.822924+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-16T10:50:14.744883+00:00",
+      "as_of": "2026-08-16T13:52:38.819876+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
