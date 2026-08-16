@@ -3,12 +3,9 @@
 Email/password login against ``https://www.hidrateapp.com/parse/`` using the
 shared Android client Application-Id / Client-Key. Stdlib only (urllib).
 
-When credentials are present, FitDash treats Hidrate ``Day.totalAmount`` as
-the bottle/app source of truth and overlays it onto Google Health snapshots.
-On dates Hidrate covers, the day total is Hidrate plus GH points whose
-``dataSource`` is identifiably not Hidrate. Hidrate copies that occasionally
-sync to Google Health are dropped. Dates without a Hidrate Day keep the GH
-row (older Fitbit / GH history).
+When credentials are present, FitDash treats Hidrate ``Day`` totals as the
+hydration source of truth and overlays them onto Google Health snapshots so
+partial Health Connect / Fitbit water rows cannot double-count.
 """
 
 from __future__ import annotations
@@ -262,34 +259,18 @@ def _day_total_ml(row: Dict[str, Any]) -> Optional[float]:
     return None
 
 
-def _non_hidrate_extra_ml(row: HydrationDay) -> float:
-    """Proven GH-only glasses. Unknown origin (None) is 0 — never guess."""
-    extra = getattr(row, "non_hidrate_ml", None)
-    if extra is None:
-        return 0.0
-    try:
-        val = float(extra)
-    except (TypeError, ValueError):
-        return 0.0
-    return val if val > 0 else 0.0
-
-
 def overlay_hidrate_hydration(
     snapshot: HealthSnapshot,
     *,
     days: int = 90,
     client: Optional[HidrateClient] = None,
 ) -> Tuple[HealthSnapshot, Dict[str, Any]]:
-    """Hidrate Day + GH-only glasses; drop Hidrate copies that landed in GH.
+    """Prefer Hidrate Day.totalAmount over Google Health on overlapping dates.
 
-    On dates Hidrate has a ``Day``: ``water_ml = Day.totalAmount + non_hidrate_ml``.
-    ``non_hidrate_ml`` is the sum of GH hydration-log points whose
-    ``dataSource.application.packageName`` (or other origin token) is present
-    and is not Hidrate. Unlabeled GH points are **not** added (could be an
-    unlabeled Hidrate write). The full GH daily rollup is never added on top
-    of Hidrate.
-
-    Dates without a Hidrate Day keep the GH row (older Fitbit / GH history).
+    Hidrate already ingests Health Connect / Fitbit glasses into Day.totalAmount
+    (non-bottle sips, often on app-open). Adding GH points on top double-counts.
+    Google Health rows stay only for dates **without** a Hidrate Day (older
+    Fitbit history).
 
     Returns ``(snapshot, meta)`` where meta describes source / errors for cache notes.
     """
@@ -298,8 +279,6 @@ def overlay_hidrate_hydration(
         "applied": False,
         "days": 0,
         "error": None,
-        "gh_extra_days": 0,
-        "gh_extra_ml": 0.0,
     }
     if not hidrate_credentials_present():
         return snapshot, meta
@@ -324,42 +303,12 @@ def overlay_hidrate_hydration(
         return snapshot, meta
 
     hidrate_by = {h.date: h for h in series}
-    extras_by: Dict[str, float] = {}
-    for row in snapshot.hydration or []:
-        extra = _non_hidrate_extra_ml(row)
-        if extra <= 0:
-            continue
-        prev = extras_by.get(row.date, 0.0)
-        if extra > prev:
-            extras_by[row.date] = extra
-
+    # Keep non-overlapping GH / other history; Hidrate wins on collision.
     kept = [h for h in (snapshot.hydration or []) if h.date not in hidrate_by]
-    merged_hidrate: List[HydrationDay] = []
-    extras_days = 0
-    extras_ml = 0.0
-    for h in hidrate_by.values():
-        extra = extras_by.get(h.date, 0.0)
-        if extra > 0:
-            extras_days += 1
-            extras_ml += extra
-            merged_hidrate.append(
-                HydrationDay(
-                    date=h.date,
-                    water_ml=round(float(h.water_ml) + extra, 1),
-                    source="hidrate+google_health",
-                    non_hidrate_ml=round(extra, 1),
-                )
-            )
-        else:
-            merged_hidrate.append(
-                HydrationDay(date=h.date, water_ml=h.water_ml, source="hidrate")
-            )
-    merged = kept + merged_hidrate
+    merged = kept + list(hidrate_by.values())
     merged.sort(key=lambda h: h.date)
     snapshot.hydration = merged
     meta["applied"] = True
     meta["days"] = len(series)
-    meta["source"] = "hidrate+google_health" if extras_days else "hidrate"
-    meta["gh_extra_days"] = extras_days
-    meta["gh_extra_ml"] = round(extras_ml, 1)
+    meta["source"] = "hidrate"
     return snapshot, meta

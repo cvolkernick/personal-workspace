@@ -419,34 +419,26 @@ class GoogleHealthClient:
             return []
 
     def fetch_hydration(self, days: int = 90) -> List[HydrationDay]:
-        """Water intake — needs googlehealth.nutrition.readonly.
-
-        Daily rollup is the GH series. Sip-level points attach
-        ``non_hidrate_ml`` so Hidrate overlay can add GH-only glasses without
-        also adding Hidrate copies that occasionally land in Health Connect.
-        """
+        """Water intake — needs googlehealth.nutrition.readonly."""
         days = max(1, min(int(days), 90))
-        days_list: List[HydrationDay] = []
         try:
             data = self.daily_rollup("hydration-log", days=days)
             days_list = parse_hydration_rollup(data)
+            if days_list:
+                return days_list
         except GoogleHealthError:
             try:
                 data = self._chunked_daily_rollup("hydration-log", days, chunk_days=30)
                 days_list = parse_hydration_rollup(data)
+                if days_list:
+                    return days_list
             except GoogleHealthError:
                 pass
-        point_payload: Optional[dict] = None
         try:
-            point_payload = self._paginate_data_points("hydration-log", max_pages=6)
+            data = self._paginate_data_points("hydration-log", max_pages=4)
+            return parse_hydration_log_points(data, days=days)
         except GoogleHealthError:
-            point_payload = None
-        if not days_list and point_payload:
-            return parse_hydration_log_points(point_payload, days=days)
-        if days_list and point_payload:
-            extras = extras_ml_by_date_from_points(point_payload, days=days)
-            days_list = attach_non_hidrate_ml(days_list, extras)
-        return days_list
+            return []
 
     def fetch_calories_burned(self, days: int = 90) -> List[CaloriesBurnedDay]:
         """Activity total calories — needs activity_and_fitness.readonly.
@@ -1120,172 +1112,34 @@ def parse_nutrition_rollup(payload: dict) -> List[NutritionDay]:
     return [by_date[k] for k in sorted(by_date.keys())]
 
 
-def hidrate_android_package() -> str:
-    """Android package Hidrate writes to Health Connect / Google Health."""
-    from .hidrate_client import HIDRATE_ANDROID_PACKAGE
-
-    env = (os.environ.get("HIDRATE_ANDROID_PACKAGE") or "").strip()
-    return env or HIDRATE_ANDROID_PACKAGE
-
-
-def hydration_origin_tokens(point: dict) -> List[str]:
-    """Provenance strings from a Google Health DataPoint.dataSource."""
-    if not isinstance(point, dict):
-        return []
-    ds = point.get("dataSource") or point.get("data_source") or {}
-    if not isinstance(ds, dict):
-        ds = {}
-    app = ds.get("application") or {}
-    if not isinstance(app, dict):
-        app = {}
-    device = ds.get("device") or {}
-    if not isinstance(device, dict):
-        device = {}
-    raw = [
-        app.get("packageName"),
-        app.get("package_name"),
-        app.get("webClientId"),
-        app.get("web_client_id"),
-        app.get("googleWebClientId"),
-        app.get("google_web_client_id"),
-        device.get("displayName"),
-        device.get("display_name"),
-        device.get("manufacturer"),
-        ds.get("platform"),
-    ]
-    out: List[str] = []
-    seen = set()
-    for val in raw:
-        if val is None:
-            continue
-        s = str(val).strip()
-        if not s:
-            continue
-        key = s.lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(s)
-    return out
-
-
-def hydration_origin_is_hidrate(
-    point: dict, *, package: Optional[str] = None
-) -> bool:
-    """True when the point's dataSource is identifiably Hidrate."""
-    pkg = (package or hidrate_android_package()).strip().lower()
-    tokens = [t.lower() for t in hydration_origin_tokens(point)]
-    if not tokens:
-        return False
-    if pkg and any(t == pkg or pkg in t or t in pkg for t in tokens):
-        return True
-    return any("hidrate" in t for t in tokens)
-
-
-def hydration_origin_is_non_hidrate(
-    point: dict, *, package: Optional[str] = None
-) -> bool:
-    """True only when origin is present and is not Hidrate.
-
-    Unlabeled points return False so overlay will not add them on Hidrate
-    dates (could be an unlabeled Hidrate Health Connect write).
-    """
-    if not hydration_origin_tokens(point):
-        return False
-    return not hydration_origin_is_hidrate(point, package=package)
-
-
-def _hydration_log_ml(h: dict) -> Optional[float]:
-    amt = h.get("amountConsumed") or {}
-    ml = _num(amt.get("milliliters"), amt.get("ml"), h.get("milliliters"))
-    if ml is not None:
-        return float(ml)
-    liters = _num(amt.get("liters"), amt.get("volumeLiters"))
-    if liters is not None:
-        return float(liters) * 1000.0
-    return None
-
-
-def _hydration_point_date(pt: dict, h: dict) -> Optional[str]:
-    interval = h.get("interval") or {}
-    civil = (interval.get("civilStartTime") or {}).get("date")
-    if civil:
-        date = _civil_date_str({"date": civil})
-        if date:
-            return date
-    return _parse_rfc3339_date(
-        str(interval.get("startTime") or pt.get("startTime") or "")
-    )
-
-
-def extras_ml_by_date_from_points(
-    payload: dict, days: int = 30, *, package: Optional[str] = None
-) -> Dict[str, float]:
-    """Sum GH hydration points that are identifiably not Hidrate, by date."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
-    by_date: Dict[str, float] = {}
-    for pt in payload.get("dataPoints") or []:
-        if not isinstance(pt, dict):
-            continue
-        if not hydration_origin_is_non_hidrate(pt, package=package):
-            continue
-        h = pt.get("hydrationLog") or pt.get("hydration_log") or pt.get("hydration") or pt
-        if not isinstance(h, dict):
-            continue
-        date = _hydration_point_date(pt, h)
-        if not date or date < cutoff:
-            continue
-        ml = _hydration_log_ml(h)
-        if ml is None:
-            continue
-        by_date[date] = by_date.get(date, 0.0) + float(ml)
-    return {d: round(v, 1) for d, v in by_date.items()}
-
-
-def attach_non_hidrate_ml(
-    days_list: List[HydrationDay], extras: Dict[str, float]
-) -> List[HydrationDay]:
-    """Stamp extras onto daily GH rows; add extra-only dates missing from rollup."""
-    by: Dict[str, HydrationDay] = {h.date: h for h in days_list}
-    for date, extra in extras.items():
-        existing = by.get(date)
-        if existing is None:
-            if extra <= 0:
-                continue
-            by[date] = HydrationDay(
-                date=date,
-                water_ml=round(float(extra), 1),
-                source="google_health",
-                non_hidrate_ml=round(float(extra), 1),
-            )
-            continue
-        existing.non_hidrate_ml = round(float(extra), 1)
-    return [by[k] for k in sorted(by.keys())]
-
-
 def parse_hydration_log_points(payload: dict, days: int = 30) -> List[HydrationDay]:
     """Observed shape: hydrationLog.amountConsumed.milliliters + interval.civilStartTime."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%d")
     by_date: Dict[str, float] = {}
-    extras: Dict[str, float] = extras_ml_by_date_from_points(payload, days=days)
     for pt in payload.get("dataPoints") or []:
         h = pt.get("hydrationLog") or pt.get("hydration_log") or pt.get("hydration") or pt
         if not isinstance(h, dict):
             continue
-        date = _hydration_point_date(pt, h)
+        date = None
+        interval = h.get("interval") or {}
+        civil = (interval.get("civilStartTime") or {}).get("date")
+        if civil:
+            date = _civil_date_str({"date": civil})
+        if not date:
+            date = _parse_rfc3339_date(str(interval.get("startTime") or pt.get("startTime") or ""))
         if not date or date < cutoff:
             continue
-        ml = _hydration_log_ml(h)
+        amt = h.get("amountConsumed") or {}
+        ml = _num(amt.get("milliliters"), amt.get("ml"), h.get("milliliters"))
+        if ml is None:
+            liters = _num(amt.get("liters"), amt.get("volumeLiters"))
+            if liters is not None:
+                ml = liters * 1000.0
         if ml is None:
             continue
         by_date[date] = by_date.get(date, 0.0) + float(ml)
     return [
-        HydrationDay(
-            date=d,
-            water_ml=round(v, 1),
-            source="google_health",
-            non_hidrate_ml=extras.get(d, 0.0),
-        )
+        HydrationDay(date=d, water_ml=round(v, 1), source="google_health")
         for d, v in sorted(by_date.items())
     ]
 
