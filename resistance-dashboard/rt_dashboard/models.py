@@ -147,9 +147,6 @@ class HydrationDay:
     date: str
     water_ml: float
     source: str = "google_health"
-    # GH glasses whose dataSource is not Hidrate. None = unknown (rollup-only).
-    # Overlay adds this to Hidrate Day.totalAmount; Hidrate copies in GH are excluded.
-    non_hidrate_ml: Optional[float] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

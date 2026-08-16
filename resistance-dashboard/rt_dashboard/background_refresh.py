@@ -232,7 +232,7 @@ def _refresh_health(
         from .models import HealthSnapshot
 
         resolved = HealthSnapshot()
-    # Hidrate Day + GH-only glasses (non-Hidrate origin). Drop Hidrate copies in GH.
+    # Hidrate Day totals win over GH hydration when credentials are set.
     resolved, _hidrate_meta = overlay_hidrate_hydration(resolved, days=days)
     if incremental and cached is not None:
         merged = merge_health_snapshots(cached, resolved)
