@@ -118,6 +118,15 @@ def health_cache_is_fresh(
 
 # --- Health -----------------------------------------------------------------
 
+def _optional_float(val: Any) -> Optional[float]:
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
 def health_from_dict(data: dict) -> HealthSnapshot:
     from .health_metrics_store import coerce_weight_to_lbs, normalize_weight_samples
 
@@ -197,6 +206,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
             date=str(h.get("date") or ""),
             water_ml=float(h.get("water_ml") or 0),
             source=str(h.get("source") or "cache"),
+            non_hidrate_ml=_optional_float(h.get("non_hidrate_ml")),
         )
         for h in (data.get("hydration") or [])
         if isinstance(h, dict) and h.get("date")

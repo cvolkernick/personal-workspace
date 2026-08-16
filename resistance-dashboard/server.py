@@ -576,8 +576,8 @@ def load_dashboard_data(
             workspace_dir=local_dir,
             github_token=token,
         )
-        # Hidrate cloud Day totals are SoT for water when HIDRATE_* is set.
-        # Overlapping GH dates (partial HC / Fitbit) are replaced — no double-count.
+        # Hidrate Day is SoT for bottle water; GH-only glasses (non-Hidrate
+        # origin) are added. Hidrate copies in GH are dropped.
         resolved, hidrate_meta = overlay_hidrate_hydration(resolved, days=days)
         cache_notes.setdefault("hidrate", {}).update(hidrate_meta)
         if not use_full and cached_health is not None:

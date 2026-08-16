@@ -83,6 +83,118 @@ class TestOverlayHidrate(unittest.TestCase):
         self.assertEqual(by["2026-08-05"].source, "hidrate")
         self.assertEqual(by["2026-08-04"].water_ml, 1400)
         self.assertEqual(by["2026-08-04"].source, "hidrate")
+        self.assertIsNone(by["2026-08-05"].non_hidrate_ml)
+
+    def test_adds_proven_gh_extras_drops_unknown_and_hidrate_copies(self):
+        snap = HealthSnapshot(
+            hydration=[
+                HydrationDay(
+                    date="2026-08-05",
+                    water_ml=400,
+                    source="google_health",
+                    non_hidrate_ml=250,
+                ),
+                HydrationDay(
+                    date="2026-07-01",
+                    water_ml=2000,
+                    source="google_health",
+                    non_hidrate_ml=2000,
+                ),
+            ]
+        )
+        hidrate_series = [
+            HydrationDay(date="2026-08-05", water_ml=1613.8, source="hidrate"),
+        ]
+
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_hydration_days(self, days: int = 90):
+                return hidrate_series
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            out, meta = overlay_hidrate_hydration(
+                snap, days=14, client=FakeClient()  # type: ignore[arg-type]
+            )
+        self.assertTrue(meta["applied"])
+        self.assertEqual(meta["source"], "hidrate+google_health")
+        self.assertEqual(meta["gh_extra_days"], 1)
+        self.assertEqual(meta["gh_extra_ml"], 250.0)
+        by = {h.date: h for h in out.hydration}
+        self.assertEqual(by["2026-08-05"].water_ml, 1863.8)
+        self.assertEqual(by["2026-08-05"].source, "hidrate+google_health")
+        self.assertEqual(by["2026-08-05"].non_hidrate_ml, 250.0)
+        self.assertEqual(by["2026-07-01"].water_ml, 2000)
+        self.assertEqual(by["2026-07-01"].source, "google_health")
+
+    def test_unknown_origin_does_not_add_to_hidrate_day(self):
+        snap = HealthSnapshot(
+            hydration=[
+                HydrationDay(
+                    date="2026-08-05",
+                    water_ml=400,
+                    source="google_health",
+                    non_hidrate_ml=None,
+                ),
+            ]
+        )
+        hidrate_series = [
+            HydrationDay(date="2026-08-05", water_ml=1613.8, source="hidrate"),
+        ]
+
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_hydration_days(self, days: int = 90):
+                return hidrate_series
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            out, meta = overlay_hidrate_hydration(
+                snap, days=14, client=FakeClient()  # type: ignore[arg-type]
+            )
+        by = {h.date: h for h in out.hydration}
+        self.assertEqual(by["2026-08-05"].water_ml, 1613.8)
+        self.assertEqual(by["2026-08-05"].source, "hidrate")
+        self.assertEqual(meta["gh_extra_days"], 0)
+
+    def test_reapply_preserves_cached_extras(self):
+        snap = HealthSnapshot(
+            hydration=[
+                HydrationDay(
+                    date="2026-08-05",
+                    water_ml=1863.8,
+                    source="hidrate+google_health",
+                    non_hidrate_ml=250,
+                ),
+            ]
+        )
+        hidrate_series = [
+            HydrationDay(date="2026-08-05", water_ml=1613.8, source="hidrate"),
+        ]
+
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_hydration_days(self, days: int = 90):
+                return hidrate_series
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            out, meta = overlay_hidrate_hydration(
+                snap, days=14, client=FakeClient()  # type: ignore[arg-type]
+            )
+        by = {h.date: h for h in out.hydration}
+        self.assertEqual(by["2026-08-05"].water_ml, 1863.8)
+        self.assertEqual(by["2026-08-05"].non_hidrate_ml, 250.0)
+        self.assertEqual(meta["gh_extra_days"], 1)
 
 
 class TestFetchHydrationDaysParse(unittest.TestCase):
