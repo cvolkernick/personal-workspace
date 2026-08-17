@@ -1,0 +1,48 @@
+{
+  "as_of": "2026-08-13",
+  "source": "lender_portal_screenshots",
+  "stale": true,
+  "disclaimer": "Portal snapshot from RESEARCH/FLEET_AUTO_NOTES_INGEST_2026_08_13.md. Does not refresh itself. Not a live payoff quote.",
+  "units": {
+    "m3-2022": {
+      "lender": "GM Financial",
+      "account": "111088614673",
+      "apr_pct": 18.15,
+      "contractual_monthly": 501.08,
+      "principal_balance": 21568.15,
+      "principal_is_payoff_quote": false,
+      "last_payment": {
+        "date": "2026-08-10",
+        "amount": 221.77,
+        "note": "short vs $501.08 contractual monthly"
+      }
+    },
+    "corolla-2022": {
+      "lender": "Capital One",
+      "account": "6201049298207",
+      "apr_pct": 11.14,
+      "contractual_monthly": 373.85,
+      "principal_balance": 17837.78,
+      "payoff_quote": {
+        "amount": 17996.47,
+        "window": "today_as_of_snapshot",
+        "as_of": "2026-08-13"
+      },
+      "payoff_is_live": false
+    },
+    "corolla-2024": {
+      "lender": "Santander",
+      "account": "28312877",
+      "apr_pct": 10.18,
+      "account_balance": 14446.28,
+      "amount_due": 1095.88,
+      "past_due": 921.2,
+      "promise_to_pay": {
+        "amount": 460.6,
+        "due": "2026-08-21",
+        "installment": "1 of 2"
+      },
+      "payoff_is_live": false
+    }
+  }
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "from": "noreply@transactional.turo.com",
+    "subject": "Your Turo payout is on the way",
+    "date": "2026-04-14T16:00:00+00:00",
+    "message_id": "turo-fixture-payout-1",
+    "body": "Trip earnings: $214.50\nVehicle: 2022 Tesla Model 3\nTrip ID: TRIP-9F3K21\n"
+  }
+]
