@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-14T19:58:04.945095+00:00",
+  "as_of": "2026-08-17T15:44:23.105303+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -429.78,
-  "balance_owed": 429.78,
-  "card_balance": 429.78,
+  "balance_raw": -460.46,
+  "balance_owed": 460.46,
+  "card_balance": 460.46,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -429.78,
+  "cleared_balance": -460.46,
   "uncleared_balance": 0.0,
-  "spend_30d": 411.92,
-  "payments_30d": 448.01,
-  "transaction_count": 41,
+  "spend_30d": 392.29,
+  "payments_30d": 400.69,
+  "transaction_count": 46,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -98,7 +98,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
+      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -109,7 +109,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
+      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -230,7 +230,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -241,7 +241,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -461,6 +461,17 @@
       "category_name": "Uncategorized"
     },
     {
+      "id": "e8094fe5-835d-4e81-848a-c309df1a1dc6",
+      "date": "2026-08-14",
+      "payee": "Chipotle",
+      "amount": -10.6,
+      "amount_display": -10.6,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
       "id": "7b0cb245-880d-4266-95c2-8f873e57fe39",
       "date": "2026-08-14",
       "payee": "Payment",
@@ -470,9 +481,53 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "date": "2026-08-15",
+      "payee": "Dimo Corp",
+      "amount": -8.99,
+      "amount_display": -8.99,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "date": "2026-08-15",
+      "payee": "Dimo Corp",
+      "amount": -8.99,
+      "amount_display": -8.99,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "b4b024fa-d12f-43e5-a65f-54aebd90e43e",
+      "date": "2026-08-15",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "f3845ae7-bb8e-4c02-b8b4-dfcbc347f222",
+      "date": "2026-08-16",
+      "payee": "Taco Bell",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-16"
+  "since": "2026-05-19"
 }

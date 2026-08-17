@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-14T19:58:11.454881+00:00",
+  "as_of": "2026-08-17T15:44:27.937871+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -108,19 +108,6 @@
           "annually": 1188.0,
           "budget_allocation": null,
           "quarterly": 297.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "from": "X Money",
-          "item": "Rythm Health",
-          "daily": 1.11,
-          "weekly": 7.77,
-          "biweekly": 15.55,
-          "monthly": 33.78,
-          "annually": 405.36,
-          "budget_allocation": null,
-          "quarterly": 101.34,
           "tab": "Essential"
         },
         {
@@ -264,6 +251,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/22/2026",
+          "from": "X Money",
+          "item": "Rythm Health",
+          "daily": 1.11,
+          "weekly": 7.77,
+          "biweekly": 15.55,
+          "monthly": 33.78,
+          "annually": 405.36,
+          "budget_allocation": null,
+          "quarterly": 101.34,
           "tab": "Essential"
         },
         {
@@ -455,7 +455,7 @@
           "item": "Rythm Health",
           "monthly": 33.78,
           "from": "X Money",
-          "date": "8/22/2026",
+          "date": "9/22/2026",
           "budget_allocation": null,
           "tab": "Essential"
         }
@@ -507,14 +507,6 @@
           "from": "X Money",
           "monthly": 67.0,
           "weekly": 15.42,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "item": "Rythm Health",
-          "from": "X Money",
-          "monthly": 33.78,
-          "weekly": 7.77,
           "tab": "Essential"
         },
         {
@@ -606,6 +598,14 @@
           "tab": "Essential"
         },
         {
+          "date": "9/22/2026",
+          "item": "Rythm Health",
+          "from": "X Money",
+          "monthly": 33.78,
+          "weekly": 7.77,
+          "tab": "Essential"
+        },
+        {
           "date": "10/11/2026",
           "item": "FilterEasy",
           "from": "X Money",
@@ -627,14 +627,14 @@
     },
     "Fleet": {
       "role": "auto_fleet_expenses",
-      "item_count": 7,
+      "item_count": 9,
       "totals": {
-        "daily": 184.49,
-        "weekly": 1291.41,
-        "biweekly": 2582.83,
-        "monthly": 5543.76,
-        "annually": 27742.09,
-        "quarterly": 6054.09
+        "daily": 185.09,
+        "weekly": 1295.61,
+        "biweekly": 2591.23,
+        "monthly": 5561.76,
+        "annually": 27958.09,
+        "quarterly": 6108.09
       },
       "items": [
         {
@@ -713,6 +713,32 @@
           "tab": "Fleet"
         },
         {
+          "date": "9/15/2026",
+          "from": "Coinbase",
+          "item": "2022 Corolla DIMO",
+          "daily": 0.3,
+          "weekly": 2.1,
+          "biweekly": 4.2,
+          "monthly": 9.0,
+          "annually": 108.0,
+          "budget_allocation": null,
+          "quarterly": 27.0,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/15/2026",
+          "from": "Coinbase",
+          "item": "2024 Corolla DIMO",
+          "daily": 0.3,
+          "weekly": 2.1,
+          "biweekly": 4.2,
+          "monthly": 9.0,
+          "annually": 108.0,
+          "budget_allocation": null,
+          "quarterly": 27.0,
+          "tab": "Fleet"
+        },
+        {
           "date": "2/1/2027",
           "from": "X Money",
           "item": "Premium Connectivity",
@@ -728,7 +754,8 @@
       ],
       "by_source_monthly": {
         "X Money": 4193.76,
-        "Unspecified": 1350.0
+        "Unspecified": 1350.0,
+        "Coinbase": 18.0
       },
       "top_monthly": [
         {
@@ -776,6 +803,22 @@
           "monthly": 26.58,
           "from": "X Money",
           "date": "8/20/2026",
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "item": "2022 Corolla DIMO",
+          "monthly": 9.0,
+          "from": "Coinbase",
+          "date": "9/15/2026",
+          "budget_allocation": null,
+          "tab": "Fleet"
+        },
+        {
+          "item": "2024 Corolla DIMO",
+          "monthly": 9.0,
+          "from": "Coinbase",
+          "date": "9/15/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -835,6 +878,22 @@
           "from": null,
           "monthly": 1350.0,
           "weekly": 315.0,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/15/2026",
+          "item": "2022 Corolla DIMO",
+          "from": "Coinbase",
+          "monthly": 9.0,
+          "weekly": 2.1,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/15/2026",
+          "item": "2024 Corolla DIMO",
+          "from": "Coinbase",
+          "monthly": 9.0,
+          "weekly": 2.1,
           "tab": "Fleet"
         },
         {
@@ -1246,19 +1305,6 @@
           "tab": "Essential"
         },
         {
-          "date": "8/22/2026",
-          "from": "X Money",
-          "item": "Rythm Health",
-          "daily": 1.11,
-          "weekly": 7.77,
-          "biweekly": 15.55,
-          "monthly": 33.78,
-          "annually": 405.36,
-          "budget_allocation": null,
-          "quarterly": 101.34,
-          "tab": "Essential"
-        },
-        {
           "date": "8/23/2026",
           "from": "Coinbase",
           "item": "Coinbase One Membership",
@@ -1399,6 +1445,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/22/2026",
+          "from": "X Money",
+          "item": "Rythm Health",
+          "daily": 1.11,
+          "weekly": 7.77,
+          "biweekly": 15.55,
+          "monthly": 33.78,
+          "annually": 405.36,
+          "budget_allocation": null,
+          "quarterly": 101.34,
           "tab": "Essential"
         },
         {
@@ -1590,7 +1649,7 @@
           "item": "Rythm Health",
           "monthly": 33.78,
           "from": "X Money",
-          "date": "8/22/2026",
+          "date": "9/22/2026",
           "budget_allocation": null,
           "tab": "Essential"
         }
@@ -1642,14 +1701,6 @@
           "from": "X Money",
           "monthly": 67.0,
           "weekly": 15.42,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/22/2026",
-          "item": "Rythm Health",
-          "from": "X Money",
-          "monthly": 33.78,
-          "weekly": 7.77,
           "tab": "Essential"
         },
         {
@@ -1738,6 +1789,14 @@
           "from": "Coinbase",
           "monthly": 900.0,
           "weekly": 207.12,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/22/2026",
+          "item": "Rythm Health",
+          "from": "X Money",
+          "monthly": 33.78,
+          "weekly": 7.77,
           "tab": "Essential"
         },
         {
@@ -1940,16 +1999,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 20252.34,
+    "upcoming_expense_monthly": 20270.34,
     "essential_monthly": 14708.58,
     "personal_monthly": 14708.58,
     "personal_daily": 483.58,
     "essential_daily": 483.58,
     "personal_weekly": 3385.09,
     "personal_annually": 49681.92,
-    "fleet_monthly": 5543.76,
-    "fleet_daily": 184.49,
-    "fleet_annually": 27742.09,
+    "fleet_monthly": 5561.76,
+    "fleet_daily": 185.09,
+    "fleet_annually": 27958.09,
     "collateral_investments_monthly": 537.2,
     "collateral_monthly": 537.2,
     "capital_targets_monthly": 3000.0,
@@ -1958,14 +2017,14 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 20252.34,
-    "combined_daily": 668.07,
+    "combined_monthly": 20270.34,
+    "combined_daily": 668.67,
     "by_source_monthly": {
-      "Coinbase": 13551.91,
+      "Coinbase": 13569.91,
       "X Money": 5350.43,
       "Unspecified": 1350.0
     },
-    "coinbase_funded_monthly": 13551.91,
+    "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5350.43

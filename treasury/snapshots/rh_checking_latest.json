@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-14T19:58:05.253794+00:00",
+  "as_of": "2026-08-17T15:44:23.326572+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -43,5 +43,5 @@
   ],
   "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-16"
+  "since": "2026-05-19"
 }
