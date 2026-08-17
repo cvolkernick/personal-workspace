@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-17T15:53:19.215924+00:00",
+    "as_of": "2026-08-17T16:32:31.640047+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-17T15:44:22.445074+00:00",
@@ -1234,20 +1234,20 @@
     },
     "expenses": {
       "source": "google_sheets",
-      "as_of": "2026-08-17T15:44:27.937871+00:00",
+      "as_of": "2026-08-17T16:18:02.818425+00:00",
       "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
       "sheet_name": "Personal Expense Sheet",
       "semantics": {
         "essential": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
         "personal": "Alias for Essential (legacy tab title). Estimated upcoming essential expenses \u2014 not actual spend.",
-        "fleet": "Auto fleet expenses (loans, insurance, ops). Expense burn; combined with Essential for upcoming bills and pay-from pressure.",
+        "fleet": "Auto fleet ops (loans, insurance, DIMO, planned units). Role fleet_ops. FCC burn adds funded unique names only; empty-From (planned) and Essential name overlap stay out.",
         "collateral": "Collateral / capital investments. Not expense burn.",
         "productive_discretionary": "Capital outlay that grows productive asset base. Quantitative targets. Priority over consumer wishlist. Not expense burn.",
         "consumer_discretionary": "Consumer goods / personal wishlist (qualitative). Lower priority. Not expense burn and not ops expansion capital targets.",
         "discretionary": "Alias for Productive Discretionary (legacy name). Capital outlay that grows productive asset base \u2014 not expense burn.",
-        "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
+        "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential.",
         "priority_order": [
-          "Essential + Fleet expenses paid & current",
+          "Essential + funded unique Fleet current (empty-From / name overlap out of burn)",
           "Collateral investments (as planned)",
           "Productive Discretionary (margin-funded capex)",
           "Consumer Discretionary (wishlist; after productive)"
@@ -1860,7 +1860,7 @@
           "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend."
         },
         "Fleet": {
-          "role": "auto_fleet_expenses",
+          "role": "fleet_ops",
           "item_count": 9,
           "totals": {
             "daily": 185.09,
@@ -2140,7 +2140,7 @@
             }
           ],
           "label": "Fleet",
-          "description": "Auto fleet expenses (loans, insurance, wash, repairs). Included in upcoming expense burn with Essential."
+          "description": "Auto fleet ops (loans, insurance, wash, DIMO, planned units). Full tab stays here. FCC combined_monthly adds only funded lines whose normalized name is not already on Essential; empty-From stays out."
         },
         "Collateral": {
           "role": "collateral_investments",
@@ -2216,7 +2216,7 @@
           ],
           "priority": 1,
           "label": "Collateral",
-          "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
+          "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential obligations and Fleet ops."
         },
         "Productive Discretionary": {
           "role": "productive_capital_outlay",
@@ -3233,7 +3233,7 @@
         }
       },
       "summary": {
-        "upcoming_expense_monthly": 20270.34,
+        "upcoming_expense_monthly": 18920.34,
         "essential_monthly": 14708.58,
         "personal_monthly": 14708.58,
         "personal_daily": 483.58,
@@ -3251,19 +3251,18 @@
         "discretionary_daily": 100.0,
         "consumer_discretionary_monthly": 0.0,
         "consumer_discretionary_daily": 0.0,
-        "combined_monthly": 20270.34,
-        "combined_daily": 668.67,
+        "combined_monthly": 18920.34,
+        "combined_daily": 623.67,
         "by_source_monthly": {
           "Coinbase": 13569.91,
-          "X Money": 5350.43,
-          "Unspecified": 1350.0
+          "X Money": 5350.43
         },
         "coinbase_funded_monthly": 13569.91,
         "rh_funded_monthly": 0,
         "rh_checking_funded_monthly": 0,
         "x_money_funded_monthly": 5350.43
       },
-      "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
+      "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
     },
     "robinhood": {
       "source": "live",
@@ -3483,7 +3482,7 @@
         "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
         "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking \u2013 ####)",
         "solana": "public RPC + Jupiter prices; whitelist SOL/USDC/JR-strcUSX; JR is not HY",
-        "expenses": "google sheet: Essential+Fleet=burn; Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
+        "expenses": "google sheet: Essential + funded unique Fleet = burn; Fleet tab is fleet_ops (empty-From / name overlap out of combined); Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
         "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
         "external_usdc_send": "not via Advanced Trade transfer"
       }
@@ -3531,7 +3530,7 @@
       "card_source": "ynab",
       "one_card_spend_30d": 392.29,
       "one_card_account": "Coinbase One Card \u2013 5361",
-      "expenses_upcoming_monthly": 20270.34,
+      "expenses_upcoming_monthly": 18920.34,
       "expenses_personal_monthly": 14708.58,
       "expenses_fleet_monthly": 5561.76,
       "expenses_collateral_investments_monthly": 537.2,
@@ -3539,7 +3538,7 @@
       "expenses_discretionary_monthly": 3000.0,
       "expenses_productive_discretionary_monthly": 3000.0,
       "expenses_consumer_discretionary_monthly": 0.0,
-      "expenses_combined_monthly": 20270.34,
+      "expenses_combined_monthly": 18920.34,
       "expenses_coinbase_funded_monthly": 13569.91,
       "expenses_rh_funded_monthly": 0,
       "expenses_x_money_funded_monthly": 5350.43,
@@ -3682,7 +3681,7 @@
         "rh_checking_as_of": "2026-08-17T15:44:23.326572+00:00",
         "x_money_as_of": "2026-08-17T15:44:23.625339+00:00",
         "solana_as_of": "2026-08-17T15:53:19.119339+00:00",
-        "expenses_as_of": "2026-08-17T15:44:27.937871+00:00"
+        "expenses_as_of": "2026-08-17T16:18:02.818425+00:00"
       },
       "stale": [],
       "warnings": [],
@@ -3770,7 +3769,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00001430 (~$0.92)\nOne Card owed: $460.46 (source=ynab) | 30d spend $392.29 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (sheet Essential+Fleet): $20270.34/mo (personal $14708.58 + fleet $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5350.43 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $178.14 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $7.88 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $460 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00001430 (~$0.92)\nOne Card owed: $460.46 (source=ynab) | 30d spend $392.29 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $18920.34/mo (personal $14708.58 | fleet tab $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5350.43 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $178.14 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $7.88 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $460 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -3987,7 +3986,7 @@
         }
       },
       "priority_order": [
-        "Essential + Fleet expenses current (sheet burn)",
+        "Essential + funded unique Fleet current (empty-From / name overlap out of burn)",
         "One Card: Morpho refinance when balance owed (not HY pull)",
         "Morpho: cool (<38%) principal\u2192HY LTV Buffer; hot (\u226545%) HY\u2192BTC; hard 50%",
         "X Money float for Deploy + scheduled capital pipes",
@@ -4009,12 +4008,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-17T15:53:19.222497+00:00",
+      "as_of": "2026-08-17T16:32:31.646332+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-17T15:53:19.218523+00:00",
+        "as_of": "2026-08-17T16:32:31.642664+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -6536,12 +6535,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-17T15:53:19.222497+00:00",
+    "as_of": "2026-08-17T16:32:31.646332+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-17T15:53:19.218523+00:00",
+      "as_of": "2026-08-17T16:32:31.642664+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
