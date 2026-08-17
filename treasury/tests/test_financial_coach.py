@@ -17,6 +17,7 @@ from treasury.financial_coach import (  # noqa: E402
     build_coach_plan,
     due_urgency_class,
     extract_venues,
+    infer_habits,
     load_snapshots,
     main,
     normalize_venue,
@@ -210,6 +211,22 @@ class TestResidualsHardened(unittest.TestCase):
         self.assertTrue(plan.get("ok"))
         for k, v in (plan.get("residuals") or {}).items():
             self.assertGreaterEqual(float(v), 0.0, msg=k)
+
+
+class TestInferHabitsFleetOps(unittest.TestCase):
+    def test_missing_summary_by_source_does_not_merge_fleet(self):
+        snaps = {
+            "expenses": {
+                "summary": {"combined_monthly": 100.0, "personal_monthly": 100.0},
+                "tabs": {
+                    "Essential": {"by_source_monthly": {"Coinbase": 100.0}},
+                    "Fleet": {"by_source_monthly": {"X Money": 5561.76}},
+                },
+            }
+        }
+        habits = infer_habits(snaps, [], {})
+        self.assertNotIn("X Money", habits["sheet_by_source_monthly"])
+        self.assertAlmostEqual(habits["sheet_by_source_monthly"]["Coinbase"], 100.0)
 
 
 if __name__ == "__main__":

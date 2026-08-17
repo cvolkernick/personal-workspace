@@ -350,14 +350,12 @@ def infer_habits(
 
     by_src = (exp.get("summary") or {}).get("by_source_monthly") or {}
     if not by_src:
-        # Merge Essential (+ legacy Personal) + Fleet when summary lacks combined pay-from
+        # Essential / Personal only. Fleet is fleet_ops — do not merge into pay-from.
         by_src = {}
         tabs = exp.get("tabs") or {}
         burn_tabs = []
         if tabs.get("Essential") or tabs.get("Personal"):
             burn_tabs.append(tabs.get("Essential") or tabs.get("Personal") or {})
-        if tabs.get("Fleet"):
-            burn_tabs.append(tabs.get("Fleet") or {})
         for tab in burn_tabs:
             part = tab.get("by_source_monthly") or {}
             for k, v in part.items():

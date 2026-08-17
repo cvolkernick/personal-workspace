@@ -30,7 +30,7 @@ Opens: http://localhost:8000/financial-command/index.html
 2. Robinhood dual-account snapshot (`primary` margin + **Agentic**) via MCP → `treasury/rh_sync.py` → `robinhood_latest.json`.
 3. **Coinbase One Card** via YNAB API (`~/.config/ynab/token`) → `treasury/snapshots/one_card_latest.json`.
 4. **Personal Expense Sheet** (Google) via CSV export-by-gid → `treasury/snapshots/expenses_latest.json`.
-   Tabs: **Personal** + **Fleet** = burn; **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
+   Tabs: **Personal/Essential** = burn; **Fleet** = `fleet_ops` (not added to `combined_monthly`); **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
 6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC / JR-strcUSX; JR is not HY).
 7. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
