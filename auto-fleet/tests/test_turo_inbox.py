@@ -92,6 +92,20 @@ class TuroInboxTests(unittest.TestCase):
         self.assertEqual(payload["bookings"][0]["status"], "payout")
         self.assertEqual(payload["bookings"][0]["payout"], 214.5)
         self.assertEqual(payload["bookings"][0]["unit_id"], "m3-2022")
+        self.assertEqual(payload["payout_destination"], "X Money")
+        self.assertIn("X Money", payload["inbox_status"])
+        self.assertIn("historical", payload["inbox_status"])
+
+    def test_inbox_status_names_x_money_not_live_mercury(self) -> None:
+        empty = PKG / "data" / "turo_inbox.json"
+        payload = turo_inbox.turo_payload(inbox_path=empty, units=ROSTER_UNITS)
+        self.assertEqual(payload["payout_destination"], "X Money")
+        self.assertIn("X Money", payload["inbox_status"])
+        self.assertIn("historical", payload["inbox_status"].lower())
+        self.assertIn("Mercury ACH is historical", payload["inbox_status"])
+        unit = turo_inbox.turo_for_unit("m3-2022", payload)
+        self.assertEqual(unit["payout_destination"], "X Money")
+        self.assertIn("X Money", unit["inbox_status"])
 
     def test_empty_list_fixture_invents_nothing(self) -> None:
         payload = turo_inbox.turo_payload(

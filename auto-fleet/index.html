@@ -122,7 +122,7 @@
   <header>
     <div>
       <h1>Auto Fleet</h1>
-      <div class="sub">Internal ops · four owned units · not TREAD</div>
+      <div class="sub">Fleet management · four owned units · not TREAD</div>
     </div>
     <button type="button" id="btn-refresh">Refresh</button>
   </header>
@@ -154,35 +154,6 @@
 
     function chip(text, kind) {
       return `<span class="chip ${kind || ""}">${esc(text)}</span>`;
-    }
-
-    function financeStrip(f) {
-      const stale = f.stale ? chip("stale", "warn") : chip("sheet", "ok");
-      const lines = (f.sheet_lines || []).map((l) =>
-        `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
-        `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
-        `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
-      ).join("");
-      const portal = f.portal || f.portal_override;
-      let portalHtml = "";
-      if (portal) {
-        const bits = [];
-        if (portal.contractual_monthly != null) bits.push(`contract ${money(portal.contractual_monthly)}/mo`);
-        if (portal.apr_pct != null) bits.push(`${portal.apr_pct}% APR`);
-        if (portal.promise_to_pay) bits.push(`PTP ${money(portal.promise_to_pay.amount)} due ${esc(portal.promise_to_pay.due)}`);
-        if (portal.principal_balance != null) bits.push(`principal ${money(portal.principal_balance)} (not payoff)`);
-        if (portal.payoff_quote && portal.payoff_quote.amount != null) {
-          bits.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
-        }
-        portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · ") || "no figures")} · not a live payoff</div>`;
-      }
-      return `
-        <div class="strip">
-          <h3>Finance ${stale}</h3>
-          ${lines || `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`}
-          ${f.sheet_monthly != null ? `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>` : ""}
-          ${portalHtml}
-        </div>`;
     }
 
     function dimoStrip(d) {
@@ -219,6 +190,35 @@
       return `<div class="strip"><h3>Turo</h3>${body}</div>`;
     }
 
+    function costsStrip(f) {
+      const stale = f.stale ? chip("stale", "warn") : chip("sheet", "ok");
+      const lines = (f.sheet_lines || []).map((l) =>
+        `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
+        `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
+        `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
+      ).join("");
+      const portal = f.portal || f.portal_override;
+      let portalHtml = "";
+      if (portal) {
+        const bits = [];
+        if (portal.contractual_monthly != null) bits.push(`contract ${money(portal.contractual_monthly)}/mo`);
+        if (portal.apr_pct != null) bits.push(`${portal.apr_pct}% APR`);
+        if (portal.promise_to_pay) bits.push(`PTP ${money(portal.promise_to_pay.amount)} due ${esc(portal.promise_to_pay.due)}`);
+        if (portal.principal_balance != null) bits.push(`principal ${money(portal.principal_balance)} (not payoff)`);
+        if (portal.payoff_quote && portal.payoff_quote.amount != null) {
+          bits.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
+        }
+        portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · ") || "no figures")} · not a live payoff</div>`;
+      }
+      return `
+        <div class="strip">
+          <h3>Notes & costs ${stale}</h3>
+          ${lines || `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`}
+          ${f.sheet_monthly != null ? `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>` : ""}
+          ${portalHtml}
+        </div>`;
+    }
+
     function renderUnit(u) {
       const idn = u.identity || {};
       const title = [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
@@ -230,9 +230,9 @@
             ${chip(vinShort(idn.vin))}
             ${idn.lender ? chip(idn.lender) : ""}
           </div>
-          ${financeStrip(u.finance || {})}
           ${dimoStrip(u.dimo || {})}
           ${turoStrip(u.turo || {})}
+          ${costsStrip(u.finance || {})}
         </article>`;
     }
 
@@ -273,17 +273,19 @@
         ]);
         const health = await healthRes.json();
         const fleet = await fleetRes.json();
+        if (!health.ok) throw new Error(health.error || "health not ok");
         if (!fleet.ok) throw new Error(fleet.error || "fleet payload not ok");
-        const turoAt = (fleet.sources && fleet.sources.turo && fleet.sources.turo.refreshed_at) || "";
+        const dimoSrc = fleet.sources && fleet.sources.dimo;
+        const dimoLabel = dimoSrc && dimoSrc.configured ? "configured" : "unconfigured";
+        const turoAt = (fleet.sources && fleet.sources.turo && fleet.sources.turo.refreshed_at) || "—";
         const expAt = (fleet.sources && fleet.sources.expenses && fleet.sources.expenses.as_of) || "no snapshot";
         const hasFleet = fleet.sources && fleet.sources.expenses && fleet.sources.expenses.has_fleet_tab;
+        const units = fleet.unit_count != null ? fleet.unit_count : (fleet.units || []).length;
         status.textContent =
-          `Refreshed ${fleet.as_of || "—"} · health :${health.port} · ` +
-          `expenses ${expAt}` +
-          (hasFleet
-            ? " (Fleet tab · unit cards, not FCC combined_monthly)"
-            : " (no Fleet tab — finance stale)") +
-          ` · Turo ${turoAt || "—"}`;
+          `Refreshed ${fleet.as_of || "—"} · ${units} units` +
+          ` · DIMO ${dimoLabel}` +
+          ` · Turo ${turoAt}` +
+          (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
         $("cards").innerHTML = (fleet.units || []).map(renderUnit).join("");
         renderShared(fleet);
       } catch (err) {

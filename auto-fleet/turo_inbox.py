@@ -2,6 +2,9 @@
 
 Live Gmail is out of process until Chris forwards the host inbox. Default
 shipped fixture has zero messages so the dashboard cannot invent bookings.
+
+Payout destination is X Money (current). Mercury ACH is historical only
+(May 2026). Payout mail is a cash-landed signal, not a booking record.
 """
 
 from __future__ import annotations
@@ -17,6 +20,14 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 DEFAULT_INBOX_NAME = "turo_inbox.json"
+
+# Live destination. Mercury ACH (May 2026, cvolkern+mercury@gmail.com) is historical.
+PAYOUT_DESTINATION = "X Money"
+PAYOUT_DEST_NOTE = (
+    "Payout destination is X Money. "
+    "Mercury ACH is historical only (May 2026). "
+    "Payout mail is a cash-landed signal, not a booking record."
+)
 
 _TRIP_ID = re.compile(
     r"(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})",
@@ -213,6 +224,15 @@ def _message_from_email(msg: Message, fallback_id: str) -> dict[str, Any]:
     }
 
 
+def _annotate_payout_dest(detail: str) -> str:
+    base = (detail or "").rstrip()
+    if PAYOUT_DESTINATION in base:
+        return base
+    if not base:
+        return PAYOUT_DEST_NOTE
+    return f"{base}. {PAYOUT_DEST_NOTE}"
+
+
 def _unconfigured() -> dict[str, Any]:
     return {
         "bookings": [],
@@ -223,6 +243,7 @@ def _unconfigured() -> dict[str, Any]:
         ),
         "message_count": 0,
         "inbox_kind": "missing",
+        "payout_destination": PAYOUT_DESTINATION,
     }
 
 
@@ -414,9 +435,9 @@ def turo_payload(
     for b in bookings:
         by_unit[str(b["unit_id"])].append(b)
     return {
-        "inbox_status": detail or status,
+        "inbox_status": _annotate_payout_dest(detail or status),
         "inbox_state": status,
-        "inbox_detail": detail,
+        "inbox_detail": _annotate_payout_dest(detail),
         "inbox_kind": loaded.get("inbox_kind"),
         "inbox_path": str(inbox_path) if inbox_path else None,
         "refreshed_at": _now(),
@@ -424,6 +445,7 @@ def turo_payload(
         "unmatched": unmatched,
         "bookings": bookings + unmatched,
         "message_count": loaded.get("message_count", 0),
+        "payout_destination": PAYOUT_DESTINATION,
     }
 
 
@@ -431,4 +453,5 @@ def turo_for_unit(unit_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "bookings": list((payload.get("by_unit") or {}).get(unit_id) or []),
         "inbox_status": payload.get("inbox_status"),
+        "payout_destination": payload.get("payout_destination") or PAYOUT_DESTINATION,
     }

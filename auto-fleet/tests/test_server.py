@@ -114,12 +114,52 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertEqual(code, 200)
                 self.assertIn("Auto Fleet", page)
                 self.assertIn("/api/fleet", page)
+                self.assertIn("Notes & costs", page)
+                self.assertNotIn("<h3>Finance", page)
+                self.assertNotIn("combined_monthly", page)
+                self.assertNotIn("FCC", page)
+                self.assertNotIn("Mercury", page)
             finally:
                 proc.terminate()
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
+
+    def test_index_html_ops_first_strip_order(self) -> None:
+        """Slice D: identity → DIMO → Turo → Costs. String-order is enough."""
+        html = (PKG / "index.html").read_text(encoding="utf-8")
+        dimo_fn = html.find("function dimoStrip")
+        turo_fn = html.find("function turoStrip")
+        costs_fn = html.find("function costsStrip")
+        self.assertGreater(dimo_fn, 0)
+        self.assertGreater(turo_fn, dimo_fn)
+        self.assertGreater(costs_fn, turo_fn)
+        render = html[html.find("function renderUnit") :]
+        self.assertLess(render.find("dimoStrip("), render.find("turoStrip("))
+        self.assertLess(render.find("turoStrip("), render.find("costsStrip("))
+        self.assertNotIn("<h3>Finance", html)
+        self.assertIn("<h3>Notes & costs", html)
+        self.assertNotIn("combined_monthly", html)
+        self.assertNotIn("FCC", html)
+        self.assertNotIn("Mercury", html)
+        self.assertNotIn("expenses ${expAt}", html)
+        self.assertIn("DIMO ${dimoLabel}", html)
+        self.assertIn("Turo ${turoAt}", html)
+        self.assertIn("costs sheet ${expAt}", html)
+        readme = (PKG / "README.md").read_text(encoding="utf-8")
+        self.assertIn("X Money", readme)
+        self.assertIn("historical", readme.lower())
+        self.assertIn("financial-command/", readme)
+
+    def test_financial_command_has_no_fleet_surface(self) -> None:
+        fcc = ROOT / "financial-command" / "index.html"
+        html = fcc.read_text(encoding="utf-8")
+        lowered = html.lower()
+        self.assertNotIn("auto-fleet", lowered)
+        self.assertNotIn("/api/fleet", html)
+        self.assertNotIn('id="fleet"', lowered)
+        self.assertNotIn("data-tab=\"fleet\"", lowered)
 
     @staticmethod
     def _http_text(url: str) -> tuple[int, str]:

@@ -1,10 +1,16 @@
 # Auto Fleet
 
-Internal ops dashboard for four owned units (DIMO + Turo email + Fleet-tab finance).
+Internal **fleet management** dashboard for four owned units: vehicle / DIMO
+state, Turo bookings, then notes & costs. Not a financial interface. Not FCC.
 
-**Not TREAD.** Do not fold this into `safewheels-website` or the host-platform tree.
+**Not TREAD.** Do not fold this into `safewheels-website`, the host-platform
+tree, or `financial-command/`.
 
 Port **8796**. Pi systemd unit is slice C — this README is Mac-dev only.
+
+**Turo payout destination:** **X Money** (current). Mercury ACH is historical
+only (May 2026, `cvolkern+mercury@gmail.com`). Payout mail is a cash-landed
+signal, not a booking record. Do not label live payouts as Mercury.
 
 ## Quick start (Mac)
 
@@ -65,14 +71,14 @@ Missing file / missing keys → DIMO `status: unconfigured`. The process does no
 | Source | MVP behavior |
 |--------|----------------|
 | **DIMO** | Unconfigured until env + vehicle token ids exist. Live path uses `dimo-python-sdk` if installed, else raw HTTP when `DIMO_DEVELOPER_JWT` is set. |
-| **Turo** | Parses a **local** JSON fixture or maildir. Default fixture is empty. Live Gmail is out of process until Chris forwards the real host inbox. |
-| **Finance** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly` (Slice A burn is still revising). Missing Fleet tab → `stale: true` and roster + `notes.json`. |
+| **Turo** | Parses a **local** JSON fixture or maildir. Default fixture is empty. Live Gmail is out of process until Chris forwards the real host inbox. Payout dest is **X Money** (Mercury ACH is historical). |
+| **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |
 
 ## Honest empty states
 
-- No Turo bookings → inbox status explains empty vs parse error. The UI does not invent trips.
-- No Fleet tab → finance `stale: true`, no invented payoffs.
+- No Turo bookings → inbox status explains empty vs parse error and names X Money as payout dest. The UI does not invent trips.
+- No Fleet tab → costs `stale: true`, no invented payoffs.
 - No DIMO env → `unconfigured`, odometer/range null.
 
 ## Out of this slice

@@ -94,9 +94,9 @@ def resolve_expenses_path(
 ) -> Path:
     """Pick a snapshot that actually has ``tabs.Fleet``.
 
-    Unit cards never read ``summary.combined_monthly`` — Slice A burn is
-    still revising. Discovery order: explicit path, ``AUTO_FLEET_EXPENSES``,
-    then the first of (this checkout, treasury worktree) that has a Fleet tab.
+    Unit cards never read ``summary.combined_monthly``. Discovery order:
+    explicit path, ``AUTO_FLEET_EXPENSES``, then the first of (this checkout,
+    treasury worktree) that has a Fleet tab. Costs/notes only — not FCC burn.
     """
     environ = env if env is not None else os.environ
     if explicit is not None:
@@ -317,8 +317,8 @@ def build_fleet(
                 "has_fleet_tab": tab is not None,
                 "uses_combined_monthly": False,
                 "note": (
-                    "Unit cards read tabs.Fleet items only. "
-                    "Do not use summary.combined_monthly (Slice A burn still revising)."
+                    "Unit cards read tabs.Fleet items only as ops cost data. "
+                    "Do not use summary.combined_monthly."
                 ),
             },
             "notes": {
