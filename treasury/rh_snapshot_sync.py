@@ -283,6 +283,40 @@ def _valid_rh_snapshot(
     return True, as_of, "ok_mtime" if used_mtime else "ok"
 
 
+def _snapshot_has_agentic(data: Any) -> bool:
+    """True if the snapshot can satisfy fund_manager's agentic-book requirement."""
+    if not isinstance(data, dict):
+        return False
+    if isinstance(data.get("agentic"), dict):
+        return True
+    return data.get("agentic_allowed") is True
+
+
+def _is_primary_only_downgrade(remote: Any, local: Any) -> bool:
+    """True when accepting remote would drop an existing agentic block."""
+    return _snapshot_has_agentic(local) and not _snapshot_has_agentic(remote)
+
+
+def _local_dual_fresh(
+    max_age_hours: Optional[float] = None,
+) -> Tuple[bool, Optional[datetime], Optional[float], Path]:
+    """Local robinhood snapshot has agentic and is within max_age_hours."""
+    dest = SNAPSHOTS_DIR / RH_SNAP
+    if not dest.is_file():
+        return False, None, None, dest
+    if not _snapshot_has_agentic(load_json(dest)):
+        return False, None, None, dest
+    ok, as_of, _ = _valid_rh_snapshot(dest)
+    if not ok:
+        return False, as_of, None, dest
+    age = _age_hours(as_of)
+    if max_age_hours is None:
+        max_age_hours = float(_pi_settings().get("max_age_hours") or DEFAULT_MAX_AGE_H)
+    if age is not None and age > float(max_age_hours):
+        return False, as_of, age, dest
+    return True, as_of, age, dest
+
+
 def pull_from_pi(
     *,
     ssh_host: Optional[str] = None,
@@ -334,12 +368,21 @@ def pull_from_pi(
             out["error"] = f"remote_invalid:{why}"
             return out
 
+        local = SNAPSHOTS_DIR / RH_SNAP
+        if _is_primary_only_downgrade(
+            load_json(tmp), load_json(local) if local.is_file() else None
+        ):
+            out["error"] = "primary_only_downgrade"
+            out["as_of"] = as_of.isoformat() if as_of else None
+            out["age_hours"] = round(_age_hours(as_of), 2) if as_of else None
+            out["remote_path"] = remote_used
+            return out
+
         age = _age_hours(as_of)
         out["as_of"] = as_of.isoformat() if as_of else None
         out["age_hours"] = round(age, 2) if age is not None else None
         out["remote_path"] = remote_used
 
-        local = SNAPSHOTS_DIR / RH_SNAP
         local_as = None
         if local.is_file():
             _, local_as, _ = _valid_rh_snapshot(local)
@@ -662,6 +705,17 @@ def sync_rh_snapshot(
                 reevaluate_offline()
             # Pi was source — no push (would echo same files back)
             return result
+        if str(pi.get("error") or "") == "primary_only_downgrade":
+            fresh, as_of, age, path = _local_dual_fresh()
+            if fresh:
+                result["ok"] = True
+                result["source"] = "local_existing"
+                result["as_of"] = as_of.isoformat() if as_of else None
+                result["age_hours"] = round(age, 2) if age is not None else None
+                result["path"] = str(path)
+                result["error"] = None
+                result["note"] = "rejected_pi_primary_only_downgrade"
+                return result
 
     if allow_local_mcp and os.environ.get("TREASURY_SKIP_LOCAL_MCP") != "1":
         local = refresh_via_local_mcp()
