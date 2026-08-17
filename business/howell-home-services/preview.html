@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Howell Home Services — local lawn maintenance and home care in the Lehigh Acres area. No contracts. Basic cut, trim & blow from $30. Call Dave at 239-645-9525." />
+  <meta name="theme-color" content="#0f1612" />
+  <title>Howell Home Services | Lawn Care · Lehigh Acres</title>
+  <style>
+/* Howell Home Services — demo site */
+:root {
+  --bg: #0f1612;
+  --bg-elevated: #152019;
+  --panel: #1a2820;
+  --border: #2a3d32;
+  --text: #eef5f0;
+  --muted: #9bb0a4;
+  --accent: #3d9a5f;
+  --accent-strong: #2d7a4a;
+  --accent-soft: rgba(61, 154, 95, 0.16);
+  --sun: #e8c547;
+  --radius: 14px;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  --max: 1080px;
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  background:
+    radial-gradient(900px 420px at 8% -8%, #1e3d2a 0%, transparent 55%),
+    radial-gradient(700px 360px at 92% 0%, #243820 0%, transparent 50%),
+    var(--bg);
+  color: var(--text);
+  line-height: 1.55;
+  font-size: 16px;
+  min-height: 100vh;
+}
+
+img { max-width: 100%; display: block; }
+a { color: inherit; text-decoration: none; }
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.5rem 0.85rem;
+  border-radius: 8px;
+  z-index: 100;
+}
+.skip-link:focus { left: 0.75rem; }
+
+.wrap {
+  width: min(var(--max), calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+/* Header */
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  backdrop-filter: blur(12px);
+  background: rgba(15, 22, 18, 0.9);
+  border-bottom: 1px solid var(--border);
+}
+
+.header-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 4rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-mark {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.85rem;
+  letter-spacing: 0.02em;
+  background: linear-gradient(145deg, var(--accent), #1f5a38);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(61, 154, 95, 0.35);
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.brand-text strong { font-size: 1rem; }
+.brand-tag { font-size: 0.78rem; color: var(--muted); }
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  flex-wrap: wrap;
+}
+.site-nav a {
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+.site-nav a:hover { color: var(--text); }
+.site-nav .nav-cta {
+  background: var(--accent);
+  color: #fff !important;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.site-nav .nav-cta:hover { background: var(--accent-strong); }
+
+.nav-toggle {
+  display: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  cursor: pointer;
+}
+
+/* Hero */
+.hero {
+  padding: 3.5rem 0 2.5rem;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.9fr;
+  gap: 2rem;
+  align-items: start;
+}
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--sun);
+  margin: 0 0 0.75rem;
+}
+.hero h1 {
+  font-size: clamp(1.85rem, 4vw, 2.55rem);
+  line-height: 1.15;
+  margin: 0 0 1rem;
+  letter-spacing: -0.02em;
+}
+.lead {
+  color: var(--muted);
+  font-size: 1.08rem;
+  margin: 0 0 1.5rem;
+  max-width: 38rem;
+}
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1.75rem;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.75rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 650;
+  font-size: 0.95rem;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn.primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn.primary:hover { background: var(--accent-strong); }
+.btn.ghost {
+  background: transparent;
+  border-color: var(--border);
+  color: var(--text);
+}
+.btn.ghost:hover { border-color: var(--accent); background: var(--accent-soft); }
+
+.hero-stats {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0;
+  margin: 0;
+}
+.hero-stats li {
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+}
+.hero-stats strong {
+  display: block;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.hero-stats span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.hero-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.35rem 1.4rem;
+  box-shadow: var(--shadow);
+}
+.hero-card h2 {
+  margin: 0 0 0.85rem;
+  font-size: 1.1rem;
+}
+.hero-card ul {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+.hero-card li { margin-bottom: 0.35rem; }
+.card-note {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+  border-top: 1px solid var(--border);
+  padding-top: 0.9rem;
+}
+.card-note strong { color: var(--sun); }
+
+/* Sections */
+.section {
+  padding: 3rem 0;
+}
+.section.alt {
+  background: rgba(21, 32, 25, 0.55);
+  border-block: 1px solid var(--border);
+}
+.section-head {
+  max-width: 40rem;
+  margin-bottom: 1.75rem;
+}
+.section-head h2 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(1.45rem, 3vw, 1.85rem);
+}
+.section-lead {
+  margin: 0;
+  color: var(--muted);
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+.service-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.service-card .icon {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 1.15rem;
+  margin-bottom: 0.85rem;
+}
+.service-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.05rem;
+}
+.service-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.service-card.featured {
+  border-color: rgba(61, 154, 95, 0.55);
+  box-shadow: 0 0 0 1px rgba(61, 154, 95, 0.15);
+}
+.price-pill {
+  display: inline-block;
+  margin-top: 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+}
+
+.why-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.why-item {
+  display: flex;
+  gap: 0.85rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+}
+.why-item .num {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.85rem;
+}
+.why-item h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+.why-item p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.area-box {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+}
+.area-box h3 { margin: 0 0 0.5rem; }
+.area-box p, .area-box li { color: var(--muted); }
+.area-box ul { margin: 0.5rem 0 0; padding-left: 1.15rem; }
+.pay-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.75rem 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.pay-list li {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text) !important;
+}
+
+/* Contact */
+.contact-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+.contact-card {
+  background: linear-gradient(160deg, #1d3326 0%, var(--panel) 55%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+}
+.contact-card h2 {
+  margin: 0 0 0.5rem;
+  font-size: 1.45rem;
+}
+.contact-card .lead {
+  margin-bottom: 1.25rem;
+  font-size: 1rem;
+}
+.contact-lines {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+}
+.contact-lines li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+.contact-lines span {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.contact-lines a {
+  font-size: 1.15rem;
+  font-weight: 650;
+  color: var(--text);
+}
+.contact-lines a:hover { color: var(--sun); }
+
+.contact-aside {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.4rem;
+}
+.contact-aside h3 { margin: 0 0 0.6rem; }
+.contact-aside p { margin: 0 0 0.85rem; color: var(--muted); font-size: 0.95rem; }
+.contact-aside ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+}
+.contact-aside li { margin-bottom: 0.35rem; }
+
+/* Footer */
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem 0 2rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.demo-note {
+  max-width: 28rem;
+  font-size: 0.82rem;
+  opacity: 0.9;
+}
+
+@media (max-width: 860px) {
+  .hero-grid,
+  .service-grid,
+  .why-grid,
+  .area-box,
+  .contact-panel {
+    grid-template-columns: 1fr;
+  }
+  .hero-stats { grid-template-columns: 1fr; }
+  .nav-toggle { display: inline-flex; }
+  .site-nav {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    padding-bottom: 0.75rem;
+  }
+  .site-nav.open { display: flex; }
+  .header-inner { flex-wrap: wrap; }
+}
+
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="#top" aria-label="Howell Home Services home">
+        <span class="brand-mark" aria-hidden="true">HH</span>
+        <span class="brand-text">
+          <strong>Howell Home Services</strong>
+          <span class="brand-tag">Lawn · Yard · Home care</span>
+        </span>
+      </a>
+      <button type="button" class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="site-nav">
+        Menu
+      </button>
+      <nav class="site-nav" id="site-nav" aria-label="Primary">
+        <a href="#services">Services</a>
+        <a href="#why">Why us</a>
+        <a href="#area">Service area</a>
+        <a href="#contact" class="nav-cta">Call Dave</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">Lehigh Acres &amp; nearby · Local · Affordable</p>
+          <h1>Lawn care with no contract — just a clean yard and fair prices.</h1>
+          <p class="lead">
+            Howell Home Services keeps your property looking sharp without subscriptions
+            or long-term commitments. Basic cut, trim, and blow starting at
+            <strong>$30</strong>. Need more? Tree work, weeds, pressure washing, gutters —
+            just ask. We can handle your needs.
+          </p>
+          <div class="hero-actions">
+            <a class="btn primary" href="tel:+12396459525">Call 239-645-9525</a>
+            <a class="btn ghost" href="mailto:howellhomeserviceslehigh@gmail.com">Email us</a>
+          </div>
+          <ul class="hero-stats" aria-label="Highlights">
+            <li><strong>No contract</strong><span>No subscription required</span></li>
+            <li><strong>From $30</strong><span>Basic cut, trim &amp; blow</span></li>
+            <li><strong>Pay on site</strong><span>Cash · check · Venmo · Cash App</span></li>
+          </ul>
+        </div>
+        <aside class="hero-card" aria-label="Quick facts">
+          <h2>Ready when you are</h2>
+          <ul>
+            <li>Local, professional, and reliable</li>
+            <li>Flexible — schedule what you need</li>
+            <li>Clear pricing; no surprise subscriptions</li>
+            <li>Payment due at time of service</li>
+            <li>One call for lawn and outdoor home help</li>
+          </ul>
+          <p class="card-note">
+            Ask for <strong>Dave</strong> — text or call
+            <a href="tel:+12396459525"><strong>239-645-9525</strong></a>
+          </p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section alt" id="services">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">What we do</p>
+          <h2>Services built for real yards</h2>
+          <p class="section-lead">
+            Start with a basic mow package or tell us what the property needs.
+            Affordable options for regular upkeep and one-off jobs.
+          </p>
+        </header>
+        <div class="service-grid">
+          <article class="service-card featured">
+            <div class="icon" aria-hidden="true">✂</div>
+            <h3>Basic lawn package</h3>
+            <p>Cut, trim, and blow — the clean, finished look most homes need.</p>
+            <span class="price-pill">Starting at $30.00</span>
+          </article>
+          <article class="service-card">
+            <div class="icon" aria-hidden="true">🌳</div>
+            <h3>Tree trimming</h3>
+            <p>Keep branches clear of homes, fences, and walkways.</p>
+          </article>
+          <article class="service-card">
+            <div class="icon" aria-hidden="true">🌿</div>
+            <h3>Weed control</h3>
+            <p>Help reclaim beds, edges, and overgrown spots.</p>
+          </article>
+          <article class="service-card">
+            <div class="icon" aria-hidden="true">💧</div>
+            <h3>Pressure washing</h3>
+            <p>Driveways, walkways, and exterior surfaces — ask for a quote.</p>
+          </article>
+          <article class="service-card">
+            <div class="icon" aria-hidden="true">🏠</div>
+            <h3>Gutter cleaning</h3>
+            <p>Clear debris so water flows and problems stay away.</p>
+          </article>
+          <article class="service-card">
+            <div class="icon" aria-hidden="true">✓</div>
+            <h3>Other home help</h3>
+            <p>Have something else outdoor or around the house? Just ask — we can handle many needs.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="why">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Why neighbors call</p>
+          <h2>Local. Professional. Reliable. Affordable.</h2>
+          <p class="section-lead">
+            No gimmicks — show up, do the work, get paid when the job is done.
+          </p>
+        </header>
+        <div class="why-grid">
+          <div class="why-item">
+            <span class="num">1</span>
+            <div>
+              <h3>No contracts or subscriptions</h3>
+              <p>Book what you need, when you need it. Stay flexible.</p>
+            </div>
+          </div>
+          <div class="why-item">
+            <span class="num">2</span>
+            <div>
+              <h3>Transparent starting price</h3>
+              <p>Basic cut, trim, and blow from $30 — other work at affordable rates.</p>
+            </div>
+          </div>
+          <div class="why-item">
+            <span class="num">3</span>
+            <div>
+              <h3>Pay when the work is done</h3>
+              <p>Payment due at time of service. Cash, check, Venmo, or Cash App.</p>
+            </div>
+          </div>
+          <div class="why-item">
+            <span class="num">4</span>
+            <div>
+              <h3>One number for the yard list</h3>
+              <p>Lawn, trees, weeds, washing, gutters — start the conversation with a call or text.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="area">
+      <div class="wrap">
+        <header class="section-head">
+          <p class="eyebrow">Where we work</p>
+          <h2>Lehigh Acres area service</h2>
+          <p class="section-lead">
+            Proudly serving local homes and neighborhoods around Lehigh Acres, Florida.
+            Call to confirm your address and availability.
+          </p>
+        </header>
+        <div class="area-box">
+          <div>
+            <h3>For homeowners who want it simple</h3>
+            <p>
+              Whether it’s a one-time cleanup or regular mowing without a locked-in plan,
+              Howell Home Services is built around straightforward local work — not
+              national franchise paperwork.
+            </p>
+            <ul>
+              <li>Residential lawns and yards</li>
+              <li>Flexible scheduling</li>
+              <li>Friendly, local communication</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Accepted payments</h3>
+            <p>Payment is due at time of service.</p>
+            <ul class="pay-list">
+              <li>Cash</li>
+              <li>Check</li>
+              <li>Venmo</li>
+              <li>Cash App</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="contact">
+      <div class="wrap contact-panel">
+        <div class="contact-card">
+          <p class="eyebrow">Get in touch</p>
+          <h2>Book your next cut</h2>
+          <p class="lead">
+            Call or text Dave to schedule lawn service or ask about tree work,
+            weed control, pressure washing, or gutter cleaning.
+          </p>
+          <ul class="contact-lines">
+            <li>
+              <span>Phone / text</span>
+              <a href="tel:+12396459525">239-645-9525</a>
+            </li>
+            <li>
+              <span>Email</span>
+              <a href="mailto:howellhomeserviceslehigh@gmail.com">howellhomeserviceslehigh@gmail.com</a>
+            </li>
+            <li>
+              <span>Contact</span>
+              <a href="tel:+12396459525">Ask for Dave</a>
+            </li>
+          </ul>
+          <div class="hero-actions">
+            <a class="btn primary" href="tel:+12396459525">Call now</a>
+            <a class="btn ghost" href="mailto:howellhomeserviceslehigh@gmail.com?subject=Lawn%20service%20request">Send email</a>
+          </div>
+        </div>
+        <aside class="contact-aside" aria-label="What to have ready">
+          <h3>When you reach out</h3>
+          <p>A few details help us quote quickly:</p>
+          <ul>
+            <li>Your neighborhood or address area</li>
+            <li>Lot size / front + back if known</li>
+            <li>Services you need (mow only, or more)</li>
+            <li>Preferred day or time window</li>
+          </ul>
+          <p style="margin-top:1rem">
+            <strong style="color:var(--text)">Howell Home Services</strong><br />
+            Local · Professional · Reliable · Affordable
+          </p>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div>
+        <strong style="color:var(--text)">Howell Home Services</strong>
+        <div>© <span id="y"></span> · Lehigh Acres area, FL</div>
+      </div>
+      <p class="demo-note">
+        Professional website preview prepared for Howell Home Services.
+        Content based on the public flyer and local listings. Contact details
+        are those provided by the business for customer inquiries.
+      </p>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("y").textContent = new Date().getFullYear();
+    var toggle = document.getElementById("nav-toggle");
+    var nav = document.getElementById("site-nav");
+    if (toggle && nav) {
+      toggle.addEventListener("click", function () {
+        var open = nav.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      });
+    }
+  </script>
+</body>
+</html>
