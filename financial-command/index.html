@@ -2087,6 +2087,15 @@
       </div>
     </section>
 
+    <details class="panel" id="panel-solana" data-m-panel="cash">
+      <summary>Solana · JR-strcUSX</summary>
+      <div class="body">
+        <p class="hint">Public RPC whitelist — SOL + USDC + JR-strcUSX. JR is DC-credit parlay, never HY / LTV defense. NFT/meme dust ignored.</p>
+        <div id="solana-metrics"></div>
+        <div id="solana-holdings" style="margin-top:0.4rem"></div>
+      </div>
+    </details>
+
     <section class="card" id="fund-manager-card" data-m-panel="cash">
       <div class="card-head">
         <h2>Fund manager</h2>
@@ -3141,6 +3150,7 @@
         ["Card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of, 6],
         ["RH✓", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of, 6],
         ["X$", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of, 6],
+        ["SOL", src.solana || (snap.solana || {}).source, (snap.solana || {}).as_of, 6],
         ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of, 12],
         ["RH", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of, 6],
         [
@@ -3745,6 +3755,19 @@
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
         metric("Checking 30d out", money(rhc.spend_30d)),
         metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
+        metric(
+          "Solana book",
+          money(inp.solana_book_usd ?? (snap.solana || {}).book_usd) +
+            " · not HY"
+        ),
+        metric(
+          "JR-strcUSX",
+          (inp.solana_jr_strcusx != null
+            ? Number(inp.solana_jr_strcusx).toFixed(4)
+            : "—") +
+            " · " +
+            money(inp.solana_jr_strcusx_usd ?? (snap.solana || {}).jr_strcusx_usd)
+        ),
       ];
       const cashMid = Math.ceil(cashCreditRows.length / 2);
       document.getElementById("cb-metrics").innerHTML = cashCreditRows
@@ -3753,6 +3776,58 @@
       document.getElementById("cash-credit-side").innerHTML = cashCreditRows
         .slice(cashMid)
         .join("");
+
+      const solSnap = snap.solana || {};
+      const solHold = solSnap.holdings || [];
+      const solEl = document.getElementById("solana-metrics");
+      if (solEl) {
+        const w = inp.solana_wallet || solSnap.wallet || "";
+        solEl.innerHTML = [
+          metric("Book USD", money(inp.solana_book_usd ?? solSnap.book_usd) + " · not HY"),
+          metric(
+            "SOL",
+            (inp.solana_sol != null ? Number(inp.solana_sol).toFixed(6) : "—") +
+              " · " +
+              money(solSnap.sol_usd)
+          ),
+          metric("On-chain USDC", money(inp.solana_usdc ?? solSnap.usdc)),
+          metric(
+            "JR-strcUSX",
+            (inp.solana_jr_strcusx != null
+              ? Number(inp.solana_jr_strcusx).toFixed(4)
+              : "—") +
+              " · " +
+              money(inp.solana_jr_strcusx_usd ?? solSnap.jr_strcusx_usd)
+          ),
+          metric("Wallet", w ? w.slice(0, 4) + "…" + w.slice(-4) : "—"),
+          metric("Feed", (solSnap.source || "—") + (solSnap.slot ? " · slot " + solSnap.slot : "")),
+        ].join("");
+      }
+      const solHoldEl = document.getElementById("solana-holdings");
+      if (solHoldEl) {
+        const expl = solSnap.explorer
+          ? `<p class="hint"><a href="${escapeHtml(solSnap.explorer)}" target="_blank" rel="noopener">Solscan →</a>` +
+            (solSnap.ignored_token_accounts
+              ? ` · ${solSnap.ignored_token_accounts} non-book token accounts ignored`
+              : "") +
+            `</p>`
+          : "";
+        solHoldEl.innerHTML =
+          expl +
+          (solHold.length
+            ? solHold
+                .map((h) =>
+                  metric(
+                    h.symbol || "?",
+                    (h.amount != null ? Number(h.amount).toFixed(4) : "—") +
+                      " · " +
+                      money(h.usd) +
+                      (h.role ? " · " + h.role : "")
+                  )
+                )
+                .join("")
+            : `<p class="hint">No whitelist holdings yet — Refresh FCC</p>`);
+      }
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
       // Pay-urgency list: Essential + Fleet (burn) + Collateral (awareness / capital outlay).

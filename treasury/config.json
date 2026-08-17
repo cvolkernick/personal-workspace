@@ -67,6 +67,32 @@
       "Consumer Discretionary": "192074825"
     }
   },
+  "solana": {
+    "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
+    "rpc_url": "https://api.mainnet-beta.solana.com",
+    "price_url": "https://lite-api.jup.ag/price/v3",
+    "counts_toward_hy": false,
+    "counts_toward_ltv_defense": false,
+    "counts_toward_working_usdc": false,
+    "whitelist": [
+      {
+        "symbol": "SOL",
+        "mint": "So11111111111111111111111111111111111111112",
+        "role": "gas"
+      },
+      {
+        "symbol": "USDC",
+        "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        "role": "onchain_stable"
+      },
+      {
+        "symbol": "JR-strcUSX",
+        "mint": "BQ6LPc68knpko292UsMLbQYfaHhWD7S84sA98632hrzX",
+        "role": "dc_credit_parlay"
+      }
+    ],
+    "notes": "Public RPC only. JR-strcUSX is DC-credit parlay, never HY/LTV defense. NFT/meme dust ignored."
+  },
   "braiins": {
     "payout_threshold_btc": 0.01,
     "notes": "Owner 2026-08-05: raised pool payout threshold from 0.005 \u2192 0.01 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer from payout history alone (history still clusters at old 0.005 until the first 0.01 payout lands). Braiins free on-chain floor remains 0.005; this is our account rule, not the pool minimum."
@@ -88,6 +114,7 @@
       "one_card_latest.json",
       "rh_checking_latest.json",
       "x_money_latest.json",
+      "solana_latest.json",
       "expenses_latest.json"
     ],
     "notes": "P0 2026-08-03: Mac is the live producer (RH MCP, Braiins/YNAB/CB/Sheet). Pi is offline consumer of pushed snapshots \u2014 no live venue secrets required on Pi for feed display. max_age_hours=6; mcp_timeout_s=240; Mac launchd TREASURY_SKIP_PI=1. push_files includes CB + YNAB cash + Sheet so phone FCC does not show stale/empty red. Ask Grok needs SuperGrok/XAI auth on the host serving FCC (Mac localhost or synced session on Pi). Override: TREASURY_PI_SSH, TREASURY_PI_ROOT, TREASURY_RH_MAX_AGE_HOURS, TREASURY_RH_MCP_TIMEOUT_S, TREASURY_SKIP_PI, TREASURY_SKIP_PUSH_PI=1."

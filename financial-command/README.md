@@ -32,13 +32,15 @@ Opens: http://localhost:8000/financial-command/index.html
 4. **Personal Expense Sheet** (Google) via CSV export-by-gid → `treasury/snapshots/expenses_latest.json`.
    Tabs: **Personal** + **Fleet** = burn; **Collateral** = investments (not burn); **Productive / Consumer Discretionary** = capital targets.
 5. Manual Morpho LTV / vault (and optional card override) from `treasury/config.json`.
-6. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
+6. **Solana** public RPC + Jupiter prices → `treasury/snapshots/solana_latest.json` (whitelist SOL / USDC / JR-strcUSX; JR is not HY).
+7. Pure policy in `treasury/policy.py` → `financial-command/treasury_latest.json`.
 
 ```bash
 # Agent refreshes RH via MCP, then:
 python3 treasury/rh_sync.py --stdin < envelope.json
 python3 treasury/ynab_sync.py      # refresh One Card from YNAB
 python3 treasury/expenses_sync.py  # refresh expense sheet
+python3 treasury/solana_sync.py    # refresh Solana whitelist book
 python3 treasury/run_treasury.py   # full evaluation
 ```
 

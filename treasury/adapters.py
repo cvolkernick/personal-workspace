@@ -533,6 +533,9 @@ def build_snapshot(
     from treasury.expenses_sync import fetch_expenses
 
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
+    from treasury.solana_sync import fetch_solana
+
+    solana = fetch_solana(prefer_live=prefer_live_coinbase, config=cfg)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     rh_cfg = cfg.get("robinhood") or {}
     # Manual RH yield sleeve (Robinhood Earn / USDG / Morpho) — not a clean MCP field
@@ -554,6 +557,7 @@ def build_snapshot(
         "one_card": one_card,
         "rh_checking": rh_checking,
         "x_money": x_money,
+        "solana": solana,
         "expenses": expenses,
         "robinhood": rh,
         "policy_overrides": cfg.get("policy") or {},
@@ -564,6 +568,7 @@ def build_snapshot(
             "one_card_source": one_card.get("source"),
             "rh_checking_source": rh_checking.get("source"),
             "x_money_source": x_money.get("source"),
+            "solana_source": solana.get("source"),
             "expenses_source": expenses.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
@@ -588,6 +593,7 @@ def build_snapshot(
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking – ####)",
+                "solana": "public RPC + Jupiter prices; whitelist SOL/USDC/JR-strcUSX; JR is not HY",
                 "expenses": "google sheet: Essential+Fleet=burn; Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",
@@ -636,6 +642,8 @@ def save_config(data: Dict[str, Any], path: Optional[Path] = None) -> Path:
     merged["expenses_sheet"] = _merge_section(
         existing.get("expenses_sheet"), data.get("expenses_sheet")
     )
+    if "solana" in data or existing.get("solana"):
+        merged["solana"] = _merge_section(existing.get("solana"), data.get("solana"))
     # Preserve expenses_sheet if empty merge
     if not merged["expenses_sheet"] and existing.get("expenses_sheet"):
         merged["expenses_sheet"] = existing["expenses_sheet"]

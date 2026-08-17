@@ -72,6 +72,7 @@ DEFAULT_PUSH_FILES = (
     "one_card_latest.json",
     "rh_checking_latest.json",
     "x_money_latest.json",
+    "solana_latest.json",
     "expenses_latest.json",
 )
 

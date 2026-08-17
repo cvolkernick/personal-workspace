@@ -26,6 +26,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Brokerage", html)
         self.assertIn("Actual spend", html)
         self.assertIn("X Money", html)
+        self.assertIn("panel-solana", html)
+        self.assertIn("JR-strcUSX", html)
         self.assertIn("fund-manager-card", html)
         self.assertIn("fm-alloc", html)
         self.assertIn("status-split", html)

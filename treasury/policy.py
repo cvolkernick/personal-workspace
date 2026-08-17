@@ -348,6 +348,7 @@ def assess_data_quality(
         warnings.append(f"YNAB One Card: {oc['live_error']}")
     rhc = snapshot.get("rh_checking") or {}
     xm = snapshot.get("x_money") or {}
+    sol = snapshot.get("solana") or {}
     if rhc.get("source") in (None, "empty"):
         warnings.append("RH Checking / YNAB snapshot missing — link in YNAB and run ynab_sync")
     elif rhc.get("live_error"):
@@ -356,6 +357,10 @@ def assess_data_quality(
         warnings.append("X Money / YNAB snapshot missing — link in YNAB and run ynab_sync")
     elif xm.get("live_error"):
         warnings.append(f"YNAB X Money: {xm['live_error']}")
+    if sol.get("source") in (None, "empty"):
+        warnings.append("Solana snapshot missing — run treasury/solana_sync.py")
+    elif sol.get("live_error"):
+        warnings.append(f"Solana RPC: {sol['live_error']}")
     ex = snapshot.get("expenses") or {}
     if ex.get("source") in (None, "empty"):
         warnings.append("Expense sheet missing — run treasury/expenses_sync.py")
@@ -378,6 +383,7 @@ def assess_data_quality(
         ("one_card", oc),
         ("rh_checking", rhc),
         ("x_money", xm),
+        ("solana", sol),
         ("expenses", ex),
     ):
         as_of = _parse_as_of(src.get("as_of"))
@@ -409,9 +415,11 @@ def assess_data_quality(
         sources_ok += 1
     if xm.get("source") not in (None, "empty") and not xm.get("live_error"):
         sources_ok += 1
+    if sol.get("source") not in (None, "empty") and not sol.get("live_error"):
+        sources_ok += 1
     if ex.get("source") not in (None, "empty") and not ex.get("live_error"):
         sources_ok += 1
-    score = (manual_filled / manual_total) * 0.5 + (sources_ok / 6.0) * 0.5
+    score = (manual_filled / manual_total) * 0.5 + (sources_ok / 7.0) * 0.5
 
     status = "green"
     if missing_manual or stale:
@@ -431,12 +439,14 @@ def assess_data_quality(
             "one_card": oc.get("source"),
             "rh_checking": rhc.get("source"),
             "x_money": xm.get("source"),
+            "solana": sol.get("source"),
             "expenses": ex.get("source"),
             "coinbase_as_of": cb.get("as_of"),
             "robinhood_as_of": rh.get("as_of"),
             "one_card_as_of": oc.get("as_of"),
             "rh_checking_as_of": rhc.get("as_of"),
             "x_money_as_of": xm.get("as_of"),
+            "solana_as_of": sol.get("as_of"),
             "expenses_as_of": ex.get("as_of"),
         },
         "stale": stale,
@@ -445,6 +455,7 @@ def assess_data_quality(
             "Morpho LTV, High Yield vault, and One Card are app-only — not Advanced Trade API.",
             "RH snapshot is written by agent MCP (get_portfolio), not live CLI.",
             "Liquid CB balances exclude vault/collateral locked on Morpho.",
+            "Solana whitelist (SOL/USDC/JR-strcUSX) is read-only public RPC; JR is not HY.",
         ],
         "config_path": meta.get("config_path"),
         "rh_accounts": meta.get("rh_accounts") or {},
@@ -979,6 +990,7 @@ def evaluate_treasury(
     one_card = snapshot.get("one_card") or {}
     rh_checking = snapshot.get("rh_checking") or {}
     x_money = snapshot.get("x_money") or {}
+    solana = snapshot.get("solana") or {}
     vault_raw = man.get("vault_usdc")
     vault_known = not _is_missing(vault_raw)
     vault_usdc = _f(vault_raw) if vault_known else 0.0
@@ -1654,6 +1666,11 @@ def evaluate_treasury(
         + f" | X Money: ${x_money_cash if x_money_cash is not None else 'n/a'}"
         + (f" ({x_money.get('account_name')})" if x_money.get("account_name") else "")
         + f" | RH brokerage BP: ${bp:.2f} cash: ${cash:.2f} equity: ${equity:.2f}",
+        f"Solana: ${_f(solana.get('book_usd')):.2f} book"
+        + f" (SOL {_f(solana.get('sol')):.4f} · USDC ${_f(solana.get('usdc')):.2f}"
+        + f" · JR-strcUSX {_f(solana.get('jr_strcusx')):.4f} ~${_f(solana.get('jr_strcusx_usd')):.2f})"
+        + " | NOT HY / not LTV defense / not working USDC"
+        + (f" | {solana.get('wallet')}" if solana.get("wallet") else ""),
         f"DCA: {'ALLOW' if dca['allow_dca'] else 'PAUSE'} ({dca['throttle']}) — {dca['reason']}",
         f"Data quality: {data_quality['status']} score={data_quality['completeness_score']}",
         "Top actions:",
@@ -1744,6 +1761,23 @@ def evaluate_treasury(
             "x_money_apy_est": _f(x_money.get("apy_est"))
             if not _is_missing(x_money.get("apy_est"))
             else None,
+            "solana_wallet": solana.get("wallet"),
+            "solana_book_usd": _f(solana.get("book_usd"))
+            if solana.get("source") not in (None, "empty")
+            else None,
+            "solana_sol": _f(solana.get("sol"))
+            if solana.get("source") not in (None, "empty")
+            else None,
+            "solana_usdc": _f(solana.get("usdc"))
+            if solana.get("source") not in (None, "empty")
+            else None,
+            "solana_jr_strcusx": _f(solana.get("jr_strcusx"))
+            if solana.get("source") not in (None, "empty")
+            else None,
+            "solana_jr_strcusx_usd": _f(solana.get("jr_strcusx_usd"))
+            if solana.get("source") not in (None, "empty")
+            else None,
+            "solana_counts_toward_hy": False,
             "bank_cash": bank_cash if bank_cash_known else None,
             "bill_pay_cash": bill_pay_cash,
             "rh_equity": equity,
@@ -1836,6 +1870,25 @@ def evaluate_treasury(
                 "gap": buckets["gaps"]["bridge_dry_powder"],
                 "note": "Retired 2026-08-11 — floor=0; CB↔RH residual served by HY LTV Buffer",
             },
+            "strc_jr": {
+                "wallet": solana.get("wallet"),
+                "sol": _f(solana.get("sol")),
+                "sol_usd": _f(solana.get("sol_usd")),
+                "usdc": _f(solana.get("usdc")),
+                "jr_strcusx": _f(solana.get("jr_strcusx")),
+                "jr_strcusx_usd": _f(solana.get("jr_strcusx_usd")),
+                "book_usd": _f(solana.get("book_usd")),
+                "counts_toward_hy": False,
+                "counts_toward_ltv_defense": False,
+                "counts_toward_working_usdc": False,
+                "source": solana.get("source"),
+                "as_of": solana.get("as_of"),
+                "explorer": solana.get("explorer"),
+                "note": (
+                    "Solana whitelist book (SOL + USDC + JR-strcUSX). "
+                    "JR is DC-credit parlay — never HY / LTV defense / working USDC."
+                ),
+            },
         },
         "strategy_context": {
             "goal": "Keep invested (BTC + Agentic equities) via LE credit cards: Digital Credit + Margin",
@@ -1870,6 +1923,7 @@ def evaluate_treasury(
                 "Productive Discretionary before Consumer wishlist",
                 "RH margin: cool (<28%)→HY LTV Buffer; hot (≥35%) HY→stock; hard 40%",
                 "Either engine hot → no new dual extract",
+                "Solana JR-strcUSX is DC-credit parlay — never HY / LTV defense",
             ],
             "double_leverage_warning": (
                 "DUAL ENGINE RISK: Do not fund RH margin growth with freshly "

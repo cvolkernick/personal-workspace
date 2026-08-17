@@ -24,10 +24,22 @@ class FinancialAdvisorContextTests(unittest.TestCase):
                 },
                 "x_money": {"source": "ynab", "cash": 200.0, "as_of": "2026-07-29T00:00:00+00:00"},
                 "one_card": {"balance_owed": 100.0, "source": "ynab"},
+                "solana": {
+                    "source": "live",
+                    "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
+                    "book_usd": 7.8,
+                    "jr_strcusx": 3.3,
+                    "jr_strcusx_usd": 3.4,
+                },
             },
             "evaluation": {
                 "stress": {"overall": "yellow"},
-                "inputs": {"working_usdc": 100.0, "liquid_usdc": 0.0},
+                "inputs": {
+                    "working_usdc": 100.0,
+                    "liquid_usdc": 0.0,
+                    "solana_book_usd": 7.8,
+                    "solana_jr_strcusx": 3.3,
+                },
                 "actions": [
                     {
                         "priority": 1,
@@ -63,6 +75,8 @@ class FinancialAdvisorContextTests(unittest.TestCase):
         self.assertEqual(ctx["stress"]["overall"], "yellow")
         self.assertEqual(ctx["inputs"]["working_usdc"], 100.0)
         self.assertEqual(ctx["x_money"]["cash"], 200.0)
+        self.assertAlmostEqual(ctx["solana"]["book_usd"], 7.8)
+        self.assertFalse(ctx["solana"]["counts_toward_hy"])
         self.assertEqual(ctx["actions"][0]["title"], "Check LTV")
         self.assertIsNotNone(ctx["coach"])
         self.assertEqual(ctx["coach"]["top_obligations"][0]["item"], "Electric")
