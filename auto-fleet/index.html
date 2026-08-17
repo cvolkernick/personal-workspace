@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auto Fleet</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --chip: #152033;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 10% -10%, #152033 0%, var(--bg) 55%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      background: rgba(11,15,20,0.92);
+      backdrop-filter: blur(8px);
+      z-index: 20;
+    }
+    header h1 { margin: 0; font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; }
+    header .sub { color: var(--muted); font-size: 0.85rem; }
+    button {
+      font: inherit;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      color: var(--text);
+      padding: 0.4rem 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { border-color: var(--accent); color: var(--accent); }
+    main { max-width: 1100px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
+    .meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0 0 0.9rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.95rem 1rem;
+      min-width: 0;
+    }
+    .card h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.05rem;
+      font-weight: 650;
+    }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.7rem; }
+    .chip {
+      font-size: 0.72rem;
+      font-weight: 650;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid #3a4a6a;
+      color: var(--accent);
+      background: var(--chip);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .chip.warn { color: var(--yellow); border-color: #6a5a2a; }
+    .chip.ok { color: var(--green); border-color: #2a5a40; }
+    .chip.err { color: var(--red); border-color: #6a2a2a; }
+    .strip {
+      border-top: 1px solid var(--border);
+      padding: 0.55rem 0 0.15rem;
+      margin-top: 0.45rem;
+    }
+    .strip h3 {
+      margin: 0 0 0.3rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .row { font-size: 0.88rem; margin: 0.15rem 0; }
+    .muted { color: var(--muted); }
+    .empty { color: var(--muted); font-size: 0.86rem; font-style: italic; }
+    .err { color: var(--red); }
+    .shared { margin-top: 0.9rem; }
+    .shared ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+    @media (max-width: 720px) {
+      .grid { grid-template-columns: 1fr; }
+      header { padding: 0.85rem 0.9rem; }
+      main { padding: 0.85rem 0.9rem 2.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Auto Fleet</h1>
+      <div class="sub">Internal ops · four owned units · not TREAD</div>
+    </div>
+    <button type="button" id="btn-refresh">Refresh</button>
+  </header>
+  <main>
+    <p class="meta" id="status">Loading…</p>
+    <div class="grid" id="cards"></div>
+    <section class="card shared" id="shared" hidden></section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function money(n) {
+      if (n === null || n === undefined || n === "") return "—";
+      const v = Number(n);
+      if (Number.isNaN(v)) return "—";
+      return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
+    }
+
+    function esc(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+      }[c]));
+    }
+
+    function vinShort(vin) {
+      if (!vin) return "VIN unknown";
+      return "…" + String(vin).slice(-6);
+    }
+
+    function chip(text, kind) {
+      return `<span class="chip ${kind || ""}">${esc(text)}</span>`;
+    }
+
+    function financeStrip(f) {
+      const stale = f.stale ? chip("stale", "warn") : chip("sheet", "ok");
+      const lines = (f.sheet_lines || []).map((l) =>
+        `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
+        `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
+        `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
+      ).join("");
+      const portal = f.portal || f.portal_override;
+      let portalHtml = "";
+      if (portal) {
+        const bits = [];
+        if (portal.contractual_monthly != null) bits.push(`contract ${money(portal.contractual_monthly)}/mo`);
+        if (portal.apr_pct != null) bits.push(`${portal.apr_pct}% APR`);
+        if (portal.promise_to_pay) bits.push(`PTP ${money(portal.promise_to_pay.amount)} due ${esc(portal.promise_to_pay.due)}`);
+        if (portal.principal_balance != null) bits.push(`principal ${money(portal.principal_balance)} (not payoff)`);
+        if (portal.payoff_quote && portal.payoff_quote.amount != null) {
+          bits.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
+        }
+        portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · ") || "no figures")} · not a live payoff</div>`;
+      }
+      return `
+        <div class="strip">
+          <h3>Finance ${stale}</h3>
+          ${lines || `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`}
+          ${f.sheet_monthly != null ? `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>` : ""}
+          ${portalHtml}
+        </div>`;
+    }
+
+    function dimoStrip(d) {
+      const st = d.status || "unconfigured";
+      const kind = st === "ok" ? "ok" : st === "error" ? "err" : "warn";
+      let body = "";
+      if (st === "unconfigured") {
+        body = `<div class="empty">DIMO unconfigured — no ~/.config/auto-fleet/env (or no vehicle token). Stub, not live telemetry.</div>`;
+      } else if (st === "error") {
+        body = `<div class="err">${esc(d.error || "DIMO error")}</div>`;
+      } else {
+        body = `
+          <div class="row">Odometer ${esc(d.odometer ?? "—")} · range ${esc(d.range ?? "—")}</div>
+          <div class="row muted">Last seen ${esc(d.last_seen || "—")}</div>`;
+        if (d.location && (d.location.latitude != null || d.location.lat != null)) {
+          body += `<div class="row muted">Location ${esc(d.location.latitude ?? d.location.lat)}, ${esc(d.location.longitude ?? d.location.lon)}</div>`;
+        }
+      }
+      return `<div class="strip"><h3>DIMO ${chip(st, kind)}</h3>${body}</div>`;
+    }
+
+    function turoStrip(t) {
+      const bookings = t.bookings || [];
+      let body;
+      if (!bookings.length) {
+        body = `<div class="empty">${esc(t.inbox_status || "No bookings.")}</div>`;
+      } else {
+        body = bookings.map((b) =>
+          `<div class="row">${esc(b.status)} · ${esc(b.guest || "guest ?")} · ` +
+          `${esc(b.start || "?")} → ${esc(b.end || "?")}` +
+          `${b.trip_id ? ` · #${esc(b.trip_id)}` : ""}</div>`
+        ).join("");
+      }
+      return `<div class="strip"><h3>Turo</h3>${body}</div>`;
+    }
+
+    function renderUnit(u) {
+      const idn = u.identity || {};
+      const title = [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
+      return `
+        <article class="card" data-unit="${esc(u.id)}">
+          <h2>${esc(title)}</h2>
+          <div class="chips">
+            ${chip(idn.role || "unknown")}
+            ${chip(vinShort(idn.vin))}
+            ${idn.lender ? chip(idn.lender) : ""}
+          </div>
+          ${financeStrip(u.finance || {})}
+          ${dimoStrip(u.dimo || {})}
+          ${turoStrip(u.turo || {})}
+        </article>`;
+    }
+
+    function renderShared(payload) {
+      const box = $("shared");
+      const sf = payload.shared_finance || {};
+      const lines = sf.lines || [];
+      const unmatched = payload.turo_unmatched || [];
+      if (!lines.length && !unmatched.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      let html = `<h2>Shared / unassigned</h2>`;
+      if (lines.length) {
+        html += `<div class="strip"><h3>Fleet-tab lines not pinned to a roster unit</h3><ul>`;
+        html += lines.map((l) =>
+          `<li>${esc(l.item)} · ${money(l.monthly)} <span class="muted">${esc(l.reason || "")}</span></li>`
+        ).join("");
+        html += `</ul></div>`;
+      }
+      if (unmatched.length) {
+        html += `<div class="strip"><h3>Turo events not matched to a VIN/unit</h3><ul>`;
+        html += unmatched.map((b) =>
+          `<li>${esc(b.status)} · ${esc(b.vehicle || "vehicle ?")} · ${esc(b.subject || "")}</li>`
+        ).join("");
+        html += `</ul></div>`;
+      }
+      box.innerHTML = html;
+    }
+
+    async function load() {
+      const status = $("status");
+      try {
+        const [healthRes, fleetRes] = await Promise.all([
+          fetch("/api/health", { cache: "no-store" }),
+          fetch("/api/fleet", { cache: "no-store" }),
+        ]);
+        const health = await healthRes.json();
+        const fleet = await fleetRes.json();
+        if (!fleet.ok) throw new Error(fleet.error || "fleet payload not ok");
+        const turoAt = (fleet.sources && fleet.sources.turo && fleet.sources.turo.refreshed_at) || "";
+        const expAt = (fleet.sources && fleet.sources.expenses && fleet.sources.expenses.as_of) || "no snapshot";
+        const hasFleet = fleet.sources && fleet.sources.expenses && fleet.sources.expenses.has_fleet_tab;
+        status.textContent =
+          `Refreshed ${fleet.as_of || "—"} · health :${health.port} · ` +
+          `expenses ${expAt}` +
+          (hasFleet
+            ? " (Fleet tab · unit cards, not FCC combined_monthly)"
+            : " (no Fleet tab — finance stale)") +
+          ` · Turo ${turoAt || "—"}`;
+        $("cards").innerHTML = (fleet.units || []).map(renderUnit).join("");
+        renderShared(fleet);
+      } catch (err) {
+        status.innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
+      }
+    }
+
+    $("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

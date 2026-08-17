@@ -30,6 +30,7 @@ API: `/api/orchestra` · `/api/synergies` · `/api/priorities` · `/api/health`
 | holistic (time allocator) | 8770 | `python3 holistic/server.py` |
 | iot (Wiz lights) | 8780 | `python3 iot/server.py` |
 | resistance-dashboard | 8787 | `python3 resistance-dashboard/server.py` |
+| auto-fleet (internal ops) | 8796 | `python3 auto-fleet/server.py` |
 
 ### Pi backends 24/7 (open in browser — no local server)
 

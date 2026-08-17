@@ -1,0 +1,132 @@
+"""HTTP surface — real server process, no live DIMO/Turo network."""
+
+from __future__ import annotations
+
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+PKG = ROOT / "auto-fleet"
+SERVER = PKG / "server.py"
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+EMPTY_ENV = None  # set per test
+
+
+def _http_json(method: str, url: str, timeout: float = 8.0) -> tuple[int, dict]:
+    req = urllib.request.Request(url, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read().decode("utf-8")
+            return resp.status, json.loads(raw) if raw else {}
+    except urllib.error.HTTPError as exc:
+        raw = exc.read().decode("utf-8")
+        try:
+            payload = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            payload = {"error": raw}
+        return exc.code, payload
+
+
+class AutoFleetServerTests(unittest.TestCase):
+    def test_health_and_fleet_schema(self) -> None:
+        port = 18796
+        with tempfile.TemporaryDirectory() as td:
+            env_path = Path(td) / "env"
+            env_path.write_text("# empty on purpose\n", encoding="utf-8")
+            proc_env = {**os.environ, "PYTHONPATH": str(ROOT)}
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(port),
+                    "--host",
+                    "127.0.0.1",
+                    "--no-browser",
+                    "--env",
+                    str(env_path),
+                    "--expenses",
+                    str(FIXTURES / "expenses_with_fleet.json"),
+                    "--turo-inbox",
+                    str(PKG / "data" / "turo_inbox.json"),
+                ],
+                cwd=str(ROOT),
+                env=proc_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            base = f"http://127.0.0.1:{port}"
+            try:
+                deadline = time.time() + 10
+                last_err: Exception | None = None
+                health: dict = {}
+                while time.time() < deadline:
+                    try:
+                        code, health = _http_json("GET", f"{base}/api/health")
+                        if code == 200 and health.get("ok"):
+                            break
+                    except Exception as exc:  # noqa: BLE001
+                        last_err = exc
+                        time.sleep(0.1)
+                else:
+                    err = (proc.stderr.read() if proc.stderr else "") or str(last_err)
+                    self.fail(f"server did not become ready: {err}")
+
+                self.assertEqual(health.get("service"), "auto-fleet")
+                self.assertEqual(health.get("port"), port)
+                self.assertTrue(health.get("ok"))
+
+                code, fleet = _http_json("GET", f"{base}/api/fleet")
+                self.assertEqual(code, 200, fleet)
+                self.assertTrue(fleet.get("ok"))
+                self.assertEqual(fleet.get("unit_count"), 4)
+                self.assertEqual(len(fleet["units"]), 4)
+                for unit in fleet["units"]:
+                    self.assertIn("identity", unit)
+                    self.assertIn("year", unit["identity"])
+                    self.assertIn("role", unit["identity"])
+                    self.assertIn(unit["identity"]["role"], ("personal", "turo", "unknown"))
+                    self.assertIn("finance", unit)
+                    self.assertIn("dimo", unit)
+                    self.assertIn(unit["dimo"]["status"], ("unconfigured", "ok", "error"))
+                    self.assertEqual(unit["turo"]["bookings"], [])
+                    self.assertIn("inbox_status", unit["turo"])
+                    self.assertNotIn("live_payoff", unit["finance"])
+                    self.assertNotIn("combined_monthly", unit["finance"])
+                    if unit["finance"].get("sheet_lines"):
+                        self.assertFalse(unit["finance"].get("stale"), unit["id"])
+                        self.assertEqual(
+                            unit["finance"]["source"], "expenses_sync.tabs.Fleet"
+                        )
+                self.assertFalse(fleet["sources"]["expenses"]["uses_combined_monthly"])
+                self.assertNotIn("combined_monthly", fleet)
+
+                code, page = self._http_text(f"{base}/")
+                self.assertEqual(code, 200)
+                self.assertIn("Auto Fleet", page)
+                self.assertIn("/api/fleet", page)
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    @staticmethod
+    def _http_text(url: str) -> tuple[int, str]:
+        req = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            return resp.status, resp.read().decode("utf-8")
+
+
+if __name__ == "__main__":
+    unittest.main()

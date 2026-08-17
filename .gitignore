@@ -55,3 +55,6 @@ resistance-dashboard/.env.local
 # Full Grok session archives must never land in this repo (use ~/Backups/)
 Backups/
 **/grok-sessions-*.tar.gz
+
+# Auto Fleet local inbox dumps / runtime (never commit)
+auto-fleet/data/runtime/
