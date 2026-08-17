@@ -275,6 +275,11 @@ def load_maildir_messages(path: Path) -> tuple[list[dict[str, Any]], Optional[st
             out.append(_message_from_email(msg, key))
     except Exception as exc:  # noqa: BLE001
         return out, f"parse error: {exc}"
+    finally:
+        try:
+            box.close()
+        except Exception:  # noqa: BLE001
+            pass
     return out, None
 
 

@@ -253,7 +253,7 @@ def shared_finance(
         lines.append(view)
     return {
         "stale": False,
-        "source": "fleet_tab",
+        "source": "expenses_sync.tabs.Fleet",
         "lines": lines,
         "items": lines,
         "monthly": round(sum(float(i.get("monthly") or 0) for i in lines), 2),
@@ -306,7 +306,7 @@ def build_fleet(
         "shared_finance": shared_finance(tab, units),
         "turo_unmatched": turo.get("unmatched") or [],
         "expenses_snapshot": {
-            "path": str(expenses_path or DEFAULT_EXPENSES),
+            "path": str(resolved_expenses),
             "as_of": (expenses or {}).get("as_of") if expenses else None,
             "has_fleet_tab": tab is not None,
         },
