@@ -305,7 +305,10 @@ class TestFundedUniqueFleetItems(unittest.TestCase):
             {"item": "  santander  ", "from": "X Money", "monthly": 1.0},
         ]
         out = funded_unique_fleet_items(essential, fleet)
-        self.assertEqual([i["item"] for i in out], ["Santander"])
+        names = [i["item"] for i in out]
+        # Essential overlap + empty-From out. Intra-Fleet name variants are
+        # not collapsed — only Essential names are the skip set.
+        self.assertEqual(names, ["Santander", "  santander  "])
 
 
 if __name__ == "__main__":
