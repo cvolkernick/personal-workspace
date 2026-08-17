@@ -2,8 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Financial Command Center</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f14" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <title>₿ Financial Command Center</title>
   <style>
     :root {
       --bg: #0b0f14;
@@ -13,6 +20,7 @@
       --muted: #8aa0b5;
       --green: #3dd68c;
       --yellow: #f5c542;
+      --orange: #f08a3c;
       --red: #ff6b6b;
       --accent: #5b9fd4;
       --agent: #7c9cff;
@@ -48,6 +56,16 @@
       justify-content: space-between;
     }
     h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    h1 .title-ico {
+      display: inline-block;
+      margin-right: 0.28rem;
+      font-weight: 700;
+      font-size: 0.95em;
+      color: #f2a900;
+      opacity: 0.9;
+      vertical-align: 0.02em;
+      letter-spacing: 0;
+    }
     .sub { color: var(--muted); font-size: 0.8rem; }
     .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
     .pill {
@@ -66,7 +84,7 @@
     .pill.green { color: var(--green); border-color: #245c42; }
     .pill.yellow { color: var(--yellow); border-color: #6b5a1e; }
     .pill.red { color: var(--red); border-color: #6b2e2e; }
-    button, .btn {
+    button, .btn, a.btn {
       cursor: pointer;
       border: 1px solid var(--border);
       background: #1a2836;
@@ -75,24 +93,32 @@
       padding: 0.4rem 0.75rem;
       font-weight: 600;
       font-size: 0.85rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
     }
-    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
-    button:hover { filter: brightness(1.08); }
+    button.primary, a.btn.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
     button:disabled { opacity: 0.55; cursor: wait; }
     main {
       max-width: 1000px;
       margin: 0 auto;
-      padding: 1rem 1.25rem 2.5rem;
+      padding: 0.65rem 1.1rem 2rem;
       display: grid;
-      gap: 0.85rem;
+      gap: 0.55rem;
     }
+    .card {
+      padding: 0.65rem 0.85rem;
+    }
+    .card.compact-metrics .metric { margin: 0.15rem 0; }
+    .card.compact-metrics .hint { margin: 0.1rem 0 0.3rem; }
     .status-why {
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       color: var(--text);
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.7rem 0.9rem;
+      padding: 0.55rem 0.75rem;
     }
     .status-why.red { border-color: #5a2a2a; background: #1a1010; }
     .status-why.yellow { border-color: #5a4a1a; background: #1a1608; }
@@ -116,33 +142,353 @@
     .toast.show { display: block; }
     .kpi-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 0.55rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.35rem;
+      overflow: visible;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
     }
-    @media (max-width: 700px) {
-      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    #at-a-glance {
+      overflow: visible;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+
+    /* Ask Grok — financial advisor */
+    .advisor {
+      background: linear-gradient(145deg, #121c28 0%, var(--panel) 55%);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.7rem 0.85rem 0.8rem;
+    }
+    .advisor-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.4rem 0.75rem;
+      margin-bottom: 0.45rem;
+    }
+    .advisor-head h2 {
+      margin: 0;
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 650;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .advisor-head .sub {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+      margin-left: 0.35rem;
+    }
+    .advisor-auth {
+      font-size: 0.68rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .advisor-auth.ok { color: var(--green); border-color: #1a4a35; }
+    .advisor-auth.bad { color: var(--yellow); border-color: #6a4a20; }
+    .advisor-row {
+      display: flex;
+      gap: 0.45rem;
+      align-items: stretch;
+    }
+    .advisor-row textarea {
+      flex: 1;
+      min-height: 2.6rem;
+      max-height: 7rem;
+      resize: vertical;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #0b1218;
+      color: var(--text);
+      padding: 0.45rem 0.6rem;
+      font: inherit;
+      font-size: 0.88rem;
+      line-height: 1.35;
+    }
+    .advisor-row textarea:focus {
+      outline: none;
+      border-color: #3a6a9a;
+    }
+    .advisor-row button.ask {
+      flex: 0 0 auto;
+      align-self: stretch;
+      min-width: 5.5rem;
+      font-weight: 700;
+    }
+    .advisor-row button.ask:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    .advisor-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+      margin-top: 0.4rem;
+    }
+    .advisor-chips button.chip {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #0e151c;
+      color: var(--muted);
+      cursor: pointer;
+    }
+    .advisor-chips button.chip:hover {
+      color: var(--text);
+      border-color: #3a5066;
+    }
+    .advisor-answer {
+      display: none;
+      margin-top: 0.55rem;
+      padding: 0.55rem 0.65rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0b1218;
+    }
+    .advisor-answer.show { display: block; }
+    .advisor-answer .meta {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+    .advisor-answer .body {
+      font-size: 0.88rem;
+      line-height: 1.5;
+      color: var(--text);
+      overflow-x: auto;
+    }
+    .advisor-answer .body > :first-child { margin-top: 0; }
+    .advisor-answer .body > :last-child { margin-bottom: 0; }
+    .advisor-answer .body p { margin: 0.45rem 0; }
+    .advisor-answer .body h1,
+    .advisor-answer .body h2,
+    .advisor-answer .body h3,
+    .advisor-answer .body h4 {
+      margin: 0.7rem 0 0.3rem;
+      font-weight: 700;
+      line-height: 1.3;
+      color: var(--text);
+    }
+    .advisor-answer .body h1 { font-size: 1.05rem; }
+    .advisor-answer .body h2 { font-size: 0.98rem; color: var(--accent); }
+    .advisor-answer .body h3 { font-size: 0.92rem; }
+    .advisor-answer .body ul,
+    .advisor-answer .body ol {
+      margin: 0.35rem 0 0.5rem;
+      padding-left: 1.25rem;
+    }
+    .advisor-answer .body li { margin: 0.18rem 0; }
+    .advisor-answer .body li > p { margin: 0.1rem 0; }
+    .advisor-answer .body strong { color: #f0f4fa; font-weight: 700; }
+    .advisor-answer .body em { color: var(--muted); }
+    .advisor-answer .body a { color: var(--accent); }
+    .advisor-answer .body code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.84em;
+      background: #121a24;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.08rem 0.3rem;
+    }
+    .advisor-answer .body pre {
+      margin: 0.45rem 0;
+      padding: 0.55rem 0.65rem;
+      overflow-x: auto;
+      background: #0d1218;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+    }
+    .advisor-answer .body pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.82rem;
+    }
+    .advisor-answer .body blockquote {
+      margin: 0.45rem 0;
+      padding: 0.3rem 0.7rem;
+      border-left: 3px solid #3a5a7a;
+      color: var(--muted);
+    }
+    .advisor-answer .body hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.65rem 0;
+    }
+    .advisor-answer .body table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.5rem 0 0.65rem;
+      font-size: 0.82rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .advisor-answer .body th,
+    .advisor-answer .body td {
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .advisor-answer .body th {
+      background: #121a24;
+      color: var(--muted);
+      font-weight: 700;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .advisor-answer .body tr:nth-child(even) td {
+      background: rgba(18, 26, 36, 0.45);
+    }
+    .advisor-error {
+      display: none;
+      margin-top: 0.4rem;
+      color: var(--red);
+      font-size: 0.82rem;
+    }
+    .advisor-error.show { display: block; }
+    @media (max-width: 820px) {
+      .kpi-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     .kpi {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 0.65rem 0.75rem;
+      border-radius: 8px;
+      padding: 0.38rem 0.45rem 0.42rem;
       cursor: pointer;
-      transition: border-color 0.15s;
+      transition: border-color 0.15s, filter 0.15s;
+      min-width: 0;
     }
-    .kpi:hover { border-color: #3a5066; }
-    .kpi .k { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-    .kpi .v { font-size: 1.05rem; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 0.2rem; }
-    .kpi .s { font-size: 0.72rem; color: var(--muted); margin-top: 0.15rem; }
+    .kpi:hover { filter: brightness(1.06); }
+    .kpi .k {
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .kpi .v {
+      font-size: 0.88rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      margin-top: 0.1rem;
+      line-height: 1.15;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .kpi .s {
+      font-size: 0.62rem;
+      color: var(--muted);
+      margin-top: 0.08rem;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    /* Attention shading: fill + border + value color */
+    .kpi.tone-red {
+      background: linear-gradient(180deg, #2a1216 0%, #1a1010 100%);
+      border-color: #6b2e2e;
+    }
+    .kpi.tone-red .v { color: var(--red); }
+    .kpi.tone-orange {
+      background: linear-gradient(180deg, #2a1a10 0%, #1a140c 100%);
+      border-color: #7a4020;
+    }
+    .kpi.tone-orange .v { color: var(--orange); }
+    .kpi.tone-yellow {
+      background: linear-gradient(180deg, #2a2410 0%, #1a1608 100%);
+      border-color: #6b5a1e;
+    }
+    .kpi.tone-yellow .v { color: var(--yellow); }
+    .kpi.tone-green {
+      background: linear-gradient(180deg, #102a1c 0%, #0e1814 100%);
+      border-color: #1e4a32;
+    }
+    .kpi.tone-green .v { color: var(--green); }
+    .kpi.tone-muted {
+      background: var(--panel);
+      border-color: var(--border);
+      opacity: 0.92;
+    }
+    /* Hover: why this chip is red/orange/yellow/green */
+    .kpi {
+      position: relative;
+    }
+    .kpi-tip {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 6px);
+      transform: translateX(-50%) translateY(2px);
+      z-index: 30;
+      min-width: 11rem;
+      max-width: 16rem;
+      padding: 0.4rem 0.5rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0e1620;
+      color: var(--text);
+      font-size: 0.68rem;
+      font-weight: 500;
+      line-height: 1.35;
+      text-align: left;
+      text-transform: none;
+      letter-spacing: 0;
+      white-space: normal;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+    }
+    .kpi-tip .tip-tone {
+      display: block;
+      font-size: 0.6rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.15rem;
+      color: var(--muted);
+    }
+    .kpi.tone-red .kpi-tip .tip-tone { color: var(--red); }
+    .kpi.tone-orange .kpi-tip .tip-tone { color: var(--orange); }
+    .kpi.tone-yellow .kpi-tip .tip-tone { color: var(--yellow); }
+    .kpi.tone-green .kpi-tip .tip-tone { color: var(--green); }
+    .kpi:hover .kpi-tip,
+    .kpi:focus-visible .kpi-tip {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    /* Flip tip below when near top of viewport isn't needed; keep above chips */
     .card {
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 0.85rem 1rem;
+      padding: 0.65rem 0.85rem;
     }
     .card h2 {
-      margin: 0 0 0.6rem;
-      font-size: 0.8rem;
+      margin: 0 0 0.4rem;
+      font-size: 0.78rem;
       color: var(--muted);
       font-weight: 650;
       text-transform: uppercase;
@@ -190,11 +536,91 @@
     .metric .label { color: var(--muted); }
     .metric .val { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
     .actions { display: flex; flex-direction: column; gap: 0.5rem; }
+    /* Do now — single-slide carousel */
+    #actions-card .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+    #actions-card .card-head h2 { margin: 0; }
+    .carousel-pager {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex-shrink: 0;
+    }
+    .carousel-nav {
+      padding: 0.2rem 0.5rem;
+      min-width: 2rem;
+      justify-content: center;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .carousel-nav:disabled {
+      opacity: 0.35;
+      cursor: default;
+      filter: none;
+    }
+    .carousel-page {
+      font-size: 0.72rem;
+      font-weight: 650;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      min-width: 3.4rem;
+      text-align: center;
+    }
+    .actions-carousel {
+      overflow: hidden;
+      border-radius: 10px;
+      touch-action: pan-y;
+    }
+    .actions-track {
+      display: flex;
+      transition: transform 0.22s ease;
+      will-change: transform;
+    }
+    .actions-slide {
+      flex: 0 0 100%;
+      min-width: 100%;
+      box-sizing: border-box;
+    }
+    .actions-slide .group-label {
+      margin: 0 0 0.25rem;
+    }
+    .carousel-dots {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 0.28rem;
+      margin-top: 0.45rem;
+      min-height: 0.55rem;
+    }
+    .carousel-dots button {
+      width: 0.45rem;
+      height: 0.45rem;
+      padding: 0;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #1a2430;
+      cursor: pointer;
+    }
+    .carousel-dots button[aria-current="true"] {
+      background: var(--accent);
+      border-color: #2a6aa3;
+      width: 0.85rem;
+    }
+    .carousel-dots button.sev-red { border-color: #6b2e2e; }
+    .carousel-dots button.sev-red[aria-current="true"] { background: var(--red); border-color: #6b2e2e; }
+    .carousel-dots button.sev-yellow { border-color: #6b5a1e; }
+    .carousel-dots button.sev-yellow[aria-current="true"] { background: var(--yellow); border-color: #6b5a1e; }
     .action {
       border: 1px solid var(--border);
       border-radius: 10px;
-      padding: 0.65rem 0.8rem;
+      padding: 0.55rem 0.7rem;
       background: #0e151c;
+      min-height: 5.5rem;
     }
     .action.sev-red { border-color: #5a2a2a; }
     .action.sev-yellow { border-color: #5a4a1a; }
@@ -204,7 +630,7 @@
       flex-wrap: wrap;
       gap: 0.4rem;
       align-items: center;
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.2rem;
     }
     .tag {
       font-size: 0.65rem;
@@ -303,7 +729,7 @@
     }
     a { color: var(--accent); }
     .hidden { display: none !important; }
-    #show-all-actions { margin-top: 0.4rem; }
+
 
     /* Upcoming bills — sheet urgency: ≤7d red, ≤14d yellow, >14d green */
     .bill-legend {
@@ -374,6 +800,54 @@
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+    }
+    /* Coach split: left pay-plan scrolls to match right pay-from height */
+    .coach-split {
+      align-items: stretch;
+    }
+    .coach-pay-plan {
+      /* Don't let long bill list size the row — right column sets height */
+      height: 0;
+      min-height: 100%;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .coach-pay-plan > .hint {
+      flex: 0 0 auto;
+      margin-bottom: 0.35rem;
+    }
+    .coach-pay-plan .bill-list-scroll {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 0.25rem;
+      margin-right: -0.1rem;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+    .coach-pay-plan .bill-list-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .coach-pay-plan .bill-list-scroll::-webkit-scrollbar-thumb {
+      background: #2a3a4a;
+      border-radius: 999px;
+    }
+    .coach-pay-from {
+      min-width: 0;
+    }
+    @media (max-width: 700px) {
+      /* Stacked layout: give pay plan a bounded scroll instead of zero-height trick */
+      .coach-pay-plan {
+        height: auto;
+        min-height: 0;
+        max-height: 22rem;
+      }
+      .coach-pay-plan .bill-list-scroll {
+        max-height: 20rem;
+      }
     }
     .bill-row {
       display: grid;
@@ -473,6 +947,31 @@
       text-align: right;
       white-space: nowrap;
     }
+    .bill-amt .sub {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-top: 0.15rem;
+    }
+    .bill-amt .sub.gap { color: var(--red); }
+    .bill-amt .sub.ok { color: var(--green); }
+    .bill-row .status-pill {
+      display: inline-block;
+      margin-left: 0.35rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.08rem 0.35rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      vertical-align: middle;
+    }
+    .bill-row .status-pill.funded { color: var(--green); border-color: #1e4a32; }
+    .bill-row .status-pill.partial { color: var(--yellow); border-color: #5a4a1a; }
+    .bill-row .status-pill.unfunded { color: var(--red); border-color: #5a2a2a; }
     .bill-section-head {
       display: flex;
       flex-wrap: wrap;
@@ -511,91 +1010,1151 @@
     .src-metric .dot.cb { background: #5b9fd4; }
     .src-metric .dot.rh { background: #3dd68c; }
     .src-metric .dot.other { background: #6a7a8a; }
+
+    /* Fund manager — first-class glass box */
+    .fm-hero {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: 0.85rem;
+      align-items: stretch;
+    }
+    @media (max-width: 720px) {
+      .fm-hero { grid-template-columns: 1fr; }
+    }
+    .alloc-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .alloc-row {
+      background: #0e151c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.55rem 0.7rem;
+    }
+    .alloc-row .top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      margin-bottom: 0.35rem;
+    }
+    .alloc-row .name { color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; }
+    .alloc-row .pct { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .alloc-row .pct.in { color: var(--green); }
+    .alloc-row .pct.out { color: var(--yellow); }
+    .alloc-bar {
+      height: 10px;
+      background: #1a2430;
+      border-radius: 6px;
+      overflow: hidden;
+      position: relative;
+    }
+    .alloc-bar .fill { display: block; height: 100%; border-radius: 6px; }
+    .alloc-bar .fill.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
+    .alloc-bar .fill.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    /* Single dual-shade bar: stocks (left) + BTC complex (right) of deployed mix */
+    .alloc-bar.dual {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      overflow: hidden;
+    }
+    .alloc-bar.dual .fill {
+      display: block;
+      height: 100%;
+      border-radius: 0;
+      flex-shrink: 0;
+      min-width: 0;
+    }
+    .alloc-bar.dual .fill:first-child { border-radius: 6px 0 0 6px; }
+    .alloc-bar.dual .fill:last-of-type { border-radius: 0 6px 6px 0; }
+    .alloc-bar.dual .fill:only-child { border-radius: 6px; }
+    .alloc-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.65rem 1rem;
+      margin-top: 0.35rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .alloc-legend .sw {
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 2px;
+      margin-right: 0.28rem;
+      vertical-align: -1px;
+    }
+    .alloc-legend .sw.stocks { background: linear-gradient(90deg, #5b9fd4, #7c9cff); }
+    .alloc-legend .sw.btc { background: linear-gradient(90deg, #f5a623, #f5c542); }
+    .alloc-bar .target-mark {
+      position: absolute;
+      top: -2px;
+      bottom: -2px;
+      width: 2px;
+      background: #e7eef5;
+      opacity: 0.85;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
+    }
+    .pos-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .pos-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.35rem;
+      border-bottom: 1px solid #1a2430;
+    }
+    .pos-table td {
+      padding: 0.35rem;
+      border-bottom: 1px solid #151d26;
+      font-variant-numeric: tabular-nums;
+    }
+    .pos-table tr:last-child td { border-bottom: 0; }
+    .sleeve-chip {
+      display: inline-block;
+      font-size: 0.62rem;
+      font-weight: 700;
+      padding: 0.08rem 0.35rem;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+    .sleeve-chip.btc { background: #3a2a10; color: #f5c542; border: 1px solid #6b5a1e; }
+    .sleeve-chip.stocks { background: #1a2840; color: #7eb8e8; border: 1px solid #2a4060; }
+    .sleeve-chip.other { background: #252830; color: var(--muted); border: 1px solid #3a4050; }
+    .status-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.55rem;
+    }
+    @media (max-width: 640px) {
+      .status-split { grid-template-columns: 1fr; }
+    }
+    .status-tile {
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 0.55rem 0.7rem;
+      background: #0e151c;
+    }
+    .status-tile .lab {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      font-weight: 650;
+    }
+    .status-tile .val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 0.2rem;
+    }
+    .status-tile.red { border-color: #5a2a2a; }
+    .status-tile.red .val { color: var(--red); }
+    .status-tile.yellow { border-color: #5a4a1a; }
+    .status-tile.yellow .val { color: var(--yellow); }
+    .status-tile.green { border-color: #1e4a32; }
+    .status-tile.green .val { color: var(--green); }
+    .status-tile .micro-dots {
+      display: flex;
+      gap: 0.35rem;
+      margin-top: 0.35rem;
+      flex-wrap: wrap;
+    }
+    .status-tile .micro-dots span {
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      display: inline-block;
+      border: 1px solid var(--border);
+    }
+    .status-tile .micro-dots span.green { background: var(--green); border-color: #245c42; }
+    .status-tile .micro-dots span.yellow { background: var(--yellow); border-color: #6b5a1e; }
+    .status-tile .micro-dots span.red { background: var(--red); border-color: #6b2e2e; }
+    .status-tile .micro-dots span.muted { background: #2a3540; }
+
+    /* SNR hero strip */
+    .glance-hero {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      padding: 0.65rem 0.85rem;
+      background: var(--panel);
+    }
+    .glance-hero.red { border-color: #5a2a2a; background: linear-gradient(135deg, #1a1010 0%, var(--panel) 70%); }
+    .glance-hero.yellow { border-color: #5a4a1a; }
+    .glance-hero.green { border-color: #1e4a32; }
+    .glance-hero .hero-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 0.4rem 0.75rem;
+      margin-bottom: 0.45rem;
+    }
+    .glance-hero .hero-state {
+      font-size: 1.15rem;
+      font-weight: 750;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .glance-hero.red .hero-state { color: var(--red); }
+    .glance-hero.yellow .hero-state { color: var(--yellow); }
+    .glance-hero.green .hero-state { color: var(--green); }
+    .glance-hero .hero-why {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    .glance-hero .hero-cta {
+      font-size: 0.95rem;
+      font-weight: 650;
+      margin: 0.15rem 0 0.45rem;
+    }
+    .glance-hero .hero-bars { display: grid; gap: 0.35rem; }
+    .bar-row {
+      display: grid;
+      grid-template-columns: 4.5rem 1fr auto;
+      gap: 0.4rem;
+      align-items: center;
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+    .bar-track {
+      height: 0.45rem;
+      border-radius: 99px;
+      background: #1a2836;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .bar-fill.bad { background: var(--red); }
+    .bar-fill.warn { background: var(--orange); }
+    .bar-fill.ok { background: var(--green); }
+    .bar-amt { font-variant-numeric: tabular-nums; min-width: 4.5rem; text-align: right; color: var(--text); }
+
+    /* Cashflow allocation guidance waterfall */
+    .alloc-guide {
+      display: grid;
+      gap: 0.45rem;
+    }
+    .alloc-guide .ag-next {
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+      padding: 0.45rem 0.55rem;
+      border-radius: 8px;
+      border: 1px solid #2a4a6a;
+      background: linear-gradient(135deg, #152033 0%, #121a22 70%);
+    }
+    .alloc-guide .ag-next .lab {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-bottom: 0.15rem;
+    }
+    .alloc-guide .ag-step {
+      display: grid;
+      grid-template-columns: 1.6rem 1fr auto;
+      gap: 0.45rem 0.55rem;
+      align-items: start;
+      padding: 0.5rem 0.55rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #0e1620;
+    }
+    .alloc-guide .ag-step.active {
+      border-color: #2a6aa3;
+      box-shadow: 0 0 0 1px rgba(91, 159, 212, 0.25);
+    }
+    .alloc-guide .ag-step.met { opacity: 0.78; }
+    .alloc-guide .ag-step.blocked,
+    .alloc-guide .ag-step.hold_red { opacity: 0.72; }
+    .alloc-guide .ag-rank {
+      width: 1.45rem;
+      height: 1.45rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.7rem;
+      font-weight: 750;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      background: #15202c;
+      margin-top: 0.05rem;
+    }
+    .alloc-guide .ag-step.active .ag-rank {
+      color: #fff;
+      background: #1e4d7a;
+      border-color: #2a6aa3;
+    }
+    .alloc-guide .ag-step.met .ag-rank {
+      color: var(--green);
+      border-color: #245c42;
+    }
+    .alloc-guide .ag-step.gap .ag-rank,
+    .alloc-guide .ag-step.partial .ag-rank {
+      color: var(--red);
+      border-color: #6b2e2e;
+    }
+    .alloc-guide .ag-title {
+      font-size: 0.82rem;
+      font-weight: 650;
+      color: var(--text);
+      line-height: 1.25;
+    }
+    .alloc-guide .ag-detail {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.15rem;
+      line-height: 1.35;
+    }
+    .alloc-guide .ag-meta {
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 0.2rem;
+    }
+    .alloc-guide .ag-meta code {
+      font-size: 0.65rem;
+      color: var(--accent);
+    }
+    .alloc-guide .ag-amt {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.78rem;
+      font-weight: 650;
+      min-width: 4.5rem;
+    }
+    .alloc-guide .ag-amt .gap-amt { color: var(--red); }
+    .alloc-guide .ag-amt .ok-amt { color: var(--green); }
+    .alloc-guide .ag-amt .hold-amt { color: var(--yellow); }
+    .alloc-guide .ag-amt .sub {
+      display: block;
+      font-size: 0.65rem;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 0.1rem;
+    }
+    .alloc-guide .ag-track {
+      grid-column: 2 / -1;
+      height: 0.35rem;
+      border-radius: 99px;
+      background: #1a2836;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-top: -0.1rem;
+    }
+    .alloc-guide .ag-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: var(--accent);
+      max-width: 100%;
+    }
+    .alloc-guide .ag-fill.bad { background: var(--red); }
+    .alloc-guide .ag-fill.warn { background: var(--orange); }
+    .alloc-guide .ag-fill.ok { background: var(--green); }
+    .alloc-guide .ag-fill.hold { background: var(--yellow); }
+    .alloc-guide .ag-fill.muted { background: #3a4a5a; }
+    .alloc-guide .ag-note {
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin: 0.15rem 0 0;
+    }
+
+    /* Compact feeds: dots; expand labels */
+    .feeds-compact.feeds-dots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem 0.5rem;
+      align-items: center;
+      font-size: 0.75rem;
+    }
+    .feeds-compact .feed-dot {
+      width: 0.65rem;
+      height: 0.65rem;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      display: inline-block;
+      vertical-align: middle;
+    }
+    .feeds-compact .feed-dot.ok { background: var(--green); border-color: #245c42; }
+    .feeds-compact .feed-dot.warn { background: var(--yellow); border-color: #6b5a1e; }
+    .feeds-compact .feed-dot.bad { background: var(--red); border-color: #6b2e2e; }
+    .feeds-compact .feed-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.1rem 0.4rem;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      font-size: 0.7rem;
+      color: var(--muted);
+    }
+    .feeds-compact .feed-chip.ok { color: var(--green); }
+    .feeds-compact .feed-chip.warn { color: var(--yellow); }
+    .feeds-compact .feed-chip.bad { color: var(--red); }
+    .feeds-compact .feed-meta { color: var(--muted); font-size: 0.72rem; }
+    .feeds-compact .host-badge {
+      font-size: 0.68rem;
+      padding: 0.12rem 0.4rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      background: rgba(91, 159, 212, 0.1);
+    }
+    .action.cash-stack .stack-bars { margin-top: 0.45rem; display: grid; gap: 0.3rem; }
+    .action .do, .action .why { font-size: 0.8rem; }
+    .action.compact .why { display: none; }
+    .action.compact .do { color: var(--muted); }
+    details.advisor-fold > summary {
+      cursor: pointer;
+      list-style: none;
+      font-weight: 650;
+      color: var(--muted);
+      font-size: 0.85rem;
+      padding: 0.35rem 0;
+    }
+    details.advisor-fold > summary::-webkit-details-marker { display: none; }
+    .feeds span[title] { cursor: help; border-bottom: 1px dotted #3a4a5a; }
+    .card-head {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.4rem;
+      margin-bottom: 0.55rem;
+    }
+    .card-head h2 { margin: 0; }
+    .live-dot {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--green);
+    }
+    .live-dot::before {
+      content: "";
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 0 3px rgba(61, 214, 140, 0.2);
+    }
+    .live-dot.off { color: var(--muted); }
+    .live-dot.off::before { background: var(--muted); box-shadow: none; }
+    .poll-note { font-size: 0.7rem; color: var(--muted); }
+    .dec-carousel {
+      margin-top: 0.35rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: #0d141c;
+      overflow: hidden;
+    }
+    .dec-carousel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      padding: 0.45rem 0.65rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .dec-nav {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .dec-nav button {
+      min-width: 1.75rem;
+      height: 1.75rem;
+      padding: 0;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #15202c;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .dec-nav button:hover { border-color: #3a5066; }
+    .dec-nav button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+    .dec-pos {
+      font-variant-numeric: tabular-nums;
+      min-width: 3.2rem;
+      text-align: center;
+      text-transform: none;
+      letter-spacing: 0;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .dec-slide {
+      padding: 0.55rem 0.65rem 0.7rem;
+      min-height: 5.5rem;
+    }
+    .dec-slide .action { margin-bottom: 0 !important; }
+    .dec-dots {
+      display: flex;
+      justify-content: center;
+      gap: 0.3rem;
+      padding: 0 0.65rem 0.5rem;
+    }
+    .dec-dots button {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      border: none;
+      padding: 0;
+      background: #3a4a5a;
+      cursor: pointer;
+    }
+    .dec-dots button.on { background: var(--accent, #5b9fd4); }
+    .payout-bar-wrap {
+      margin: 0.45rem 0 0.15rem;
+    }
+    .payout-bar {
+      height: 8px;
+      border-radius: 99px;
+      background: #1a2430;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    .payout-bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, #5b9fd4, #3dd68c);
+      border-radius: 99px;
+      min-width: 0;
+    }
+    .braiins-stats {
+      margin-top: 0.15rem;
+    }
+    .braiins-workers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 0.2rem 0.75rem;
+    }
+    .braiins-workers-grid .metric {
+      margin-bottom: 0 !important;
+    }
+    .payout-bar-lab {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.72rem;
+      color: var(--muted);
+      margin-top: 0.25rem;
+    }
+
+    /* ── Mobile-first refinements (phone / narrow browser) ── */
+    html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+    body {
+      overflow-x: hidden;
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    /* Touch targets + remove 300ms delay feel */
+    button, .btn, a.btn, .carousel-nav, summary {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: rgba(91, 159, 212, 0.25);
+    }
+    input, select, textarea {
+      font-size: 16px; /* iOS: avoid zoom-on-focus when <16px */
+      max-width: 100%;
+    }
+    .table-scroll, .pos-table-wrap {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      max-width: 100%;
+    }
+
+    @media (max-width: 720px) {
+      body { font-size: 14px; }
+      html, body {
+        max-width: 100%;
+        overflow-x: clip;
+      }
+      .sticky-top {
+        padding: 0.55rem 0.75rem;
+        padding-top: max(0.55rem, env(safe-area-inset-top, 0px));
+        max-width: 100%;
+        overflow-x: hidden;
+      }
+      .sticky-top .row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.45rem;
+        max-width: 100%;
+      }
+      .sticky-top .controls {
+        display: grid;
+        /* Watchlist | Refresh equal halves; status pill full-width below */
+        grid-template-columns: 1fr 1fr;
+        gap: 0.4rem;
+        width: 100%;
+      }
+      /* Do NOT span primary full-width — Chris wants equal split with Watchlist */
+      .sticky-top .controls .primary {
+        grid-column: auto;
+        width: 100%;
+      }
+      .sticky-top .controls .pill {
+        grid-column: 1 / -1;
+        justify-content: center;
+        width: 100%;
+      }
+      .sticky-top .controls .poll-note {
+        display: none; /* reclaim chrome on phone */
+      }
+      .sticky-top .controls button,
+      .sticky-top .controls .btn,
+      .sticky-top .controls a.btn {
+        justify-content: center;
+        min-height: 2.5rem;
+        padding: 0.5rem 0.6rem;
+        font-size: 0.8rem;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      h1 { font-size: 1.05rem; }
+      .sub { font-size: 0.72rem; }
+      main {
+        padding: 0.5rem 0.7rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+        gap: 0.5rem;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow-x: hidden;
+        box-sizing: border-box;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      /* Phone At-a-glance: 2 equal cols that actually fit (no clip).
+         Hover tooltips are desktop-only — hide on narrow to stop overflow. */
+      #at-a-glance,
+      .kpi-grid {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        overflow: hidden;
+      }
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+      }
+      .kpi {
+        min-width: 0;
+        max-width: 100%;
+        overflow: hidden;
+      }
+      .kpi-tip {
+        display: none !important;
+      }
+      .kpi .v { font-size: 0.95rem; }
+      .kpi .k, .kpi .s { white-space: normal; word-break: break-word; }
+      .advisor,
+      .advisor-chips,
+      .card,
+      .status-split {
+        max-width: 100%;
+        min-width: 0;
+      }
+      .advisor-chips button.chip {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .bill-row {
+        grid-template-columns: 1fr;
+        gap: 0.35rem;
+      }
+      .bill-when {
+        flex-direction: row;
+        align-items: baseline;
+        gap: 0.5rem;
+        min-width: 0;
+      }
+      .metric {
+        flex-wrap: wrap;
+        font-size: 0.84rem;
+      }
+      .metric .val {
+        text-align: left;
+        width: 100%;
+      }
+      .manual-form.grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .manual-form input {
+        width: 100%;
+        min-height: 2.6rem;
+        padding: 0.55rem 0.65rem;
+      }
+      .manual-form label {
+        font-size: 0.8rem;
+      }
+      details.panel > summary {
+        padding: 0.75rem 0.85rem;
+        min-height: 2.75rem;
+      }
+      .advisor-head h2 .sub {
+        display: block;
+        margin-top: 0.15rem;
+      }
+      .advisor-row {
+        flex-direction: column;
+      }
+      .advisor-row button.ask {
+        width: 100%;
+        min-height: 2.75rem;
+      }
+      .carousel-nav {
+        min-width: 2.75rem;
+        min-height: 2.5rem;
+        padding: 0.35rem 0.65rem;
+      }
+      .pos-table {
+        font-size: 0.78rem;
+      }
+      .pos-table th,
+      .pos-table td {
+        padding: 0.4rem 0.3rem;
+      }
+      /* Hide secondary nav links on very tight chrome; keep Refresh + status */
+      #nav-orchestra,
+      #nav-capital-flows {
+        display: none;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      /* Keep Watchlist | Refresh equal pair even on tiny phones */
+      .sticky-top .controls {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* Coarse pointer (touch) — slightly larger hit targets even on tablets */
+    @media (pointer: coarse) {
+      button, .btn, a.btn, .carousel-nav {
+        min-height: 2.4rem;
+      }
+      .kpi { padding: 0.5rem 0.55rem; }
+    }
+
+    /* Optional body class set by JS when narrow / touch */
+    body.is-mobile .sticky-top .sub { display: none; }
+
+    /* ── Tab shell (Glance / Cash / Mining / Coach / More) — all viewports ── */
+    .mobile-tabbar {
+      display: none;
+    }
+    body.m-shell .mobile-tabbar {
+      display: flex;
+    }
+    body.m-shell .mobile-tabbar[hidden] {
+      display: none !important;
+    }
+    .mobile-tabbar .tab-btn {
+      flex: 1 1 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.1rem;
+      min-height: 44px;
+      padding: 0.35rem 0.4rem;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .mobile-tabbar .tab-btn .tab-ico {
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+    .mobile-tabbar .tab-btn.active {
+      color: var(--text);
+      background: rgba(91, 159, 212, 0.16);
+    }
+    /* Hide inactive panels in shell mode (web + mobile) */
+    body.m-shell [data-m-panel] {
+      display: none !important;
+    }
+    body.m-shell[data-m-active="glance"] [data-m-panel="glance"],
+    body.m-shell[data-m-active="cash"] [data-m-panel="cash"],
+    body.m-shell[data-m-active="mining"] [data-m-panel="mining"],
+    body.m-shell[data-m-active="coach"] [data-m-panel="coach"],
+    body.m-shell[data-m-active="more"] [data-m-panel="more"] {
+      display: block !important;
+    }
+    body.m-shell[data-m-active="glance"] #status-split[data-m-panel="glance"] {
+      display: grid !important;
+    }
+    body.m-shell[data-m-active="glance"] #at-a-glance[data-m-panel="glance"] .kpi-grid {
+      display: grid !important;
+    }
+    body.m-shell .feeds-compact {
+      font-size: 0.72rem;
+      gap: 0.25rem 0.45rem;
+    }
+    body.m-shell .feeds-compact span {
+      white-space: nowrap;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel);
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card > summary {
+      pointer-events: none;
+      list-style: none;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card > summary::-webkit-details-marker {
+      display: none;
+    }
+    body.m-shell[data-m-active="mining"] #braiins-card[open] > .body,
+    body.m-shell[data-m-active="mining"] #braiins-card > .body {
+      display: block;
+    }
+
+    /*
+     * Placement:
+     * - Phone / narrow (≤720): fixed BOTTOM (must not be under .sticky-top —
+     *   backdrop-filter ancestors break fixed positioning).
+     * - Web / wide (≥721): sticky TOP strip under the header.
+     */
+    @media (max-width: 720px) {
+      main {
+        padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
+      }
+      body.m-shell .mobile-tabbar {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        top: auto;
+        z-index: 50;
+        gap: 0.15rem;
+        margin: 0;
+        max-width: none;
+        padding: 0.35rem 0.35rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+        background: rgba(11, 15, 20, 0.96);
+        border: none;
+        border-top: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      body.m-shell .mobile-tabbar .tab-btn {
+        flex-direction: column;
+        min-height: 48px;
+        padding: 0.35rem 0.15rem;
+        font-size: 0.65rem;
+        border: none;
+      }
+    }
+
+    @media (min-width: 721px) {
+      body.m-shell .mobile-tabbar {
+        position: sticky;
+        top: 0;
+        z-index: 35;
+        gap: 0.35rem;
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0.45rem 1.25rem 0.55rem;
+        background: rgba(11, 15, 20, 0.94);
+        border-bottom: 1px solid var(--border);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+      }
+      /* Sit just under sticky-top: sticky-top is z-index 40; tabs scroll under it
+         then pin at top when header scrolls away — or pin below header height.
+         Use a small offset so both can stick: sticky-top stays top:0, tabs top
+         after header. Approximate header height ~5.5rem. */
+      body.m-shell .mobile-tabbar {
+        top: 0;
+      }
+      body.m-shell .sticky-top {
+        z-index: 45;
+      }
+      body.m-shell .mobile-tabbar .tab-btn {
+        flex-direction: row;
+        gap: 0.4rem;
+        min-height: 2.35rem;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.82rem;
+        border: 1px solid transparent;
+      }
+      body.m-shell .mobile-tabbar .tab-btn.active {
+        border-color: rgba(91, 159, 212, 0.45);
+        background: rgba(91, 159, 212, 0.14);
+      }
+      body.m-shell .mobile-tabbar .tab-btn .tab-ico {
+        font-size: 0.95rem;
+      }
+    }
   </style>
 </head>
 <body>
   <div class="sticky-top">
     <div class="row">
       <div>
-        <h1>Financial Command Center</h1>
-        <div class="sub">Liquidity · LTV · bills · spend</div>
+        <h1><span class="title-ico" aria-hidden="true">₿</span> Financial Command Center</h1>
+        <div class="sub">Liquidity · fund manager · bills · spend</div>
       </div>
       <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
+        <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
+        <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
       </div>
     </div>
     <div class="row" style="margin-top:0.4rem">
-      <div class="feeds" id="feeds-line">Feeds…</div>
+      <div class="feeds feeds-compact" id="feeds-line">Feeds…</div>
     </div>
     <div class="toast" id="toast"></div>
   </div>
 
+  <!--
+    Tab bar MUST stay outside .sticky-top: backdrop-filter on an ancestor
+    breaks position:fixed (tabs stuck to header instead of viewport bottom).
+  -->
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Main sections">
+    <button type="button" class="tab-btn active" data-m-tab="glance" aria-current="page">
+      <span class="tab-ico" aria-hidden="true">◎</span>
+      <span class="tab-lbl">Glance</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="cash">
+      <span class="tab-ico" aria-hidden="true">$</span>
+      <span class="tab-lbl">Cash</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="mining">
+      <span class="tab-ico" aria-hidden="true">⛏</span>
+      <span class="tab-lbl">Mining</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="coach">
+      <span class="tab-ico" aria-hidden="true">✓</span>
+      <span class="tab-lbl">Coach</span>
+    </button>
+    <button type="button" class="tab-btn" data-m-tab="more">
+      <span class="tab-ico" aria-hidden="true">···</span>
+      <span class="tab-lbl">More</span>
+    </button>
+  </nav>
+
   <main>
-    <div id="load-error" class="error hidden"></div>
-    <div id="status-why" class="status-why yellow">Loading…</div>
+    <div id="load-error" data-m-panel="glance" class="error hidden"></div>
 
-    <section class="card" id="actions-card">
-      <h2>Do now</h2>
-      <div class="actions" id="actions-top"></div>
-      <button type="button" id="show-all-actions" class="hidden">Show all actions</button>
-      <div class="actions hidden" id="actions-rest" style="margin-top:0.5rem"></div>
-    </section>
+    <details class="panel advisor-fold" id="advisor-card" data-m-panel="glance" aria-label="Ask Grok financial advisor">
+      <summary>
+        Ask Grok
+        <span class="advisor-auth bad" id="advisor-auth" title="xAI / SuperGrok auth" style="margin-left:0.5rem">auth…</span>
+      </summary>
+      <div class="body">
+        <div class="advisor">
+          <div class="advisor-row">
+            <textarea
+              id="advisor-question"
+              rows="2"
+              placeholder="e.g. What should I pay first with cash I actually have?"
+              maxlength="4000"
+            ></textarea>
+            <button type="button" class="btn primary ask" id="btn-advisor-ask">Ask</button>
+          </div>
+          <div class="advisor-chips" id="advisor-chips" aria-label="Suggested questions"></div>
+          <div class="advisor-error" id="advisor-error"></div>
+          <div class="advisor-answer" id="advisor-answer">
+            <div class="meta" id="advisor-answer-meta"></div>
+            <div class="body" id="advisor-answer-body"></div>
+          </div>
+        </div>
+      </div>
+    </details>
 
-    <section>
-      <h2 style="margin:0 0 0.45rem;font-size:0.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em">At a glance</h2>
+    <div id="glance-hero" class="glance-hero" data-m-panel="glance" hidden></div>
+
+    <div class="status-split" id="status-split" data-m-panel="glance"></div>
+
+    <section id="at-a-glance" data-m-panel="glance" aria-label="At a glance">
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
-
-    <section class="card" id="cash-credit">
-      <h2>Cash &amp; credit</h2>
-      <div class="sleeves" id="buffer-sleeves"></div>
-      <div class="grid-2" style="margin-top:0.75rem">
-        <div>
-          <div class="hint">Coinbase liquid</div>
-          <div id="cb-metrics"></div>
-        </div>
-        <div>
-          <div class="hint">One Card · RH Checking</div>
-          <div id="cash-credit-side"></div>
+    <section class="card" id="actions-card" data-m-panel="glance">
+      <div class="card-head">
+        <h2>Do now</h2>
+        <div class="carousel-pager" id="actions-pager" hidden>
+          <button type="button" class="btn carousel-nav" id="actions-prev" aria-label="Previous action">‹</button>
+          <span class="carousel-page" id="actions-page-label">0 / 0</span>
+          <button type="button" class="btn carousel-nav" id="actions-next" aria-label="Next action">›</button>
         </div>
       </div>
+      <div class="actions-carousel" id="actions-carousel" aria-roledescription="carousel" aria-label="Do now actions">
+        <div class="actions-track" id="actions-track"></div>
+      </div>
+      <div class="carousel-dots" id="actions-dots" role="tablist" aria-label="Action pages"></div>
     </section>
 
-    <section class="card" id="upcoming-card">
-      <div class="bill-section-head">
-        <h2 style="margin:0">Upcoming bills (estimates)</h2>
+    <section class="card" id="alloc-guide-card" data-m-panel="coach" aria-label="Cashflow allocation guidance">
+      <div class="card-head">
+        <h2>Cashflow allocation</h2>
+        <span class="hint" id="alloc-guide-asof">priority stack</span>
       </div>
-      <p class="hint">Sheet Personal tab · ballpark OK · YNAB = actual spend</p>
+      <div id="alloc-guide" class="alloc-guide">
+        <p class="hint">Loading allocation guidance…</p>
+      </div>
+      <p class="alloc-guide ag-note" id="alloc-guide-note" style="margin-top:0.45rem">
+        Free dollars: expenses → card → buffers → collateral.
+        Capex: Productive Discretionary first (margin), then Consumer wishlist.
+      </p>
+    </section>
+
+    <section class="card" id="bills-coach-card" data-m-panel="coach">
+      <div class="bill-section-head">
+        <div>
+          <h2 style="margin:0">Bills &amp; cash coach</h2>
+          <p class="hint" style="margin:0.2rem 0 0">
+            Overdue first · pay-from cash · advisory only
+          </p>
+        </div>
+        <button type="button" class="btn" id="btn-coach-refresh">Refresh</button>
+      </div>
+      <div id="coach-summary" class="hint">Loading pay plan…</div>
+      <div id="coach-advice" style="margin-top:0.25rem"></div>
       <div class="bill-legend" aria-label="Due-date color legend">
-        <span><i class="red"></i> ≤7 days (or overdue)</span>
-        <span><i class="yellow"></i> 8–14 days</span>
-        <span><i class="green"></i> &gt;14 days</span>
+        <span><i class="red"></i> ≤7d / overdue</span>
+        <span><i class="yellow"></i> 8–14d</span>
+        <span><i class="green"></i> &gt;14d</span>
       </div>
       <div class="bill-urgency-bar" id="bill-urgency-bar"></div>
-      <div class="grid-2">
-        <div>
-          <div class="hint">Next due</div>
-          <div id="expenses-upcoming" class="bill-list"></div>
+      <div class="grid-2 coach-split">
+        <div class="coach-pay-plan">
+          <div class="hint">Pay plan (alloc / gap)</div>
+          <div id="expenses-upcoming" class="bill-list bill-list-scroll"></div>
         </div>
-        <div>
-          <div class="hint">Pay-from (monthly est.)</div>
+        <div class="coach-pay-from" id="coach-pay-from-col">
+          <div class="hint">Pay-from · buffers</div>
           <div id="expenses-pay-from-bar" class="pay-from-bar" hidden></div>
           <div id="expenses-by-source"></div>
-          <div class="grid-2" style="margin-top:0.55rem" id="expense-kpis"></div>
+          <div class="grid-2" style="margin-top:0.4rem" id="expense-kpis"></div>
+          <div id="coach-habits" style="margin-top:0.4rem"></div>
+          <div id="coach-requests" style="margin-top:0.25rem"></div>
         </div>
       </div>
     </section>
 
-    <details class="panel" id="panel-brokerage">
-      <summary>Brokerage (RH trading)</summary>
+
+
+    <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
+      <div class="card-head">
+        <h2>Cash &amp; credit</h2>
+      </div>
+      <div class="sleeves" id="buffer-sleeves"></div>
+      <div class="grid-2 cash-credit-stats" style="margin-top:0.45rem">
+        <div id="cb-metrics"></div>
+        <div id="cash-credit-side"></div>
+      </div>
+    </section>
+
+    <details class="panel" id="panel-solana" data-m-panel="cash">
+      <summary>Solana · JR-strcUSX</summary>
       <div class="body">
-        <p class="hint">Trading BP / equity — not ACH checking</p>
+        <p class="hint">Public RPC whitelist — SOL + USDC + JR-strcUSX. JR is DC-credit parlay, never HY / LTV defense. NFT/meme dust ignored.</p>
+        <div id="solana-metrics"></div>
+        <div id="solana-holdings" style="margin-top:0.4rem"></div>
+      </div>
+    </details>
+
+    <section class="card" id="fund-manager-card" data-m-panel="cash">
+      <div class="card-head">
+        <h2>Fund manager</h2>
+        <span class="live-dot" id="fm-live-dot">Autopilot</span>
+      </div>
+      <div class="fm-hero">
+        <div>
+          <div class="hint">60 / 40 allocation · stocks / BTC+</div>
+          <div class="alloc-stack" id="fm-alloc"></div>
+          <div id="fund-manager-metrics" style="margin-top:0.45rem"></div>
+        </div>
+        <div>
+          <div class="hint">Agentic holdings</div>
+          <div id="fm-holdings"></div>
+        </div>
+      </div>
+      <details style="margin-top:0.55rem">
+        <summary class="hint" style="cursor:pointer">Decision log</summary>
+        <div id="fund-manager-decisions" style="margin-top:0.35rem"></div>
+      </details>
+    </section>
+
+    <details class="panel" id="braiins-card" data-m-panel="mining" open>
+      <summary>
+        ASIC · Braiins
+        <span class="live-dot off" id="braiins-live-dot" style="margin-left:0.5rem">—</span>
+      </summary>
+      <div class="body">
+        <div id="braiins-progress"></div>
+        <div class="grid-2 braiins-stats">
+          <div id="braiins-metrics">Loading…</div>
+          <div id="braiins-metrics-b"></div>
+        </div>
+        <div class="braiins-workers-row">
+          <div class="hint" style="margin:0.45rem 0 0.25rem">Workers</div>
+          <div id="braiins-workers" class="braiins-workers-grid"></div>
+          <p class="hint" style="margin:0.35rem 0 0">
+            <a href="capital-flows.html">Capital Flows →</a>
+          </p>
+        </div>
+      </div>
+    </details>
+
+    <details class="panel" id="watchlist-preview-card" data-m-panel="more">
+      <summary>Watchlist research <a class="btn" href="watchlist.html" id="link-watchlist-full" style="margin-left:0.5rem;font-size:0.72rem;padding:0.2rem 0.45rem" onclick="event.stopPropagation()">Open →</a></summary>
+      <div class="body">
+        <div id="watchlist-preview">Loading…</div>
+      </div>
+    </details>
+
+    <details class="panel" id="panel-brokerage" data-m-panel="cash">
+      <summary>Brokerage detail (RH primary)</summary>
+      <div class="body">
+        <p class="hint">Primary margin = read-only for this agent · trades on agentic above</p>
         <div id="rh-metrics"></div>
       </div>
     </details>
 
-    <details class="panel" id="panel-spend">
+    <details class="panel" id="panel-spend" data-m-panel="cash">
       <summary>Actual spend (YNAB)</summary>
       <div class="body">
         <div class="grid-2">
@@ -607,19 +2166,27 @@
             <div class="hint">RH Checking txs</div>
             <div id="rh-checking-txs"></div>
           </div>
+          <div>
+            <div class="hint">X Money txs</div>
+            <div id="x-money-txs"></div>
+          </div>
         </div>
       </div>
     </details>
 
-    <details class="panel" id="panel-capital">
+    <details class="panel" id="panel-capital" data-m-panel="more">
       <summary>Capital targets (not expenses)</summary>
       <div class="body">
-        <p class="hint">Sheet Discretionary — where excess capital could go</p>
+        <p class="hint">Collateral — investments / capital at work (not burn)</p>
+        <div id="expenses-top-collateral"></div>
+        <p class="hint" style="margin-top:0.75rem">Productive Discretionary (priority) — capital outlay growing productive assets</p>
         <div id="expenses-top-disc"></div>
+        <p class="hint" style="margin-top:0.75rem">Consumer Discretionary — wishlist / qualitative (lower priority)</p>
+        <div id="expenses-top-consumer"></div>
       </div>
     </details>
 
-    <details class="panel" id="panel-missing" class="hidden">
+    <details class="panel hidden" id="panel-missing" data-m-panel="more">
       <summary>Missing data</summary>
       <div class="body">
         <div id="dq-metrics"></div>
@@ -627,22 +2194,34 @@
       </div>
     </details>
 
-    <details class="panel" id="panel-settings">
+    <details class="panel" id="panel-settings" data-m-panel="more">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
-        <div class="hint">Morpho LTV / vault (app-only — not API)</div>
+        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
-            <label>Loan principal (USDC)</label>
-            <input id="m-principal" type="number" step="any" placeholder="e.g. 25000" />
-            <label>Collateral value (USD)</label>
-            <input id="m-collateral" type="number" step="any" placeholder="e.g. 60000" />
-            <label>LTV override (0–1)</label>
-            <input id="m-ltv" type="number" step="0.01" min="0" max="2" />
+            <label>CB loan principal (USDC)</label>
+            <input id="m-principal" type="number" step="any" placeholder="from Borrow app" />
+            <label>CB collateral value (USD)</label>
+            <input id="m-collateral" type="number" step="any" placeholder="BTC collateral USD" />
+            <label>CB LTV (0–1, e.g. 0.35)</label>
+            <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
+            <label>CB High Yield vault USDC (LTV buffer)</label>
+            <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
+            <label>Morpho variable APR (0–1, e.g. 0.0487)</label>
+            <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.0487" />
+            <label>Morpho liquidation price (BTC USD)</label>
+            <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
           </div>
           <div>
-            <label>High Yield vault USDC</label>
-            <input id="m-vault" type="number" step="any" />
+            <label>RH USDG Earn (lent principal)</label>
+            <input id="m-usdg-earn" type="number" step="any" placeholder="Robinhood Earn · Morpho USDG" />
+            <label>RH USDG Earn APY est. (0–1)</label>
+            <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="e.g. 0.07" />
+            <label>RH margin loan used (USD)</label>
+            <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
+            <label>RH equity collateral (USD)</label>
+            <input id="m-rh-eq-coll" type="number" step="any" placeholder="optional · book backing margin" />
             <label>One Card balance override</label>
             <input id="m-card-bal" type="number" step="any" placeholder="usually from YNAB" />
             <label>One Card USDC security deposit</label>
@@ -674,6 +2253,8 @@
 
   <footer>
     Financial Command Center ·
+    <a href="watchlist.html">watchlist research</a> ·
+    <a href="capital-flows.html">Capital Flows</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
   </footer>
@@ -682,17 +2263,18 @@
     const DEFAULT_POLICY = {
       cb_target_ltv_max: 0.5,
       cb_ltv_alert: 0.45,
-      cb_card_float_usdc: 500,
+      cb_card_float_usdc: 0,
       cb_loan_buffer_usdc: 1000,
-      cb_bridge_dry_powder_usdc: 200,
-      rh_bp_floor: 500,
+      cb_bridge_dry_powder_usdc: 0, // retired 2026-08-11 — HY covers residual
+      rh_bp_floor: 0,
       rh_margin_use_max: 0.4,
       excess_split_cb: 0.6,
       excess_split_rh: 0.4,
       bridge_max_recommend_usdc: 5000,
     };
 
-    let showAllActions = false;
+    let actionCarouselIndex = 0;
+    let actionCarouselBound = false;
 
     function f(x, d = 0) {
       const n = Number(x);
@@ -712,6 +2294,28 @@
     }
     function metric(label, val) {
       return `<div class="metric"><span class="label">${label}</span><span class="val">${val}</span></div>`;
+    }
+    function btcAmt(n, digits = 8) {
+      if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
+      return Number(n).toFixed(digits) + " BTC";
+    }
+    /** Prefer TH/s when Braiins reports large Gh/s figures. */
+    function formatHashrate(v, unit) {
+      if (v == null || v === "" || !Number.isFinite(Number(v))) return "—";
+      const n = Number(v);
+      const u = String(unit || "Gh/s");
+      const low = u.toLowerCase();
+      if ((low.startsWith("gh") || low === "ghs" || low === "gh/s") && n >= 1000) {
+        return (
+          (n / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 }) +
+          " TH/s"
+        );
+      }
+      return (
+        n.toLocaleString(undefined, { maximumFractionDigits: n >= 100 ? 0 : 1 }) +
+        " " +
+        u
+      );
     }
     function actorLabel(a) {
       if (a === "human") return "You";
@@ -735,10 +2339,14 @@
       return (h / 24).toFixed(1) + "d ago";
     }
     function feedClass(src, asOf, staleH = 6) {
+      // Stale threshold: most feeds 6h. RH trade is MCP-only (not FCC Refresh).
       if (!src || src === "empty") return "bad";
       if (asOf) {
         const t = Date.parse(asOf);
         if (Number.isFinite(t) && (Date.now() - t) / 3600000 > staleH) return "warn";
+      } else if (src && src !== "live" && src !== "ynab" && src !== "google_sheets") {
+        // Has a source string but no as_of → treat as warn when we expect ages
+        return "warn";
       }
       return "ok";
     }
@@ -804,6 +2412,14 @@
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
     }
+    function sheetTabTag(tab, capitalOutlay) {
+      const t = String(tab || "").trim();
+      if (!t) return "";
+      const title = capitalOutlay
+        ? "Capital outlay (awareness — not Essential/Fleet burn)"
+        : "Sheet tab";
+      return `<span class="src-tag" title="${escapeHtml(title)}">${escapeHtml(t)}</span>`;
+    }
     function billRowHtml(r) {
       const u = dueUrgency(r.date);
       const src = r.from || "?";
@@ -813,9 +2429,104 @@
         `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(r.date))}</span>` +
         `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
         `<div class="bill-main"><div class="name">${escapeHtml(r.item || "—")}</div>` +
-        `<div class="meta"><span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
+        `<div class="meta">${sheetTabTag(r.tab, r.capital_outlay)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span></div></div>` +
         `<div class="bill-amt">${money(r.monthly)}</div></div>`
       );
+    }
+    /** Map coach obligation → same due-* classes as sheet bill rows. */
+    function coachDueUrgency(o) {
+      if (o && o.days_until_due != null && Number.isFinite(Number(o.days_until_due))) {
+        const days = Number(o.days_until_due);
+        if (days < 0) {
+          const n = Math.abs(days);
+          return {
+            level: "red",
+            days,
+            rel: n === 1 ? "1d overdue" : n + "d overdue",
+            cls: "due-red",
+          };
+        }
+        if (days === 0) return { level: "red", days: 0, rel: "today", cls: "due-red" };
+        if (days === 1) return { level: "red", days: 1, rel: "tomorrow", cls: "due-red" };
+        if (days <= 7) return { level: "red", days, rel: "in " + days + "d", cls: "due-red" };
+        if (days <= 14) return { level: "yellow", days, rel: "in " + days + "d", cls: "due-yellow" };
+        return { level: "green", days, rel: "in " + days + "d", cls: "due-green" };
+      }
+      const dateStr = o && (o.due_date_raw || o.due_date || o.date);
+      return dueUrgency(dateStr);
+    }
+    function coachBillRowHtml(o) {
+      const u = coachDueUrgency(o);
+      const src = o.from_label || o.venue || "?";
+      const sc = srcTagClass(src);
+      const dateStr = o.due_date_raw || o.due_date || o.date;
+      const st = o.status || "";
+      const stCls =
+        st === "funded" ? "funded" : st === "partial" ? "partial" : st === "unfunded" ? "unfunded" : "";
+      const amt =
+        money(o.amount_due != null ? o.amount_due : o.monthly) +
+        (o.amount_is_estimate ? " est" : "");
+      const alloc = o.allocated != null ? money(o.allocated) : "—";
+      const gap = o.gap != null ? Number(o.gap) : null;
+      const gapHtml =
+        gap == null
+          ? ""
+          : gap > 0.005
+            ? `<span class="sub gap">gap ${money(gap)}</span>`
+            : `<span class="sub ok">covered</span>`;
+      return (
+        `<div class="bill-row ${u.cls}">` +
+        `<div class="bill-when"><span class="date">${escapeHtml(formatBillDate(dateStr))}</span>` +
+        `<span class="rel">${escapeHtml(u.rel)}</span></div>` +
+        `<div class="bill-main"><div class="name">${escapeHtml(o.item || "—")}` +
+        (stCls
+          ? `<span class="status-pill ${stCls}">${escapeHtml(st)}</span>`
+          : "") +
+        `</div>` +
+        `<div class="meta">${sheetTabTag(o.tab, o.capital_outlay)}` +
+        `<span class="src-tag ${sc}">${escapeHtml(src)}</span>` +
+        (o.capital_outlay ? ` · capital` : "") +
+        (o.urgency_rank != null ? ` · #${o.urgency_rank}` : "") +
+        `</div></div>` +
+        `<div class="bill-amt">${amt}` +
+        `<span class="sub">alloc ${alloc}</span>${gapHtml}</div></div>`
+      );
+    }
+    function fillBillUrgencyBar(rows, amountKey) {
+      let sumRed = 0,
+        sumYellow = 0,
+        sumGreen = 0,
+        nRed = 0,
+        nYellow = 0,
+        nGreen = 0;
+      for (const r of rows) {
+        const u =
+          r.days_until_due != null || r.due_date || r.overdue != null
+            ? coachDueUrgency(r)
+            : dueUrgency(r.date);
+        const amt = Number(r[amountKey] != null ? r[amountKey] : r.monthly) || 0;
+        if (u.level === "red") {
+          sumRed += amt;
+          nRed++;
+        } else if (u.level === "yellow") {
+          sumYellow += amt;
+          nYellow++;
+        } else if (u.level === "green") {
+          sumGreen += amt;
+          nGreen++;
+        }
+      }
+      const el = document.getElementById("bill-urgency-bar");
+      if (!el) return;
+      el.innerHTML = [
+        `<div class="bill-chip due-red"><span class="n">${money(sumRed)}</span>` +
+          `<span class="l">≤7d · ${nRed} bill${nRed === 1 ? "" : "s"}</span></div>`,
+        `<div class="bill-chip due-yellow"><span class="n">${money(sumYellow)}</span>` +
+          `<span class="l">8–14d · ${nYellow}</span></div>`,
+        `<div class="bill-chip due-green"><span class="n">${money(sumGreen)}</span>` +
+          `<span class="l">&gt;14d · ${nGreen}</span></div>`,
+      ].join("");
     }
     function sortBillsByDate(rows) {
       return [...rows].sort((a, b) => {
@@ -832,7 +2543,7 @@
       const floors = {
         card_float: p.cb_card_float_usdc,
         loan_buffer: p.cb_loan_buffer_usdc,
-        bridge_dry_powder: p.cb_bridge_dry_powder_usdc,
+        bridge_dry_powder: p.cb_bridge_dry_powder_usdc || 0, // retired — HY covers residual
       };
       const required = floors.card_float + floors.loan_buffer + floors.bridge_dry_powder;
       const shortfall = Math.max(0, required - liquid);
@@ -878,8 +2589,10 @@
       if (ltv == null) add(1, "ltv_check", "Confirm Morpho loan LTV in Coinbase app", "human", "Update config after app check.", false);
       else if (ltv >= p.cb_target_ltv_max)
         add(1, "ltv_protect", `LTV ${(ltv * 100).toFixed(1)}% at/above max — repay or add collateral`, "human", "In-app only.", false);
-      if (buckets.gaps.card_float > 0)
-        add(2, "card_float", `Fund card float: need $${buckets.gaps.card_float.toFixed(2)}`, "either", "Liquid USDC buffer.", false);
+      if (f(man.card_balance) > 0)
+        add(1, "card_refinance", `Refinance One Card $${f(man.card_balance).toFixed(0)} via Morpho principal`, "human", "Not HY pull — LTV buffer stays.", false);
+      if (buckets.gaps.loan_buffer > 0)
+        add(2, "ltv_buffer_stack", `Restore HY LTV Buffer`, "human", "HY LTV Buffer vs Morpho LTV floor.", false);
       if (!dca.allow_dca) add(3, "dca_pause", `Pause DCA: ${dca.reason}`, "agent", "Throttle buys.", true);
       actions.sort((a, b) => a.priority - b.priority);
       return {
@@ -915,35 +2628,6 @@
       };
     }
 
-    function statusWhy(ev, snap) {
-      const s = ev.stress || {};
-      const overall = s.overall || "yellow";
-      const bits = [];
-      const inp = ev.inputs || {};
-      if (s.coinbase_liquid === "red")
-        bits.push(
-          `working USDC ${money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)} below buffers`
-        );
-      else if (s.coinbase_liquid === "yellow" && (inp.vault_known === false || inp.vault_usdc == null))
-        bits.push("High Yield vault balance unknown (spot often $0 by design)");
-      if (s.coinbase_ltv === "red") bits.push(`LTV ${pct(inp.ltv)} over max`);
-      else if (s.coinbase_ltv === "yellow" && inp.ltv == null) bits.push("Morpho LTV unknown");
-      if (s.coinbase_card === "red" && inp.card_balance)
-        bits.push(`One Card ${money(inp.card_balance)} owed`);
-      if (s.robinhood === "yellow" || s.robinhood === "red")
-        bits.push(`RH BP ${money(inp.rh_buying_power)}`);
-      if (inp.rh_checking_cash != null && inp.rh_checking_cash < 50)
-        bits.push(`RH Checking only ${money(inp.rh_checking_cash)}`);
-      const cbBurn = inp.expenses_coinbase_funded_monthly;
-      if (cbBurn && f(inp.liquid_usdc) < f(cbBurn) * 0.25)
-        bits.push(`~${money(cbBurn)}/mo Coinbase-funded bills estimated`);
-      if (!bits.length) {
-        if (overall === "green") return "All clear — buffers and feeds look healthy.";
-        return "Review actions below; some items need attention.";
-      }
-      return bits.slice(0, 4).join(" · ");
-    }
-
     function actionSeverity(a, stress) {
       if (a.priority <= 1) return "red";
       if (a.priority <= 3) return "yellow";
@@ -952,7 +2636,14 @@
 
     function actionDoHint(a) {
       const k = a.kind || "";
-      if (k.startsWith("ltv") || k === "vault_pull" || k === "vault_unknown")
+      if (
+        k.startsWith("ltv") ||
+        k === "vault_pull" ||
+        k === "vault_unknown" ||
+        k === "card_refinance" ||
+        k === "hy_collateral_defense" ||
+        k === "ltv_buffer_stack"
+      )
         return "Do: Coinbase app → Borrow / Lend";
       if (k.includes("card") || k === "card_paydown" || k === "card_float" || k === "card_unknown")
         return "Do: Coinbase app → Credit card (or fund liquid USDC)";
@@ -967,18 +2658,209 @@
       return "Do: In-app or manual";
     }
 
+    function actionGroupLabel(a) {
+      const p = a && a.priority != null ? Number(a.priority) : 99;
+      if (p <= 1) return "Critical";
+      if (p <= 3) return "This week";
+      return "Background";
+    }
+
+    function barRowHtml(label, pct, amtLabel, fillClass) {
+      const p = Math.max(0, Math.min(100, Number(pct) || 0));
+      return (
+        `<div class="bar-row"><span>${escapeHtml(label)}</span>` +
+        `<div class="bar-track"><div class="bar-fill ${fillClass || ""}" style="width:${p}%"></div></div>` +
+        `<span class="bar-amt">${escapeHtml(amtLabel || "")}</span></div>`
+      );
+    }
+
+    function renderCashStackBars(meta) {
+      if (!meta || typeof meta !== "object") return "";
+      const bal = Number(meta.card_balance) || 0;
+      const dep = Number(meta.card_deposit) || 0;
+      const work = Number(meta.working_usdc) || 0;
+      const floors = Number(meta.floors_required) || 0;
+      const util = dep > 0 ? (bal / dep) * 100 : 0;
+      const fill = floors > 0 ? (work / floors) * 100 : 0;
+      const utilCls = util >= 90 ? "bad" : util >= 70 ? "warn" : "ok";
+      const fillCls = fill < 40 ? "bad" : fill < 80 ? "warn" : "ok";
+      let html = `<div class="stack-bars">`;
+      if (dep > 0) {
+        html += barRowHtml(
+          "Card",
+          util,
+          `${money(bal)} / ${money(dep)}`,
+          utilCls
+        );
+      }
+      if (floors > 0) {
+        html += barRowHtml(
+          "USDC",
+          fill,
+          `${money(work)} / ${money(floors)}`,
+          fillCls
+        );
+      }
+      if (meta.vault_pull > 0) {
+        html += `<div class="hint" style="margin:0.15rem 0 0">Vault pull ≤ ${money(
+          meta.vault_pull
+        )} (app)</div>`;
+      }
+      html += `</div>`;
+      return html;
+    }
+
     function renderAction(a, stress) {
       const sev = actionSeverity(a, stress);
-      return `<div class="action sev-${sev}">
-        <div class="top">
-          <span class="tag p">P${a.priority}</span>
-          <span class="tag ${actorClass(a.actor)}">${actorLabel(a.actor)}</span>
-          <span class="tag ${a.api_reachable ? "auto" : "app"}">${a.api_reachable ? "Auto" : "App only"}</span>
-        </div>
-        <div class="title">${a.title}</div>
-        <div class="why">${a.detail || ""}</div>
-        <div class="do">${actionDoHint(a)}</div>
-      </div>`;
+      const isStack = a.kind === "cash_stack";
+      const compact = !isStack;
+      let body = "";
+      if (isStack) {
+        body = renderCashStackBars(a.meta || {});
+      }
+      return (
+        `<div class="action sev-${sev}${isStack ? " cash-stack" : ""}${
+          compact ? " compact" : ""
+        }">` +
+        `<div class="top">` +
+        `<span class="tag p">P${a.priority}</span>` +
+        `<span class="tag ${actorClass(a.actor)}">${actorLabel(a.actor)}</span>` +
+        `<span class="tag ${a.api_reachable ? "auto" : "app"}">${
+          a.api_reachable ? "Auto" : "App"
+        }</span>` +
+        `</div>` +
+        `<div class="title">${escapeHtml(a.title || "")}</div>` +
+        body +
+        (compact
+          ? `<div class="do">${escapeHtml(actionDoHint(a))}</div>`
+          : `<div class="do">${escapeHtml(actionDoHint(a))}</div>`) +
+        `</div>`
+      );
+    }
+
+    function setActionsCarouselIndex(i, n) {
+      const total = Math.max(0, n | 0);
+      if (total <= 0) {
+        actionCarouselIndex = 0;
+      } else {
+        actionCarouselIndex = ((i % total) + total) % total;
+      }
+      const track = document.getElementById("actions-track");
+      const label = document.getElementById("actions-page-label");
+      const prev = document.getElementById("actions-prev");
+      const next = document.getElementById("actions-next");
+      const dots = document.getElementById("actions-dots");
+      if (track) {
+        track.style.transform =
+          total > 0 ? `translateX(-${actionCarouselIndex * 100}%)` : "translateX(0)";
+      }
+      if (label) {
+        label.textContent = total ? `${actionCarouselIndex + 1} / ${total}` : "0 / 0";
+      }
+      if (prev) prev.disabled = total <= 1;
+      if (next) next.disabled = total <= 1;
+      if (dots) {
+        dots.querySelectorAll("button").forEach((btn, di) => {
+          btn.setAttribute("aria-current", di === actionCarouselIndex ? "true" : "false");
+        });
+      }
+    }
+
+    function renderActionsCarousel(list, stress) {
+      const track = document.getElementById("actions-track");
+      const pager = document.getElementById("actions-pager");
+      const dots = document.getElementById("actions-dots");
+      if (!track) return;
+      const items = Array.isArray(list) ? list : [];
+      if (!items.length) {
+        track.innerHTML =
+          `<div class="actions-slide"><div class="hint">No actions — check feeds</div></div>`;
+        track.style.transform = "translateX(0)";
+        if (pager) pager.hidden = true;
+        if (dots) dots.innerHTML = "";
+        actionCarouselIndex = 0;
+        return;
+      }
+      if (pager) pager.hidden = false;
+      track.innerHTML = items
+        .map((a) => {
+          const g = actionGroupLabel(a);
+          return (
+            `<div class="actions-slide">` +
+            `<div class="group-label">${escapeHtml(g)}</div>` +
+            renderAction(a, stress) +
+            `</div>`
+          );
+        })
+        .join("");
+      if (dots) {
+        dots.innerHTML = items
+          .map((a, i) => {
+            const sev = actionSeverity(a, stress);
+            const title = escapeHtml((a.title || "Action").toString().slice(0, 48));
+            return (
+              `<button type="button" class="sev-${sev}" data-idx="${i}" ` +
+              `aria-label="Action ${i + 1}: ${title}" title="${title}"></button>`
+            );
+          })
+          .join("");
+        dots.querySelectorAll("button").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            setActionsCarouselIndex(Number(btn.getAttribute("data-idx")), items.length);
+          });
+        });
+      }
+      if (actionCarouselIndex >= items.length) actionCarouselIndex = 0;
+      setActionsCarouselIndex(actionCarouselIndex, items.length);
+      bindActionsCarouselOnce();
+    }
+
+    function bindActionsCarouselOnce() {
+      if (actionCarouselBound) return;
+      actionCarouselBound = true;
+      const prev = document.getElementById("actions-prev");
+      const next = document.getElementById("actions-next");
+      const carousel = document.getElementById("actions-carousel");
+      const step = (delta) => {
+        const n = document.querySelectorAll("#actions-track .actions-slide").length;
+        if (n <= 0) return;
+        setActionsCarouselIndex(actionCarouselIndex + delta, n);
+      };
+      if (prev) prev.addEventListener("click", () => step(-1));
+      if (next) next.addEventListener("click", () => step(1));
+      // Touch / pointer swipe
+      if (carousel) {
+        let startX = null;
+        carousel.addEventListener(
+          "pointerdown",
+          (e) => {
+            if (e.pointerType === "mouse" && e.button !== 0) return;
+            startX = e.clientX;
+          },
+          { passive: true }
+        );
+        carousel.addEventListener(
+          "pointerup",
+          (e) => {
+            if (startX == null) return;
+            const dx = e.clientX - startX;
+            startX = null;
+            if (Math.abs(dx) < 40) return;
+            step(dx < 0 ? 1 : -1);
+          },
+          { passive: true }
+        );
+        carousel.addEventListener("keydown", (e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            step(-1);
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault();
+            step(1);
+          }
+        });
+        carousel.tabIndex = 0;
+      }
     }
 
     function sleeveHtml(name, filled, target, gap) {
@@ -994,6 +2876,208 @@
       </div>`;
     }
 
+    function renderGlanceHero(overall, sortedActions, stress, snap, inp, ev) {
+      const el = document.getElementById("glance-hero");
+      if (!el) return;
+      const primary =
+        (sortedActions || []).find((a) => a.kind === "cash_stack") ||
+        (sortedActions || [])[0];
+      if (!primary && overall === "green") {
+        el.hidden = true;
+        el.innerHTML = "";
+        return;
+      }
+      el.hidden = false;
+      el.className = "glance-hero " + (overall || "yellow");
+      const meta = (primary && primary.meta) || {};
+      const whyBits = [];
+      if (stress.coinbase_card === "red" || stress.coinbase_card === "yellow")
+        whyBits.push("card");
+      if (stress.coinbase_liquid === "red" || stress.coinbase_liquid === "yellow")
+        whyBits.push("USDC");
+      if (stress.coinbase_ltv === "red" || stress.coinbase_ltv === "yellow")
+        whyBits.push("LTV");
+      const why =
+        whyBits.length > 0
+          ? whyBits.join(" · ")
+          : primary
+            ? (primary.title || "").slice(0, 72)
+            : "check feeds";
+      const bars =
+        primary && primary.kind === "cash_stack"
+          ? `<div class="hero-bars">${renderCashStackBars(meta)}</div>`
+          : "";
+      el.innerHTML =
+        `<div class="hero-top"><span class="hero-state">${escapeHtml(
+          (overall || "?").toUpperCase()
+        )}</span>` +
+        `<span class="hero-why">${escapeHtml(why)}</span></div>` +
+        (primary
+          ? `<div class="hero-cta"><span class="tag ${actorClass(
+              primary.actor
+            )}">${actorLabel(primary.actor)}</span> ${escapeHtml(
+              primary.title || ""
+            )}</div>`
+          : "") +
+        bars;
+    }
+
+
+    function renderAllocGuide(ev) {
+      const root = document.getElementById("alloc-guide");
+      const asof = document.getElementById("alloc-guide-asof");
+      if (!root) return;
+      const ca = (ev && ev.cashflow_allocation) || null;
+      if (!ca || !Array.isArray(ca.steps) || !ca.steps.length) {
+        root.innerHTML = `<p class="hint">No allocation guidance in evaluation — refresh treasury.</p>`;
+        if (asof) asof.textContent = "priority stack";
+        return;
+      }
+      if (asof) {
+        const active = ca.active_step_id || "—";
+        asof.textContent =
+          "next · " +
+          String(active).replace(/_/g, " ") +
+          (ca.free_dollar_red ? " · free-dollar red" : "");
+      }
+      const statusLabel = {
+        met: "Met",
+        partial: "Partial",
+        gap: "Gap",
+        ready: "Ready",
+        blocked: "Blocked",
+        hold_red: "Hold",
+        available: "Margin OK",
+        no_bp: "No BP",
+        blocked_margin: "Margin heat",
+        none: "None",
+      };
+      const fillClass = (st) => {
+        if (st === "met" || st === "ready" || st === "available") return "ok";
+        if (st === "partial" || st === "hold_red") return "warn";
+        if (st === "gap" || st === "blocked_margin" || st === "no_bp") return "bad";
+        if (st === "blocked" || st === "none") return "muted";
+        return "warn";
+      };
+      const amtHtml = (s) => {
+        const st = s.status;
+        if (st === "met" && !(s.need > 0)) {
+          return `<span class="ok-amt">✓</span><span class="sub">clear</span>`;
+        }
+        if (st === "blocked") {
+          return `<span class="hold-amt">—</span><span class="sub">blocked</span>`;
+        }
+        if (st === "ready") {
+          return (
+            `<span class="ok-amt">${money(s.need || s.allocated)}</span>` +
+            `<span class="sub">deploy</span>`
+          );
+        }
+        if (st === "hold_red") {
+          return (
+            `<span class="hold-amt">${money(s.need || s.allocated)}</span>` +
+            `<span class="sub">hold</span>`
+          );
+        }
+        if (s.gap > 0) {
+          return (
+            `<span class="gap-amt">${money(s.gap)}</span>` +
+            `<span class="sub">gap</span>`
+          );
+        }
+        if (st === "available") {
+          return (
+            `<span class="ok-amt">${money(s.need)}</span>` +
+            `<span class="sub">from margin</span>`
+          );
+        }
+        if (st === "none") {
+          return `<span class="ok-amt">—</span><span class="sub">n/a</span>`;
+        }
+        return (
+          `<span>${money(s.need)}</span>` +
+          `<span class="sub">${escapeHtml(statusLabel[st] || st)}</span>`
+        );
+      };
+      const barPct = (s) => {
+        const need = Number(s.need) || 0;
+        const alloc = Number(s.allocated) || 0;
+        if (s.status === "met" && need <= 0) return 100;
+        if (s.status === "ready") return 100;
+        if (s.status === "blocked" || s.status === "none") return 0;
+        if (need <= 0) return s.status === "met" ? 100 : 0;
+        return Math.max(0, Math.min(100, (alloc / need) * 100));
+      };
+      let html = "";
+      html +=
+        `<div class="ag-next"><span class="lab">Next free dollar</span>` +
+        `${escapeHtml(ca.next_free_dollar || "—")}</div>`;
+      for (const s of ca.steps) {
+        const st = s.status || "";
+        const active = ca.active_step_id === s.id ? " active" : "";
+        const cls = `ag-step ${st}${active}`;
+        const fund =
+          s.fund_from === "collateralized_margin"
+            ? "margin BP"
+            : s.fund_from === "venue_cash"
+              ? "venue cash"
+              : s.fund_from === "free_dollar_excess"
+                ? "excess free $"
+                : "free $";
+        let extra = "";
+        if (s.id === "collateral" && s.meta && (s.meta.to_btc_collateral || s.meta.to_rh_securities)) {
+          extra =
+            `<div class="ag-meta">BTC path ${money(s.meta.to_btc_collateral)} · ` +
+            `RH securities ${money(s.meta.to_rh_securities)}</div>`;
+        }
+        if (s.id === "cash_buffers" && s.meta && s.meta.gaps) {
+          const g = s.meta.gaps;
+          extra =
+            `<div class="ag-meta">float ${money(g.card_float)} · HY LTV buf ${money(
+              g.loan_buffer
+            )}</div>`;
+        }
+        if (s.id === "capex_margin" && s.meta) {
+          const bits = [];
+          if (s.meta.productive_monthly != null)
+            bits.push("Productive " + money(s.meta.productive_monthly));
+          if (s.meta.consumer_monthly != null && Number(s.meta.consumer_monthly) > 0)
+            bits.push("Consumer " + money(s.meta.consumer_monthly));
+          if (Array.isArray(s.meta.items) && s.meta.items.length) {
+            bits.push(
+              s.meta.items
+                .slice(0, 3)
+                .map((it) => escapeHtml(it.item || "") + " " + money(it.monthly))
+                .join(" · ")
+            );
+          }
+          if (bits.length) extra = `<div class="ag-meta">${bits.join(" · ")}</div>`;
+        }
+        html +=
+          `<div class="${cls}" data-step="${escapeHtml(s.id)}">` +
+          `<div class="ag-rank">${s.rank}</div>` +
+          `<div>` +
+          `<div class="ag-title">${escapeHtml(s.title || s.id)}</div>` +
+          `<div class="ag-detail">${escapeHtml(s.detail || "")}</div>` +
+          `<div class="ag-meta"><code>${escapeHtml(fund)}</code> · ${escapeHtml(
+            statusLabel[st] || st
+          )}</div>` +
+          extra +
+          `</div>` +
+          `<div class="ag-amt">${amtHtml(s)}</div>` +
+          `<div class="ag-track"><div class="ag-fill ${fillClass(st)}" style="width:${barPct(
+            s
+          )}%"></div></div>` +
+          `</div>`;
+      }
+      html +=
+        `<p class="ag-note">Free liquid start ${money(ca.free_liquid_start)} ` +
+        `(USDC ${money(ca.working_usdc)} + bank ${money(ca.bank_cash)}) · residual ${money(
+          ca.free_liquid_residual
+        )}</p>`;
+      root.innerHTML = html;
+    }
+
     function render(data) {
       const ev = data.evaluation || {};
       const snap = data.snapshot || {};
@@ -1006,165 +3090,600 @@
       pill.textContent = overall + " · " + actions.length + " acts";
       pill.className = "pill " + overall;
 
-      const why = document.getElementById("status-why");
-      why.className = "status-why " + overall;
-      why.textContent = statusWhy(ev, snap);
+      renderAllocGuide(ev);
 
-      // Feeds line
-      const meta = snap.meta || {};
-      const src = (ev.data_quality && ev.data_quality.sources) || {};
-      const feeds = [
-        ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of],
-        ["YNAB card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of],
-        ["RH check", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of],
-        ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of],
-        ["RH trade", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of],
-      ];
-      const ages = feeds.map(([, , asOf]) => ageLabel(asOf)).filter(Boolean);
-      const newest = ages[0] || "—";
-      document.getElementById("feeds-line").innerHTML =
-        `<span>Refreshed ${ageLabel(snap.as_of) || newest}</span>` +
-        feeds
-          .map(([label, s, asOf]) => {
-            const cls = feedClass(s, asOf);
-            const mark = cls === "ok" ? "✓" : cls === "warn" ? "⚠" : "✗";
-            return `<span class="${cls}">${label} ${mark}</span>`;
-          })
-          .join("");
-
-      // Actions: top 5 by default, grouped lightly
-      const sorted = [...actions].sort((a, b) => a.priority - b.priority);
-      const topN = 5;
-      const top = sorted.slice(0, topN);
-      const rest = sorted.slice(topN);
-      const renderList = (list) => {
-        if (!list.length) return `<div class="hint">No actions — check feeds</div>`;
-        let html = "";
-        let lastGroup = "";
-        for (const a of list) {
-          const g =
-            a.priority <= 1 ? "Critical" : a.priority <= 3 ? "This week" : "Background";
-          if (g !== lastGroup) {
-            html += `<div class="group-label">${g}</div>`;
-            lastGroup = g;
-          }
-          html += renderAction(a, stress);
+      // Split: liquidity stress vs fund manager health (detail lives on At a glance chips)
+      const fmEarly = data.fund_manager || ev.fund_manager || {};
+      const fmaEarly = fmEarly.analysis || {};
+      const wDepEarly = fmaEarly.weights_of_deployed || {};
+      const band = (fmaEarly.targets && fmaEarly.targets.band_pct) || 0.05;
+      const tgtB = (fmaEarly.targets && fmaEarly.targets.btc_digital_credit_pct) || 0.4;
+      const tgtS = (fmaEarly.targets && fmaEarly.targets.stocks_growth_pct) || 0.6;
+      const inBandB =
+        wDepEarly.btc_digital_credit == null
+          ? null
+          : Math.abs(wDepEarly.btc_digital_credit - tgtB) <= band;
+      const inBandS =
+        wDepEarly.stocks_growth == null
+          ? null
+          : Math.abs(wDepEarly.stocks_growth - tgtS) <= band;
+      let fmHealth = "yellow";
+      let fmHealthLabel = "No agentic analysis";
+      if (fmaEarly.ok) {
+        if (inBandB && inBandS) {
+          fmHealth = "green";
+          fmHealthLabel = "In band · ~60/40";
+        } else if (wDepEarly.btc_digital_credit == null && (fmaEarly.cash_usd || 0) > 0) {
+          fmHealth = "yellow";
+          fmHealthLabel = "Cash idle · not deployed";
+        } else {
+          fmHealth = "yellow";
+          fmHealthLabel = "Drift vs targets";
         }
-        return html;
-      };
-      document.getElementById("actions-top").innerHTML = renderList(top);
-      const restEl = document.getElementById("actions-rest");
-      const showBtn = document.getElementById("show-all-actions");
-      if (rest.length) {
-        showBtn.classList.remove("hidden");
-        showBtn.textContent = showAllActions
-          ? "Hide extra actions"
-          : `Show all ${sorted.length} actions`;
-        restEl.classList.toggle("hidden", !showAllActions);
-        restEl.innerHTML = renderList(rest);
-      } else {
-        showBtn.classList.add("hidden");
-        restEl.classList.add("hidden");
+        if (fmEarly.policy_summary && fmEarly.policy_summary.live === false) {
+          fmHealth = "yellow";
+          fmHealthLabel = "Paused (live:false)";
+        }
       }
+      const microDot = (cls, tip) =>
+        `<span class="${cls || "muted"}" title="${escapeHtml(tip || "")}"></span>`;
+      document.getElementById("status-split").innerHTML = [
+        `<div class="status-tile ${overall}"><div class="lab">Ops</div>` +
+          `<div class="val">${overall.toUpperCase()}</div>` +
+          `<div class="micro-dots">` +
+          microDot(stress.coinbase_ltv || "muted", "LTV " + (stress.coinbase_ltv || "?")) +
+          microDot(stress.coinbase_liquid || "muted", "USDC " + (stress.coinbase_liquid || "?")) +
+          microDot(stress.coinbase_card || "muted", "Card " + (stress.coinbase_card || "?")) +
+          `</div></div>`,
+        `<div class="status-tile ${fmHealth}"><div class="lab">Agentic</div>` +
+          `<div class="val">${escapeHtml(fmHealthLabel)}</div>` +
+          `<div class="hint" style="margin:0.25rem 0 0;font-size:0.72rem">NAV ${money(
+            fmaEarly.nav_usd
+          )}</div></div>`,
+      ].join("");
 
-      // KPIs
+      // Feeds: compact dots (expand bad labels)
+      const src = (ev.data_quality && ev.data_quality.sources) || {};
+      const brFeed = data.braiins || {};
+      const feeds = [
+        ["CB", src.coinbase || (snap.coinbase || {}).source, (snap.coinbase || {}).as_of, 6],
+        ["Card", src.one_card || (snap.one_card || {}).source, (snap.one_card || {}).as_of, 6],
+        ["RH✓", src.rh_checking || (snap.rh_checking || {}).source, (snap.rh_checking || {}).as_of, 6],
+        ["X$", src.x_money || (snap.x_money || {}).source, (snap.x_money || {}).as_of, 6],
+        ["SOL", src.solana || (snap.solana || {}).source, (snap.solana || {}).as_of, 6],
+        ["Sheet", src.expenses || (snap.expenses || {}).source, (snap.expenses || {}).as_of, 12],
+        ["RH", src.robinhood || (snap.robinhood || {}).source, (snap.robinhood || {}).as_of, 6],
+        [
+          "⛏",
+          brFeed.ok ? brFeed.source || "live" : brFeed.status || "empty",
+          brFeed.as_of,
+          12,
+        ],
+      ];
+      const feedItems = feeds.map(([label, s, asOf, staleH]) => {
+        const cls = feedClass(s, asOf, staleH || 6);
+        const age = ageLabel(asOf);
+        const tip = asOf
+          ? `${label}: ${s || "—"} · ${age || "?"}`
+          : `${label}: no as_of`;
+        return { label, cls, tip, age, bad: cls !== "ok" };
+      });
+      const badFeeds = feedItems.filter((x) => x.bad);
+      const hostBadge =
+        window.__fccHostMode === "offline_consumer"
+          ? `<span class="host-badge" title="Pi / phone: last Mac push">Pi · push</span>`
+          : "";
+      document.getElementById("feeds-line").innerHTML =
+        `<span class="feed-meta">${ageLabel(snap.as_of) || "—"}</span>` +
+        hostBadge +
+        feedItems
+          .map(
+            (x) =>
+              `<span class="feed-dot ${x.cls}" title="${escapeHtml(x.tip)}"></span>`
+          )
+          .join("") +
+        (badFeeds.length
+          ? badFeeds
+              .map(
+                (x) =>
+                  `<span class="feed-chip ${x.cls}" title="${escapeHtml(x.tip)}">${escapeHtml(
+                    x.label
+                  )} ${x.age || ""}</span>`
+              )
+              .join("")
+          : `<span class="feed-meta">feeds ok</span>`);
+      document.getElementById("feeds-line").classList.add("feeds-dots");
+
+      // Actions: single-slide carousel; cash_stack first
+      const sorted = [...actions].sort((a, b) => {
+        if (a.kind === "cash_stack" && b.kind !== "cash_stack") return -1;
+        if (b.kind === "cash_stack" && a.kind !== "cash_stack") return 1;
+        return a.priority - b.priority;
+      });
+      renderGlanceHero(overall, sorted, stress, snap, inp, ev);
+      renderActionsCarousel(sorted, stress);
+
+      // KPIs — 10 chips in a 5-col grid (2 even rows); tone = attention shading
       const oc = snap.one_card || {};
       const rhc = snap.rh_checking || {};
+      const xm = snap.x_money || {};
       const ex = snap.expenses || {};
       const es = ex.summary || {};
+      const pol = ev.policy || DEFAULT_POLICY;
+      const br = data.braiins || {};
+      const fmK = data.fund_manager || ev.fund_manager || {};
+      const fmaK = fmK.analysis || {};
+      const wDepK = fmaK.weights_of_deployed || {};
+
+      const workingUsdc = f(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc);
+      const cardOwed = f(inp.card_balance ?? oc.balance_owed);
+      const cardDeposit = f(inp.card_security_deposit_usdc);
+      const rhCheck = f(inp.rh_checking_cash ?? rhc.cash);
+      const xMoney = f(inp.x_money_cash ?? xm.cash);
+      const agentNav = f(fmaK.nav_usd);
+      const rhBp = f(inp.rh_buying_power);
+      const billsMo = f(
+        es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly
+      );
+      const totalLiquid = workingUsdc + rhCheck + xMoney;
+      const ltvVal = inp.ltv == null || inp.ltv === "" ? null : f(inp.ltv);
+      const ltvMax = f(pol.cb_target_ltv_max) || 0.5;
+      const ltvAlert = f(pol.cb_ltv_alert) || 0.45;
+      const bpFloor = f(pol.rh_bp_floor); // MO: may be 0
+
+      const toneWord = {
+        red: "Critical",
+        orange: "Urgent",
+        yellow: "Moderate",
+        green: "Good",
+        muted: "No signal",
+      };
+      function toneResult(tone, why) {
+        return { tone: tone || "muted", why: why || "" };
+      }
+      function cashLowTone(n, crit, urg, mod, label) {
+        if (!Number.isFinite(n))
+          return toneResult("muted", `${label}: no readable balance yet.`);
+        if (n < crit)
+          return toneResult(
+            "red",
+            `${label} ${money(n)} is critically low (under ${money(crit)}).`
+          );
+        if (n < urg)
+          return toneResult(
+            "orange",
+            `${label} ${money(n)} is tight (under ${money(urg)}).`
+          );
+        if (n < mod)
+          return toneResult(
+            "yellow",
+            `${label} ${money(n)} is only moderate (under ${money(mod)} cushion).`
+          );
+        return toneResult(
+          "green",
+          `${label} ${money(n)} is at a healthy cushion (≥ ${money(mod)}).`
+        );
+      }
+      function workingUsdcTone() {
+        if (stress.coinbase_liquid === "red") {
+          return toneResult(
+            "red",
+            `HY LTV Buffer ${money(workingUsdc)} is below floor (not One Card float).`
+          );
+        }
+        if (stress.coinbase_liquid === "yellow") {
+          return toneResult(
+            "yellow",
+            `Working USDC ${money(workingUsdc)} is tight vs buffers` +
+              (inp.vault_known === false || inp.vault_usdc == null
+                ? "; High Yield vault still unknown."
+                : ".")
+          );
+        }
+        return cashLowTone(workingUsdc, 40, 120, 350, "Working USDC");
+      }
+      function cardOwedTone(owed, deposit) {
+        if (!Number.isFinite(owed))
+          return toneResult("muted", "One Card balance not loaded.");
+        const util = deposit > 0 ? owed / deposit : null;
+        if (util != null) {
+          const utilPct = (util * 100).toFixed(0) + "%";
+          if (util >= 0.9)
+            return toneResult(
+              "red",
+              `Owed ${money(owed)} is ~${utilPct} of ${money(deposit)} security deposit — nearly maxed.`
+            );
+          if (util >= 0.7)
+            return toneResult(
+              "orange",
+              `Owed ${money(owed)} is ~${utilPct} of deposit ${money(deposit)} — pay down soon.`
+            );
+          if (util >= 0.4)
+            return toneResult(
+              "yellow",
+              `Owed ${money(owed)} is ~${utilPct} of deposit ${money(deposit)} — watch utilization.`
+            );
+          return toneResult(
+            "green",
+            `Owed ${money(owed)} is only ~${utilPct} of deposit ${money(deposit)}.`
+          );
+        }
+        if (owed >= 450)
+          return toneResult("red", `One Card owed ${money(owed)} is high.`);
+        if (owed >= 300)
+          return toneResult("orange", `One Card owed ${money(owed)} needs attention.`);
+        if (owed >= 100)
+          return toneResult("yellow", `One Card owed ${money(owed)} is moderate.`);
+        return toneResult("green", `One Card owed ${money(owed)} is low.`);
+      }
+      function agenticTone() {
+        if (!fmaK.ok) {
+          return agentNav > 0
+            ? toneResult(
+                "yellow",
+                `NAV ${money(agentNav)} present but full agentic analysis missing.`
+              )
+            : toneResult("muted", "No agentic fund analysis yet.");
+        }
+        if (fmK.policy_summary && fmK.policy_summary.live === false) {
+          return toneResult("yellow", "Fund manager paused (live:false).");
+        }
+        if (agentNav <= 0) {
+          return toneResult("orange", "Agentic NAV is empty — nothing deployed.");
+        }
+        const band = (fmaK.targets && fmaK.targets.band_pct) || 0.05;
+        const tgtB = (fmaK.targets && fmaK.targets.btc_digital_credit_pct) || 0.4;
+        if (wDepK.btc_digital_credit == null) {
+          return f(fmaK.cash_usd) > 1
+            ? toneResult(
+                "yellow",
+                `NAV ${money(agentNav)} with idle cash ${money(fmaK.cash_usd)} not fully deployed.`
+              )
+            : toneResult("orange", "Deployed sleeve weights unavailable.");
+        }
+        const drift = Math.abs(wDepK.btc_digital_credit - tgtB);
+        // Display as stocks/BTC (60/40), not BTC/stocks (legacy 40/60 label)
+        const mix =
+          Math.round((wDepK.stocks_growth || 0) * 100) +
+          "/" +
+          Math.round(wDepK.btc_digital_credit * 100);
+        if (drift > band * 2)
+          return toneResult(
+            "orange",
+            `Deployed mix ${mix} is outside the ±${Math.round(band * 100)}% band around 60/40.`
+          );
+        if (drift > band)
+          return toneResult(
+            "yellow",
+            `Deployed mix ${mix} is near the edge of the 60/40 band.`
+          );
+        return toneResult(
+          "green",
+          `Deployed mix ${mix} is in band (~60/40). NAV ${money(agentNav)}.`
+        );
+      }
+      function billsPressureTone() {
+        if (!(billsMo > 0))
+          return toneResult("muted", "No monthly bill estimate from sheet.");
+        const cover = totalLiquid / billsMo;
+        const coverPct = (cover * 100).toFixed(0) + "%";
+        if (cover < 0.05)
+          return toneResult(
+            "red",
+            `Liquid ${money(totalLiquid)} covers only ~${coverPct} of ${money(billsMo)}/mo sheet bills.`
+          );
+        if (cover < 0.15)
+          return toneResult(
+            "orange",
+            `Liquid ${money(totalLiquid)} is thin vs ${money(billsMo)}/mo (~${coverPct} cover).`
+          );
+        if (cover < 0.4)
+          return toneResult(
+            "yellow",
+            `Liquid ${money(totalLiquid)} vs ${money(billsMo)}/mo is moderate (~${coverPct} cover).`
+          );
+        return toneResult(
+          "green",
+          `Liquid ${money(totalLiquid)} covers ~${coverPct} of ${money(billsMo)}/mo estimate.`
+        );
+      }
+      function ltvTone() {
+        if (ltvVal == null || !Number.isFinite(ltvVal))
+          return toneResult(
+            "yellow",
+            "Morpho LTV unknown — set principal/collateral/LTV in Settings."
+          );
+        const lv = pct(ltvVal);
+        const manSnap = (data.snapshot || {}).coinbase_manual || {};
+        const apr =
+          inp.variable_apr != null
+            ? f(inp.variable_apr)
+            : manSnap.variable_apr != null
+              ? f(manSnap.variable_apr)
+              : null;
+        const liq =
+          inp.liquidation_price_btc_usd != null
+            ? f(inp.liquidation_price_btc_usd)
+            : manSnap.liquidation_price_btc_usd != null
+              ? f(manSnap.liquidation_price_btc_usd)
+              : null;
+        const btcPx = f(inp.btc_usd_price);
+        const extras = [];
+        if (apr != null && Number.isFinite(apr) && apr > 0)
+          extras.push(`var APR ${(apr * 100).toFixed(2)}%`);
+        if (liq != null && Number.isFinite(liq) && liq > 0) {
+          if (btcPx > 0 && btcPx > liq) {
+            const cushion = ((btcPx - liq) / btcPx) * 100;
+            extras.push(
+              `liq ${money(liq)} (~${cushion.toFixed(0)}% below spot)`
+            );
+          } else {
+            extras.push(`liq ${money(liq)}`);
+          }
+        }
+        const extraStr = extras.length ? ` · ${extras.join(" · ")}` : "";
+        if (ltvVal >= ltvMax)
+          return toneResult(
+            "red",
+            `LTV ${lv} is at/above max ${pct(ltvMax)} — repay or add collateral.${extraStr}`
+          );
+        if (ltvVal >= ltvAlert)
+          return toneResult(
+            "orange",
+            `LTV ${lv} is above alert ${pct(ltvAlert)} (max ${pct(ltvMax)}).${extraStr}`
+          );
+        if (ltvVal >= ltvAlert * 0.85)
+          return toneResult(
+            "yellow",
+            `LTV ${lv} is approaching alert ${pct(ltvAlert)}.${extraStr}`
+          );
+        return toneResult(
+          "green",
+          `LTV ${lv} is comfortably under alert ${pct(ltvAlert)}.${extraStr}`
+        );
+      }
+      function asicHashTone() {
+        if (!br.ok)
+          return toneResult(
+            "orange",
+            br.error
+              ? `Braiins sync issue: ${String(br.error).slice(0, 80)}`
+              : "Braiins data missing — run braiins_sync."
+          );
+        const hr = f(br.hash_rate_24h);
+        const off = f(br.off_workers);
+        const hrLabel = formatHashrate(br.hash_rate_24h, br.hash_rate_unit);
+        if (!(hr > 0))
+          return toneResult("red", "24h hashrate is zero — fleet may be offline.");
+        if (off > 0)
+          return toneResult(
+            "orange",
+            `${hrLabel} 24h but ${off} worker(s) off — check hardware.`
+          );
+        return toneResult(
+          "green",
+          `${hrLabel} 24h with ${br.ok_workers != null ? br.ok_workers : "?"} worker(s) ok.`
+        );
+      }
+      function nextPayTone() {
+        if (!br.ok)
+          return toneResult("muted", "Next payout estimate needs Braiins data.");
+        const d = br.days_to_next_payout_est;
+        if (d == null || !Number.isFinite(Number(d)))
+          return toneResult("yellow", "Payout ETA not estimated yet.");
+        const days = Number(d);
+        const prog =
+          br.next_payout_progress_pct != null
+            ? Number(br.next_payout_progress_pct).toFixed(0) + "% of threshold"
+            : "threshold progress unknown";
+        if (days <= 7)
+          return toneResult(
+            "green",
+            `Next payout ~${days.toFixed(0)}d away (${prog}) — income soon.`
+          );
+        if (days <= 21)
+          return toneResult(
+            "yellow",
+            `Next payout ~${days.toFixed(0)}d away (${prog}).`
+          );
+        return toneResult(
+          "orange",
+          `Next payout ~${days.toFixed(0)}d away (${prog}) — still filling threshold.`
+        );
+      }
+      function rhBpTone() {
+        if (!Number.isFinite(rhBp))
+          return toneResult("muted", "Buying power not loaded.");
+        // MO: floor 0 — any BP deployable; dust is min-trade HOLD, not a red floor miss
+        if (bpFloor <= 0) {
+          if (rhBp < 1)
+            return toneResult(
+              "yellow",
+              `RH BP ${money(rhBp)} is dust — below typical min trade.`
+            );
+          if (rhBp < 25)
+            return toneResult("yellow", `RH BP ${money(rhBp)} is small.`);
+          return toneResult("green", `RH BP ${money(rhBp)} deployable (no floor).`);
+        }
+        if (rhBp < bpFloor)
+          return toneResult(
+            "red",
+            `RH BP ${money(rhBp)} under floor ${money(bpFloor)}.`
+          );
+        if (rhBp < bpFloor * 3)
+          return toneResult(
+            "orange",
+            `RH BP ${money(rhBp)} low vs floor ${money(bpFloor)}.`
+          );
+        if (rhBp < bpFloor * 8)
+          return toneResult(
+            "yellow",
+            `RH BP ${money(rhBp)} moderate vs floor ${money(bpFloor)}.`
+          );
+        return toneResult(
+          "green",
+          `RH BP ${money(rhBp)} healthy vs floor ${money(bpFloor)}.`
+        );
+      }
+
+      const tWorking = workingUsdcTone();
+      const tCard =
+        stress.coinbase_card === "red"
+          ? toneResult(
+              "red",
+              `One Card ${money(cardOwed)} owed is flagged critical by stress rules.`
+            )
+          : cardOwedTone(cardOwed, cardDeposit);
+      const tRhCheck = cashLowTone(rhCheck, 5, 25, 75, "RH Checking");
+      const tXMoney = cashLowTone(xMoney, 40, 150, 400, "X Money");
+      const tAgent = agenticTone();
+      const tBp = rhBpTone();
+      const tBills = billsPressureTone();
+      const tLtv = ltvTone();
+      const tAsic = asicHashTone();
+      const tPay = nextPayTone();
+
+      // Glance: primary 5 only (SNR). Secondary cash/mining live on other tabs.
+      const cardUtilPct =
+        cardDeposit > 0 && Number.isFinite(cardOwed)
+          ? Math.round((cardOwed / cardDeposit) * 100) + "%"
+          : money(cardOwed);
       const kpis = [
         {
-          k: "USDC working",
-          v: money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc),
+          k: "USDC",
+          v: money(workingUsdc),
           s:
-            "spot " +
-            money(inp.liquid_usdc) +
-            " + vault " +
-            (inp.vault_known === false || inp.vault_usdc == null ? "?" : money(inp.vault_usdc)),
+            inp.vault_known === false || inp.vault_usdc == null
+              ? "spot+vault?"
+              : "w/ vault",
           target: "cash-credit",
+          tone: tWorking.tone,
+          why: tWorking.why,
         },
         {
-          k: "One Card owed",
-          v: money(inp.card_balance ?? oc.balance_owed),
-          s: oc.account_name ? "YNAB" : "—",
+          k: "Card",
+          v: cardUtilPct,
+          s: money(cardOwed) + " owed",
           target: "cash-credit",
-        },
-        {
-          k: "RH Checking",
-          v: money(inp.rh_checking_cash ?? rhc.cash),
-          s: "bill-pay float",
-          target: "cash-credit",
-        },
-        {
-          k: "RH BP",
-          v: money(inp.rh_buying_power),
-          s: "brokerage",
-          target: "panel-brokerage",
-        },
-        {
-          k: "Bills / mo est.",
-          v: money(es.upcoming_expense_monthly ?? es.personal_monthly ?? inp.expenses_upcoming_monthly),
-          s: "sheet Personal",
-          target: "upcoming-card",
+          tone: tCard.tone,
+          why: tCard.why,
         },
         {
           k: "LTV",
-          v: pct(inp.ltv),
-          s: stress.coinbase_ltv || "set in Settings",
+          v: pct(ltvVal),
+          s: stress.coinbase_ltv || "Morpho",
           target: "panel-settings",
+          tone: tLtv.tone,
+          why: tLtv.why,
+        },
+        {
+          k: "NAV",
+          v: money(agentNav),
+          s:
+            wDepK.btc_digital_credit == null
+              ? "agentic"
+              : Math.round((wDepK.stocks_growth || 0) * 100) +
+                "/" +
+                Math.round(wDepK.btc_digital_credit * 100),
+          target: "fund-manager-card",
+          tone: tAgent.tone,
+          why: tAgent.why,
+        },
+        {
+          k: "BP",
+          v: money(rhBp),
+          s: bpFloor > 0 ? "floor " + money(bpFloor) : "no floor",
+          target: "panel-brokerage",
+          tone: tBp.tone,
+          why: tBp.why,
         },
       ];
       document.getElementById("kpi-grid").innerHTML = kpis
-        .map(
-          (k) =>
-            `<div class="kpi" data-target="${k.target}"><div class="k">${k.k}</div><div class="v">${k.v}</div><div class="s">${k.s}</div></div>`
-        )
+        .map((k) => {
+          const tone = k.tone || "muted";
+          const word = toneWord[tone] || tone;
+          const why = (k.why || "").trim() || `${k.k}: ${word}`;
+          return (
+            `<div class="kpi tone-${tone}" data-target="${k.target}" tabindex="0" ` +
+            `aria-label="${escapeHtml(k.k + ": " + why)}">` +
+            `<div class="kpi-tip" role="tooltip">` +
+            `<span class="tip-tone">${escapeHtml(word)}</span>` +
+            `${escapeHtml(why)}</div>` +
+            `<div class="k">${k.k}</div>` +
+            `<div class="v">${k.v}</div>` +
+            `<div class="s">${k.s}</div></div>`
+          );
+        })
         .join("");
       document.querySelectorAll(".kpi").forEach((el) => {
         el.addEventListener("click", () => {
           const id = el.getAttribute("data-target");
           const node = document.getElementById(id);
           if (!node) return;
+          // Phase B: jump to the tab that owns this target on phone
+          if (typeof setFccTab === "function" && document.body.classList.contains("m-shell")) {
+            const panel = node.getAttribute("data-m-panel");
+            if (panel) setFccTab(panel);
+          }
           if (node.tagName === "DETAILS") node.open = true;
           node.scrollIntoView({ behavior: "smooth", block: "start" });
         });
       });
 
-      // Buffers
+      // Buffers — HY LTV Buffer is generic high-yield defense (not a card float).
+      // One Card sleeve = available credit vs deposit; gap = balance owed (Morpho refinance, not vault pull).
       const sleeves = ev.sleeves || {};
+      const ocSleeve = sleeves.one_card || {};
+      const cardBal =
+        ocSleeve.balance != null
+          ? f(ocSleeve.balance)
+          : inp.card_balance != null
+            ? f(inp.card_balance)
+            : null;
+      const cardDep =
+        ocSleeve.deposit != null
+          ? f(ocSleeve.deposit)
+          : inp.card_security_deposit_usdc != null
+            ? f(inp.card_security_deposit_usdc)
+            : null;
+      const cardAvail =
+        ocSleeve.available_credit != null
+          ? f(ocSleeve.available_credit)
+          : cardBal != null && cardDep != null
+            ? Math.max(0, cardDep - cardBal)
+            : null;
       document.getElementById("buffer-sleeves").innerHTML = [
         sleeveHtml(
-          "Card float",
-          sleeves.card_float?.filled,
-          sleeves.card_float?.target,
-          sleeves.card_float?.gap
-        ),
-        sleeveHtml(
-          "Loan buffer",
+          "HY LTV Buffer",
           sleeves.loan_buffer?.filled,
           sleeves.loan_buffer?.target,
           sleeves.loan_buffer?.gap
         ),
+        // Prefer live One Card numbers; never fall back to retired card_float ($0 target)
+        // which made this sleeve look empty while YNAB still showed ~$447 owed.
         sleeveHtml(
-          "Bridge powder",
-          sleeves.bridge_dry_powder?.filled,
-          sleeves.bridge_dry_powder?.target,
-          sleeves.bridge_dry_powder?.gap
+          "One Card (Morpho refinance)",
+          cardAvail != null ? cardAvail : 0,
+          cardDep != null ? cardDep : 0,
+          cardBal != null ? cardBal : 0
         ),
       ].join("");
 
-      // Coinbase liquid only (no card dupe)
-      document.getElementById("cb-metrics").innerHTML = [
-        metric("Working USDC (spot+vault)", money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)),
-        metric("Idle spot USDC", money(inp.liquid_usdc) + (f(inp.liquid_usdc) < 1 ? " · often $0 by design" : "")),
-        metric("High Yield vault", inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"),
-        metric("Liquid BTC", inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(6) : "—"),
-        metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
-        metric("LTV", pct(inp.ltv)),
-      ].join("");
-
-      document.getElementById("cash-credit-side").innerHTML = [
-        metric("One Card owed", money(inp.card_balance ?? oc.balance_owed)),
+      // Cash & credit stats — split evenly across two columns (no empty column)
+      const man = snap.coinbase_manual || {};
+      const cashCreditRows = [
+        metric(
+          "LTV sleeve (spot+HY)",
+          money(inp.working_usdc != null ? inp.working_usdc : inp.liquid_usdc)
+        ),
+        metric(
+          "One Card owed",
+          money(inp.card_balance ?? oc.balance_owed) + " · Morpho refinance"
+        ),
+        metric(
+          "HY LTV Buffer",
+          inp.vault_usdc != null ? money(inp.vault_usdc) : "enter in Settings"
+        ),
         metric(
           "Available credit",
           money(inp.card_available_credit) +
@@ -1172,61 +3691,232 @@
               ? " · deposit − bal"
               : "")
         ),
+        metric(
+          "Idle spot USDC",
+          money(inp.liquid_usdc) + (f(inp.liquid_usdc) < 1 ? " · often $0 by design" : "")
+        ),
         metric("USDC security deposit", money(inp.card_security_deposit_usdc)),
-        metric("Card source", inp.card_source || oc.source || "—"),
+        metric(
+          "Liquid BTC",
+          inp.liquid_btc != null ? Number(inp.liquid_btc).toFixed(6) : "—"
+        ),
         metric("RH Checking", money(inp.rh_checking_cash ?? rhc.cash)),
+        metric("BTC ≈ USD", money(inp.liquid_btc_usd)),
+        metric(
+          "X Money",
+          money(inp.x_money_cash ?? xm.cash) +
+            (inp.x_money_account || xm.account_name
+              ? ` · ${(inp.x_money_account || xm.account_name || "").toString().slice(0, 20)}`
+              : "") +
+            ((inp.x_money_apy_est ?? xm.apy_est) != null
+              ? ` · ~${(Number(inp.x_money_apy_est ?? xm.apy_est) * 100).toFixed(0)}% APY`
+              : "")
+        ),
+        metric("LTV", pct(inp.ltv)),
+        metric(
+          "Morpho var APR",
+          (() => {
+            const apr =
+              inp.variable_apr != null
+                ? f(inp.variable_apr)
+                : man.variable_apr != null
+                  ? f(man.variable_apr)
+                  : null;
+            if (apr == null || !Number.isFinite(apr)) return "— · set in Settings";
+            const principal =
+              f(inp.loan_principal_usdc) || f(man.loan_principal_usdc) || 0;
+            const yr =
+              principal > 0 && apr > 0
+                ? ` · ~${money(principal * apr)}/yr`
+                : "";
+            return (apr * 100).toFixed(2) + "%" + yr;
+          })()
+        ),
+        metric(
+          "Liq. price (BTC)",
+          (() => {
+            const liq =
+              inp.liquidation_price_btc_usd != null
+                ? f(inp.liquidation_price_btc_usd)
+                : man.liquidation_price_btc_usd != null
+                  ? f(man.liquidation_price_btc_usd)
+                  : null;
+            if (liq == null || !Number.isFinite(liq)) return "— · set in Settings";
+            const btcPx = f(inp.btc_usd_price);
+            if (btcPx > 0 && btcPx > liq) {
+              const cushion = ((btcPx - liq) / btcPx) * 100;
+              return money(liq) + ` · ${cushion.toFixed(0)}% below spot`;
+            }
+            return money(liq);
+          })()
+        ),
+        metric("Bank cash (RH+X)", money(inp.bank_cash)),
+        metric("Card source", inp.card_source || oc.source || "—"),
         metric("Bill-pay cash", money(inp.bill_pay_cash)),
         metric("Checking 30d out", money(rhc.spend_30d)),
-      ].join("");
+        metric("X Money 30d out", money(xm.spend_30d ?? inp.x_money_spend_30d)),
+        metric(
+          "Solana book",
+          money(inp.solana_book_usd ?? (snap.solana || {}).book_usd) +
+            " · not HY"
+        ),
+        metric(
+          "JR-strcUSX",
+          (inp.solana_jr_strcusx != null
+            ? Number(inp.solana_jr_strcusx).toFixed(4)
+            : "—") +
+            " · " +
+            money(inp.solana_jr_strcusx_usd ?? (snap.solana || {}).jr_strcusx_usd)
+        ),
+      ];
+      const cashMid = Math.ceil(cashCreditRows.length / 2);
+      document.getElementById("cb-metrics").innerHTML = cashCreditRows
+        .slice(0, cashMid)
+        .join("");
+      document.getElementById("cash-credit-side").innerHTML = cashCreditRows
+        .slice(cashMid)
+        .join("");
 
-      // Upcoming bills (sheet Personal) — urgency matches spreadsheet colors
-      const persTab = (ex.tabs && ex.tabs.Personal) || {};
-      const discTab = (ex.tabs && ex.tabs.Discretionary) || {};
-      const allItems = persTab.items || persTab.upcoming_by_date || [];
+      const solSnap = snap.solana || {};
+      const solHold = solSnap.holdings || [];
+      const solEl = document.getElementById("solana-metrics");
+      if (solEl) {
+        const w = inp.solana_wallet || solSnap.wallet || "";
+        solEl.innerHTML = [
+          metric("Book USD", money(inp.solana_book_usd ?? solSnap.book_usd) + " · not HY"),
+          metric(
+            "SOL",
+            (inp.solana_sol != null ? Number(inp.solana_sol).toFixed(6) : "—") +
+              " · " +
+              money(solSnap.sol_usd)
+          ),
+          metric("On-chain USDC", money(inp.solana_usdc ?? solSnap.usdc)),
+          metric(
+            "JR-strcUSX",
+            (inp.solana_jr_strcusx != null
+              ? Number(inp.solana_jr_strcusx).toFixed(4)
+              : "—") +
+              " · " +
+              money(inp.solana_jr_strcusx_usd ?? solSnap.jr_strcusx_usd)
+          ),
+          metric("Wallet", w ? w.slice(0, 4) + "…" + w.slice(-4) : "—"),
+          metric("Feed", (solSnap.source || "—") + (solSnap.slot ? " · slot " + solSnap.slot : "")),
+        ].join("");
+      }
+      const solHoldEl = document.getElementById("solana-holdings");
+      if (solHoldEl) {
+        const expl = solSnap.explorer
+          ? `<p class="hint"><a href="${escapeHtml(solSnap.explorer)}" target="_blank" rel="noopener">Solscan →</a>` +
+            (solSnap.ignored_token_accounts
+              ? ` · ${solSnap.ignored_token_accounts} non-book token accounts ignored`
+              : "") +
+            `</p>`
+          : "";
+        solHoldEl.innerHTML =
+          expl +
+          (solHold.length
+            ? solHold
+                .map((h) =>
+                  metric(
+                    h.symbol || "?",
+                    (h.amount != null ? Number(h.amount).toFixed(4) : "—") +
+                      " · " +
+                      money(h.usd) +
+                      (h.role ? " · " + h.role : "")
+                  )
+                )
+                .join("")
+            : `<p class="hint">No whitelist holdings yet — Refresh FCC</p>`);
+      }
+
+      // Bills side panel (pay-from + KPIs). List filled by coach when available.
+      // Pay-urgency list: Essential + Fleet ops + Collateral (awareness). Burn = funded unique Fleet only.
+      // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
+      const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
+      const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};
+      const collTab = (ex.tabs && ex.tabs.Collateral) || {};
+      const discTab =
+        (ex.tabs &&
+          (ex.tabs["Productive Discretionary"] ||
+            ex.tabs.Discretionary)) ||
+        {};
+      const consumerTab =
+        (ex.tabs && ex.tabs["Consumer Discretionary"]) || {};
+      const tagTab = (items, tab) =>
+        (items || []).map((r) =>
+          r && typeof r === "object" ? { ...r, tab: r.tab || tab } : r
+        );
+      const burnItems = []
+        .concat(tagTab(persTab.items, "Essential"))
+        .concat(tagTab(fleetTab.items, "Fleet"))
+        .concat(
+          tagTab(collTab.items, "Collateral").map((r) => ({
+            ...r,
+            capital_outlay: true,
+          }))
+        );
+      const allItems =
+        burnItems.length > 0
+          ? burnItems
+          : []
+              .concat(tagTab(persTab.upcoming_by_date, "Essential"))
+              .concat(tagTab(fleetTab.upcoming_by_date, "Fleet"))
+              .concat(
+                tagTab(collTab.upcoming_by_date, "Collateral").map((r) => ({
+                  ...r,
+                  capital_outlay: true,
+                }))
+              );
       const billsSorted = sortBillsByDate(allItems).filter((r) => (r.monthly || 0) > 0 || r.date);
-      let sumRed = 0,
-        sumYellow = 0,
-        sumGreen = 0,
-        nRed = 0,
-        nYellow = 0,
-        nGreen = 0;
-      for (const r of billsSorted) {
-        const u = dueUrgency(r.date);
-        const amt = Number(r.monthly) || 0;
-        if (u.level === "red") {
-          sumRed += amt;
-          nRed++;
-        } else if (u.level === "yellow") {
-          sumYellow += amt;
-          nYellow++;
-        } else if (u.level === "green") {
-          sumGreen += amt;
-          nGreen++;
+      // Fallback list until /api/coach returns (same urgency colors)
+      if (!window.__coachPlan || !window.__coachPlan.ok) {
+        fillBillUrgencyBar(billsSorted, "monthly");
+        const listEl = document.getElementById("expenses-upcoming");
+        if (listEl) {
+          listEl.innerHTML =
+            billsSorted
+              .slice(0, 14)
+              .map(billRowHtml)
+              .join("") || `<p class="hint">No dated items</p>`;
         }
       }
-      document.getElementById("bill-urgency-bar").innerHTML = [
-        `<div class="bill-chip due-red"><span class="n">${money(sumRed)}</span>` +
-          `<span class="l">≤7d · ${nRed} bill${nRed === 1 ? "" : "s"}</span></div>`,
-        `<div class="bill-chip due-yellow"><span class="n">${money(sumYellow)}</span>` +
-          `<span class="l">8–14d · ${nYellow}</span></div>`,
-        `<div class="bill-chip due-green"><span class="n">${money(sumGreen)}</span>` +
-          `<span class="l">&gt;14d · ${nGreen}</span></div>`,
-      ].join("");
-
-      document.getElementById("expenses-upcoming").innerHTML =
-        billsSorted
-          .slice(0, 14)
-          .map(billRowHtml)
-          .join("") || `<p class="hint">No dated items</p>`;
 
       document.getElementById("expense-kpis").innerHTML = [
         metric("Upcoming / mo", money(es.upcoming_expense_monthly ?? es.personal_monthly)),
+        metric("Essential / mo", money(es.essential_monthly ?? es.personal_monthly)),
+        metric("Fleet / mo", money(es.fleet_monthly)),
         metric("CB pay-from / mo", money(es.coinbase_funded_monthly)),
         metric("RH Checking / mo", money(es.rh_funded_monthly)),
-        metric("Capital targets", money(es.capital_targets_monthly ?? es.discretionary_monthly)),
+        metric("X Money / mo", money(es.x_money_funded_monthly)),
+        metric(
+          "Collateral / mo",
+          money(es.collateral_investments_monthly ?? es.collateral_monthly)
+        ),
+        metric(
+          "Productive / mo",
+          money(
+            es.productive_discretionary_monthly ??
+              es.capital_targets_monthly ??
+              es.discretionary_monthly
+          )
+        ),
+        metric(
+          "Consumer / mo",
+          money(es.consumer_discretionary_monthly)
+        ),
       ].join("");
 
-      const bySrc = persTab.by_source_monthly || {};
+      const bySrc =
+        es.by_source_monthly ||
+        (() => {
+          const a = persTab.by_source_monthly || {};
+          const b = fleetTab.by_source_monthly || {};
+          const m = { ...a };
+          for (const [k, v] of Object.entries(b)) {
+            m[k] = (Number(m[k]) || 0) + (Number(v) || 0);
+          }
+          return m;
+        })();
       const srcEntries = Object.entries(bySrc).slice(0, 6);
       const srcTotal = srcEntries.reduce((a, [, v]) => a + (Number(v) || 0), 0) || 1;
       const barEl = document.getElementById("expenses-pay-from-bar");
@@ -1258,15 +3948,165 @@
             .join("")
         : `<p class="hint">No pay-from data</p>`;
 
-      // Brokerage
+      // Brokerage detail (primary)
+      const rhSnap = snap.robinhood || rh || {};
+      const rhAgentic = rhSnap.agentic || {};
+      const pos = rhSnap.positions || [];
       document.getElementById("rh-metrics").innerHTML = [
-        metric("Buying power", money(inp.rh_buying_power)),
-        metric("Equity", money(inp.rh_equity)),
-        metric("Total value", money(inp.rh_total_value)),
-        metric("Brokerage cash", money(inp.rh_cash)),
-        metric("DCA", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
+        metric(
+          "Primary BP (policy)",
+          money(inp.rh_buying_power) +
+            (inp.rh_account_last4 ? ` · ••••${inp.rh_account_last4}` : "")
+        ),
+        metric("Primary equity", money(inp.rh_equity)),
+        metric("Primary total", money(inp.rh_total_value)),
+        metric("Primary cash", money(inp.rh_cash)),
+        metric(
+          "USDG Earn (Morpho)",
+          inp.rh_usdg_earn_usdg != null
+            ? money(inp.rh_usdg_earn_usdg) +
+                (inp.rh_usdg_earn_apy_est != null
+                  ? ` · ~${(Number(inp.rh_usdg_earn_apy_est) * 100).toFixed(1)}% est.`
+                  : " · manual")
+            : "enter in Settings"
+        ),
+        metric(
+          "RH margin loan / equity coll.",
+          `${money(inp.rh_margin_loan_usd)} / ${money(inp.rh_equity_collateral_usd)}`
+        ),
+        metric(
+          "Positions (primary)",
+          pos.length
+            ? pos
+                .slice(0, 10)
+                .map((p) => p.symbol)
+                .join(" · ") + (pos.length > 10 ? ` +${pos.length - 10}` : "")
+            : String(inp.rh_positions_count ?? 0)
+        ),
+        metric("DCA (legacy primary)", ev.dca ? `${ev.dca.allow_dca ? "ALLOW" : "PAUSE"} · ${ev.dca.throttle}` : "—"),
         metric("Why", (ev.dca && ev.dca.reason) || "—"),
       ].join("");
+
+      // Fund manager card (first-class)
+      const fm = data.fund_manager || ev.fund_manager || {};
+      const fma = fm.analysis || {};
+      const wDep = fma.weights_of_deployed || {};
+      const wNav = fma.weights_of_nav || {};
+      const pctLabel = (x) =>
+        x == null || !Number.isFinite(Number(x)) ? "—" : (Number(x) * 100).toFixed(0) + "%";
+      const liveOn = !(fm.policy_summary && fm.policy_summary.live === false);
+      const liveDot = document.getElementById("fm-live-dot");
+      if (liveDot) {
+        liveDot.textContent = liveOn ? "Autopilot live" : "Paused";
+        liveDot.className = "live-dot" + (liveOn ? "" : " off");
+      }
+
+      const btcPct = wDep.btc_digital_credit;
+      const stPct = wDep.stocks_growth;
+      const tgtBtc = (fma.targets && fma.targets.btc_digital_credit_pct) || 0.4;
+      const tgtSt = (fma.targets && fma.targets.stocks_growth_pct) || 0.6;
+      const bandAlloc = (fma.targets && fma.targets.band_pct) || 0.05;
+      const btcOk = btcPct != null && Math.abs(btcPct - tgtBtc) <= bandAlloc;
+      const stOk = stPct != null && Math.abs(stPct - tgtSt) <= bandAlloc;
+      const mixOk = btcOk && stOk;
+      const stW = Math.max(0, Math.min(100, Math.round((stPct || 0) * 100)));
+      const btcW = Math.max(0, Math.min(100 - stW, Math.round((btcPct || 0) * 100)));
+      const tgtMarkPct = Math.round(tgtSt * 100); // stocks share from left (60/40)
+      document.getElementById("fm-alloc").innerHTML = fma.ok
+        ? [
+            `<div class="alloc-row"><div class="top"><span class="name">Deployed mix · stocks / BTC+</span>` +
+              `<span class="pct ${mixOk ? "in" : "out"}">${pctLabel(stPct)} / ${pctLabel(btcPct)} ` +
+              `<span class="hint">target 60/40</span></span></div>` +
+              `<div class="alloc-bar dual">` +
+              (stW > 0
+                ? `<i class="fill stocks" style="width:${stW}%" title="Stocks / growth ${pctLabel(stPct)}"></i>`
+                : "") +
+              (btcW > 0
+                ? `<i class="fill btc" style="width:${btcW}%" title="BTC &amp; digital credit ${pctLabel(btcPct)}"></i>`
+                : "") +
+              `<span class="target-mark" style="left:${tgtMarkPct}%" title="Target split ${tgtMarkPct}/${100 - tgtMarkPct}"></span>` +
+              `</div>` +
+              `<div class="alloc-legend">` +
+              `<span><i class="sw stocks"></i>Stocks / growth ${pctLabel(stPct)} <span class="hint">tgt ${Math.round(tgtSt * 100)}%</span></span>` +
+              `<span><i class="sw btc"></i>BTC &amp; digital credit ${pctLabel(btcPct)} <span class="hint">tgt ${Math.round(tgtBtc * 100)}%</span></span>` +
+              `</div></div>`,
+          ].join("")
+        : `<p class="hint">No allocation yet</p>`;
+
+      // Holdings from agentic positions (analysis or snapshot)
+      const apos =
+        (fma.positions && fma.positions.length
+          ? fma.positions
+          : (rhAgentic.positions || []).map((p) => ({
+              symbol: p.symbol,
+              quantity: p.quantity,
+              sleeve: "—",
+              market_value: null,
+            }))) || [];
+      document.getElementById("fm-holdings").innerHTML = apos.length
+        ? `<table class="pos-table"><thead><tr><th>Symbol</th><th>Sleeve</th><th>Qty</th><th>Est. $</th></tr></thead><tbody>` +
+          apos
+            .slice(0, 12)
+            .map((p) => {
+              const sl = p.sleeve || "other";
+              const chip =
+                sl === "btc_digital_credit"
+                  ? "btc"
+                  : sl === "stocks_growth"
+                    ? "stocks"
+                    : "other";
+              const slabel =
+                sl === "btc_digital_credit"
+                  ? "BTC+"
+                  : sl === "stocks_growth"
+                    ? "Stocks"
+                    : sl;
+              return (
+                `<tr><td><strong>${escapeHtml(p.symbol || "—")}</strong></td>` +
+                `<td><span class="sleeve-chip ${chip}">${escapeHtml(slabel)}</span></td>` +
+                `<td>${escapeHtml(String(p.quantity ?? "—"))}</td>` +
+                `<td>${p.market_value != null ? money(p.market_value) : "—"}</td></tr>`
+              );
+            })
+            .join("") +
+          `</tbody></table>`
+        : `<p class="hint">No agentic positions</p>`;
+
+      const wl = fma.watchlist || {};
+      const wlSyms = wl.symbols || (wl.entries || []).map((e) => e.symbol).filter(Boolean);
+      document.getElementById("fund-manager-metrics").innerHTML = fma.ok
+        ? [
+            metric("NAV / BP / cash", `${money(fma.nav_usd)} · ${money(fma.buying_power_usd)} · ${money(fma.cash_usd)}`),
+            metric(
+              "Of NAV",
+              `Complex ${pctLabel(wNav.btc_digital_credit)} · Stocks ${pctLabel(
+                wNav.stocks_growth
+              )} · Cash ${pctLabel(wNav.cash)}`
+            ),
+            metric(
+              "Watchlist",
+              wlSyms.length
+                ? `${wlSyms.slice(0, 6).join(" · ")}${wlSyms.length > 6 ? "…" : ""} · <a href="watchlist.html">open dashboard</a>`
+                : `<a href="watchlist.html">open research dashboard</a>`
+            ),
+            metric(
+              "Hints",
+              (fma.manager_hints || []).length
+                ? (fma.manager_hints || []).slice(0, 2).join(" · ")
+                : "—"
+            ),
+            metric(
+              "Cadence",
+              "~1 auto review/day · mid-session · no trade cap"
+            ),
+            metric("Team", "Scout · Thesis · Risk · Critic → Executor"),
+          ].join("")
+        : `<p class="hint">${escapeHtml(
+            (fm.error || fma.error || "No fund manager analysis — refresh RH snapshot") + ""
+          )}</p>`;
+
+      // Decision log — single-card carousel (saves vertical space)
+      renderDecisionCarousel(fm.recent_decisions || []);
 
       // YNAB txs collapsed
       const octx = oc.transactions || [];
@@ -1293,7 +4133,35 @@
             )
             .join("")
         : `<p class="hint">No checking txs</p>`;
+      const xmtx = xm.transactions || [];
+      document.getElementById("x-money-txs").innerHTML = xmtx.length
+        ? xmtx
+            .slice(0, 8)
+            .map(
+              (t) =>
+                `<div class="metric"><span class="label">${t.date || ""} · ${
+                  t.payee || "—"
+                }</span><span class="val">${money(t.amount_display ?? t.amount)}</span></div>`
+            )
+            .join("")
+        : `<p class="hint">No X Money txs</p>`;
 
+      const collEl = document.getElementById("expenses-top-collateral");
+      if (collEl) {
+        collEl.innerHTML = (
+          collTab.top_targets ||
+          collTab.top_monthly ||
+          []
+        )
+          .slice(0, 8)
+          .map(
+            (r) =>
+              `<div class="metric"><span class="label">${escapeHtml(
+                r.item || "—"
+              )}</span><span class="val">${money(r.monthly)}</span></div>`
+          )
+          .join("") || `<p class="hint">No collateral investment items</p>`;
+      }
       document.getElementById("expenses-top-disc").innerHTML = (
         discTab.top_targets ||
         discTab.top_monthly ||
@@ -1306,7 +4174,23 @@
               r.monthly
             )}</span></div>`
         )
-        .join("") || `<p class="hint">No capital targets</p>`;
+        .join("") || `<p class="hint">No productive capital targets</p>`;
+      const consEl = document.getElementById("expenses-top-consumer");
+      if (consEl) {
+        consEl.innerHTML = (
+          consumerTab.top_targets ||
+          consumerTab.top_monthly ||
+          []
+        )
+          .slice(0, 8)
+          .map(
+            (r) =>
+              `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(
+                r.monthly
+              )}</span></div>`
+          )
+          .join("") || `<p class="hint">No consumer wishlist items</p>`;
+      }
 
       // Missing data panel only if needed
       const dq = ev.data_quality || {};
@@ -1325,21 +4209,18 @@
         missPanel.classList.add("hidden");
       }
 
-      // Settings
-      const pol = ev.policy || {};
+      // Settings (pol declared above with KPI tones)
       document.getElementById("policy-grid").innerHTML = [
         sleeveHtml("Card float target", pol.cb_card_float_usdc, pol.cb_card_float_usdc, 0),
-        sleeveHtml("Loan buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
-        sleeveHtml("Bridge powder", pol.cb_bridge_dry_powder_usdc, pol.cb_bridge_dry_powder_usdc, 0),
+        sleeveHtml("HY LTV Buffer target", pol.cb_loan_buffer_usdc, pol.cb_loan_buffer_usdc, 0),
         sleeveHtml("RH BP floor", pol.rh_bp_floor, pol.rh_bp_floor, 0),
       ].join("");
-      // simpler display for targets
+      // simpler display for targets (bridge powder retired — HY covers residual)
       document.getElementById("policy-grid").innerHTML = [
         metric("LTV max", pct(pol.cb_target_ltv_max)),
         metric("LTV alert", pct(pol.cb_ltv_alert)),
-        metric("Card float $", money(pol.cb_card_float_usdc)),
-        metric("Loan buffer $", money(pol.cb_loan_buffer_usdc)),
-        metric("Bridge powder $", money(pol.cb_bridge_dry_powder_usdc)),
+        metric("HY LTV Buffer $", money(pol.cb_loan_buffer_usdc)),
+        metric("Spot card reserve $", money(pol.cb_card_float_usdc)),
         metric("RH BP floor $", money(pol.rh_bp_floor)),
         metric("Margin max", pct(pol.rh_margin_use_max)),
       ].join("");
@@ -1353,7 +4234,7 @@
         )
         .join("");
 
-      const man = snap.coinbase_manual || {};
+      // man already set above for cash metrics
       const set = (id, v) => {
         const el = document.getElementById(id);
         if (el && v !== null && v !== undefined && v !== "") el.value = v;
@@ -1362,6 +4243,8 @@
       set("m-collateral", man.collateral_btc_usd);
       set("m-ltv", man.ltv);
       set("m-vault", man.vault_usdc);
+      set("m-var-apr", man.variable_apr);
+      set("m-liq-price", man.liquidation_price_btc_usd);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
       set(
@@ -1371,13 +4254,306 @@
           inp.card_security_deposit_usdc
       );
       set("m-card-avail", man.card_available_credit);
+      const rhCfg = (snap.meta && snap.meta.rh_accounts) || {};
+      const rhMan = snap.robinhood || {};
+      set("m-usdg-earn", rhMan.usdg_earn_usdg ?? inp.rh_usdg_earn_usdg);
+      set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? inp.rh_usdg_earn_apy_est ?? 0.07);
+      set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
+      set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
 
+      renderBraiins(data.braiins);
       window.__treasury = data;
+    }
+
+    function decisionCardHtml(d) {
+      const rat = d.rationale || {};
+      const why =
+        (typeof rat === "string" ? rat : rat.why_now || rat.summary || d.summary) || "—";
+      const whyNot =
+        typeof rat === "object" && rat.why_not_alternatives
+          ? rat.why_not_alternatives
+          : "";
+      const votes = d.team_votes || {};
+      const voteBits = ["scout", "thesis", "risk", "critic", "executor"]
+        .filter((r) => votes[r])
+        .map((r) => {
+          const v = votes[r];
+          const label = typeof v === "object" ? v.vote || v.stance || "—" : v;
+          return `${r}:${label}`;
+        })
+        .join(" · ");
+      const voteNotes = ["thesis", "risk", "critic"]
+        .filter((r) => votes[r] && typeof votes[r] === "object" && votes[r].note)
+        .map((r) => `${r}: ${votes[r].note}`)
+        .join(" · ");
+      const acts = (d.actions || [])
+        .map((a) =>
+          typeof a === "object"
+            ? `${(a.side || "?").toUpperCase()} ${a.symbol || "?"} $${
+                a.notional_usd ?? a.dollar_amount ?? "?"
+              }`
+            : String(a)
+        )
+        .join(", ");
+      const when = (d.as_of || "").toString().replace("T", " ").slice(0, 16);
+      return (
+        `<div class="action sev-info">` +
+        `<div class="top"><span class="tag p">${escapeHtml(
+          d.kind || "decision"
+        )}</span>` +
+        `<span class="title">${escapeHtml(when)} · ${escapeHtml(
+          (d.summary || "").toString().slice(0, 90)
+        )}</span></div>` +
+        `<div class="why"><strong>Why:</strong> ${escapeHtml(
+          String(why).slice(0, 320)
+        )}</div>` +
+        (whyNot
+          ? `<div class="why"><strong>Not:</strong> ${escapeHtml(
+              String(whyNot).slice(0, 200)
+            )}</div>`
+          : "") +
+        (voteBits ? `<div class="do">Votes: ${escapeHtml(voteBits)}</div>` : "") +
+        (voteNotes
+          ? `<div class="why">${escapeHtml(voteNotes.slice(0, 280))}</div>`
+          : "") +
+        (acts ? `<div class="do">Actions: ${escapeHtml(acts)}</div>` : "") +
+        `</div>`
+      );
+    }
+
+    function renderDecisionCarousel(decs) {
+      const host = document.getElementById("fund-manager-decisions");
+      if (!host) return;
+      const items = (decs || []).slice(0, 12);
+      if (!items.length) {
+        host.innerHTML =
+          `<p class="hint">No decisions yet. Scheduled daily reviews will appear here for optional monitoring.</p>`;
+        return;
+      }
+      // Preserve index across soft re-renders when list length unchanged
+      let idx = window.__decCarouselIdx || 0;
+      if (idx >= items.length) idx = 0;
+      window.__decCarouselItems = items;
+
+      const paint = () => {
+        const n = items.length;
+        idx = Math.max(0, Math.min(idx, n - 1));
+        window.__decCarouselIdx = idx;
+        host.innerHTML =
+          `<div class="dec-carousel">` +
+          `<div class="dec-carousel-head">` +
+          `<span>Log</span>` +
+          `<div class="dec-nav">` +
+          `<button type="button" id="dec-prev" aria-label="Previous decision">‹</button>` +
+          `<span class="dec-pos" id="dec-pos">${idx + 1} / ${n}</span>` +
+          `<button type="button" id="dec-next" aria-label="Next decision">›</button>` +
+          `</div></div>` +
+          `<div class="dec-slide" id="dec-slide">${decisionCardHtml(items[idx])}</div>` +
+          `<div class="dec-dots" id="dec-dots">` +
+          items
+            .map(
+              (_, i) =>
+                `<button type="button" class="${i === idx ? "on" : ""}" data-i="${i}" aria-label="Decision ${i + 1}"></button>`
+            )
+            .join("") +
+          `</div></div>`;
+
+        const prev = document.getElementById("dec-prev");
+        const next = document.getElementById("dec-next");
+        if (prev) {
+          prev.disabled = n <= 1;
+          prev.onclick = () => {
+            idx = (idx - 1 + n) % n;
+            paint();
+          };
+        }
+        if (next) {
+          next.disabled = n <= 1;
+          next.onclick = () => {
+            idx = (idx + 1) % n;
+            paint();
+          };
+        }
+        host.querySelectorAll("#dec-dots button").forEach((btn) => {
+          btn.onclick = () => {
+            idx = Number(btn.getAttribute("data-i")) || 0;
+            paint();
+          };
+        });
+      };
+      paint();
+    }
+
+    function formatPayoutEta(iso, days) {
+      if (iso) {
+        const t = Date.parse(iso);
+        if (Number.isFinite(t)) {
+          const d = new Date(t);
+          const when = d.toLocaleString(undefined, {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            timeZone: "UTC",
+            timeZoneName: "short",
+          });
+          if (days != null && Number.isFinite(Number(days))) {
+            return `${when} · ~${Number(days).toFixed(1)}d`;
+          }
+          return when;
+        }
+      }
+      if (days != null && Number.isFinite(Number(days))) {
+        return `~${Number(days).toFixed(1)} days`;
+      }
+      return "—";
+    }
+
+    function renderBraiins(br) {
+      const metricsEl = document.getElementById("braiins-metrics");
+      const metricsB = document.getElementById("braiins-metrics-b");
+      const progressEl = document.getElementById("braiins-progress");
+      const workersEl = document.getElementById("braiins-workers");
+      const dot = document.getElementById("braiins-live-dot");
+      if (!metricsEl) return;
+      br = br || {};
+      if (!br.ok) {
+        if (dot) {
+          dot.className = "live-dot off";
+          dot.textContent = br.status === "missing" ? "No snapshot" : "Offline";
+        }
+        if (progressEl) progressEl.innerHTML = "";
+        metricsEl.innerHTML =
+          `<p class="hint" style="margin:0">${escapeHtml(
+            br.error || "Braiins not synced"
+          )}</p>` +
+          `<p class="hint">Token at <code>~/.config/braiins/token</code> then ` +
+          `<code>python3 treasury/braiins_sync.py</code></p>`;
+        if (metricsB) metricsB.innerHTML = "";
+        if (workersEl) workersEl.innerHTML = "";
+        return;
+      }
+      if (dot) {
+        const off = Number(br.off_workers || 0);
+        const low = Number(br.low_workers || 0);
+        if (off > 0) {
+          dot.className = "live-dot off";
+          dot.textContent = off + " offline";
+        } else if (low > 0) {
+          dot.className = "live-dot off";
+          dot.textContent = low + " low";
+        } else {
+          dot.className = "live-dot";
+          dot.textContent = "Live · " + (ageLabel(br.as_of) || "ok");
+        }
+      }
+      const thr = br.next_payout_threshold_btc;
+      const prog = br.next_payout_progress_pct;
+      const outlook = br.payout_outlook || {};
+      const barPct =
+        prog != null && Number.isFinite(Number(prog))
+          ? Math.max(0, Math.min(100, Number(prog)))
+          : null;
+      const eta = formatPayoutEta(br.next_payout_est_at, br.days_to_next_payout_est);
+      // Hero: progress to threshold (full width)
+      const progressBlock =
+        barPct != null
+          ? `<div class="payout-bar-wrap" style="margin-bottom:0.4rem">` +
+            `<div style="display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.3rem">` +
+            `<div><div class="hint" style="margin:0">Next payout (est.)</div>` +
+            `<div style="font-size:1.05rem;font-weight:700;font-variant-numeric:tabular-nums">${escapeHtml(
+              eta
+            )}</div></div>` +
+            `<div style="text-align:right"><div class="hint" style="margin:0">Threshold</div>` +
+            `<div style="font-weight:650">${btcAmt(thr, 4)}</div></div></div>` +
+            `<div class="payout-bar" title="${barPct}% of ${btcAmt(thr, 4)} threshold">` +
+            `<i style="width:${barPct}%"></i></div>` +
+            `<div class="payout-bar-lab">` +
+            `<span>Balance ${btcAmt(br.current_balance_btc)} · remaining ${btcAmt(
+              outlook.remaining_btc
+            )}</span>` +
+            `<span>${barPct.toFixed(1)}%</span></div></div>`
+          : `<div class="metric"><span class="label">Next payout (est.)</span><span class="val">${escapeHtml(
+              eta
+            )}</span></div>`;
+
+      if (progressEl) progressEl.innerHTML = progressBlock;
+
+      // Stat lines split evenly across two columns (less vertical height)
+      const statRows = [
+        metric(
+          "Avg daily reward",
+          btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)
+        ),
+        metric("User", escapeHtml(br.username || "—")),
+        metric("Hashrate 5m", formatHashrate(br.hash_rate_5m, br.hash_rate_unit)),
+        metric("Hashrate 60m", formatHashrate(br.hash_rate_60m, br.hash_rate_unit)),
+        metric("Hashrate 24h", formatHashrate(br.hash_rate_24h, br.hash_rate_unit)),
+        metric(
+          "Workers",
+          `${br.ok_workers != null ? br.ok_workers : "?"} ok` +
+            (br.low_workers ? ` · ${br.low_workers} low` : "") +
+            (br.off_workers ? ` · ${br.off_workers} off` : "")
+        ),
+        metric("Today reward", btcAmt(br.today_reward_btc)),
+        metric("Pool balance", btcAmt(br.current_balance_btc)),
+        metric("Last payout", btcAmt(br.last_payout_btc)),
+        metric(
+          "Last payout at",
+          br.last_payout_at
+            ? escapeHtml(String(br.last_payout_at).slice(0, 16).replace("T", " ")) +
+                " UTC"
+            : "—"
+        ),
+        metric(
+          "Hist. interval",
+          outlook.median_payout_interval_days != null
+            ? `~${outlook.median_payout_interval_days}d between pays`
+            : "—"
+        ),
+        metric("All-time reward", btcAmt(br.all_time_reward_btc)),
+        metric("Synced", ageLabel(br.as_of) || "—"),
+      ];
+      const mid = Math.ceil(statRows.length / 2);
+      metricsEl.innerHTML = statRows.slice(0, mid).join("");
+      if (metricsB) {
+        metricsB.innerHTML =
+          statRows.slice(mid).join("") +
+          `<p class="hint" style="margin:0.4rem 0 0">` +
+          `Threshold ~${btcAmt(thr, 4)} from payout history; ` +
+          `~${btcAmt(br.daily_reward_avg_btc || outlook.daily_reward_avg_btc)}/day → ETA. ` +
+          `Pays at next 09:00 UTC after threshold.` +
+          `</p>`;
+      }
+
+      const workers = br.workers || [];
+      if (workersEl) {
+        if (!workers.length) {
+          workersEl.innerHTML = `<p class="hint">No worker detail</p>`;
+        } else {
+          workersEl.innerHTML = workers
+            .map((w) => {
+              const name = String(w.name || "?").split(".").pop() || w.name;
+              const st = w.state || "?";
+              return (
+                `<div class="metric">` +
+                `<span class="label">${escapeHtml(name)} · ${escapeHtml(st)}</span>` +
+                `<span class="val" style="font-size:0.9rem">${formatHashrate(
+                  w.hash_rate_24h != null ? w.hash_rate_24h : w.hash_rate_5m,
+                  w.hash_rate_unit || br.hash_rate_unit
+                )} 24h</span></div>`
+              );
+            })
+            .join("");
+        }
+      }
     }
 
     function readManualForm() {
       const num = (id) => {
-        const v = document.getElementById(id).value;
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const v = el.value;
         return v === "" ? null : v;
       };
       return {
@@ -1385,10 +4561,195 @@
         collateral_btc_usd: num("m-collateral"),
         ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
+        variable_apr: num("m-var-apr"),
+        liquidation_price_btc_usd: num("m-liq-price"),
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
         card_available_credit: num("m-card-avail"),
       };
+    }
+
+    function readRobinhoodForm() {
+      const num = (id) => {
+        const el = document.getElementById(id);
+        if (!el) return null;
+        const v = el.value;
+        return v === "" ? null : v;
+      };
+      return {
+        usdg_earn_usdg: num("m-usdg-earn"),
+        usdg_earn_apy_est: num("m-usdg-apy"),
+        margin_loan_usd: num("m-rh-margin-loan"),
+        equity_collateral_usd: num("m-rh-eq-coll"),
+      };
+    }
+
+    function renderCoach(plan) {
+      window.__coachPlan = plan;
+      const sumEl = document.getElementById("coach-summary");
+      const advEl = document.getElementById("coach-advice");
+      const listEl = document.getElementById("expenses-upcoming");
+      const habEl = document.getElementById("coach-habits");
+      const reqEl = document.getElementById("coach-requests");
+      if (!sumEl) return;
+      if (!plan || !plan.ok) {
+        sumEl.textContent =
+          "Coach unavailable: " + (plan && plan.error ? plan.error : "no data") +
+          " — showing sheet due list only.";
+        return;
+      }
+      const s = plan.summary || {};
+      const venues = s.venues || {};
+      const vBits = Object.keys(venues)
+        .map((k) => {
+          const v = venues[k] || {};
+          const age =
+            v.age_hours != null
+              ? v.age_hours < 1
+                ? " · just now"
+                : ` · ${Number(v.age_hours).toFixed(0)}h old`
+              : "";
+          return (
+            (v.label || k) +
+            " avail " +
+            money(v.available) +
+            " → residual " +
+            money(v.residual) +
+            age
+          );
+        })
+        .join(" · ");
+      sumEl.innerHTML =
+        `<strong>${s.obligation_count || 0}</strong> lines · due ` +
+        money(s.total_due) +
+        ` · allocated ` +
+        money(s.total_allocated) +
+        ` · gap ` +
+        money(s.total_gap) +
+        (s.overdue_count
+          ? ` · <span style="color:var(--red)">${s.overdue_count} overdue</span>`
+          : "") +
+        `<div class="hint" style="margin:0.35rem 0 0">${escapeHtml(vBits)}</div>`;
+
+      if (advEl) {
+        advEl.innerHTML = (plan.advice || [])
+          .map((a) => `<div class="hint" style="margin:0.2rem 0">• ${escapeHtml(a)}</div>`)
+          .join("");
+      }
+
+      const rows = plan.obligations || [];
+      fillBillUrgencyBar(rows, "amount_due");
+      if (listEl) {
+        listEl.innerHTML = rows.length
+          ? rows.slice(0, 20).map(coachBillRowHtml).join("") +
+            (rows.length > 20
+              ? `<p class="hint">Showing top 20 of ${rows.length} by pay urgency.</p>`
+              : "")
+          : `<p class="hint">No expense lines in coach snapshot.</p>`;
+      }
+
+      const h = plan.habits || {};
+      if (habEl) {
+        habEl.innerHTML =
+          `<div class="hint"><strong>Habits / pace</strong> · sheet burn ` +
+          (h.personal_daily_burn_est != null
+            ? money(h.personal_daily_burn_est) + "/day"
+            : "—") +
+          (h.runway_days_at_sheet_burn != null
+            ? ` · liquid runway ~${h.runway_days_at_sheet_burn}d`
+            : "") +
+          (h.ynab_spend_30d
+            ? ` · YNAB 30d spend card+cash ${money(
+                h.ynab_spend_30d.combined_card_and_cash
+              )}`
+            : "") +
+          `</div>`;
+      }
+
+      const reqs = plan.data_requests || [];
+      if (reqEl) {
+        reqEl.innerHTML = reqs.length
+          ? `<div class="hint"><strong>Data requests</strong></div>` +
+            reqs
+              .slice(0, 8)
+              .map(
+                (d) =>
+                  `<div class="hint" style="margin:0.2rem 0">• <code>${escapeHtml(
+                    d.field || ""
+                  )}</code> — ${escapeHtml(d.why || "")} <em>${escapeHtml(
+                    d.how || ""
+                  )}</em></div>`
+              )
+              .join("")
+          : "";
+      }
+    }
+
+    async function loadCoach(opts) {
+      const force = opts && opts.refresh;
+      try {
+        const q =
+          "/api/coach?ts=" +
+          Date.now() +
+          (force ? "&refresh=1" : "");
+        const res = await fetch(q);
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const plan = await res.json();
+        renderCoach(plan);
+      } catch (e) {
+        renderCoach({ ok: false, error: e.message });
+      }
+    }
+
+    async function loadWatchlistPreview() {
+      const el = document.getElementById("watchlist-preview");
+      if (!el) return;
+      try {
+        const res = await fetch("/api/watchlist?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        const entries = data.entries || [];
+        if (!entries.length) {
+          el.innerHTML =
+            `<p class="hint">No watchlist entries. <a href="watchlist.html">Open dashboard</a></p>`;
+          return;
+        }
+        el.innerHTML =
+          entries
+            .slice(0, 5)
+            .map((e) => {
+              const d = e.deep_dive || {};
+              const concl =
+                d.one_line_conclusion ||
+                e.last_verdict ||
+                e.notes ||
+                e.thesis_fit ||
+                "—";
+              const st = e.status || "monitor";
+              return (
+                `<div class="metric" style="margin-bottom:0.45rem">` +
+                `<div class="k"><a href="watchlist.html">${escapeHtml(e.symbol)}</a>` +
+                ` · ${escapeHtml(st)}` +
+                (e.held_in_agentic ? " · held" : "") +
+                `</div>` +
+                `<div class="v" style="font-size:0.85rem;font-weight:500">${escapeHtml(
+                  String(concl).slice(0, 160)
+                )}${String(concl).length > 160 ? "…" : ""}</div>` +
+                `<div class="s">${escapeHtml(
+                  (e.themes || []).join(" · ") || e.theme || e.sleeve_if_owned || ""
+                )}</div></div>`
+              );
+            })
+            .join("") +
+          (entries.length > 5
+            ? `<p class="hint">+${entries.length - 5} more · <a href="watchlist.html">full dashboard</a></p>`
+            : `<p class="hint"><a href="watchlist.html">Open full watchlist research →</a></p>`);
+      } catch (e) {
+        el.innerHTML =
+          `<p class="hint">Watchlist preview unavailable (${escapeHtml(e.message)}). ` +
+          `<a href="watchlist.html">Try dashboard</a></p>`;
+      }
     }
 
     async function loadTreasury() {
@@ -1406,7 +4767,16 @@
           data = await res.json();
         }
         if (!data.evaluation || !data.snapshot) throw new Error("malformed treasury payload");
+        if (!data.braiins) {
+          try {
+            const brRes = await fetch("/api/braiins?ts=" + Date.now());
+            if (brRes.ok) data.braiins = await brRes.json();
+          } catch (_) {}
+        }
+        window.__treasury = data;
         render(data);
+        loadWatchlistPreview();
+        loadCoach();
       } catch (e) {
         errEl.classList.remove("hidden");
         errEl.textContent =
@@ -1426,9 +4796,52 @@
         });
         const body = await res.json();
         if (!res.ok || !body.ok) throw new Error(body.error || res.status);
-        if (body.treasury) render(body.treasury);
-        else await loadTreasury();
-        toast("Updated all feeds");
+        if (body.treasury) {
+          const t = body.treasury;
+          if (!t.braiins) {
+            try {
+              const brRes = await fetch("/api/braiins?ts=" + Date.now());
+              if (brRes.ok) t.braiins = await brRes.json();
+            } catch (_) {}
+          }
+          window.__treasury = t;
+          render(t);
+          if (typeof loadCoach === "function") loadCoach();
+        } else await loadTreasury();
+        // Honest toast: Refresh is not "all feeds" (RH trade is MCP-only)
+        const r = body.refreshed || {};
+        const bits = [];
+        if (r.ynab === "ok") bits.push("YNAB");
+        else if (r.ynab && r.ynab !== "skipped") bits.push("YNAB⚠");
+        if (r.expenses === "ok") bits.push("Sheet");
+        else if (r.expenses && r.expenses !== "skipped") bits.push("Sheet⚠");
+        if (r.coinbase_live_error) bits.push("CB⚠");
+        else if (r.coinbase_treasury === "ok" || r.coinbase_treasury === "pending")
+          bits.push("CB");
+        else if (r.coinbase_treasury && r.coinbase_treasury !== "skipped")
+          bits.push("CB⚠");
+        if (String(r.braiins || "").startsWith("ok")) bits.push("Braiins");
+        else if (r.braiins && r.braiins !== "skipped")
+          bits.push("Braiins⚠");
+        if (String(r.robinhood || "").startsWith("ok")) {
+          const src = String(r.robinhood).replace(/^ok:/, "") || "ok";
+          bits.push("RH:" + src);
+        } else if (r.robinhood && r.robinhood !== "skipped") {
+          bits.push("RH⚠");
+        }
+        let msg = bits.length
+          ? "Refreshed: " + bits.join(" · ")
+          : "Treasury re-evaluated (see feed ages)";
+        window.__fccHostMode = r.mode || window.__fccHostMode;
+        if (r.mode === "offline_consumer") {
+          msg =
+            "Offline (phone/Pi): reloaded last Mac-pushed snapshots" +
+            (bits.length ? " · " + bits.join(" · ") : "");
+        }
+        if (r.push_pi && r.push_pi.ok && (r.push_pi.pushed || []).length) {
+          msg += " · pushed→Pi";
+        }
+        toast(msg);
       } catch (e) {
         toast("Refresh failed — is the server running?");
         await loadTreasury();
@@ -1445,7 +4858,10 @@
         const res = await fetch("/api/config", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ coinbase_manual: readManualForm() }),
+          body: JSON.stringify({
+            coinbase_manual: readManualForm(),
+            robinhood: readRobinhoodForm(),
+          }),
         });
         const body = await res.json();
         if (!res.ok || !body.ok) throw new Error(body.error || res.status);
@@ -1458,11 +4874,16 @@
     }
 
     document.getElementById("btn-refresh").addEventListener("click", refreshLive);
+    const btnCoach = document.getElementById("btn-coach-refresh");
+    if (btnCoach)
+      btnCoach.addEventListener("click", () => loadCoach({ refresh: true }));
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
-    document.getElementById("show-all-actions").addEventListener("click", () => {
-      showAllActions = !showAllActions;
-      if (window.__treasury) render(window.__treasury);
-    });
+    // Soft auto-poll: re-read treasury JSON only (does NOT live-sync CB/Sheet/Braiins/RH).
+    // Use the Refresh button for live feed ages.
+    setInterval(() => {
+      if (document.hidden) return;
+      loadTreasury();
+    }, 5 * 60 * 1000);
     document.getElementById("btn-copy-brief").addEventListener("click", async () => {
       try {
         await navigator.clipboard.writeText(document.getElementById("agent-brief").textContent);
@@ -1487,7 +4908,303 @@
       document.getElementById("recompute-note").textContent = "What-if only — Save to persist";
     });
 
+    // —— Ask Grok (financial advisor) ——
+    const DEFAULT_ADVISOR_CHIPS = [
+      "What should I pay first with the cash I actually have?",
+      "How bad is my liquidity stress right now — and what would un-red it?",
+      "Given Morpho LTV and One Card, what is the safest next $100 use?",
+      "Is the agentic fund book healthy, or should I wait for pending capital?",
+      "Summarize ASIC/Braiins income timing vs my bill calendar.",
+    ];
+
+    /** Render advisor answers as GFM Markdown → HTML (tables, lists, headings). */
+    function advisorFormatAnswer(md) {
+      const text = String(md || "").trim();
+      if (!text) return "";
+      // Escape raw HTML so model-supplied tags don't execute; keep markdown markers.
+      const escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      try {
+        if (typeof marked !== "undefined" && typeof marked.parse === "function") {
+          if (typeof marked.setOptions === "function") {
+            // GFM tables; avoid breaks:true (it injects <br> and wrecks table rows)
+            marked.setOptions({ gfm: true, breaks: false });
+          }
+          return marked.parse(escaped);
+        }
+      } catch (_) {
+        /* fall through */
+      }
+      return advisorFormatAnswerFallback(escaped);
+    }
+
+    function advisorFormatAnswerFallback(escapedMd) {
+      let html = escapedMd;
+      // fenced code
+      html = html.replace(/```([\s\S]*?)```/g, (_, code) =>
+        `<pre><code>${code.trim()}</code></pre>`
+      );
+      // GFM tables (header + separator + body rows)
+      html = html.replace(
+        /(?:^|\n)((?:\|.+\|\n)+)/g,
+        (block) => {
+          const lines = block
+            .trim()
+            .split("\n")
+            .map((l) => l.trim())
+            .filter((l) => l.startsWith("|") && l.endsWith("|"));
+          if (lines.length < 2) return block;
+          const isSep = (l) => /^\|[\s:\-|]+\|$/.test(l);
+          if (!isSep(lines[1])) return block;
+          const split = (l) =>
+            l
+              .slice(1, -1)
+              .split("|")
+              .map((c) => c.trim());
+          const head = split(lines[0]);
+          const body = lines.slice(2).map(split);
+          let t =
+            "<table><thead><tr>" +
+            head.map((c) => `<th>${c}</th>`).join("") +
+            "</tr></thead><tbody>";
+          for (const row of body) {
+            t +=
+              "<tr>" +
+              row.map((c) => `<td>${c}</td>`).join("") +
+              "</tr>";
+          }
+          t += "</tbody></table>";
+          return "\n" + t + "\n";
+        }
+      );
+      html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+      html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+      html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+      html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+      html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+      // unordered lists (contiguous)
+      html = html.replace(/(?:^|\n)((?:[-*] .+(?:\n|$))+)/g, (block) => {
+        const items = block
+          .trim()
+          .split("\n")
+          .map((l) => l.replace(/^[-*] /, "").trim())
+          .filter(Boolean);
+        return "\n<ul>" + items.map((i) => `<li>${i}</li>`).join("") + "</ul>\n";
+      });
+      // paragraphs: double newlines
+      html = html
+        .split(/\n{2,}/)
+        .map((chunk) => {
+          const t = chunk.trim();
+          if (!t) return "";
+          if (/^<(h[1-4]|ul|ol|table|pre|blockquote)/.test(t)) return t;
+          return `<p>${t.replace(/\n/g, "<br>")}</p>`;
+        })
+        .join("\n");
+      return html;
+    }
+
+    function renderAdvisorChips(list) {
+      const el = document.getElementById("advisor-chips");
+      if (!el) return;
+      const chips = Array.isArray(list) && list.length ? list : DEFAULT_ADVISOR_CHIPS;
+      el.innerHTML = chips
+        .map(
+          (t) =>
+            `<button type="button" class="chip" data-q="${escapeHtml(t)}">${escapeHtml(
+              t.length > 52 ? t.slice(0, 50) + "…" : t
+            )}</button>`
+        )
+        .join("");
+      el.querySelectorAll("button.chip").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const ta = document.getElementById("advisor-question");
+          if (ta) {
+            ta.value = btn.getAttribute("data-q") || btn.textContent;
+            ta.focus();
+          }
+        });
+      });
+    }
+
+    async function loadAdvisorStatus() {
+      const pill = document.getElementById("advisor-auth");
+      try {
+        const res = await fetch("/api/ask/status?ts=" + Date.now());
+        const data = await res.json();
+        if (pill) {
+          if (data.ok) {
+            pill.className = "advisor-auth ok";
+            pill.textContent =
+              (data.source === "xai_api_key" ? "xAI key" : "SuperGrok") +
+              (data.model ? " · ready" : " · ready");
+            pill.title = data.email
+              ? `Auth ok · ${data.email} · ${data.model || ""}`
+              : `Auth ok · ${data.source} · ${data.model || ""}`;
+          } else {
+            pill.className = "advisor-auth bad";
+            pill.textContent = data.expired ? "session expired" : "auth needed";
+            pill.title = data.error || "Set XAI_API_KEY or run grok login";
+          }
+        }
+        if (data.suggestions) renderAdvisorChips(data.suggestions);
+        else renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+      } catch (e) {
+        if (pill) {
+          pill.className = "advisor-auth bad";
+          pill.textContent = "offline";
+          pill.title = e.message || "status failed";
+        }
+        renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+      }
+    }
+
+    async function askAdvisor() {
+      const ta = document.getElementById("advisor-question");
+      const btn = document.getElementById("btn-advisor-ask");
+      const errEl = document.getElementById("advisor-error");
+      const ansEl = document.getElementById("advisor-answer");
+      const metaEl = document.getElementById("advisor-answer-meta");
+      const bodyEl = document.getElementById("advisor-answer-body");
+      const q = (ta && ta.value || "").trim();
+      if (errEl) {
+        errEl.classList.remove("show");
+        errEl.textContent = "";
+      }
+      if (!q) {
+        if (errEl) {
+          errEl.textContent = "Enter a question first.";
+          errEl.classList.add("show");
+        }
+        return;
+      }
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "…";
+      }
+      try {
+        const res = await fetch("/api/ask", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: q }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "HTTP " + res.status);
+        }
+        if (metaEl) {
+          metaEl.textContent =
+            (data.model || "Grok") +
+            (data.auth_source ? " · " + data.auth_source : "") +
+            " · grounded in live FCC snapshot";
+        }
+        if (bodyEl) bodyEl.innerHTML = advisorFormatAnswer(data.answer || "");
+        if (ansEl) ansEl.classList.add("show");
+      } catch (e) {
+        if (ansEl) ansEl.classList.remove("show");
+        if (errEl) {
+          errEl.textContent = e.message || "Ask failed";
+          errEl.classList.add("show");
+        }
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.textContent = "Ask";
+        }
+      }
+    }
+
+    const btnAsk = document.getElementById("btn-advisor-ask");
+    if (btnAsk) btnAsk.addEventListener("click", askAdvisor);
+    const taAsk = document.getElementById("advisor-question");
+    if (taAsk) {
+      taAsk.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+          e.preventDefault();
+          askAdvisor();
+        }
+      });
+    }
+    renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
+    loadAdvisorStatus();
+
+    /** Tab shell on all viewports (web top strip / phone bottom bar). */
+    const FCC_MOBILE_MQ = "(max-width: 720px)";
+    const FCC_TABS = ["glance", "cash", "mining", "coach", "more"];
+    function fccIsMobileShell() {
+      return window.matchMedia(FCC_MOBILE_MQ).matches;
+    }
+    function fccActiveTab() {
+      return document.body.getAttribute("data-m-active") || "glance";
+    }
+    function setFccTab(tab) {
+      const t = FCC_TABS.includes(tab) ? tab : "glance";
+      document.body.setAttribute("data-m-active", t);
+      try {
+        localStorage.setItem("fcc.mTab", t);
+      } catch (_) {}
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        bar.querySelectorAll("[data-m-tab]").forEach((btn) => {
+          const on = btn.getAttribute("data-m-tab") === t;
+          btn.classList.toggle("active", on);
+          if (on) btn.setAttribute("aria-current", "page");
+          else btn.removeAttribute("aria-current");
+        });
+      }
+      if (t === "mining") {
+        const br = document.getElementById("braiins-card");
+        if (br) br.open = true;
+      }
+      try {
+        window.scrollTo(0, 0);
+      } catch (_) {}
+    }
+    function syncMobileLayout() {
+      const narrow = fccIsMobileShell();
+      const touchNarrow =
+        window.matchMedia("(pointer: coarse)").matches && window.innerWidth <= 900;
+      document.body.classList.toggle("is-mobile", narrow || touchNarrow);
+      // Tab shell always on (web + mobile) — same Glance/Cash/Mining/Coach/More
+      document.body.classList.add("m-shell");
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        bar.hidden = false;
+        let tab = "glance";
+        try {
+          tab = localStorage.getItem("fcc.mTab") || "glance";
+        } catch (_) {}
+        setFccTab(document.body.getAttribute("data-m-active") || tab);
+      }
+    }
+    function initFccMobileShell() {
+      const bar = document.getElementById("mobile-tabbar");
+      if (bar) {
+        bar.addEventListener("click", (e) => {
+          const btn = e.target.closest("[data-m-tab]");
+          if (!btn || !bar.contains(btn)) return;
+          setFccTab(btn.getAttribute("data-m-tab"));
+        });
+      }
+      syncMobileLayout();
+      window.addEventListener("resize", syncMobileLayout, { passive: true });
+      try {
+        window
+          .matchMedia(FCC_MOBILE_MQ)
+          .addEventListener("change", syncMobileLayout);
+      } catch (_) {
+        /* Safari <14 */
+      }
+    }
+    initFccMobileShell();
+
     loadTreasury();
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="nav-orchestra.js"></script>
+
 </body>
 </html>

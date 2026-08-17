@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="favicon.svg" />
+  <title>₿ Watchlist · Fund research</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --agent: #7c9cff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem 1rem;
+      align-items: center;
+      justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    button, .btn, a.btn {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: #1a2836;
+      color: var(--text);
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      font-weight: 600;
+      font-size: 0.85rem;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+    }
+    button.primary, a.btn.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.9rem 1rem;
+    }
+    .card h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-weight: 650;
+      font-size: 0.7rem;
+      border: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .pill.monitor { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.ready { color: var(--green); border-color: #245c42; }
+    .pill.pass { color: var(--muted); }
+    .pill.held { color: var(--agent); border-color: #3a4a7a; }
+    .pill.private { color: #c9a0ff; border-color: #5a3a7a; }
+    .pill.high { color: var(--red); border-color: #6b2e2e; }
+    .pill.medium { color: var(--yellow); border-color: #6b5a1e; }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 0.75rem;
+      align-items: center;
+      margin-bottom: 0.55rem;
+    }
+    .entry-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    .entry-title span { color: var(--muted); font-weight: 500; font-size: 0.9rem; }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    @media (max-width: 720px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+    .kv {
+      font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+      padding: 0.4rem 0;
+    }
+    .kv b { color: var(--muted); font-weight: 600; display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.15rem; }
+    .md-block {
+      font-size: 0.88rem;
+      background: #0d141c;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem 0.9rem 0.9rem;
+      max-height: 280px;
+      overflow: auto;
+      color: #cfe0f0;
+      line-height: 1.5;
+    }
+    .md-full {
+      max-height: 70vh;
+      font-size: 0.9rem;
+    }
+    .md-block h1, .md-block h2, .md-block h3, .md-block h4 {
+      margin: 1rem 0 0.45rem;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
+      color: var(--text);
+      font-weight: 700;
+    }
+    .md-block h1 { font-size: 1.25rem; margin-top: 0; }
+    .md-block h2 { font-size: 1.08rem; border-bottom: 1px solid var(--border); padding-bottom: 0.25rem; }
+    .md-block h3 { font-size: 0.98rem; color: #d7e6f5; }
+    .md-block h4 { font-size: 0.92rem; color: var(--muted); }
+    .md-block p { margin: 0.45rem 0; }
+    .md-block ul, .md-block ol { margin: 0.4rem 0 0.5rem 1.2rem; padding: 0; }
+    .md-block li { margin: 0.2rem 0; }
+    .md-block hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 0.85rem 0;
+    }
+    .md-block strong { color: var(--text); font-weight: 700; }
+    .md-block em { color: #d0dceb; }
+    .md-block code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.84em;
+      background: #15202c;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.05rem 0.3rem;
+    }
+    .md-block pre {
+      background: #101820;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.65rem 0.75rem;
+      overflow: auto;
+      margin: 0.5rem 0;
+    }
+    .md-block pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 0.82rem;
+    }
+    .md-block table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0.55rem 0 0.75rem;
+      font-size: 0.84rem;
+    }
+    .md-block th, .md-block td {
+      border: 1px solid var(--border);
+      padding: 0.35rem 0.5rem;
+      text-align: left;
+      vertical-align: top;
+    }
+    .md-block th {
+      background: #15202c;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .md-block tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    .md-block blockquote {
+      margin: 0.5rem 0;
+      padding: 0.35rem 0.75rem;
+      border-left: 3px solid var(--accent);
+      color: var(--muted);
+      background: #0e1620;
+    }
+    .error {
+      background: #1a1010;
+      border: 1px solid #5a2a2a;
+      color: var(--red);
+      border-radius: 10px;
+      padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    details.entry-card { margin: 0; }
+    details.entry-card > summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 0.15rem 0;
+    }
+    details.entry-card > summary::-webkit-details-marker { display: none; }
+    .strategy-box {
+      background: #0e1620;
+      border-left: 3px solid var(--accent);
+      padding: 0.55rem 0.75rem;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      margin: 0.5rem 0;
+    }
+    footer {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 0 1.25rem 2rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Watchlist · Fund research</h1>
+        <div class="sub" id="subtitle">Loading…</div>
+      </div>
+      <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="index.html">← FCC</a>
+        <a class="btn" href="capital-flows.html">Capital Flows</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card" id="policy-card">
+      <h2>Strategy &amp; rules</h2>
+      <p class="hint" id="purpose">—</p>
+      <div class="grid-2" id="policy-grid"></div>
+    </section>
+
+    <section class="card">
+      <h2>Agentic book context</h2>
+      <p class="hint">Held symbols are live from RH snapshot (agentic only). Watchlist names are <b>not</b> auto-bought.</p>
+      <div id="held-ctx" class="meta-row"></div>
+    </section>
+
+    <div id="entries"></div>
+
+    <section class="card" id="private-section">
+      <h2>Private companies (pre-IPO)</h2>
+      <p class="hint" id="private-purpose">
+        Monitor only for a possible public allocation if/when listed. Not deployable. Not in the public consider set. No private-market authority.
+      </p>
+      <div id="private-entries"></div>
+    </section>
+
+    <section class="card hidden" id="full-dive-card">
+      <h2 id="full-dive-title">Deep dive</h2>
+      <p class="hint" id="full-dive-path"></p>
+      <div class="md-block md-full" id="full-dive-body"></div>
+      <button type="button" id="btn-close-dive" style="margin-top:0.6rem">Close full report</button>
+    </section>
+  </main>
+
+  <footer>
+    Data: <code>investment/watchlist.json</code> · private: <code>investment/private_watchlist.json</code> ·
+    research in <code>investment/research/</code> · workflows <code>/position-deep-dive</code> · <code>/fund-manager-research</code>
+  </footer>
+
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    /** Lightweight GFM-ish markdown → HTML for deep-dive reports. */
+    function mdToHtml(src) {
+      if (!src) return "";
+      let text = String(src).replace(/\r\n/g, "\n");
+
+      // Extract fenced code blocks first
+      const fences = [];
+      text = text.replace(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        const i = fences.length;
+        fences.push(
+          `<pre><code class="lang-${esc(lang || "text")}">${esc(code.replace(/\n$/, ""))}</code></pre>`
+        );
+        return `\n%%FENCE${i}%%\n`;
+      });
+
+      const lines = text.split("\n");
+      const out = [];
+      let i = 0;
+      let para = [];
+      let listType = null; // ul | ol
+      let listItems = [];
+
+      function flushPara() {
+        if (!para.length) return;
+        const joined = para.join(" ").trim();
+        if (joined) out.push(`<p>${inlineMd(joined)}</p>`);
+        para = [];
+      }
+      function flushList() {
+        if (!listType) return;
+        const tag = listType;
+        out.push(
+          `<${tag}>` +
+            listItems.map((li) => `<li>${inlineMd(li)}</li>`).join("") +
+            `</${tag}>`
+        );
+        listType = null;
+        listItems = [];
+      }
+      function flush() {
+        flushPara();
+        flushList();
+      }
+
+      function isTableSep(line) {
+        return /^\s*\|?[\s:-]+\|[\s|:-]*\|?\s*$/.test(line) && line.includes("-");
+      }
+      function splitRow(line) {
+        let s = line.trim();
+        if (s.startsWith("|")) s = s.slice(1);
+        if (s.endsWith("|")) s = s.slice(0, -1);
+        return s.split("|").map((c) => c.trim());
+      }
+
+      while (i < lines.length) {
+        const line = lines[i];
+        const t = line.trim();
+
+        // fence placeholder
+        const fm = t.match(/^%%FENCE(\d+)%%$/);
+        if (fm) {
+          flush();
+          out.push(fences[Number(fm[1])] || "");
+          i++;
+          continue;
+        }
+
+        if (!t) {
+          flush();
+          i++;
+          continue;
+        }
+
+        if (/^---+$/.test(t) || /^\*\*\*+$/.test(t)) {
+          flush();
+          out.push("<hr/>");
+          i++;
+          continue;
+        }
+
+        const hm = t.match(/^(#{1,4})\s+(.+)$/);
+        if (hm) {
+          flush();
+          const lvl = hm[1].length;
+          out.push(`<h${lvl}>${inlineMd(hm[2])}</h${lvl}>`);
+          i++;
+          continue;
+        }
+
+        // Table: header | sep | rows
+        if (t.includes("|") && i + 1 < lines.length && isTableSep(lines[i + 1])) {
+          flush();
+          const header = splitRow(lines[i]);
+          i += 2;
+          const rows = [];
+          while (i < lines.length && lines[i].includes("|") && lines[i].trim()) {
+            if (isTableSep(lines[i])) {
+              i++;
+              continue;
+            }
+            rows.push(splitRow(lines[i]));
+            i++;
+          }
+          let html = "<table><thead><tr>";
+          header.forEach((c) => {
+            html += `<th>${inlineMd(c)}</th>`;
+          });
+          html += "</tr></thead><tbody>";
+          rows.forEach((row) => {
+            html += "<tr>";
+            header.forEach((_, idx) => {
+              html += `<td>${inlineMd(row[idx] != null ? row[idx] : "")}</td>`;
+            });
+            html += "</tr>";
+          });
+          html += "</tbody></table>";
+          out.push(html);
+          continue;
+        }
+
+        const ul = t.match(/^[-*+]\s+(.+)$/);
+        if (ul) {
+          flushPara();
+          if (listType && listType !== "ul") flushList();
+          listType = "ul";
+          listItems.push(ul[1]);
+          i++;
+          continue;
+        }
+        const ol = t.match(/^\d+\.\s+(.+)$/);
+        if (ol) {
+          flushPara();
+          if (listType && listType !== "ol") flushList();
+          listType = "ol";
+          listItems.push(ol[1]);
+          i++;
+          continue;
+        }
+
+        const bq = t.match(/^>\s?(.*)$/);
+        if (bq) {
+          flush();
+          const chunks = [bq[1]];
+          i++;
+          while (i < lines.length) {
+            const m2 = lines[i].trim().match(/^>\s?(.*)$/);
+            if (!m2) break;
+            chunks.push(m2[1]);
+            i++;
+          }
+          out.push(`<blockquote><p>${inlineMd(chunks.join(" "))}</p></blockquote>`);
+          continue;
+        }
+
+        if (listType) flushList();
+        para.push(t);
+        i++;
+      }
+      flush();
+      return out.join("\n");
+    }
+
+    function inlineMd(s) {
+      let t = esc(s);
+      // code
+      t = t.replace(/`([^`]+)`/g, "<code>$1</code>");
+      // bold ** or __
+      t = t.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+      t = t.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+      // italic * or _
+      t = t.replace(/(^|[\s(])\*([^*\n]+)\*(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      t = t.replace(/(^|[\s(])_([^_\n]+)_(?=[\s).,;:!?]|$)/g, "$1<em>$2</em>");
+      // links [text](url)
+      t = t.replace(
+        /\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener">$1</a>'
+      );
+      return t;
+    }
+
+    function statusPill(st) {
+      const s = (st || "monitor").toLowerCase();
+      const cls = ["monitor", "ready", "pass", "held", "promoted", "private"].includes(s) ? s : "monitor";
+      return `<span class="pill ${cls}">${esc(s)}</span>`;
+    }
+
+    async function loadWatchlist() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        let data;
+        try {
+          const res = await fetch("/api/watchlist?ts=" + Date.now());
+          if (res.ok) data = await res.json();
+        } catch (_) {}
+        if (!data || !data.ok) throw new Error((data && data.error) || "API unavailable — start financial-command/server.py");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent = "Could not load watchlist: " + e.message;
+      }
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        (data.count || 0) + " candidates · as of " + (data.as_of || "—").slice(0, 19).replace("T", " ") + " UTC";
+
+      document.getElementById("purpose").textContent = data.purpose || "—";
+
+      const pol = data.policy || {};
+      const fp = data.fund_policy || {};
+      const targets = (fp.targets || {});
+      document.getElementById("policy-grid").innerHTML = [
+        kv("Auto-buy", pol.auto_buy === false ? "No" : String(pol.auto_buy)),
+        kv("Deep-dive before first buy", pol.deep_dive_before_first_buy ? "Required" : "Optional"),
+        kv("Prefer core allowlist", pol.prefer_core_allowlist_for_rebalance ? "Yes" : "No"),
+        kv(
+          "Book targets",
+          targets.btc_digital_credit_pct != null
+            ? `${Math.round((targets.stocks_growth_pct || 0) * 100)}% stocks / ${Math.round(targets.btc_digital_credit_pct * 100)}% BTC-complex (60/40)`
+            : "60 / 40 modernized (stocks / BTC+)"
+        ),
+        kv("Deep-dive workflow", pol.deep_dive_workflow || "position-deep-dive"),
+        kv("Portfolio research", pol.portfolio_research_workflow || "fund-manager-research"),
+      ].join("");
+
+      const held = data.agentic_held || {};
+      const syms = held.symbols || [];
+      document.getElementById("held-ctx").innerHTML =
+        `<span class="pill held">Agentic held: ${syms.length ? esc(syms.join(" · ")) : "none"}</span>` +
+        (held.as_of ? `<span class="hint" style="margin:0">RH as of ${esc(String(held.as_of).slice(0, 19))}</span>` : "");
+
+      const root = document.getElementById("entries");
+      const entries = data.entries || [];
+      if (!entries.length) {
+        root.innerHTML = `<section class="card"><p class="hint">No public watchlist entries yet. Add to investment/watchlist.json or run /fund-manager-research.</p></section>`;
+      } else {
+        root.innerHTML = entries
+          .map((e) => {
+            const d = e.deep_dive || {};
+            const sf = e.strategy_fit || {};
+            const open = e.priority === "high" ? " open" : "";
+            const heldBadge = e.held_in_agentic ? statusPill("held") : "";
+            const pri = e.priority
+              ? `<span class="pill ${e.priority === "high" ? "high" : ""}">${esc(e.priority)} priority</span>`
+              : "";
+            const conclusion =
+              d.one_line_conclusion ||
+              e.notes ||
+              e.thesis_fit ||
+              "No deep-dive conclusion yet.";
+            const exec =
+              d.executive_findings ||
+              d.conclusions ||
+              "_No deep-dive report on disk. Run_ `/position-deep-dive symbol=" +
+                (e.symbol || "") +
+                "`";
+            return `
+<details class="card entry-card"${open}>
+  <summary>
+    <div class="meta-row">
+      <span class="entry-title">${esc(e.symbol)} <span>${esc(e.name || "")}</span></span>
+      ${statusPill(e.status)}
+      ${heldBadge}
+      ${pri}
+    </div>
+    <div class="hint" style="margin:0">${esc((e.themes || []).join(" · ") || e.theme || "—")}</div>
+  </summary>
+  <div style="margin-top:0.65rem">
+    <div class="strategy-box">
+      <b>Where it fits</b><br/>
+      Sleeve if owned: <code>${esc(sf.sleeve || e.sleeve_if_owned)}</code> ·
+      ${esc(sf.role || "")}<br/>
+      Book: ${esc(sf.modernized_60_40 || "60/40")} ·
+      Auto-buy: <strong>no</strong> · Core allowlist: <strong>no</strong>
+    </div>
+    <div class="grid-2">
+      <div class="kv"><b>Thesis fit</b>${esc(e.thesis_fit || "—")}</div>
+      <div class="kv"><b>Last verdict</b>${esc(e.last_verdict || d.status_line || "—")}</div>
+      <div class="kv"><b>Last deep-dive</b>${esc(e.last_deep_dive || d.as_of_report || "never")}</div>
+      <div class="kv"><b>Next catalyst</b>${esc(e.next_catalyst || "—")}</div>
+    </div>
+    <div class="kv"><b>Current conclusion</b>${esc(conclusion)}</div>
+    <div class="kv"><b>Notes</b>${esc(e.notes || "—")}</div>
+    <div class="hint" style="margin-top:0.65rem">Deep-dive excerpt</div>
+    <div class="md-block">${mdToHtml(exec)}</div>
+    <div class="controls" style="margin-top:0.65rem">
+      <button type="button" class="primary btn-full-dive" data-symbol="${esc(e.symbol)}">Open full deep dive</button>
+      ${
+        d.path
+          ? `<a href="/${esc(d.path)}" target="_blank" rel="noopener">Raw markdown</a>`
+          : ""
+      }
+    </div>
+  </div>
+</details>`;
+          })
+          .join("");
+
+        root.querySelectorAll(".btn-full-dive").forEach((btn) => {
+          btn.addEventListener("click", () => openFullDive(btn.getAttribute("data-symbol")));
+        });
+      }
+
+      // Private companies lane (pre-IPO) — never deployable
+      const pwl = data.private_watchlist || {};
+      const pEntries = pwl.entries || [];
+      const pRoot = document.getElementById("private-entries");
+      const pPurpose = document.getElementById("private-purpose");
+      if (pwl.purpose) pPurpose.textContent = pwl.purpose;
+      if (!pEntries.length) {
+        pRoot.innerHTML = `<p class="hint">No private companies yet. Add to investment/private_watchlist.json.</p>`;
+      } else {
+        pRoot.innerHTML = pEntries
+          .map((e) => {
+            const open = e.rank === 1 || e.priority === "high" ? " open" : "";
+            const rank = e.rank != null ? `<span class="pill high">#${esc(e.rank)}</span>` : "";
+            const pri = e.priority
+              ? `<span class="pill ${e.priority === "high" ? "high" : "medium"}">${esc(e.priority)}</span>`
+              : "";
+            const monitors = (e.monitor_for || [])
+              .map((m) => `<li>${esc(m)}</li>`)
+              .join("");
+            const briefPath = e.last_review_path || "";
+            return `
+<details class="card entry-card"${open}>
+  <summary>
+    <div class="meta-row">
+      <span class="entry-title">${esc(e.id)} <span>${esc(e.name || "")}</span></span>
+      ${statusPill(e.status || "private")}
+      ${rank}
+      ${pri}
+    </div>
+    <div class="hint" style="margin:0">${esc((e.themes || []).join(" · ") || e.theme || "—")}</div>
+  </summary>
+  <div style="margin-top:0.65rem">
+    <div class="strategy-box">
+      <b>Lane</b> Private / pre-IPO · Sleeve if public: <code>${esc(e.sleeve_if_public || "stocks_growth")}</code><br/>
+      Deployable: <strong>no</strong> · Auto-buy: <strong>no</strong> · Public symbol: <code>${esc(e.public_symbol || "none")}</code>
+    </div>
+    <div class="grid-2">
+      <div class="kv"><b>Valuation (press)</b>${esc(e.last_reported_valuation || "—")}</div>
+      <div class="kv"><b>Listing status</b>${esc(e.listing_status || "private")}</div>
+      <div class="kv"><b>Last review</b>${esc(e.last_review || "—")}</div>
+      <div class="kv"><b>Next catalyst</b>${esc(e.next_catalyst || "—")}</div>
+    </div>
+    <div class="kv"><b>Thesis fit</b>${esc(e.thesis_fit || "—")}</div>
+    <div class="kv"><b>Why watch</b>${esc(e.why_watch || "—")}</div>
+    <div class="kv"><b>Notes</b>${esc(e.notes || "—")}</div>
+    ${
+      monitors
+        ? `<div class="hint" style="margin-top:0.65rem">Monitor for</div><ul style="margin:0.25rem 0 0;padding-left:1.2rem;color:var(--muted);font-size:0.85rem">${monitors}</ul>`
+        : ""
+    }
+    ${
+      briefPath
+        ? `<div class="controls" style="margin-top:0.65rem"><a href="/${esc(briefPath)}" target="_blank" rel="noopener">Open brief</a></div>`
+        : ""
+    }
+  </div>
+</details>`;
+          })
+          .join("");
+      }
+    }
+
+    function kv(k, v) {
+      return `<div class="kv"><b>${esc(k)}</b>${esc(v)}</div>`;
+    }
+
+    async function openFullDive(symbol) {
+      const card = document.getElementById("full-dive-card");
+      const title = document.getElementById("full-dive-title");
+      const pathEl = document.getElementById("full-dive-path");
+      const body = document.getElementById("full-dive-body");
+      title.textContent = symbol + " · deep dive";
+      pathEl.textContent = "Loading…";
+      body.innerHTML = "";
+      card.classList.remove("hidden");
+      card.scrollIntoView({ behavior: "smooth", block: "start" });
+      try {
+        const res = await fetch("/api/watchlist/deep-dive?symbol=" + encodeURIComponent(symbol) + "&ts=" + Date.now());
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "not found");
+        pathEl.textContent = data.path || "";
+        body.innerHTML = mdToHtml(data.markdown || "");
+      } catch (e) {
+        pathEl.textContent = "";
+        body.innerHTML = `<p class="error" style="margin:0">Failed: ${esc(e.message)}</p>`;
+      }
+    }
+
+    document.getElementById("btn-close-dive").addEventListener("click", () => {
+      document.getElementById("full-dive-card").classList.add("hidden");
+    });
+    document.getElementById("btn-refresh").addEventListener("click", loadWatchlist);
+    loadWatchlist();
+  </script>
+  <script src="nav-orchestra.js"></script>
+</body>
+</html>

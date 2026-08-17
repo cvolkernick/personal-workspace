@@ -188,6 +188,41 @@ def parse_discretionary_rows(rows: List[Dict[str, str]]) -> Tuple[List[Dict[str,
     return items, totals
 
 
+def normalize_item_name(val: Any) -> str:
+    """Casefold + collapse whitespace for Essential/Fleet overlap checks."""
+    return " ".join(str(val or "").strip().split()).casefold()
+
+
+def item_has_from(item: Dict[str, Any]) -> bool:
+    src = item.get("from")
+    if src is None:
+        return False
+    return bool(str(src).strip())
+
+
+def funded_unique_fleet_items(
+    essential_items: List[Dict[str, Any]],
+    fleet_items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Fleet lines that enter FCC burn: have From, name not already on Essential.
+
+    Empty-From (e.g. planned Rivian) stays on tabs.Fleet and stays out of
+    combined_monthly. Name overlap is counted once on Essential.
+    """
+    seen = {
+        normalize_item_name(i.get("item"))
+        for i in essential_items
+        if normalize_item_name(i.get("item"))
+    }
+    out: List[Dict[str, Any]] = []
+    for i in fleet_items:
+        name = normalize_item_name(i.get("item"))
+        if not name or not item_has_from(i) or name in seen:
+            continue
+        out.append(i)
+    return out
+
+
 def by_source(items: List[Dict[str, Any]]) -> Dict[str, float]:
     """Sum monthly amounts by funding source (From column)."""
     out: Dict[str, float] = {}
