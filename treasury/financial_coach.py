@@ -312,7 +312,7 @@ def infer_habits(
     oc = snapshots.get("one_card") or {}
     rhc = snapshots.get("rh_checking") or {}
 
-    # Burn daily = Personal + Fleet (combined_daily); fall back to personal_daily.
+    # Burn daily = Essential/Personal (combined_daily); Fleet is fleet_ops, not added.
     personal_daily = _f(
         summary.get("combined_daily"), _f(summary.get("personal_daily"))
     )
@@ -389,7 +389,7 @@ def infer_habits(
             _f(inp.get("card_balance"), _f(oc.get("balance_owed"))), 2
         ),
         "notes": [
-            "Sheet burn is forward-looking estimates (Essential + Fleet tabs), not YNAB actuals.",
+            "Sheet burn is forward-looking Essential estimates, not YNAB actuals. Fleet is fleet_ops (not added to combined_monthly).",
             "YNAB spend_30d is realized card/checking outflow where present.",
             "Runway uses total liquid across Coinbase working + X Money + RH Checking vs sheet daily burn.",
         ],
@@ -498,9 +498,11 @@ def collect_data_requests(
 
 
 def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Pay-urgency lines: Essential + Fleet burn, plus Collateral for awareness.
+    """Pay-urgency lines: Essential burn + Fleet ops + Collateral awareness.
 
-    - Essential / Fleet: recurring burn (policy burn stack).
+    - Essential: sheet burn (policy burn stack).
+    - Fleet: fleet_ops visibility (notes may also sit on Personal — do not add
+      Fleet into combined_monthly).
     - Collateral: capital outlay with dates (ASIC/Agentic allocations) — included in
       pay-urgency so upcoming cash needs are visible, flagged capital_outlay=True.
     - Productive / Consumer discretionary: still capital targets only (not listed).
@@ -637,8 +639,9 @@ def build_coach_plan(
             "allocation": "greedy per-line from matching pay-from venue until cash exhausted",
             "amounts": "prefer amount_due; else monthly sheet estimate (flagged)",
             "tabs": (
-                "Essential + Fleet = burn; Collateral included in pay-urgency for "
-                "awareness (capital_outlay) but not sheet daily-burn runway"
+                "Essential = burn; Fleet = fleet_ops (not added to combined_monthly); "
+                "Collateral included in pay-urgency for awareness (capital_outlay) "
+                "but not sheet daily-burn runway"
             ),
             "no_auto_pay": True,
         },

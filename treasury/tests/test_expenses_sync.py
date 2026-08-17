@@ -20,6 +20,11 @@ from treasury.expenses_sync import (  # noqa: E402
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
 
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+FLEET_2026_08_17_CSV = (FIXTURE_DIR / "fleet_tab_2026_08_17.csv").read_text(
+    encoding="utf-8"
+)
+
 PERSONAL_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
 4/1/2026,Coinbase,Rent,$276.16,"$1,933.15",3866.30,"$8,400.00","$8,400.00",51.67%
 7/17/2026,Coinbase,Gym,$0.89,$6.21,12.43,$27.00,$324.00,0.17%
@@ -129,16 +134,19 @@ class TestSnapshot(unittest.TestCase):
         s = snap["summary"]
         self.assertAlmostEqual(s["personal_monthly"], 8427.0)
         self.assertAlmostEqual(s["fleet_monthly"], 1644.52)
-        # Burn = Essential + Fleet; Collateral is not burn
-        self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0 + 1644.52)
-        self.assertAlmostEqual(s["combined_monthly"], 8427.0 + 1644.52)
+        # Fleet is fleet_ops — must not enter FCC burn (notes already on Personal).
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0)
+        self.assertAlmostEqual(s["combined_monthly"], 8427.0)
+        self.assertAlmostEqual(s["combined_monthly"], s["personal_monthly"])
         self.assertAlmostEqual(s["collateral_investments_monthly"], 537.20)
         self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
         self.assertAlmostEqual(s["consumer_discretionary_monthly"], 30.0)
-        self.assertEqual(snap["tabs"]["Fleet"]["role"], "auto_fleet_expenses")
+        self.assertEqual(snap["tabs"]["Fleet"]["role"], "fleet_ops")
+        self.assertIn("X Money", snap["tabs"]["Fleet"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Collateral"]["role"], "collateral_investments")
-        self.assertIn("X Money", s["by_source_monthly"])
-        self.assertGreater(s["x_money_funded_monthly"], 1600)
+        # summary.by_source is Essential burn only — Fleet X Money must not leak in
+        self.assertNotIn("X Money", s["by_source_monthly"])
+        self.assertAlmostEqual(s["x_money_funded_monthly"], 0.0)
         # Fleet items tagged
         self.assertEqual(snap["tabs"]["Fleet"]["items"][0]["tab"], "Fleet")
 
@@ -186,8 +194,7 @@ class TestPolicyExpenses(unittest.TestCase):
             },
         }
         ev = evaluate_treasury(snap)
-        burn = 8427.0 + 1644.52
-        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], burn)
+        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], 8427.0)
         self.assertAlmostEqual(ev["inputs"]["expenses_fleet_monthly"], 1644.52)
         self.assertAlmostEqual(
             ev["inputs"]["expenses_collateral_investments_monthly"], 537.20
@@ -195,6 +202,73 @@ class TestPolicyExpenses(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["expenses_capital_targets_monthly"], 2548.0)
         self.assertIn("expense_burn", [a["kind"] for a in ev["actions"]])
         self.assertIn("expenses", ev["data_quality"]["sources"])
+
+
+class TestFleetTab20260817(unittest.TestCase):
+    """Pinned live Fleet tab (gviz 2026-08-17) + no-double-count invariant."""
+
+    EXPECTED_ITEMS = {
+        "Santander (May / June / July)": 1082.52,
+        "Capital One (June / July / August)": 1121.55,
+        "GM Financial (June / July / August)": 1321.66,
+        "Sud Stop Car Wash": 26.58,
+        "Fleet Insurance": 633.20,
+        "Rivian R1S": 1350.00,
+        "2022 Corolla DIMO": 9.00,
+        "2024 Corolla DIMO": 9.00,
+        "Premium Connectivity": 8.25,
+    }
+
+    def test_header_and_parse(self):
+        header = FLEET_2026_08_17_CSV.splitlines()[0]
+        self.assertTrue(header.startswith("Date,From,Item,"))
+        self.assertTrue(header.endswith("Allocation"))
+        items, totals = parse_personal_rows(rows_from_csv(FLEET_2026_08_17_CSV))
+        by_name = {i["item"]: i for i in items}
+        self.assertEqual(set(by_name), set(self.EXPECTED_ITEMS))
+        for name, monthly in self.EXPECTED_ITEMS.items():
+            self.assertAlmostEqual(by_name[name]["monthly"], monthly, places=2)
+        self.assertIsNone(by_name["Rivian R1S"]["from"])
+        self.assertEqual(by_name["2022 Corolla DIMO"]["from"], "Coinbase")
+        self.assertEqual(by_name["2024 Corolla DIMO"]["from"], "Coinbase")
+        self.assertAlmostEqual(totals["monthly"], 5561.76)
+
+    def test_snapshot_role_and_no_double_count(self):
+        personal_only = build_expenses_snapshot(
+            PERSONAL_CSV, DISC_CSV, sheet_id="abc", source="test"
+        )
+        with_fleet = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            fleet_csv=FLEET_2026_08_17_CSV,
+            sheet_id="abc",
+            source="test",
+        )
+        fleet = with_fleet["tabs"]["Fleet"]
+        self.assertEqual(fleet["role"], "fleet_ops")
+        self.assertEqual(fleet["item_count"], 9)
+        self.assertAlmostEqual(fleet["totals"]["monthly"], 5561.76)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["X Money"], 4193.76)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["Coinbase"], 18.0)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["Unspecified"], 1350.0)
+        self.assertAlmostEqual(with_fleet["summary"]["fleet_monthly"], 5561.76)
+        # Invariant: adding Fleet must not change FCC burn.
+        self.assertAlmostEqual(
+            with_fleet["summary"]["combined_monthly"],
+            personal_only["summary"]["combined_monthly"],
+        )
+        self.assertAlmostEqual(
+            with_fleet["summary"]["combined_monthly"],
+            with_fleet["summary"]["personal_monthly"],
+        )
+        self.assertAlmostEqual(
+            with_fleet["summary"]["upcoming_expense_monthly"],
+            personal_only["summary"]["upcoming_expense_monthly"],
+        )
+        self.assertAlmostEqual(
+            with_fleet["summary"]["combined_daily"],
+            personal_only["summary"]["combined_daily"],
+        )
 
 
 if __name__ == "__main__":
