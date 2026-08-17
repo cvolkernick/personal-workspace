@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "dishes",
+      "title": "Dishes",
+      "interval_days": 1,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "clothes",
+      "title": "Wash clothes",
+      "interval_days": 5,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "towels",
+      "title": "Wash towels",
+      "interval_days": 7,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "sheets",
+      "title": "Wash sheets",
+      "interval_days": 14,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "lawn",
+      "title": "Mow the lawn",
+      "interval_days": 7,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "plants",
+      "title": "Water plants",
+      "interval_days": 4,
+      "curve": "cliff",
+      "last_done": null
+    },
+    {
+      "id": "groceries",
+      "title": "Grocery shop",
+      "interval_days": 7,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "trash",
+      "title": "Trash / recycling",
+      "interval_days": 3,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "vacuum",
+      "title": "Vacuum / floors",
+      "interval_days": 7,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "bathroom",
+      "title": "Clean bathroom",
+      "interval_days": 14,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "money-trees",
+      "title": "Water Money Trees",
+      "interval_days": 7,
+      "curve": "cliff",
+      "last_done": "2026-08-14T17:35:56Z"
+    },
+    {
+      "id": "air-filter",
+      "title": "Replace air filter",
+      "interval_days": 90,
+      "curve": "linear",
+      "last_done": "2026-08-12T11:35:24Z"
+    },
+    {
+      "id": "duchess-bath",
+      "title": "Bathe Duchess",
+      "interval_days": 45,
+      "curve": "linear",
+      "last_done": null
+    },
+    {
+      "id": "water-bowl",
+      "title": "Water-bowl filter",
+      "interval_days": 30,
+      "curve": "linear",
+      "last_done": "2026-07-14T03:34:18Z"
+    }
+  ]
+}

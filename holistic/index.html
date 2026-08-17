@@ -302,6 +302,52 @@
       .advise-now .remain { font-size: 1.85rem; }
       .advise-sched li { grid-template-columns: 1fr; }
     }
+    .upkeep-win { font-size: 0.88rem; margin: -0.2rem 0 0.55rem; color: var(--muted); }
+    .upkeep-win.win { color: var(--green); }
+    .upkeep-win.lose { color: var(--red); }
+    .upkeep-row {
+      display: grid;
+      grid-template-columns: minmax(6.5rem, 11rem) minmax(72px, 1fr) minmax(6.5rem, auto) auto;
+      gap: 0.45rem 0.7rem;
+      align-items: center;
+      padding: 0.48rem 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .upkeep-row:last-child { border-bottom: none; }
+    .upkeep-title { font-weight: 650; font-size: 0.94rem; overflow-wrap: anywhere; }
+    .upkeep-bar {
+      position: relative;
+      height: 16px;
+      border-radius: 8px;
+      background: #0a121a;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      min-width: 64px;
+    }
+    .upkeep-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 0%;
+      transition: width 0.4s ease, background 0.3s ease;
+    }
+    .upkeep-fill.ok { background: linear-gradient(90deg, #3dd68c, #6ecf9a); }
+    .upkeep-fill.mid { background: linear-gradient(90deg, #f5c542, #f5d76e); }
+    .upkeep-fill.red { background: linear-gradient(90deg, #ff6b6b, #ff8a8a); }
+    .upkeep-meta {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .upkeep-row button { padding: 0.32rem 0.6rem; font-size: 0.82rem; }
+    .upkeep-row button:disabled { opacity: 0.55; cursor: wait; }
+    @media (max-width: 520px) {
+      .upkeep-row {
+        grid-template-columns: 1fr auto;
+      }
+      .upkeep-bar { grid-column: 1 / -1; }
+      .upkeep-meta { grid-column: 1 / -1; white-space: normal; }
+    }
     .battery-card {
       display: grid;
       grid-template-columns: minmax(140px, 180px) 1fr;
@@ -730,6 +776,15 @@
       </div>
     </section>
 
+    <section class="card" id="upkeep-card">
+      <h2>Upkeep</h2>
+      <p class="path" style="margin:-0.35rem 0 0.65rem">
+        Mark done → recharge. Drain toward cadence. Win = nothing in red.
+      </p>
+      <div class="upkeep-win" id="upkeep-win">Loading upkeep…</div>
+      <div id="upkeep-list"><p class="empty">Loading…</p></div>
+    </section>
+
     <section class="card" id="advise-card" aria-label="Advise now">
       <h2>Advise now</h2>
       <div id="advise-now" class="advise-now empty"><p class="empty">no objectives</p></div>
@@ -966,6 +1021,68 @@
       ctx.fillStyle = "#8aa0b5";
       ctx.font = "12px system-ui,sans-serif";
       ctx.fillText(hours(total), cx, cy + 10);
+    }
+
+    function fmtUpkeepEta(item) {
+      const overdue = Number(item.overdue_hours) || 0;
+      if (!item.last_done) return "due now";
+      if (overdue > 0) {
+        if (overdue >= 24) return `${(overdue / 24).toFixed(1)}d overdue`;
+        return `${overdue.toFixed(1)}h overdue`;
+      }
+      const emptyMs = item.empty_at ? new Date(item.empty_at).getTime() : NaN;
+      if (!Number.isFinite(emptyMs)) return "—";
+      const hoursLeft = (emptyMs - Date.now()) / 3600000;
+      if (hoursLeft <= 0) return "due now";
+      if (hoursLeft >= 24) return `${(hoursLeft / 24).toFixed(1)}d left`;
+      return `${hoursLeft.toFixed(1)}h left`;
+    }
+
+    function renderUpkeep(packet) {
+      const list = $("upkeep-list");
+      const win = $("upkeep-win");
+      if (!list || !win) return;
+      const items = (packet && (packet.items || (packet.freshness && packet.freshness.items))) || [];
+      const red = Number((packet && (packet.red_count ?? (packet.freshness && packet.freshness.red_count))) || 0);
+      const isWin = !!(packet && (packet.win ?? (packet.freshness && packet.freshness.win)));
+      if (!items.length) {
+        win.className = "upkeep-win";
+        win.textContent = "No upkeep items.";
+        list.innerHTML = `<p class="empty">No upkeep items.</p>`;
+        return;
+      }
+      win.className = "upkeep-win " + (isWin ? "win" : "lose");
+      win.textContent = isWin
+        ? "Nothing in red"
+        : `${red} in red · emptiest first`;
+      list.innerHTML = items.map((it) => {
+        const pct = Math.min(100, Math.max(0, (Number(it.charge) || 0) * 100));
+        const level = it.level === "ok" || it.level === "mid" ? it.level : "red";
+        return `
+          <div class="upkeep-row" data-upkeep-id="${escapeAttr(it.id)}">
+            <div class="upkeep-title">${escapeHtml(it.title || it.id)}</div>
+            <div class="upkeep-bar" title="${pct.toFixed(0)}% · ${escapeAttr(level)}">
+              <div class="upkeep-fill ${escapeAttr(level)}" style="width:${pct}%"></div>
+            </div>
+            <div class="upkeep-meta">${escapeHtml(fmtUpkeepEta(it))}</div>
+            <button type="button" class="primary" data-upkeep-done="${escapeAttr(it.id)}">Done</button>
+          </div>`;
+      }).join("");
+    }
+
+    async function markUpkeepDone(id) {
+      const btn = document.querySelector(`[data-upkeep-done="${CSS.escape(id)}"]`);
+      if (btn) btn.disabled = true;
+      try {
+        const payload = await api("/api/freshness/done", {
+          method: "POST",
+          body: JSON.stringify({ id }),
+        });
+        renderUpkeep(payload);
+      } catch (e) {
+        msg(String(e.message || e), "error");
+        if (btn) btn.disabled = false;
+      }
     }
 
     function renderSleepBattery(b) {
@@ -1991,6 +2108,7 @@
       window.__lastLyftDuty = state.lyft_duty || {};
       renderCalendar(state.calendar);
       renderSleepBattery(state.sleep_battery);
+      renderUpkeep(state.freshness);
       if (state.now_next) applyNowPacket(state.now_next);
       if (state.advise) applyAdvisePacket(state.advise);
       renderSuggestions(
@@ -2215,6 +2333,16 @@
           const q = chip.getAttribute("data-ask") || "";
           await submitAskQuestion(q);
         });
+      });
+    }
+
+    const upkeepList = $("upkeep-list");
+    if (upkeepList) {
+      upkeepList.addEventListener("click", async (ev) => {
+        const btn = ev.target && ev.target.closest && ev.target.closest("[data-upkeep-done]");
+        if (!btn) return;
+        const id = btn.getAttribute("data-upkeep-done");
+        if (id) await markUpkeepDone(id);
       });
     }
 
