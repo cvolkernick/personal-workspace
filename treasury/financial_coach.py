@@ -24,7 +24,11 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.adapters import SNAPSHOTS_DIR, load_json  # noqa: E402
-from treasury.expenses_sync import parse_sheet_date  # noqa: E402
+from treasury.expenses_sync import (  # noqa: E402
+    by_source,
+    funded_unique_fleet_items,
+    parse_sheet_date,
+)
 
 # Map sheet/YNAB "from" labels → venue keys used for cash buckets
 VENUE_ALIASES = {
@@ -312,7 +316,7 @@ def infer_habits(
     oc = snapshots.get("one_card") or {}
     rhc = snapshots.get("rh_checking") or {}
 
-    # Burn daily = Personal + Fleet (combined_daily); fall back to personal_daily.
+    # Burn daily = combined (Essential + funded unique Fleet).
     personal_daily = _f(
         summary.get("combined_daily"), _f(summary.get("personal_daily"))
     )
@@ -350,18 +354,19 @@ def infer_habits(
 
     by_src = (exp.get("summary") or {}).get("by_source_monthly") or {}
     if not by_src:
-        # Merge Essential (+ legacy Personal) + Fleet when summary lacks combined pay-from
-        by_src = {}
+        # Do not wholesale-merge Fleet.by_source (includes empty-From / overlap).
+        # Rebuild from items: Essential + funded unique Fleet.
         tabs = exp.get("tabs") or {}
-        burn_tabs = []
-        if tabs.get("Essential") or tabs.get("Personal"):
-            burn_tabs.append(tabs.get("Essential") or tabs.get("Personal") or {})
-        if tabs.get("Fleet"):
-            burn_tabs.append(tabs.get("Fleet") or {})
-        for tab in burn_tabs:
-            part = tab.get("by_source_monthly") or {}
-            for k, v in part.items():
-                by_src[k] = (by_src.get(k) or 0) + float(v or 0)
+        ess = tabs.get("Essential") or tabs.get("Personal") or {}
+        fleet = tabs.get("Fleet") or {}
+        ess_items = [i for i in (ess.get("items") or []) if isinstance(i, dict)]
+        fleet_items = [i for i in (fleet.get("items") or []) if isinstance(i, dict)]
+        if ess_items or fleet_items:
+            by_src = by_source(
+                ess_items + funded_unique_fleet_items(ess_items, fleet_items)
+            )
+        else:
+            by_src = dict(ess.get("by_source_monthly") or {})
 
     return {
         "personal_daily_burn_est": round(personal_daily, 2) if personal_daily else None,
@@ -389,7 +394,7 @@ def infer_habits(
             _f(inp.get("card_balance"), _f(oc.get("balance_owed"))), 2
         ),
         "notes": [
-            "Sheet burn is forward-looking estimates (Essential + Fleet tabs), not YNAB actuals.",
+            "Sheet burn is Essential + funded unique Fleet (empty-From / name overlap out), not YNAB actuals.",
             "YNAB spend_30d is realized card/checking outflow where present.",
             "Runway uses total liquid across Coinbase working + X Money + RH Checking vs sheet daily burn.",
         ],
@@ -498,9 +503,11 @@ def collect_data_requests(
 
 
 def extract_expense_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Pay-urgency lines: Essential + Fleet burn, plus Collateral for awareness.
+    """Pay-urgency lines: Essential + Fleet ops + Collateral awareness.
 
-    - Essential / Fleet: recurring burn (policy burn stack).
+    - Essential: sheet burn.
+    - Fleet: full tab for ops visibility. FCC combined_monthly only adds funded
+      unique names; empty-From stays out.
     - Collateral: capital outlay with dates (ASIC/Agentic allocations) — included in
       pay-urgency so upcoming cash needs are visible, flagged capital_outlay=True.
     - Productive / Consumer discretionary: still capital targets only (not listed).
@@ -637,8 +644,9 @@ def build_coach_plan(
             "allocation": "greedy per-line from matching pay-from venue until cash exhausted",
             "amounts": "prefer amount_due; else monthly sheet estimate (flagged)",
             "tabs": (
-                "Essential + Fleet = burn; Collateral included in pay-urgency for "
-                "awareness (capital_outlay) but not sheet daily-burn runway"
+                "Essential + funded unique Fleet = burn; empty-From / name overlap "
+                "out of combined_monthly; Collateral in pay-urgency for awareness "
+                "(capital_outlay) but not sheet daily-burn runway"
             ),
             "no_auto_pay": True,
         },

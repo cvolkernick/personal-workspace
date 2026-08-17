@@ -5,8 +5,10 @@ Sheet: Personal Expense Sheet
   Essential                  — estimated *upcoming* essential expenses (ballpark OK),
                                due dates and funding account (From). Not actual spend.
                                (Legacy tab title: "Personal" — still accepted.)
-  Fleet                      — auto fleet expenses (loans, insurance, wash, repairs).
-                               Expense burn; combined with Essential for upcoming bills.
+  Fleet                      — auto fleet ops (notes, insurance, DIMO, planned units).
+                               Snapshot role fleet_ops. FCC burn adds only funded
+                               Fleet lines whose name is not already on Essential.
+                               Empty-From (planned) stays on the tab, out of burn.
   Collateral                 — collateral / productive capital investments (not burn).
   Productive Discretionary   — capital outlay that grows productive asset base (priority).
                                Not expense burn.
@@ -273,6 +275,41 @@ def parse_discretionary_rows(rows: List[Dict[str, str]]) -> Tuple[List[Dict[str,
     return items, totals
 
 
+def normalize_item_name(val: Any) -> str:
+    """Casefold + collapse whitespace for Essential/Fleet overlap checks."""
+    return " ".join(str(val or "").strip().split()).casefold()
+
+
+def item_has_from(item: Dict[str, Any]) -> bool:
+    src = item.get("from")
+    if src is None:
+        return False
+    return bool(str(src).strip())
+
+
+def funded_unique_fleet_items(
+    essential_items: List[Dict[str, Any]],
+    fleet_items: List[Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    """Fleet lines that enter FCC burn: have From, name not already on Essential.
+
+    Empty-From (e.g. planned Rivian) stays on tabs.Fleet and stays out of
+    combined_monthly. Name overlap is counted once on Essential.
+    """
+    seen = {
+        normalize_item_name(i.get("item"))
+        for i in essential_items
+        if normalize_item_name(i.get("item"))
+    }
+    out: List[Dict[str, Any]] = []
+    for i in fleet_items:
+        name = normalize_item_name(i.get("item"))
+        if not name or not item_has_from(i) or name in seen:
+            continue
+        out.append(i)
+    return out
+
+
 def by_source(items: List[Dict[str, Any]]) -> Dict[str, float]:
     """Sum monthly amounts by funding source (From column)."""
     out: Dict[str, float] = {}
@@ -422,10 +459,14 @@ def build_expenses_snapshot(
     productive_monthly = prod_totals.get("monthly") or 0.0
     consumer_monthly = cons_totals.get("monthly") or 0.0
 
-    # Burn = Essential + Fleet (obligations). Capital tabs never enter burn.
-    burn_items = personal_items + fleet_items
-    burn_monthly = personal_monthly + fleet_monthly
-    burn_daily = (personal_totals.get("daily") or 0.0) + (fleet_totals.get("daily") or 0.0)
+    # Burn = Essential + funded unique Fleet. Empty-From / name overlap stay out.
+    # Capital tabs never enter burn. tabs.Fleet still holds the full ops tab.
+    fleet_burn_items = funded_unique_fleet_items(personal_items, fleet_items)
+    burn_items = personal_items + fleet_burn_items
+    fleet_burn_monthly = sum(float(i.get("monthly") or 0) for i in fleet_burn_items)
+    fleet_burn_daily = sum(float(i.get("daily") or 0) for i in fleet_burn_items)
+    burn_monthly = personal_monthly + fleet_burn_monthly
+    burn_daily = (personal_totals.get("daily") or 0.0) + fleet_burn_daily
     # Capital targets for ops expansion = Productive only (not consumer / collateral)
     capital_target_monthly = productive_monthly
 
@@ -478,19 +519,20 @@ def build_expenses_snapshot(
     collateral_block["label"] = COLLATERAL_TAB
     collateral_block["description"] = (
         "Collateral / productive capital investments. Not expense burn. "
-        "Separate from recurring Essential/Fleet obligations."
+        "Separate from recurring Essential obligations and Fleet ops."
     )
 
     fleet_block = _tab_block(
-        role="auto_fleet_expenses",
+        role="fleet_ops",
         items=fleet_items,
         totals=fleet_totals,
         kind="expense",
     )
     fleet_block["label"] = FLEET_TAB
     fleet_block["description"] = (
-        "Auto fleet expenses (loans, insurance, wash, repairs). "
-        "Included in upcoming expense burn with Essential."
+        "Auto fleet ops (loans, insurance, wash, DIMO, planned units). "
+        "Full tab stays here. FCC combined_monthly adds only funded lines "
+        "whose normalized name is not already on Essential; empty-From stays out."
     )
 
     essential_block = _tab_block(
@@ -520,8 +562,9 @@ def build_expenses_snapshot(
                 "Estimated upcoming essential expenses — not actual spend."
             ),
             "fleet": (
-                "Auto fleet expenses (loans, insurance, ops). Expense burn; "
-                "combined with Essential for upcoming bills and pay-from pressure."
+                "Auto fleet ops (loans, insurance, DIMO, planned units). "
+                "Role fleet_ops. FCC burn adds funded unique names only; "
+                "empty-From (planned) and Essential name overlap stay out."
             ),
             "collateral": (
                 "Collateral / capital investments. Not expense burn."
@@ -538,9 +581,9 @@ def build_expenses_snapshot(
                 "Alias for Productive Discretionary (legacy name). "
                 "Capital outlay that grows productive asset base — not expense burn."
             ),
-            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
+            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential.",
             "priority_order": [
-                "Essential + Fleet expenses paid & current",
+                "Essential + funded unique Fleet current (empty-From / name overlap out of burn)",
                 "Collateral investments (as planned)",
                 "Productive Discretionary (margin-funded capex)",
                 "Consumer Discretionary (wishlist; after productive)",
@@ -564,7 +607,7 @@ def build_expenses_snapshot(
             },
         },
         "summary": {
-            # Burn = Essential + Fleet
+            # Burn = Essential + funded unique Fleet. fleet_monthly is the full tab.
             "upcoming_expense_monthly": round(burn_monthly, 2),
             "essential_monthly": round(personal_monthly, 2),
             "personal_monthly": round(personal_monthly, 2),  # legacy alias → essential
@@ -596,12 +639,13 @@ def build_expenses_snapshot(
         },
         "notes": (
             "Essential = estimated essential bills by pay-from account (legacy tab: Personal). "
-            "Fleet = auto fleet expenses (included in burn). "
+            "Fleet = auto fleet ops (role fleet_ops). "
             "Collateral = collateral/capital investments (not burn). "
             "Productive Discretionary = capital outlay growing productive assets "
             "(priority; margin-funded). "
             "Consumer Discretionary = wishlist / consumer goods (lower priority). "
-            "Burn = Essential + Fleet only. Actual spend = YNAB."
+            "Burn = Essential + funded unique Fleet (empty-From and name overlap out). "
+            "Actual spend = YNAB."
         ),
     }
 

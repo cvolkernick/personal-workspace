@@ -13,12 +13,18 @@ if str(ROOT) not in sys.path:
 from treasury.expenses_sync import (  # noqa: E402
     _upcoming_sorted,
     build_expenses_snapshot,
+    funded_unique_fleet_items,
     parse_money,
     parse_personal_rows,
     parse_sheet_date,
     rows_from_csv,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
+
+FIXTURE_DIR = Path(__file__).resolve().parent / "fixtures"
+FLEET_2026_08_17_CSV = (FIXTURE_DIR / "fleet_tab_2026_08_17.csv").read_text(
+    encoding="utf-8"
+)
 
 PERSONAL_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
 4/1/2026,Coinbase,Rent,$276.16,"$1,933.15",3866.30,"$8,400.00","$8,400.00",51.67%
@@ -129,16 +135,17 @@ class TestSnapshot(unittest.TestCase):
         s = snap["summary"]
         self.assertAlmostEqual(s["personal_monthly"], 8427.0)
         self.assertAlmostEqual(s["fleet_monthly"], 1644.52)
-        # Burn = Essential + Fleet; Collateral is not burn
-        self.assertAlmostEqual(s["upcoming_expense_monthly"], 8427.0 + 1644.52)
-        self.assertAlmostEqual(s["combined_monthly"], 8427.0 + 1644.52)
+        # Older FLEET_CSV: both lines have From and no Essential name overlap.
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 10071.52)
+        self.assertAlmostEqual(s["combined_monthly"], 10071.52)
         self.assertAlmostEqual(s["collateral_investments_monthly"], 537.20)
         self.assertAlmostEqual(s["productive_discretionary_monthly"], 2548.0)
         self.assertAlmostEqual(s["consumer_discretionary_monthly"], 30.0)
-        self.assertEqual(snap["tabs"]["Fleet"]["role"], "auto_fleet_expenses")
+        self.assertEqual(snap["tabs"]["Fleet"]["role"], "fleet_ops")
+        self.assertIn("X Money", snap["tabs"]["Fleet"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Collateral"]["role"], "collateral_investments")
-        self.assertIn("X Money", s["by_source_monthly"])
-        self.assertGreater(s["x_money_funded_monthly"], 1600)
+        self.assertAlmostEqual(s["by_source_monthly"]["X Money"], 1644.52)
+        self.assertAlmostEqual(s["x_money_funded_monthly"], 1644.52)
         # Fleet items tagged
         self.assertEqual(snap["tabs"]["Fleet"]["items"][0]["tab"], "Fleet")
 
@@ -186,8 +193,7 @@ class TestPolicyExpenses(unittest.TestCase):
             },
         }
         ev = evaluate_treasury(snap)
-        burn = 8427.0 + 1644.52
-        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], burn)
+        self.assertAlmostEqual(ev["inputs"]["expenses_combined_monthly"], 10071.52)
         self.assertAlmostEqual(ev["inputs"]["expenses_fleet_monthly"], 1644.52)
         self.assertAlmostEqual(
             ev["inputs"]["expenses_collateral_investments_monthly"], 537.20
@@ -195,6 +201,114 @@ class TestPolicyExpenses(unittest.TestCase):
         self.assertAlmostEqual(ev["inputs"]["expenses_capital_targets_monthly"], 2548.0)
         self.assertIn("expense_burn", [a["kind"] for a in ev["actions"]])
         self.assertIn("expenses", ev["data_quality"]["sources"])
+
+
+class TestFleetTab20260817(unittest.TestCase):
+    """Pinned live Fleet tab (gviz 2026-08-17) + overlap-once / funded-unique burn."""
+
+    EXPECTED_ITEMS = {
+        "Santander (May / June / July)": 1082.52,
+        "Capital One (June / July / August)": 1121.55,
+        "GM Financial (June / July / August)": 1321.66,
+        "Sud Stop Car Wash": 26.58,
+        "Fleet Insurance": 633.20,
+        "Rivian R1S": 1350.00,
+        "2022 Corolla DIMO": 9.00,
+        "2024 Corolla DIMO": 9.00,
+        "Premium Connectivity": 8.25,
+    }
+
+    def test_header_and_parse(self):
+        header = FLEET_2026_08_17_CSV.splitlines()[0]
+        self.assertTrue(header.startswith("Date,From,Item,"))
+        self.assertTrue(header.endswith("Allocation"))
+        items, totals = parse_personal_rows(rows_from_csv(FLEET_2026_08_17_CSV))
+        by_name = {i["item"]: i for i in items}
+        self.assertEqual(set(by_name), set(self.EXPECTED_ITEMS))
+        for name, monthly in self.EXPECTED_ITEMS.items():
+            self.assertAlmostEqual(by_name[name]["monthly"], monthly, places=2)
+        self.assertIsNone(by_name["Rivian R1S"]["from"])
+        self.assertEqual(by_name["2022 Corolla DIMO"]["from"], "Coinbase")
+        self.assertEqual(by_name["2024 Corolla DIMO"]["from"], "Coinbase")
+        self.assertAlmostEqual(totals["monthly"], 5561.76)
+
+    def test_snapshot_role_and_no_double_count(self):
+        personal_only = build_expenses_snapshot(
+            PERSONAL_CSV, DISC_CSV, sheet_id="abc", source="test"
+        )
+        with_fleet = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            fleet_csv=FLEET_2026_08_17_CSV,
+            sheet_id="abc",
+            source="test",
+        )
+        fleet = with_fleet["tabs"]["Fleet"]
+        self.assertEqual(fleet["role"], "fleet_ops")
+        self.assertEqual(fleet["item_count"], 9)
+        self.assertAlmostEqual(fleet["totals"]["monthly"], 5561.76)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["X Money"], 4193.76)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["Coinbase"], 18.0)
+        self.assertAlmostEqual(fleet["by_source_monthly"]["Unspecified"], 1350.0)
+        self.assertAlmostEqual(with_fleet["summary"]["fleet_monthly"], 5561.76)
+        # Funded unique Fleet ($4,211.76) enters burn; Rivian $1,350 empty-From stays out.
+        self.assertAlmostEqual(
+            with_fleet["summary"]["combined_monthly"],
+            personal_only["summary"]["combined_monthly"] + 4211.76,
+        )
+        self.assertAlmostEqual(with_fleet["summary"]["combined_monthly"], 12638.76)
+        self.assertAlmostEqual(
+            with_fleet["summary"]["upcoming_expense_monthly"],
+            personal_only["summary"]["upcoming_expense_monthly"] + 4211.76,
+        )
+        self.assertAlmostEqual(with_fleet["summary"]["x_money_funded_monthly"], 4193.76)
+        self.assertAlmostEqual(with_fleet["summary"]["coinbase_funded_monthly"], 8445.0)
+        self.assertNotIn("Unspecified", with_fleet["summary"]["by_source_monthly"])
+        rivian = next(i for i in fleet["items"] if i["item"] == "Rivian R1S")
+        self.assertIsNone(rivian["from"])
+        self.assertNotAlmostEqual(
+            with_fleet["summary"]["combined_monthly"],
+            personal_only["summary"]["combined_monthly"] + 5561.76,
+        )
+
+    def test_name_overlap_counted_once(self):
+        overlap_personal = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
+4/1/2026,Coinbase,Rent,$276.16,"$1,933.15",3866.30,"$8,400.00","$8,400.00",
+8/21/2026,X Money,Fleet Insurance,$18.48,$129.34,$258.67,$562.00,"$6,744.00",
+,,Total,$294.64,"$2,062.49","$4,125.00","$8,962.00","$15,144.00",
+"""
+        snap = build_expenses_snapshot(
+            overlap_personal,
+            DISC_CSV,
+            fleet_csv=FLEET_CSV,
+            sheet_id="abc",
+            source="test",
+        )
+        s = snap["summary"]
+        # Personal $8,962 + Fleet Santander $1,082.52; Fleet Insurance already on Essential.
+        self.assertAlmostEqual(s["personal_monthly"], 8962.0)
+        self.assertAlmostEqual(s["fleet_monthly"], 1644.52)
+        self.assertAlmostEqual(s["combined_monthly"], 10044.52)
+        self.assertAlmostEqual(s["upcoming_expense_monthly"], 10044.52)
+        self.assertAlmostEqual(s["by_source_monthly"]["X Money"], 1644.52)
+
+
+class TestFundedUniqueFleetItems(unittest.TestCase):
+    def test_skips_empty_from_and_name_overlap(self):
+        essential = [
+            {"item": "Fleet Insurance", "from": "X Money", "monthly": 633.20},
+        ]
+        fleet = [
+            {"item": "Fleet Insurance", "from": "X Money", "monthly": 633.20},
+            {"item": "Santander", "from": "X Money", "monthly": 1082.52},
+            {"item": "Rivian R1S", "from": None, "monthly": 1350.0},
+            {"item": "  santander  ", "from": "X Money", "monthly": 1.0},
+        ]
+        out = funded_unique_fleet_items(essential, fleet)
+        names = [i["item"] for i in out]
+        # Essential overlap + empty-From out. Intra-Fleet name variants are
+        # not collapsed — only Essential names are the skip set.
+        self.assertEqual(names, ["Santander", "  santander  "])
 
 
 if __name__ == "__main__":

@@ -594,7 +594,7 @@ def build_snapshot(
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "x_money": "ynab/plaid (X Money cash ~6% APY; may show as Checking – ####)",
                 "solana": "public RPC + Jupiter prices; whitelist SOL/USDC/JR-strcUSX; JR is not HY",
-                "expenses": "google sheet: Essential+Fleet=burn; Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
+                "expenses": "google sheet: Essential + funded unique Fleet = burn; Fleet tab is fleet_ops (empty-From / name overlap out of combined); Collateral=investments; Productive Discretionary=capital outlay; Consumer Discretionary=wishlist",
                 "rh_brokerage": "MCP portfolio cash/BP (trading), distinct from RH Checking",
                 "external_usdc_send": "not via Advanced Trade transfer",
             },

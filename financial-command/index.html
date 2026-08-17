@@ -3830,7 +3830,7 @@
       }
 
       // Bills side panel (pay-from + KPIs). List filled by coach when available.
-      // Pay-urgency list: Essential + Fleet (burn) + Collateral (awareness / capital outlay).
+      // Pay-urgency list: Essential + Fleet ops + Collateral (awareness). Burn = funded unique Fleet only.
       // Productive / Consumer stay capital-targets only. Essential renamed from Personal.
       const persTab = (ex.tabs && (ex.tabs.Essential || ex.tabs.Personal)) || {};
       const fleetTab = (ex.tabs && ex.tabs.Fleet) || {};

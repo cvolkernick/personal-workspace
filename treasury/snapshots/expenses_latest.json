@@ -1,19 +1,19 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-17T15:44:27.937871+00:00",
+  "as_of": "2026-08-17T16:18:02.818425+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
     "essential": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not a record of what already spent.",
     "personal": "Alias for Essential (legacy tab title). Estimated upcoming essential expenses \u2014 not actual spend.",
-    "fleet": "Auto fleet expenses (loans, insurance, ops). Expense burn; combined with Essential for upcoming bills and pay-from pressure.",
+    "fleet": "Auto fleet ops (loans, insurance, DIMO, planned units). Role fleet_ops. FCC burn adds funded unique names only; empty-From (planned) and Essential name overlap stay out.",
     "collateral": "Collateral / capital investments. Not expense burn.",
     "productive_discretionary": "Capital outlay that grows productive asset base. Quantitative targets. Priority over consumer wishlist. Not expense burn.",
     "consumer_discretionary": "Consumer goods / personal wishlist (qualitative). Lower priority. Not expense burn and not ops expansion capital targets.",
     "discretionary": "Alias for Productive Discretionary (legacy name). Capital outlay that grows productive asset base \u2014 not expense burn.",
-    "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential/Fleet.",
+    "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential.",
     "priority_order": [
-      "Essential + Fleet expenses paid & current",
+      "Essential + funded unique Fleet current (empty-From / name overlap out of burn)",
       "Collateral investments (as planned)",
       "Productive Discretionary (margin-funded capex)",
       "Consumer Discretionary (wishlist; after productive)"
@@ -626,7 +626,7 @@
       "description": "Estimated upcoming essential expenses (ballpark OK) with due dates and funding account. Forward-looking plan \u2014 not actual spend."
     },
     "Fleet": {
-      "role": "auto_fleet_expenses",
+      "role": "fleet_ops",
       "item_count": 9,
       "totals": {
         "daily": 185.09,
@@ -906,7 +906,7 @@
         }
       ],
       "label": "Fleet",
-      "description": "Auto fleet expenses (loans, insurance, wash, repairs). Included in upcoming expense burn with Essential."
+      "description": "Auto fleet ops (loans, insurance, wash, DIMO, planned units). Full tab stays here. FCC combined_monthly adds only funded lines whose normalized name is not already on Essential; empty-From stays out."
     },
     "Collateral": {
       "role": "collateral_investments",
@@ -982,7 +982,7 @@
       ],
       "priority": 1,
       "label": "Collateral",
-      "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential/Fleet obligations."
+      "description": "Collateral / productive capital investments. Not expense burn. Separate from recurring Essential obligations and Fleet ops."
     },
     "Productive Discretionary": {
       "role": "productive_capital_outlay",
@@ -1999,7 +1999,7 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 20270.34,
+    "upcoming_expense_monthly": 18920.34,
     "essential_monthly": 14708.58,
     "personal_monthly": 14708.58,
     "personal_daily": 483.58,
@@ -2017,17 +2017,16 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 20270.34,
-    "combined_daily": 668.67,
+    "combined_monthly": 18920.34,
+    "combined_daily": 623.67,
     "by_source_monthly": {
       "Coinbase": 13569.91,
-      "X Money": 5350.43,
-      "Unspecified": 1350.0
+      "X Money": 5350.43
     },
     "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5350.43
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet expenses (included in burn). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + Fleet only. Actual spend = YNAB."
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
