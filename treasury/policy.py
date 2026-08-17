@@ -1647,10 +1647,10 @@ def evaluate_treasury(
         + f" [{margin_band['band']}]"
         + f" (tgt {_f(p.get('rh_margin_use_target'), 0.28):.0%}/alert {_f(p.get('rh_margin_use_alert'), 0.35):.0%}/max {_f(p['rh_margin_use_max']):.0%})"
         + f" | joint={leverage_bands['joint']['stance']}",
-        f"Upcoming expense estimates (sheet Essential burn; Fleet is fleet_ops, not added): "
+        f"Upcoming expense estimates (Essential + funded unique Fleet; empty-From out): "
         f"${((snapshot.get('expenses') or {}).get('summary') or {}).get('upcoming_expense_monthly') or ((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}/mo"
         + f" (personal ${((snapshot.get('expenses') or {}).get('summary') or {}).get('personal_monthly') or 0:.2f}"
-        + f" | fleet ops ${((snapshot.get('expenses') or {}).get('summary') or {}).get('fleet_monthly') or 0:.2f})"
+        + f" | fleet tab ${((snapshot.get('expenses') or {}).get('summary') or {}).get('fleet_monthly') or 0:.2f})"
         + f" | CB-funded est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('coinbase_funded_monthly') or 0:.2f}"
         + f" | RH-checking est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('rh_funded_monthly') or 0:.2f}"
         + f" | X Money est ${((snapshot.get('expenses') or {}).get('summary') or {}).get('x_money_funded_monthly') or 0:.2f}"
@@ -1737,7 +1737,7 @@ def evaluate_treasury(
             "expenses_consumer_discretionary_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("consumer_discretionary_monthly"),
-            # combined = Essential burn only; Fleet is fleet_ops (not added)
+            # combined = Essential + funded unique Fleet; empty-From / overlap out
             "expenses_combined_monthly": (snapshot.get("expenses") or {})
             .get("summary", {})
             .get("combined_monthly"),
@@ -1916,7 +1916,7 @@ def evaluate_treasury(
                 },
             },
             "priority_order": [
-                "Essential expenses current (sheet burn; Fleet is fleet_ops, not added)",
+                "Essential + funded unique Fleet current (empty-From / name overlap out of burn)",
                 "One Card: Morpho refinance when balance owed (not HY pull)",
                 "Morpho: cool (<38%) principal→HY LTV Buffer; hot (≥45%) HY→BTC; hard 50%",
                 "X Money float for Deploy + scheduled capital pipes",

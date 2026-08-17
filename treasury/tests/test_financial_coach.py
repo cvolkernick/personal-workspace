@@ -214,7 +214,7 @@ class TestResidualsHardened(unittest.TestCase):
 
 
 class TestInferHabitsFleetOps(unittest.TestCase):
-    def test_missing_summary_by_source_does_not_merge_fleet(self):
+    def test_missing_summary_by_source_does_not_wholesale_merge_fleet_tab(self):
         snaps = {
             "expenses": {
                 "summary": {"combined_monthly": 100.0, "personal_monthly": 100.0},
@@ -225,8 +225,80 @@ class TestInferHabitsFleetOps(unittest.TestCase):
             }
         }
         habits = infer_habits(snaps, [], {})
+        # No items: cannot apply funded-unique filter — do not dump the Fleet tab.
         self.assertNotIn("X Money", habits["sheet_by_source_monthly"])
         self.assertAlmostEqual(habits["sheet_by_source_monthly"]["Coinbase"], 100.0)
+
+    def test_missing_summary_rebuilds_funded_unique_fleet_pay_from(self):
+        snaps = {
+            "expenses": {
+                "summary": {"combined_monthly": 1232.52, "personal_monthly": 150.0},
+                "tabs": {
+                    "Essential": {
+                        "items": [
+                            {"item": "Rent", "from": "Coinbase", "monthly": 100.0},
+                            {"item": "Fleet Insurance", "from": "X Money", "monthly": 50.0},
+                        ],
+                        "by_source_monthly": {"Coinbase": 100.0, "X Money": 50.0},
+                    },
+                    "Fleet": {
+                        "items": [
+                            {"item": "Fleet Insurance", "from": "X Money", "monthly": 633.20},
+                            {"item": "Santander", "from": "X Money", "monthly": 1082.52},
+                            {"item": "Rivian R1S", "from": None, "monthly": 1350.0},
+                        ],
+                        "by_source_monthly": {
+                            "X Money": 1715.72,
+                            "Unspecified": 1350.0,
+                        },
+                    },
+                },
+            }
+        }
+        habits = infer_habits(snaps, [], {})
+        # Insurance overlap once; Santander funded unique in; Rivian / Unspecified out.
+        self.assertAlmostEqual(habits["sheet_by_source_monthly"]["Coinbase"], 100.0)
+        self.assertAlmostEqual(habits["sheet_by_source_monthly"]["X Money"], 1132.52)
+        self.assertNotIn("Unspecified", habits["sheet_by_source_monthly"])
+
+    def test_fallback_adds_funded_unique_fleet_items_only(self):
+        snaps = {
+            "expenses": {
+                "summary": {"combined_monthly": 8400.0, "personal_monthly": 8400.0},
+                "tabs": {
+                    "Essential": {
+                        "items": [
+                            {"item": "Rent", "from": "Coinbase", "monthly": 8400.0},
+                            {
+                                "item": "Fleet Insurance",
+                                "from": "X Money",
+                                "monthly": 562.0,
+                            },
+                        ],
+                    },
+                    "Fleet": {
+                        "items": [
+                            {
+                                "item": "Santander",
+                                "from": "X Money",
+                                "monthly": 1082.52,
+                            },
+                            {
+                                "item": "Fleet Insurance",
+                                "from": "X Money",
+                                "monthly": 562.0,
+                            },
+                            {"item": "Rivian R1S", "from": None, "monthly": 1350.0},
+                        ],
+                    },
+                },
+            }
+        }
+        habits = infer_habits(snaps, [], {})
+        by_src = habits["sheet_by_source_monthly"]
+        self.assertAlmostEqual(by_src["Coinbase"], 8400.0)
+        self.assertAlmostEqual(by_src["X Money"], 1644.52)
+        self.assertNotIn("Unspecified", by_src)
 
 
 if __name__ == "__main__":
