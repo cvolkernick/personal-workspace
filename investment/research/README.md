@@ -46,7 +46,7 @@ Documented in `investment/fund_manager.json` → `research` / `watchlist` and in
 
 | Path | Role |
 |------|------|
-| `investment/research/{SYMBOL}_deep_dive.md` | Single-name **public** deep dive (verbose findings + conclusions) |
+| `investment/research/{SYMBOL}_deep_dive.md` | Single-name **public** deep dive (verbose findings + conclusions). Includes **reject** dives that never entered `watchlist.json` (PAVE, GRID — 2026-08-17 thematic-significance gate). |
 | `investment/research/private/{ID}_deep_dive.md` | **Private** deep dive — same process as public (pre-IPO adapted); required on owner add |
 | `investment/research/private/{ID}_brief.md` | Optional short one-pager; does **not** replace the private deep dive |
 | `investment/research/fund_manager_research_latest.md` | Latest portfolio/strategy/watchlist research pass |
