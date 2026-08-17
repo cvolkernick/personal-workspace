@@ -18,6 +18,8 @@
   POST /api/calendar/sync     — pull busy events into plan
   GET  /api/now               — NOW/NEXT/THEN from the filed plan (no rebuild)
   GET  /api/advise            — best action now + remaining-day schedule (scored)
+  GET  /api/freshness         — house-cadence upkeep batteries
+  POST /api/freshness/done    — {id} mark chore done (recharge)
 
 Usage:
   python3 holistic/server.py
@@ -93,6 +95,10 @@ from holistic.time_allocator.store import (  # noqa: E402
     resolve_data_path,
     save_state,
 )
+from holistic.time_allocator.freshness import (  # noqa: E402
+    freshness_payload,
+    mark_done_and_compute,
+)
 
 HOLISTIC_DIR = Path(__file__).resolve().parent
 DEFAULT_PORT = 8770
@@ -135,6 +141,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
     lyft_tgt = next((t for t in targets if str(t.get("id")) == "lyft"), None)
     lyft_duty = lyft_duty_status(state, target=lyft_tgt)
     calendar = calendar_summary_for_state(state)
+    freshness = freshness_payload(data_path=path)
     payload = {
         "ok": True,
         "path": str(path),
@@ -158,6 +165,7 @@ def state_payload(*, refresh_walks: bool = False) -> dict[str, Any]:
         "now_next": now_next,
         "advise": advise,
         "sleep_battery": sleep_battery,
+        "freshness": freshness,
         "health": health_credentials_status(),
     }
     if walk_sync_meta is not None:
@@ -251,6 +259,12 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 )
                 packet["ok"] = True
                 self._json(200, packet)
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/freshness":
+            try:
+                self._json(200, freshness_payload(data_path=resolve_data_path(_data())))
             except Exception as e:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(e)})
             return
@@ -552,6 +566,17 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                             "detail": (e.body or "")[:800],
                         },
                     )
+                return
+
+            if path == "/api/freshness/done":
+                item_id = str(body.get("id") or body.get("key") or "").strip()
+                if not item_id:
+                    self._json(400, {"ok": False, "error": "id is required"})
+                    return
+                payload = mark_done_and_compute(
+                    item_id, data_path=resolve_data_path(_data())
+                )
+                self._json(200, payload)
                 return
 
             if path == "/api/lyft/duty":

@@ -71,6 +71,7 @@ The plan is always a **rolling 24-hour window** from “now”:
 5. **Fill remainder** of active time (Lyft driving)
 
 Dashboard features:
+- **Upkeep** card (`GET /api/freshness`, `POST /api/freshness/done`) — house-cadence batteries on `holistic/data/freshness.json`; mark done to recharge  
 - **ADVISE NOW** + remaining-day schedule (`GET /api/advise`) — scored best action from objectives + calendar contacts; may disagree with the filed NOW  
 - **NOW / NEXT / THEN** strip (`GET /api/now`) — clock-following secretary over the filed plan  
 - **Next actions** ranked by urgency / priority  

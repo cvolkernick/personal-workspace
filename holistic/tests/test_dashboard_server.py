@@ -173,6 +173,33 @@ class DashboardServerTests(unittest.TestCase):
                     self.assertIn("advise-now", html)
                     self.assertIn("Advise now", html)
                     self.assertIn("no live plan — rebuild", html)
+                    self.assertIn("Upkeep", html)
+                    self.assertIn("upkeep-card", html)
+                self.assertIn("freshness", state)
+                freshness = state.get("freshness") or {}
+                fresh_ids = {it["id"] for it in freshness.get("items") or []}
+                self.assertIn("dishes", fresh_ids)
+                self.assertIn("water-bowl", fresh_ids)
+                for it in freshness.get("items") or []:
+                    for key in ("id", "title", "charge", "level", "empty_at", "overdue_hours", "curve"):
+                        self.assertIn(key, it, key)
+                self.assertEqual(
+                    [it["charge"] for it in freshness.get("items") or []],
+                    sorted(it["charge"] for it in freshness.get("items") or []),
+                )
+
+                code, fresh = _http_json("GET", f"{base}/api/freshness")
+                self.assertEqual(code, 200, fresh)
+                self.assertTrue(fresh.get("ok"), fresh)
+                self.assertGreaterEqual(len(fresh.get("items") or []), 14)
+                code, after = _http_json("POST", f"{base}/api/freshness/done", {"id": "dishes"})
+                self.assertEqual(code, 200, after)
+                dishes = next(it for it in after["items"] if it["id"] == "dishes")
+                self.assertGreaterEqual(dishes["charge"], 0.99)
+                self.assertEqual(dishes["level"], "ok")
+                persisted = json.loads((Path(td) / "freshness.json").read_text(encoding="utf-8"))
+                saved = next(it for it in persisted["items"] if it["id"] == "dishes")
+                self.assertTrue(saved.get("last_done"))
             finally:
                 proc.terminate()
                 try:
