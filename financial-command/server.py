@@ -89,6 +89,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
+FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
 ORCHESTRA_PORT = 8790
 ORCHESTRA_URL = f"http://127.0.0.1:{ORCHESTRA_PORT}/"
 _ORCHESTRA_PID: int | None = None
@@ -394,6 +395,49 @@ def _attach_solana(data: dict) -> dict:
     return data
 
 
+def _fund_manager_snapshot() -> dict:
+    """Read-only fund manager snapshot (Mac-pushed; no live RH on prod serve)."""
+    if not FM_SNAPSHOT.is_file():
+        return {
+            "ok": False,
+            "error": "no fund_manager_latest.json — refresh RH snapshot on Mac",
+        }
+    try:
+        data = json.loads(FM_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        return {"ok": False, "error": str(e)}
+    if not isinstance(data, dict):
+        return {"ok": False, "error": "fund_manager_latest.json is not an object"}
+    return data
+
+
+def _fm_has_analysis(fm: object) -> bool:
+    if not isinstance(fm, dict):
+        return False
+    an = fm.get("analysis")
+    if isinstance(an, dict) and (an.get("ok") or an.get("positions")):
+        return True
+    return bool(fm.get("ok") and (fm.get("positions") or fm.get("analysis")))
+
+
+def _attach_fund_manager(data: dict) -> dict:
+    """Prod composites often omit fund_manager; the sidecar file is pushed separately."""
+    if _fm_has_analysis(data.get("fund_manager")):
+        return data
+    ev = data.get("evaluation")
+    if isinstance(ev, dict) and _fm_has_analysis(ev.get("fund_manager")):
+        data["fund_manager"] = ev.get("fund_manager")
+        return data
+    fm = _fund_manager_snapshot()
+    if _fm_has_analysis(fm):
+        data["fund_manager"] = fm
+    return data
+
+
+def _enrich_treasury(data: dict) -> dict:
+    return _attach_fund_manager(_attach_solana(data))
+
+
 def _braiins_live() -> dict:
     """Public Braiins summary for FCC main dash + capital-flows (no secrets)."""
     if not BRAIINS_SNAPSHOT.is_file():
@@ -634,7 +678,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                     "status": "error",
                     "error": f"braiins attach failed: {be}",
                 }
-            data = _attach_solana(data)
+            data = _enrich_treasury(data)
             self._json(200, data)
             return
         if path == "/api/braiins":
@@ -801,7 +845,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 "status": "error",
                 "error": f"braiins attach failed: {be}",
             }
-        return _attach_solana(data)
+        return _enrich_treasury(data)
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
@@ -1036,7 +1080,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "status": "error",
                         "error": f"braiins attach failed: {be}",
                     }
-                data = _attach_solana(data)
+                data = _enrich_treasury(data)
             self._json(200, {"ok": True, "treasury": data, "refreshed": report})
             return
 

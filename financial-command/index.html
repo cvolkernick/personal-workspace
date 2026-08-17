@@ -525,16 +525,47 @@
       gap: 0.75rem;
     }
     .metric {
-      display: flex;
-      justify-content: space-between;
-      gap: 0.6rem;
-      padding: 0.28rem 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+      gap: 0.55rem;
+      align-items: baseline;
+      padding: 0.32rem 0;
       border-bottom: 1px solid #1a2430;
       font-size: 0.88rem;
     }
     .metric:last-child { border-bottom: 0; }
-    .metric .label { color: var(--muted); }
-    .metric .val { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
+    .metric .label { color: var(--muted); min-width: 0; }
+    .metric .val {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      text-align: right;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .tx-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .tx-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.25rem 0.35rem 0.3rem 0;
+      border-bottom: 1px solid #243040;
+    }
+    .tx-table td {
+      padding: 0.32rem 0.35rem 0.32rem 0;
+      border-bottom: 1px solid #1a2430;
+      vertical-align: top;
+    }
+    .tx-table td.amt {
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+    .tx-table td.when { color: var(--muted); white-space: nowrap; width: 1%; }
+    .tx-table tr:last-child td { border-bottom: 0; }
     .actions { display: flex; flex-direction: column; gap: 0.5rem; }
     /* Do now — single-slide carousel */
     #actions-card .card-head {
@@ -1699,12 +1730,12 @@
         min-width: 0;
       }
       .metric {
-        flex-wrap: wrap;
+        grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
         font-size: 0.84rem;
       }
       .metric .val {
-        text-align: left;
-        width: 100%;
+        text-align: right;
+        width: auto;
       }
       .manual-form.grid-2 {
         grid-template-columns: 1fr;
@@ -2294,6 +2325,42 @@
     }
     function metric(label, val) {
       return `<div class="metric"><span class="label">${label}</span><span class="val">${val}</span></div>`;
+    }
+    function txTable(rows) {
+      if (!rows || !rows.length) return "";
+      return (
+        `<div class="table-scroll"><table class="tx-table"><thead><tr>` +
+        `<th>Date</th><th>Payee</th><th class="amt">Amt</th></tr></thead><tbody>` +
+        rows
+          .map((t) => {
+            const payee = escapeHtml(t.payee || t.item || "—");
+            const when = escapeHtml(t.date || "");
+            const amt = money(t.amount_display ?? t.amount ?? t.monthly);
+            return (
+              `<tr><td class="when">${when}</td><td>${payee}</td>` +
+              `<td class="amt">${amt}</td></tr>`
+            );
+          })
+          .join("") +
+        `</tbody></table></div>`
+      );
+    }
+    function namedAmtTable(rows, amtKey) {
+      if (!rows || !rows.length) return "";
+      const key = amtKey || "monthly";
+      return (
+        `<div class="table-scroll"><table class="tx-table"><thead><tr>` +
+        `<th>Item</th><th class="amt">Monthly</th></tr></thead><tbody>` +
+        rows
+          .map((r) => {
+            return (
+              `<tr><td>${escapeHtml(r.item || "—")}</td>` +
+              `<td class="amt">${money(r[key])}</td></tr>`
+            );
+          })
+          .join("") +
+        `</tbody></table></div>`
+      );
     }
     function btcAmt(n, digits = 8) {
       if (n == null || n === "" || !Number.isFinite(Number(n))) return "—";
@@ -4044,7 +4111,7 @@
               market_value: null,
             }))) || [];
       document.getElementById("fm-holdings").innerHTML = apos.length
-        ? `<table class="pos-table"><thead><tr><th>Symbol</th><th>Sleeve</th><th>Qty</th><th>Est. $</th></tr></thead><tbody>` +
+        ? `<div class="table-scroll"><table class="pos-table"><thead><tr><th>Symbol</th><th>Sleeve</th><th>Qty</th><th>Est. $</th></tr></thead><tbody>` +
           apos
             .slice(0, 12)
             .map((p) => {
@@ -4069,7 +4136,7 @@
               );
             })
             .join("") +
-          `</tbody></table>`
+          `</tbody></table></div>`
         : `<p class="hint">No agentic positions</p>`;
 
       const wl = fma.watchlist || {};
@@ -4111,85 +4178,46 @@
       // YNAB txs collapsed
       const octx = oc.transactions || [];
       document.getElementById("one-card-txs").innerHTML = octx.length
-        ? octx
-            .slice(0, 8)
-            .map(
-              (t) =>
-                `<div class="metric"><span class="label">${t.date || ""} · ${
-                  t.payee || "—"
-                }</span><span class="val">${money(t.amount_display ?? t.amount)}</span></div>`
-            )
-            .join("")
+        ? txTable(octx.slice(0, 8))
         : `<p class="hint">No card txs</p>`;
       const rhtx = rhc.transactions || [];
       document.getElementById("rh-checking-txs").innerHTML = rhtx.length
-        ? rhtx
-            .slice(0, 8)
-            .map(
-              (t) =>
-                `<div class="metric"><span class="label">${t.date || ""} · ${
-                  t.payee || "—"
-                }</span><span class="val">${money(t.amount_display ?? t.amount)}</span></div>`
-            )
-            .join("")
+        ? txTable(rhtx.slice(0, 8))
         : `<p class="hint">No checking txs</p>`;
       const xmtx = xm.transactions || [];
       document.getElementById("x-money-txs").innerHTML = xmtx.length
-        ? xmtx
-            .slice(0, 8)
-            .map(
-              (t) =>
-                `<div class="metric"><span class="label">${t.date || ""} · ${
-                  t.payee || "—"
-                }</span><span class="val">${money(t.amount_display ?? t.amount)}</span></div>`
-            )
-            .join("")
+        ? txTable(xmtx.slice(0, 8))
         : `<p class="hint">No X Money txs</p>`;
 
       const collEl = document.getElementById("expenses-top-collateral");
       if (collEl) {
-        collEl.innerHTML = (
+        const collRows = (
           collTab.top_targets ||
           collTab.top_monthly ||
           []
-        )
-          .slice(0, 8)
-          .map(
-            (r) =>
-              `<div class="metric"><span class="label">${escapeHtml(
-                r.item || "—"
-              )}</span><span class="val">${money(r.monthly)}</span></div>`
-          )
-          .join("") || `<p class="hint">No collateral investment items</p>`;
+        ).slice(0, 8);
+        collEl.innerHTML = collRows.length
+          ? namedAmtTable(collRows)
+          : `<p class="hint">No collateral investment items</p>`;
       }
-      document.getElementById("expenses-top-disc").innerHTML = (
+      const discRows = (
         discTab.top_targets ||
         discTab.top_monthly ||
         []
-      )
-        .slice(0, 8)
-        .map(
-          (r) =>
-            `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(
-              r.monthly
-            )}</span></div>`
-        )
-        .join("") || `<p class="hint">No productive capital targets</p>`;
+      ).slice(0, 8);
+      document.getElementById("expenses-top-disc").innerHTML = discRows.length
+        ? namedAmtTable(discRows)
+        : `<p class="hint">No productive capital targets</p>`;
       const consEl = document.getElementById("expenses-top-consumer");
       if (consEl) {
-        consEl.innerHTML = (
+        const consRows = (
           consumerTab.top_targets ||
           consumerTab.top_monthly ||
           []
-        )
-          .slice(0, 8)
-          .map(
-            (r) =>
-              `<div class="metric"><span class="label">${r.item || "—"}</span><span class="val">${money(
-                r.monthly
-              )}</span></div>`
-          )
-          .join("") || `<p class="hint">No consumer wishlist items</p>`;
+        ).slice(0, 8);
+        consEl.innerHTML = consRows.length
+          ? namedAmtTable(consRows)
+          : `<p class="hint">No consumer wishlist items</p>`;
       }
 
       // Missing data panel only if needed
@@ -5140,8 +5168,10 @@
     function fccActiveTab() {
       return document.body.getAttribute("data-m-active") || "glance";
     }
-    function setFccTab(tab) {
+    function setFccTab(tab, opts) {
       const t = FCC_TABS.includes(tab) ? tab : "glance";
+      const prev = document.body.getAttribute("data-m-active");
+      const changed = prev !== t;
       document.body.setAttribute("data-m-active", t);
       try {
         localStorage.setItem("fcc.mTab", t);
@@ -5159,9 +5189,12 @@
         const br = document.getElementById("braiins-card");
         if (br) br.open = true;
       }
-      try {
-        window.scrollTo(0, 0);
-      } catch (_) {}
+      // Resize / URL-bar show-hide must not yank scroll. Only jump on a real tab change.
+      if (changed && !(opts && opts.preserveScroll)) {
+        try {
+          window.scrollTo(0, 0);
+        } catch (_) {}
+      }
     }
     function syncMobileLayout() {
       const narrow = fccIsMobileShell();
@@ -5177,7 +5210,9 @@
         try {
           tab = localStorage.getItem("fcc.mTab") || "glance";
         } catch (_) {}
-        setFccTab(document.body.getAttribute("data-m-active") || tab);
+        setFccTab(document.body.getAttribute("data-m-active") || tab, {
+          preserveScroll: true,
+        });
       }
     }
     function initFccMobileShell() {
