@@ -90,6 +90,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 FM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "fund_manager_latest.json"
+XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
 ORCHESTRA_PORT = 8790
 ORCHESTRA_URL = f"http://127.0.0.1:{ORCHESTRA_PORT}/"
 _ORCHESTRA_PID: int | None = None
@@ -434,8 +435,68 @@ def _attach_fund_manager(data: dict) -> dict:
     return data
 
 
+def _x_money_usable(xm: object) -> bool:
+    if not isinstance(xm, dict):
+        return False
+    if xm.get("source") in (None, "empty"):
+        return False
+    return (
+        xm.get("as_of") is not None
+        or xm.get("cash") is not None
+        or xm.get("available") is not None
+    )
+
+
+def _x_money_snapshot() -> dict:
+    """Read-only X Money sidecar (Mac-pushed YNAB; Pi may omit it from the composite)."""
+    if not XM_SNAPSHOT.is_file():
+        return {"source": "empty", "error": "no x_money_latest.json"}
+    try:
+        data = json.loads(XM_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as e:
+        return {"source": "error", "error": str(e)}
+    if not isinstance(data, dict):
+        return {"source": "invalid", "error": "x_money_latest.json is not an object"}
+    return data
+
+
+def _attach_x_money(data: dict) -> dict:
+    """Prod composites often omit snapshot.x_money; the sidecar is pushed separately."""
+    snap = data.get("snapshot")
+    if not isinstance(snap, dict):
+        snap = {}
+        data["snapshot"] = snap
+    if _x_money_usable(snap.get("x_money")):
+        return data
+    xm = _x_money_snapshot()
+    if not _x_money_usable(xm):
+        return data
+    snap["x_money"] = xm
+    ev = data.get("evaluation")
+    if isinstance(ev, dict):
+        dq = ev.get("data_quality")
+        if isinstance(dq, dict):
+            srcs = dq.get("sources")
+            if not isinstance(srcs, dict):
+                srcs = {}
+                dq["sources"] = srcs
+            if not srcs.get("x_money"):
+                srcs["x_money"] = xm.get("source")
+                srcs["x_money_as_of"] = xm.get("as_of")
+        inp = ev.get("inputs")
+        if isinstance(inp, dict) and inp.get("x_money_cash") is None:
+            cash = xm.get("cash")
+            if cash is None:
+                cash = xm.get("available")
+            if cash is not None:
+                inp["x_money_cash"] = cash
+            if xm.get("account_name"):
+                inp.setdefault("x_money_account", xm.get("account_name"))
+    return data
+
+
 def _enrich_treasury(data: dict) -> dict:
-    return _attach_fund_manager(_attach_solana(data))
+    return _attach_fund_manager(_attach_x_money(_attach_solana(data)))
 
 
 def _braiins_live() -> dict:
@@ -822,6 +883,18 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/financial-command/capital-flows/",
         ):
             self.path = "/financial-command/capital-flows.html"
+        elif path in ("/favicon.ico", "/financial-command/favicon.ico"):
+            # iOS Safari fetches /favicon.ico at the origin root, not the page dir.
+            self.path = "/financial-command/favicon.ico"
+        elif path in (
+            "/apple-touch-icon.png",
+            "/apple-touch-icon-precomposed.png",
+            "/apple-touch-icon-120x120.png",
+            "/apple-touch-icon-120x120-precomposed.png",
+            "/apple-touch-icon-180x180.png",
+            "/apple-touch-icon-180x180-precomposed.png",
+        ):
+            self.path = "/financial-command/apple-touch-icon.png"
         return super().do_GET()
 
     def _load_treasury_payload(self) -> dict:

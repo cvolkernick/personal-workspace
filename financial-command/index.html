@@ -8,9 +8,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="icon" href="favicon.svg?v=btc" type="image/svg+xml" />
-  <link rel="icon" href="favicon-32.png?v=btc" type="image/png" sizes="32x32" />
-  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
   <title>₿ Financial Command Center</title>
   <style>
     :root {
@@ -2043,6 +2044,13 @@
     <section id="at-a-glance" data-m-panel="glance" aria-label="At a glance">
       <div class="kpi-grid" id="kpi-grid"></div>
     </section>
+    <section class="card" id="next-pay-card" data-m-panel="glance" aria-label="Next to pay">
+      <div class="card-head">
+        <h2>Next to pay</h2>
+        <button type="button" class="btn" id="btn-next-pay-coach">Full plan</button>
+      </div>
+      <div id="glance-next-pay" class="bill-list"></div>
+    </section>
     <section class="card" id="actions-card" data-m-panel="glance">
       <div class="card-head">
         <h2>Do now</h2>
@@ -2605,6 +2613,14 @@
         if (!db) return -1;
         return da - db || (a.item || "").localeCompare(b.item || "");
       });
+    }
+    function fillGlanceNextPay(rows, htmlFn) {
+      const el = document.getElementById("glance-next-pay");
+      if (!el) return;
+      const list = (rows || []).slice(0, 5);
+      el.innerHTML = list.length
+        ? list.map(htmlFn).join("")
+        : `<p class="hint">No dated bills</p>`;
     }
 
     function classifyLiquid(liquid, p) {
@@ -3947,6 +3963,7 @@
               .map(billRowHtml)
               .join("") || `<p class="hint">No dated items</p>`;
         }
+        fillGlanceNextPay(billsSorted, billRowHtml);
       }
 
       document.getElementById("expense-kpis").innerHTML = [
@@ -4676,6 +4693,7 @@
               : "")
           : `<p class="hint">No expense lines in coach snapshot.</p>`;
       }
+      fillGlanceNextPay(rows, coachBillRowHtml);
 
       const h = plan.habits || {};
       if (habEl) {
@@ -4906,6 +4924,9 @@
     const btnCoach = document.getElementById("btn-coach-refresh");
     if (btnCoach)
       btnCoach.addEventListener("click", () => loadCoach({ refresh: true }));
+    const btnNextPay = document.getElementById("btn-next-pay-coach");
+    if (btnNextPay)
+      btnNextPay.addEventListener("click", () => setFccTab("coach"));
     document.getElementById("btn-save-config").addEventListener("click", saveConfig);
     // Soft auto-poll: re-read treasury JSON only (does NOT live-sync CB/Sheet/Braiins/RH).
     // Use the Refresh button for live feed ages.

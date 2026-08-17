@@ -18,10 +18,12 @@ class TestDashboardArtifact(unittest.TestCase):
         html = (ROOT / "financial-command" / "index.html").read_text(encoding="utf-8")
         self.assertIn("Financial Command Center", html)
         self.assertIn("Do now", html)
+        self.assertIn("Next to pay", html)
+        self.assertIn("glance-next-pay", html)
         self.assertIn("At a glance", html)
         self.assertIn("kpi-grid", html)
         self.assertIn("Cash &amp; credit", html)
-        self.assertIn("Upcoming bills", html)
+        self.assertIn("Pay plan", html)
         self.assertIn("bill-row", html)
         self.assertIn("dueUrgency", html)
         self.assertIn("Brokerage", html)
@@ -29,8 +31,12 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Capital targets", html)
         self.assertIn("Settings", html)
         self.assertIn("/api/refresh", html)
-        self.assertIn("show-all-actions", html)
+        self.assertIn("fillGlanceNextPay", html)
         self.assertIn("actorLabel", html)
+        ico = html.find('href="favicon.ico')
+        svg = html.find('href="favicon.svg')
+        self.assertGreater(ico, 0)
+        self.assertGreater(svg, ico)
         self.assertGreater(len(html), 8000)
 
     def test_action_items_doc(self):
@@ -69,6 +75,78 @@ class TestRunTreasuryEntry(unittest.TestCase):
         self.assertTrue(dash.is_file())
         dash_data = json.loads(dash.read_text(encoding="utf-8"))
         self.assertTrue(dash_data["evaluation"]["actions"] is not None)
+
+
+class TestFccSidecarAttach(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "fcc_server", ROOT / "financial-command" / "server.py"
+        )
+        cls.mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.mod)
+
+    def test_attach_x_money_fills_omitted_snapshot(self):
+        import tempfile
+
+        sidecar = {
+            "source": "ynab",
+            "as_of": "2026-08-17T18:46:45.960996+00:00",
+            "cash": 178.14,
+            "account_name": "Checking – 2201",
+        }
+        with tempfile.TemporaryDirectory() as td:
+            path = Path(td) / "x_money_latest.json"
+            path.write_text(json.dumps(sidecar), encoding="utf-8")
+            prev = self.mod.XM_SNAPSHOT
+            self.mod.XM_SNAPSHOT = path
+            try:
+                data = {
+                    "snapshot": {
+                        "as_of": "2026-08-17T18:46:45+00:00",
+                        "one_card": {
+                            "source": "ynab",
+                            "as_of": "2026-08-17T18:46:45+00:00",
+                        },
+                    },
+                    "evaluation": {
+                        "data_quality": {"sources": {"one_card": "ynab"}},
+                        "inputs": {},
+                    },
+                }
+                out = self.mod._attach_x_money(data)
+            finally:
+                self.mod.XM_SNAPSHOT = prev
+        xm = (out.get("snapshot") or {}).get("x_money") or {}
+        self.assertEqual(xm.get("source"), "ynab")
+        self.assertAlmostEqual(xm.get("cash"), 178.14)
+        srcs = ((out.get("evaluation") or {}).get("data_quality") or {}).get("sources")
+        self.assertEqual(srcs.get("x_money"), "ynab")
+        self.assertAlmostEqual(
+            ((out.get("evaluation") or {}).get("inputs") or {}).get("x_money_cash"),
+            178.14,
+        )
+
+    def test_attach_x_money_keeps_existing(self):
+        data = {
+            "snapshot": {
+                "x_money": {
+                    "source": "ynab",
+                    "as_of": "2026-08-17T19:47:36+00:00",
+                    "cash": 12.34,
+                }
+            }
+        }
+        out = self.mod._attach_x_money(data)
+        self.assertAlmostEqual(out["snapshot"]["x_money"]["cash"], 12.34)
+
+    def test_favicon_ico_present(self):
+        ico = ROOT / "financial-command" / "favicon.ico"
+        self.assertTrue(ico.is_file())
+        self.assertGreater(ico.stat().st_size, 64)
+        self.assertTrue((ROOT / "financial-command" / "favicon-32.png").is_file())
 
 
 if __name__ == "__main__":
