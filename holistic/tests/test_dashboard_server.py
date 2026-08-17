@@ -175,6 +175,9 @@ class DashboardServerTests(unittest.TestCase):
                     self.assertIn("no live plan — rebuild", html)
                     self.assertIn("Upkeep", html)
                     self.assertIn("upkeep-card", html)
+                    # Charge-0 fill is 0% wide; track must carry level so empty/overdue read red.
+                    self.assertIn(".upkeep-bar.red", html)
+                    self.assertIn('upkeep-bar ${escapeAttr(level)}', html)
                 self.assertIn("freshness", state)
                 freshness = state.get("freshness") or {}
                 fresh_ids = {it["id"] for it in freshness.get("items") or []}

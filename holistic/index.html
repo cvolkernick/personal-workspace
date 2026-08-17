@@ -324,6 +324,15 @@
       overflow: hidden;
       min-width: 64px;
     }
+    /* Charge-0 fill is 0% wide — color the track so empty/overdue still read red. */
+    .upkeep-bar.red {
+      background: rgba(255, 107, 107, 0.28);
+      border-color: #ff6b6b;
+    }
+    .upkeep-bar.mid {
+      background: rgba(245, 197, 66, 0.14);
+      border-color: #c9a227;
+    }
     .upkeep-fill {
       position: absolute;
       left: 0; top: 0; bottom: 0;
@@ -1061,7 +1070,7 @@
         return `
           <div class="upkeep-row" data-upkeep-id="${escapeAttr(it.id)}">
             <div class="upkeep-title">${escapeHtml(it.title || it.id)}</div>
-            <div class="upkeep-bar" title="${pct.toFixed(0)}% · ${escapeAttr(level)}">
+            <div class="upkeep-bar ${escapeAttr(level)}" title="${pct.toFixed(0)}% · ${escapeAttr(level)}">
               <div class="upkeep-fill ${escapeAttr(level)}" style="width:${pct}%"></div>
             </div>
             <div class="upkeep-meta">${escapeHtml(fmtUpkeepEta(it))}</div>
