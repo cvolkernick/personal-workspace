@@ -77,6 +77,38 @@ class DimoClientTests(unittest.TestCase):
         self.assertIn("401", out.get("error") or "")
         self.assertIsNone(out["odometer"])
 
+    def test_normalize_real_autopi_payload(self) -> None:
+        payload = {
+            "data": {
+                "signalsLatest": {
+                    "powertrainTransmissionTravelledDistance": {
+                        "value": 94725.3,
+                        "timestamp": "2026-08-17T22:07:32.447Z",
+                    },
+                    "powertrainRange": None,
+                    "powertrainTractionBatteryStateOfChargeCurrent": None,
+                    "speed": {"value": 0, "timestamp": "2026-08-17T22:07:46.586Z"},
+                    "currentLocationCoordinates": {
+                        "timestamp": "2026-08-17T22:12:12.917Z",
+                        "value": {"latitude": 26.64, "longitude": -82.03},
+                    },
+                }
+            }
+        }
+        out = dimo_client._normalize_telemetry(payload)
+        self.assertEqual(out["odometer"], 94725.3)
+        self.assertIsNone(out["range"])
+        self.assertIsNone(out["soc"])
+        self.assertEqual(out["last_seen"], "2026-08-17T22:12:12.917Z")
+        self.assertEqual(out["location"]["latitude"], 26.64)
+
+    def test_telemetry_query_uses_real_signal_names(self) -> None:
+        body = dimo_client._telemetry_body(131908).decode("utf-8")
+        self.assertNotIn("lastSeen", body)
+        self.assertNotIn("odometer {", body)
+        self.assertIn("powertrainTransmissionTravelledDistance", body)
+        self.assertIn("currentLocationCoordinates", body)
+
     def test_is_configured_requires_id_domain_and_secret(self) -> None:
         self.assertFalse(dimo_client.is_configured({}))
         self.assertFalse(

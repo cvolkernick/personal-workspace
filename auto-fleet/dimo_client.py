@@ -128,6 +128,12 @@ def _value(node: Any) -> Any:
     return node
 
 
+def _signal_timestamp(node: Any) -> Optional[str]:
+    if isinstance(node, dict) and node.get("timestamp"):
+        return str(node.get("timestamp"))
+    return None
+
+
 def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     data = payload.get("data") if isinstance(payload, dict) else None
     latest = (data or {}).get("signalsLatest") if isinstance(data, dict) else None
@@ -140,13 +146,34 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     soc = latest.get("powertrainTractionBatteryStateOfChargeCurrent") or latest.get(
         "soc"
     )
-    lat = _value(latest.get("currentLocationLatitude"))
-    lon = _value(latest.get("currentLocationLongitude"))
+    coords = latest.get("currentLocationCoordinates")
+    lat = lon = None
+    if isinstance(coords, dict):
+        val = coords.get("value") if isinstance(coords.get("value"), dict) else coords
+        if isinstance(val, dict):
+            lat = val.get("latitude")
+            lon = val.get("longitude")
+    if lat is None:
+        lat = _value(latest.get("currentLocationLatitude"))
+    if lon is None:
+        lon = _value(latest.get("currentLocationLongitude"))
     loc = latest.get("currentLocation") or latest.get("location")
     if lat is not None or lon is not None:
         loc = {"lat": lat, "lon": lon, "latitude": lat, "longitude": lon}
+    stamps = [
+        s
+        for s in (
+            latest.get("lastSeen") or latest.get("last_seen"),
+            _signal_timestamp(odo) if isinstance(odo, dict) else None,
+            _signal_timestamp(rng) if isinstance(rng, dict) else None,
+            _signal_timestamp(soc) if isinstance(soc, dict) else None,
+            _signal_timestamp(latest.get("speed")) if isinstance(latest.get("speed"), dict) else None,
+            _signal_timestamp(coords) if isinstance(coords, dict) else None,
+        )
+        if s
+    ]
     return {
-        "last_seen": latest.get("lastSeen") or latest.get("last_seen"),
+        "last_seen": max(stamps) if stamps else None,
         "odometer": _value(odo),
         "range": _value(rng),
         "soc": _value(soc),
@@ -154,27 +181,48 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     }
 
 
+TELEMETRY_QUERY = (
+    "query Latest($tokenId: Int!) { signalsLatest(tokenId: $tokenId) { "
+    "powertrainTransmissionTravelledDistance { value timestamp } "
+    "powertrainRange { value timestamp } "
+    "powertrainTractionBatteryStateOfChargeCurrent { value timestamp } "
+    "powertrainFuelSystemRelativeLevel { value timestamp } "
+    "speed { value timestamp } "
+    "currentLocationCoordinates { timestamp value { latitude longitude } } } }"
+)
+
+
 def _telemetry_body(token_id: int) -> bytes:
     query = {
-        "query": (
-            "query Latest($tokenId: Int!) { signalsLatest(tokenId: $tokenId) "
-            "{ lastSeen odometer { value timestamp } "
-            "powertrainRange { value } "
-            "powertrainTractionBatteryStateOfChargeCurrent { value } "
-            "currentLocationLatitude { value } currentLocationLongitude { value } } }"
-        ),
+        "query": TELEMETRY_QUERY,
         "variables": {"tokenId": token_id},
     }
     return json.dumps(query).encode("utf-8")
 
 
-def _auth_header(env: Mapping[str, str]) -> str:
-    token = (
-        (env.get("DIMO_DEVELOPER_JWT") or "").strip()
-        or (env.get("DIMO_API_KEY") or "").strip()
-        or (env.get("DIMO_PRIVATE_KEY") or "").strip()
+def _auth_header(bearer: str) -> str:
+    return f"Bearer {bearer}"
+
+
+def _fetch_via_sdk(token_id: int, env: Mapping[str, str]) -> Any:
+    """Developer JWT → Vehicle JWT → telemetry. Never send the API key as Bearer."""
+    from dimo import DIMO  # type: ignore
+
+    dimo = DIMO("Production")
+    auth = dimo.auth.get_dev_jwt(
+        client_id=env["DIMO_CLIENT_ID"],
+        domain=env["DIMO_DOMAIN"],
+        private_key=(env.get("DIMO_API_KEY") or env.get("DIMO_PRIVATE_KEY") or ""),
     )
-    return f"Bearer {token}"
+    vehicle = dimo.token_exchange.exchange(
+        developer_jwt=auth["access_token"], token_id=int(token_id)
+    )
+    vjwt = vehicle.get("token") or vehicle.get("access_token")
+    if not vjwt:
+        raise RuntimeError("token exchange returned no vehicle JWT")
+    return dimo.query(
+        "Telemetry", TELEMETRY_QUERY, token=vjwt, variables={"tokenId": int(token_id)}
+    )
 
 
 def _http_transport(
@@ -208,8 +256,9 @@ def fetch_vehicle(
             reason=f"no vehicle token id for {unit_id}",
             error=f"no vehicle token id for {unit_id}",
         )
+    vehicle_jwt = (resolved.get("DIMO_VEHICLE_JWT") or "").strip()
     headers = {
-        "Authorization": _auth_header(resolved),
+        "Authorization": _auth_header(vehicle_jwt) if vehicle_jwt else "",
         "Content-Type": "application/json",
     }
     body = _telemetry_body(token)
@@ -233,7 +282,15 @@ def fetch_vehicle(
                         "location": payload.get("location"),
                     }
         else:
-            payload = _http_transport("POST", TELEMETRY_URL, body, headers)
+            try:
+                payload = _fetch_via_sdk(token, resolved)
+            except ImportError:
+                if not vehicle_jwt:
+                    raise RuntimeError(
+                        "need dimo-python-sdk (or DIMO_VEHICLE_JWT) — "
+                        "do not send DIMO_API_KEY as a telemetry Bearer"
+                    )
+                payload = _http_transport("POST", TELEMETRY_URL, body, headers)
         signals = _normalize_telemetry(payload)
     except Exception as exc:  # noqa: BLE001
         return {
