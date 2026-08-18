@@ -43,22 +43,65 @@
     }
     header h1 { margin: 0; font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.85rem; }
-    button {
+    button, .touch {
       font: inherit;
       border-radius: 8px;
       border: 1px solid var(--border);
       background: var(--panel);
       color: var(--text);
-      padding: 0.4rem 0.85rem;
+      padding: 0.45rem 0.9rem;
       font-weight: 600;
       cursor: pointer;
+      min-height: 44px;
+      min-width: 44px;
     }
     button:hover { border-color: var(--accent); color: var(--accent); }
-    main { max-width: 1100px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
+    main { max-width: 1180px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
     .meta {
       color: var(--muted);
       font-size: 0.85rem;
-      margin: 0 0 0.9rem;
+      margin: 0 0 0.75rem;
+    }
+    .glance {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.55rem;
+      margin: 0 0 1rem;
+    }
+    .glance-cell {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 0.15rem;
+      min-height: 88px;
+      padding: 0.65rem 0.75rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: inherit;
+      text-decoration: none;
+      min-width: 44px;
+    }
+    .glance-cell:hover { border-color: var(--accent); }
+    .glance-cell.stale { border-color: #6a5a2a; }
+    .glance-cell.dead, .card.dead {
+      border-color: #8a2a2a;
+      box-shadow: inset 3px 0 0 var(--red);
+    }
+    .glance-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.4rem;
+      align-items: baseline;
+    }
+    .glance-name { font-weight: 700; font-size: 0.95rem; }
+    .glance-hero { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
+    .glance-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.25rem;
+      color: var(--muted);
+      font-size: 0.75rem;
     }
     .grid {
       display: grid;
@@ -69,19 +112,35 @@
       background: var(--panel);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 0.95rem 1rem;
+      padding: 0;
       min-width: 0;
+      overflow: hidden;
     }
+    .hero {
+      display: grid;
+      grid-template-columns: 132px 1fr;
+      min-height: 110px;
+    }
+    .hero img {
+      width: 100%;
+      height: 110px;
+      object-fit: cover;
+      display: block;
+      background: #0a1016;
+    }
+    .hero-text { padding: 0.75rem 0.95rem 0.55rem; min-width: 0; }
     .card h2 {
-      margin: 0 0 0.35rem;
-      font-size: 1.05rem;
-      font-weight: 650;
+      margin: 0 0 0.3rem;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
     }
-    .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0 0 0.7rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0; }
     .chip {
       font-size: 0.72rem;
       font-weight: 650;
-      padding: 0.15rem 0.5rem;
+      padding: 0.2rem 0.5rem;
       border-radius: 999px;
       border: 1px solid #3a4a6a;
       color: var(--accent);
@@ -92,10 +151,11 @@
     .chip.warn { color: var(--yellow); border-color: #6a5a2a; }
     .chip.ok { color: var(--green); border-color: #2a5a40; }
     .chip.err { color: var(--red); border-color: #6a2a2a; }
+    .body { padding: 0 0.95rem 0.85rem; }
     .strip {
       border-top: 1px solid var(--border);
       padding: 0.55rem 0 0.15rem;
-      margin-top: 0.45rem;
+      margin-top: 0.35rem;
     }
     .strip h3 {
       margin: 0 0 0.3rem;
@@ -105,16 +165,73 @@
       letter-spacing: 0.04em;
       font-weight: 650;
     }
+    .metrics {
+      display: grid;
+      grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr);
+      column-gap: 0.7rem;
+      row-gap: 0.22rem;
+      align-items: baseline;
+    }
+    .metrics .k {
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      font-weight: 650;
+    }
+    .metrics .v { font-size: 0.92rem; min-width: 0; }
     .row { font-size: 0.88rem; margin: 0.15rem 0; }
     .muted { color: var(--muted); }
     .empty { color: var(--muted); font-size: 0.86rem; font-style: italic; }
     .err { color: var(--red); }
-    .shared { margin-top: 0.9rem; }
+    .due-lead { color: var(--yellow); font-weight: 650; }
+    .soc {
+      height: 10px;
+      border-radius: 999px;
+      background: #1a2733;
+      overflow: hidden;
+      margin: 0.25rem 0 0.35rem;
+    }
+    .soc > span { display: block; height: 100%; background: var(--green); }
+    .soc.warn > span { background: var(--yellow); }
+    .soc.err > span { background: var(--red); }
+    a.maps {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      color: var(--accent);
+      font-weight: 650;
+      text-decoration: none;
+    }
+    a.maps:hover { text-decoration: underline; }
+    .shared { margin-top: 0.9rem; padding: 0.95rem 1rem; }
     .shared ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+    .turo-inbox {
+      margin-top: 0.9rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.2rem 0.85rem;
+      background: var(--panel);
+    }
+    .turo-inbox summary {
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-weight: 650;
+      color: var(--muted);
+    }
     @media (max-width: 720px) {
+      .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid { grid-template-columns: 1fr; }
+      .hero { grid-template-columns: 108px 1fr; }
       header { padding: 0.85rem 0.9rem; }
       main { padding: 0.85rem 0.9rem 2.5rem; }
+    }
+    @media (max-width: 390px) {
+      .glance { grid-template-columns: 1fr 1fr; }
+      .metrics { grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr); }
+      .hero { grid-template-columns: 96px 1fr; }
     }
   </style>
 </head>
@@ -122,23 +239,29 @@
   <header>
     <div>
       <h1>Auto Fleet</h1>
-      <div class="sub">Fleet management · four owned units · not TREAD</div>
+      <div class="sub">Internal ops · four owned units</div>
     </div>
     <button type="button" id="btn-refresh">Refresh</button>
   </header>
   <main>
     <p class="meta" id="status">Loading…</p>
+    <div class="glance" id="glance"></div>
     <div class="grid" id="cards"></div>
     <section class="card shared" id="shared" hidden></section>
+    <details class="turo-inbox" id="turo-inbox" hidden>
+      <summary>Turo inbox</summary>
+      <p class="muted" id="turo-inbox-body"></p>
+    </details>
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
+    const KM_PER_MILE = 1.609344;
 
     function money(n) {
       if (n === null || n === undefined || n === "") return "—";
       const v = Number(n);
       if (Number.isNaN(v)) return "—";
-      return v.toLocaleString(undefined, { style: "currency", currency: "USD" });
+      return v.toLocaleString("en-US", { style: "currency", currency: "USD" });
     }
 
     function esc(s) {
@@ -156,7 +279,121 @@
       return `<span class="chip ${kind || ""}">${esc(text)}</span>`;
     }
 
-    function dimoStrip(d) {
+    function kmToMiles(km) {
+      const n = Number(km);
+      if (!Number.isFinite(n)) return null;
+      return n / KM_PER_MILE;
+    }
+
+    function formatOdoMi(km) {
+      const mi = kmToMiles(km);
+      if (mi == null) return null;
+      return Math.round(mi);
+    }
+
+    function formatRangeMi(km) {
+      const mi = kmToMiles(km);
+      if (mi == null) return null;
+      return Math.round(mi * 10) / 10;
+    }
+
+    function formatSoc(soc) {
+      const n = Number(soc);
+      if (!Number.isFinite(n)) return null;
+      return Math.round(n);
+    }
+
+    function rangeLabel(mi) {
+      if (mi == null) return null;
+      return Number.isInteger(mi) ? String(mi) : mi.toFixed(1);
+    }
+
+    function parseTs(value) {
+      if (!value) return null;
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    function relativeAge(ts, now) {
+      const dt = parseTs(ts);
+      if (!dt) return null;
+      const seconds = Math.max(0, ((now || Date.now()) - dt.getTime()) / 1000);
+      if (seconds < 45) return "just now";
+      if (seconds < 3600) return `${Math.max(1, Math.floor(seconds / 60))}m ago`;
+      if (seconds < 86400) return `${Math.max(1, Math.floor(seconds / 3600))}h ago`;
+      return `${Math.max(1, Math.floor(seconds / 86400))}d ago`;
+    }
+
+    function freshness(ts, nowMs) {
+      const dt = parseTs(ts);
+      if (!dt) return "unknown";
+      const seconds = ((nowMs || Date.now()) - dt.getTime()) / 1000;
+      if (seconds > 7 * 86400) return "dead";
+      if (seconds > 86400) return "stale";
+      return "live";
+    }
+
+    function portalOf(f) {
+      return (f && (f.portal || f.portal_override)) || null;
+    }
+
+    function hasDue(portal) {
+      if (!portal) return false;
+      const ptp = portal.promise_to_pay || portal.ptp;
+      if (ptp && (ptp.amount != null || ptp.due)) return true;
+      return portal.amount_due != null || portal.past_due != null;
+    }
+
+    function turoOneLine(t, pollS) {
+      const bookings = t.bookings || [];
+      const mins = Math.round((pollS || 900) / 60);
+      if (!bookings.length) return `0 trips · watching ${mins}m`;
+      const first = [...bookings].sort((a, b) => String(a.start || "").localeCompare(String(b.start || "")))[0];
+      return `${first.status || "booked"} · ${first.guest || "guest"} · ${first.start || "?"} → ${first.end || "?"}`;
+    }
+
+    function mapsUrl(loc) {
+      if (!loc) return null;
+      const lat = loc.lat ?? loc.latitude;
+      const lon = loc.lon ?? loc.longitude;
+      if (lat == null || lon == null) return null;
+      return `https://maps.google.com/?q=${lat},${lon}`;
+    }
+
+    function unitPhoto(id) {
+      if (id === "m3-2020" || id === "m3-2022") return "/static/fleet/tesla-model-3.jpg";
+      if (id === "corolla-2022") return "/static/fleet/toyota-corolla-2022.jpg";
+      if (id === "corolla-2024") return "/static/fleet/toyota-corolla-2024.jpg";
+      return null;
+    }
+
+    function glanceOf(u, nowMs, pollS) {
+      if (u.glance && u.glance.year_model) return u.glance;
+      const idn = u.identity || {};
+      const d = u.dimo || {};
+      const soc = formatSoc(d.soc);
+      const odo = formatOdoMi(d.odometer);
+      return {
+        year_model: [idn.year, idn.model].filter(Boolean).join(" "),
+        title: [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id,
+        role: idn.role || "unknown",
+        vin_short: idn.vin ? "…" + String(idn.vin).slice(-6) : null,
+        last_seen_relative: relativeAge(d.last_seen, nowMs),
+        freshness: freshness(d.last_seen, nowMs),
+        soc,
+        range_mi: formatRangeMi(d.range),
+        odo_mi: odo,
+        hero: soc != null ? `${soc}%` : (odo != null ? `${odo.toLocaleString("en-US")} mi` : "—"),
+        available: !((u.turo || {}).bookings || []).length,
+        turo_line: turoOneLine(u.turo || {}, pollS),
+        due: hasDue(portalOf(u.finance || {})),
+        photo: unitPhoto(u.id),
+        maps_url: mapsUrl(d.location),
+        show_soc: soc != null,
+      };
+    }
+
+    function dimoStrip(d, g) {
       const st = d.status || "unconfigured";
       const kind = st === "ok" ? "ok" : st === "error" ? "err" : "warn";
       let body = "";
@@ -165,74 +402,129 @@
       } else if (st === "error") {
         body = `<div class="err">${esc(d.error || "DIMO error")}</div>`;
       } else {
-        body = `
-          <div class="row">Odometer ${esc(d.odometer ?? "—")} · range ${esc(d.range ?? "—")}</div>
-          <div class="row muted">Last seen ${esc(d.last_seen || "—")}</div>`;
-        if (d.location && (d.location.latitude != null || d.location.lat != null)) {
-          body += `<div class="row muted">Location ${esc(d.location.latitude ?? d.location.lat)}, ${esc(d.location.longitude ?? d.location.lon)}</div>`;
+        const rows = [];
+        if (g.show_soc && g.soc != null) {
+          const barKind = g.freshness === "dead" || g.soc < 25 ? "err" : (g.soc < 50 ? "warn" : "ok");
+          rows.push(`<div class="k">SoC</div><div class="v">${g.soc}%<div class="soc ${barKind}" data-soc="${g.soc}"><span style="width:${g.soc}%"></span></div></div>`);
+          if (g.range_mi != null) {
+            rows.push(`<div class="k">Range</div><div class="v">${esc(rangeLabel(g.range_mi))} mi</div>`);
+          }
         }
+        if (g.odo_mi != null && !g.show_soc) {
+          rows.push(`<div class="k">Odo</div><div class="v">${Number(g.odo_mi).toLocaleString("en-US")} mi</div>`);
+        }
+        if (g.show_soc && g.odo_mi != null) {
+          rows.push(`<div class="k">Odo</div><div class="v">${Number(g.odo_mi).toLocaleString("en-US")} mi</div>`);
+        }
+        rows.push(`<div class="k">Last seen</div><div class="v ${g.freshness === "dead" ? "err" : "muted"}">${esc(g.last_seen_relative || "—")}${g.freshness === "dead" || g.freshness === "stale" ? ` · ${esc(g.freshness)}` : ""}</div>`);
+        if (g.maps_url) {
+          rows.push(`<div class="k">Location</div><div class="v"><a class="maps" href="${esc(g.maps_url)}" target="_blank" rel="noopener">Map</a></div>`);
+        }
+        body = `<div class="metrics">${rows.join("")}</div>`;
       }
       return `<div class="strip"><h3>DIMO ${chip(st, kind)}</h3>${body}</div>`;
     }
 
-    function turoStrip(t) {
-      const bookings = t.bookings || [];
-      let body;
-      if (!bookings.length) {
-        body = `<div class="empty">${esc(t.inbox_status || "No bookings.")}</div>`;
-      } else {
-        body = bookings.map((b) =>
-          `<div class="row">${esc(b.status)} · ${esc(b.guest || "guest ?")} · ` +
-          `${esc(b.start || "?")} → ${esc(b.end || "?")}` +
-          `${b.trip_id ? ` · #${esc(b.trip_id)}` : ""}</div>`
-        ).join("");
-      }
-      return `<div class="strip"><h3>Turo</h3>${body}</div>`;
+    function turoStrip(t, g) {
+      const line = (g && g.turo_line) || turoOneLine(t || {}, 900);
+      return `<div class="strip"><h3>Turo</h3><div class="row">${esc(line)}</div></div>`;
     }
 
     function costsStrip(f) {
       const stale = f.stale ? chip("stale", "warn") : chip("sheet", "ok");
+      const portal = portalOf(f);
+      const ptp = portal && (portal.promise_to_pay || portal.ptp);
       const lines = (f.sheet_lines || []).map((l) =>
         `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
         `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
         `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
       ).join("");
-      const portal = f.portal || f.portal_override;
+      let lead = "";
+      if (ptp) {
+        lead += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+      }
+      if (portal && portal.amount_due != null) {
+        lead += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
+      }
+      if (portal && portal.past_due != null) {
+        lead += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
+      }
       let portalHtml = "";
       if (portal) {
         const bits = [];
-        if (portal.contractual_monthly != null) bits.push(`contract ${money(portal.contractual_monthly)}/mo`);
+        if (portal.contractual_monthly != null) bits.push(`${money(portal.contractual_monthly)}/mo`);
         if (portal.apr_pct != null) bits.push(`${portal.apr_pct}% APR`);
-        if (portal.promise_to_pay) bits.push(`PTP ${money(portal.promise_to_pay.amount)} due ${esc(portal.promise_to_pay.due)}`);
         if (portal.principal_balance != null) bits.push(`principal ${money(portal.principal_balance)} (not payoff)`);
         if (portal.payoff_quote && portal.payoff_quote.amount != null) {
           bits.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
         }
-        portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · ") || "no figures")} · not a live payoff</div>`;
+        if (bits.length) {
+          portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · "))} ${chip("stale", "warn")}</div>`;
+        }
       }
+      const emptyNote = (!lines && !portal)
+        ? `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`
+        : "";
       return `
         <div class="strip">
           <h3>Notes & costs ${stale}</h3>
-          ${lines || `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`}
+          ${lead}
+          ${lines}
           ${f.sheet_monthly != null ? `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>` : ""}
           ${portalHtml}
+          ${emptyNote}
         </div>`;
     }
 
-    function renderUnit(u) {
-      const idn = u.identity || {};
-      const title = [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
+    function glanceStrip(units, nowMs, pollS) {
+      return (units || []).map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
+    }
+
+    function renderGlanceCell(u, g) {
+      const freshKind = g.freshness === "dead" ? "err" : (g.freshness === "stale" ? "warn" : "");
       return `
-        <article class="card" data-unit="${esc(u.id)}">
-          <h2>${esc(title)}</h2>
-          <div class="chips">
-            ${chip(idn.role || "unknown")}
-            ${chip(vinShort(idn.vin))}
-            ${idn.lender ? chip(idn.lender) : ""}
+        <a class="glance-cell ${esc(g.freshness || "")}" href="#unit-${esc(u.id)}">
+          <div class="glance-top">
+            <span class="glance-name">${esc(g.year_model || u.id)}</span>
+            ${chip(g.role || "unknown")}
           </div>
-          ${dimoStrip(u.dimo || {})}
-          ${turoStrip(u.turo || {})}
-          ${costsStrip(u.finance || {})}
+          <div class="glance-hero">${esc(g.hero || "—")}</div>
+          <div class="glance-meta">
+            ${g.last_seen_relative ? `<span class="${freshKind}">${esc(g.last_seen_relative)}</span>` : "<span>—</span>"}
+            ${g.freshness === "stale" || g.freshness === "dead" ? chip(g.freshness, g.freshness === "dead" ? "err" : "warn") : ""}
+            ${g.available ? chip("available", "ok") : chip("booked", "warn")}
+            ${g.due ? chip("due", "err") : ""}
+          </div>
+        </a>`;
+    }
+
+    function renderUnit(u, nowMs, pollS) {
+      const idn = u.identity || {};
+      const g = glanceOf(u, nowMs, pollS);
+      const title = g.title || [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
+      const photo = g.photo || unitPhoto(u.id);
+      const fresh = g.freshness || "unknown";
+      const chips = [
+        chip(idn.role || "unknown"),
+        chip(g.vin_short || vinShort(idn.vin)),
+        idn.lender ? chip(idn.lender) : "",
+        fresh === "dead" ? chip("dead", "err") : (fresh === "stale" ? chip("stale", "warn") : ""),
+        g.due ? chip("due", "err") : "",
+      ].join("");
+      return `
+        <article class="card ${esc(fresh)}" id="unit-${esc(u.id)}" data-unit="${esc(u.id)}" data-freshness="${esc(fresh)}">
+          <div class="hero">
+            ${photo ? `<img src="${esc(photo)}" alt="${esc(title)}" />` : "<div></div>"}
+            <div class="hero-text">
+              <h2>${esc(title)}</h2>
+              <div class="chips">${chips}</div>
+            </div>
+          </div>
+          <div class="body">
+            ${dimoStrip(u.dimo || {}, g)}
+            ${turoStrip(u.turo || {}, g)}
+            ${costsStrip(u.finance || {})}
+          </div>
         </article>`;
     }
 
@@ -246,7 +538,7 @@
         return;
       }
       box.hidden = false;
-      let html = `<h2>Shared / unassigned</h2>`;
+      let html = `<div class="hero-text"><h2>Shared / unassigned</h2></div><div class="body">`;
       if (lines.length) {
         html += `<div class="strip"><h3>Fleet-tab lines not pinned to a roster unit</h3><ul>`;
         html += lines.map((l) =>
@@ -261,7 +553,21 @@
         ).join("");
         html += `</ul></div>`;
       }
+      html += `</div>`;
       box.innerHTML = html;
+    }
+
+    function renderTuroFooter(payload) {
+      const box = $("turo-inbox");
+      const body = $("turo-inbox-body");
+      const status = payload.sources && payload.sources.turo && payload.sources.turo.inbox_status;
+      if (!status) {
+        box.hidden = true;
+        body.textContent = "";
+        return;
+      }
+      box.hidden = false;
+      body.textContent = status;
     }
 
     async function load() {
@@ -281,13 +587,18 @@
         const expAt = (fleet.sources && fleet.sources.expenses && fleet.sources.expenses.as_of) || "no snapshot";
         const hasFleet = fleet.sources && fleet.sources.expenses && fleet.sources.expenses.has_fleet_tab;
         const units = fleet.unit_count != null ? fleet.unit_count : (fleet.units || []).length;
+        const pollS = (fleet.sources && fleet.sources.turo && fleet.sources.turo.poll_interval_s) || 900;
+        const nowMs = Date.parse(fleet.as_of) || Date.now();
         status.textContent =
           `Refreshed ${fleet.as_of || "—"} · ${units} units` +
           ` · DIMO ${dimoLabel}` +
           ` · Turo ${turoAt}` +
           (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
-        $("cards").innerHTML = (fleet.units || []).map(renderUnit).join("");
+        const list = fleet.units || [];
+        $("glance").innerHTML = list.map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
+        $("cards").innerHTML = list.map((u) => renderUnit(u, nowMs, pollS)).join("");
         renderShared(fleet);
+        renderTuroFooter(fleet);
       } catch (err) {
         status.innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
       }

@@ -38,8 +38,10 @@ python3 -m unittest discover -s auto-fleet/tests -v
 
 | Path | Purpose |
 |------|---------|
-| `server.py` / `index.html` | Dashboard + JSON API |
+| `server.py` / `index.html` | Dashboard + JSON API (glance-first UI) |
 | `fleet.py` | Assemble `/api/fleet` |
+| `glance.py` | Miles / SoC / stale / PTP presentation helpers |
+| `static/fleet/` | Optional unit stills (Chris listing photos; not TREAD chrome) |
 | `dimo_client.py` | DIMO stub + optional live path |
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |

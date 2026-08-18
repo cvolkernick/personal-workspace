@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 try:
-    from . import dimo_client, turo_inbox
+    from . import dimo_client, glance, turo_inbox
 except ImportError:  # script / unittest path
     import dimo_client  # type: ignore
+    import glance  # type: ignore
     import turo_inbox  # type: ignore
 
 PKG_DIR = Path(__file__).resolve().parent
@@ -282,24 +283,28 @@ def build_fleet(
         units=units,
     )
     env = dimo_env if dimo_env is not None else dimo_client.load_dimo_env(env_path)
+    now_s = now or _now()
+    poll_s = turo.get("poll_interval_s") or turo_inbox.POLL_INTERVAL_S
 
     assembled = []
     for unit in units:
-        assembled.append(
-            {
-                "id": unit["id"],
-                "identity": identity_for(unit),
-                "finance": finance_for_unit(
-                    unit, tab=tab, expenses=expenses, notes=notes, units=units
-                ),
-                "dimo": dimo_client.dimo_for_unit(unit, env),
-                "turo": turo_inbox.turo_for_unit(str(unit["id"]), turo),
-            }
+        row = {
+            "id": unit["id"],
+            "identity": identity_for(unit),
+            "finance": finance_for_unit(
+                unit, tab=tab, expenses=expenses, notes=notes, units=units
+            ),
+            "dimo": dimo_client.dimo_for_unit(unit, env),
+            "turo": turo_inbox.turo_for_unit(str(unit["id"]), turo),
+        }
+        row["glance"] = glance.glance_for_unit(
+            row, now=now_s, poll_interval_s=poll_s
         )
+        assembled.append(row)
 
     return {
         "ok": True,
-        "as_of": now or _now(),
+        "as_of": now_s,
         "roster_as_of": roster.get("as_of"),
         "unit_count": len(assembled),
         "units": assembled,
