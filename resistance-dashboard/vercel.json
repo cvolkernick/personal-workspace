@@ -2,10 +2,5 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1",
   "framework": null,
-  "outputDirectory": "static",
-  "functions": {
-    "api/healthz.py": {
-      "runtime": "python3.12"
-    }
-  }
+  "outputDirectory": "static"
 }
