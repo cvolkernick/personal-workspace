@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-17T19:47:40.806244+00:00",
+  "as_of": "2026-08-18T14:14:09.145827+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -46,7 +46,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/17/2026",
+          "date": "9/17/2026",
           "from": "X Money",
           "item": "Planet Fitness",
           "daily": 0.89,
@@ -470,14 +470,6 @@
           "tab": "Essential"
         },
         {
-          "date": "8/17/2026",
-          "item": "Planet Fitness",
-          "from": "X Money",
-          "monthly": 27.0,
-          "weekly": 6.21,
-          "tab": "Essential"
-        },
-        {
           "date": "8/18/2026",
           "item": "Pawp",
           "from": "X Money",
@@ -595,6 +587,14 @@
           "from": "Coinbase",
           "monthly": 900.0,
           "weekly": 207.12,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "item": "Planet Fitness",
+          "from": "X Money",
+          "monthly": 27.0,
+          "weekly": 6.21,
           "tab": "Essential"
         },
         {
@@ -1240,7 +1240,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/17/2026",
+          "date": "9/17/2026",
           "from": "X Money",
           "item": "Planet Fitness",
           "daily": 0.89,
@@ -1664,14 +1664,6 @@
           "tab": "Essential"
         },
         {
-          "date": "8/17/2026",
-          "item": "Planet Fitness",
-          "from": "X Money",
-          "monthly": 27.0,
-          "weekly": 6.21,
-          "tab": "Essential"
-        },
-        {
           "date": "8/18/2026",
           "item": "Pawp",
           "from": "X Money",
@@ -1789,6 +1781,14 @@
           "from": "Coinbase",
           "monthly": 900.0,
           "weekly": 207.12,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "item": "Planet Fitness",
+          "from": "X Money",
+          "monthly": 27.0,
+          "weekly": 6.21,
           "tab": "Essential"
         },
         {
@@ -2028,6 +2028,5 @@
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5350.43
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB.",
-  "live_error": "<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
