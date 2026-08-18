@@ -1,9 +1,10 @@
-# Pi entry — Vercel must not treat this as a WSGI/ASGI app.
-server.py
-start.sh
-*.command
-deploy
-rt_dashboard
-tests
-scripts
-REVIEW.md
+# Only when Root Directory = resistance-dashboard.
+# Leading slash = this directory only. A bare `server.py` matches the whole nest.
+/server.py
+/start.sh
+/*.command
+/deploy/
+/rt_dashboard/
+/tests/
+/scripts/
+/REVIEW.md
