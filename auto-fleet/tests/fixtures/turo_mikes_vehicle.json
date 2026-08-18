@@ -1,0 +1,24 @@
+{
+  "as_of": "2026-08-18T12:00:00+00:00",
+  "source": "gmail_dump",
+  "inbox": "cvolkern@gmail.com",
+  "query": "after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)",
+  "forward_since": "2026-08-18T02:00:00+00:00",
+  "poll_interval_s": 900,
+  "messages": [
+    {
+      "id": "fixture-mike-booked",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Alex's trip with your 2022 Tesla Model 3 is booked!",
+      "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+      "body": "Alex's trip is booked.\n\nCha-ching! Alex's trip with your 2022 Tesla Model 3 is booked from Friday, September 4, 2026 6:00 PM to Sunday, September 6, 2026 6:00 PM.\n\n2022 Tesla Model 3\nbooked by Alex Rivera\nTrip start: 9/4/26 6:00 pm\nTrip end: 9/6/26 6:00 pm\nReservation ID #99112233\nVIN 5YJ3E1EA6NF289917\n"
+    },
+    {
+      "id": "fixture-jessica-historical",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Jessica's vehicle) - Dannielle's trip with your Kia Sorento is booked!",
+      "date": "Tue, 18 Aug 2026 14:11:00 +0000",
+      "body": "Historical host mail must never attach to the current roster.\nReservation ID #32786339\nKia Sorento 2019\n"
+    }
+  ]
+}

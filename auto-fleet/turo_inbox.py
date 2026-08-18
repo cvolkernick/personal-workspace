@@ -1,12 +1,15 @@
 """Parse a local Turo inbox fixture (JSON / .eml / maildir). Never hits the network.
 
 Live Gmail is a dump file (`~/.config/auto-fleet/turo_inbox.json` or
-`AUTO_FLEET_TURO_INBOX`), written by `turo_gmail.py` / an agent MCP refresh.
+`AUTO_FLEET_TURO_INBOX`), written by `turo_gmail.py` / a 15m agent poll.
 The dashboard does not call Gmail. Default shipped fixture has zero messages
 so we cannot invent bookings.
 
-Payout destination is X Money (current). Mercury ACH is historical only
-(May 2026). Payout mail is a cash-landed signal, not a booking record.
+Forward-only: drop mail dated before 2026-08-18T02:00Z (host-inbox forward
+start). Do not ingest historical Turo / Jessica / Kia / Spark.
+
+Payout destination is X Money. Payout mail is a cash-landed signal, not a
+booking record.
 """
 
 from __future__ import annotations
@@ -19,23 +22,31 @@ from datetime import datetime, timezone
 from email import message_from_bytes, policy
 from email.header import decode_header, make_header
 from email.message import Message
+from email.utils import parsedate_to_datetime
 from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional, Sequence, Union
 
 DEFAULT_INBOX_NAME = "turo_inbox.json"
 CONFIG_INBOX = Path.home() / ".config" / "auto-fleet" / "turo_inbox.json"
 GMAIL_INBOX_ADDR = "cvolkern@gmail.com"
+# Live poll: Turo senders after the forward start. Do not OR label:Turo —
+# that label is 2024 old-fleet mail.
 GMAIL_QUERY = (
-    "from:(turo.com OR mail.turo.com OR transactional.turo.com) OR label:Turo"
+    "after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)"
 )
+FORWARD_SINCE = datetime(2026, 8, 18, 2, 0, tzinfo=timezone.utc)
+FORWARD_SINCE_ISO = "2026-08-18T02:00:00+00:00"
+POLL_INTERVAL_S = 900
+CURRENT_HOST_MARK = "mike's vehicle"
+_HISTORICAL_HOST_MARKS = ("jessica's vehicle",)
 
-# Live destination. Mercury ACH (May 2026, cvolkern+mercury@gmail.com) is historical.
 PAYOUT_DESTINATION = "X Money"
 PAYOUT_DEST_NOTE = (
     "Payout destination is X Money. "
-    "Mercury ACH is historical only (May 2026). "
     "Payout mail is a cash-landed signal, not a booking record."
 )
+
+SinceSpec = Union[datetime, bool, None]
 
 _TRIP_ID = re.compile(
     r"(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})",
@@ -82,6 +93,91 @@ _YOUR_VEHICLE = re.compile(r"your\s+((?:19|20)\d{2}\s+)?([A-Za-z]+(?:\s+[A-Za-z0
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _norm_text(value: str) -> str:
+    return (
+        (value or "")
+        .lower()
+        .replace("\u2019", "'")
+        .replace("\u2018", "'")
+        .replace("\u02bc", "'")
+    )
+
+
+def is_current_host_subject(subject: str) -> bool:
+    return CURRENT_HOST_MARK in _norm_text(subject)
+
+
+def is_historical_host_subject(subject: str) -> bool:
+    blob = _norm_text(subject)
+    return any(mark in blob for mark in _HISTORICAL_HOST_MARKS)
+
+
+def message_datetime(raw: Mapping[str, Any]) -> Optional[datetime]:
+    val = raw.get("date")
+    if val is None or val == "":
+        return None
+    if isinstance(val, datetime):
+        dt = val
+    else:
+        text = str(val).strip()
+        dt = None
+        try:
+            dt = parsedate_to_datetime(text)
+        except (TypeError, ValueError, IndexError):
+            dt = None
+        if dt is None:
+            try:
+                dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+            except ValueError:
+                return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def resolve_since(
+    since: SinceSpec = None,
+    env: Mapping[str, str] | None = None,
+    *,
+    default: bool = True,
+) -> Optional[datetime]:
+    """None + default True → FORWARD_SINCE. False → no cutoff. datetime → that cutoff."""
+    if since is False:
+        return None
+    if isinstance(since, datetime):
+        dt = since
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    environ = env if env is not None else os.environ
+    raw = environ.get("AUTO_FLEET_TURO_SINCE")
+    if raw is not None:
+        text = raw.strip()
+        if text.lower() in ("", "off", "none", "0", "false"):
+            return None
+        try:
+            dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return FORWARD_SINCE if default else None
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+    return FORWARD_SINCE if default else None
+
+
+def keep_forward_message(
+    raw: Mapping[str, Any], since: Optional[datetime]
+) -> bool:
+    if is_historical_host_subject(str(raw.get("subject") or "")):
+        return False
+    if since is None:
+        return True
+    dt = message_datetime(raw)
+    if dt is None or dt < since:
+        return False
+    return True
 
 
 def _header_str(msg: Message, name: str) -> str:
@@ -313,11 +409,14 @@ def _unconfigured() -> dict[str, Any]:
         "inbox_detail": (
             "no host inbox file; drop a Gmail dump at "
             f"{CONFIG_INBOX} or set AUTO_FLEET_TURO_INBOX. "
-            f"Watching {GMAIL_INBOX_ADDR} via agent refresh, not the :8796 process."
+            f"Watching {GMAIL_INBOX_ADDR} every 15m since {FORWARD_SINCE.date().isoformat()}, "
+            "not the :8796 process."
         ),
         "message_count": 0,
         "inbox_kind": "missing",
         "payout_destination": PAYOUT_DESTINATION,
+        "forward_since": FORWARD_SINCE_ISO,
+        "poll_interval_s": POLL_INTERVAL_S,
     }
 
 
@@ -358,6 +457,8 @@ def load_json_messages(
             "query": data.get("query"),
             "as_of": data.get("as_of"),
             "note": data.get("note"),
+            "forward_since": data.get("forward_since"),
+            "poll_interval_s": data.get("poll_interval_s"),
         }
         msgs = data.get("messages")
         if msgs is None:
@@ -412,8 +513,14 @@ def resolve_inbox_path(
     return data_dir / DEFAULT_INBOX_NAME
 
 
-def load_inbox(path: Path | None) -> dict[str, Any]:
+def load_inbox(
+    path: Path | None,
+    *,
+    since: SinceSpec = None,
+    env: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     """Load JSON list/object, single .eml, or maildir. None / missing → unconfigured."""
+    cutoff = resolve_since(since, env)
     if path is None:
         return _unconfigured()
     p = Path(path)
@@ -445,7 +552,9 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
             kind=kind,
             error=err,
         )
-    bookings = parse_records(raw)
+    kept = [m for m in raw if keep_forward_message(m, cutoff)]
+    dropped = len(raw) - len(kept)
+    bookings = parse_records(kept)
     inbox_name = ""
     query = ""
     source = ""
@@ -456,17 +565,24 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
     watching = inbox_name or (
         GMAIL_INBOX_ADDR if source.startswith("gmail") else ""
     )
-    if not raw:
+    since_bit = (
+        f" every 15m since {cutoff.date().isoformat()}" if cutoff is not None else ""
+    )
+    if not kept:
         if watching:
             detail = (
-                f"watching {watching}"
-                + (f" ({query})" if query else "")
+                f"watching {watching}{since_bit}"
+                + (f" ({query or GMAIL_QUERY})" if watching else "")
                 + "; 0 trip events — empty bookings, not invented trips"
             )
         else:
             detail = (
-                "no 2026 booking mail in this fixture — empty bookings, not invented trips"
-            )
+                f"watching Turo every 15m since {cutoff.date().isoformat()}"
+                if cutoff is not None
+                else "no booking mail in this fixture"
+            ) + " — empty bookings, not invented trips"
+        if dropped:
+            detail += f" ({dropped} historical dropped)"
         return _result(
             bookings=[],
             status="empty",
@@ -475,22 +591,22 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
             kind=kind,
         )
     if not bookings:
-        prefix = f"watching {watching}; " if watching else ""
+        prefix = f"watching {watching}{since_bit}; " if watching else ""
         return _result(
             bookings=[],
             status="empty",
             detail=(
-                f"{prefix}{kind} parsed ({len(raw)} message(s)); "
+                f"{prefix}{kind} parsed ({len(kept)} message(s)); "
                 "none were trip booked/modified/canceled/payout"
             ),
-            message_count=len(raw),
+            message_count=len(kept),
             kind=kind,
         )
     return _result(
         bookings=bookings,
         status="parsed",
-        detail=f"{kind} parsed; {len(bookings)} trip event(s)",
-        message_count=len(raw),
+        detail=f"{kind} parsed; {len(bookings)} trip event(s){since_bit}",
+        message_count=len(kept),
         kind=kind,
     )
 
@@ -534,8 +650,10 @@ def turo_payload(
     *,
     inbox_path: Path | None,
     units: list[Mapping[str, Any]],
+    since: SinceSpec = None,
+    env: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    loaded = load_inbox(inbox_path)
+    loaded = load_inbox(inbox_path, since=since, env=env)
     bookings: list[dict[str, Any]] = []
     unmatched: list[dict[str, Any]] = []
     for parsed in loaded.get("bookings") or []:
@@ -564,6 +682,8 @@ def turo_payload(
         "bookings": bookings + unmatched,
         "message_count": loaded.get("message_count", 0),
         "payout_destination": PAYOUT_DESTINATION,
+        "forward_since": FORWARD_SINCE_ISO if resolve_since(since, env) else None,
+        "poll_interval_s": POLL_INTERVAL_S,
     }
 
 

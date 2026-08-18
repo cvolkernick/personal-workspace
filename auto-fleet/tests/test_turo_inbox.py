@@ -62,7 +62,9 @@ class TuroInboxTests(unittest.TestCase):
 
     def test_json_fixture_parses_booked_and_canceled(self) -> None:
         path = FIXTURES / "turo_messages.json"
-        payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
+        payload = turo_inbox.turo_payload(
+            inbox_path=path, units=ROSTER_UNITS, since=False
+        )
         self.assertEqual(len(payload["bookings"]), 2)
         by_id = {b["unit_id"]: b for b in payload["bookings"]}
         self.assertEqual(by_id["corolla-2022"]["status"], "booked")
@@ -87,7 +89,9 @@ class TuroInboxTests(unittest.TestCase):
 
     def test_payout_fixture(self) -> None:
         payload = turo_inbox.turo_payload(
-            inbox_path=FIXTURES / "turo_payout.json", units=ROSTER_UNITS
+            inbox_path=FIXTURES / "turo_payout.json",
+            units=ROSTER_UNITS,
+            since=False,
         )
         self.assertEqual(len(payload["bookings"]), 1)
         self.assertEqual(payload["bookings"][0]["status"], "payout")
@@ -95,15 +99,17 @@ class TuroInboxTests(unittest.TestCase):
         self.assertEqual(payload["bookings"][0]["unit_id"], "m3-2022")
         self.assertEqual(payload["payout_destination"], "X Money")
         self.assertIn("X Money", payload["inbox_status"])
-        self.assertIn("historical", payload["inbox_status"])
+        self.assertNotIn("Mercury", payload["inbox_status"])
 
-    def test_inbox_status_names_x_money_not_live_mercury(self) -> None:
+    def test_inbox_status_names_x_money_no_mercury(self) -> None:
         empty = PKG / "data" / "turo_inbox.json"
         payload = turo_inbox.turo_payload(inbox_path=empty, units=ROSTER_UNITS)
         self.assertEqual(payload["payout_destination"], "X Money")
         self.assertIn("X Money", payload["inbox_status"])
-        self.assertIn("historical", payload["inbox_status"].lower())
-        self.assertIn("Mercury ACH is historical", payload["inbox_status"])
+        self.assertNotIn("Mercury", payload["inbox_status"])
+        self.assertNotIn("ACH", payload["inbox_status"])
+        self.assertIn("every 15m", payload["inbox_status"])
+        self.assertIn("2026-08-18", payload["inbox_status"])
         unit = turo_inbox.turo_for_unit("m3-2022", payload)
         self.assertEqual(unit["payout_destination"], "X Money")
         self.assertIn("X Money", unit["inbox_status"])
@@ -129,6 +135,7 @@ class TuroInboxTests(unittest.TestCase):
         payload = turo_inbox.turo_payload(
             inbox_path=FIXTURES / "turo_real_booked_corolla.json",
             units=ROSTER_UNITS,
+            since=False,
         )
         self.assertEqual(len(payload["bookings"]), 1)
         rec = payload["bookings"][0]
@@ -141,23 +148,20 @@ class TuroInboxTests(unittest.TestCase):
 
     def test_old_fleet_kia_stays_unmatched_guest_chat_skipped(self) -> None:
         payload = turo_inbox.turo_payload(
-            inbox_path=FIXTURES / "turo_old_fleet_kia.json", units=ROSTER_UNITS
+            inbox_path=FIXTURES / "turo_old_fleet_kia.json",
+            units=ROSTER_UNITS,
+            since=False,
         )
         kinds = {b["status"] for b in payload["bookings"]}
-        self.assertIn("booked", kinds)
+        self.assertNotIn("booked", kinds)
         self.assertIn("payout", kinds)
         self.assertNotIn("other", kinds)
-        booked = next(b for b in payload["bookings"] if b["status"] == "booked")
-        self.assertIsNone(booked.get("unit_id"))
-        self.assertIn(booked, payload["unmatched"])
-        self.assertEqual(booked["trip_id"], "32786339")
-        self.assertEqual(booked["start"], "2024-07-17")
-        self.assertEqual(booked["end"], "2024-07-21")
         payout = next(b for b in payload["bookings"] if b["status"] == "payout")
         self.assertEqual(payout["payout"], 151.47)
         self.assertEqual(payout["unit_id"], "m3-2022")
-        # Guest-chat subject must not become a booking even if body says Booked trip
+        # Jessica host listing is always dropped, even with cutoff off.
         subjects = {b["subject"] for b in payload["bookings"]}
+        self.assertTrue(all("jessica" not in s.lower() for s in subjects))
         self.assertTrue(all("sent you a message" not in s.lower() for s in subjects))
 
     def test_resolve_prefers_env_then_config(self) -> None:
@@ -208,11 +212,53 @@ class TuroInboxTests(unittest.TestCase):
             )
             box.add(msg)
             box.close()
-            payload = turo_inbox.turo_payload(inbox_path=root, units=ROSTER_UNITS)
+            payload = turo_inbox.turo_payload(
+                inbox_path=root, units=ROSTER_UNITS, since=False
+            )
             self.assertEqual(payload["inbox_kind"], "maildir")
             self.assertEqual(len(payload["bookings"]), 1)
             self.assertEqual(payload["bookings"][0]["unit_id"], "corolla-2022")
             self.assertEqual(payload["bookings"][0]["guest"], "Pat Kim")
+
+    def test_default_cutoff_drops_historical_kia(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_old_fleet_kia.json", units=ROSTER_UNITS
+        )
+        self.assertEqual(payload["bookings"], [])
+        self.assertEqual(payload["unmatched"], [])
+        self.assertIn("0 trip events", payload["inbox_status"])
+        self.assertIn("historical dropped", payload["inbox_status"])
+
+    def test_pre_cutoff_fixture_dates_are_dropped(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_messages.json", units=ROSTER_UNITS
+        )
+        self.assertEqual(payload["bookings"], [])
+
+    def test_mikes_vehicle_after_cutoff_maps_m3(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_mikes_vehicle.json", units=ROSTER_UNITS
+        )
+        self.assertEqual(len(payload["bookings"]), 1)
+        rec = payload["bookings"][0]
+        self.assertEqual(rec["status"], "booked")
+        self.assertEqual(rec["unit_id"], "m3-2022")
+        self.assertEqual(rec["trip_id"], "99112233")
+        self.assertEqual(rec["guest"], "Alex Rivera")
+        self.assertTrue(turo_inbox.is_current_host_subject(rec["subject"]))
+        self.assertEqual(payload["unmatched"], [])
+
+    def test_gmail_writer_records_forward_window(self) -> None:
+        import turo_gmail
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            turo_gmail.write_dump([], dest)
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(data["forward_since"], turo_inbox.FORWARD_SINCE_ISO)
+            self.assertEqual(data["poll_interval_s"], 900)
+            self.assertIn("after:2026/08/18", data["query"])
+            self.assertNotIn("label:Turo", data["query"])
 
 
 if __name__ == "__main__":
