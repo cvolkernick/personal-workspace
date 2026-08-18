@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-18T14:13:59.886795+00:00",
+  "as_of": "2026-08-18T14:32:11.962183+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -460.46,
-  "balance_owed": 460.46,
-  "card_balance": 460.46,
+  "balance_raw": -464.77,
+  "balance_owed": 464.77,
+  "card_balance": 464.77,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -460.46,
+  "cleared_balance": -464.77,
   "uncleared_balance": 0.0,
-  "spend_30d": 356.85,
+  "spend_30d": 361.16,
   "payments_30d": 400.69,
-  "transaction_count": 46,
+  "transaction_count": 49,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -230,7 +230,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -241,7 +241,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -507,6 +507,39 @@
     {
       "id": "b4b024fa-d12f-43e5-a65f-54aebd90e43e",
       "date": "2026-08-15",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "cfd13357-006d-4b31-a488-9c29a81f41f4",
+      "date": "2026-08-16",
+      "payee": "McDonald's",
+      "amount": -1.78,
+      "amount_display": -1.78,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "e73f00ee-cf90-4663-a458-bca2f877c0d7",
+      "date": "2026-08-16",
+      "payee": "Taco Bell",
+      "amount": -1.48,
+      "amount_display": -1.48,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
+    },
+    {
+      "id": "fdc395be-b85a-4034-a75f-b14a86fab41a",
+      "date": "2026-08-16",
       "payee": "McDonald's",
       "amount": -1.05,
       "amount_display": -1.05,
