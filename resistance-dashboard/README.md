@@ -36,6 +36,18 @@ bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
 
 Off-LAN: Tailscale on Pi + client (do **not** public port-forward while single-user).
 
+### Vercel preview (not prod)
+
+Honest preview of the static shell + `GET /api/healthz` (`role=vercel-preview`).
+This is **not** a FitDash prod replacement. Pi stays on `deploy/install_remote.sh`
+and `deploy/resistance-dashboard.service`. Use a **new** Vercel project (`fitdash`),
+not `howell-home-services-demo`. Root Directory = `resistance-dashboard`.
+
+No secrets required for the preview slice (auth-gate HTML + liveness). Full app
+keys (Google OAuth, GitHub, Hidrate) stay on Pi until a preview URL exists and
+Chris provides env through Grok. Vercel host needs its own Google callback;
+Pi remains `https://prism-gateway.tailb1085a.ts.net/api/auth/google/callback`.
+
 ## Configuration (env)
 
 | Variable | Purpose |
@@ -83,6 +95,7 @@ Without Google credentials the UI still loads lift charts and recovery from trai
 
 ```bash
 python3 -m unittest tests.test_analytics -v
+python3 -m unittest tests.test_vercel_preview -v
 python3 scripts/verify_github.py
 python3 scripts/verify_google.py
 python3 scripts/verify_launch.py
@@ -93,6 +106,8 @@ python3 scripts/verify_launch.py
 ```
 resistance-dashboard/
   server.py                 # real entry
+  api/healthz.py            # Vercel preview liveness only
+  vercel.json               # preview rewrites; does not change Pi
   rt_dashboard/             # parse, analytics, recovery, GitHub, Google Fit
   static/                   # mobile-first UI + Chart.js
   tests/                    # pure logic + wire-format fixtures
