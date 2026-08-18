@@ -334,6 +334,8 @@ def build_fleet(
                 "inbox_status": turo.get("inbox_status"),
                 "inbox_kind": turo.get("inbox_kind"),
                 "refreshed_at": turo.get("refreshed_at"),
+                "forward_since": turo.get("forward_since"),
+                "poll_interval_s": turo.get("poll_interval_s"),
             },
         },
     }

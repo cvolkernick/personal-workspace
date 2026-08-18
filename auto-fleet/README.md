@@ -8,9 +8,8 @@ tree, or `financial-command/`.
 
 Port **8796**. Pi systemd unit is slice C — this README is Mac-dev only.
 
-**Turo payout destination:** **X Money** (current). Mercury ACH is historical
-only (May 2026, `cvolkern+mercury@gmail.com`). Payout mail is a cash-landed
-signal, not a booking record. Do not label live payouts as Mercury.
+**Turo payout destination:** **X Money**. Payout mail is a cash-landed
+signal, not a booking record.
 
 ## Quick start (Mac)
 
@@ -72,7 +71,7 @@ Missing file / missing keys → DIMO `status: unconfigured`. The process does no
 | Source | MVP behavior |
 |--------|----------------|
 | **DIMO** | Unconfigured until env + vehicle token ids exist. Live path uses `dimo-python-sdk` if installed, else raw HTTP when `DIMO_DEVELOPER_JWT` is set. |
-| **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. Refresh the dump with `python3 auto-fleet/turo_gmail.py --from-json …` (agent Gmail MCP). The server does not call Gmail. Payout dest is **X Money** (Mercury ACH is historical). |
+| **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. A 15m agent poll writes that dump from Gmail (`after:2026/08/18`, Turo senders only). Historical / `label:Turo` 2024 mail is dropped. The server does not call Gmail. Payout dest is **X Money**. |
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |
 
@@ -82,7 +81,10 @@ Missing file / missing keys → DIMO `status: unconfigured`. The process does no
 - No Fleet tab → costs `stale: true`, no invented payoffs.
 - No DIMO env → `unconfigured`, odometer/range null.
 
-## Turo Gmail dump
+## Turo Gmail dump (forward-only, 15m)
+
+Host mail forwards into `cvolkern@gmail.com` starting **2026-08-18**. Poll
+every 15 minutes. Do **not** ingest historical Turo.
 
 ```bash
 python3 auto-fleet/turo_gmail.py --from-json /path/to/messages.json
@@ -90,10 +92,15 @@ python3 auto-fleet/turo_gmail.py --from-json - < messages.json
 ```
 
 Writes `~/.config/auto-fleet/turo_inbox.json` (mode 600). Override with
-`AUTO_FLEET_TURO_INBOX` or `--turo-inbox`. Optional Gmail filter:
-`from:(turo.com OR mail.turo.com)` → label `Turo`.
+`AUTO_FLEET_TURO_INBOX` or `--turo-inbox`.
 
-2024 Spark / Kia / Jessica mail must stay unmatched against the 2026 roster.
+**Gmail query:** `after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)`
+
+Current-host subject hint: `Mike's vehicle` (same shape as the old
+`(Jessica's vehicle) — …` mail). Jessica / Kia / Spark stay out.
+
+Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
+`off` disables, tests only).
 
 ## Out of this slice
 

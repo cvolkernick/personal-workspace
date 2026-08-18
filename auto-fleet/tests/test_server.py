@@ -149,8 +149,11 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("costs sheet ${expAt}", html)
         readme = (PKG / "README.md").read_text(encoding="utf-8")
         self.assertIn("X Money", readme)
-        self.assertIn("historical", readme.lower())
+        self.assertNotIn("Mercury", readme)
+        self.assertIn("every 15 minutes", readme.lower())
+        self.assertIn("after:2026/08/18", readme)
         self.assertIn("financial-command/", readme)
+        self.assertIn("setInterval(load, 15 * 60 * 1000)", html)
 
     def test_financial_command_has_no_fleet_surface(self) -> None:
         fcc = ROOT / "financial-command" / "index.html"

@@ -1,10 +1,13 @@
 """Write a Turo inbox dump the dashboard can parse. No live Gmail call.
 
-The :8796 process never talks to Gmail. Refresh from an agent session
-(Gmail MCP) or pipe JSON into this writer:
+The :8796 process never talks to Gmail. A 15m agent poll (Gmail MCP) or
+an operator pipes JSON into this writer:
 
   python3 auto-fleet/turo_gmail.py --from-json dump.json
   python3 auto-fleet/turo_gmail.py --from-json -
+
+Query: after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)
+Forward-only — do not dump historical / label:Turo 2024 mail.
 
 Default output: ~/.config/auto-fleet/turo_inbox.json (mode 600, not git).
 """
@@ -60,6 +63,8 @@ def write_dump(
         "source": source,
         "inbox": inbox,
         "query": query,
+        "forward_since": turo_inbox.FORWARD_SINCE_ISO,
+        "poll_interval_s": turo_inbox.POLL_INTERVAL_S,
         "messages": [dict(m) for m in messages],
     }
     dest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
