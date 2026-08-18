@@ -39,6 +39,7 @@ _DEFAULT_SERVICES: dict[str, dict[str, Any]] = {
         "path": "/",
         "health": "/api/healthz",
     },
+    "auto-fleet": {"port": 8796, "path": "/", "health": "/api/health"},
 }
 
 

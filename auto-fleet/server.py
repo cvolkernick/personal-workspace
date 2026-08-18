@@ -87,7 +87,7 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
                     "port": bound_port,
                     "default_port": DEFAULT_PORT,
                     "host": _BOUND_HOST,
-                    "note": "Internal ops. Not TREAD. Pi deploy is slice C.",
+                    "note": "Internal ops. Not TREAD. Pi is prod.",
                 },
             )
             return

@@ -49,6 +49,12 @@
       "unit": "panamerica-auto.service",
       "service_key": "panamerica",
       "only": "panamerica"
+    },
+    {
+      "prefixes": ["auto-fleet/"],
+      "unit": "auto-fleet.service",
+      "service_key": "auto-fleet",
+      "only": "auto-fleet"
     }
   ],
   "shared_auto": {
