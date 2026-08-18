@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-18T18:23:25.883413+00:00",
+  "as_of": "2026-08-18T19:03:38.515348+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -43,19 +43,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/17/2026",
-          "from": "X Money",
-          "item": "Planet Fitness",
-          "daily": 0.89,
-          "weekly": 6.21,
-          "biweekly": 12.43,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": null,
-          "quarterly": 81.0,
           "tab": "Essential"
         },
         {
@@ -251,6 +238,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "from": "X Money",
+          "item": "Planet Fitness",
+          "daily": 0.89,
+          "weekly": 6.21,
+          "biweekly": 12.43,
+          "monthly": 27.0,
+          "annually": 324.0,
+          "budget_allocation": null,
+          "quarterly": 81.0,
           "tab": "Essential"
         },
         {
@@ -1240,19 +1240,6 @@
           "tab": "Essential"
         },
         {
-          "date": "9/17/2026",
-          "from": "X Money",
-          "item": "Planet Fitness",
-          "daily": 0.89,
-          "weekly": 6.21,
-          "biweekly": 12.43,
-          "monthly": 27.0,
-          "annually": 324.0,
-          "budget_allocation": null,
-          "quarterly": 81.0,
-          "tab": "Essential"
-        },
-        {
           "date": "8/18/2026",
           "from": "X Money",
           "item": "Pawp",
@@ -1445,6 +1432,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "from": "X Money",
+          "item": "Planet Fitness",
+          "daily": 0.89,
+          "weekly": 6.21,
+          "biweekly": 12.43,
+          "monthly": 27.0,
+          "annually": 324.0,
+          "budget_allocation": null,
+          "quarterly": 81.0,
           "tab": "Essential"
         },
         {
