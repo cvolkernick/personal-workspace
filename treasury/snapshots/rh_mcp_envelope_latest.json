@@ -1,44 +1,7 @@
 {
-  "primary_portfolio": {
-    "data": {
-      "total_value": "0.094046",
-      "equity_value": "0",
-      "options_value": "0",
-      "futures_value": "0",
-      "event_contracts_value": "0",
-      "crypto_value": "0.004046",
-      "cash": "0.09",
-      "pending_deposits": "0",
-      "mutual_funds_value": "0",
-      "fixed_income_value": "0",
-      "currency": "USD",
-      "buying_power": {
-        "buying_power": "0.0900",
-        "unleveraged_buying_power": "0.0900",
-        "display_currency": "USD"
-      }
-    }
-  },
-  "agentic_portfolio": {
-    "data": {
-      "total_value": "189.254516986",
-      "equity_value": "189.164516986",
-      "options_value": "0",
-      "futures_value": "0",
-      "event_contracts_value": "0",
-      "crypto_value": "0",
-      "cash": "0.09",
-      "pending_deposits": "0",
-      "mutual_funds_value": "0",
-      "fixed_income_value": "0",
-      "currency": "USD",
-      "buying_power": {
-        "buying_power": "0.0900",
-        "unleveraged_buying_power": "0.0900",
-        "display_currency": "USD"
-      }
-    }
-  },
+  "source": "live",
+  "primary_account": "5QW39737",
+  "agentic_account": "674601752",
   "accounts": [
     {
       "account_number": "5QW39737",
@@ -72,6 +35,46 @@
       "permanently_deactivated": false
     }
   ],
+  "primary_portfolio": {
+    "data": {
+      "total_value": "0.094046",
+      "equity_value": "0",
+      "options_value": "0",
+      "futures_value": "0",
+      "event_contracts_value": "0",
+      "crypto_value": "0.004046",
+      "cash": "0.09",
+      "pending_deposits": "0",
+      "mutual_funds_value": "0",
+      "fixed_income_value": "0",
+      "currency": "USD",
+      "buying_power": {
+        "buying_power": "0.0900",
+        "unleveraged_buying_power": "0.0900",
+        "display_currency": "USD"
+      }
+    }
+  },
+  "agentic_portfolio": {
+    "data": {
+      "total_value": "191.048963328",
+      "equity_value": "190.958963328",
+      "options_value": "0",
+      "futures_value": "0",
+      "event_contracts_value": "0",
+      "crypto_value": "0",
+      "cash": "0.09",
+      "pending_deposits": "0",
+      "mutual_funds_value": "0",
+      "fixed_income_value": "0",
+      "currency": "USD",
+      "buying_power": {
+        "buying_power": "0.0900",
+        "unleveraged_buying_power": "0.0900",
+        "display_currency": "USD"
+      }
+    }
+  },
   "primary_positions": [],
   "agentic_positions": [
     {
@@ -165,8 +168,5 @@
       "shares_pending_from_options_events": "0.000000",
       "type": "long"
     }
-  ],
-  "primary_account": "5QW39737",
-  "agentic_account": "674601752",
-  "source": "live"
+  ]
 }
