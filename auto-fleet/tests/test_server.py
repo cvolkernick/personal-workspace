@@ -102,6 +102,8 @@ class AutoFleetServerTests(unittest.TestCase):
                     self.assertIn("inbox_status", unit["turo"])
                     self.assertNotIn("live_payoff", unit["finance"])
                     self.assertNotIn("combined_monthly", unit["finance"])
+                    self.assertIn("glance", unit)
+                    self.assertIn(unit["glance"]["freshness"], ("live", "stale", "dead", "unknown"))
                     if unit["finance"].get("sheet_lines"):
                         self.assertFalse(unit["finance"].get("stale"), unit["id"])
                         self.assertEqual(
@@ -154,6 +156,21 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("after:2026/08/18", readme)
         self.assertIn("financial-command/", readme)
         self.assertIn("setInterval(load, 15 * 60 * 1000)", html)
+        # Slice G — glance-first. inbox_status lives once in the footer, not in turoStrip.
+        turo_fn_src = html[turo_fn:costs_fn]
+        self.assertNotIn("inbox_status", turo_fn_src)
+        self.assertIn('class="glance"', html)
+        self.assertIn("function renderGlanceCell", html)
+        self.assertIn('id="turo-inbox"', html)
+        self.assertIn("min-height: 44px", html)
+        self.assertIn("grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr)", html)
+        self.assertIn("/static/fleet/tesla-model-3.jpg", html)
+        self.assertIn("/static/fleet/toyota-corolla-2022.jpg", html)
+        self.assertIn("/static/fleet/toyota-corolla-2024.jpg", html)
+        self.assertNotIn("TREAD", html)
+        self.assertNotIn("SafeWheels", html)
+        self.assertNotIn("Mercury", html)
+        self.assertLess(html.find('id="glance"'), html.find('id="cards"'))
 
     def test_financial_command_has_no_fleet_surface(self) -> None:
         fcc = ROOT / "financial-command" / "index.html"
