@@ -1,0 +1,15 @@
+{
+  "as_of": "2026-08-18",
+  "source": "gmail_dump",
+  "inbox": "cvolkern@gmail.com",
+  "query": "from:(turo.com OR mail.turo.com OR transactional.turo.com) OR label:Turo",
+  "messages": [
+    {
+      "id": "fixture-real-booked-corolla",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "Alex’s trip with your 2022 Toyota Corolla is booked!",
+      "date": "Mon, 17 Aug 2026 13:26:19 +0000",
+      "body": "Alex’s trip is booked.\n\nCha-ching! Alex’s trip with your 2022 Toyota Corolla is booked from Monday, September 1, 2026 6:00 PM to Thursday, September 4, 2026 6:00 PM.\n\n2022 Toyota Corolla\nbooked by Alex Rivera\nTrip start: 9/1/26 6:00 pm\nTrip end: 9/4/26 6:00 pm\nReservation ID #88421001\n"
+    }
+  ]
+}
