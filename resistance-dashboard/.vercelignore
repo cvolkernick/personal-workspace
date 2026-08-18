@@ -1,0 +1,9 @@
+# Pi entry — Vercel must not treat this as a WSGI/ASGI app.
+server.py
+start.sh
+*.command
+deploy
+rt_dashboard
+tests
+scripts
+REVIEW.md
