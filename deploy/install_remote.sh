@@ -163,8 +163,9 @@ chmod +x "$DIR/deploy/workspace_sync.sh" "$DIR/deploy/open_dashboard.sh" \
   "$DIR/scripts/export-day-packets.sh" "$DIR/scripts/buzz-board" 2>/dev/null || true
 systemctl --user daemon-reload
 
-# Optional IoT dep
+# Optional IoT dep + Auto Fleet DIMO SDK (Vehicle JWT; never send API key as Bearer)
 python3 -m pip install --user -q 'pywizlight>=0.6.0' 2>/dev/null || true
+python3 -m pip install --user -q 'dimo-python-sdk' 2>/dev/null || true
 
 # Prefer monorepo user units over legacy system-wide iot-dashboard (port 8780 clash)
 if printf '%s\n' $UNITS | grep -q 'iot-dashboard'; then
