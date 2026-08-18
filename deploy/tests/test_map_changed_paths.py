@@ -101,6 +101,18 @@ class TestClassifyPaths(unittest.TestCase):
         self.assertEqual(r["action"], "restart")
         self.assertEqual(r["units"], ["horizon-dashboard.service"])
 
+    def test_auto_fleet_prefix(self):
+        r = M.classify_paths(["auto-fleet/server.py", "auto-fleet/turo_gmail.py"])
+        self.assertEqual(r["action"], "restart")
+        self.assertEqual(r["units"], ["auto-fleet.service"])
+        self.assertEqual(r["only"], "auto-fleet")
+        self.assertFalse(r["thrash_all"])
+
+    def test_shared_glue_includes_auto_fleet(self):
+        r = M.classify_paths(["remote_backend.py"])
+        self.assertIn("auto-fleet.service", r["units"])
+        self.assertFalse(any("treasury" in u for u in r["units"]))
+
     def test_never_thrash_all_flag(self):
         r = M.classify_paths(["iot/server.py"])
         self.assertFalse(r["thrash_all"])

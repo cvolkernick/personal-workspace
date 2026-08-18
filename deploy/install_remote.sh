@@ -9,6 +9,7 @@
 # Installs systemd --user units for:
 #   orchestra:8790  financial-command:8000  workflow:8765
 #   holistic:8770   iot:8780                 resistance:8787
+#   auto-fleet:8796 (+ 15m Turo writer timer)
 #
 # Each unit binds 0.0.0.0, --no-browser, --local (API on the Pi, not proxy).
 # Terminal frontends on a laptop use --backend http://<pi-or-tailscale>:PORT
@@ -63,6 +64,9 @@ ALL_UNITS=(
   holistic-dashboard.service
   iot-dashboard.service
   resistance-dashboard.service
+  auto-fleet.service
+  auto-fleet-turo-writer.service
+  auto-fleet-turo-writer.timer
 )
 # Always install git auto-sync timer (pull master + restart on change)
 # + continuous Board/Fit day packet export for Orchestra day_plan (A)
@@ -188,13 +192,13 @@ systemctl --user list-timers --all 2>/dev/null | grep -i board-day || true
 
 echo ""
 echo "Listening (ss/netstat if available):"
-ss -lntp 2>/dev/null | grep -E ':(8000|8765|8770|8780|8787|8790)\b' || true
+ss -lntp 2>/dev/null | grep -E ':(8000|8765|8770|8780|8787|8790|8796)\b' || true
 REMOTE
 
 echo ""
 echo "Deploy complete."
 echo "  Open dashboards (no local server):  bash deploy/open_dashboard.sh orchestra"
-echo "  Backends (LAN):  http://$RHOST:8790  :8000  :8765  :8770  :8780  :8787"
+echo "  Backends (LAN):  http://$RHOST:8790  :8000  :8765  :8770  :8780  :8787  :8796"
 echo "  Off-network:     PI_HOST=<tailscale> bash deploy/open_dashboard.sh orchestra"
 echo "  Auto-sync:       workspace-sync.timer pulls origin/master every 5m + restarts units"
 echo "  Docs:            deploy/README.md"

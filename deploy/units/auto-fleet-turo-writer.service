@@ -1,0 +1,15 @@
+[Unit]
+Description=Auto Fleet Turo inbox dump (Gmail → ~/.config/auto-fleet/turo_inbox.json)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace
+ExecStart=/usr/bin/python3 -m auto-fleet.turo_gmail --fetch
+Nice=10
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: refresh Auto Fleet Turo inbox dump
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=auto-fleet-turo-writer.service
+
+[Install]
+WantedBy=timers.target

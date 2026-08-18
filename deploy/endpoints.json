@@ -17,6 +17,7 @@
       "port": 8787,
       "path": "/",
       "health": "/api/healthz"
-    }
+    },
+    "auto-fleet": { "port": 8796, "path": "/", "health": "/api/health" }
   }
 }

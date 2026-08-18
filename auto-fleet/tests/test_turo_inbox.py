@@ -260,6 +260,132 @@ class TuroInboxTests(unittest.TestCase):
             self.assertIn("after:2026/08/18", data["query"])
             self.assertNotIn("label:Turo", data["query"])
 
+    def test_fetch_without_creds_writes_honest_empty(self) -> None:
+        import turo_gmail
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            missing = Path(td) / "no-token.json"
+            env_file = Path(td) / "empty.env"
+            env_file.write_text("# no gmail keys\n", encoding="utf-8")
+            path = turo_gmail.fetch_and_write(
+                dest,
+                token_path=missing,
+                env_file=env_file,
+                env={},
+            )
+            self.assertEqual(path, dest)
+            rc = turo_gmail.main(
+                [
+                    "--fetch",
+                    "--out",
+                    str(dest),
+                    "--token",
+                    str(missing),
+                    "--env-file",
+                    str(env_file),
+                ]
+            )
+            self.assertEqual(rc, 0)
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(data["messages"], [])
+            self.assertEqual(data["source"], "gmail_unconfigured")
+            self.assertIn("after:2026/08/18", data["query"])
+            self.assertNotIn("label:Turo", data["query"])
+            self.assertIn("no Gmail refresh token", data["note"])
+            payload = turo_inbox.turo_payload(inbox_path=dest, units=ROSTER_UNITS)
+            self.assertEqual(payload["bookings"], [])
+            self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
+            self.assertIn("0 trip events", payload["inbox_status"])
+
+    def test_fetch_with_mocked_gmail_writes_api_source(self) -> None:
+        import turo_gmail
+
+        calls: list[str] = []
+
+        def fake_http(url: str, data, headers):
+            calls.append(url)
+            if "oauth2.googleapis.com/token" in url:
+                return {"access_token": "tok-test"}
+            if url.startswith(turo_gmail.GMAIL_API + "/messages?") and "q=" in url:
+                return {"messages": [{"id": "m1"}]}
+            if "/messages/m1" in url:
+                return {
+                    "id": "m1",
+                    "snippet": "booked",
+                    "payload": {
+                        "mimeType": "text/plain",
+                        "headers": [
+                            {"name": "From", "value": "Turo <noreply@mail.turo.com>"},
+                            {
+                                "name": "Subject",
+                                "value": "(Mike's vehicle) - Pat's trip is booked!",
+                            },
+                            {"name": "Date", "value": "Tue, 18 Aug 2026 14:10:00 +0000"},
+                        ],
+                        "body": {
+                            "data": turo_gmail.base64.urlsafe_b64encode(
+                                b"Reservation ID #42\n2022 Tesla Model 3\n"
+                            ).decode("ascii")
+                        },
+                    },
+                }
+            raise AssertionError(f"unexpected url {url}")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            token = Path(td) / "gmail-token.json"
+            token.write_text(
+                json.dumps(
+                    {
+                        "refresh_token": "r",
+                        "client_id": "cid",
+                        "client_secret": "sec",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            path = turo_gmail.fetch_and_write(
+                dest,
+                token_path=token,
+                env_file=Path(td) / "missing.env",
+                env={},
+                http=fake_http,
+            )
+            self.assertEqual(path, dest)
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(data["source"], "gmail_api")
+            self.assertEqual(len(data["messages"]), 1)
+            self.assertEqual(data["messages"][0]["id"], "m1")
+            self.assertIn("Mike's vehicle", data["messages"][0]["subject"])
+            self.assertTrue(any("oauth2.googleapis.com/token" in u for u in calls))
+
+    def test_fetch_http_error_writes_gmail_error_not_bookings(self) -> None:
+        import turo_gmail
+
+        def boom(url: str, data, headers):
+            raise RuntimeError("HTTP 401 token endpoint")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            path = turo_gmail.fetch_and_write(
+                dest,
+                env={
+                    "GMAIL_REFRESH_TOKEN": "r",
+                    "GMAIL_CLIENT_ID": "cid",
+                    "GMAIL_CLIENT_SECRET": "sec",
+                },
+                token_path=Path(td) / "missing.json",
+                env_file=Path(td) / "missing.env",
+                http=boom,
+            )
+            data = json.loads(path.read_text(encoding="utf-8"))
+            self.assertEqual(data["source"], "gmail_error")
+            self.assertEqual(data["messages"], [])
+            self.assertIn("401", data["error"])
+            payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
+            self.assertEqual(payload["bookings"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
