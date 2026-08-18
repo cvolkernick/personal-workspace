@@ -1,7 +1,9 @@
 """Parse a local Turo inbox fixture (JSON / .eml / maildir). Never hits the network.
 
-Live Gmail is out of process until Chris forwards the host inbox. Default
-shipped fixture has zero messages so the dashboard cannot invent bookings.
+Live Gmail is a dump file (`~/.config/auto-fleet/turo_inbox.json` or
+`AUTO_FLEET_TURO_INBOX`), written by `turo_gmail.py` / an agent MCP refresh.
+The dashboard does not call Gmail. Default shipped fixture has zero messages
+so we cannot invent bookings.
 
 Payout destination is X Money (current). Mercury ACH is historical only
 (May 2026). Payout mail is a cash-landed signal, not a booking record.
@@ -11,6 +13,7 @@ from __future__ import annotations
 
 import json
 import mailbox
+import os
 import re
 from datetime import datetime, timezone
 from email import message_from_bytes, policy
@@ -20,6 +23,11 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 DEFAULT_INBOX_NAME = "turo_inbox.json"
+CONFIG_INBOX = Path.home() / ".config" / "auto-fleet" / "turo_inbox.json"
+GMAIL_INBOX_ADDR = "cvolkern@gmail.com"
+GMAIL_QUERY = (
+    "from:(turo.com OR mail.turo.com OR transactional.turo.com) OR label:Turo"
+)
 
 # Live destination. Mercury ACH (May 2026, cvolkern+mercury@gmail.com) is historical.
 PAYOUT_DESTINATION = "X Money"
@@ -39,17 +47,37 @@ _ISO_RANGE = re.compile(
     re.I,
 )
 _US_RANGE = re.compile(
-    r"(\d{1,2}/\d{1,2}/\d{4})\s*(?:to|–|-|through)\s*(\d{1,2}/\d{1,2}/\d{4})",
+    r"(\d{1,2}/\d{1,2}/\d{2,4})\s*(?:to|–|-|through)\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    re.I,
+)
+_LONG_RANGE = re.compile(
+    r"from\s+[A-Za-z]+,\s+([A-Za-z]+ \d{1,2}, \d{4})\s+"
+    r"\d{1,2}:\d{2}\s*[AP]M\s+to\s+[A-Za-z]+,\s+"
+    r"([A-Za-z]+ \d{1,2}, \d{4})",
+    re.I,
+)
+_TRIP_START = re.compile(
+    r"trip start\s*:?\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    re.I,
+)
+_TRIP_END = re.compile(
+    r"trip end\s*:?\s*(\d{1,2}/\d{1,2}/\d{2,4})",
     re.I,
 )
 _MONEY = re.compile(r"\$\s*([0-9][0-9,]*(?:\.\d{2})?)")
 _GUEST = re.compile(
-    r"(?:guest|renter)\s*[:\-]\s*([A-Z][A-Za-z.'\-]+(?:[ \t]+[A-Z][A-Za-z.'\-]+){0,3})",
+    r"(?:guest|renter|booked by)\s*[:\-]?\s*"
+    r"([A-Z][A-Za-z.'\-]+(?:[ \t]+[A-Z][A-Za-z.'\-]+){0,3})",
+    re.I,
+)
+_SUBJECT_GUEST = re.compile(
+    r"([A-Za-z][A-Za-z.'\-]+(?:\s+[A-Za-z][A-Za-z.'\-]+)?)['’]s trip with your",
     re.I,
 )
 _VIN = re.compile(r"\b([A-HJ-NPR-Z0-9]{17})\b")
 _PICKUP = re.compile(r"(?:pickup(?: location)?|pick-up|handoff)\s*[:\-]\s*(.+)", re.I)
 _VEHICLE = re.compile(r"vehicle\s*[:\-]\s*(.+)", re.I)
+_YOUR_VEHICLE = re.compile(r"your\s+((?:19|20)\d{2}\s+)?([A-Za-z]+(?:\s+[A-Za-z0-9]+){0,3})", re.I)
 
 
 def _now() -> str:
@@ -89,11 +117,25 @@ def _body_text(msg: Message) -> str:
 
 def classify_subject(subject: str) -> Optional[str]:
     s = (subject or "").lower()
+    # Guest-chat mail often repeats "Booked trip" in the body. Subject wins.
+    if "sent you a message" in s:
+        return None
     if any(w in s for w in ("cancel", "cancelled", "canceled")):
         return "canceled"
     if any(w in s for w in ("modified", "changed", "updated trip", "trip updated")):
         return "modified"
-    if any(w in s for w in ("payout", "you earned", "trip earnings")):
+    if any(
+        w in s
+        for w in (
+            "payout",
+            "you earned",
+            "trip earnings",
+            "earnings are on the way",
+            "earnings payment",
+            "you've been paid",
+            "you’ve been paid",
+        )
+    ):
         return "payout"
     if any(w in s for w in ("booked", "new trip", "reservation confirmed", "trip confirmed")):
         return "booked"
@@ -103,11 +145,20 @@ def classify_subject(subject: str) -> Optional[str]:
 
 
 def _us_to_iso(raw: str) -> str:
+    text = (raw or "").strip()
+    for fmt in ("%m/%d/%Y", "%m/%d/%y"):
+        try:
+            return datetime.strptime(text, fmt).date().isoformat()
+        except ValueError:
+            continue
+    return text
+
+
+def _long_to_iso(raw: str) -> str:
     try:
-        dt = datetime.strptime(raw.strip(), "%m/%d/%Y")
+        return datetime.strptime(raw.strip(), "%B %d, %Y").date().isoformat()
     except ValueError:
         return raw
-    return dt.date().isoformat()
 
 
 def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
@@ -138,14 +189,30 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     if rng:
         start, end = rng.group(1), rng.group(2)
     else:
-        us = _US_RANGE.search(blob)
-        if us:
-            start, end = _us_to_iso(us.group(1)), _us_to_iso(us.group(2))
+        long_rng = _LONG_RANGE.search(blob)
+        if long_rng:
+            start, end = _long_to_iso(long_rng.group(1)), _long_to_iso(long_rng.group(2))
+        else:
+            us = _US_RANGE.search(blob)
+            if us:
+                start, end = _us_to_iso(us.group(1)), _us_to_iso(us.group(2))
+    if start is None:
+        sm = _TRIP_START.search(blob)
+        if sm:
+            start = _us_to_iso(sm.group(1))
+    if end is None:
+        em = _TRIP_END.search(blob)
+        if em:
+            end = _us_to_iso(em.group(1))
 
     guest = None
     gm = _GUEST.search(blob)
     if gm:
         guest = gm.group(1).strip()
+    if not guest:
+        sg = _SUBJECT_GUEST.search(subject)
+        if sg:
+            guest = sg.group(1).strip()
 
     vin = None
     vm = _VIN.search(blob)
@@ -183,6 +250,12 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
             if label.lower() in blob.lower():
                 vehicle = label
                 break
+    if not vehicle:
+        ym = _YOUR_VEHICLE.search(blob)
+        if ym:
+            year = (ym.group(1) or "").strip()
+            name = (ym.group(2) or "").strip()
+            vehicle = f"{year} {name}".strip() if year else name
 
     rec = {
         "message_id": raw.get("id") or raw.get("message_id") or raw.get("message-id"),
@@ -238,8 +311,9 @@ def _unconfigured() -> dict[str, Any]:
         "bookings": [],
         "inbox_status": "unconfigured",
         "inbox_detail": (
-            "no host inbox configured; live Gmail is not the Turo host inbox "
-            "(last transactional mail 2025-03-27). Host mail is not forwarded."
+            "no host inbox file; drop a Gmail dump at "
+            f"{CONFIG_INBOX} or set AUTO_FLEET_TURO_INBOX. "
+            f"Watching {GMAIL_INBOX_ADDR} via agent refresh, not the :8796 process."
         ),
         "message_count": 0,
         "inbox_kind": "missing",
@@ -268,21 +342,30 @@ def _result(
     return out
 
 
-def load_json_messages(path: Path) -> tuple[list[dict[str, Any]], Optional[str]]:
+def load_json_messages(
+    path: Path,
+) -> tuple[list[dict[str, Any]], Optional[str], Optional[dict[str, Any]]]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        return [], f"parse error: {exc}"
+        return [], f"parse error: {exc}", None
     if isinstance(data, list):
-        return [m for m in data if isinstance(m, dict)], None
+        return [m for m in data if isinstance(m, dict)], None, None
     if isinstance(data, dict):
+        meta = {
+            "source": data.get("source"),
+            "inbox": data.get("inbox"),
+            "query": data.get("query"),
+            "as_of": data.get("as_of"),
+            "note": data.get("note"),
+        }
         msgs = data.get("messages")
         if msgs is None:
-            return [], None
+            return [], None, meta
         if not isinstance(msgs, list):
-            return [], "parse error: messages is not a list"
-        return [m for m in msgs if isinstance(m, dict)], None
-    return [], "parse error: expected object or list"
+            return [], "parse error: messages is not a list", meta
+        return [m for m in msgs if isinstance(m, dict)], None, meta
+    return [], "parse error: expected object or list", None
 
 
 def load_maildir_messages(path: Path) -> tuple[list[dict[str, Any]], Optional[str]]:
@@ -313,9 +396,19 @@ def load_eml_message(path: Path) -> tuple[list[dict[str, Any]], Optional[str]]:
     return [_message_from_email(msg, path.name)], None
 
 
-def resolve_inbox_path(explicit: Path | None, data_dir: Path) -> Path:
+def resolve_inbox_path(
+    explicit: Path | None,
+    data_dir: Path,
+    env: Mapping[str, str] | None = None,
+) -> Path:
     if explicit is not None:
         return explicit
+    environ = env if env is not None else os.environ
+    override = (environ.get("AUTO_FLEET_TURO_INBOX") or "").strip()
+    if override:
+        return Path(override).expanduser()
+    if CONFIG_INBOX.is_file():
+        return CONFIG_INBOX
     return data_dir / DEFAULT_INBOX_NAME
 
 
@@ -326,6 +419,7 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
     p = Path(path)
     if not p.exists():
         return _unconfigured()
+    meta: Optional[dict[str, Any]] = None
     if p.is_dir():
         raw, err = load_maildir_messages(p)
         kind = "maildir"
@@ -333,7 +427,7 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
         raw, err = load_eml_message(p)
         kind = "eml"
     else:
-        raw, err = load_json_messages(p)
+        raw, err, meta = load_json_messages(p)
         kind = "json"
         if err and "parse error" in err:
             head = p.read_text(encoding="utf-8", errors="replace")[:1]
@@ -352,19 +446,43 @@ def load_inbox(path: Path | None) -> dict[str, Any]:
             error=err,
         )
     bookings = parse_records(raw)
+    inbox_name = ""
+    query = ""
+    source = ""
+    if isinstance(meta, dict):
+        inbox_name = str(meta.get("inbox") or "")
+        query = str(meta.get("query") or "")
+        source = str(meta.get("source") or "")
+    watching = inbox_name or (
+        GMAIL_INBOX_ADDR if source.startswith("gmail") else ""
+    )
     if not raw:
+        if watching:
+            detail = (
+                f"watching {watching}"
+                + (f" ({query})" if query else "")
+                + "; 0 trip events — empty bookings, not invented trips"
+            )
+        else:
+            detail = (
+                "no 2026 booking mail in this fixture — empty bookings, not invented trips"
+            )
         return _result(
             bookings=[],
             status="empty",
-            detail="no 2026 booking mail in this fixture — empty bookings, not invented trips",
+            detail=detail,
             message_count=0,
             kind=kind,
         )
     if not bookings:
+        prefix = f"watching {watching}; " if watching else ""
         return _result(
             bookings=[],
             status="empty",
-            detail=f"{kind} parsed ({len(raw)} message(s)); none were trip booked/modified/canceled/payout",
+            detail=(
+                f"{prefix}{kind} parsed ({len(raw)} message(s)); "
+                "none were trip booked/modified/canceled/payout"
+            ),
             message_count=len(raw),
             kind=kind,
         )

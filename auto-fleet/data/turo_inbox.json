@@ -1,6 +1,6 @@
 {
   "as_of": "2026-08-17",
   "source": "empty_fixture",
-  "note": "This Gmail is not the Turo host inbox (last transactional mail 2025-03-27). Live parse stays off until Chris forwards host mail into a local fixture or maildir.",
+  "note": "Shipped empty fixture. Live dump lives at ~/.config/auto-fleet/turo_inbox.json (Gmail MCP / turo_gmail.py). Do not invent 2024 Spark/Kia trips as current-fleet bookings.",
   "messages": []
 }

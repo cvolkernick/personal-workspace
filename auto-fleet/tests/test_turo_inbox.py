@@ -6,6 +6,7 @@ import mailbox
 import sys
 import tempfile
 import unittest
+import json
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -113,6 +114,84 @@ class TuroInboxTests(unittest.TestCase):
         )
         self.assertEqual(payload["bookings"], [])
         self.assertIn("empty", payload["inbox_status"].lower())
+
+    def test_gmail_empty_dump_watches_inbox_invents_nothing(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_gmail_empty.json", units=ROSTER_UNITS
+        )
+        self.assertEqual(payload["bookings"], [])
+        self.assertEqual(payload["inbox_state"], "empty")
+        self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
+        self.assertIn("0 trip events", payload["inbox_status"])
+        self.assertNotIn("host mail is not forwarded", payload["inbox_status"].lower())
+
+    def test_real_turo_booked_shape_maps_corolla(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_real_booked_corolla.json",
+            units=ROSTER_UNITS,
+        )
+        self.assertEqual(len(payload["bookings"]), 1)
+        rec = payload["bookings"][0]
+        self.assertEqual(rec["status"], "booked")
+        self.assertEqual(rec["unit_id"], "corolla-2022")
+        self.assertEqual(rec["guest"], "Alex Rivera")
+        self.assertEqual(rec["trip_id"], "88421001")
+        self.assertEqual(rec["start"], "2026-09-01")
+        self.assertEqual(rec["end"], "2026-09-04")
+
+    def test_old_fleet_kia_stays_unmatched_guest_chat_skipped(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_old_fleet_kia.json", units=ROSTER_UNITS
+        )
+        kinds = {b["status"] for b in payload["bookings"]}
+        self.assertIn("booked", kinds)
+        self.assertIn("payout", kinds)
+        self.assertNotIn("other", kinds)
+        booked = next(b for b in payload["bookings"] if b["status"] == "booked")
+        self.assertIsNone(booked.get("unit_id"))
+        self.assertIn(booked, payload["unmatched"])
+        self.assertEqual(booked["trip_id"], "32786339")
+        self.assertEqual(booked["start"], "2024-07-17")
+        self.assertEqual(booked["end"], "2024-07-21")
+        payout = next(b for b in payload["bookings"] if b["status"] == "payout")
+        self.assertEqual(payout["payout"], 151.47)
+        self.assertEqual(payout["unit_id"], "m3-2022")
+        # Guest-chat subject must not become a booking even if body says Booked trip
+        subjects = {b["subject"] for b in payload["bookings"]}
+        self.assertTrue(all("sent you a message" not in s.lower() for s in subjects))
+
+    def test_resolve_prefers_env_then_config(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            data = Path(td) / "data"
+            data.mkdir()
+            shipped = data / "turo_inbox.json"
+            shipped.write_text("[]", encoding="utf-8")
+            env_file = Path(td) / "env-inbox.json"
+            env_file.write_text("[]", encoding="utf-8")
+            found = turo_inbox.resolve_inbox_path(
+                None, data, env={"AUTO_FLEET_TURO_INBOX": str(env_file)}
+            )
+            self.assertEqual(found, env_file)
+            explicit = Path(td) / "explicit.json"
+            found2 = turo_inbox.resolve_inbox_path(
+                explicit, data, env={"AUTO_FLEET_TURO_INBOX": str(env_file)}
+            )
+            self.assertEqual(found2, explicit)
+
+    def test_gmail_writer_roundtrip(self) -> None:
+        import turo_gmail
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            path = turo_gmail.write_dump([], dest, inbox="cvolkern@gmail.com")
+            self.assertEqual(path, dest)
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            self.assertEqual(data["messages"], [])
+            self.assertEqual(data["inbox"], "cvolkern@gmail.com")
+            self.assertEqual(data["source"], "gmail_dump")
+            payload = turo_inbox.turo_payload(inbox_path=dest, units=ROSTER_UNITS)
+            self.assertEqual(payload["bookings"], [])
+            self.assertIn("cvolkern@gmail.com", payload["inbox_status"])
 
     def test_maildir_roundtrip(self) -> None:
         with tempfile.TemporaryDirectory() as td:

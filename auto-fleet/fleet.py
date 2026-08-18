@@ -278,7 +278,7 @@ def build_fleet(
     tab = fleet_tab(expenses)
     units = [u for u in roster["units"] if isinstance(u, dict) and u.get("id")]
     turo = turo_inbox.turo_payload(
-        inbox_path=turo_inbox.resolve_inbox_path(inbox_path, DATA_DIR),
+        inbox_path=turo_inbox.resolve_inbox_path(inbox_path, DATA_DIR, env=os.environ),
         units=units,
     )
     env = dimo_env if dimo_env is not None else dimo_client.load_dimo_env(env_path)

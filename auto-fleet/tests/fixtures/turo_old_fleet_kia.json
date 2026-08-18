@@ -1,0 +1,29 @@
+{
+  "as_of": "2026-08-18",
+  "source": "gmail_dump",
+  "inbox": "cvolkern@gmail.com",
+  "query": "from:(turo.com OR mail.turo.com OR transactional.turo.com) OR label:Turo",
+  "messages": [
+    {
+      "id": "18faac7ea19ffeb2-shape",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Jessica’s vehicle) - Dannielle’s trip with your Kia Sorento is booked!",
+      "date": "Fri, 24 May 2024 13:26:19 +0000",
+      "body": "Dannielle’s trip is booked.\n\nCha-ching! Dannielle’s trip with your Kia Sorento is booked from Wednesday, July 17, 2024 6:00 PM to Sunday, July 21, 2024 6:00 PM.\n\nKia Sorento 2019\nbooked by Dannielle Ellison\nTrip start: 7/17/24 6:00 pm\nTrip end: 7/21/24 6:00 pm\nReservation ID #32786339\n"
+    },
+    {
+      "id": "fixture-guest-chat",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "Fahad has sent you a message about your Audi A4",
+      "date": "Thu, 23 May 2024 19:13:42 +0000",
+      "body": "Fahad has sent you a message about your Audi A4.\nBooked trip Audi A4 2019 Audi A4 Trip start 5/23/24 4:30 PM Trip end 5/27/24 1:00 PM"
+    },
+    {
+      "id": "fixture-earnings",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "Your earnings are on the way!",
+      "date": "Thu, 23 May 2024 12:56:09 +0000",
+      "body": "We've sent your earnings payment of $151.47. Vehicle: 2022 Tesla Model 3"
+    }
+  ]
+}
