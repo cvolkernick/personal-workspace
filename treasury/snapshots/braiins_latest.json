@@ -1,14 +1,12 @@
 {
   "ok": false,
-  "as_of": "2026-08-18T10:55:13.730701+00:00",
+  "as_of": "2026-08-18T15:18:36.177962+00:00",
   "source": "braiins_pool_api",
   "coin": "btc",
-  "error": "profile: URL error: [Errno 8] nodename nor servname provided, or not known; workers: URL error: [Errno 8] nodename nor servname provided, or not known; payouts: URL error: [Errno 8] nodename nor servname provided, or not known; rewards: URL error: [Errno 8] nodename nor servname provided, or not known",
+  "error": "profile: URL error: [Errno 8] nodename nor servname provided, or not known; workers: URL error: [Errno 8] nodename nor servname provided, or not known",
   "errors": {
     "profile": "URL error: [Errno 8] nodename nor servname provided, or not known",
-    "workers": "URL error: [Errno 8] nodename nor servname provided, or not known",
-    "payouts": "URL error: [Errno 8] nodename nor servname provided, or not known",
-    "rewards": "URL error: [Errno 8] nodename nor servname provided, or not known"
+    "workers": "URL error: [Errno 8] nodename nor servname provided, or not known"
   },
   "token_source": "/Users/cvolkernick/.config/braiins/token"
 }
