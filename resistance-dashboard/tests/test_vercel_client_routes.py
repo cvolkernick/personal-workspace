@@ -10,9 +10,9 @@ from pathlib import Path
 from unittest import mock
 
 from api.auth.session_util import SESSION_COOKIE, make_session
-from api.workout.goals import goals_body
-from api.workout.exercise.available import available_body
-from api.workouts import workouts_body
+from api.workout.goals import goals_body, goals_write
+from api.workout.exercise.available import available_body, available_write
+from api.workouts import workouts_body, workouts_write
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import CATALOG_PATH, GOALS_PATH
 
@@ -164,6 +164,32 @@ class SignedInClientRoutes(unittest.TestCase):
         self.assertTrue(body["plan"]["is_rest_day"])
         self.assertEqual(body["plan"]["session_type"], "rest")
         self.assertEqual(body["plan"]["exercises"], [])
+
+
+class PreviewWriteIsReadOnly(unittest.TestCase):
+    def _headers(self):
+        token = make_session(
+            {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+        )
+        return {"Cookie": f"{SESSION_COOKIE}={token}"}
+
+    def test_cookie_less_writes_still_401(self):
+        for fn in (goals_write, available_write, workouts_write):
+            status, body = _cookie_less(fn)
+            self.assertEqual(status, 401, fn.__name__)
+            self.assertEqual(body["error"], "auth_required")
+            self.assertNotIn("<html", json.dumps(body).lower())
+
+    def test_signed_in_writes_are_403_json(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            headers = self._headers()
+            for fn in (goals_write, available_write, workouts_write):
+                status, body = fn(headers)
+                self.assertEqual(status, 403, fn.__name__)
+                self.assertEqual(body["error"], "preview_read_only")
+                self.assertTrue(body["readonly"])
+                self.assertNotIn("<html", json.dumps(body).lower())
 
 
 if __name__ == "__main__":

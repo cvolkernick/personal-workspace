@@ -1,10 +1,10 @@
-"""GET/POST /api/workout/exercise/available — capped catalog names. Read-only."""
+"""GET /api/workout/exercise/available — capped catalog names. POST is read-only."""
 
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler
 
-from api.ask._json import require_user, write_json
+from api.workout._util import PREVIEW_READ_ONLY, require_user, write_json
 
 
 def available_body(headers):
@@ -31,13 +31,20 @@ def available_body(headers):
     }
 
 
+def available_write(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    return 403, dict(PREVIEW_READ_ONLY)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         status, body = available_body(self.headers)
         write_json(self, status, body)
 
     def do_POST(self) -> None:
-        status, body = available_body(self.headers)
+        status, body = available_write(self.headers)
         write_json(self, status, body)
 
     def log_message(self, format: str, *args) -> None:

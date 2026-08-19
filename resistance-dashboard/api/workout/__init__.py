@@ -1,1 +1,1 @@
-"""Thin JSON adapters for /api/workout/*. Cookie required. No api/workout.py."""
+"""Vercel /api/workout/* adapters. No api/workout.py (path collision)."""

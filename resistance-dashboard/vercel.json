@@ -28,14 +28,14 @@
     },
     "api/workout/goals.py": {
       "maxDuration": 15,
-      "includeFiles": "{fitness/exercises/goals.json}"
+      "includeFiles": "{fitness/exercises/goals.json,fitness/exercises/catalog.json}"
     },
     "api/workout/exercise/available.py": {
       "maxDuration": 15,
       "includeFiles": "{fitness/exercises/goals.json,fitness/exercises/catalog.json}"
     },
     "api/workouts.py": {
-      "maxDuration": 30
+      "maxDuration": 15
     }
   }
 }

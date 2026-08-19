@@ -1,1 +1,1 @@
-"""Thin JSON adapters for /api/workout-plan/*."""
+"""Vercel /api/workout-plan/* adapters."""

@@ -1,10 +1,10 @@
-"""GET/POST /api/workouts — last Turso sessions. Cookie required. Read-only."""
+"""GET /api/workouts — last Turso sessions. POST is read-only (no fake write)."""
 
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler
 
-from api.ask._json import require_user, write_json
+from api.workout._util import PREVIEW_READ_ONLY, require_user, write_json
 
 
 def workouts_body(headers):
@@ -36,13 +36,20 @@ def workouts_body(headers):
     }
 
 
+def workouts_write(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    return 403, dict(PREVIEW_READ_ONLY)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         status, body = workouts_body(self.headers)
         write_json(self, status, body)
 
     def do_POST(self) -> None:
-        status, body = workouts_body(self.headers)
+        status, body = workouts_write(self.headers)
         write_json(self, status, body)
 
     def log_message(self, format: str, *args) -> None:

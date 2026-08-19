@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler
 
-from api.ask._json import require_user, write_json
+from api.workout._util import read_json, require_user, write_json
 
 
 def generate_body(headers, payload=None):
@@ -29,11 +29,11 @@ def generate_body(headers, payload=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
-        status, body = generate_body(self.headers)
+        status, body = generate_body(self.headers, read_json(self))
         write_json(self, status, body)
 
     def do_GET(self) -> None:
-        status, body = generate_body(self.headers)
+        status, body = generate_body(self.headers, {})
         write_json(self, status, body)
 
     def log_message(self, format: str, *args) -> None:
