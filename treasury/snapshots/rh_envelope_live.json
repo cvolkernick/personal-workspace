@@ -22,13 +22,13 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "188.7778451946",
-      "equity_value": "188.6878451946",
+      "total_value": "188.58769917",
+      "equity_value": "188.26769917",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
       "crypto_value": "0",
-      "cash": "0.09",
+      "cash": "0.32",
       "pending_deposits": "0",
       "mutual_funds_value": "0",
       "fixed_income_value": "0",
