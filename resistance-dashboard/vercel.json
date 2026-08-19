@@ -21,6 +21,21 @@
     "api/dashboard.py": {
       "maxDuration": 60,
       "includeFiles": "{fitness/nutrition/targets.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    },
+    "api/workout-plan/generate.py": {
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    },
+    "api/workout/goals.py": {
+      "maxDuration": 15,
+      "includeFiles": "{fitness/exercises/goals.json}"
+    },
+    "api/workout/exercise/available.py": {
+      "maxDuration": 15,
+      "includeFiles": "{fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    },
+    "api/workouts.py": {
+      "maxDuration": 30
     }
   }
 }
