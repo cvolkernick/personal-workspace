@@ -278,32 +278,26 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         workout_plan = dict(workout_plan)
     else:
         workout_plan = {}
-    # Next PPL slot only when the rest gate is off. No empty lift slot on Rest.
-    if gate["force_rest"]:
-        workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
-        shown_next = None
-        pack = build_training_pack(
-            goals, catalog, sessions, next_brief=nxt, limit=5
-        )
-        pack["next_session_type"] = None
-        pack["next_session_line"] = None
-        pack["rest"] = True
-    else:
-        if not (workout_plan.get("exercises") or []):
-            workout_plan["session_type"] = nxt["next_session_type"]
-            existing = str(workout_plan.get("message") or "").strip()
-            line = str(nxt.get("line") or "").strip()
-            if line and line not in existing:
-                workout_plan["message"] = f"{line}. {existing}".strip() if existing else line
-            ctx = dict(workout_plan.get("context") or {})
-            ctx["next_session_type"] = nxt["next_session_type"]
-            ctx["last_session_type"] = nxt.get("last_session_type")
-            workout_plan["context"] = ctx
-        workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
-        shown_next = nxt["next_session_type"]
-        pack = build_training_pack(
-            goals, catalog, sessions, next_brief=nxt, limit=5
-        )
+    # Rest gate is INPUT to SuperGrok, not a reason to omit the slot or next PPL.
+    # A generated rest day is a plan. Honest-empty only when SuperGrok is dark.
+    if not (workout_plan.get("exercises") or []) and not workout_plan.get("is_rest_day"):
+        workout_plan["session_type"] = nxt["next_session_type"]
+        existing = str(workout_plan.get("message") or "").strip()
+        line = str(nxt.get("line") or "").strip()
+        if line and line not in existing:
+            workout_plan["message"] = f"{line}. {existing}".strip() if existing else line
+        ctx = dict(workout_plan.get("context") or {})
+        ctx["next_session_type"] = nxt["next_session_type"]
+        ctx["last_session_type"] = nxt.get("last_session_type")
+        ctx["rest_gate"] = gate
+        ctx["rest_if_recovery_below"] = gate.get("threshold")
+        workout_plan["context"] = ctx
+    workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
+    shown_next = nxt["next_session_type"]
+    pack = build_training_pack(
+        goals, catalog, sessions, next_brief=nxt, limit=5
+    )
+    pack["rest_gate"] = gate
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,

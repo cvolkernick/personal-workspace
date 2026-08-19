@@ -192,6 +192,55 @@ class PlannerHonestEmpty(unittest.TestCase):
         self.assertEqual(out["workout"]["exercises"], [])
         self.assertIn("Connect SuperGrok", out["error"])
 
+    def test_low_recovery_still_passes_next_ppl_into_plan_context(self):
+        captured = {}
+
+        def fake_chat(messages, **kwargs):
+            captured["messages"] = messages
+            return {
+                "answer": json.dumps(
+                    {
+                        "meal": {"message": "ok", "items": [], "meals": []},
+                        "workout": {
+                            "session_type": "rest",
+                            "is_rest_day": True,
+                            "message": "Generated rest day",
+                            "exercises": [],
+                        },
+                    }
+                ),
+                "model": "grok-test",
+                "auth_source": "supergrok_session",
+            }
+
+        with mock.patch(
+            "rt_dashboard.grok_ask.resolve_xai_credentials",
+            return_value={
+                "token": "user-token-must-not-leak",
+                "source": "supergrok_session",
+                "expired": False,
+            },
+        ), mock.patch(
+            "rt_dashboard.grok_ask.chat_completions",
+            side_effect=fake_chat,
+        ):
+            out = generate_grok_plans(
+                "user-1",
+                recovery={"score": 35, "sparse": False, "label": "Caution"},
+                goals={"rest_if_recovery_below": 40, "split": "ppl"},
+                next_session_type="pull",
+                catalog={"exercises": [{"name": "DB Flat Press", "available": True}]},
+            )
+        self.assertTrue(out["ok"])
+        blob = captured["messages"][1]["content"]
+        self.assertIn('"next_session_type": "pull"', blob)
+        self.assertIn('"rest_if_recovery_below": 40', blob)
+        self.assertIn('"force_rest": true', blob)
+        self.assertTrue(out["workout"]["is_rest_day"])
+        self.assertEqual(out["workout"]["session_type"], "rest")
+        self.assertEqual((out["workout"].get("rest_gate") or {}).get("force_rest"), True)
+        self.assertNotIn("user-token-must-not-leak", json.dumps(out))
+
     def test_honest_empty_helpers_have_no_canned_food(self):
         meal = honest_empty_meal()
         workout = honest_empty_workout()

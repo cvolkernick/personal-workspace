@@ -105,8 +105,7 @@ def generate_grok_plans(
 
     rem = remaining_macros(targets or {}, consumed or {})
     gate = rest_gate(goals or {}, recovery or {})
-    if gate["force_rest"]:
-        next_session_type = None
+    # Keep next PPL even when force_rest — it is planner input, not a hide flag.
     catalog = catalog if isinstance(catalog, dict) else {}
     exercises = catalog.get("exercises") if isinstance(catalog.get("exercises"), list) else []
     catalog_brief = {
@@ -131,6 +130,8 @@ def generate_grok_plans(
         "catalog": catalog_brief,
         "inventory": None,
         "next_session_type": next_session_type,
+        "rest_if_recovery_below": (goals or {}).get("rest_if_recovery_below") or 40,
+        "rest_gate": gate,
         "volume_caps": {
             "default_hard_sets": (goals or {}).get("default_hard_sets"),
             "session_working_set_cap": (goals or {}).get("session_working_set_cap"),
@@ -141,7 +142,9 @@ def generate_grok_plans(
             "Inventory is unset (Pi pantry is dark). Do not invent staples "
             "the user owns. Meal ideas may use remaining macros + logged foods only. "
             "Workout must use goals (PPL split / DeanT volume) + catalog names + "
-            "recent_sessions + recovery. No canned plan. No fake inventory. "
+            "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
+            "generate a rest day as today's plan (that still fills the slot). "
+            "Do not omit next_session_type. No canned plan. No fake inventory. "
             "Do NOT use catalog default_sets=3. Volume from goals: "
             "default_hard_sets, DeanT 4-8, session_working_set_cap."
         ),
@@ -158,9 +161,11 @@ def generate_grok_plans(
         "- Workout uses goals.split / rotation, catalog names, recovery, and recent lifts.\n"
         "- Volume caps come from goals (default_hard_sets, DeanT 4-8, "
         "session_working_set_cap). NEVER use catalog default_sets=3.\n"
-        "- If recovery.score < goals.rest_if_recovery_below and recovery is "
-        "not sparse, workout MUST be is_rest_day with no exercises. "
-        "Caution 30-39 still rests. Sparse sleep must not rest.\n"
+        "- rest_if_recovery_below + recovery.score + sparse are INPUT to you. "
+        "You MAY return is_rest_day as today's plan (a rest day is a plan, "
+        "not an omitted slot). Still set session_type (rest or next PPL). "
+        "Never omit the workout object. Keep next_session_type for rotation. "
+        "Sparse sleep must not rest.\n"
         "- No canned plan. No fake inventory.\n"
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."

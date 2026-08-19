@@ -199,7 +199,7 @@ class RestGateFromGoals(unittest.TestCase):
         self.assertEqual(src, GOALS_PATH)
         self.assertEqual(goals["rest_if_recovery_below"], 40)
 
-    def test_score_35_not_sparse_is_rest(self):
+    def test_score_35_not_sparse_is_rest_input_not_omit(self):
         goals, _ = load_workspace_goals()
         gate = rest_gate(goals, {"score": 35, "sparse": False})
         self.assertTrue(gate["force_rest"])
@@ -210,15 +210,20 @@ class RestGateFromGoals(unittest.TestCase):
                 "is_rest_day": False,
                 "exercises": [{"name": "DB Flat Press"}],
                 "message": "Next session: PULL (PPL after last push)",
+                "context": {"next_session_type": "pull"},
             },
             goals,
             {"score": 35, "sparse": False},
         )
-        self.assertTrue(plan["is_rest_day"])
-        self.assertEqual(plan["session_type"], "rest")
-        self.assertEqual(plan["exercises"], [])
-        self.assertNotIn("Next session:", plan.get("message") or "")
-        self.assertNotIn("next_session_type", plan.get("context") or {})
+        # Input stamp only — do not wipe the slot or next PPL.
+        self.assertTrue(plan["rest_gate"]["force_rest"])
+        self.assertEqual(plan["rest_gate"]["threshold"], 40)
+        self.assertFalse(plan["is_rest_day"])
+        self.assertEqual(plan["session_type"], "pull")
+        self.assertEqual(plan["exercises"], [{"name": "DB Flat Press"}])
+        self.assertIn("Next session:", plan.get("message") or "")
+        self.assertEqual((plan.get("context") or {}).get("next_session_type"), "pull")
+        self.assertEqual((plan.get("context") or {}).get("rest_if_recovery_below"), 40)
 
     def test_score_35_sparse_sleep_is_not_rest(self):
         goals, _ = load_workspace_goals()
@@ -284,23 +289,27 @@ class VercelDashboardRestGate(unittest.TestCase):
             ):
                 return dashboard_body(headers)
 
-    def test_score_35_not_sparse_rests_no_lift_slot(self):
+    def test_score_35_not_sparse_still_shows_next_ppl_and_plan_slot(self):
         status, body = self._signed_body(score=35, sleep_hours=7.5)
         self.assertEqual(status, 200)
         wo = body["workout_store"]
         self.assertTrue(body["recovery"]["sparse"] is False)
-        self.assertTrue(wo["plan"]["is_rest_day"])
-        self.assertEqual(wo["plan"]["session_type"], "rest")
-        self.assertEqual(wo["plan"]["exercises"], [])
-        self.assertIsNone(wo["next_session_type"])
-        self.assertNotIn("Next session:", wo["plan"].get("message") or "")
-        self.assertTrue((wo["training_pack"] or {}).get("rest"))
-        self.assertIsNone((wo["training_pack"] or {}).get("next_session_type"))
+        self.assertTrue((wo["plan"].get("rest_gate") or {}).get("force_rest"))
+        self.assertEqual(wo["next_session_type"], "pull")
+        self.assertEqual((wo["training_pack"] or {}).get("next_session_type"), "pull")
+        self.assertIn("Next session: PULL", wo["plan"].get("message") or "")
+        # Slot is present. GET does not force a rest-day hole.
+        self.assertIsNotNone(wo["plan"])
+        self.assertFalse(wo["plan"].get("is_rest_day"))
+        self.assertNotEqual(wo["plan"].get("session_type"), "rest")
         today = (body.get("coach") or {}).get("today") or {}
-        self.assertEqual(today.get("recommendation"), "rest")
-        self.assertTrue((today.get("workout") or {}).get("is_rest_day"))
-        self.assertEqual((today.get("workout") or {}).get("session_type"), "rest")
-        self.assertEqual((today.get("workout") or {}).get("exercises") or [], [])
+        self.assertIsNotNone(today.get("workout"))
+        self.assertNotEqual(today.get("recommendation"), "rest")
+        self.assertFalse((today.get("workout") or {}).get("is_rest_day"))
+        meal = (body.get("nutrition_store") or {}).get("meal_plan")
+        self.assertIsNotNone(meal)
+        blob = (meal.get("message") or "") + (wo["plan"].get("message") or "")
+        self.assertIn("Connect SuperGrok", blob)
 
     def test_score_35_sparse_sleep_not_rest(self):
         status, body = self._signed_body(score=35, sleep_hours=None)

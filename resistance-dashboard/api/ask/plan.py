@@ -56,6 +56,10 @@ def ask_plan_body(headers, payload=None):
             "score": rec.get("score"),
             "reasons": (rec.get("reasons") or [])[:4],
             "sparse": rec.get("sparse"),
+            "rest_if_recovery_below": (wo.get("goals") or {}).get(
+                "rest_if_recovery_below"
+            )
+            or 40,
         },
         sessions_brief=brief,
         goals=wo.get("goals") or {},

@@ -260,7 +260,10 @@ def apply_rest_gate(
     *,
     sparse: Optional[bool] = None,
 ) -> dict:
-    """Stamp rest onto a workout plan. Clears lift slot / next-PPL overlay."""
+    """Stamp rest-gate as planner INPUT. Never omit the slot or next PPL.
+
+    Grok may emit a rest day as the plan. That is a plan, not an empty hole.
+    """
     gate = rest_gate(goals, recovery, sparse=sparse)
     plan = dict(workout_plan) if isinstance(workout_plan, dict) else {}
     stamp = {
@@ -268,21 +271,12 @@ def apply_rest_gate(
         "threshold": gate["threshold"],
         "sparse": gate["sparse"],
         "score": gate["score"],
+        "reason": gate.get("reason"),
     }
     plan["rest_gate"] = stamp
-    if not gate["force_rest"]:
-        return plan
-    plan["is_rest_day"] = True
-    plan["session_type"] = "rest"
-    plan["exercises"] = []
-    plan["empty"] = True
-    existing = str(plan.get("message") or "").strip()
-    if existing.startswith("Next session:"):
-        existing = ""
-    plan["message"] = gate["reason"] or existing
     ctx = dict(plan.get("context") or {})
     ctx["rest_gate"] = stamp
-    ctx.pop("next_session_type", None)
+    ctx["rest_if_recovery_below"] = gate["threshold"]
     plan["context"] = ctx
     return plan
 
