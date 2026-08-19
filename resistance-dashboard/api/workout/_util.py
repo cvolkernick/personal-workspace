@@ -1,4 +1,4 @@
-"""Shared JSON + auth helpers for /api/workout* adapters. Never a route file."""
+"""Client workout-route helpers. Underscore file — not a Vercel function."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from api.ask._json import auth_required, require_user, write_json
+from api.auth.session_util import query_first
 
 PREVIEW_READ_ONLY = {
     "ok": False,
@@ -30,10 +31,150 @@ def read_json(handler: BaseHTTPRequestHandler) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def goals_body(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    from rt_dashboard.workout_store import load_workspace_goals
+
+    goals, src = load_workspace_goals()
+    return 200, {
+        "ok": True,
+        "goals": goals,
+        "source": src,
+        "readonly": True,
+        "write": {"ok": False, "readonly": True},
+    }
+
+
+def available_body(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    from rt_dashboard.workout_store import (
+        apply_goals_volume_caps,
+        catalog_names,
+        load_workspace_catalog,
+        load_workspace_goals,
+    )
+
+    goals, goals_src = load_workspace_goals()
+    catalog, catalog_src = load_workspace_catalog()
+    catalog = apply_goals_volume_caps(catalog, goals)
+    return 200, {
+        "ok": True,
+        "readonly": True,
+        "catalog": catalog,
+        "names": catalog_names(catalog),
+        "sources": {"catalog": catalog_src, "goals": goals_src},
+        "write": {"ok": False, "readonly": True},
+    }
+
+
+def workouts_body(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.dashboard import _load_sessions
+
+    sessions, errors, source = _load_sessions(str(user.get("id") or "default"))
+    out = []
+    for s in sessions or []:
+        if hasattr(s, "to_dict"):
+            out.append(s.to_dict())
+        elif isinstance(s, dict):
+            out.append(s)
+    return 200, {
+        "ok": True,
+        "readonly": True,
+        "sessions": out,
+        "session_count": len(out),
+        "source": source,
+        "error": "; ".join(errors) if errors else None,
+        "write": {
+            "ok": False,
+            "readonly": True,
+            "path": None,
+            "verified_on_readback": False,
+        },
+    }
+
+
+def _write_denied(headers):
+    user, err = require_user(headers)
+    if err:
+        return err
+    return 403, dict(PREVIEW_READ_ONLY)
+
+
+def goals_write(headers):
+    return _write_denied(headers)
+
+
+def available_write(headers):
+    return _write_denied(headers)
+
+
+def workouts_write(headers):
+    return _write_denied(headers)
+
+
+def generate_body(headers, payload=None):
+    """Same Grok/honest-empty workout as /api/ask/plan, keyed as plan."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.ask.plan import ask_plan_body
+
+    status, body = ask_plan_body(headers, payload)
+    if status != 200:
+        return status, body
+    plan = body.get("workout") if isinstance(body, dict) else None
+    if not isinstance(plan, dict):
+        plan = {}
+    return 200, {
+        "ok": True,
+        "plan": plan,
+        "error": body.get("error") if isinstance(body, dict) else None,
+        "meal": body.get("meal") if isinstance(body, dict) else None,
+    }
+
+
+goals_read = goals_body
+available_read = available_body
+workouts_read = workouts_body
+
+
+def dispatch_client_route(headers, query: str, method: str, payload=None):
+    """Option B: existing dashboard/ask functions serve client paths via ?_r=."""
+    route = query_first(query, "_r")
+    method = (method or "GET").upper()
+    if route == "goals":
+        return goals_write(headers) if method == "POST" else goals_body(headers)
+    if route == "available":
+        return available_write(headers) if method == "POST" else available_body(headers)
+    if route == "workouts":
+        return workouts_write(headers) if method == "POST" else workouts_body(headers)
+    if route == "generate":
+        return generate_body(headers, payload)
+    return None
+
+
 __all__ = [
     "PREVIEW_READ_ONLY",
     "auth_required",
+    "available_body",
+    "available_read",
+    "available_write",
+    "dispatch_client_route",
+    "generate_body",
+    "goals_body",
+    "goals_read",
+    "goals_write",
     "read_json",
     "require_user",
+    "workouts_body",
+    "workouts_read",
+    "workouts_write",
     "write_json",
 ]

@@ -370,17 +370,38 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     return 200, payload
 
 
+def _write_dashboard(handler, status: int, body: dict) -> None:
+    raw = json_bytes(body)
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         query = urlparse(getattr(self, "path", "") or "").query
-        status, body = dashboard_body(self.headers, query)
-        raw = json_bytes(body)
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        from api.workout._util import dispatch_client_route
+
+        routed = dispatch_client_route(self.headers, query, "GET")
+        if routed is not None:
+            status, body = routed
+        else:
+            status, body = dashboard_body(self.headers, query)
+        _write_dashboard(self, status, body)
+
+    def do_POST(self) -> None:
+        query = urlparse(getattr(self, "path", "") or "").query
+        from api.workout._util import dispatch_client_route
+
+        routed = dispatch_client_route(self.headers, query, "POST")
+        if routed is not None:
+            status, body = routed
+            _write_dashboard(self, status, body)
+            return
+        _write_dashboard(self, 405, {"ok": False, "error": "method_not_allowed"})
 
     def do_HEAD(self) -> None:
         self.send_response(501)

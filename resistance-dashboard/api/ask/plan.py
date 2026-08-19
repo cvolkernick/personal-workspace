@@ -73,10 +73,29 @@ def ask_plan_body(headers, payload=None):
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
-        status, body = ask_plan_body(self.headers, _read_json(self))
+        from urllib.parse import urlparse
+
+        from api.auth.session_util import query_first
+        from api.workout._util import generate_body
+
+        query = urlparse(getattr(self, "path", "") or "").query
+        if query_first(query, "_r") == "generate":
+            status, body = generate_body(self.headers, _read_json(self))
+        else:
+            status, body = ask_plan_body(self.headers, _read_json(self))
         write_json(self, status, body)
 
     def do_GET(self) -> None:
+        from urllib.parse import urlparse
+
+        from api.auth.session_util import query_first
+        from api.workout._util import generate_body
+
+        query = urlparse(getattr(self, "path", "") or "").query
+        if query_first(query, "_r") == "generate":
+            status, body = generate_body(self.headers, {})
+            write_json(self, status, body)
+            return
         write_json(self, 405, {"ok": False, "error": "method_not_allowed"})
 
     def log_message(self, format: str, *args) -> None:

@@ -1,8 +1,7 @@
-"""Cookie-less 401 JSON on client workout routes. No HTML 404. No api/workout.py."""
+"""Cookie-less 401 JSON on client workout routes. Option B rewrites. No extra functions."""
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import unittest
@@ -10,41 +9,46 @@ from pathlib import Path
 from unittest import mock
 
 from api.auth.session_util import SESSION_COOKIE, make_session
-from api.workout.goals import goals_body, goals_write
-from api.workout.exercise.available import available_body, available_write
-from api.workouts import workouts_body, workouts_write
+from api.workout._util import (
+    available_body,
+    available_write,
+    dispatch_client_route,
+    generate_body,
+    goals_body,
+    goals_write,
+    workouts_body,
+    workouts_write,
+)
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.workout_planner import CATALOG_PATH, GOALS_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _load_generate():
-    path = ROOT / "api" / "workout_plan_generate.py"
-    spec = importlib.util.spec_from_file_location("_fitdash_workout_plan_generate", path)
-    mod = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(mod)
-    return mod
-
-
 class ClientRouteLayout(unittest.TestCase):
-    def test_no_workout_py_package_collision(self):
+    def test_no_extra_functions_or_workout_py_collision(self):
         self.assertFalse((ROOT / "api" / "workout.py").exists())
-        self.assertTrue((ROOT / "api" / "workout" / "goals.py").is_file())
-        self.assertTrue((ROOT / "api" / "workout" / "exercise" / "available.py").is_file())
-        self.assertTrue((ROOT / "api" / "workout_plan_generate.py").is_file())
-        self.assertTrue((ROOT / "api" / "workouts.py").is_file())
+        self.assertFalse((ROOT / "api" / "workouts.py").exists())
         self.assertFalse((ROOT / "api" / "workout-plan.py").exists())
-        self.assertFalse((ROOT / "api" / "workout-plan").exists())
+        self.assertFalse((ROOT / "api" / "workout_plan_generate.py").exists())
+        self.assertFalse((ROOT / "api" / "workout" / "goals.py").exists())
+        self.assertTrue((ROOT / "api" / "workout" / "_util.py").is_file())
+        self.assertTrue((ROOT / "api" / "dashboard.py").is_file())
+        self.assertTrue((ROOT / "api" / "ask" / "plan.py").is_file())
 
-    def test_vercel_json_lists_new_functions(self):
+    def test_vercel_json_rewrites_onto_existing_functions(self):
         raw = (ROOT / "vercel.json").read_text(encoding="utf-8")
-        self.assertIn("api/workout_plan_generate.py", raw)
         self.assertIn("/api/workout-plan/generate", raw)
-        self.assertIn("api/workout/goals.py", raw)
-        self.assertIn("api/workout/exercise/available.py", raw)
-        self.assertIn("api/workouts.py", raw)
+        self.assertIn("/api/ask/plan?_r=generate", raw)
+        self.assertIn("/api/workout/goals", raw)
+        self.assertIn("/api/dashboard?_r=goals", raw)
+        self.assertIn("/api/workout/exercise/available", raw)
+        self.assertIn("/api/dashboard?_r=available", raw)
+        self.assertIn("/api/workouts", raw)
+        self.assertIn("/api/dashboard?_r=workouts", raw)
+        self.assertNotIn("api/workout-plan/generate.py", raw)
+        self.assertNotIn("api/workouts.py", raw)
+        self.assertNotIn("api/workout_plan_generate.py", raw)
         self.assertIn("fitness/exercises/goals.json", raw)
         self.assertIn("fitness/exercises/catalog.json", raw)
 
@@ -70,7 +74,6 @@ class CookieLessClientRoutes(unittest.TestCase):
         self.assertNotIn("catalog", body)
 
     def test_generate_401_json(self):
-        generate_body = _load_generate().generate_body
         status, body = _cookie_less(generate_body)
         self.assertEqual(status, 401)
         self.assertEqual(body["error"], "auth_required")
@@ -83,6 +86,14 @@ class CookieLessClientRoutes(unittest.TestCase):
         self.assertEqual(body["error"], "auth_required")
         self.assertNotIn("<html", json.dumps(body).lower())
         self.assertNotIn("sessions", body)
+
+    def test_dispatch_cookie_less_401(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            for route in ("goals", "available", "workouts", "generate"):
+                status, body = dispatch_client_route({}, f"_r={route}", "GET")
+                self.assertEqual(status, 401, route)
+                self.assertEqual(body["error"], "auth_required")
+                self.assertNotIn("<html", json.dumps(body).lower())
 
 
 class SignedInClientRoutes(unittest.TestCase):
@@ -147,7 +158,6 @@ class SignedInClientRoutes(unittest.TestCase):
         self.assertFalse(body["write"]["ok"])
 
     def test_generate_rest_gate_via_ask_plan(self):
-        generate_body = _load_generate().generate_body
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         rest_plan = {
             "session_type": "rest",
