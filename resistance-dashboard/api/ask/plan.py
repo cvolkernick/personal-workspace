@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
 from api.ask._json import require_user, write_json
 from api.dashboard import dashboard_body
@@ -62,41 +63,43 @@ def ask_plan_body(headers, payload=None):
         next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
     )
     if not result.get("ok"):
-        workout = result.get("workout") or honest_empty_workout()
         return 200, {
             "ok": False,
             "error": result.get("error"),
             "meal": result.get("meal") or honest_empty_meal(),
-            "workout": workout,
-            "plan": workout,
+            "workout": result.get("workout") or honest_empty_workout(),
         }
-    if isinstance(result, dict) and "plan" not in result:
-        result = dict(result)
-        result["plan"] = result.get("workout") or {}
     return 200, result
 
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
-        from urllib.parse import urlparse
-
-        from api.workout._util import generate_body, route_name
+        from api.workout._util import dispatch_client_route
 
         parsed = urlparse(getattr(self, "path", "") or "")
-        if route_name(parsed.path, parsed.query) == "generate":
-            status, body = generate_body(self.headers, _read_json(self))
+        payload = _read_json(self)
+        routed = dispatch_client_route(
+            self.headers,
+            parsed.query,
+            "POST",
+            payload=payload,
+            path=parsed.path,
+        )
+        if routed is not None:
+            status, body = routed
         else:
-            status, body = ask_plan_body(self.headers, _read_json(self))
+            status, body = ask_plan_body(self.headers, payload)
         write_json(self, status, body)
 
     def do_GET(self) -> None:
-        from urllib.parse import urlparse
-
-        from api.workout._util import generate_body, route_name
+        from api.workout._util import dispatch_client_route
 
         parsed = urlparse(getattr(self, "path", "") or "")
-        if route_name(parsed.path, parsed.query) == "generate":
-            status, body = generate_body(self.headers, {})
+        routed = dispatch_client_route(
+            self.headers, parsed.query, "GET", payload={}, path=parsed.path
+        )
+        if routed is not None:
+            status, body = routed
             write_json(self, status, body)
             return
         write_json(self, 405, {"ok": False, "error": "method_not_allowed"})

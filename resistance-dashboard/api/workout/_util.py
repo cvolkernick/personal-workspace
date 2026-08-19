@@ -15,6 +15,8 @@ PREVIEW_READ_ONLY = {
     "readonly": True,
 }
 
+_ROUTES = ("goals", "available", "workouts", "generate")
+
 
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
     try:
@@ -29,6 +31,33 @@ def read_json(handler: BaseHTTPRequestHandler) -> dict:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def client_route_name(headers, query: str = "", path: str = "") -> str:
+    """Resolve client route from rewrite ?_r= or the original URL."""
+    route = query_first(query, "_r")
+    if route in _ROUTES:
+        return route
+    blob = " ".join(
+        [
+            path or "",
+            query or "",
+            str((headers or {}).get("x-invoke-path") or ""),
+            str((headers or {}).get("X-Invoke-Path") or ""),
+            str((headers or {}).get("x-matched-path") or ""),
+            str((headers or {}).get("X-Matched-Path") or ""),
+            str((headers or {}).get("x-vercel-original-path") or ""),
+        ]
+    )
+    if "/workout/goals" in blob:
+        return "goals"
+    if "/workout/exercise/available" in blob:
+        return "available"
+    if "/workout-plan/generate" in blob:
+        return "generate"
+    if "/api/workouts" in blob:
+        return "workouts"
+    return ""
 
 
 def goals_body(headers):
@@ -140,31 +169,15 @@ def generate_body(headers, payload=None):
     }
 
 
+route_name = client_route_name
 goals_read = goals_body
 available_read = available_body
 workouts_read = workouts_body
 
 
-def route_name(path: str = "", query: str = ""):
-    """Prefer ?_r= from vercel.json rewrite; fall back to original client path."""
-    route = query_first(query, "_r")
-    if route:
-        return route
-    raw = (path or "").split("?")[0].rstrip("/")
-    if raw.endswith("/workout-plan/generate"):
-        return "generate"
-    if raw.endswith("/workout/exercise/available"):
-        return "available"
-    if raw.endswith("/workout/goals"):
-        return "goals"
-    if raw.endswith("/workouts"):
-        return "workouts"
-    return None
-
-
 def dispatch_client_route(headers, query: str, method: str, payload=None, path: str = ""):
     """Existing dashboard/ask functions serve client paths via rewrite."""
-    route = route_name(path, query)
+    route = client_route_name(headers, query, path)
     method = (method or "GET").upper()
     if route == "goals":
         return goals_write(headers) if method == "POST" else goals_body(headers)
@@ -183,8 +196,8 @@ __all__ = [
     "available_body",
     "available_read",
     "available_write",
+    "client_route_name",
     "dispatch_client_route",
-    "route_name",
     "generate_body",
     "goals_body",
     "goals_read",
