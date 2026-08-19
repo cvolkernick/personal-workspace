@@ -2,5 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1",
   "framework": null,
-  "outputDirectory": "static"
+  "outputDirectory": "static",
+  "functions": {
+    "api/ask.py": {
+      "maxDuration": 60
+    }
+  }
 }
