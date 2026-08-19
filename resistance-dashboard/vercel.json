@@ -6,6 +6,9 @@
   "functions": {
     "api/ask.py": {
       "maxDuration": 60
+    },
+    "api/dashboard.py": {
+      "maxDuration": 60
     }
   }
 }

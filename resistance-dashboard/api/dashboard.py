@@ -8,6 +8,9 @@ from http.server import BaseHTTPRequestHandler
 
 from api.auth.session_util import json_bytes, session_from_headers, signing_secret
 
+# Pi cold/force pull. Incremental 14d only applies when a cache exists; Vercel cache is none.
+HEALTH_COLD_DAYS = 90
+
 
 def _auth_required() -> dict:
     return {
@@ -43,7 +46,7 @@ def _load_health():
     from rt_dashboard.models import HealthSnapshot
 
     errors: list[str] = []
-    days = 30
+    days = HEALTH_COLD_DAYS
     try:
         health = GoogleHealthClient().fetch_health(days=days)
     except Exception as exc:  # noqa: BLE001
@@ -111,7 +114,7 @@ def dashboard_body(headers) -> tuple[int, dict]:
     health.sleep = expand_sleep_calendar(
         health.sleep or [],
         as_of=today,
-        window_days=90,
+        window_days=HEALTH_COLD_DAYS,
         fill_hours=0.0,
         fill_source="implied_zero",
     )
@@ -234,6 +237,7 @@ def dashboard_body(headers) -> tuple[int, dict]:
         "cache": "none",
         "timezone": local_tz_name(),
         "local_today": today,
+        "health_days": HEALTH_COLD_DAYS,
         "error": "; ".join(errors) if errors else None,
     }
     return 200, payload
