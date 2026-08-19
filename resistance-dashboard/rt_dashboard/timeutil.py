@@ -1,42 +1,58 @@
-"""Local-calendar helpers for the machine running the dashboard."""
+"""Local-calendar helpers. Viewer civil day is a per-request IANA zone."""
 
 from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from typing import Optional
 from zoneinfo import ZoneInfo
 
-DEFAULT_DASHBOARD_TZ = "America/New_York"
+FALLBACK_TZ = "America/New_York"
 
 
-def ensure_dashboard_tz() -> str:
-    """Civil-day timezone. Ignore host/Vercel TZ=UTC unless DASHBOARD_TZ is set."""
-    name = (os.environ.get("DASHBOARD_TZ") or "").strip()
-    if not name:
-        name = DEFAULT_DASHBOARD_TZ
-        os.environ["DASHBOARD_TZ"] = name
-    return name
+def resolve_tz_name(preferred: Optional[str] = None) -> str:
+    """IANA zone: preferred, else DASHBOARD_TZ, else America/New_York.
+
+    Ignores process TZ (Vercel sets TZ=UTC). Invalid names are skipped.
+    America/New_York is fallback only, not a hardcoded product timezone.
+    """
+    candidates = (
+        (preferred or "").strip(),
+        (os.environ.get("DASHBOARD_TZ") or "").strip(),
+        FALLBACK_TZ,
+    )
+    for name in candidates:
+        if not name:
+            continue
+        try:
+            ZoneInfo(name)
+            return name
+        except Exception:
+            continue
+    return FALLBACK_TZ
 
 
-def local_tz_name() -> str:
-    return ensure_dashboard_tz()
+def local_tz_name(preferred: Optional[str] = None) -> str:
+    return resolve_tz_name(preferred)
 
 
-def local_tz():
-    name = ensure_dashboard_tz()
-    try:
-        return ZoneInfo(name)
-    except Exception:
-        return ZoneInfo(DEFAULT_DASHBOARD_TZ)
+def local_tz(preferred: Optional[str] = None):
+    return ZoneInfo(resolve_tz_name(preferred))
 
 
-def local_today_iso() -> str:
-    """Civil date in DASHBOARD_TZ (America/New_York by default), not UTC."""
-    return datetime.now(local_tz()).strftime("%Y-%m-%d")
+def local_today_iso(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> str:
+    """Civil date in the viewer (or fallback) zone, not process TZ."""
+    clock = now if now is not None else datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=timezone.utc)
+    return clock.astimezone(local_tz(preferred)).strftime("%Y-%m-%d")
 
 
-def local_now_iso() -> str:
-    return datetime.now(local_tz()).isoformat(timespec="seconds")
+def local_now_iso(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> str:
+    clock = now if now is not None else datetime.now(timezone.utc)
+    if clock.tzinfo is None:
+        clock = clock.replace(tzinfo=timezone.utc)
+    return clock.astimezone(local_tz(preferred)).isoformat(timespec="seconds")
 
 
 def utc_now_iso() -> str:

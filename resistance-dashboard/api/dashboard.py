@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import os
 import time
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse
 
-from api.auth.session_util import json_bytes, session_from_headers, signing_secret
+from api.auth.session_util import json_bytes, query_first, session_from_headers, signing_secret
 
 # Pi cold/force pull. Incremental 14d only applies when a cache exists; Vercel cache is none.
 HEALTH_COLD_DAYS = 90
@@ -111,9 +111,26 @@ def _today_consumed(health, today: str) -> dict:
     }
 
 
-def dashboard_body(headers) -> tuple[int, dict]:
-    if not (os.environ.get("DASHBOARD_TZ") or "").strip():
-        os.environ["DASHBOARD_TZ"] = "America/New_York"
+def request_tz_name(headers, query: str = "") -> str:
+    """Viewer IANA zone: ?tz= or X-Viewer-TZ / X-Dashboard-TZ, else env fallback.
+
+    Never uses process TZ (Vercel TZ=UTC). Garbage names are ignored.
+    """
+    from rt_dashboard.timeutil import resolve_tz_name
+
+    raw = query_first(query, "tz")
+    if not raw and headers:
+        raw = str(
+            headers.get("X-Viewer-TZ")
+            or headers.get("X-Dashboard-TZ")
+            or headers.get("x-viewer-tz")
+            or headers.get("x-dashboard-tz")
+            or ""
+        ).strip()
+    return resolve_tz_name(raw)
+
+
+def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     if not signing_secret() or not session_from_headers(headers):
         return 401, _auth_required()
 
@@ -126,13 +143,14 @@ def dashboard_body(headers) -> tuple[int, dict]:
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
-    from rt_dashboard.timeutil import local_today_iso, local_tz_name
+    from rt_dashboard.timeutil import local_today_iso
 
     user = session_from_headers(headers) or {}
     t0 = time.perf_counter()
     sessions, sess_err, source = _load_sessions(str(user.get("id") or "default"))
     health, health_err = _load_health()
-    today = local_today_iso()
+    tz_name = request_tz_name(headers, query)
+    today = local_today_iso(tz_name)
     had_real_sleep = any(
         float(getattr(s, "sleep_hours", 0) or 0) > 0
         and str(getattr(s, "source", "") or "") != "implied_zero"
@@ -289,7 +307,7 @@ def dashboard_body(headers) -> tuple[int, dict]:
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "load_ms": int((time.perf_counter() - t0) * 1000),
         "cache": "none",
-        "timezone": local_tz_name(),
+        "timezone": tz_name,
         "local_today": today,
         "health_days": HEALTH_COLD_DAYS,
         "error": "; ".join(errors) if errors else None,
@@ -299,7 +317,8 @@ def dashboard_body(headers) -> tuple[int, dict]:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        status, body = dashboard_body(self.headers)
+        query = urlparse(getattr(self, "path", "") or "").query
+        status, body = dashboard_body(self.headers, query)
         raw = json_bytes(body)
         self.send_response(status)
         self.send_header("Content-Type", "application/json")

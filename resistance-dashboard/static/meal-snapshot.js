@@ -9,6 +9,21 @@
     if (n == null || Number.isNaN(n)) return "—";
     return Math.round(Number(n)).toLocaleString();
   }
+  function viewerTz() {
+    try {
+      return (Intl.DateTimeFormat().resolvedOptions().timeZone || "").trim();
+    } catch (e) {
+      return "";
+    }
+  }
+  function withViewerTz(url) {
+    const raw = String(url || "");
+    if (raw.indexOf("/api/dashboard") === -1) return raw;
+    if (/[?&]tz=/.test(raw)) return raw;
+    const tz = viewerTz();
+    if (!tz) return raw;
+    return raw + (raw.indexOf("?") === -1 ? "?" : "&") + "tz=" + encodeURIComponent(tz);
+  }
   function hasLoggedMacros(c) {
     if (!c || typeof c !== "object") return false;
     return (
@@ -198,9 +213,18 @@
   }
   const origFetch = window.fetch;
   window.fetch = function () {
-    const req = arguments[0];
-    const url = typeof req === "string" ? req : (req && req.url) || "";
-    return origFetch.apply(this, arguments).then(function (res) {
+    const args = Array.prototype.slice.call(arguments);
+    const req = args[0];
+    if (typeof req === "string") {
+      args[0] = withViewerTz(req);
+    } else if (req && typeof Request !== "undefined" && req instanceof Request) {
+      const next = withViewerTz(req.url);
+      if (next !== req.url) {
+        args[0] = new Request(next, req);
+      }
+    }
+    const url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url) || "";
+    return origFetch.apply(this, args).then(function (res) {
       if (res && res.ok && String(url).indexOf("/api/dashboard") !== -1) {
         res
           .clone()
