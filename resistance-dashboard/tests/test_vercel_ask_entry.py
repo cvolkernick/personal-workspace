@@ -1,4 +1,4 @@
-"""POST /api/ask entry must be the package, not a self-importing ask.py."""
+"""POST /api/ask must boot when Vercel loads ask.py as module api.ask."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import json
 import os
 import sys
 import unittest
-from http.server import BaseHTTPRequestHandler
 from pathlib import Path
 from unittest import mock
 
@@ -17,32 +16,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class AskEntryLayout(unittest.TestCase):
-    def test_no_sibling_ask_py_collision(self):
-        self.assertFalse((ROOT / "api" / "ask.py").exists())
-        self.assertTrue((ROOT / "api" / "ask" / "index.py").exists())
+    def test_ask_py_does_not_import_api_ask(self):
+        src = (ROOT / "api" / "ask.py").read_text(encoding="utf-8")
+        self.assertNotIn("from api.ask", src)
+        self.assertNotIn("import api.ask", src)
         self.assertTrue((ROOT / "api" / "ask" / "_post.py").exists())
+        self.assertFalse((ROOT / "api" / "ask" / "index.py").exists())
 
-    def test_vercel_json_max_duration_on_index(self):
+    def test_vercel_json_max_duration_on_ask_py(self):
         raw = (ROOT / "vercel.json").read_text(encoding="utf-8")
-        self.assertIn("api/ask/index.py", raw)
-        self.assertNotIn('"api/ask.py"', raw)
+        self.assertIn('"api/ask.py"', raw)
+        self.assertNotIn("api/ask/index.py", raw)
 
 
 class AskEntryImport(unittest.TestCase):
-    def test_api_ask_is_package_with_handler(self):
-        pkg = importlib.import_module("api.ask")
-        self.assertTrue(hasattr(pkg, "__path__"), "api.ask must be the package")
+    def test_package_and_post_handler_import(self):
         post = importlib.import_module("api.ask._post")
-        index = importlib.import_module("api.ask.index")
         self.assertTrue(callable(post.handler))
-        self.assertTrue(callable(index.handler))
+        self.assertTrue(callable(post.ask_body))
 
-    def test_index_exposes_handler_even_if_named_api_ask(self):
-        """Vercel may spec_from_file_location('api.ask', index.py). Must not crash."""
-        path = ROOT / "api" / "ask" / "index.py"
-        spec = importlib.util.spec_from_file_location(
-            "_vercel_ask_index_as_api_ask", path
-        )
+    def test_vercel_named_ask_py_as_api_ask_does_not_crash(self):
+        """Reproduce Vercel spec_from_file_location('api.ask', api/ask.py)."""
+        path = ROOT / "api" / "ask.py"
+        spec = importlib.util.spec_from_file_location("_vercel_sim_ask_py", path)
         mod = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
         spec.loader.exec_module(mod)
@@ -75,9 +71,13 @@ class CookieLessAskPost(unittest.TestCase):
         self.assertNotIn("<html", json.dumps(body).lower())
 
     def test_handler_post_cookie_less_is_401_json(self):
-        from api.ask.index import handler
+        path = ROOT / "api" / "ask.py"
+        spec = importlib.util.spec_from_file_location("_vercel_sim_ask_handler", path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
 
-        class _Req(handler):
+        class _Req(mod.handler):
             def __init__(self):
                 self.headers = {}
                 self.rfile = io.BytesIO(b"{}")
