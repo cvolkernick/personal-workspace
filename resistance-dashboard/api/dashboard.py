@@ -88,8 +88,6 @@ def dashboard_body(headers) -> tuple[int, dict]:
     from rt_dashboard.analytics import dashboard_payload
     from rt_dashboard.calorie_bars import build_calorie_bars_payload
     from rt_dashboard.coach import build_coach_payload
-    from rt_dashboard.daily_plan_tasks import plan_preview
-    from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
@@ -198,31 +196,9 @@ def dashboard_body(headers) -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"coach: {type(exc).__name__}")
         payload["coach"] = {}
-    payload["workout_store"] = {
-        "plan": None,
-        "catalog": None,
-        "goals": None,
-        "sources": {"catalog": "unset", "goals": "unset"},
-    }
-    today_board = {}
-    if isinstance(payload.get("coach"), dict):
-        today_board = payload["coach"].get("today") or {}
-    try:
-        payload["daily_tasks"] = plan_preview(today_board, day=today)
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"daily_tasks: {type(exc).__name__}")
-        payload["daily_tasks"] = None
-    try:
-        payload["day_constraints"] = export_day_constraints_from_dashboard(
-            payload,
-            workspace=None,
-            sessions=sessions,
-            sleep=health.sleep or [],
-            write=False,
-        )
-    except Exception as exc:  # noqa: BLE001
-        errors.append(f"day_constraints: {type(exc).__name__}")
-        payload["day_constraints"] = None
+    payload["workout_store"] = None
+    payload["daily_tasks"] = None
+    payload["day_constraints"] = None
     payload["meta"] = {
         "role": "vercel-preview",
         "source": source,
