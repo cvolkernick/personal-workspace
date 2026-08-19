@@ -3,6 +3,7 @@ import unittest
 from unittest import mock
 
 from api.auth.session_util import (
+    SESSION_COOKIE,
     make_session,
     make_state,
     missing_oauth_env,
@@ -10,6 +11,7 @@ from api.auth.session_util import (
     verify_state,
 )
 from api.auth.status import auth_status_body
+from api.dashboard import dashboard_body
 from api.healthz import healthz_body
 
 
@@ -50,3 +52,19 @@ class VercelPreviewAuthStatus(unittest.TestCase):
                 missing,
                 ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "FITDASH_PUBLIC_URL"],
             )
+
+
+class VercelPreviewDashboard(unittest.TestCase):
+    def test_missing_cookie_is_401_json_not_404(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            status, body = dashboard_body({})
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "auth_required")
+        self.assertNotIn("sessions", body)
+
+    def test_invalid_cookie_is_401(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, body = dashboard_body({"Cookie": f"{SESSION_COOKIE}=tampered"})
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "auth_required")
