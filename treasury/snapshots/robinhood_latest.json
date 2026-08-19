@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-19T16:38:54.000211+00:00",
+  "as_of": "2026-08-19T17:36:29.791816+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-19T16:38:54.000206+00:00",
-    "total_value": 196.5466843638,
-    "equity_value": 196.4566843638,
+    "as_of": "2026-08-19T17:36:29.791812+00:00",
+    "total_value": 194.1812024044,
+    "equity_value": 194.0912024044,
     "cash": 0.09,
     "buying_power": 0.09,
     "unleveraged_buying_power": 0.09,
@@ -124,6 +124,7 @@
     {
       "account_number": "5QW39737",
       "rhs_account_number": "106397375",
+      "rhc_account_number": "311250215027",
       "type": "cash",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
@@ -139,6 +140,7 @@
     {
       "account_number": "674601752",
       "rhs_account_number": "674601752",
+      "rhc_account_number": "311264401076",
       "type": "cash",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
