@@ -15,7 +15,16 @@ PREVIEW_READ_ONLY = {
     "readonly": True,
 }
 
-_ROUTES = ("goals", "available", "workouts", "generate")
+_ROUTES = (
+    "goals",
+    "available",
+    "workouts",
+    "generate",
+    "inv_add",
+    "inv_remove",
+    "inv_stock",
+)
+_INV_ROUTES = ("inv_add", "inv_remove", "inv_stock")
 
 
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
@@ -57,6 +66,12 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "generate"
     if "/api/workouts" in blob:
         return "workouts"
+    if "/api/inventory/add" in blob:
+        return "inv_add"
+    if "/api/inventory/remove" in blob:
+        return "inv_remove"
+    if "/api/inventory/stock" in blob:
+        return "inv_stock"
     return ""
 
 
@@ -169,6 +184,57 @@ def generate_body(headers, payload=None):
     }
 
 
+def inventory_write(headers, route: str, payload=None):
+    """Kitchen add/remove/stock to Turso. Cookie-less 401. Failed persist is 5xx."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.inventory_store import (
+        load_preview_inventory,
+        save_preview_inventory,
+    )
+    from rt_dashboard.nutrition_planner import (
+        add_ingredient,
+        remove_ingredient,
+        set_in_stock,
+    )
+
+    uid = str(user.get("id") or "")
+    try:
+        current, _src = load_preview_inventory(uid)
+        if route == "inv_add":
+            updated = add_ingredient(current, payload)
+        elif route == "inv_remove":
+            updated = remove_ingredient(
+                current,
+                ingredient_id=str(payload.get("id") or ""),
+                name=str(payload.get("name") or ""),
+            )
+        elif route == "inv_stock":
+            updated = set_in_stock(
+                current,
+                ingredient_id=str(payload.get("id") or ""),
+                in_stock=bool(payload.get("in_stock", True)),
+            )
+        else:
+            return 400, {"ok": False, "error": "unknown_inventory_route"}
+        saved = save_preview_inventory(updated, uid)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+            "write": {"ok": False, "source": "turso"},
+        }
+    return 200, {
+        "ok": True,
+        "inventory": saved,
+        "write": {"ok": True, "source": "turso", "verified_on_readback": True},
+    }
+
+
 route_name = client_route_name
 goals_read = goals_body
 available_read = available_body
@@ -187,6 +253,10 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         return workouts_write(headers) if method == "POST" else workouts_body(headers)
     if route == "generate":
         return generate_body(headers, payload)
+    if route in _INV_ROUTES:
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return inventory_write(headers, route, payload or {})
     return None
 
 
@@ -200,6 +270,7 @@ __all__ = [
     "dispatch_client_route",
     "generate_body",
     "goals_body",
+    "inventory_write",
     "goals_read",
     "goals_write",
     "read_json",
