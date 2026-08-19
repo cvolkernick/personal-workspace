@@ -49,11 +49,66 @@ READ_ONLY_MESSAGE = (
     "Vercel preview is read-only. Not Mac, not Pi. Do not trade or mint."
 )
 
-# Rebuild agent_brief only when raw embeds a wallet. Page still matches Pi.
-_WALLET_RE = re.compile(
+# Rebuild/scrub preview text when raw embeds a wallet. Page still matches Pi.
+# ETH 0x, BTC bc1, and Solana-shaped base58 (32–44, no 0/O/I/l).
+# Solana tokens must be mixed-case + a digit so ordinary words are not wiped.
+_ETH_BTC_RE = re.compile(
     r"(0x[a-fA-F0-9]{40}|bc1[a-z0-9]{25,90})",
     re.IGNORECASE,
 )
+_B58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+_B58_TOKEN_RE = re.compile(
+    r"(?<![1-9A-HJ-NP-Za-km-z])[1-9A-HJ-NP-Za-km-z]{32,44}(?![1-9A-HJ-NP-Za-km-z])"
+)
+_REDACT = "[wallet redacted]"
+
+
+def _solana_shaped(token: str) -> bool:
+    if not (32 <= len(token) <= 44):
+        return False
+    if any(c not in _B58_ALPHABET for c in token):
+        return False
+    has_digit = any(c.isdigit() for c in token)
+    has_upper = any("A" <= c <= "Z" for c in token)
+    has_lower = any("a" <= c <= "z" for c in token)
+    return has_digit and has_upper and has_lower
+
+
+def redact_wallets(text: str) -> str:
+    """Strip ETH/BTC/Solana-shaped addresses from one preview-facing string."""
+    if not isinstance(text, str) or not text:
+        return text
+    out = _ETH_BTC_RE.sub(_REDACT, text)
+
+    def _sol(match: re.Match[str]) -> str:
+        tok = match.group(0)
+        return _REDACT if _solana_shaped(tok) else tok
+
+    return _B58_TOKEN_RE.sub(_sol, out)
+
+
+def _scrub_value(value: Any) -> tuple[Any, bool]:
+    """Walk lists/dicts; redact wallet-shaped strings. Keys are left intact."""
+    if isinstance(value, str):
+        new = redact_wallets(value)
+        return new, new != value
+    if isinstance(value, list):
+        changed = False
+        out = []
+        for item in value:
+            scrubbed, did = _scrub_value(item)
+            out.append(scrubbed)
+            changed = changed or did
+        return (out if changed else value), changed
+    if isinstance(value, dict):
+        changed = False
+        out: dict[str, Any] = {}
+        for key, item in value.items():
+            scrubbed, did = _scrub_value(item)
+            out[key] = scrubbed
+            changed = changed or did
+        return (out if changed else value), changed
+    return value, False
 
 
 def health_body() -> dict[str, Any]:
@@ -452,16 +507,21 @@ def _mark_preview(data: dict[str, Any], source: str) -> dict[str, Any]:
 
 
 def scrub_agent_brief(data: dict[str, Any]) -> dict[str, Any]:
-    """Rebuild agent_brief only if raw embeds a wallet. Do not print the brief."""
-    ev = data.get("evaluation") if isinstance(data, dict) else None
-    brief = ev.get("agent_brief") if isinstance(ev, dict) else None
-    if not isinstance(brief, str) or not _WALLET_RE.search(brief):
+    """Redact wallet-shaped strings from agent_brief and other snapshot text.
+
+    Do not print the brief. Sets agent_brief_rebuilt only when agent_brief changed.
+    """
+    if not isinstance(data, dict):
         return data
-    ev = dict(ev)
-    ev["agent_brief"] = _WALLET_RE.sub("[wallet redacted]", brief)
-    out = dict(data)
-    out["evaluation"] = ev
-    out["agent_brief_rebuilt"] = True
+    ev = data.get("evaluation")
+    brief = ev.get("agent_brief") if isinstance(ev, dict) else None
+    brief_had_wallet = isinstance(brief, str) and redact_wallets(brief) != brief
+    scrubbed, changed = _scrub_value(data)
+    if not changed:
+        return data
+    out = dict(scrubbed)
+    if brief_had_wallet:
+        out["agent_brief_rebuilt"] = True
     return out
 
 
@@ -470,7 +530,8 @@ def load_treasury_payload(env: dict[str, str] | None = None) -> dict[str, Any]:
 
     This ship does not read process FCC_TREASURY_JSON / FCC_TREASURY_B64.
     Never reads the git snapshot file. If a live payload is ever passed in,
-    scrub wallets from agent_brief; panels stay 1:1.
+    scrub wallet-shaped strings from agent_brief and other preview-facing
+    snapshot text (notes, labels, error text); panels stay 1:1.
     """
     if env is None:
         return scrub_agent_brief(placeholder_treasury())

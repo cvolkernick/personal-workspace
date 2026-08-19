@@ -68,6 +68,9 @@ class FccTreasuryNotPublic(unittest.TestCase):
         blob = json.dumps(data)
         self.assertNotRegex(blob, r"0x[a-fA-F0-9]{20,}")
         self.assertNotRegex(blob, r"bc1[a-z0-9]{20,}")
+        from api._lib import scrub_agent_brief
+
+        self.assertEqual(scrub_agent_brief(data), data)
 
 
 class FccWritesForbidden(unittest.TestCase):
@@ -152,6 +155,51 @@ class FccReadPaths(unittest.TestCase):
         self.assertTrue(body.get("agent_brief_rebuilt"))
         self.assertIn("[wallet redacted]", body["evaluation"]["agent_brief"])
         self.assertNotIn("0xabab", body["evaluation"]["agent_brief"])
+
+    def test_solana_shaped_address_stripped_from_brief_and_notes(self):
+        """Synthetic base58 only — never a live wallet. Proves Solana-shaped scrub."""
+        from api._lib import dispatch, redact_wallets
+
+        # 44-char mixed-case base58, digits, no 0/O/I/l. Clearly fake.
+        fake = "SynFakeSoLanaTest22222222AbCdEfGhJkMnPq34567"
+        self.assertEqual(len(fake), 44)
+        self.assertIn("[wallet redacted]", redact_wallets("send " + fake))
+        self.assertNotIn(fake, redact_wallets("send " + fake))
+        # Ordinary words / short ids must survive.
+        prose = "Vercel preview placeholder working_usdc FCC_TREASURY_JSON"
+        self.assertEqual(redact_wallets(prose), prose)
+        short = "SynFakeSoLanaTest22222222"
+        self.assertLess(len(short), 32)
+        self.assertEqual(redact_wallets("keep " + short), "keep " + short)
+
+        env = {
+            "FCC_TREASURY_JSON": json.dumps(
+                {
+                    "evaluation": {
+                        "agent_brief": "attach snapshot then send " + fake,
+                        "actions": [{"title": "note " + fake, "note": fake}],
+                        "sleeves": {},
+                        "stress": {},
+                        "next_steps": [{"label": "label " + fake}],
+                    },
+                    "snapshot": {
+                        "as_of": "2099-01-01T00:00:00Z",
+                        "meta": {"error": "error " + fake, "label": fake},
+                    },
+                }
+            )
+        }
+        status, body = dispatch("GET", "treasury", env=env)
+        self.assertEqual(status, 200)
+        self.assertTrue(body.get("agent_brief_rebuilt"))
+        blob = json.dumps(body)
+        self.assertNotIn(fake, blob)
+        self.assertIn("[wallet redacted]", body["evaluation"]["agent_brief"])
+        self.assertIn("[wallet redacted]", body["evaluation"]["actions"][0]["title"])
+        self.assertEqual(body["evaluation"]["actions"][0]["note"], "[wallet redacted]")
+        self.assertIn("[wallet redacted]", body["evaluation"]["next_steps"][0]["label"])
+        self.assertIn("[wallet redacted]", body["snapshot"]["meta"]["error"])
+        self.assertEqual(body["snapshot"]["meta"]["label"], "[wallet redacted]")
 
     def test_stale_when_as_of_older_than_6h(self):
         from api._lib import placeholder_treasury, snapshot_stale
@@ -394,7 +442,10 @@ class FccAppLevelAuth(unittest.TestCase):
         self.assertEqual(body["preview"]["source"], "placeholder")
         self.assertIsNone(body["snapshot"]["as_of"])
         self.assertEqual(body["evaluation"]["actions"], [])
-        self.assertNotRegex(json.dumps(body), r"0x[a-fA-F0-9]{20,}")
+        blob = json.dumps(body)
+        self.assertNotRegex(blob, r"0x[a-fA-F0-9]{20,}")
+        self.assertNotRegex(blob, r"bc1[a-z0-9]{20,}")
+        self.assertNotIn("SynFakeSoLanaTest22222222AbCdEfGhJkMnPq34567", blob)
 
     def test_jwt_cookie_allows_html_page(self):
         from api.index import handle
