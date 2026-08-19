@@ -193,6 +193,25 @@ def dashboard_body(headers) -> tuple[int, dict]:
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
         "today_consumed": consumed or None,
+        "last_nutrition_date": (
+            max(
+                (
+                    _civil_day(getattr(n, "date", ""))
+                    for n in (health.nutrition or [])
+                    if _civil_day(getattr(n, "date", ""))
+                ),
+                default="",
+            )
+            or max(
+                (
+                    _civil_day(getattr(f, "date", ""))
+                    for f in (health.food_logs or [])
+                    if _civil_day(getattr(f, "date", ""))
+                ),
+                default="",
+            )
+            or None
+        ),
     }
     try:
         payload["calorie_bars"] = build_calorie_bars_payload(
