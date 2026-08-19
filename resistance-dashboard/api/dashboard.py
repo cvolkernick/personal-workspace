@@ -141,7 +141,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.nutrition_store import load_workspace_targets
-    from rt_dashboard.workout_store import load_workspace_catalog, load_workspace_goals
+    from rt_dashboard.workout_store import (
+        apply_goals_volume_caps,
+        build_training_pack,
+        load_workspace_catalog,
+        load_workspace_goals,
+        next_session_brief,
+    )
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
@@ -262,11 +268,30 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     payload["nutrition_store"]["meal_plan"] = meal_plan
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()
+    # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
+    catalog = apply_goals_volume_caps(catalog, goals)
+    nxt = next_session_brief(sessions, goals)
+    if isinstance(workout_plan, dict):
+        workout_plan = dict(workout_plan)
+        if not (workout_plan.get("exercises") or []):
+            workout_plan["session_type"] = nxt["next_session_type"]
+            existing = str(workout_plan.get("message") or "").strip()
+            line = str(nxt.get("line") or "").strip()
+            if line and line not in existing:
+                workout_plan["message"] = f"{line}. {existing}".strip() if existing else line
+            ctx = dict(workout_plan.get("context") or {})
+            ctx["next_session_type"] = nxt["next_session_type"]
+            ctx["last_session_type"] = nxt.get("last_session_type")
+            workout_plan["context"] = ctx
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
         "goals": goals,
         "sources": {"catalog": catalog_src, "goals": goals_src},
+        "next_session_type": nxt["next_session_type"],
+        "training_pack": build_training_pack(
+            goals, catalog, sessions, next_brief=nxt, limit=5
+        ),
     }
     try:
         payload["coach"] = build_coach_payload(

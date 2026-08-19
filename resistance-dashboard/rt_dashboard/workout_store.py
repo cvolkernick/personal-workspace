@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .github_client import GitHubLiftClient
 from .nutrition_store import read_nutrition_file, write_nutrition_file
@@ -79,6 +80,140 @@ def load_workspace_catalog() -> Tuple[dict, str]:
             raw = {**raw, "exercises": []}
         return raw, CATALOG_PATH
     return dict(DEFAULT_CATALOG), "default"
+
+
+
+def apply_goals_volume_caps(catalog: dict, goals: dict) -> dict:
+    """Catalog supplies names/movements. Set caps come from goals, never default_sets=3.
+
+    Blind-wiring catalog default_sets=3 is junk volume (DeanT 4–8 / default_hard_sets).
+    """
+    from .workout_planner import normalize_goals
+
+    goals = normalize_goals(goals if isinstance(goals, dict) else None)
+    hard = max(1, int(goals.get("default_hard_sets") or 2))
+    out = deepcopy(catalog) if isinstance(catalog, dict) else {"exercises": []}
+    for ex in out.get("exercises") or []:
+        if not isinstance(ex, dict):
+            continue
+        ex["default_sets"] = hard
+        ex["volume_from"] = "goals"
+    return out
+
+
+def catalog_names(catalog: Optional[dict]) -> List[str]:
+    names: List[str] = []
+    for ex in ((catalog or {}).get("exercises") or []):
+        if isinstance(ex, dict) and ex.get("name"):
+            names.append(str(ex["name"]))
+    return names
+
+
+def flatten_logged_exercise(ex: dict) -> dict:
+    """Ask/planner pack: name + weight/sets/reps (nested Turso sets flattened)."""
+    raw_sets = ex.get("sets")
+    slim = []
+    if isinstance(raw_sets, list):
+        for st in raw_sets[:8]:
+            if not isinstance(st, dict):
+                continue
+            slim.append(
+                {
+                    "weight_lbs": st.get("weight_lbs"),
+                    "sets": st.get("sets"),
+                    "reps": st.get("reps"),
+                }
+            )
+    weight = ex.get("weight_lbs") or ex.get("best_working_weight")
+    reps = ex.get("reps")
+    nsets = raw_sets if not isinstance(raw_sets, list) else None
+    if slim:
+        if weight is None:
+            weight = slim[0].get("weight_lbs")
+        if reps is None:
+            reps = slim[0].get("reps")
+        if nsets is None:
+            try:
+                nsets = sum(int(st.get("sets") or 1) for st in slim)
+            except (TypeError, ValueError):
+                nsets = len(slim)
+    return {
+        "name": ex.get("name"),
+        "weight_lbs": weight,
+        "sets": slim or nsets,
+        "reps": reps,
+        "volume": ex.get("volume"),
+    }
+
+
+def brief_sessions(sessions: Sequence[Any], limit: int = 5) -> List[dict]:
+    out: List[dict] = []
+    for s in list(sessions or [])[: max(1, min(5, int(limit)))]:
+        d = s.to_dict() if hasattr(s, "to_dict") else (s if isinstance(s, dict) else None)
+        if not isinstance(d, dict):
+            continue
+        exercises = [
+            flatten_logged_exercise(ex)
+            for ex in (d.get("exercises") or [])[:12]
+            if isinstance(ex, dict)
+        ]
+        out.append(
+            {
+                "date": d.get("date"),
+                "session_type": d.get("session_type") or d.get("type"),
+                "exercises": exercises,
+                "total_volume": d.get("volume") or d.get("total_volume"),
+            }
+        )
+    return out
+
+
+def next_session_brief(sessions: Sequence[Any], goals: dict) -> Dict[str, Any]:
+    """One-line next PPL slot from rotation + last logged session. Not a plan."""
+    from .workout_planner import last_session_type, next_session_type, normalize_goals
+
+    goals = normalize_goals(goals if isinstance(goals, dict) else None)
+    next_st = next_session_type(sessions, goals)
+    last_st = last_session_type(sessions)
+    last_date = None
+    ppl = [
+        s
+        for s in (sessions or [])
+        if getattr(s, "session_type", None) in ("push", "pull", "legs")
+    ]
+    if ppl:
+        last_date = max(ppl, key=lambda s: s.date).date
+    if last_st and last_date:
+        line = f"Next session: {next_st.upper()} (PPL after last {last_st} on {last_date})"
+    elif last_st:
+        line = f"Next session: {next_st.upper()} (PPL after last {last_st})"
+    else:
+        line = f"Next session: {next_st.upper()} (PPL rotation)"
+    return {
+        "next_session_type": next_st,
+        "last_session_type": last_st,
+        "last_session_date": last_date,
+        "line": line,
+    }
+
+
+def build_training_pack(
+    goals: dict,
+    catalog: dict,
+    sessions: Sequence[Any],
+    *,
+    next_brief: Optional[dict] = None,
+    limit: int = 5,
+) -> Dict[str, Any]:
+    """Ask/dashboard pack: goals + last 3–5 sessions + catalog names + next slot."""
+    brief = next_brief or next_session_brief(sessions, goals)
+    return {
+        "goals": goals,
+        "sessions": brief_sessions(sessions, limit=limit),
+        "catalog_names": catalog_names(catalog),
+        "next_session_type": brief.get("next_session_type"),
+        "next_session_line": brief.get("line"),
+    }
 
 
 def load_catalog_and_goals(client: GitHubLiftClient) -> Dict[str, Any]:

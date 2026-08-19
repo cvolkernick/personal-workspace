@@ -87,6 +87,7 @@ def generate_grok_plans(
     sessions_brief: Optional[list] = None,
     goals: Optional[dict] = None,
     catalog: Optional[dict] = None,
+    next_session_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. No pantry. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -124,11 +125,20 @@ def generate_grok_plans(
         "goals": goals or {},
         "catalog": catalog_brief,
         "inventory": None,
+        "next_session_type": next_session_type,
+        "volume_caps": {
+            "default_hard_sets": (goals or {}).get("default_hard_sets"),
+            "session_working_set_cap": (goals or {}).get("session_working_set_cap"),
+            "sets_per_muscle_week": "4-8",
+            "ignore_catalog_default_sets": True,
+        },
         "notes": (
             "Inventory is unset (Pi pantry is dark). Do not invent staples "
             "the user owns. Meal ideas may use remaining macros + logged foods only. "
             "Workout must use goals (PPL split / DeanT volume) + catalog names + "
-            "recent_sessions + recovery. No canned plan. No fake inventory."
+            "recent_sessions + recovery. No canned plan. No fake inventory. "
+            "Do NOT use catalog default_sets=3. Volume from goals: "
+            "default_hard_sets, DeanT 4-8, session_working_set_cap."
         ),
     }
     system = (
@@ -141,7 +151,9 @@ def generate_grok_plans(
         "- Do not assume a pantry or inventory. Do not invent owned staples.\n"
         "- Meal may draft from remaining macros and today's logged foods only.\n"
         "- Workout uses goals.split / rotation, catalog names, recovery, and recent lifts.\n"
-        "- ~4-8 hard sets/muscle/week (DeanT). No canned plan. No fake inventory.\n"
+        "- Volume caps come from goals (default_hard_sets, DeanT 4-8, "
+        "session_working_set_cap). NEVER use catalog default_sets=3.\n"
+        "- No canned plan. No fake inventory.\n"
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."
     )

@@ -437,12 +437,28 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
         "workout_store": {
             "goals": wo.get("goals"),
             "plan": plan,
+            "next_session_type": wo.get("next_session_type")
+            or (wo.get("training_pack") or {}).get("next_session_type"),
+            "catalog_names": (
+                (wo.get("training_pack") or {}).get("catalog_names")
+                or [
+                    e.get("name")
+                    for e in ((wo.get("catalog") or {}).get("exercises") or [])
+                    if isinstance(e, dict) and e.get("name")
+                ]
+            )[:40],
             "volume_framework": {
                 "id": "dean_t_balanced_4_8",
                 "target_sets_per_muscle_week": "4-8",
+                "default_hard_sets": (wo.get("goals") or {}).get("default_hard_sets"),
+                "session_working_set_cap": (wo.get("goals") or {}).get(
+                    "session_working_set_cap"
+                ),
                 "notes": (
                     "Hard sets per major muscle/week with compound overlap; "
-                    "not 10-20. Priority muscles may go higher; others maintenance."
+                    "not 10-20. Volume caps come from goals "
+                    "(default_hard_sets, DeanT 4-8, session_working_set_cap). "
+                    "Ignore catalog default_sets=3 — that is junk volume."
                 ),
             },
             "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),

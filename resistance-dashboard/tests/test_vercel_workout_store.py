@@ -13,7 +13,11 @@ from api.dashboard import dashboard_body
 from rt_dashboard.grok_ask import build_fitness_context
 from rt_dashboard.models import HealthSnapshot, Session, ExerciseEntry, SetEntry
 from rt_dashboard.workout_planner import CATALOG_PATH, GOALS_PATH
-from rt_dashboard.workout_store import load_workspace_catalog, load_workspace_goals
+from rt_dashboard.workout_store import (
+    apply_goals_volume_caps,
+    load_workspace_catalog,
+    load_workspace_goals,
+)
 
 
 REPO_GOALS = Path(__file__).resolve().parents[2] / GOALS_PATH
@@ -35,6 +39,8 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertEqual(raw["volume_framework"], "dean_t_balanced_4_8")
         self.assertEqual(raw["sets_per_muscle_week_min"], 4)
         self.assertEqual(raw["sets_per_muscle_week_max"], 8)
+        self.assertEqual(raw["default_hard_sets"], 2)
+        self.assertEqual(raw["session_working_set_cap"], 14)
         self.assertEqual(raw["updated_at"], "2026-07-26")
 
     def test_bundle_copies_match_repo_files(self):
@@ -79,6 +85,7 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertNotIn('"goals": "unset"', text)
         self.assertIn("load_workspace_goals", text)
         self.assertIn("load_workspace_catalog", text)
+        self.assertIn("apply_goals_volume_caps", text)
 
     def test_include_files_lists_goals_and_catalog(self):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
@@ -140,6 +147,41 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         if isinstance(sets, list):
             self.assertEqual(sets[0]["weight_lbs"], 45)
             self.assertEqual(sets[0]["reps"], 10)
+        # Frankenfit: catalog default_sets=3 must not survive the load path
+        for ex in (wo["catalog"] or {}).get("exercises") or []:
+            self.assertEqual(ex.get("default_sets"), 2, ex.get("name"))
+            self.assertNotEqual(ex.get("default_sets"), 3)
+        self.assertEqual(wo["goals"]["default_hard_sets"], 2)
+        self.assertEqual(wo["goals"]["session_working_set_cap"], 14)
+        self.assertEqual(wo["next_session_type"], "pull")
+        self.assertIn("Next session: PULL", wo["plan"]["message"])
+        pack = wo["training_pack"]
+        self.assertEqual(pack["next_session_type"], "pull")
+        self.assertIn("DB Flat Press", pack["catalog_names"])
+        self.assertEqual(len(pack["sessions"]), 1)
+        self.assertEqual(pack["sessions"][0]["exercises"][0]["name"], "DB Flat Press")
+        self.assertEqual(pack["sessions"][0]["exercises"][0]["weight_lbs"], 45)
+        self.assertEqual(ctx["workout_store"]["next_session_type"], "pull")
+        self.assertIn("DB Flat Press", ctx["workout_store"]["catalog_names"])
+        self.assertIn("Ignore catalog default_sets=3", ctx["workout_store"]["volume_framework"]["notes"])
+        self.assertEqual(ctx["workout_store"]["volume_framework"]["default_hard_sets"], 2)
+
+    def test_apply_goals_volume_caps_ignores_catalog_three(self):
+        catalog, _ = load_workspace_catalog()
+        goals, _ = load_workspace_goals()
+        raw_sets = {
+            e.get("name"): e.get("default_sets")
+            for e in (catalog.get("exercises") or [])
+            if isinstance(e, dict)
+        }
+        self.assertTrue(raw_sets)
+        self.assertTrue(all(v == 3 for v in raw_sets.values()), raw_sets)
+        capped = apply_goals_volume_caps(catalog, goals)
+        for ex in capped.get("exercises") or []:
+            self.assertEqual(ex.get("default_sets"), 2, ex.get("name"))
+            self.assertEqual(ex.get("volume_from"), "goals")
+        # SoT file itself is unchanged
+        self.assertTrue(all(v == 3 for v in raw_sets.values()))
 
 
 if __name__ == "__main__":

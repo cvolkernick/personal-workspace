@@ -41,26 +41,10 @@ def ask_plan_body(headers, payload=None):
     rec = dashboard.get("recovery") or {}
     sessions = dashboard.get("sessions") or []
     wo = dashboard.get("workout_store") or {}
-    brief = []
-    for s in sessions[:8]:
-        if not isinstance(s, dict):
-            continue
-        brief.append(
-            {
-                "date": s.get("date"),
-                "session_type": s.get("session_type") or s.get("type"),
-                "exercises": [
-                    {
-                        "name": ex.get("name"),
-                        "sets": ex.get("sets"),
-                        "weight_lbs": ex.get("weight_lbs"),
-                        "reps": ex.get("reps"),
-                    }
-                    for ex in (s.get("exercises") or [])[:6]
-                    if isinstance(ex, dict)
-                ],
-            }
-        )
+    from rt_dashboard.workout_store import brief_sessions
+
+    pack = wo.get("training_pack") or {}
+    brief = pack.get("sessions") or brief_sessions(sessions, limit=5)
     result = generate_grok_plans(
         str(user["id"]),
         targets=nut.get("targets") or {},
@@ -75,6 +59,7 @@ def ask_plan_body(headers, payload=None):
         sessions_brief=brief,
         goals=wo.get("goals") or {},
         catalog=wo.get("catalog") or {},
+        next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
     )
     if not result.get("ok"):
         return 200, {
