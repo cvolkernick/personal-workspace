@@ -3,6 +3,7 @@
   "framework": null,
   "rewrites": [
     { "source": "/treasury_latest.json", "destination": "/api?_r=denied_static" },
+    { "source": "/financial-command/treasury_latest.json", "destination": "/api?_r=denied_static" },
     { "source": "/api/treasury", "destination": "/api?_r=treasury" },
     { "source": "/api/config", "destination": "/api?_r=config" },
     { "source": "/api/refresh", "destination": "/api?_r=refresh" },
@@ -12,6 +13,7 @@
     { "source": "/api/mint/:path*", "destination": "/api?_r=mint" },
     { "source": "/api/health", "destination": "/api?_r=health" },
     { "source": "/api/fcc-identity", "destination": "/api?_r=health" },
+    { "source": "/api/watchlist/deep-dive", "destination": "/api?_r=watchlist-deep-dive" },
     { "source": "/api/watchlist", "destination": "/api?_r=watchlist" },
     { "source": "/api/watchlist/:path*", "destination": "/api?_r=watchlist" },
     { "source": "/api/capital-flows", "destination": "/api?_r=capital-flows" },
@@ -24,7 +26,14 @@
     { "source": "/api/open-orchestra", "destination": "/api?_r=orchestra" },
     { "source": "/api/orchestra-status", "destination": "/api?_r=orchestra" },
     { "source": "/api/launch-orchestra", "destination": "/api?_r=orchestra" },
-    { "source": "/api/:path*", "destination": "/api?_r=other" }
+    { "source": "/api/:path*", "destination": "/api?_r=other" },
+    { "source": "/financial-command", "destination": "/index.html" },
+    { "source": "/financial-command/", "destination": "/index.html" },
+    { "source": "/financial-command/index.html", "destination": "/index.html" },
+    { "source": "/financial-command/capital-flows", "destination": "/capital-flows.html" },
+    { "source": "/financial-command/capital-flows.html", "destination": "/capital-flows.html" },
+    { "source": "/financial-command/watchlist", "destination": "/watchlist.html" },
+    { "source": "/financial-command/watchlist.html", "destination": "/watchlist.html" }
   ],
   "functions": {
     "api/index.py": {

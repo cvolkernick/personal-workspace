@@ -62,3 +62,20 @@ python3 treasury/run_treasury.py   # full evaluation
 - Priority actions (agent vs human)
 - Copyable agent brief
 - Manual field editor with **Save to config**
+
+## Vercel preview (separate project)
+
+Root of the Vercel project is **this folder** (`financial-command/`). Not FitDash / `resistance-dashboard`.
+
+- **Vercel Authentication ON** (Deployment Protection → Vercel Authentication → all deployments). Project-level; not expressible in `vercel.json`.
+- Read-only. `POST /api/config`, `/api/refresh`, `/api/trade`, `/api/mint` → 403 JSON. No venue API keys on Vercel.
+- Always-on banner on Vercel only (hidden on Mac/Pi). Stale if snapshot `as_of` > 6h. Banner does not remove panels.
+- Pages: `index.html`, `capital-flows.html`, `watchlist.html` (nav preserved, not glance-only, not thinned).
+- Single function: `api/index.py` (1 / 12 Hobby cap). All `/api/*` rewrite there.
+- `treasury_latest.json` is **not** a public URL (gitignored + `.vercelignore` + rewrite → 404 JSON). Publish from Mac → protected env `FCC_TREASURY_JSON` (optional: `FCC_CAPITAL_FLOWS_JSON`, `FCC_WATCHLIST_JSON`, `FCC_COACH_JSON`). Do not commit live numbers.
+- Pi `server.py` / systemd untouched.
+
+```bash
+# from this directory
+python3 tests/test_vercel_preview.py
+```

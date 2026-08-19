@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs, urlparse
 
 from api._lib import dispatch, route_from_path
 
@@ -16,8 +17,10 @@ def _headers_from_handler(handler: BaseHTTPRequestHandler) -> dict[str, str]:
 
 
 def handle(method: str, path: str, headers: dict[str, str] | None = None):
+    parsed = urlparse(path or "")
     route = route_from_path(path, headers)
-    return dispatch(method, route)
+    query = parse_qs(parsed.query)
+    return dispatch(method, route, query=query)
 
 
 class handler(BaseHTTPRequestHandler):

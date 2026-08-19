@@ -224,9 +224,31 @@
       color: var(--muted); font-size: 0.78rem;
     }
     a { color: var(--accent); }
+
+    .fcc-vercel-banner {
+      max-width: 1100px;
+      margin: 0 auto 0.55rem;
+      padding: 0.4rem 0.7rem;
+      border: 1px solid #f08a3c;
+      border-radius: 8px;
+      background: rgba(240, 138, 60, 0.12);
+      color: #f5c542;
+      font-size: 0.8rem;
+      font-weight: 650;
+    }
+    .fcc-vercel-banner.is-stale {
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+    }
+
   </style>
 </head>
 <body>
+  <div id="fcc-vercel-banner" class="fcc-vercel-banner" hidden role="status">
+      Read-only Vercel preview — not Mac, not Pi. Do not trade or mint.
+      <span id="fcc-vercel-banner-stale" hidden> · Snapshot stale (&gt;6h)</span>
+    </div>
+
   <div class="sticky-top">
     <div class="row">
       <div>
@@ -292,6 +314,7 @@
     Model: <code>investment/capital_flows.json</code> · enriched with live YNAB Lyft totals when available via <code>/api/capital-flows</code>
   </footer>
 
+  <script src="vercel-readonly.js"></script>
   <script src="nav-orchestra.js"></script>
   <script>
     function esc(s) {
