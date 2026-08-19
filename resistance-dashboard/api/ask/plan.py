@@ -65,6 +65,7 @@ def ask_plan_body(headers, payload=None):
         goals=wo.get("goals") or {},
         catalog=wo.get("catalog") or {},
         next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
+        inventory=nut.get("inventory"),
     )
     if not result.get("ok"):
         return 200, {
