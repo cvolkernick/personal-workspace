@@ -51,6 +51,14 @@ class ViewerTzResolve(unittest.TestCase):
         with mock.patch.dict(os.environ, env, clear=True):
             self.assertEqual(local_today_iso(None, now=PINNED), "2026-08-18")
 
+    def test_auckland_is_next_civil_day_not_hardcoded_ny(self):
+        env = {"TZ": "UTC"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                local_today_iso("Pacific/Auckland", now=PINNED),
+                "2026-08-19",
+            )
+
 
 class RequestTzName(unittest.TestCase):
     def test_query_param(self):
