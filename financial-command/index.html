@@ -1957,10 +1957,30 @@
         font-size: 0.95rem;
       }
     }
-  </style>
+  
+    .fcc-vercel-banner {
+      max-width: 1000px;
+      margin: 0 auto 0.55rem;
+      padding: 0.4rem 0.7rem;
+      border: 1px solid var(--orange);
+      border-radius: 8px;
+      background: rgba(240, 138, 60, 0.12);
+      color: var(--yellow);
+      font-size: 0.8rem;
+      font-weight: 650;
+    }
+    .fcc-vercel-banner.is-stale {
+      border-color: var(--red);
+      color: var(--red);
+    }
+</style>
 </head>
 <body>
   <div class="sticky-top">
+    <div id="fcc-vercel-banner" class="fcc-vercel-banner" hidden role="status">
+      Read-only Vercel preview — not Mac, not Pi. Do not trade or mint.
+      <span id="fcc-vercel-banner-stale" hidden> · Snapshot stale (&gt;6h)</span>
+    </div>
     <div class="row">
       <div>
         <h1><span class="title-ico" aria-hidden="true">₿</span> Financial Command Center</h1>
@@ -4799,6 +4819,34 @@
       }
     }
 
+
+    function applyVercelBanner(data) {
+      const banner = document.getElementById("fcc-vercel-banner");
+      const staleEl = document.getElementById("fcc-vercel-banner-stale");
+      if (!banner || !document.body.classList.contains("fcc-vercel-preview")) return;
+      let iso = data && data.snapshot && data.snapshot.as_of;
+      let stale = true;
+      if (iso) {
+        const t = Date.parse(iso);
+        if (!Number.isNaN(t)) stale = (Date.now() - t) > 6 * 3600 * 1000;
+      }
+      if (data && data.stale === true) stale = true;
+      if (data && data.stale === false && iso) stale = (Date.now() - Date.parse(iso)) > 6 * 3600 * 1000;
+      banner.classList.toggle("is-stale", stale);
+      if (staleEl) staleEl.hidden = !stale;
+    }
+    async function initVercelBanner() {
+      try {
+        const res = await fetch("/api/health?ts=" + Date.now());
+        const j = await res.json();
+        if (j && j.role === "vercel-preview") {
+          document.body.classList.add("fcc-vercel-preview");
+          const banner = document.getElementById("fcc-vercel-banner");
+          if (banner) banner.hidden = false;
+          if (window.__treasury) applyVercelBanner(window.__treasury);
+        }
+      } catch (_) {}
+    }
     async function loadTreasury() {
       const errEl = document.getElementById("load-error");
       errEl.classList.add("hidden");
@@ -4822,6 +4870,7 @@
         }
         window.__treasury = data;
         render(data);
+        applyVercelBanner(data);
         loadWatchlistPreview();
         loadCoach();
       } catch (e) {
@@ -4832,6 +4881,10 @@
     }
 
     async function refreshLive() {
+      if (document.body.classList.contains("fcc-vercel-preview")) {
+        toast("Read-only preview — refresh/trade/mint disabled");
+        return;
+      }
       const btn = document.getElementById("btn-refresh");
       btn.disabled = true;
       btn.textContent = "Refreshing…";
@@ -4899,6 +4952,12 @@
     }
 
     async function saveConfig() {
+      if (document.body.classList.contains("fcc-vercel-preview")) {
+        const note = document.getElementById("recompute-note");
+        if (note) note.textContent = "Read-only preview — config writes disabled";
+        toast("Read-only preview — refresh/trade/mint disabled");
+        return;
+      }
       const note = document.getElementById("recompute-note");
       note.textContent = "Saving…";
       try {
@@ -5257,6 +5316,7 @@
       }
     }
     initFccMobileShell();
+    initVercelBanner();
 
     loadTreasury();
   </script>

@@ -1,0 +1,13 @@
+# Never ship the live treasury snapshot as a static file
+treasury_latest.json
+**/treasury_latest.json
+
+# Pi/Mac server — not a Vercel function
+server.py
+start.command
+
+# Local/dev only
+tests/
+__pycache__/
+*.pyc
+.DS_Store

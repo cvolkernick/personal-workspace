@@ -58,3 +58,6 @@ Backups/
 
 # Auto Fleet local inbox dumps / runtime (never commit)
 auto-fleet/data/runtime/
+
+# FCC live snapshot — Mac → protected Vercel env/artifact, never git
+financial-command/treasury_latest.json
