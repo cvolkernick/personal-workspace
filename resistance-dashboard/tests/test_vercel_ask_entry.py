@@ -18,11 +18,15 @@ ROOT = Path(__file__).resolve().parents[1]
 class AskEntryLayout(unittest.TestCase):
     def test_ask_py_does_not_import_api_ask(self):
         src = (ROOT / "api" / "ask.py").read_text(encoding="utf-8")
-        self.assertIn("from api._ask_post", src)
-        self.assertNotIn("from api.ask", src)
-        self.assertNotIn("import api.ask", src)
-        self.assertTrue((ROOT / "api" / "_ask_post.py").exists())
+        code = "\n".join(
+            ln for ln in src.splitlines() if not ln.lstrip().startswith("#") and '"""' not in ln
+        )
+        self.assertNotIn("from api.ask", code)
+        self.assertNotIn("import api.ask", code)
+        self.assertNotIn("from api._ask_post", code)
+        self.assertTrue((ROOT / "api" / "ask.py").exists())
         self.assertTrue((ROOT / "api" / "ask" / "_post.py").exists())
+        self.assertFalse((ROOT / "api" / "_ask_post.py").exists())
         self.assertFalse((ROOT / "api" / "ask" / "index.py").exists())
 
     def test_vercel_json_max_duration_on_ask_py(self):
@@ -48,7 +52,7 @@ class AskEntryImport(unittest.TestCase):
         self.assertTrue(callable(mod.ask_body))
 
     def test_post_import_does_not_load_dashboard(self):
-        src = (ROOT / "api" / "_ask_post.py").read_text(encoding="utf-8")
+        src = (ROOT / "api" / "ask.py").read_text(encoding="utf-8")
         for i, line in enumerate(src.splitlines(), 1):
             stripped = line.lstrip()
             if stripped.startswith("from api.dashboard") or stripped.startswith(
