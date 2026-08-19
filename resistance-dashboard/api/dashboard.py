@@ -112,7 +112,7 @@ def _today_consumed(health, today: str) -> dict:
 
 
 def dashboard_body(headers) -> tuple[int, dict]:
-    if not os.environ.get("DASHBOARD_TZ") and not os.environ.get("TZ"):
+    if not (os.environ.get("DASHBOARD_TZ") or "").strip():
         os.environ["DASHBOARD_TZ"] = "America/New_York"
     if not signing_secret() or not session_from_headers(headers):
         return 401, _auth_required()

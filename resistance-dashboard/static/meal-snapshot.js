@@ -30,29 +30,31 @@
       const d = civilDay(f.date);
       if (d) dates.push(d);
     });
+    ((((data && data.health) || {}).food_logs) || []).forEach(function (f) {
+      const d = civilDay(f.date);
+      if (d) dates.push(d);
+    });
     dates.sort();
     return dates.length ? dates[dates.length - 1] : "";
   }
-  function loggedConsumed(data) {
-    const today = civilDay((data.meta && data.meta.local_today) || "");
+  function allFoodLogs(data) {
     const store = (data && data.nutrition_store) || {};
-    const coachCons =
-      ((((data.coach || {}).today || {}).nutrition || {}).consumed) || null;
-    const matchDay = function (c) {
-      return hasLoggedMacros(c) && (!today || !c.date || civilDay(c.date) === today);
-    };
-    if (matchDay(store.today_consumed)) return store.today_consumed;
-    if (matchDay(coachCons)) return coachCons;
-    const day = (((data.health || {}).nutrition) || []).find(function (n) {
-      return today && civilDay(n.date) === today;
+    const healthLogs = (((data && data.health) || {}).food_logs) || [];
+    if ((store.food_logs || []).length) return store.food_logs;
+    if (healthLogs.length) return healthLogs;
+    if ((store.food_logs_recent || []).length) return store.food_logs_recent;
+    return store.food_logs_today || [];
+  }
+  function logsForDay(logs, day) {
+    if (!day) return [];
+    return (logs || []).filter(function (f) {
+      return civilDay(f.date) === day;
     });
-    if (hasLoggedMacros(day)) return day;
-    const logs = (store.food_logs_today || []).filter(function (f) {
-      return !today || !f.date || civilDay(f.date) === today;
-    });
-    if (!logs.length) return null;
+  }
+  function consumedFromLogs(logs, day) {
+    if (!logs || !logs.length) return null;
     return {
-      date: today,
+      date: day,
       calories: logs.reduce(function (s, f) { return s + (Number(f.calories) || 0); }, 0),
       protein_g: logs.reduce(function (s, f) { return s + (Number(f.protein_g) || 0); }, 0),
       carbs_g: logs.reduce(function (s, f) { return s + (Number(f.carbs_g) || 0); }, 0),
@@ -61,22 +63,88 @@
       source: "food_logs",
     };
   }
-  function paint(data) {
-    if (!data) return;
+  function diagnosticLine(data, nLogs) {
+    const today = civilDay((data.meta && data.meta.local_today) || "");
+    return (
+      "local_today=" +
+      (today || "—") +
+      "; last_nutrition_date=" +
+      (lastNutritionDate(data) || "—") +
+      "; food_log_count=" +
+      (nLogs || 0)
+    );
+  }
+  function collectDayLogs(data) {
     const today = civilDay((data.meta && data.meta.local_today) || "");
     const store = (data && data.nutrition_store) || {};
-    let logs = store.food_logs_today || [];
-    if (today) {
-      const dated = logs.filter(function (f) { return civilDay(f.date) === today; });
-      if (dated.length) logs = dated;
+    const all = allFoodLogs(data);
+    let logs = logsForDay(store.food_logs_today || [], today);
+    if (!logs.length) logs = logsForDay(all, today);
+    let day = today;
+    let heading = "Logged today";
+    let fallback = false;
+    if (!logs.length) {
+      const dates = all.map(function (f) { return civilDay(f.date); }).filter(Boolean);
+      dates.sort();
+      const latest = dates.length ? dates[dates.length - 1] : "";
+      const candidates = [];
+      const last = lastNutritionDate(data);
+      if (last) candidates.push(last);
+      if (latest && latest !== last) candidates.push(latest);
+      for (let i = 0; i < candidates.length; i++) {
+        const found = logsForDay(all, candidates[i]);
+        if (found.length) {
+          logs = found;
+          day = candidates[i];
+          heading = "Logged " + day;
+          fallback = true;
+          break;
+        }
+      }
     }
+    return { logs: logs, day: day, heading: heading, fallback: fallback, allCount: all.length, today: today };
+  }
+  function loggedConsumed(data, picked) {
+    const today = picked.today;
+    const store = (data && data.nutrition_store) || {};
+    const coachCons =
+      ((((data.coach || {}).today || {}).nutrition || {}).consumed) || null;
+    const matchDay = function (c, day) {
+      return hasLoggedMacros(c) && (!day || !c.date || civilDay(c.date) === day);
+    };
+    if (matchDay(store.today_consumed, today)) return store.today_consumed;
+    if (matchDay(coachCons, today)) return coachCons;
+    const dayNut = (((data.health || {}).nutrition) || []).find(function (n) {
+      return today && civilDay(n.date) === today;
+    });
+    if (hasLoggedMacros(dayNut)) return dayNut;
+    if (!picked.fallback) {
+      const fromToday = consumedFromLogs(picked.logs, today);
+      if (fromToday) return fromToday;
+    }
+    if (picked.fallback && picked.logs.length) {
+      const lastNut = (((data.health || {}).nutrition) || []).find(function (n) {
+        return picked.day && civilDay(n.date) === picked.day;
+      });
+      if (hasLoggedMacros(lastNut)) return lastNut;
+      return consumedFromLogs(picked.logs, picked.day);
+    }
+    return null;
+  }
+  function paint(data) {
+    if (!data) return;
+    const store = (data && data.nutrition_store) || {};
+    const picked = collectDayLogs(data);
+    const logs = picked.logs;
     const foods = $("today-logged-foods");
     if (foods) {
       if (!logs.length) {
-        foods.innerHTML = "";
+        foods.textContent = diagnosticLine(data, picked.allCount);
       } else {
         foods.innerHTML =
-          '<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">Logged today</div>' +
+          '<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">' +
+          picked.heading +
+          "</div>" +
           '<ul style="margin:0;padding-left:1.1rem">' +
           logs
             .map(function (f) {
@@ -89,7 +157,7 @@
     }
     const macros = $("today-macros");
     if (!macros) return;
-    const cons = loggedConsumed(data) || {};
+    const cons = loggedConsumed(data, picked) || {};
     const n = ((((data.coach || {}).today || {}).nutrition) || {});
     const nLogs =
       cons.food_log_count != null
@@ -98,13 +166,7 @@
         ? n.food_log_count
         : logs.length;
     if (!hasLoggedMacros(cons)) {
-      macros.textContent =
-        "local_today=" +
-        (today || "—") +
-        "; last_nutrition_date=" +
-        (lastNutritionDate(data) || "—") +
-        "; food_log_count=" +
-        (nLogs || 0);
+      if (!logs.length) macros.textContent = "";
       return;
     }
     const tgt = n.targets || store.targets || {};
@@ -146,6 +208,7 @@
           .then(function (data) {
             setTimeout(function () { paint(data); }, 40);
             setTimeout(function () { paint(data); }, 350);
+            setTimeout(function () { paint(data); }, 800);
           })
           .catch(function () {});
       }
