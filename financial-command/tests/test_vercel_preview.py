@@ -350,16 +350,39 @@ class FccAppLevelAuth(unittest.TestCase):
             self.assertEqual(status, 403, route)
             self.assertEqual(body["error"], "read_only")
 
-    def test_env_oidc_does_not_grant_access(self):
+    def test_env_oidc_and_oidc_header_do_not_grant_access(self):
         import os
         from api._lib import vercel_auth_present
+        from api.index import handle
 
         os.environ["VERCEL_OIDC_TOKEN"] = "deployment-identity-not-user-auth"
         try:
             self.assertFalse(vercel_auth_present({}))
             self.assertFalse(vercel_auth_present({"cookie": "session=abc"}))
+            # Auto-injected Function header is deployment identity, not SSO.
+            self.assertFalse(
+                vercel_auth_present({"x-vercel-oidc-token": "auto-injected"})
+            )
+            status, body = handle(
+                "GET",
+                "/api/treasury",
+                headers={"x-vercel-oidc-token": "auto-injected"},
+            )
+            self.assertEqual(status, 401)
+            self.assertEqual(body, {"ok": False, "error": "auth_required"})
         finally:
             os.environ.pop("VERCEL_OIDC_TOKEN", None)
+
+    def test_query_bypass_does_not_grant_access(self):
+        from api.index import handle
+
+        status, body = handle(
+            "GET",
+            "/api/treasury?_vercel_jwt=nope&secret=nope",
+            headers={},
+        )
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "auth_required")
 
     def test_jwt_cookie_allows_placeholder_not_live(self):
         from api.index import handle
@@ -373,18 +396,41 @@ class FccAppLevelAuth(unittest.TestCase):
         self.assertEqual(body["evaluation"]["actions"], [])
         self.assertNotRegex(json.dumps(body), r"0x[a-fA-F0-9]{20,}")
 
-    def test_oidc_header_allows_html_page(self):
+    def test_jwt_cookie_allows_html_page(self):
         from api.index import handle
 
         status, body = handle(
             "GET",
             "/",
-            headers={"x-vercel-oidc-token": "vercel-after-login"},
+            headers={"Cookie": "_vercel_jwt=vercel-sso-proof"},
         )
         self.assertEqual(status, 200)
         self.assertIsInstance(body, str)
         self.assertIn('id="at-a-glance"', body)
         self.assertIn('id="fcc-vercel-banner"', body)
+
+    def test_process_env_treasury_not_loaded_this_ship(self):
+        import os
+        from api.index import handle
+
+        os.environ["FCC_TREASURY_JSON"] = json.dumps(
+            {
+                "evaluation": {"agent_brief": "must-not-load", "actions": [{"title": "x"}]},
+                "snapshot": {"as_of": "2099-01-01T00:00:00Z"},
+            }
+        )
+        try:
+            status, body = handle(
+                "GET",
+                "/api/treasury",
+                headers={"Cookie": "_vercel_jwt=vercel-sso-proof"},
+            )
+            self.assertEqual(status, 200)
+            self.assertEqual(body["preview"]["source"], "placeholder")
+            self.assertEqual(body["evaluation"]["actions"], [])
+            self.assertNotIn("must-not-load", json.dumps(body))
+        finally:
+            os.environ.pop("FCC_TREASURY_JSON", None)
 
     def test_route_html_paths(self):
         from api._lib import route_from_path

@@ -19,9 +19,10 @@ WRITE_ROUTES = frozenset({"config", "refresh", "trade", "mint"})
 ALWAYS_DENY_ROUTES = frozenset({"trade", "mint"})
 
 # Cookie-less / missing Vercel login proof. Do not invent a bypass secret.
+# Only the Deployment Protection SSO cookie counts. x-vercel-oidc-token is
+# auto-injected on every Function request and is NOT user login.
 AUTH_REQUIRED = {"ok": False, "error": "auth_required"}
-VERCEL_JWT_COOKIE = "_vercel_jwt"
-VERCEL_OIDC_HEADER = "x-vercel-oidc-token"
+VERCEL_JWT_COOKIES = ("_vercel_jwt", "__Secure-_vercel_jwt")
 
 PAGE_FILES = {
     "index": "index.html",
@@ -115,19 +116,17 @@ def _cookie_value(headers: dict[str, str] | None, name: str) -> str:
 
 
 def vercel_auth_present(headers: dict[str, str] | None) -> bool:
-    """True only if Vercel already sent login proof on this request.
+    """True only if the Vercel SSO/OIDC cookie is on this request.
 
-    Accepts the Deployment Protection SSO cookie and the inbound OIDC header
-    Vercel attaches after login / trusted callers. Does not read
-    VERCEL_OIDC_TOKEN from the environment (that is deployment identity, always
-    present on Vercel, and would open the Hobby production alias).
-    Does not invent a shared-secret bypass.
+    Fail closed when `_vercel_jwt` is missing. Do not treat
+    `x-vercel-oidc-token` as login — Vercel injects that on every Function
+    call (deployment identity). Do not read VERCEL_OIDC_TOKEN from the
+    environment. Do not invent a shared-secret or query bypass.
     """
     headers_l = _normalize_headers(headers)
-    if (headers_l.get(VERCEL_OIDC_HEADER) or "").strip():
-        return True
-    if _cookie_value(headers_l, VERCEL_JWT_COOKIE):
-        return True
+    for name in VERCEL_JWT_COOKIES:
+        if _cookie_value(headers_l, name):
+            return True
     return False
 
 
@@ -467,8 +466,14 @@ def scrub_agent_brief(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_treasury_payload(env: dict[str, str] | None = None) -> dict[str, Any]:
-    """Serve env artifact if present; otherwise an empty placeholder. Never reads git file."""
-    env = env if env is not None else os.environ
+    """Placeholder unless an explicit env mapping is passed (tests / later publish).
+
+    This ship does not read process FCC_TREASURY_JSON / FCC_TREASURY_B64.
+    Never reads the git snapshot file. If a live payload is ever passed in,
+    scrub wallets from agent_brief; panels stay 1:1.
+    """
+    if env is None:
+        return scrub_agent_brief(placeholder_treasury())
     data = _from_env(env, "FCC_TREASURY_JSON", "FCC_TREASURY_B64")
     if data is None:
         data = placeholder_treasury()

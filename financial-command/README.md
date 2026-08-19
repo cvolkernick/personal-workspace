@@ -68,7 +68,7 @@ python3 treasury/run_treasury.py   # full evaluation
 Root of the Vercel project is **this folder** (`financial-command/`). Not FitDash / `resistance-dashboard`.
 
 - **Vercel Authentication ON** (Deployment Protection → Vercel Authentication → all deployments). Project-level; not expressible in `vercel.json`.
-- **App-level lock** (Hobby production alias skips SSO): cookie-less GET of `/`, `/api/treasury`, `/capital-flows.html`, `/watchlist.html` → 401 `{"ok":false,"error":"auth_required"}` unless the request already has Vercel login proof (`_vercel_jwt` cookie or `x-vercel-oidc-token`). Do not invent a bypass secret. Do not treat `VERCEL_OIDC_TOKEN` env as user auth. HTML is not a static file on Vercel (`.vercelignore` + dispatcher).
+- **App-level lock** (Hobby production alias skips SSO): cookie-less GET of `/`, `/api/treasury`, `/capital-flows.html`, `/watchlist.html` → 401 `{"ok":false,"error":"auth_required"}` unless `_vercel_jwt` (SSO cookie) is present. Fail closed if that cookie is missing. `x-vercel-oidc-token` is Function deployment identity and does **not** count as login. Do not invent a bypass secret. Do not treat `VERCEL_OIDC_TOKEN` env as user auth. Do not load `FCC_TREASURY_JSON` this ship. HTML is not a static file on Vercel (`.vercelignore` + dispatcher).
 - Read-only. `POST /api/config`, `/api/refresh`, `/api/trade`, `/api/mint` → 403 JSON. No venue API keys on Vercel.
 - Always-on banner on Vercel only (hidden on Mac/Pi). Stale if snapshot `as_of` > 6h. Banner does not remove panels.
 - Pages: `index.html`, `capital-flows.html`, `watchlist.html` (nav preserved, not glance-only, not thinned).
