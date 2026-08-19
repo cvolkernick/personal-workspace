@@ -50,6 +50,34 @@ class AskEntryImport(unittest.TestCase):
         spec.loader.exec_module(mod)
         self.assertTrue(callable(mod.handler))
         self.assertTrue(callable(mod.ask_body))
+        self.assertTrue(callable(mod.app))
+        self.assertNotIsInstance(mod.app, type)
+
+    def test_wsgi_app_cookie_less_is_401_json(self):
+        path = ROOT / "api" / "ask.py"
+        spec = importlib.util.spec_from_file_location("_vercel_sim_ask_wsgi", path)
+        mod = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(mod)
+
+        captured = {}
+
+        def start_response(status, headers, exc_info=None):
+            captured["status"] = status
+            captured["headers"] = dict(headers)
+
+        environ = {
+            "REQUEST_METHOD": "POST",
+            "CONTENT_LENGTH": "2",
+            "wsgi.input": io.BytesIO(b"{}"),
+        }
+        with mock.patch.dict(os.environ, {}, clear=True):
+            chunks = list(mod.app(environ, start_response))
+        self.assertTrue(str(captured["status"]).startswith("401"))
+        self.assertEqual(captured["headers"].get("Content-Type"), "application/json")
+        body = json.loads(b"".join(chunks).decode("utf-8"))
+        self.assertEqual(body["error"], "auth_required")
+        self.assertNotIn("<html", json.dumps(body).lower())
 
     def test_post_import_does_not_load_dashboard(self):
         src = (ROOT / "api" / "ask.py").read_text(encoding="utf-8")

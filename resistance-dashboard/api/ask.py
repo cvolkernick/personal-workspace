@@ -92,5 +92,70 @@ class handler(BaseHTTPRequestHandler):
         return
 
 
-app = handler
-application = handler
+_PHRASES = {
+    200: "OK",
+    401: "Unauthorized",
+    405: "Method Not Allowed",
+    500: "Internal Server Error",
+    502: "Bad Gateway",
+}
+
+
+class _WSGIHeaders:
+    def __init__(self, environ: dict):
+        self._environ = environ
+
+    def get(self, key, default=None):
+        if key is None:
+            return default
+        name = str(key)
+        if name.lower() == "cookie":
+            return self._environ.get("HTTP_COOKIE") or default
+        http_key = "HTTP_" + name.upper().replace("-", "_")
+        if http_key in self._environ:
+            return self._environ[http_key]
+        alt = name.upper().replace("-", "_")
+        if alt in ("CONTENT_TYPE", "CONTENT_LENGTH"):
+            return self._environ.get(alt, default)
+        return default
+
+
+def _payload_from_environ(environ: dict) -> dict:
+    try:
+        length = int(environ.get("CONTENT_LENGTH") or 0)
+    except (TypeError, ValueError):
+        length = 0
+    raw = environ["wsgi.input"].read(length) if length > 0 else b"{}"
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def app(environ, start_response):
+    # Vercel loads this file as api.ask:app and requires a WSGI callable.
+    method = str(environ.get("REQUEST_METHOD") or "GET").upper()
+    if method != "POST":
+        status, body = 405, {"ok": False, "error": "method_not_allowed"}
+    else:
+        try:
+            status, body = ask_body(_WSGIHeaders(environ), _payload_from_environ(environ))
+        except Exception as exc:  # noqa: BLE001
+            status, body = 500, {"ok": False, "error": f"ask_failed: {type(exc).__name__}"}
+    raw = json_bytes(body)
+    phrase = _PHRASES.get(int(status), "OK")
+    start_response(
+        f"{int(status)} {phrase}",
+        [
+            ("Content-Type", "application/json"),
+            ("Cache-Control", "no-store"),
+            ("Content-Length", str(len(raw))),
+        ],
+    )
+    return [raw]
+
+
+application = app
