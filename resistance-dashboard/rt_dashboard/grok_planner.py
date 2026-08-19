@@ -91,6 +91,7 @@ def generate_grok_plans(
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. No pantry. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
+    from .workout_store import apply_rest_gate, rest_gate
 
     creds = resolve_xai_credentials(user_id=user_id)
     if not creds.get("token") or creds.get("expired"):
@@ -98,10 +99,14 @@ def generate_grok_plans(
             "ok": False,
             "error": creds.get("error") or HONEST_EMPTY_MSG,
             "meal": honest_empty_meal(),
-            "workout": honest_empty_workout(),
+            "workout": apply_rest_gate(honest_empty_workout(), goals or {}, recovery or {}),
         }
 
+
     rem = remaining_macros(targets or {}, consumed or {})
+    gate = rest_gate(goals or {}, recovery or {})
+    if gate["force_rest"]:
+        next_session_type = None
     catalog = catalog if isinstance(catalog, dict) else {}
     exercises = catalog.get("exercises") if isinstance(catalog.get("exercises"), list) else []
     catalog_brief = {
@@ -153,6 +158,9 @@ def generate_grok_plans(
         "- Workout uses goals.split / rotation, catalog names, recovery, and recent lifts.\n"
         "- Volume caps come from goals (default_hard_sets, DeanT 4-8, "
         "session_working_set_cap). NEVER use catalog default_sets=3.\n"
+        "- If recovery.score < goals.rest_if_recovery_below and recovery is "
+        "not sparse, workout MUST be is_rest_day with no exercises. "
+        "Caution 30-39 still rests. Sparse sleep must not rest.\n"
         "- No canned plan. No fake inventory.\n"
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."
@@ -183,7 +191,7 @@ def generate_grok_plans(
             "ok": False,
             "error": msg,
             "meal": honest_empty_meal(msg, source="error"),
-            "workout": honest_empty_workout(msg, source="error"),
+            "workout": apply_rest_gate(honest_empty_workout(msg, source="error"), goals or {}, recovery or {}),
         }
 
     parsed = _safe_json(str(result.get("answer") or ""))
@@ -193,7 +201,7 @@ def generate_grok_plans(
             "ok": False,
             "error": msg,
             "meal": honest_empty_meal(msg, source="error"),
-            "workout": honest_empty_workout(msg, source="error"),
+            "workout": apply_rest_gate(honest_empty_workout(msg, source="error"), goals or {}, recovery or {}),
         }
 
     meal = parsed.get("meal") if isinstance(parsed.get("meal"), dict) else {}
@@ -221,6 +229,7 @@ def generate_grok_plans(
         "empty": not exercises and not workout.get("is_rest_day"),
         "source": "grok",
     }
+    workout_out = apply_rest_gate(workout_out, goals or {}, recovery or {})
     return {
         "ok": True,
         "meal": meal_out,

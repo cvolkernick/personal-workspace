@@ -134,6 +134,32 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertEqual(plan["session_type"], "rest")
         self.assertIn("volume", plan)
 
+    def test_caution_35_not_sparse_is_rest(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [],
+            recovery_score=35,
+            recovery_label="Caution",
+            recovery_sparse=False,
+        )
+        self.assertTrue(plan["is_rest_day"])
+        self.assertEqual(plan["session_type"], "rest")
+        self.assertEqual(plan["exercises"], [])
+
+    def test_caution_35_sparse_sleep_is_not_rest(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [_session("2026-07-10", "push", "DB Flat Press", 50)],
+            recovery_score=35,
+            recovery_label="Caution",
+            recovery_sparse=True,
+            as_of="2026-07-11",
+        )
+        self.assertFalse(plan["is_rest_day"])
+        self.assertNotEqual(plan["session_type"], "rest")
+
     def test_compound_overlap_credits(self):
         credits = credit_sets_for_exercise(
             ["hamstrings", "glutes"], ["back"], 2, secondary_fraction=0.5

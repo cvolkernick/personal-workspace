@@ -216,6 +216,77 @@ def build_training_pack(
     }
 
 
+def rest_gate(
+    goals: dict,
+    recovery: Optional[dict],
+    *,
+    sparse: Optional[bool] = None,
+) -> Dict[str, Any]:
+    """Force rest when score < goals.rest_if_recovery_below AND data is not sparse.
+
+    Caution 30–39 still rests (threshold is 40, not the Needs Rest label < 30).
+    Sparse sleep (missing logs looking like low recovery) must not trigger rest.
+    """
+    goals = normalize_goals(goals if isinstance(goals, dict) else None)
+    threshold = int(goals.get("rest_if_recovery_below") or 40)
+    rec = recovery if isinstance(recovery, dict) else {}
+    if sparse is None:
+        sparse = bool(rec.get("sparse"))
+    score = rec.get("score")
+    try:
+        score_f = float(score) if score is not None else None
+    except (TypeError, ValueError):
+        score_f = None
+    force = score_f is not None and score_f < threshold and not bool(sparse)
+    reason = None
+    if force:
+        reason = (
+            f"Recovery score {score_f:.0f} is below threshold "
+            f"({threshold}). Suggested rest or light walk/mobility only."
+        )
+    return {
+        "force_rest": force,
+        "threshold": threshold,
+        "score": score_f,
+        "sparse": bool(sparse),
+        "reason": reason,
+    }
+
+
+def apply_rest_gate(
+    workout_plan: Optional[dict],
+    goals: dict,
+    recovery: Optional[dict],
+    *,
+    sparse: Optional[bool] = None,
+) -> dict:
+    """Stamp rest onto a workout plan. Clears lift slot / next-PPL overlay."""
+    gate = rest_gate(goals, recovery, sparse=sparse)
+    plan = dict(workout_plan) if isinstance(workout_plan, dict) else {}
+    stamp = {
+        "force_rest": gate["force_rest"],
+        "threshold": gate["threshold"],
+        "sparse": gate["sparse"],
+        "score": gate["score"],
+    }
+    plan["rest_gate"] = stamp
+    if not gate["force_rest"]:
+        return plan
+    plan["is_rest_day"] = True
+    plan["session_type"] = "rest"
+    plan["exercises"] = []
+    plan["empty"] = True
+    existing = str(plan.get("message") or "").strip()
+    if existing.startswith("Next session:"):
+        existing = ""
+    plan["message"] = gate["reason"] or existing
+    ctx = dict(plan.get("context") or {})
+    ctx["rest_gate"] = stamp
+    ctx.pop("next_session_type", None)
+    plan["context"] = ctx
+    return plan
+
+
 def load_catalog_and_goals(client: GitHubLiftClient) -> Dict[str, Any]:
     catalog, cat_src = read_nutrition_file(client, CATALOG_PATH, default_catalog())
     goals, goals_src = read_nutrition_file(

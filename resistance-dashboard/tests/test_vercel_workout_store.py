@@ -11,12 +11,21 @@ from unittest import mock
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.dashboard import dashboard_body
 from rt_dashboard.grok_ask import build_fitness_context
-from rt_dashboard.models import HealthSnapshot, Session, ExerciseEntry, SetEntry
+from rt_dashboard.models import (
+    HealthSnapshot,
+    RecoveryStatus,
+    Session,
+    SleepSample,
+    ExerciseEntry,
+    SetEntry,
+)
 from rt_dashboard.workout_planner import CATALOG_PATH, GOALS_PATH
 from rt_dashboard.workout_store import (
     apply_goals_volume_caps,
+    apply_rest_gate,
     load_workspace_catalog,
     load_workspace_goals,
+    rest_gate,
 )
 
 
@@ -182,6 +191,129 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
             self.assertEqual(ex.get("volume_from"), "goals")
         # SoT file itself is unchanged
         self.assertTrue(all(v == 3 for v in raw_sets.values()))
+
+
+class RestGateFromGoals(unittest.TestCase):
+    def test_file_threshold_is_40(self):
+        goals, src = load_workspace_goals()
+        self.assertEqual(src, GOALS_PATH)
+        self.assertEqual(goals["rest_if_recovery_below"], 40)
+
+    def test_score_35_not_sparse_is_rest(self):
+        goals, _ = load_workspace_goals()
+        gate = rest_gate(goals, {"score": 35, "sparse": False})
+        self.assertTrue(gate["force_rest"])
+        self.assertEqual(gate["threshold"], 40)
+        plan = apply_rest_gate(
+            {
+                "session_type": "pull",
+                "is_rest_day": False,
+                "exercises": [{"name": "DB Flat Press"}],
+                "message": "Next session: PULL (PPL after last push)",
+            },
+            goals,
+            {"score": 35, "sparse": False},
+        )
+        self.assertTrue(plan["is_rest_day"])
+        self.assertEqual(plan["session_type"], "rest")
+        self.assertEqual(plan["exercises"], [])
+        self.assertNotIn("Next session:", plan.get("message") or "")
+        self.assertNotIn("next_session_type", plan.get("context") or {})
+
+    def test_score_35_sparse_sleep_is_not_rest(self):
+        goals, _ = load_workspace_goals()
+        gate = rest_gate(goals, {"score": 35, "sparse": True})
+        self.assertFalse(gate["force_rest"])
+        plan = apply_rest_gate(
+            {"session_type": "pull", "is_rest_day": False, "exercises": []},
+            goals,
+            {"score": 35, "sparse": True},
+        )
+        self.assertFalse(plan["is_rest_day"])
+        self.assertEqual(plan["session_type"], "pull")
+
+    def test_needs_rest_label_not_required(self):
+        """Caution 30–39 still rests; do not wait for Needs Rest (<30)."""
+        goals, _ = load_workspace_goals()
+        self.assertTrue(rest_gate(goals, {"score": 30, "sparse": False})["force_rest"])
+        self.assertTrue(rest_gate(goals, {"score": 39, "sparse": False})["force_rest"])
+        self.assertFalse(rest_gate(goals, {"score": 40, "sparse": False})["force_rest"])
+
+
+class VercelDashboardRestGate(unittest.TestCase):
+    def _signed_body(self, *, score: float, sleep_hours):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        session = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=45, sets=3, reps=10)],
+                )
+            ],
+        )
+        rec = RecoveryStatus(
+            label="Caution" if score >= 30 else "Needs Rest",
+            score=float(score),
+            reasons=["unit"],
+        )
+        health = HealthSnapshot()
+        if sleep_hours is not None:
+            health.sleep = [
+                SleepSample(
+                    date="2026-08-17",
+                    sleep_hours=float(sleep_hours),
+                    source="google_health",
+                )
+            ]
+        with mock.patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([session], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(health, []),
+            ), mock.patch(
+                "rt_dashboard.recovery.compute_recovery_status",
+                return_value=rec,
+            ):
+                return dashboard_body(headers)
+
+    def test_score_35_not_sparse_rests_no_lift_slot(self):
+        status, body = self._signed_body(score=35, sleep_hours=7.5)
+        self.assertEqual(status, 200)
+        wo = body["workout_store"]
+        self.assertTrue(body["recovery"]["sparse"] is False)
+        self.assertTrue(wo["plan"]["is_rest_day"])
+        self.assertEqual(wo["plan"]["session_type"], "rest")
+        self.assertEqual(wo["plan"]["exercises"], [])
+        self.assertIsNone(wo["next_session_type"])
+        self.assertNotIn("Next session:", wo["plan"].get("message") or "")
+        self.assertTrue((wo["training_pack"] or {}).get("rest"))
+        self.assertIsNone((wo["training_pack"] or {}).get("next_session_type"))
+        today = (body.get("coach") or {}).get("today") or {}
+        self.assertEqual(today.get("recommendation"), "rest")
+        self.assertTrue((today.get("workout") or {}).get("is_rest_day"))
+        self.assertEqual((today.get("workout") or {}).get("session_type"), "rest")
+        self.assertEqual((today.get("workout") or {}).get("exercises") or [], [])
+
+    def test_score_35_sparse_sleep_not_rest(self):
+        status, body = self._signed_body(score=35, sleep_hours=None)
+        self.assertEqual(status, 200)
+        wo = body["workout_store"]
+        self.assertTrue(body["recovery"]["sparse"])
+        self.assertFalse(wo["plan"]["is_rest_day"])
+        self.assertNotEqual(wo["plan"]["session_type"], "rest")
+        self.assertEqual(wo["next_session_type"], "pull")
+        self.assertIn("Next session: PULL", wo["plan"].get("message") or "")
+        today = (body.get("coach") or {}).get("today") or {}
+        self.assertNotEqual(today.get("recommendation"), "rest")
+        self.assertFalse((today.get("workout") or {}).get("is_rest_day"))
 
 
 if __name__ == "__main__":

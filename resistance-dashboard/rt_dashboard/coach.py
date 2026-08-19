@@ -381,10 +381,12 @@ def build_today_board(
                 "movement": ex.get("movement"),
             }
         )
+    # Rest is owned by the plan rest gate (goals.rest_if_recovery_below + not
+    # sparse). Do not infer rest from score alone — Caution 30–39 rests only
+    # when the plan said so. Sparse sleep looking like low recovery must not
+    # print a Rest headline next to a lift slot.
     rec_label = "rest" if wp.get("is_rest_day") else "train"
-    if recovery.score < 40:
-        rec_label = "rest"
-    elif recovery.score < 55 and not wp.get("is_rest_day"):
+    if not wp.get("is_rest_day") and recovery.score < 55:
         rec_label = "easy"
 
     focus = (wp.get("volume") or {}).get("focus") or (wp.get("context") or {}).get(

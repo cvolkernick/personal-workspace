@@ -143,10 +143,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.nutrition_store import load_workspace_targets
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
+        apply_rest_gate,
         build_training_pack,
         load_workspace_catalog,
         load_workspace_goals,
         next_session_brief,
+        rest_gate,
     )
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
@@ -270,9 +272,23 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     catalog, catalog_src = load_workspace_catalog()
     # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
     catalog = apply_goals_volume_caps(catalog, goals)
+    gate = rest_gate(goals, recovery_dict)
     nxt = next_session_brief(sessions, goals)
     if isinstance(workout_plan, dict):
         workout_plan = dict(workout_plan)
+    else:
+        workout_plan = {}
+    # Next PPL slot only when the rest gate is off. No empty lift slot on Rest.
+    if gate["force_rest"]:
+        workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
+        shown_next = None
+        pack = build_training_pack(
+            goals, catalog, sessions, next_brief=nxt, limit=5
+        )
+        pack["next_session_type"] = None
+        pack["next_session_line"] = None
+        pack["rest"] = True
+    else:
         if not (workout_plan.get("exercises") or []):
             workout_plan["session_type"] = nxt["next_session_type"]
             existing = str(workout_plan.get("message") or "").strip()
@@ -283,15 +299,18 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             ctx["next_session_type"] = nxt["next_session_type"]
             ctx["last_session_type"] = nxt.get("last_session_type")
             workout_plan["context"] = ctx
+        workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
+        shown_next = nxt["next_session_type"]
+        pack = build_training_pack(
+            goals, catalog, sessions, next_brief=nxt, limit=5
+        )
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
         "goals": goals,
         "sources": {"catalog": catalog_src, "goals": goals_src},
-        "next_session_type": nxt["next_session_type"],
-        "training_pack": build_training_pack(
-            goals, catalog, sessions, next_brief=nxt, limit=5
-        ),
+        "next_session_type": shown_next,
+        "training_pack": pack,
     }
     try:
         payload["coach"] = build_coach_payload(
