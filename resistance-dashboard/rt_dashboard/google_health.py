@@ -449,24 +449,27 @@ class GoogleHealthClient:
             end = end - timedelta(days=take)
         return {"rollupDataPoints": all_pts}
 
+    def fetch_nutrition_bundle(
+        self, days: int = 90
+    ) -> Tuple[List[NutritionDay], List[FoodLogEntry]]:
+        """One nutrition-log walk → daily totals + meal-level food_logs."""
+        days = max(1, min(int(days), 90))
+        cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
+        data = self._paginate_data_points("nutrition-log", max_pages=40, until_date=cutoff)
+        return (
+            parse_nutrition_log_points(data, days=days),
+            parse_food_log_entries(data, days=days),
+        )
+
     def fetch_nutrition(self, days: int = 90) -> List[NutritionDay]:
         """Food log macros/calories — needs googlehealth.nutrition.readonly."""
-        days = max(1, min(int(days), 90))
-        # Paginate first until the cutoff date (not a fixed 8-page / 800-row cap).
-        cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
-        data = self._paginate_data_points("nutrition-log", max_pages=40, until_date=cutoff)
-        return parse_nutrition_log_points(data, days=days)
+        nutrition, _logs = self.fetch_nutrition_bundle(days=days)
+        return nutrition
 
     def fetch_food_logs(self, days: int = 14) -> List[FoodLogEntry]:
-        """Meal-level nutrition-log entries (food names + macros + micros).
-
-        Daily rollups only give totals; meal plan / coach commentary need
-        individual foodDisplayName points. Paginate until the requested cutoff.
-        """
-        days = max(1, min(int(days), 90))
-        cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
-        data = self._paginate_data_points("nutrition-log", max_pages=40, until_date=cutoff)
-        return parse_food_log_entries(data, days=days)
+        """Meal-level entries from the same nutrition-log pages as daily totals."""
+        _nutrition, logs = self.fetch_nutrition_bundle(days=days)
+        return logs
 
     def fetch_hydration(self, days: int = 90) -> List[HydrationDay]:
         """Water intake — needs googlehealth.nutrition.readonly."""
@@ -525,12 +528,10 @@ class GoogleHealthClient:
         def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
             return self.fetch_sleep_bundle(days=days)
 
-        def _nutrition() -> List[NutritionDay]:
-            return self.fetch_nutrition(days=days)
-
-        def _food_logs() -> List[FoodLogEntry]:
-            # Meal-level detail for coach + meal plan (shorter window).
-            return self.fetch_food_logs(days=days)
+        def _nutrition() -> Tuple[List[NutritionDay], List[FoodLogEntry]]:
+            # Same pages for daily totals and meal-level food_logs — no parallel
+            # fetch_food_logs that can independently return [].
+            return self.fetch_nutrition_bundle(days=days)
 
         def _hydration() -> List[HydrationDay]:
             return self.fetch_hydration(days=days)
@@ -542,7 +543,6 @@ class GoogleHealthClient:
             "weight": _weight,
             "sleep": _sleep,
             "nutrition": _nutrition,
-            "food_logs": _food_logs,
             "hydration": _hydration,
             "calories_burned": _burned,
         }
@@ -565,9 +565,7 @@ class GoogleHealthClient:
                 elif name == "sleep":
                     sleep, sleep_intervals = result  # type: ignore[misc]
                 elif name == "nutrition":
-                    nutrition = result  # type: ignore[assignment]
-                elif name == "food_logs":
-                    food_logs = result  # type: ignore[assignment]
+                    nutrition, food_logs = result  # type: ignore[misc]
                 elif name == "hydration":
                     hydration = result  # type: ignore[assignment]
                 elif name == "calories_burned":

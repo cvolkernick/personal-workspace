@@ -3727,18 +3727,28 @@
     const box = $("today-logged-foods");
     const today = civilDay((data.meta && data.meta.local_today) || "");
     const store = (data && data.nutrition_store) || {};
-    let logs = store.food_logs_today || [];
-    if (today) {
-      const dated = logs.filter((f) => civilDay(f.date) === today);
-      if (dated.length) logs = dated;
+    const all = (store.food_logs || []).length
+      ? store.food_logs
+      : ((((data.health || {}).food_logs) || []).length
+          ? data.health.food_logs
+          : (store.food_logs_recent || store.food_logs_today || []));
+    let logs = today ? all.filter((f) => civilDay(f.date) === today) : (store.food_logs_today || []);
+    let heading = "Logged today";
+    if (!logs.length) {
+      const last = lastNutritionDate(data) || "";
+      if (last) {
+        logs = all.filter((f) => civilDay(f.date) === last);
+        if (logs.length) heading = `Logged ${last}`;
+      }
     }
     if (!box) return logs;
     if (!logs.length) {
-      box.innerHTML = "";
+      box.textContent =
+        `local_today=${today || "—"}; last_nutrition_date=${lastNutritionDate(data) || "—"}; food_log_count=${all.length || 0}`;
       return logs;
     }
     box.innerHTML =
-      `<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">Logged today</div>` +
+      `<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">${heading}</div>` +
       `<ul style="margin:0;padding-left:1.1rem">` +
       logs
         .map((f) => {
