@@ -43,6 +43,8 @@ def workouts_write(headers):
     return 403, dict(PREVIEW_READ_ONLY)
 
 
+workouts_read = workouts_body
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         status, body = workouts_body(self.headers)

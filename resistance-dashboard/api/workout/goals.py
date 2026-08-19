@@ -31,6 +31,8 @@ def goals_write(headers):
     return 403, dict(PREVIEW_READ_ONLY)
 
 
+goals_read = goals_body
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         status, body = goals_body(self.headers)
