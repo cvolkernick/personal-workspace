@@ -40,6 +40,7 @@ def ask_plan_body(headers, payload=None):
     nut = dashboard.get("nutrition_store") or {}
     rec = dashboard.get("recovery") or {}
     sessions = dashboard.get("sessions") or []
+    wo = dashboard.get("workout_store") or {}
     brief = []
     for s in sessions[:8]:
         if not isinstance(s, dict):
@@ -49,8 +50,14 @@ def ask_plan_body(headers, payload=None):
                 "date": s.get("date"),
                 "session_type": s.get("session_type") or s.get("type"),
                 "exercises": [
-                    (ex.get("name") if isinstance(ex, dict) else None)
+                    {
+                        "name": ex.get("name"),
+                        "sets": ex.get("sets"),
+                        "weight_lbs": ex.get("weight_lbs"),
+                        "reps": ex.get("reps"),
+                    }
                     for ex in (s.get("exercises") or [])[:6]
+                    if isinstance(ex, dict)
                 ],
             }
         )
@@ -66,6 +73,8 @@ def ask_plan_body(headers, payload=None):
             "sparse": rec.get("sparse"),
         },
         sessions_brief=brief,
+        goals=wo.get("goals") or {},
+        catalog=wo.get("catalog") or {},
     )
     if not result.get("ok"):
         return 200, {

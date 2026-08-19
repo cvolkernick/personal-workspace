@@ -235,12 +235,38 @@ def _trim_sessions(sessions: Any, limit: int = 40) -> List[dict]:
         for ex in (s.get("exercises") or [])[:30]:
             if not isinstance(ex, dict):
                 continue
+            raw_sets = ex.get("sets")
+            slim_sets = []
+            if isinstance(raw_sets, list):
+                for st in raw_sets[:8]:
+                    if not isinstance(st, dict):
+                        continue
+                    slim_sets.append(
+                        {
+                            "weight_lbs": st.get("weight_lbs"),
+                            "sets": st.get("sets"),
+                            "reps": st.get("reps"),
+                        }
+                    )
+            weight = ex.get("weight_lbs")
+            reps = ex.get("reps")
+            nsets = raw_sets if not isinstance(raw_sets, list) else None
+            if slim_sets:
+                if weight is None:
+                    weight = slim_sets[0].get("weight_lbs")
+                if reps is None:
+                    reps = slim_sets[0].get("reps")
+                if nsets is None:
+                    try:
+                        nsets = sum(int(st.get("sets") or 1) for st in slim_sets)
+                    except (TypeError, ValueError):
+                        nsets = len(slim_sets)
             exercises.append(
                 {
                     "name": ex.get("name"),
-                    "weight_lbs": ex.get("weight_lbs"),
-                    "sets": ex.get("sets"),
-                    "reps": ex.get("reps"),
+                    "weight_lbs": weight,
+                    "sets": slim_sets or nsets,
+                    "reps": reps,
                     "volume": ex.get("volume"),
                 }
             )

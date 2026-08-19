@@ -85,6 +85,8 @@ def generate_grok_plans(
     food_logs_today: Optional[list] = None,
     recovery: Optional[dict] = None,
     sessions_brief: Optional[list] = None,
+    goals: Optional[dict] = None,
+    catalog: Optional[dict] = None,
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. No pantry. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
@@ -99,6 +101,16 @@ def generate_grok_plans(
         }
 
     rem = remaining_macros(targets or {}, consumed or {})
+    catalog = catalog if isinstance(catalog, dict) else {}
+    exercises = catalog.get("exercises") if isinstance(catalog.get("exercises"), list) else []
+    catalog_brief = {
+        "count": len(exercises),
+        "names": [
+            e.get("name")
+            for e in exercises[:40]
+            if isinstance(e, dict) and e.get("available", True) and e.get("name")
+        ],
+    }
     user_block = {
         "remaining_macros": rem,
         "targets": {
@@ -109,10 +121,14 @@ def generate_grok_plans(
         "food_logs_today": (food_logs_today or [])[:20],
         "recovery": recovery or {},
         "recent_sessions": (sessions_brief or [])[:8],
+        "goals": goals or {},
+        "catalog": catalog_brief,
         "inventory": None,
         "notes": (
             "Inventory is unset (Pi pantry is dark). Do not invent staples "
-            "the user owns. Meal ideas may use remaining macros + logged foods only."
+            "the user owns. Meal ideas may use remaining macros + logged foods only. "
+            "Workout must use goals (PPL split / DeanT volume) + catalog names + "
+            "recent_sessions + recovery. No canned plan. No fake inventory."
         ),
     }
     system = (
@@ -124,7 +140,8 @@ def generate_grok_plans(
         "Rules:\n"
         "- Do not assume a pantry or inventory. Do not invent owned staples.\n"
         "- Meal may draft from remaining macros and today's logged foods only.\n"
-        "- Workout may use recovery + recent sessions. ~4-8 hard sets/muscle/week.\n"
+        "- Workout uses goals.split / rotation, catalog names, recovery, and recent lifts.\n"
+        "- ~4-8 hard sets/muscle/week (DeanT). No canned plan. No fake inventory.\n"
         "- If you cannot generate, return empty arrays and say why in message.\n"
         "- Never include secrets or tokens."
     )

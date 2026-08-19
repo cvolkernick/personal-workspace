@@ -141,6 +141,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.nutrition_store import load_workspace_targets
+    from rt_dashboard.workout_store import load_workspace_catalog, load_workspace_goals
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
@@ -259,11 +260,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     meal_plan, workout_plan = dashboard_plan_slots(str(user.get("id") or ""))
     payload["nutrition_store"]["meal_plan"] = meal_plan
+    goals, goals_src = load_workspace_goals()
+    catalog, catalog_src = load_workspace_catalog()
     payload["workout_store"] = {
         "plan": workout_plan,
-        "catalog": None,
-        "goals": None,
-        "sources": {"catalog": "unset", "goals": "unset"},
+        "catalog": catalog,
+        "goals": goals,
+        "sources": {"catalog": catalog_src, "goals": goals_src},
     }
     try:
         payload["coach"] = build_coach_payload(

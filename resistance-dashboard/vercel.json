@@ -5,10 +5,12 @@
   "outputDirectory": "static",
   "functions": {
     "api/ask.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
     },
     "api/ask/plan.py": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
     },
     "api/ask/grok/start.py": {
       "maxDuration": 15
@@ -18,7 +20,7 @@
     },
     "api/dashboard.py": {
       "maxDuration": 60,
-      "includeFiles": "fitness/nutrition/targets.json"
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
     }
   }
 }
