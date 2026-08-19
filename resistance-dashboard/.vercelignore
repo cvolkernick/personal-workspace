@@ -4,7 +4,6 @@
 /start.sh
 /*.command
 /deploy/
-/rt_dashboard/
 /tests/
 /scripts/
 /REVIEW.md
