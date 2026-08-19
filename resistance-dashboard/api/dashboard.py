@@ -140,6 +140,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.daily_plan_tasks import plan_preview
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.inventory_store import load_preview_inventory
     from rt_dashboard.nutrition_store import load_workspace_targets
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
@@ -209,6 +210,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         errors.append(health_msg)
 
     targets, targets_src = load_workspace_targets()
+    inventory, inventory_src = load_preview_inventory(str(user.get("id") or ""))
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
@@ -216,8 +218,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     payload["sleep_battery"] = sleep_battery
     payload["nutrition_store"] = {
         "targets": targets,
-        "inventory": {"ingredients": []},
-        "sources": {"inventory": "unset", "targets": targets_src},
+        "inventory": inventory,
+        "sources": {"inventory": inventory_src, "targets": targets_src},
         "meal_plan": None,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
@@ -318,7 +320,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             as_of=today,
             sleep_battery=sleep_battery,
             calorie_bars=payload.get("calorie_bars"),
-            inventory_dark=True,
+            inventory=inventory,
+            inventory_dark=not bool((inventory or {}).get("ingredients")),
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"coach: {type(exc).__name__}")
@@ -390,10 +393,11 @@ class handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(getattr(self, "path", "") or "")
-        from api.workout._util import dispatch_client_route
+        from api.workout._util import dispatch_client_route, read_json
 
+        payload = read_json(self)
         routed = dispatch_client_route(
-            self.headers, parsed.query, "POST", path=parsed.path
+            self.headers, parsed.query, "POST", payload=payload, path=parsed.path
         )
         if routed is not None:
             status, body = routed
