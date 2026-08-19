@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _load_generate():
-    path = ROOT / "api" / "workout-plan" / "generate.py"
+    path = ROOT / "api" / "workout_plan_generate.py"
     spec = importlib.util.spec_from_file_location("_fitdash_workout_plan_generate", path)
     mod = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -33,13 +33,15 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertFalse((ROOT / "api" / "workout.py").exists())
         self.assertTrue((ROOT / "api" / "workout" / "goals.py").is_file())
         self.assertTrue((ROOT / "api" / "workout" / "exercise" / "available.py").is_file())
-        self.assertTrue((ROOT / "api" / "workout-plan" / "generate.py").is_file())
+        self.assertTrue((ROOT / "api" / "workout_plan_generate.py").is_file())
         self.assertTrue((ROOT / "api" / "workouts.py").is_file())
         self.assertFalse((ROOT / "api" / "workout-plan.py").exists())
+        self.assertFalse((ROOT / "api" / "workout-plan").exists())
 
     def test_vercel_json_lists_new_functions(self):
         raw = (ROOT / "vercel.json").read_text(encoding="utf-8")
-        self.assertIn("api/workout-plan/generate.py", raw)
+        self.assertIn("api/workout_plan_generate.py", raw)
+        self.assertIn("/api/workout-plan/generate", raw)
         self.assertIn("api/workout/goals.py", raw)
         self.assertIn("api/workout/exercise/available.py", raw)
         self.assertIn("api/workouts.py", raw)
