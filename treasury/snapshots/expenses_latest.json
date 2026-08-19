@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-19T16:20:20.901669+00:00",
+  "as_of": "2026-08-19T16:33:49.766568+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -1149,7 +1149,7 @@
     },
     "Consumer Discretionary": {
       "role": "consumer_wishlist",
-      "item_count": 0,
+      "item_count": 3,
       "totals": {
         "daily": 0.0,
         "weekly": 0.0,
@@ -1157,7 +1157,44 @@
         "monthly": 0.0,
         "annually": 0.0
       },
-      "items": [],
+      "items": [
+        {
+          "item": "Airfryer",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        },
+        {
+          "item": "Collateral (Stock)",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        },
+        {
+          "item": "Robot Vac",
+          "date": "9/1/2026",
+          "daily": 0.0,
+          "weekly": 0.0,
+          "biweekly": 0.0,
+          "monthly": 0.0,
+          "annually": 0.0,
+          "from": null,
+          "to": null,
+          "tab": "Consumer Discretionary"
+        }
+      ],
       "top_targets": [],
       "top_monthly": [],
       "priority": 2,
@@ -1965,8 +2002,5 @@
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5340.43
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB.",
-  "tab_warnings": [
-    "Consumer Discretionary tab unavailable: <urlopen error [Errno 54] Connection reset by peer>"
-  ]
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
