@@ -144,7 +144,11 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         self.assertEqual(wo["sources"]["catalog"], CATALOG_PATH)
         self.assertIsNotNone(wo["catalog"])
         self.assertGreater(len((wo["catalog"] or {}).get("exercises") or []), 0)
-        self.assertEqual(body["nutrition_store"]["sources"]["inventory"], "unset")
+        self.assertIn(
+            body["nutrition_store"]["sources"]["inventory"],
+            ("fitness/nutrition/inventory.json", "turso"),
+        )
+        self.assertEqual(len(body["nutrition_store"]["inventory"]["ingredients"]), 15)
         self.assertEqual(len(body["sessions"]), 1)
         self.assertEqual(body["sessions"][0]["exercises"][0]["name"], "DB Flat Press")
         ctx = build_fitness_context(body)
