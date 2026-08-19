@@ -17,6 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
+    <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/app.js?v=live-poll-2" defer></script>
   </head>
   <body>
@@ -113,14 +114,10 @@
 
       <section class="card" style="margin-top: 0" id="ask-card" data-m-panel="more">
         <h2>Ask Grok about your data</h2>
-        <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-          Uses your SuperGrok / Grok Build login (<code>~/.grok/auth.json</code>).
-          Your question and Grok’s reply show in the chat box below. Answers use a
-          compact snapshot of this dashboard (lifts, recovery, nutrition, plans).
-          Expect <strong>about 15–60 seconds</strong>; stay on this page until it finishes.
-          You can also <strong>change config in plain English</strong> (instant, no model call):
-          e.g. “set protein to 220”, “update calories to 2000”, “apply those recommendations”,
-          “focus on chest and glutes”, “auto focus”, “mark chicken out of stock”, “refresh meal plan”.
+        <p class="muted desktop-help" id="ask-grok-help" style="margin-top: 0; font-size: 0.85rem">
+          Unofficial Grok-CLI client. Connect SuperGrok in More (tokens stay sealed in Turso).
+          Needs SuperGrok or X Premium+. 403 after a good login is xAI entitlement gating,
+          not a FitDash bug. Answers use a compact snapshot of this dashboard.
         </p>
         <p class="muted mobile-help" hidden>
           Ask about lifts, recovery, or macros. Config commands work too (e.g. “set protein to 220”).
@@ -692,6 +689,24 @@
             Refresh data
           </button>
           <a class="btn btn-touch" id="btn-logout-mobile" href="/api/auth/logout">Sign out</a>
+        </div>
+        <div style="margin-top: 1rem" id="supergrok-connect">
+          <h3 style="margin: 0 0 0.35rem; font-size: 1rem">Connect SuperGrok</h3>
+          <p class="muted" id="supergrok-note" style="margin: 0 0 0.5rem; font-size: 0.82rem"></p>
+          <div class="actions">
+            <button type="button" class="primary btn-touch" id="btn-connect-supergrok">
+              Connect SuperGrok
+            </button>
+            <button type="button" class="btn-touch" id="btn-disconnect-supergrok">
+              Disconnect
+            </button>
+          </div>
+          <p class="muted" id="supergrok-status" style="margin: 0.5rem 0 0; font-size: 0.82rem"></p>
+          <p style="margin: 0.35rem 0 0; font-size: 0.95rem">
+            <a id="supergrok-open" href="#" hidden target="_blank" rel="noopener">Open verification URL</a>
+          </p>
+          <p id="supergrok-url" style="margin: 0.2rem 0 0; font-size: 0.82rem; word-break: break-all"></p>
+          <p id="supergrok-code" style="margin: 0.2rem 0 0; font-size: 1.25rem; letter-spacing: 0.08em; font-weight: 600"></p>
         </div>
         <p class="muted" style="margin: 0.5rem 0 0; font-size: 0.8rem" id="mobile-meta-line"></p>
       </section>

@@ -101,22 +101,74 @@ def _read_grok_auth_entry() -> Optional[dict]:
     return best
 
 
-def resolve_xai_credentials() -> Dict[str, Any]:
+CONNECT_ERROR = "Connect SuperGrok to generate today's meal/workout plan."
+
+
+def _env_api_key_creds() -> Optional[Dict[str, Any]]:
+    api_key = (os.environ.get("XAI_API_KEY") or "").strip()
+    if not api_key:
+        return None
+    return {
+        "token": api_key,
+        "source": "xai_api_key",
+        "email": None,
+        "expires_at": None,
+        "expired": False,
+    }
+
+
+def resolve_xai_credentials(user_id: Optional[str] = None) -> Dict[str, Any]:
     """
     Resolve auth for xAI chat completions.
 
-    Priority:
-      1. XAI_API_KEY env (console.x.ai API key)
-      2. SuperGrok / Grok Build session in ~/.grok/auth.json
+    When user_id is set (Vercel cookie session):
+      1. that user's sealed Turso SuperGrok session (refresh on expiry)
+      2. else env XAI_API_KEY preview fallback
+      3. else honest connect SuperGrok
+    Never read or write ~/.grok/auth.json on Vercel.
+    Local Pi (no user_id, not VERCEL): XAI_API_KEY then ~/.grok/auth.json.
     """
-    api_key = (os.environ.get("XAI_API_KEY") or "").strip()
-    if api_key:
+    uid = (user_id or "").strip() or None
+    on_vercel = bool((os.environ.get("VERCEL") or "").strip())
+
+    if uid:
+        from .grok_sessions import load_fresh_grok_session
+
+        sess = load_fresh_grok_session(uid)
+        if sess and sess.get("access_token") and not sess.get("expired"):
+            return {
+                "token": sess["access_token"],
+                "source": "supergrok_session",
+                "email": sess.get("email"),
+                "expires_at": sess.get("expires_at"),
+                "expired": False,
+                "user_id": uid,
+            }
+        fallback = _env_api_key_creds()
+        if fallback:
+            fallback["user_id"] = uid
+            return fallback
         return {
-            "token": api_key,
-            "source": "xai_api_key",
+            "token": None,
+            "source": "none",
+            "email": sess.get("email") if sess else None,
+            "expires_at": sess.get("expires_at") if sess else None,
+            "expired": bool(sess.get("expired")) if sess else False,
+            "error": CONNECT_ERROR,
+            "user_id": uid,
+        }
+
+    fallback = _env_api_key_creds()
+    if fallback:
+        return fallback
+    if on_vercel:
+        return {
+            "token": None,
+            "source": "none",
             "email": None,
             "expires_at": None,
             "expired": False,
+            "error": CONNECT_ERROR,
         }
 
     entry = _read_grok_auth_entry()
@@ -127,10 +179,7 @@ def resolve_xai_credentials() -> Dict[str, Any]:
             "email": None,
             "expires_at": None,
             "expired": False,
-            "error": (
-                "No SuperGrok session found. Sign in with `grok login` (uses your "
-                "SuperGrok subscription), or set XAI_API_KEY from console.x.ai."
-            ),
+            "error": CONNECT_ERROR,
         }
 
     token = (entry.get("key") or entry.get("access_token") or "").strip()
@@ -144,25 +193,35 @@ def resolve_xai_credentials() -> Dict[str, Any]:
         "expires_at": entry.get("expires_at"),
         "expired": expired,
         "error": (
-            "SuperGrok session expired. Run `grok login` in a terminal, then try again."
+            "SuperGrok session expired. Connect SuperGrok again."
             if expired
-            else (None if token else "Empty session token in ~/.grok/auth.json")
+            else (None if token else CONNECT_ERROR)
         ),
     }
 
 
-def auth_status() -> Dict[str, Any]:
-    creds = resolve_xai_credentials()
-    return {
+def auth_status(user_id: Optional[str] = None) -> Dict[str, Any]:
+    creds = resolve_xai_credentials(user_id=user_id)
+    source = creds.get("source")
+    connected = source == "supergrok_session" and bool(creds.get("token")) and not creds.get("expired")
+    out = {
         "ok": bool(creds.get("token")) and not creds.get("expired"),
-        "source": creds.get("source"),
+        "connected": connected,
+        "source": source,
         "email": creds.get("email"),
         "expires_at": creds.get("expires_at"),
         "expired": bool(creds.get("expired")),
         "model": DEFAULT_MODEL,
         "error": creds.get("error"),
-        "auth_path": str(AUTH_PATH),
+        "unofficial": True,
+        "entitlement_note": (
+            "If inference returns 403 after a good login, that is xAI entitlement "
+            "gating (SuperGrok or X Premium+), not a FitDash bug."
+        ),
     }
+    if not user_id and not (os.environ.get("VERCEL") or "").strip():
+        out["auth_path"] = str(AUTH_PATH)
+    return out
 
 
 def _trim_sessions(sessions: Any, limit: int = 40) -> List[dict]:
@@ -464,26 +523,7 @@ def _shrink_context(context: dict, max_chars: int = MAX_CONTEXT_CHARS) -> Tuple[
     return ctx, True
 
 
-def chat_completions(
-    messages: List[dict],
-    *,
-    model: Optional[str] = None,
-    max_tokens: int = 1200,
-    temperature: float = 0.3,
-) -> Dict[str, Any]:
-    creds = resolve_xai_credentials()
-    token = creds.get("token")
-    if not token:
-        raise GrokAskError(creds.get("error") or "No xAI credentials", status=401)
-    if creds.get("expired"):
-        raise GrokAskError(creds.get("error") or "Session expired", status=401)
-
-    body = {
-        "model": model or DEFAULT_MODEL,
-        "messages": messages,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-    }
+def _post_chat(token: str, body: dict) -> Dict[str, Any]:
     req = urllib.request.Request(
         f"{XAI_API_BASE}/chat/completions",
         data=json.dumps(body).encode("utf-8"),
@@ -497,7 +537,7 @@ def chat_completions(
     try:
         with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
             raw = resp.read().decode("utf-8")
-            data = json.loads(raw)
+            return json.loads(raw)
     except urllib.error.HTTPError as e:
         err_body = e.read().decode("utf-8", errors="replace")[:2000]
         raise GrokAskError(
@@ -505,6 +545,57 @@ def chat_completions(
             status=e.code,
             body=err_body,
         ) from e
+
+
+def chat_completions(
+    messages: List[dict],
+    *,
+    model: Optional[str] = None,
+    max_tokens: int = 1200,
+    temperature: float = 0.3,
+    user_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    creds = resolve_xai_credentials(user_id=user_id)
+    token = creds.get("token")
+    if not token:
+        raise GrokAskError(creds.get("error") or CONNECT_ERROR, status=401)
+    if creds.get("expired"):
+        raise GrokAskError(creds.get("error") or "Session expired", status=401)
+
+    body = {
+        "model": model or DEFAULT_MODEL,
+        "messages": messages,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+    }
+    try:
+        data = _post_chat(str(token), body)
+    except GrokAskError as e:
+        if e.status == 401 and user_id and creds.get("source") == "supergrok_session":
+            from .grok_oauth import refresh_access_token
+            from .grok_sessions import load_grok_session, save_grok_session
+
+            stored = load_grok_session(str(user_id)) or {}
+            refreshed = refresh_access_token(str(stored.get("refresh_token") or ""))
+            if refreshed and refreshed.get("access_token"):
+                merged = {
+                    "access_token": refreshed["access_token"],
+                    "refresh_token": refreshed.get("refresh_token")
+                    or stored.get("refresh_token")
+                    or "",
+                    "expires_at": refreshed.get("expires_at") or "",
+                    "email": refreshed.get("email") or stored.get("email") or creds.get("email") or "",
+                }
+                try:
+                    save_grok_session(str(user_id), merged)
+                except Exception:
+                    pass
+                data = _post_chat(merged["access_token"], body)
+                creds = {**creds, "token": merged["access_token"]}
+            else:
+                raise
+        else:
+            raise
     except urllib.error.URLError as e:
         raise GrokAskError(f"xAI network error: {e.reason}") from e
     except json.JSONDecodeError as e:
@@ -529,6 +620,7 @@ def ask_about_dashboard(
     *,
     history: Optional[List[dict]] = None,
     model: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     q = (question or "").strip()
     if not q:
@@ -557,7 +649,7 @@ def ask_about_dashboard(
                 messages.append({"role": role, "content": content[:4000]})
     messages.append({"role": "user", "content": user_block})
 
-    result = chat_completions(messages, model=model)
+    result = chat_completions(messages, model=model, user_id=user_id)
     result["context_trimmed"] = trimmed
     result["context_chars"] = len(context_json)
     result["session_count"] = len(context.get("sessions") or [])

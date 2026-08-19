@@ -21,7 +21,8 @@ def ask_status_body(headers) -> tuple[int, dict]:
         return 401, _auth_required()
     from rt_dashboard.grok_ask import auth_status
 
-    return 200, auth_status()
+    user = session_from_headers(headers) or {}
+    return 200, auth_status(user_id=str(user.get("id") or ""))
 
 
 class handler(BaseHTTPRequestHandler):

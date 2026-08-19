@@ -7,6 +7,15 @@
     "api/ask.py": {
       "maxDuration": 60
     },
+    "api/ask/plan.py": {
+      "maxDuration": 60
+    },
+    "api/ask/grok/start.py": {
+      "maxDuration": 15
+    },
+    "api/ask/grok/poll.py": {
+      "maxDuration": 15
+    },
     "api/dashboard.py": {
       "maxDuration": 60,
       "includeFiles": "fitness/nutrition/targets.json"

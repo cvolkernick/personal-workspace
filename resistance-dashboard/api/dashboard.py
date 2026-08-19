@@ -255,6 +255,16 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"hydration_bars: {type(exc).__name__}")
         payload["hydration_bars"] = {"pacing": None}
+    from rt_dashboard.grok_planner import dashboard_plan_slots
+
+    meal_plan, workout_plan = dashboard_plan_slots(str(user.get("id") or ""))
+    payload["nutrition_store"]["meal_plan"] = meal_plan
+    payload["workout_store"] = {
+        "plan": workout_plan,
+        "catalog": None,
+        "goals": None,
+        "sources": {"catalog": "unset", "goals": "unset"},
+    }
     try:
         payload["coach"] = build_coach_payload(
             health=health,
@@ -262,11 +272,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             recovery=recovery,
             targets=targets,
             consumed=consumed,
-            meal_plan={},
-            workout_plan={},
+            meal_plan=meal_plan,
+            workout_plan=workout_plan,
             as_of=today,
             sleep_battery=sleep_battery,
             calorie_bars=payload.get("calorie_bars"),
+            inventory_dark=True,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"coach: {type(exc).__name__}")
@@ -279,12 +290,6 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             nut["consumed"] = consumed
         elif not prev:
             nut["consumed"] = consumed
-    payload["workout_store"] = {
-        "plan": None,
-        "catalog": None,
-        "goals": None,
-        "sources": {"catalog": "unset", "goals": "unset"},
-    }
     today_board = {}
     if isinstance(payload.get("coach"), dict):
         today_board = payload["coach"].get("today") or {}

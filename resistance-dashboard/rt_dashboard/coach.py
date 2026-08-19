@@ -347,6 +347,7 @@ def build_today_board(
     sleep_battery: Optional[dict] = None,
     calorie_bars: Optional[dict] = None,
     food_logs_today: Optional[Sequence[Any]] = None,
+    inventory_dark: bool = False,
 ) -> dict:
     """Comprehensive same-day guide: targets + why, meal, training, actions.
 
@@ -448,8 +449,9 @@ def build_today_board(
         )
         if len(purchases) >= 6:
             break
-    # If meal plan empty and stock low, emphasize purchases
-    if meal_block["empty"] and not purchases:
+    # If meal plan empty and stock low, emphasize purchases.
+    # Vercel preview: Pi inventory is dark — never invent a pantry.
+    if meal_block["empty"] and not purchases and not inventory_dark:
         purchases.append(
             {
                 "action": "add",
@@ -1028,6 +1030,7 @@ def build_coach_payload(
     sleep_battery: Optional[dict] = None,
     calorie_bars: Optional[dict] = None,
     inventory: Optional[dict] = None,
+    inventory_dark: bool = False,
 ) -> dict:
     day = as_of or local_today_iso()
     adherence = compute_adherence_7d(
@@ -1061,6 +1064,7 @@ def build_coach_payload(
         sleep_battery=sleep_battery,
         calorie_bars=calorie_bars,
         food_logs_today=today_logs,
+        inventory_dark=inventory_dark,
     )
     food_commentary = build_food_commentary(
         food_logs=health.food_logs or [],
