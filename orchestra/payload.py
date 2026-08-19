@@ -8,6 +8,7 @@ from typing import Any, Optional
 
 try:
     from .attention import compute_freshness, synthesize_attention
+    from .chrome import build_chrome
     from .collectors import collect_all_domains
     from .day_plan import compose_day_plan
     from .domains import DOMAIN_SPECS
@@ -16,6 +17,7 @@ try:
     from .synergies import detect_synergies
 except ImportError:
     from attention import compute_freshness, synthesize_attention
+    from chrome import build_chrome
     from collectors import collect_all_domains
     from day_plan import compose_day_plan
     from domains import DOMAIN_SPECS
@@ -212,6 +214,14 @@ def build_orchestra_payload(
 
     fan_in = build_fan_in(ws)
 
+    chrome = build_chrome(
+        domains=domains,
+        bridge=bridge,
+        fan_in=fan_in,
+        workspace=ws,
+        now=generated_at,
+    )
+
     links = []
     for spec in DOMAIN_SPECS:
         d = by_id.get(spec["id"]) or {}
@@ -258,6 +268,8 @@ def build_orchestra_payload(
         "freshness": freshness,
         "bridge": bridge,
         "fan_in": fan_in,
+        # v1 chrome: WORLD / WEEK / GATES / HELD around existing day_plan + dock
+        "chrome": chrome,
         "counts": {
             "domains": len(domains),
             "domains_available": sum(1 for d in domains if d.get("available")),
@@ -288,6 +300,7 @@ def build_orchestra_payload(
                 "attention": "Hygiene/attention digest (input to recommendations)",
                 "synergies": "Cross-domain links (input; high preferred, medium fallback)",
                 "fan_in": "Host heartbeat + L0 regime/implications strip",
+                "chrome": "WORLD / WEEK / GATES / HELD personal-window chrome",
             },
             "subordinate_ports": {
                 "financial-command": 8000,

@@ -1,0 +1,60 @@
+{
+  "timezone": "America/New_York",
+  "weekday_modes": {
+    "mon": "slow",
+    "tue": "slow",
+    "wed": "hinge_a",
+    "thu": "busy",
+    "fri": "busy",
+    "sat": "busy",
+    "sun": "hinge_b"
+  },
+  "energy": {
+    "slow": ["mon", "tue"],
+    "busy": ["thu", "fri", "sat", "sun"],
+    "hinge_a": ["wed"],
+    "hinge_b": ["sun"]
+  },
+  "transitions": [
+    {
+      "id": "sunday_into_monday",
+      "mode": "hinge_b",
+      "from_weekday": "sun",
+      "into_weekday": "mon",
+      "note": "Sunday-into-Monday is always Hinge B. Hinges are offset on purpose. Not a Monday clock-hour band."
+    }
+  ],
+  "mode_labels": {
+    "slow": "Slow",
+    "busy": "Busy",
+    "hinge_a": "Hinge A",
+    "hinge_b": "Hinge B"
+  },
+  "personal_chips": [
+    {
+      "date": "2026-08-25",
+      "label": "Service center"
+    }
+  ],
+  "gates": [
+    {"id": "drive", "label": "Drive"},
+    {"id": "sleep", "label": "Sleep"},
+    {"id": "desk", "label": "Desk"},
+    {"id": "hinge_buffer", "label": "Hinge buffer", "style": "dashed", "never_red": true}
+  ],
+  "gate_open_by_mode": {
+    "slow": ["drive", "sleep", "desk"],
+    "busy": ["drive", "sleep", "desk"],
+    "hinge_a": ["hinge_buffer"],
+    "hinge_b": ["hinge_buffer"]
+  },
+  "horizon": {
+    "port": 8795,
+    "path": "/",
+    "label": "Horizon"
+  },
+  "dock": [
+    {"id": "holistic", "label": "Time Allocator", "port": 8770, "path": "/"},
+    {"id": "workflow", "label": "Workflow", "port": 8765, "path": "/"}
+  ]
+}
