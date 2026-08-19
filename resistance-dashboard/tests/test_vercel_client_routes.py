@@ -52,6 +52,17 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("fitness/exercises/goals.json", raw)
         self.assertIn("fitness/exercises/catalog.json", raw)
 
+    def test_hobby_function_count_stays_at_12(self):
+        api = ROOT / "api"
+        fns = []
+        for path in api.rglob("*.py"):
+            if path.name.startswith("_") or path.name == "__init__.py":
+                continue
+            src = path.read_text(encoding="utf-8")
+            if "class handler" in src or "\ndef app(" in src or "\napp = " in src:
+                fns.append(path)
+        self.assertEqual(len(fns), 12, [str(x.relative_to(ROOT)) for x in fns])
+
 
 def _cookie_less(fn):
     with mock.patch.dict(os.environ, {}, clear=True):
@@ -94,6 +105,19 @@ class CookieLessClientRoutes(unittest.TestCase):
                 self.assertEqual(status, 401, route)
                 self.assertEqual(body["error"], "auth_required")
                 self.assertNotIn("<html", json.dumps(body).lower())
+
+    def test_dispatch_uses_original_path_without_query(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            pairs = (
+                ("/api/workout/goals", "goals"),
+                ("/api/workout/exercise/available", "available"),
+                ("/api/workouts", "workouts"),
+                ("/api/workout-plan/generate", "generate"),
+            )
+            for path, route in pairs:
+                status, body = dispatch_client_route({}, "", "GET", path=path)
+                self.assertEqual(status, 401, route)
+                self.assertEqual(body["error"], "auth_required")
 
 
 class SignedInClientRoutes(unittest.TestCase):

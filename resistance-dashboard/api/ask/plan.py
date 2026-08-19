@@ -62,12 +62,17 @@ def ask_plan_body(headers, payload=None):
         next_session_type=wo.get("next_session_type") or pack.get("next_session_type"),
     )
     if not result.get("ok"):
+        workout = result.get("workout") or honest_empty_workout()
         return 200, {
             "ok": False,
             "error": result.get("error"),
             "meal": result.get("meal") or honest_empty_meal(),
-            "workout": result.get("workout") or honest_empty_workout(),
+            "workout": workout,
+            "plan": workout,
         }
+    if isinstance(result, dict) and "plan" not in result:
+        result = dict(result)
+        result["plan"] = result.get("workout") or {}
     return 200, result
 
 
@@ -75,11 +80,10 @@ class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         from urllib.parse import urlparse
 
-        from api.auth.session_util import query_first
-        from api.workout._util import generate_body
+        from api.workout._util import generate_body, route_name
 
-        query = urlparse(getattr(self, "path", "") or "").query
-        if query_first(query, "_r") == "generate":
+        parsed = urlparse(getattr(self, "path", "") or "")
+        if route_name(parsed.path, parsed.query) == "generate":
             status, body = generate_body(self.headers, _read_json(self))
         else:
             status, body = ask_plan_body(self.headers, _read_json(self))
@@ -88,11 +92,10 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         from urllib.parse import urlparse
 
-        from api.auth.session_util import query_first
-        from api.workout._util import generate_body
+        from api.workout._util import generate_body, route_name
 
-        query = urlparse(getattr(self, "path", "") or "").query
-        if query_first(query, "_r") == "generate":
+        parsed = urlparse(getattr(self, "path", "") or "")
+        if route_name(parsed.path, parsed.query) == "generate":
             status, body = generate_body(self.headers, {})
             write_json(self, status, body)
             return

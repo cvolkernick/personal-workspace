@@ -382,21 +382,25 @@ def _write_dashboard(handler, status: int, body: dict) -> None:
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        query = urlparse(getattr(self, "path", "") or "").query
+        parsed = urlparse(getattr(self, "path", "") or "")
         from api.workout._util import dispatch_client_route
 
-        routed = dispatch_client_route(self.headers, query, "GET")
+        routed = dispatch_client_route(
+            self.headers, parsed.query, "GET", path=parsed.path
+        )
         if routed is not None:
             status, body = routed
         else:
-            status, body = dashboard_body(self.headers, query)
+            status, body = dashboard_body(self.headers, parsed.query)
         _write_dashboard(self, status, body)
 
     def do_POST(self) -> None:
-        query = urlparse(getattr(self, "path", "") or "").query
+        parsed = urlparse(getattr(self, "path", "") or "")
         from api.workout._util import dispatch_client_route
 
-        routed = dispatch_client_route(self.headers, query, "POST")
+        routed = dispatch_client_route(
+            self.headers, parsed.query, "POST", path=parsed.path
+        )
         if routed is not None:
             status, body = routed
             _write_dashboard(self, status, body)

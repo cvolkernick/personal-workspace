@@ -145,9 +145,26 @@ available_read = available_body
 workouts_read = workouts_body
 
 
-def dispatch_client_route(headers, query: str, method: str, payload=None):
-    """Option B: existing dashboard/ask functions serve client paths via ?_r=."""
+def route_name(path: str = "", query: str = ""):
+    """Prefer ?_r= from vercel.json rewrite; fall back to original client path."""
     route = query_first(query, "_r")
+    if route:
+        return route
+    raw = (path or "").split("?")[0].rstrip("/")
+    if raw.endswith("/workout-plan/generate"):
+        return "generate"
+    if raw.endswith("/workout/exercise/available"):
+        return "available"
+    if raw.endswith("/workout/goals"):
+        return "goals"
+    if raw.endswith("/workouts"):
+        return "workouts"
+    return None
+
+
+def dispatch_client_route(headers, query: str, method: str, payload=None, path: str = ""):
+    """Existing dashboard/ask functions serve client paths via rewrite."""
+    route = route_name(path, query)
     method = (method or "GET").upper()
     if route == "goals":
         return goals_write(headers) if method == "POST" else goals_body(headers)
@@ -167,6 +184,7 @@ __all__ = [
     "available_read",
     "available_write",
     "dispatch_client_route",
+    "route_name",
     "generate_body",
     "goals_body",
     "goals_read",
