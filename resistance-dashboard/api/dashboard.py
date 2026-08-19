@@ -140,6 +140,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.daily_plan_tasks import plan_preview
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.nutrition_store import load_workspace_targets
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
@@ -198,14 +199,16 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     if health_msg and health_msg not in errors:
         errors.append(health_msg)
 
+    targets, targets_src = load_workspace_targets()
+
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
     payload["recovery"] = recovery_dict
     payload["sleep_battery"] = sleep_battery
     payload["nutrition_store"] = {
-        "targets": {},
+        "targets": targets,
         "inventory": {"ingredients": []},
-        "sources": {"inventory": "unset", "targets": "unset"},
+        "sources": {"inventory": "unset", "targets": targets_src},
         "meal_plan": None,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
@@ -234,7 +237,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     try:
         payload["calorie_bars"] = build_calorie_bars_payload(
             today_consumed=consumed,
-            targets={},
+            targets=targets,
             sleep_battery=sleep_battery,
             calories_burned_today=burned_today,
             food_logs=health.food_logs or [],
@@ -257,7 +260,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             health=health,
             sessions=sessions,
             recovery=recovery,
-            targets={},
+            targets=targets,
             consumed=consumed,
             meal_plan={},
             workout_plan={},

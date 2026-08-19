@@ -18,6 +18,51 @@ from .nutrition_planner import (
 )
 
 
+def _targets_file_candidates() -> list:
+    """Repo-root SoT first, then the Vercel-bundled copy under resistance-dashboard/."""
+    here = Path(__file__).resolve()
+    rel = Path(TARGETS_PATH)
+    ordered = []
+    # rt_dashboard/nutrition_store.py → parents[2] = repo root
+    if len(here.parents) >= 3:
+        ordered.append(here.parents[2] / rel)
+    # parents[1] = resistance-dashboard (Vercel project root)
+    if len(here.parents) >= 2:
+        ordered.append(here.parents[1] / rel)
+    cwd = Path.cwd().resolve()
+    ordered.append(cwd / rel)
+    for parent in cwd.parents:
+        ordered.append(parent / rel)
+    seen = set()
+    out = []
+    for cand in ordered:
+        try:
+            resolved = cand.resolve()
+        except OSError:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            out.append(resolved)
+    return out
+
+
+def load_workspace_targets() -> Tuple[dict, str]:
+    """Read fitness/nutrition/targets.json (same file Pi uses). No inventory.
+
+    Vercel Root Directory is resistance-dashboard/, so a byte-identical copy
+    ships at resistance-dashboard/fitness/nutrition/targets.json (includeFiles).
+    Source is TARGETS_PATH when the file is found, else "default".
+    """
+    for path in _targets_file_candidates():
+        if not path.is_file():
+            continue
+        raw = load_json_file(path, {})
+        if not raw:
+            continue
+        return normalize_targets(raw), TARGETS_PATH
+    return normalize_targets(DEFAULT_TARGETS), "default"
+
+
 def _local_path(client: GitHubLiftClient, rel: str) -> Path:
     base = client.local_fallback_dir or ""
     if not base:
