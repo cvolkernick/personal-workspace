@@ -19,15 +19,17 @@ def _auth_required() -> dict:
 
 
 def _load_sessions(user_id: str) -> tuple[list, list[str], str]:
-    from rt_dashboard.turso_repo import list_sessions
+    from rt_dashboard.turso_repo import list_sessions_detailed
 
     errors: list[str] = []
     source = "turso"
     sessions = []
     try:
-        sessions = list_sessions(user_id)
+        sessions, notes = list_sessions_detailed(user_id)
+        errors.extend(notes)
         if not sessions:
-            sessions = list_sessions("default")
+            sessions, notes = list_sessions_detailed("default")
+            errors.extend(notes)
             if sessions:
                 source = "turso-default"
     except Exception as exc:  # noqa: BLE001
@@ -46,14 +48,14 @@ def _load_health():
         health = GoogleHealthClient().fetch_health(days=days)
     except Exception as exc:  # noqa: BLE001
         health = HealthSnapshot(error=f"health_pull: {type(exc).__name__}")
-        errors.append("health_pull")
         return health, errors
     try:
         health, meta = overlay_hidrate_hydration(health, days=days)
-        if meta.get("error"):
-            errors.append("hidrate")
-    except Exception:  # noqa: BLE001
-        errors.append("hidrate")
+        hidrate_err = str((meta or {}).get("error") or "").strip()
+        if hidrate_err:
+            errors.append(f"hidrate: {hidrate_err[:160]}")
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"hidrate: {type(exc).__name__}")
     return health, errors
 
 
@@ -143,9 +145,10 @@ def dashboard_body(headers) -> tuple[int, dict]:
                 burned_today = None
             break
 
-    errors = sess_err + health_err
-    if getattr(health, "error", None):
-        errors.append("health")
+    errors = list(sess_err + health_err)
+    health_msg = str(getattr(health, "error", None) or "").strip()
+    if health_msg and health_msg not in errors:
+        errors.append(health_msg)
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
