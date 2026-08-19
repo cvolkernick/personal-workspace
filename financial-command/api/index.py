@@ -1,4 +1,4 @@
-"""Single Vercel function for FCC preview. All /api/* rewrite here. Hobby cap: 1 of 12."""
+"""Single Vercel function for FCC preview. All /api/* and FCC HTML rewrite here. Hobby cap: 1 of 12."""
 
 from __future__ import annotations
 
@@ -6,7 +6,14 @@ import json
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
-from api._lib import dispatch, route_from_path
+from api._lib import (
+    AUTH_REQUIRED,
+    dispatch,
+    page_name_from,
+    route_from_path,
+    serve_page,
+    vercel_auth_present,
+)
 
 
 def _headers_from_handler(handler: BaseHTTPRequestHandler) -> dict[str, str]:
@@ -20,14 +27,36 @@ def handle(method: str, path: str, headers: dict[str, str] | None = None):
     parsed = urlparse(path or "")
     route = route_from_path(path, headers)
     query = parse_qs(parsed.query)
-    return dispatch(method, route, query=query)
+
+    # Writes stay 403 even when cookie-less.
+    status, body = dispatch(method, route, query=query)
+    if status == 403 and isinstance(body, dict) and body.get("error") == "read_only":
+        return status, body
+    if route == "denied_static":
+        return status, body
+
+    if not vercel_auth_present(headers):
+        return 401, dict(AUTH_REQUIRED)
+
+    if route == "page":
+        name = page_name_from(path, query)
+        if not name:
+            return 404, {"ok": False, "error": "not_found", "route": "page"}
+        return serve_page(name)
+
+    return status, body
 
 
 class handler(BaseHTTPRequestHandler):
-    def _send(self, status: int, body: dict) -> None:
-        raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+    def _send(self, status: int, body) -> None:
+        if isinstance(body, str):
+            raw = body.encode("utf-8")
+            content_type = "text/html; charset=utf-8"
+        else:
+            raw = json.dumps(body, separators=(",", ":")).encode("utf-8")
+            content_type = "application/json"
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", content_type)
         self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()

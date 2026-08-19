@@ -6,6 +6,7 @@ import json
 import os
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -16,6 +17,32 @@ STALE_HOURS = 6.0
 # POSTs (and all methods for trade/mint) that must 403 on Vercel.
 WRITE_ROUTES = frozenset({"config", "refresh", "trade", "mint"})
 ALWAYS_DENY_ROUTES = frozenset({"trade", "mint"})
+
+# Cookie-less / missing Vercel login proof. Do not invent a bypass secret.
+AUTH_REQUIRED = {"ok": False, "error": "auth_required"}
+VERCEL_JWT_COOKIE = "_vercel_jwt"
+VERCEL_OIDC_HEADER = "x-vercel-oidc-token"
+
+PAGE_FILES = {
+    "index": "index.html",
+    "capital-flows": "capital-flows.html",
+    "watchlist": "watchlist.html",
+}
+PAGE_PATHS = {
+    "/": "index",
+    "/index.html": "index",
+    "/financial-command": "index",
+    "/financial-command/": "index",
+    "/financial-command/index.html": "index",
+    "/capital-flows": "capital-flows",
+    "/capital-flows.html": "capital-flows",
+    "/financial-command/capital-flows": "capital-flows",
+    "/financial-command/capital-flows.html": "capital-flows",
+    "/watchlist": "watchlist",
+    "/watchlist.html": "watchlist",
+    "/financial-command/watchlist": "watchlist",
+    "/financial-command/watchlist.html": "watchlist",
+}
 
 READ_ONLY_MESSAGE = (
     "Vercel preview is read-only. Not Mac, not Pi. Do not trade or mint."
@@ -69,6 +96,76 @@ def deny_static_treasury() -> tuple[int, dict[str, Any]]:
         "error": "not_public",
         "message": "treasury_latest.json is not a public URL",
     }
+
+
+def _normalize_headers(headers: dict[str, str] | None) -> dict[str, str]:
+    return {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+
+
+def _cookie_value(headers: dict[str, str] | None, name: str) -> str:
+    raw = _normalize_headers(headers).get("cookie") or ""
+    for part in raw.split(";"):
+        part = part.strip()
+        if "=" not in part:
+            continue
+        key, val = part.split("=", 1)
+        if key.strip() == name and val.strip():
+            return val.strip()
+    return ""
+
+
+def vercel_auth_present(headers: dict[str, str] | None) -> bool:
+    """True only if Vercel already sent login proof on this request.
+
+    Accepts the Deployment Protection SSO cookie and the inbound OIDC header
+    Vercel attaches after login / trusted callers. Does not read
+    VERCEL_OIDC_TOKEN from the environment (that is deployment identity, always
+    present on Vercel, and would open the Hobby production alias).
+    Does not invent a shared-secret bypass.
+    """
+    headers_l = _normalize_headers(headers)
+    if (headers_l.get(VERCEL_OIDC_HEADER) or "").strip():
+        return True
+    if _cookie_value(headers_l, VERCEL_JWT_COOKIE):
+        return True
+    return False
+
+
+def page_name_from(path: str, query: dict[str, list[str]] | None = None) -> str | None:
+    query = query or {}
+    explicit = ((query.get("_p") or [""])[0] or "").strip()
+    if explicit in PAGE_FILES:
+        return explicit
+    parsed = urlparse(path or "")
+    orig = parsed.path or "/"
+    if orig in PAGE_PATHS:
+        return PAGE_PATHS[orig]
+    stripped = "/" if orig == "/" else (orig.rstrip("/") or "/")
+    return PAGE_PATHS.get(stripped)
+
+
+def resolve_page_file(name: str) -> Path | None:
+    filename = PAGE_FILES.get(name)
+    if not filename:
+        return None
+    api_dir = Path(__file__).resolve().parent
+    root = api_dir.parent
+    for cand in (
+        api_dir / "_pages" / filename,
+        root / filename,
+        Path("/var/task/api/_pages") / filename,
+        Path("/var/task") / filename,
+    ):
+        if cand.is_file():
+            return cand
+    return None
+
+
+def serve_page(name: str) -> tuple[int, Any]:
+    path = resolve_page_file(name)
+    if path is None:
+        return 404, {"ok": False, "error": "not_found", "route": "page"}
+    return 200, path.read_text(encoding="utf-8")
 
 
 def placeholder_treasury() -> dict[str, Any]:
@@ -446,6 +543,11 @@ def route_from_path(path: str, headers: dict[str, str] | None = None) -> str:
         orig_path = parsed.path or ""
     if orig_path.rstrip("/").endswith("treasury_latest.json"):
         return "denied_static"
+    if orig_path in PAGE_PATHS:
+        return "page"
+    stripped = "/" if orig_path == "/" else (orig_path.rstrip("/") or "/")
+    if stripped in PAGE_PATHS:
+        return "page"
     parts = [p for p in orig_path.split("/") if p]
     if parts and parts[0] == "api":
         parts = parts[1:]

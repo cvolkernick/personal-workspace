@@ -4,6 +4,12 @@
   "rewrites": [
     { "source": "/treasury_latest.json", "destination": "/api?_r=denied_static" },
     { "source": "/financial-command/treasury_latest.json", "destination": "/api?_r=denied_static" },
+    { "source": "/", "destination": "/api?_r=page&_p=index" },
+    { "source": "/index.html", "destination": "/api?_r=page&_p=index" },
+    { "source": "/capital-flows.html", "destination": "/api?_r=page&_p=capital-flows" },
+    { "source": "/capital-flows", "destination": "/api?_r=page&_p=capital-flows" },
+    { "source": "/watchlist.html", "destination": "/api?_r=page&_p=watchlist" },
+    { "source": "/watchlist", "destination": "/api?_r=page&_p=watchlist" },
     { "source": "/api/treasury", "destination": "/api?_r=treasury" },
     { "source": "/api/config", "destination": "/api?_r=config" },
     { "source": "/api/refresh", "destination": "/api?_r=refresh" },
@@ -27,17 +33,18 @@
     { "source": "/api/orchestra-status", "destination": "/api?_r=orchestra" },
     { "source": "/api/launch-orchestra", "destination": "/api?_r=orchestra" },
     { "source": "/api/:path*", "destination": "/api?_r=other" },
-    { "source": "/financial-command", "destination": "/index.html" },
-    { "source": "/financial-command/", "destination": "/index.html" },
-    { "source": "/financial-command/index.html", "destination": "/index.html" },
-    { "source": "/financial-command/capital-flows", "destination": "/capital-flows.html" },
-    { "source": "/financial-command/capital-flows.html", "destination": "/capital-flows.html" },
-    { "source": "/financial-command/watchlist", "destination": "/watchlist.html" },
-    { "source": "/financial-command/watchlist.html", "destination": "/watchlist.html" }
+    { "source": "/financial-command", "destination": "/api?_r=page&_p=index" },
+    { "source": "/financial-command/", "destination": "/api?_r=page&_p=index" },
+    { "source": "/financial-command/index.html", "destination": "/api?_r=page&_p=index" },
+    { "source": "/financial-command/capital-flows", "destination": "/api?_r=page&_p=capital-flows" },
+    { "source": "/financial-command/capital-flows.html", "destination": "/api?_r=page&_p=capital-flows" },
+    { "source": "/financial-command/watchlist", "destination": "/api?_r=page&_p=watchlist" },
+    { "source": "/financial-command/watchlist.html", "destination": "/api?_r=page&_p=watchlist" }
   ],
   "functions": {
     "api/index.py": {
-      "maxDuration": 10
+      "maxDuration": 10,
+      "includeFiles": "api/_pages/**"
     }
   }
 }

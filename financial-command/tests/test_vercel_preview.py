@@ -175,6 +175,8 @@ class FccReadPaths(unittest.TestCase):
             route_from_path("/api/watchlist/deep-dive?symbol=BE"),
             "watchlist-deep-dive",
         )
+        self.assertEqual(route_from_path("/"), "page")
+        self.assertEqual(route_from_path("/capital-flows.html"), "page")
 
 
 class FccUiNotGlanceOnly(unittest.TestCase):
@@ -302,10 +304,96 @@ class FccAddendumPages(unittest.TestCase):
     def test_page_rewrites_in_vercel_json(self):
         vercel = json.loads((FC / "vercel.json").read_text(encoding="utf-8"))
         dests = {r["source"]: r["destination"] for r in vercel["rewrites"]}
-        self.assertEqual(dests["/financial-command/capital-flows.html"], "/capital-flows.html")
-        self.assertEqual(dests["/financial-command/watchlist.html"], "/watchlist.html")
+        self.assertEqual(dests["/"], "/api?_r=page&_p=index")
+        self.assertEqual(dests["/capital-flows.html"], "/api?_r=page&_p=capital-flows")
+        self.assertEqual(dests["/watchlist.html"], "/api?_r=page&_p=watchlist")
+        self.assertEqual(dests["/financial-command/capital-flows.html"], "/api?_r=page&_p=capital-flows")
+        self.assertEqual(dests["/financial-command/watchlist.html"], "/api?_r=page&_p=watchlist")
         self.assertEqual(dests["/api/capital-flows"], "/api?_r=capital-flows")
         self.assertEqual(dests["/api/watchlist"], "/api?_r=watchlist")
+        self.assertEqual(dests["/api/treasury"], "/api?_r=treasury")
+
+    def test_html_not_static_on_vercel(self):
+        vi = (FC / ".vercelignore").read_text(encoding="utf-8")
+        for name in ("/index.html", "/capital-flows.html", "/watchlist.html"):
+            self.assertIn(name, vi, name)
+        for name in ("index.html", "capital-flows.html", "watchlist.html"):
+            bundled = FC / "api" / "_pages" / name
+            root = FC / name
+            self.assertTrue(bundled.is_file(), name)
+            self.assertEqual(bundled.read_bytes(), root.read_bytes(), name)
+
+
+class FccAppLevelAuth(unittest.TestCase):
+    """Hobby prod alias skips SSO. Cookie-less must never see FCC pages or treasury JSON."""
+
+    PATHS = ("/", "/api/treasury", "/capital-flows.html", "/watchlist.html")
+
+    def test_cookieless_four_paths_401_json(self):
+        from api.index import handle
+
+        for path in self.PATHS:
+            status, body = handle("GET", path, headers={})
+            self.assertEqual(status, 401, path)
+            self.assertEqual(body, {"ok": False, "error": "auth_required"})
+            blob = json.dumps(body)
+            self.assertNotIn("evaluation", blob)
+            self.assertNotIn("snapshot", blob)
+            self.assertNotIn("at-a-glance", blob)
+            self.assertNotIn("Financial Command", blob)
+
+    def test_cookieless_writes_still_403(self):
+        from api.index import handle
+
+        for route in ("/api/config", "/api/refresh", "/api/trade", "/api/mint"):
+            status, body = handle("POST", route, headers={})
+            self.assertEqual(status, 403, route)
+            self.assertEqual(body["error"], "read_only")
+
+    def test_env_oidc_does_not_grant_access(self):
+        import os
+        from api._lib import vercel_auth_present
+
+        os.environ["VERCEL_OIDC_TOKEN"] = "deployment-identity-not-user-auth"
+        try:
+            self.assertFalse(vercel_auth_present({}))
+            self.assertFalse(vercel_auth_present({"cookie": "session=abc"}))
+        finally:
+            os.environ.pop("VERCEL_OIDC_TOKEN", None)
+
+    def test_jwt_cookie_allows_placeholder_not_live(self):
+        from api.index import handle
+
+        headers = {"Cookie": "_vercel_jwt=vercel-sso-proof"}
+        status, body = handle("GET", "/api/treasury", headers=headers)
+        self.assertEqual(status, 200)
+        self.assertIsInstance(body, dict)
+        self.assertEqual(body["preview"]["source"], "placeholder")
+        self.assertIsNone(body["snapshot"]["as_of"])
+        self.assertEqual(body["evaluation"]["actions"], [])
+        self.assertNotRegex(json.dumps(body), r"0x[a-fA-F0-9]{20,}")
+
+    def test_oidc_header_allows_html_page(self):
+        from api.index import handle
+
+        status, body = handle(
+            "GET",
+            "/",
+            headers={"x-vercel-oidc-token": "vercel-after-login"},
+        )
+        self.assertEqual(status, 200)
+        self.assertIsInstance(body, str)
+        self.assertIn('id="at-a-glance"', body)
+        self.assertIn('id="fcc-vercel-banner"', body)
+
+    def test_route_html_paths(self):
+        from api._lib import route_from_path
+
+        self.assertEqual(route_from_path("/"), "page")
+        self.assertEqual(route_from_path("/capital-flows.html"), "page")
+        self.assertEqual(route_from_path("/watchlist.html"), "page")
+        self.assertEqual(route_from_path("/api?_r=page&_p=index"), "page")
+        self.assertEqual(route_from_path("/api/treasury"), "treasury")
 
 
 if __name__ == "__main__":

@@ -11,3 +11,8 @@ tests/
 __pycache__/
 *.pyc
 .DS_Store
+
+# Cookie-less clients must not receive static FCC HTML. Dispatcher serves after auth.
+/index.html
+/capital-flows.html
+/watchlist.html

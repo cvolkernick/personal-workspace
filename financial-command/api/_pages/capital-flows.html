@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
+  <title>₿ Capital Flows · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --cash: #3dd68c;
+      --credit: #f0a06a;
+      --venue: #7c9cff;
+      --invest: #c9a0ff;
+      --expense: #ff8e8e;
+      --leverage: #e6a0c8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1rem;
+      align-items: center; justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    button, .btn, a.btn {
+      cursor: pointer; border: 1px solid var(--border); background: #1a2836;
+      color: var(--text); border-radius: 8px; padding: 0.4rem 0.75rem;
+      font-weight: 600; font-size: 0.85rem; text-decoration: none;
+      display: inline-flex; align-items: center;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    main {
+      max-width: 1100px; margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid; gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex; align-items: center; padding: 0.18rem 0.5rem;
+      border-radius: 999px; font-weight: 650; font-size: 0.68rem;
+      border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .pill.observed { color: var(--green); border-color: #245c42; }
+    .pill.inferred { color: var(--yellow); border-color: #6b5a1e; }
+    .pill.owner_stated { color: #c9a0ff; border-color: #5a3a7a; }
+    .error {
+      background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
+      border-radius: 10px; padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .flow-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0d141c;
+      padding: 0.5rem;
+    }
+    /* Fit page max-width (~1100); avoid fixed min-width that forces horizontal scroll */
+    svg.flow-svg { display: block; width: 100%; max-width: 100%; height: auto; min-width: 0; }
+    .node-box {
+      fill: #15202c;
+      stroke: var(--border);
+      stroke-width: 1.2;
+      rx: 10;
+    }
+    /* Active borders only: liquidity palette + kinds still used on map nodes */
+    .node-box.liq-gray {
+      stroke: #7a8694;
+      stroke-width: 2;
+    }
+    .node-box.liq-blue {
+      stroke: var(--venue);
+      stroke-width: 2;
+    }
+    .node-box.liq-green {
+      stroke: var(--cash);
+      stroke-width: 2;
+    }
+    .node-box.credit { stroke: var(--credit); }
+    .node-box.venue { stroke: var(--venue); }
+    .node-box.invest { stroke: var(--invest); }
+    .node-box.expense { stroke: var(--expense); }
+    .node-box.leverage { stroke: var(--leverage); }
+    /* Future / planned income — brown dashed (not active) */
+    .node-box.planned-brown {
+      stroke: #a67c52;
+      stroke-width: 2;
+      stroke-dasharray: 5 4;
+    }
+    .node-title { fill: var(--text); font-size: 11px; font-weight: 700; font-family: inherit; }
+    .node-sub { fill: var(--muted); font-size: 9px; font-family: inherit; }
+    /* Income third row: payout channel name (italic) */
+    .node-landing { fill: var(--muted); font-size: 8.5px; font-style: italic; font-family: inherit; }
+    /* butt caps on dashed edges — round + thick stroke collapses short gaps to solid */
+    .edge-path {
+      fill: none;
+      stroke-linecap: butt;
+      opacity: 0.8;
+    }
+    .edge-path.observed {
+      stroke: #3dd68c;
+      stroke-linecap: round;
+      stroke-dasharray: none;
+    }
+    .edge-path.inferred {
+      stroke: #f5c542;
+      stroke-dasharray: 9 7;
+    }
+    .edge-path.owner_stated {
+      stroke: #c9a0ff;
+      stroke-dasharray: 10 8;
+    }
+    /* Optional leverage extract — not income (margin loan feedback).
+       Same purple family as owner_stated; dashed keeps it visually secondary. */
+    .edge-path.risk {
+      stroke: #c9a0ff;
+      stroke-dasharray: 4 6;
+      opacity: 0.8;
+    }
+    /* Live strip + optional labels (labels off by default in model) */
+    .edge-label {
+      fill: var(--muted);
+      font-size: 9px;
+      font-family: inherit;
+    }
+    .col-label {
+      fill: var(--muted);
+      font-size: 10px;
+      font-weight: 650;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: inherit;
+    }
+    .map-legend {
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.85rem;
+      background: #0d141c;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .map-legend h3 {
+      margin: 0 0 0.4rem;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .map-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.45rem 0.85rem;
+    }
+    .leg-item {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+    .leg-item span.desc { color: var(--muted); font-size: 0.75rem; }
+    .swatch-node {
+      width: 28px; height: 18px;
+      border-radius: 5px;
+      background: #15202c;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+    }
+    .swatch-node.credit { border-color: var(--credit); }
+    .swatch-node.venue { border-color: var(--venue); }
+    .swatch-node.invest { border-color: var(--invest); }
+    .swatch-node.expense { border-color: var(--expense); }
+    .swatch-node.leverage { border-color: var(--leverage); }
+    .swatch-node.liq-gray { border-color: #7a8694; }
+    .swatch-node.liq-blue { border-color: var(--venue); }
+    .swatch-node.liq-green { border-color: var(--cash); }
+    .swatch-node.planned-brown {
+      border-color: #a67c52;
+      border-style: dashed;
+    }
+    .edge-list { font-size: 0.82rem; }
+    .edge-list li { margin: 0.35rem 0; }
+    .q-list { margin: 0; padding-left: 1.15rem; font-size: 0.88rem; }
+    .q-list li { margin: 0.35rem 0; }
+    footer {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    a { color: var(--accent); }
+
+    .fcc-vercel-banner {
+      max-width: 1100px;
+      margin: 0 auto 0.55rem;
+      padding: 0.4rem 0.7rem;
+      border: 1px solid #f08a3c;
+      border-radius: 8px;
+      background: rgba(240, 138, 60, 0.12);
+      color: #f5c542;
+      font-size: 0.8rem;
+      font-weight: 650;
+    }
+    .fcc-vercel-banner.is-stale {
+      border-color: #ff6b6b;
+      color: #ff6b6b;
+    }
+
+  </style>
+</head>
+<body>
+  <div id="fcc-vercel-banner" class="fcc-vercel-banner" hidden role="status">
+      Read-only Vercel preview — not Mac, not Pi. Do not trade or mint.
+      <span id="fcc-vercel-banner-stale" hidden> · Snapshot stale (&gt;6h)</span>
+    </div>
+
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Capital Flows</h1>
+        <div class="sub" id="subtitle">Income → channels (reconstructed)</div>
+      </div>
+      <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="index.html">← FCC</a>
+        <a class="btn" href="watchlist.html">Watchlist</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card">
+      <h2>Flow map</h2>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(X Money ↔ Digital Credit ↔ Margin)</em> → <strong>Deploy</strong>. Turo → X Money; Lyft → both X Money and Digital Credit; Digital Credit ↔ Margin. HY ↔ borrowing rotation lives inside each credit card.</p>
+      <div class="flow-wrap">
+        <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 460" role="img" aria-label="Capital flow diagram"></svg>
+      </div>
+      <div class="map-legend" id="map-legend" aria-label="Flow map legend">
+        <div>
+          <h3>Node borders (in use)</h3>
+          <div class="map-legend-grid">
+            <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — Digital Credit (Morpho · BTC · HY)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — Margin (Agentic · stocks · HY)</span></div></div>
+            <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Deploy · Collateral</span></div></div>
+            <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
+            <div class="leg-item"><span class="desc"><strong>Purple dashed</strong> — margin extract (not income)</span></div></div>
+          </div>
+        </div>
+        <div>
+          <h3>Layout (v39 · X Money · Digital Credit ↔ Margin)</h3>
+          <div class="map-legend-grid">
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (X Money ↔ Digital Credit ↔ Margin) → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Turo → X Money · Lyft → X Money + Digital Credit · ASICs → Digital Credit. X Money ↔ Digital Credit; Digital Credit ↔ Margin. Deploy from X Money: Essential · Fleet · Collateral · Productive · Consumer.</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card grid-ish" style="display:grid;gap:0.75rem">
+      <div>
+        <h2>Edges (detail)</h2>
+        <ul class="edge-list" id="edge-list"></ul>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Open questions / next integrations</h2>
+      <p class="hint">Cadences are set. Braiins: put token in <code>~/.config/braiins/token</code> then <code>python3 treasury/braiins_sync.py</code>.</p>
+      <ol class="q-list" id="questions"></ol>
+      <div id="integrations" class="hint" style="margin-top:0.75rem"></div>
+    </section>
+  </main>
+
+  <footer>
+    Model: <code>investment/capital_flows.json</code> · enriched with live YNAB Lyft totals when available via <code>/api/capital-flows</code>
+  </footer>
+
+  <script src="vercel-readonly.js"></script>
+  <script src="nav-orchestra.js"></script>
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function confPill(c) {
+      const k = (c || "inferred").toLowerCase();
+      return `<span class="pill ${esc(k)}">${esc(k.replace("_", " "))}</span>`;
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/capital-flows?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent =
+          "Could not load capital flows (" + e.message + "). Start FCC server: python3 financial-command/server.py";
+      }
+    }
+
+    function layoutNodes(data) {
+      // Prefer model: Income → LE (X Money → Digital Credit → Margin) → Deploy
+      const layoutCols =
+        (data.layout && data.layout.columns) ||
+        [
+          {
+            id: "income",
+            label: "Income",
+            ids: ["turo", "lyft", "x_creator", "tread", "asics"],
+          },
+          {
+            id: "liquidity_engine",
+            label: "Liquidity Engine",
+            ids: ["x_money", "digital_credit", "margin"],
+          },
+          {
+            id: "deploy",
+            label: "Deploy",
+            ids: [
+              "bills_essential",
+              "bills_fleet",
+              "bills_collateral",
+              "bills_productive",
+              "bills_consumer",
+            ],
+          },
+        ];
+      // Scale to ~1100px content width (3-col map is the common case post-v36)
+      const colCount = Math.max(layoutCols.length, 1);
+      const nodeW =
+        colCount >= 5 ? 150 : colCount >= 4 ? 165 : colCount >= 3 ? 200 : 220;
+      const colGap =
+        colCount >= 5 ? 200 : colCount >= 4 ? 220 : colCount >= 3 ? 260 : 300;
+      const leftPad = 16;
+      const xByIndex = layoutCols.map((_, ci) => leftPad + ci * colGap);
+      const byId = {};
+      (data.channels || []).forEach((n) => {
+        // Explicit stroke (e.g. liq-gray) overrides kind-based border
+        byId[n.id] = {
+          ...n,
+          layer: n.kind,
+          strokeKind: n.stroke || n.kind || "venue",
+        };
+      });
+      // Income cards: border matches landing channel, unless explicit stroke
+      // (planned-brown for future income — do not inherit X Money gray)
+      (data.income_sources || []).forEach((n) => {
+        const landing = byId[n.typical_landing];
+        const landingLabel =
+          (landing && landing.label) || n.landing_label || n.typical_landing || "";
+        const strokeKind =
+          n.stroke ||
+          (landing && landing.stroke) ||
+          (landing && landing.strokeKind) ||
+          (landing && landing.kind) ||
+          "venue";
+        byId[n.id] = {
+          ...n,
+          layer: "income",
+          strokeKind,
+          landingLabel,
+        };
+      });
+
+      const positions = {};
+      const colMeta = {};
+      // Vertical compress: short nodes + less column band height (fit web view)
+      const maxColLen = Math.max(
+        ...layoutCols.map((c) => (c.ids || []).filter((id) => byId[id]).length),
+        1
+      );
+      const colH = maxColLen >= 7 ? 460 : maxColLen >= 5 ? 400 : 340;
+      const top = 34;
+      layoutCols.forEach((col, ci) => {
+        const x = xByIndex[ci] != null ? xByIndex[ci] : leftPad + ci * colGap;
+        const ids = (col.ids || []).filter((id) => byId[id]);
+        colMeta[col.id || "col" + ci] = { x, ids, label: col.label || col.id };
+        const gap = colH / Math.max(ids.length, 1);
+        // Dense columns (5+ cards): shorter nodes; leave a little gap between cards
+        const dense = ids.length >= 5;
+        const veryDense = ids.length >= 7;
+        ids.forEach((id, i) => {
+          const node = byId[id];
+          // Income: title + cadence + italic landing (3 lines, tighter)
+          const isIncome = node && node.layer === "income";
+          const h = isIncome ? 50 : veryDense ? 34 : dense ? 38 : 42;
+          // Center card in its band slot rather than large top offset
+          const bandTop = top + gap * i;
+          const y = bandTop + Math.max(2, (gap - h) * 0.35);
+          positions[id] = {
+            ...node,
+            x,
+            y,
+            w: nodeW,
+            h,
+            colIndex: ci,
+          };
+        });
+      });
+      const svgW = Math.max(
+        720,
+        leftPad + (colCount - 1) * colGap + nodeW + 32
+      );
+      // Compact canvas: just past last band + live strip
+      const svgH = Math.max(440, top + colH + 28);
+      return { positions, colMeta, layoutCols, xByIndex, svgW, svgH };
+    }
+
+    function edgePath(a, b) {
+      // Same-column vertical (e.g. X Money → Agentic Fund): left-to-right S-curve
+      // from bottom of source card to top of target card
+      if (a.colIndex != null && a.colIndex === b.colIndex) {
+        const goingDown = b.y >= a.y;
+        const x1 = a.x + a.w / 2;
+        const y1 = goingDown ? a.y + a.h : a.y;
+        const x2 = b.x + b.w / 2;
+        const y2 = goingDown ? b.y : b.y + b.h;
+        // Left→right S: leave source rightward, then reverse into target top
+        const amp = Math.max(64, a.w * 0.42);
+        const dy = y2 - y1;
+        const c1x = x1 + amp;
+        const c1y = y1 + dy * 0.22;
+        const c2x = x2 - amp * 0.55;
+        const c2y = y2 - dy * 0.22;
+        return {
+          d: `M ${x1} ${y1} C ${c1x} ${c1y}, ${c2x} ${c2y}, ${x2} ${y2}`,
+          lx: x1 + amp * 0.55,
+          ly: (y1 + y2) / 2,
+        };
+      }
+      // Cross-column: support both left→right and reverse (e.g. X Money → Coinbase funnel)
+      const goingRight = b.x >= a.x;
+      const x1 = goingRight ? a.x + a.w : a.x;
+      const y1 = a.y + a.h / 2;
+      const x2 = goingRight ? b.x : b.x + b.w;
+      const y2 = b.y + b.h / 2;
+      const mx = (x1 + x2) / 2;
+      return {
+        d: `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`,
+        lx: mx - 24,
+        ly: (y1 + y2) / 2 - 4,
+      };
+    }
+
+    function draw(data) {
+      const svg = document.getElementById("flow-svg");
+      const { positions, layoutCols, xByIndex, svgW, svgH } = layoutNodes(data);
+      const W = svgW || 900;
+      const H = svgH || 460;
+
+      // defs for arrows
+      let html = `
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5"
+            markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#8aa0b5"/>
+          </marker>
+        </defs>
+      `;
+      layoutCols.forEach((col, ci) => {
+        const x =
+          xByIndex && xByIndex[ci] != null ? xByIndex[ci] : 28 + ci * 250;
+        html += `<text class="col-label" x="${x}" y="28">${esc(col.label || col.id || "")}</text>`;
+      });
+
+      // edges under nodes
+      const edges = data.edges || [];
+      edges.forEach((e) => {
+        const a = positions[e.from];
+        const b = positions[e.to];
+        if (!a || !b) return;
+        const { d } = edgePath(a, b);
+        // Cap stroke so dash gaps stay visible (weight still differentiates importance)
+        const w = Math.min(5.5, 1.2 + (e.weight || 1) * 0.9);
+        const conf = e.confidence || "inferred";
+        const style = e.style === "risk" ? " risk" : "";
+        html += `<path class="edge-path ${esc(conf)}${style}" d="${d}" stroke-width="${w}" marker-end="url(#arrow)"/>`;
+      });
+
+      // nodes
+      Object.values(positions).forEach((n) => {
+        // Income: color by landing account; others by channel kind
+        const boxClass = n.strokeKind || n.kind || "venue";
+        // Cadence keys must be valid JS identifiers or quoted — dots in keys break the whole page.
+        const cadenceMap = {
+          intermittent: "Intermittent",
+          semi_daily: "Semi-Daily",
+          weekly: "Weekly",
+          biweekly: "Biweekly",
+          bi_weekly: "Biweekly",
+          monthly: "Monthly",
+          approx_monthly: "~Monthly",
+          every_other_month: "Every other month",
+          bi_monthly: "Every other month",
+        };
+        const cadence = cadenceMap[n.cadence] || "";
+        const sub = cadence
+          ? cadence + (n.pool ? " · " + n.pool : "")
+          : (n.subtitle || n.evidence || "").slice(0, 42);
+        // Compact vertical text metrics (scaled with node height)
+        const titleY = n.h <= 40 ? 14 : 16;
+        const subY = n.h <= 40 ? 28 : 30;
+        const landY = n.h <= 52 ? 42 : 46;
+        // Income: bold title · cadence · italic first-touch channel
+        const landingLine =
+          n.layer === "income" && n.landingLabel
+            ? `<text class="node-landing" x="10" y="${landY}">${esc(n.landingLabel)}</text>`
+            : "";
+        html += `<g transform="translate(${n.x},${n.y})">
+          <rect class="node-box ${esc(boxClass)}" width="${n.w}" height="${n.h}" />
+          <text class="node-title" x="10" y="${titleY}">${esc(n.label)}</text>
+          <text class="node-sub" x="10" y="${subY}">${esc(sub)}</text>
+          ${landingLine}
+        </g>`;
+      });
+
+      // live enrichment strip
+      const liveBits = [];
+      if (data.live && data.live.lyft_inflow_30d != null) {
+        liveBits.push(
+          `Lyft on X Money (recent txs / express) ≈ $${Number(data.live.lyft_inflow_30d).toFixed(2)}`
+        );
+      }
+      if (data.live && data.live.coinbase_funded_monthly_est != null) {
+        liveBits.push(
+          `CB-funded bills est $${Number(data.live.coinbase_funded_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.x_money_funded_monthly_est != null) {
+        liveBits.push(
+          `X Money bills est $${Number(data.live.x_money_funded_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.fleet_monthly_est != null) {
+        liveBits.push(
+          `Fleet est $${Number(data.live.fleet_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.collateral_monthly_est != null) {
+        liveBits.push(
+          `Collateral est $${Number(data.live.collateral_monthly_est).toFixed(0)}/mo`
+        );
+      }
+      if (data.live && data.live.braiins) {
+        const br = data.live.braiins;
+        if (br.error) {
+          liveBits.push(`Braiins: ${br.error}`);
+        } else {
+          const parts = ["Braiins"];
+          if (br.hash_rate_24h != null) {
+            parts.push(
+              `${Number(br.hash_rate_24h).toLocaleString()} ${br.hash_rate_unit || "Gh/s"} 24h`
+            );
+          }
+          if (br.ok_workers != null) {
+            parts.push(
+              `${br.ok_workers} ok` +
+                (br.off_workers ? ` / ${br.off_workers} off` : "") +
+                " workers"
+            );
+          }
+          if (br.today_reward_btc != null) {
+            parts.push(`today ${Number(br.today_reward_btc).toFixed(8)} BTC`);
+          }
+          if (br.last_payout_btc != null) {
+            parts.push(`last payout ${Number(br.last_payout_btc).toFixed(8)} BTC`);
+          }
+          if (br.as_of) parts.push(String(br.as_of).slice(0, 16));
+          liveBits.push(parts.join(" · "));
+        }
+      }
+      if (liveBits.length) {
+        html += `<text class="edge-label" x="30" y="${H - 16}">Live: ${esc(liveBits.join(" · "))}</text>`;
+      }
+
+      svg.innerHTML = html;
+      svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        (data.title || "Capital Flows") +
+        (data.as_of ? " · model " + String(data.as_of).slice(0, 10) : "");
+
+      draw(data);
+
+      const list = document.getElementById("edge-list");
+      list.innerHTML = (data.edges || [])
+        .map((e) => {
+          const a = (data.income_sources || []).concat(data.channels || []).find((n) => n.id === e.from);
+          const b = (data.income_sources || []).concat(data.channels || []).find((n) => n.id === e.to);
+          return `<li>${confPill(e.confidence)} <strong>${esc(a?.label || e.from)}</strong> → <strong>${esc(b?.label || e.to)}</strong>
+            ${e.label ? " · " + esc(e.label) : ""}
+            ${e.notes ? `<div class="hint" style="margin:0.15rem 0 0">${esc(e.notes)}</div>` : ""}
+          </li>`;
+        })
+        .join("");
+
+      document.getElementById("questions").innerHTML = (data.open_questions || [])
+        .map((q) => `<li>${esc(q)}</li>`)
+        .join("");
+
+      const integ = data.integrations || {};
+      const brai = integ.braiins_pool || {};
+      const liveBr = (data.live && data.live.braiins) || null;
+      const integEl = document.getElementById("integrations");
+      if (integEl) {
+        let status = brai.status || "planned";
+        if (liveBr && !liveBr.error) status = liveBr.status || "live";
+        else if (liveBr && liveBr.error) status = "error";
+        const bits = [
+          `<strong>Braiins Pool</strong> (${esc(status)})`,
+        ];
+        if (liveBr && !liveBr.error) {
+          bits.push(
+            `user <code>${esc(liveBr.username || "—")}</code>` +
+              (liveBr.hash_rate_24h != null
+                ? ` · 24h ${esc(String(liveBr.hash_rate_24h))} ${esc(liveBr.hash_rate_unit || "Gh/s")}`
+                : "") +
+              (liveBr.today_reward_btc != null
+                ? ` · today ${esc(Number(liveBr.today_reward_btc).toFixed(8))} BTC`
+                : "") +
+              (liveBr.last_payout_btc != null
+                ? ` · last payout ${esc(Number(liveBr.last_payout_btc).toFixed(8))} BTC` +
+                  (liveBr.last_payout_at
+                    ? ` @ ${esc(String(liveBr.last_payout_at).slice(0, 10))}`
+                    : "")
+                : "") +
+              (liveBr.ok_workers != null
+                ? ` · workers ok/off ${esc(String(liveBr.ok_workers))}/${esc(String(liveBr.off_workers || 0))}`
+                : "") +
+              (liveBr.as_of
+                ? ` · synced ${esc(String(liveBr.as_of).slice(0, 19))}`
+                : "")
+          );
+        } else if (liveBr && liveBr.error) {
+          bits.push(esc(liveBr.error));
+        } else {
+          bits.push(
+            esc(
+              brai.notes ||
+                "No braiins_latest.json yet — set token and run: python3 treasury/braiins_sync.py"
+            )
+          );
+        }
+        if (brai.cadence_hint) {
+          bits.push(`<br/><span class="hint">Hint: ${esc(brai.cadence_hint)}</span>`);
+        }
+        integEl.innerHTML = bits.join(" — ");
+      }
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>
