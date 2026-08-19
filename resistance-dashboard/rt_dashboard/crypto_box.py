@@ -54,6 +54,8 @@ def load_or_create_master_key() -> bytes:
             key = hashlib.sha256(raw).digest()
         _KEY = key[:32] if len(key) >= 32 else hashlib.sha256(key).digest()
         return _KEY
+    if (os.environ.get("TURSO_DATABASE_URL") or "").strip():
+        raise ValueError("FITDASH_MASTER_KEY required to decrypt Turso rows")
     path.parent.mkdir(parents=True, exist_ok=True)
     key = secrets.token_bytes(32)
     path.write_text(base64.urlsafe_b64encode(key).decode("ascii") + "\n", encoding="utf-8")
