@@ -4674,7 +4674,7 @@
         const who = data.email ? ` (${data.email})` : "";
         el.textContent = `Ready · ${src}${who} · model ${data.model || "default"}`;
       } else {
-        el.textContent = data.error || "Grok auth not ready — run `grok login`";
+        el.textContent = data.error || "Grok auth not ready — Connect SuperGrok in More";
       }
     } catch (e) {
       el.textContent = `Could not check Grok auth: ${e.message}`;
@@ -4745,7 +4745,7 @@
     } catch (e) {
       askHistory.push({
         role: "assistant",
-        content: `Error: ${e.message}\n\nIf the SuperGrok session expired, run \`grok login\` in a terminal and retry.`,
+        content: `Error: ${e.message}\n\nIf SuperGrok expired, open More → Connect SuperGrok and retry.`,
       });
       renderAskMessages();
       if (status) status.textContent = "";

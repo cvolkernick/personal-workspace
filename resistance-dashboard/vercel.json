@@ -4,7 +4,7 @@
   "framework": null,
   "outputDirectory": "static",
   "functions": {
-    "api/ask.py": {
+    "api/ask/index.py": {
       "maxDuration": 60
     },
     "api/ask/plan.py": {

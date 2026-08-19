@@ -6,7 +6,6 @@ import json
 from http.server import BaseHTTPRequestHandler
 
 from api.auth.session_util import json_bytes, session_from_headers, signing_secret
-from api.dashboard import dashboard_body
 
 
 def _auth_required() -> dict:
@@ -50,6 +49,8 @@ def ask_body(headers, payload: dict) -> tuple[int, dict]:
     if not isinstance(history, list):
         history = None
 
+    from api.dashboard import dashboard_body
+
     dash_status, dashboard = dashboard_body(headers)
     if dash_status != 200:
         return dash_status, dashboard
@@ -67,25 +68,26 @@ def ask_body(headers, payload: dict) -> tuple[int, dict]:
     return 200, out
 
 
+def _write(handler: BaseHTTPRequestHandler, status: int, body: dict) -> None:
+    raw = json_bytes(body)
+    handler.send_response(status)
+    handler.send_header("Content-Type", "application/json")
+    handler.send_header("Cache-Control", "no-store")
+    handler.send_header("Content-Length", str(len(raw)))
+    handler.end_headers()
+    handler.wfile.write(raw)
+
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
-        status, body = ask_body(self.headers, _read_json_body(self))
-        raw = json_bytes(body)
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        try:
+            status, body = ask_body(self.headers, _read_json_body(self))
+        except Exception as exc:  # noqa: BLE001
+            status, body = 500, {"ok": False, "error": f"ask_failed: {type(exc).__name__}"}
+        _write(self, status, body)
 
     def do_GET(self) -> None:
-        raw = json_bytes({"ok": False, "error": "method_not_allowed"})
-        self.send_response(405)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Length", str(len(raw)))
-        self.end_headers()
-        self.wfile.write(raw)
+        _write(self, 405, {"ok": False, "error": "method_not_allowed"})
 
     def log_message(self, format: str, *args) -> None:
         return
