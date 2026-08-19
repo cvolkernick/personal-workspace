@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-18T19:42:51.839199+00:00",
+  "as_of": "2026-08-19T16:20:20.901669+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,14 +22,14 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 25,
+      "item_count": 24,
       "totals": {
-        "daily": 483.58,
-        "weekly": 3385.09,
-        "biweekly": 6770.17,
-        "monthly": 14708.58,
-        "annually": 49681.92,
-        "quarterly": 15978.73
+        "daily": 483.26,
+        "weekly": 3382.79,
+        "biweekly": 6765.57,
+        "monthly": 14698.58,
+        "annually": 49561.92,
+        "quarterly": 15948.73
       },
       "items": [
         {
@@ -43,32 +43,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/18/2026",
-          "from": "X Money",
-          "item": "Pawp",
-          "daily": 0.62,
-          "weekly": 4.37,
-          "biweekly": 8.75,
-          "monthly": 19.0,
-          "annually": 228.0,
-          "budget_allocation": null,
-          "quarterly": 57.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Water",
-          "daily": 2.2,
-          "weekly": 15.42,
-          "biweekly": 30.84,
-          "monthly": 67.0,
-          "annually": 804.0,
-          "budget_allocation": null,
-          "quarterly": 201.0,
           "tab": "Essential"
         },
         {
@@ -108,19 +82,6 @@
           "annually": 359.88,
           "budget_allocation": null,
           "quarterly": 89.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "X Money",
-          "item": "7-Eleven Gold Pass",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 10.0,
-          "annually": 120.0,
-          "budget_allocation": null,
-          "quarterly": 30.0,
           "tab": "Essential"
         },
         {
@@ -254,6 +215,32 @@
           "tab": "Essential"
         },
         {
+          "date": "9/18/2026",
+          "from": "X Money",
+          "item": "Water",
+          "daily": 2.2,
+          "weekly": 15.42,
+          "biweekly": 30.84,
+          "monthly": 67.0,
+          "annually": 804.0,
+          "budget_allocation": null,
+          "quarterly": 201.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/18/2026",
+          "from": "X Money",
+          "item": "Pawp",
+          "daily": 0.62,
+          "weekly": 4.37,
+          "biweekly": 8.75,
+          "monthly": 19.0,
+          "annually": 228.0,
+          "budget_allocation": null,
+          "quarterly": 57.0,
+          "tab": "Essential"
+        },
+        {
           "date": "9/22/2026",
           "from": "X Money",
           "item": "Rythm Health",
@@ -360,7 +347,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1156.67
+        "X Money": 1146.67
       },
       "top_monthly": [
         {
@@ -439,7 +426,7 @@
           "item": "Water",
           "monthly": 67.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/18/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -470,14 +457,6 @@
           "tab": "Essential"
         },
         {
-          "date": "8/18/2026",
-          "item": "Pawp",
-          "from": "X Money",
-          "monthly": 19.0,
-          "weekly": 4.37,
-          "tab": "Essential"
-        },
-        {
           "date": "8/19/2026",
           "item": "Banfield",
           "from": "X Money",
@@ -491,22 +470,6 @@
           "from": "X Money",
           "monthly": 99.0,
           "weekly": 22.78,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Water",
-          "from": "X Money",
-          "monthly": 67.0,
-          "weekly": 15.42,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "7-Eleven Gold Pass",
-          "from": "X Money",
-          "monthly": 10.0,
-          "weekly": 2.3,
           "tab": "Essential"
         },
         {
@@ -598,6 +561,22 @@
           "tab": "Essential"
         },
         {
+          "date": "9/18/2026",
+          "item": "Pawp",
+          "from": "X Money",
+          "monthly": 19.0,
+          "weekly": 4.37,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/18/2026",
+          "item": "Water",
+          "from": "X Money",
+          "monthly": 67.0,
+          "weekly": 15.42,
+          "tab": "Essential"
+        },
+        {
           "date": "9/22/2026",
           "item": "Rythm Health",
           "from": "X Money",
@@ -619,6 +598,14 @@
           "from": "X Money",
           "monthly": 18.09,
           "weekly": 4.16,
+          "tab": "Essential"
+        },
+        {
+          "date": "1/9/2027",
+          "item": "Amazon Prime",
+          "from": "X Money",
+          "monthly": 11.67,
+          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -1162,7 +1149,7 @@
     },
     "Consumer Discretionary": {
       "role": "consumer_wishlist",
-      "item_count": 3,
+      "item_count": 0,
       "totals": {
         "daily": 0.0,
         "weekly": 0.0,
@@ -1170,44 +1157,7 @@
         "monthly": 0.0,
         "annually": 0.0
       },
-      "items": [
-        {
-          "item": "Airfryer",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        },
-        {
-          "item": "Collateral (Stock)",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        },
-        {
-          "item": "Robot Vac",
-          "date": "9/1/2026",
-          "daily": 0.0,
-          "weekly": 0.0,
-          "biweekly": 0.0,
-          "monthly": 0.0,
-          "annually": 0.0,
-          "from": null,
-          "to": null,
-          "tab": "Consumer Discretionary"
-        }
-      ],
+      "items": [],
       "top_targets": [],
       "top_monthly": [],
       "priority": 2,
@@ -1216,14 +1166,14 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 25,
+      "item_count": 24,
       "totals": {
-        "daily": 483.58,
-        "weekly": 3385.09,
-        "biweekly": 6770.17,
-        "monthly": 14708.58,
-        "annually": 49681.92,
-        "quarterly": 15978.73
+        "daily": 483.26,
+        "weekly": 3382.79,
+        "biweekly": 6765.57,
+        "monthly": 14698.58,
+        "annually": 49561.92,
+        "quarterly": 15948.73
       },
       "items": [
         {
@@ -1237,32 +1187,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/18/2026",
-          "from": "X Money",
-          "item": "Pawp",
-          "daily": 0.62,
-          "weekly": 4.37,
-          "biweekly": 8.75,
-          "monthly": 19.0,
-          "annually": 228.0,
-          "budget_allocation": null,
-          "quarterly": 57.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "from": "X Money",
-          "item": "Water",
-          "daily": 2.2,
-          "weekly": 15.42,
-          "biweekly": 30.84,
-          "monthly": 67.0,
-          "annually": 804.0,
-          "budget_allocation": null,
-          "quarterly": 201.0,
           "tab": "Essential"
         },
         {
@@ -1302,19 +1226,6 @@
           "annually": 359.88,
           "budget_allocation": null,
           "quarterly": 89.97,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "X Money",
-          "item": "7-Eleven Gold Pass",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 10.0,
-          "annually": 120.0,
-          "budget_allocation": null,
-          "quarterly": 30.0,
           "tab": "Essential"
         },
         {
@@ -1448,6 +1359,32 @@
           "tab": "Essential"
         },
         {
+          "date": "9/18/2026",
+          "from": "X Money",
+          "item": "Water",
+          "daily": 2.2,
+          "weekly": 15.42,
+          "biweekly": 30.84,
+          "monthly": 67.0,
+          "annually": 804.0,
+          "budget_allocation": null,
+          "quarterly": 201.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/18/2026",
+          "from": "X Money",
+          "item": "Pawp",
+          "daily": 0.62,
+          "weekly": 4.37,
+          "biweekly": 8.75,
+          "monthly": 19.0,
+          "annually": 228.0,
+          "budget_allocation": null,
+          "quarterly": 57.0,
+          "tab": "Essential"
+        },
+        {
           "date": "9/22/2026",
           "from": "X Money",
           "item": "Rythm Health",
@@ -1554,7 +1491,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1156.67
+        "X Money": 1146.67
       },
       "top_monthly": [
         {
@@ -1633,7 +1570,7 @@
           "item": "Water",
           "monthly": 67.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/18/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1664,14 +1601,6 @@
           "tab": "Essential"
         },
         {
-          "date": "8/18/2026",
-          "item": "Pawp",
-          "from": "X Money",
-          "monthly": 19.0,
-          "weekly": 4.37,
-          "tab": "Essential"
-        },
-        {
           "date": "8/19/2026",
           "item": "Banfield",
           "from": "X Money",
@@ -1685,22 +1614,6 @@
           "from": "X Money",
           "monthly": 99.0,
           "weekly": 22.78,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Water",
-          "from": "X Money",
-          "monthly": 67.0,
-          "weekly": 15.42,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "7-Eleven Gold Pass",
-          "from": "X Money",
-          "monthly": 10.0,
-          "weekly": 2.3,
           "tab": "Essential"
         },
         {
@@ -1792,6 +1705,22 @@
           "tab": "Essential"
         },
         {
+          "date": "9/18/2026",
+          "item": "Pawp",
+          "from": "X Money",
+          "monthly": 19.0,
+          "weekly": 4.37,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/18/2026",
+          "item": "Water",
+          "from": "X Money",
+          "monthly": 67.0,
+          "weekly": 15.42,
+          "tab": "Essential"
+        },
+        {
           "date": "9/22/2026",
           "item": "Rythm Health",
           "from": "X Money",
@@ -1813,6 +1742,14 @@
           "from": "X Money",
           "monthly": 18.09,
           "weekly": 4.16,
+          "tab": "Essential"
+        },
+        {
+          "date": "1/9/2027",
+          "item": "Amazon Prime",
+          "from": "X Money",
+          "monthly": 11.67,
+          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -1999,13 +1936,13 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18920.34,
-    "essential_monthly": 14708.58,
-    "personal_monthly": 14708.58,
-    "personal_daily": 483.58,
-    "essential_daily": 483.58,
-    "personal_weekly": 3385.09,
-    "personal_annually": 49681.92,
+    "upcoming_expense_monthly": 18910.34,
+    "essential_monthly": 14698.58,
+    "personal_monthly": 14698.58,
+    "personal_daily": 483.26,
+    "essential_daily": 483.26,
+    "personal_weekly": 3382.79,
+    "personal_annually": 49561.92,
     "fleet_monthly": 5561.76,
     "fleet_daily": 185.09,
     "fleet_annually": 27958.09,
@@ -2017,16 +1954,19 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18920.34,
-    "combined_daily": 623.67,
+    "combined_monthly": 18910.34,
+    "combined_daily": 623.35,
     "by_source_monthly": {
       "Coinbase": 13569.91,
-      "X Money": 5350.43
+      "X Money": 5340.43
     },
     "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5350.43
+    "x_money_funded_monthly": 5340.43
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB.",
+  "tab_warnings": [
+    "Consumer Discretionary tab unavailable: <urlopen error [Errno 54] Connection reset by peer>"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-19T01:55:17.308957+00:00",
+  "as_of": "2026-08-19T16:20:01.546828+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -464.77,
-  "balance_owed": 464.77,
-  "card_balance": 464.77,
+  "balance_raw": -454.77,
+  "balance_owed": 454.77,
+  "card_balance": 454.77,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -464.77,
+  "cleared_balance": -454.77,
   "uncleared_balance": 0.0,
-  "spend_30d": 361.16,
-  "payments_30d": 400.69,
-  "transaction_count": 49,
+  "spend_30d": 261.61,
+  "payments_30d": 377.59,
+  "transaction_count": 50,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -98,7 +98,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
+      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -109,7 +109,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
+      "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
       "date": "2026-07-17",
       "payee": "7-Eleven",
       "amount": -0.63,
@@ -483,7 +483,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -494,7 +494,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -558,9 +558,20 @@
       "cleared": "cleared",
       "approved": false,
       "category_name": "Uncategorized"
+    },
+    {
+      "id": "7bd67e5b-7e2d-431c-82d7-a019db08d76f",
+      "date": "2026-08-19",
+      "payee": "Payment",
+      "amount": 10.0,
+      "amount_display": 10.0,
+      "memo": null,
+      "cleared": "cleared",
+      "approved": false,
+      "category_name": "Uncategorized"
     }
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-20"
+  "since": "2026-05-21"
 }
