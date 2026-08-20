@@ -17,7 +17,7 @@ DEFAULT_POLL_S = 900
 PHOTOS = {
     "m3-2020": "/static/fleet/tesla-model-3-2020.jpg",
     "r1s-2023": "/static/fleet/rivian-r1s-2023.jpg",
-    "m3-2022": "/static/fleet/tesla-model-3.jpg",
+    "m3-2022": "/static/fleet/tesla-model-3-2022.jpg",
     "corolla-2022": "/static/fleet/toyota-corolla-2022.jpg",
     "corolla-2024": "/static/fleet/toyota-corolla-2024.jpg",
 }

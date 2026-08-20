@@ -69,7 +69,15 @@ class FleetAssemblyTests(unittest.TestCase):
         )
         self.assertEqual(
             by_id["m3-2022"]["glance"]["photo"],
-            "/static/fleet/tesla-model-3.jpg",
+            "/static/fleet/tesla-model-3-2022.jpg",
+        )
+        self.assertEqual(
+            by_id["corolla-2024"]["glance"]["photo"],
+            "/static/fleet/toyota-corolla-2024.jpg",
+        )
+        self.assertEqual(
+            by_id["corolla-2022"]["glance"]["photo"],
+            "/static/fleet/toyota-corolla-2022.jpg",
         )
 
     def test_no_fleet_tab_is_stale_not_invented_payoff(self) -> None:

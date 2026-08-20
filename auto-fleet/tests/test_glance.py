@@ -241,7 +241,7 @@ class FormatTests(unittest.TestCase):
         self.assertIn("<details", html)
         self.assertIn("static/fleet/tesla-model-3-2020.jpg", html)
         self.assertIn("static/fleet/rivian-r1s-2023.jpg", html)
-        self.assertIn("static/fleet/tesla-model-3.jpg", html)
+        self.assertIn("static/fleet/tesla-model-3-2022.jpg", html)
         self.assertIn("maps.google.com", html)
         self.assertIn("max-width: 390px", html)
         self.assertIn("grid-template-columns: 1fr 1fr", html)
@@ -256,6 +256,7 @@ class FormatTests(unittest.TestCase):
         for name in (
             "tesla-model-3.jpg",
             "tesla-model-3-2020.jpg",
+            "tesla-model-3-2022.jpg",
             "rivian-r1s-2023.jpg",
             "toyota-corolla-2022.jpg",
             "toyota-corolla-2024.jpg",
@@ -269,11 +270,19 @@ class FormatTests(unittest.TestCase):
         )
         self.assertEqual(
             glance.photo_for({"id": "m3-2022"}),
-            "/static/fleet/tesla-model-3.jpg",
+            "/static/fleet/tesla-model-3-2022.jpg",
         )
         self.assertEqual(
             glance.photo_for({"id": "r1s-2023"}),
             "/static/fleet/rivian-r1s-2023.jpg",
+        )
+        self.assertEqual(
+            glance.photo_for({"id": "corolla-2024"}),
+            "/static/fleet/toyota-corolla-2024.jpg",
+        )
+        self.assertEqual(
+            glance.photo_for({"id": "corolla-2022"}),
+            "/static/fleet/toyota-corolla-2022.jpg",
         )
         self.assertNotEqual(
             glance.photo_for({"id": "m3-2020"}),

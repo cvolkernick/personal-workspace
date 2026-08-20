@@ -107,20 +107,33 @@ class AutoFleetServerTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     by_id["m3-2022"]["glance"]["photo"],
-                    "/static/fleet/tesla-model-3.jpg",
+                    "/static/fleet/tesla-model-3-2022.jpg",
                 )
-                req = urllib.request.Request(
-                    f"{base}/static/fleet/rivian-r1s-2023.jpg"
+                self.assertEqual(
+                    by_id["corolla-2024"]["glance"]["photo"],
+                    "/static/fleet/toyota-corolla-2024.jpg",
                 )
-                with urllib.request.urlopen(req, timeout=8) as resp:
-                    self.assertEqual(resp.status, 200)
-                    ctype = resp.headers.get("Content-Type", "")
-                    self.assertTrue(
-                        ctype.split(";")[0].strip() == "image/jpeg", ctype
-                    )
-                    jpeg = resp.read()
-                    self.assertGreater(len(jpeg), 10_000)
-                    self.assertTrue(jpeg.startswith(b"\xff\xd8"))
+                self.assertEqual(
+                    by_id["corolla-2022"]["glance"]["photo"],
+                    "/static/fleet/toyota-corolla-2022.jpg",
+                )
+                for still in (
+                    "rivian-r1s-2023.jpg",
+                    "tesla-model-3-2020.jpg",
+                    "tesla-model-3-2022.jpg",
+                    "toyota-corolla-2022.jpg",
+                    "toyota-corolla-2024.jpg",
+                ):
+                    req = urllib.request.Request(f"{base}/static/fleet/{still}")
+                    with urllib.request.urlopen(req, timeout=8) as resp:
+                        self.assertEqual(resp.status, 200, still)
+                        ctype = resp.headers.get("Content-Type", "")
+                        self.assertEqual(
+                            ctype.split(";")[0].strip(), "image/jpeg", f"{still}: {ctype}"
+                        )
+                        jpeg = resp.read()
+                        self.assertGreater(len(jpeg), 10_000, still)
+                        self.assertTrue(jpeg.startswith(b"\xff\xd8"), still)
                 for unit in fleet["units"]:
                     self.assertIn("identity", unit)
                     self.assertIn("year", unit["identity"])
@@ -197,7 +210,7 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr)", html)
         self.assertIn("/static/fleet/tesla-model-3-2020.jpg", html)
         self.assertIn("/static/fleet/rivian-r1s-2023.jpg", html)
-        self.assertIn("/static/fleet/tesla-model-3.jpg", html)
+        self.assertIn("/static/fleet/tesla-model-3-2022.jpg", html)
         self.assertIn("/static/fleet/toyota-corolla-2022.jpg", html)
         self.assertIn("/static/fleet/toyota-corolla-2024.jpg", html)
         self.assertNotIn("TREAD", html)
