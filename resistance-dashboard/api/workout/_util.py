@@ -27,6 +27,7 @@ _ROUTES = (
     "meal_generate",
     "refresh",
     "daily_tasks",
+    "daily_tasks_complete",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
@@ -84,7 +85,7 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
     if "/api/refresh" in blob:
         return "refresh"
     if "/api/daily-tasks/complete" in blob:
-        return ""
+        return "daily_tasks_complete"
     if "/api/daily-tasks" in blob:
         return "daily_tasks"
     return ""
@@ -250,6 +251,47 @@ def daily_tasks_body(headers, payload=None):
     return 200, {"ok": True, "daily_tasks": result}
 
 
+def daily_tasks_complete_body(headers, payload=None, method="POST"):
+    """POST /api/daily-tasks/complete — Pi complete_leaf on the GT Fitness list.
+
+    Same signed-in gate as GET /api/daily-tasks. Failed complete is 4xx/5xx
+    JSON (not a silent 200). Cookie-less is 401, never HTML 404.
+    """
+    user, err = require_user(headers)
+    if err:
+        return err
+    if (method or "POST").upper() != "POST":
+        return 405, {"ok": False, "error": "method_not_allowed"}
+    payload = payload if isinstance(payload, dict) else {}
+    list_id = str(payload.get("list_id") or "").strip()
+    task_id = str(payload.get("task_id") or "").strip()
+    completed = payload.get("completed", True)
+    if isinstance(completed, str):
+        completed = completed.lower() in ("1", "true", "yes")
+    parent_id = payload.get("parent_id")
+    parent_id = str(parent_id).strip() if parent_id else None
+    sibling_all_done = payload.get("sibling_all_done")
+    from rt_dashboard.daily_plan_tasks import complete_leaf
+
+    try:
+        result = complete_leaf(
+            list_id,
+            task_id,
+            completed=bool(completed),
+            parent_id=parent_id,
+            sibling_all_done=sibling_all_done
+            if sibling_all_done is None
+            else bool(sibling_all_done),
+        )
+    except Exception as exc:  # noqa: BLE001
+        return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
+    if not isinstance(result, dict):
+        return 500, {"ok": False, "error": "complete_failed"}
+    if not result.get("ok"):
+        return 400, result
+    return 200, result
+
+
 def inventory_write(headers, route: str, payload=None):
     """Kitchen add/remove/stock to Turso. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -325,6 +367,8 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         return refresh_body(headers, payload)
     if route == "daily_tasks":
         return daily_tasks_body(headers, payload)
+    if route == "daily_tasks_complete":
+        return daily_tasks_complete_body(headers, payload, method)
     if route in _INV_ROUTES:
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -344,6 +388,7 @@ __all__ = [
     "goals_body",
     "inventory_write",
     "daily_tasks_body",
+    "daily_tasks_complete_body",
     "meal_plan_body",
     "refresh_body",
     "goals_read",

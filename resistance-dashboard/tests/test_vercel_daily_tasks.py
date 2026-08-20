@@ -10,7 +10,11 @@ from unittest import mock
 
 from api.auth.session_util import SESSION_COOKIE, make_session
 from api.dashboard import dashboard_body
-from api.workout._util import daily_tasks_body, dispatch_client_route
+from api.workout._util import (
+    daily_tasks_body,
+    daily_tasks_complete_body,
+    dispatch_client_route,
+)
 from rt_dashboard.models import (
     ExerciseEntry,
     HealthSnapshot,
@@ -34,11 +38,18 @@ class DailyTasksRewrites(unittest.TestCase):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
         self.assertIn("/api/daily-tasks", raw)
         self.assertIn("/api/dashboard?_r=daily_tasks", raw)
+        self.assertIn("/api/daily-tasks/complete", raw)
+        self.assertIn("/api/dashboard?_r=daily_tasks_complete", raw)
+        complete_at = raw.index("/api/daily-tasks/complete")
+        list_at = raw.index('"/api/daily-tasks"')
+        self.assertLess(complete_at, list_at)
         self.assertNotIn("api/daily-tasks.py", raw)
         self.assertNotIn("api/daily_tasks.py", raw)
+        self.assertNotIn("api/daily-tasks/complete.py", raw)
         self.assertFalse((ROOT / "api" / "daily-tasks.py").exists())
         self.assertFalse((ROOT / "api" / "daily_tasks.py").exists())
         self.assertFalse((ROOT / "api" / "daily-tasks").is_dir())
+        self.assertFalse((ROOT / "api" / "daily-tasks" / "complete.py").exists())
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"
@@ -57,6 +68,14 @@ class DailyTasksRewrites(unittest.TestCase):
             cfg.get("ignoreCommand"),
             "python3 scripts/vercel_ignore.py || exit 1",
         )
+        paths = (ROOT / "vercel-ignore-paths.txt").read_text(encoding="utf-8")
+        self.assertIn("resistance-dashboard/", paths)
+        self.assertNotIn("ignoreCommand", paths)
+
+    def test_today_complete_control_posts_existing_path(self):
+        app = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        self.assertIn('fetch("/api/daily-tasks/complete"', app)
+        self.assertIn("Could not complete quest", app)
 
 
 class CookieLessDailyTasks(unittest.TestCase):
@@ -78,6 +97,37 @@ class CookieLessDailyTasks(unittest.TestCase):
                 self.assertEqual(body["error"], "auth_required")
                 self.assertNotIn("<html", json.dumps(body).lower())
                 status, body = dispatch_client_route({}, "_r=daily_tasks", method)
+                self.assertEqual(status, 401, method)
+
+    def test_complete_401_json(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            status, body = daily_tasks_complete_body(
+                {},
+                {"list_id": "L1", "task_id": "t1", "completed": True},
+            )
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "auth_required")
+        self.assertFalse(body.get("ok", True))
+        self.assertNotIn("<html", json.dumps(body).lower())
+        self.assertNotIn("task", body)
+
+    def test_complete_dispatch_cookie_less_401(self):
+        payload = {"list_id": "L1", "task_id": "t1", "completed": True}
+        with mock.patch.dict(os.environ, {}, clear=True):
+            for method in ("GET", "POST"):
+                status, body = dispatch_client_route(
+                    {},
+                    "",
+                    method,
+                    payload=payload,
+                    path="/api/daily-tasks/complete",
+                )
+                self.assertEqual(status, 401, method)
+                self.assertEqual(body["error"], "auth_required")
+                self.assertNotIn("<html", json.dumps(body).lower())
+                status, body = dispatch_client_route(
+                    {}, "_r=daily_tasks_complete", method, payload=payload
+                )
                 self.assertEqual(status, 401, method)
 
 
@@ -172,6 +222,77 @@ class QuestsFromGeneratedPlans(unittest.TestCase):
                 self.assertFalse(item.get("completed"))
                 self.assertIsNone(item.get("task_id"))
                 self.assertNotEqual(item.get("task_id"), "invented")
+
+
+class CompleteUsesPiLeaf(unittest.TestCase):
+    def test_signed_in_complete_calls_pi_complete_leaf(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.daily_plan_tasks.complete_leaf",
+                return_value={
+                    "ok": True,
+                    "task": {"id": "t1", "status": "completed"},
+                    "parent_id": "p1",
+                },
+            ) as complete:
+                status, body = daily_tasks_complete_body(
+                    _headers(),
+                    {
+                        "list_id": "L1",
+                        "task_id": "t1",
+                        "completed": True,
+                        "parent_id": "p1",
+                        "sibling_all_done": True,
+                    },
+                )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["task"]["id"], "t1")
+        complete.assert_called_once_with(
+            "L1",
+            "t1",
+            completed=True,
+            parent_id="p1",
+            sibling_all_done=True,
+        )
+
+    def test_failed_complete_is_honest_not_silent_200(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.daily_plan_tasks.complete_leaf",
+                return_value={"ok": False, "error": "Google Tasks not configured"},
+            ):
+                status, body = daily_tasks_complete_body(
+                    _headers(),
+                    {"list_id": "L1", "task_id": "t1", "completed": True},
+                )
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertIn("Google Tasks", body.get("error") or "")
+        self.assertNotIn("<html", json.dumps(body).lower())
+
+    def test_missing_ids_are_400(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, body = daily_tasks_complete_body(_headers(), {})
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertIn("missing", (body.get("error") or "").lower())
+
+    def test_signed_in_get_complete_is_405(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, body = dispatch_client_route(
+                _headers(),
+                "",
+                "GET",
+                path="/api/daily-tasks/complete",
+            )
+        self.assertEqual(status, 405)
+        self.assertEqual(body["error"], "method_not_allowed")
+        self.assertFalse(body["ok"])
 
 
 if __name__ == "__main__":
