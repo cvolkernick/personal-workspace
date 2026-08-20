@@ -33,23 +33,67 @@ def _config_dir() -> Path:
     return Path(override).expanduser() if override else DEFAULT_CONFIG_DIR
 
 
+def _token_blob_from_env() -> dict[str, Any]:
+    """Vercel/serverless: use env secrets. Never invent tokens. No file copy."""
+    raw = (os.environ.get("GOOGLE_TASKS_TOKEN_JSON") or "").strip()
+    if raw:
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict) and (data.get("refresh_token") or data.get("token")):
+            return data
+    refresh = (os.environ.get("GOOGLE_TASKS_REFRESH_TOKEN") or "").strip()
+    if not refresh:
+        return {}
+    client_id = (
+        os.environ.get("GOOGLE_TASKS_CLIENT_ID")
+        or os.environ.get("GOOGLE_CLIENT_ID")
+        or ""
+    ).strip()
+    client_secret = (
+        os.environ.get("GOOGLE_TASKS_CLIENT_SECRET")
+        or os.environ.get("GOOGLE_CLIENT_SECRET")
+        or ""
+    ).strip()
+    if not client_id:
+        return {}
+    return {
+        "refresh_token": refresh,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }
+
+
 def _load_token_blob() -> dict[str, Any]:
     path = _config_dir() / "token.json"
-    if not path.is_file():
-        raise FileNotFoundError(
-            f"Missing {path} — run: npx google-tasks-mcp auth"
-        )
-    return json.loads(path.read_text(encoding="utf-8"))
+    if path.is_file():
+        return json.loads(path.read_text(encoding="utf-8"))
+    env_blob = _token_blob_from_env()
+    if env_blob:
+        return env_blob
+    raise FileNotFoundError(
+        f"Missing {path} — run: npx google-tasks-mcp auth "
+        "(or set GOOGLE_TASKS_REFRESH_TOKEN + client id/secret)"
+    )
 
 
 def _load_client_blob() -> dict[str, Any]:
     """Optional client_secret.json (Desktop OAuth). token.json often already has ids."""
     path = _config_dir() / "client_secret.json"
-    if not path.is_file():
-        return {}
-    data = json.loads(path.read_text(encoding="utf-8"))
-    # Google desktop download wraps under "installed" or "web"
-    return data.get("installed") or data.get("web") or data
+    if path.is_file():
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # Google desktop download wraps under "installed" or "web"
+        return data.get("installed") or data.get("web") or data
+    env_blob = _token_blob_from_env()
+    if env_blob.get("client_id"):
+        return {
+            "client_id": env_blob.get("client_id"),
+            "client_secret": env_blob.get("client_secret"),
+            "token_uri": env_blob.get("token_uri") or "https://oauth2.googleapis.com/token",
+        }
+    return {}
 
 
 def credentials_status() -> dict[str, Any]:
@@ -57,25 +101,30 @@ def credentials_status() -> dict[str, Any]:
     cfg = _config_dir()
     token_path = cfg / "token.json"
     secret_path = cfg / "client_secret.json"
-    has_token = token_path.is_file()
-    has_secret = secret_path.is_file()
+    env_blob = _token_blob_from_env()
+    has_token = token_path.is_file() or bool(env_blob)
+    has_secret = secret_path.is_file() or bool(env_blob.get("client_secret"))
     has_refresh = False
-    if has_token:
+    if token_path.is_file():
         try:
             blob = json.loads(token_path.read_text(encoding="utf-8"))
             has_refresh = bool(blob.get("refresh_token"))
         except Exception:
             has_refresh = False
+    elif env_blob:
+        has_refresh = bool(env_blob.get("refresh_token"))
     ok = has_token and has_refresh
     return {
         "ok": ok,
         "config_dir": str(cfg),
+        "source": "file" if token_path.is_file() else ("env" if env_blob else None),
         "token_present": has_token,
         "client_secret_present": has_secret,
         "refresh_token_present": has_refresh,
         "hint": None
         if ok
-        else "Place client_secret.json + run npx google-tasks-mcp auth",
+        else "Place client_secret.json + run npx google-tasks-mcp auth "
+        "(or set GOOGLE_TASKS_REFRESH_TOKEN)",
     }
 
 
@@ -104,22 +153,24 @@ def _build_credentials():
     if not creds.valid:
         if creds.expired or not creds.token:
             creds.refresh(Request())
-            # Persist refreshed access token when present (best-effort)
-            try:
-                blob = _load_token_blob()
-                if creds.token:
-                    blob["token"] = creds.token
-                if getattr(creds, "expiry", None):
-                    blob["expiry"] = creds.expiry.isoformat()
-                (_config_dir() / "token.json").write_text(
-                    json.dumps(blob, indent=2) + "\n", encoding="utf-8"
-                )
+            # Persist refreshed access token when a local token.json exists (not env/Vercel).
+            token_path = _config_dir() / "token.json"
+            if token_path.is_file():
                 try:
-                    os.chmod(_config_dir() / "token.json", 0o600)
-                except OSError:
+                    blob = json.loads(token_path.read_text(encoding="utf-8"))
+                    if creds.token:
+                        blob["token"] = creds.token
+                    if getattr(creds, "expiry", None):
+                        blob["expiry"] = creds.expiry.isoformat()
+                    token_path.write_text(
+                        json.dumps(blob, indent=2) + "\n", encoding="utf-8"
+                    )
+                    try:
+                        os.chmod(token_path, 0o600)
+                    except OSError:
+                        pass
+                except Exception:
                     pass
-            except Exception:
-                pass
     return creds
 
 

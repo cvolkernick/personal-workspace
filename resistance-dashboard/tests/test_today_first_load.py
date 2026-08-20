@@ -46,6 +46,9 @@ class TodayFirstLoadMarkup(unittest.TestCase):
         self.assertIn("@keyframes today-first-load-spin", CSS)
         self.assertIn(".today-first-load[hidden]", CSS)
         self.assertIn("#app-shell.is-first-loading", CSS)
+        # After first load the overlay must leave the hit box (not just look hidden).
+        self.assertIn("#app-shell:not(.is-first-loading) > #today-first-load", CSS)
+        self.assertIn("pointer-events: none !important", CSS)
 
 
 class TodayFirstLoadBoot(unittest.TestCase):

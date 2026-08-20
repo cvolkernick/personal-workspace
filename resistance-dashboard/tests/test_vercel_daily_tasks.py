@@ -225,6 +225,49 @@ class QuestsFromGeneratedPlans(unittest.TestCase):
 
 
 class CompleteUsesPiLeaf(unittest.TestCase):
+    def test_signed_in_daily_tasks_returns_ensure_ids(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        daily = {
+            "ok": True,
+            "source": "google_tasks",
+            "list_id": "L1",
+            "groups": [
+                {
+                    "group": "training",
+                    "task_id": "p1",
+                    "list_id": "L1",
+                    "items": [
+                        {
+                            "title": "DB Press",
+                            "task_id": "t1",
+                            "completed": False,
+                        }
+                    ],
+                    "open_items": [
+                        {
+                            "title": "DB Press",
+                            "task_id": "t1",
+                            "completed": False,
+                        }
+                    ],
+                }
+            ],
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "api.dashboard.dashboard_body",
+                return_value=(200, {"coach": {"today": {"date": "2026-08-20"}}}),
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.ensure_daily_tasks",
+                return_value=daily,
+            ):
+                status, body = daily_tasks_body(_headers())
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        item = body["daily_tasks"]["groups"][0]["items"][0]
+        self.assertEqual(item["task_id"], "t1")
+        self.assertEqual(item["list_id"], "L1")
+
     def test_signed_in_complete_calls_pi_complete_leaf(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
         with mock.patch.dict(os.environ, env, clear=True):

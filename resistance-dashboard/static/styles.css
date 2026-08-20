@@ -2123,8 +2123,11 @@ footer {
   text-align: center;
   padding: 1.5rem 1.1rem;
 }
-.today-first-load[hidden] {
+.today-first-load[hidden],
+#app-shell:not(.is-first-loading) > #today-first-load {
   display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 .today-first-load-spinner {
   width: 2.15rem;
@@ -2277,6 +2280,18 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   margin: 0.15rem 0 0.35rem;
 }
 
+.quest-sync-error {
+  color: var(--danger, #f07178);
+  font-weight: 650;
+}
+
+.quest-sync-retry {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  min-height: 36px;
+  cursor: pointer;
+}
+
 .quest-group {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2353,6 +2368,13 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
   min-height: 44px;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+body.m-shell .quest-card {
+  pointer-events: auto;
 }
 
 .quest-card:hover:not(:disabled) {
@@ -2389,7 +2411,15 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
 
 .quest-card-pending {
   opacity: 0.7;
+  cursor: default;
+}
+
+.daily-quests.is-syncing .quest-card-pending {
   cursor: wait;
+}
+
+.daily-quests.is-sync-failed .quest-card-pending {
+  cursor: default;
 }
 
 .quest-card-text {
