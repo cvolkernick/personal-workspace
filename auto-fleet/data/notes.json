@@ -43,6 +43,15 @@
         "installment": "1 of 2"
       },
       "payoff_is_live": false
+    },
+    "m3-2020": {
+      "lender": "Wells Fargo",
+      "apr_pct": 5.65
+    },
+    "r1s-2023": {
+      "lender": "Vivek",
+      "apr_pct": 0,
+      "contractual_monthly": 1350
     }
   }
 }

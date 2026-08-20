@@ -57,7 +57,8 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertEqual(r1s["identity"]["model"], "R1S")
         self.assertEqual(r1s["identity"]["role"], "personal")
         self.assertIsNone(r1s["identity"]["vin"])
-        self.assertIsNone(r1s["identity"]["lender"])
+        self.assertEqual(r1s["identity"]["lender"], "Vivek")
+        self.assertEqual(by_id["m3-2020"]["identity"]["lender"], "Wells Fargo")
         self.assertNotIn("color", r1s["identity"])
         self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
         self.assertEqual(
