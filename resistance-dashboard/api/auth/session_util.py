@@ -49,24 +49,51 @@ def signing_secret() -> Optional[str]:
     return secret or None
 
 
+# Production alias — never a preview-branch host (fitdash-git-…).
+PROD_PUBLIC_URL = "https://fitdash-cvolkernick.vercel.app"
+
+
+def _with_https(host: str) -> str:
+    host = (host or "").strip().rstrip("/")
+    if not host:
+        return ""
+    return host if host.startswith("http") else f"https://{host}"
+
+
+def _is_preview_host(url: str) -> bool:
+    """Vercel preview hosts are {project}-git-{branch}-{scope}.vercel.app."""
+    host = (url or "").lower().replace("https://", "").replace("http://", "")
+    return "-git-" in host
+
+
 def missing_oauth_env() -> list[str]:
     missing = []
     if not (os.environ.get("GOOGLE_CLIENT_ID") or "").strip():
         missing.append("GOOGLE_CLIENT_ID")
     if not (os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip():
         missing.append("GOOGLE_CLIENT_SECRET")
-    if not (os.environ.get("FITDASH_PUBLIC_URL") or "").strip():
+    if not public_base_url():
         missing.append("FITDASH_PUBLIC_URL")
     return missing
 
 
 def public_base_url() -> str:
-    base = (os.environ.get("FITDASH_PUBLIC_URL") or "").strip().rstrip("/")
-    if base:
-        return base
+    vercel_env = (os.environ.get("VERCEL_ENV") or "").strip().lower()
+    explicit = (os.environ.get("FITDASH_PUBLIC_URL") or "").strip().rstrip("/")
+    production = _with_https(os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or "")
+
+    if vercel_env == "production":
+        if explicit and not _is_preview_host(explicit):
+            return explicit
+        if production and not _is_preview_host(production):
+            return production
+        return PROD_PUBLIC_URL
+
+    if explicit:
+        return explicit
     vercel = (os.environ.get("VERCEL_URL") or "").strip()
     if vercel:
-        return vercel if vercel.startswith("http") else f"https://{vercel}"
+        return _with_https(vercel)
     return ""
 
 

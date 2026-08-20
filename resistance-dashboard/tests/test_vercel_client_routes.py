@@ -32,6 +32,9 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertFalse((ROOT / "api" / "workout-plan.py").exists())
         self.assertFalse((ROOT / "api" / "workout_plan_generate.py").exists())
         self.assertFalse((ROOT / "api" / "workout" / "goals.py").exists())
+        self.assertFalse((ROOT / "api" / "meal-plan.py").exists())
+        self.assertFalse((ROOT / "api" / "refresh.py").exists())
+        self.assertFalse((ROOT / "api" / "daily-tasks.py").exists())
         self.assertTrue((ROOT / "api" / "workout" / "_util.py").is_file())
         self.assertTrue((ROOT / "api" / "dashboard.py").is_file())
         self.assertTrue((ROOT / "api" / "ask" / "plan.py").is_file())
@@ -46,6 +49,12 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=available", raw)
         self.assertIn("/api/workouts", raw)
         self.assertIn("/api/dashboard?_r=workouts", raw)
+        self.assertIn("/api/meal-plan/generate", raw)
+        self.assertIn("/api/dashboard?_r=meal_generate", raw)
+        self.assertIn("/api/refresh", raw)
+        self.assertIn("/api/dashboard?_r=refresh", raw)
+        self.assertIn("/api/daily-tasks", raw)
+        self.assertIn("/api/dashboard?_r=daily_tasks", raw)
         self.assertNotIn("api/workout-plan/generate.py", raw)
         self.assertNotIn("api/workouts.py", raw)
         self.assertNotIn("api/workout_plan_generate.py", raw)
@@ -100,7 +109,16 @@ class CookieLessClientRoutes(unittest.TestCase):
 
     def test_dispatch_cookie_less_401(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            for route in ("goals", "available", "workouts", "generate"):
+            for route in (
+                "goals",
+                "available",
+                "workouts",
+                "generate",
+                "meal_plan",
+                "meal_generate",
+                "refresh",
+                "daily_tasks",
+            ):
                 status, body = dispatch_client_route({}, f"_r={route}", "GET")
                 self.assertEqual(status, 401, route)
                 self.assertEqual(body["error"], "auth_required")
@@ -113,6 +131,10 @@ class CookieLessClientRoutes(unittest.TestCase):
                 ("/api/workout/exercise/available", "available"),
                 ("/api/workouts", "workouts"),
                 ("/api/workout-plan/generate", "generate"),
+                ("/api/meal-plan", "meal_plan"),
+                ("/api/meal-plan/generate", "meal_generate"),
+                ("/api/refresh", "refresh"),
+                ("/api/daily-tasks", "daily_tasks"),
             )
             for path, route in pairs:
                 status, body = dispatch_client_route({}, "", "GET", path=path)

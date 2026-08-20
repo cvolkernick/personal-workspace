@@ -40,19 +40,25 @@ def local_tz(preferred: Optional[str] = None):
     return ZoneInfo(resolve_tz_name(preferred))
 
 
-def local_today_iso(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> str:
-    """Civil date in the viewer (or fallback) zone, not process TZ."""
+def local_now(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> datetime:
+    """Current instant in the viewer (or fallback) zone, not process TZ.
+
+    Vercel sets TZ=UTC; this always returns an aware datetime in
+    ``resolve_tz_name(preferred)`` (request / DASHBOARD_TZ / America/New_York).
+    """
     clock = now if now is not None else datetime.now(timezone.utc)
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=timezone.utc)
-    return clock.astimezone(local_tz(preferred)).strftime("%Y-%m-%d")
+    return clock.astimezone(local_tz(preferred))
+
+
+def local_today_iso(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> str:
+    """Civil date in the viewer (or fallback) zone, not process TZ."""
+    return local_now(preferred, now=now).strftime("%Y-%m-%d")
 
 
 def local_now_iso(preferred: Optional[str] = None, *, now: Optional[datetime] = None) -> str:
-    clock = now if now is not None else datetime.now(timezone.utc)
-    if clock.tzinfo is None:
-        clock = clock.replace(tzinfo=timezone.utc)
-    return clock.astimezone(local_tz(preferred)).isoformat(timespec="seconds")
+    return local_now(preferred, now=now).isoformat(timespec="seconds")
 
 
 def utc_now_iso() -> str:

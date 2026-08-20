@@ -88,7 +88,10 @@ def intervals_from_daily_sleep(
     Places each night ending at ``assume_wake_local_hour`` and extending
     backward by logged hours. Skips 0h / implied-zero nights.
     """
-    tz = tz or datetime.now().astimezone().tzinfo or timezone.utc
+    if tz is None:
+        from .timeutil import local_tz
+
+        tz = local_tz()
     out: List[dict] = []
     for s in sleep or []:
         hours = float(s.sleep_hours or 0)
@@ -209,9 +212,13 @@ def compute_sleep_battery(
 ) -> Dict[str, Any]:
     """Partial-charge-at-wake / drain-over-awake battery."""
     if now is None:
-        now = datetime.now(timezone.utc).astimezone()
+        from .timeutil import local_now
+
+        now = local_now()
     elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc).astimezone()
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz())
 
     sleep_target = max(0.5, float(sleep_target_hours))
     onset_buffer = max(0.0, float(onset_buffer_hours))
@@ -339,6 +346,7 @@ def sleep_battery_from_fitdash_sleep(
     sleep: Sequence[SleepSample],
     *,
     now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
     sleep_target_hours: float = DEFAULT_SLEEP_TARGET_HOURS,
     onset_buffer_hours: float = DEFAULT_ONSET_BUFFER_HOURS,
     sleep_intervals: Optional[List[dict]] = None,
@@ -355,10 +363,20 @@ def sleep_battery_from_fitdash_sleep(
     timed wake so a stale interval set cannot strand the battery on an
     old wake cycle.
     """
+    from .timeutil import local_now
+
+    # Viewer TZ is the same clock eating_window_fraction will use.
+    if now is None or tz_name:
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
+
     intervals = normalize_intervals(list(sleep_intervals or []))
     source = "sleep_intervals"
     if not intervals:
-        intervals = intervals_from_daily_sleep(sleep)
+        intervals = intervals_from_daily_sleep(sleep, tz=now.tzinfo)
         source = "daily_sleep_approx" if intervals else "none"
     else:
         last_end: Optional[datetime] = None
@@ -366,7 +384,7 @@ def sleep_battery_from_fitdash_sleep(
             en = _parse_dt(row.get("end"))
             if en and (last_end is None or en > last_end):
                 last_end = en
-        daily = intervals_from_daily_sleep(sleep)
+        daily = intervals_from_daily_sleep(sleep, tz=now.tzinfo)
         filled = 0
         for row in daily:
             en = _parse_dt(row.get("end"))

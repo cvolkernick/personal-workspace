@@ -95,6 +95,9 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertIn("load_workspace_goals", text)
         self.assertIn("load_workspace_catalog", text)
         self.assertIn("apply_goals_volume_caps", text)
+        self.assertIn("preview_workout_plan", text)
+        self.assertNotIn("dashboard_plan_slots", text)
+        self.assertIn("Workout plan failed", text)
 
     def test_include_files_lists_goals_and_catalog(self):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
@@ -167,7 +170,11 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         self.assertEqual(wo["goals"]["default_hard_sets"], 2)
         self.assertEqual(wo["goals"]["session_working_set_cap"], 14)
         self.assertEqual(wo["next_session_type"], "pull")
-        self.assertIn("Next session: PULL", wo["plan"]["message"])
+        self.assertEqual(wo["plan"].get("session_type"), "pull")
+        self.assertFalse(wo["plan"].get("is_rest_day"))
+        self.assertGreater(len(wo["plan"].get("exercises") or []), 0)
+        self.assertIn("PULL", (wo["plan"].get("message") or "").upper())
+        self.assertNotIn("Connect SuperGrok", wo["plan"].get("message") or "")
         pack = wo["training_pack"]
         self.assertEqual(pack["next_session_type"], "pull")
         self.assertIn("DB Flat Press", pack["catalog_names"])
@@ -178,6 +185,60 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         self.assertIn("DB Flat Press", ctx["workout_store"]["catalog_names"])
         self.assertIn("Ignore catalog default_sets=3", ctx["workout_store"]["volume_framework"]["notes"])
         self.assertEqual(ctx["workout_store"]["volume_framework"]["default_hard_sets"], 2)
+
+    def test_get_dashboard_generates_workout_plan_locally(self):
+        """Assay: GET runs generate_workout_plan, not SuperGrok-empty overlay."""
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        session = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=45, sets=3, reps=10)],
+                )
+            ],
+        )
+        with mock.patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([session], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ):
+                status, body = dashboard_body(headers)
+        self.assertEqual(status, 200)
+        plan = (body.get("workout_store") or {}).get("plan") or {}
+        msg = plan.get("message") or ""
+        self.assertNotIn("Connect SuperGrok", msg)
+        self.assertNotIn("SuperGrok connected", msg)
+        self.assertFalse(msg.startswith("Next session:"))
+        self.assertIn("rest_gate", plan)
+        self.assertIsNotNone(plan)
+        if plan.get("is_rest_day"):
+            self.assertEqual(plan.get("exercises") or [], [])
+            self.assertTrue(msg)
+        else:
+            exercises = plan.get("exercises") or []
+            self.assertGreater(len(exercises), 0)
+            catalog_names = {
+                e.get("name")
+                for e in ((body.get("workout_store") or {}).get("catalog") or {}).get(
+                    "exercises"
+                )
+                or []
+            }
+            for ex in exercises:
+                self.assertIn(ex.get("name"), catalog_names)
+        today = ((body.get("coach") or {}).get("today") or {}).get("workout") or {}
+        self.assertEqual(bool(today.get("is_rest_day")), bool(plan.get("is_rest_day")))
+        if not plan.get("is_rest_day"):
+            self.assertGreater(len(today.get("exercises") or []), 0)
 
     def test_apply_goals_volume_caps_ignores_catalog_three(self):
         catalog, _ = load_workspace_catalog()
@@ -301,19 +362,21 @@ class VercelDashboardRestGate(unittest.TestCase):
         self.assertTrue((wo["plan"].get("rest_gate") or {}).get("force_rest"))
         self.assertEqual(wo["next_session_type"], "pull")
         self.assertEqual((wo["training_pack"] or {}).get("next_session_type"), "pull")
-        self.assertIn("Next session: PULL", wo["plan"].get("message") or "")
-        # Slot is present. GET does not force a rest-day hole.
+        # Pi generate_workout_plan: score 35 + not sparse = explicit rest day.
         self.assertIsNotNone(wo["plan"])
-        self.assertFalse(wo["plan"].get("is_rest_day"))
-        self.assertNotEqual(wo["plan"].get("session_type"), "rest")
+        self.assertTrue(wo["plan"].get("is_rest_day"))
+        self.assertEqual(wo["plan"].get("session_type"), "rest")
+        self.assertEqual(wo["plan"].get("exercises") or [], [])
+        self.assertIn("below threshold", wo["plan"].get("message") or "")
+        self.assertNotIn("Connect SuperGrok", wo["plan"].get("message") or "")
         today = (body.get("coach") or {}).get("today") or {}
         self.assertIsNotNone(today.get("workout"))
-        self.assertNotEqual(today.get("recommendation"), "rest")
-        self.assertFalse((today.get("workout") or {}).get("is_rest_day"))
+        self.assertEqual(today.get("recommendation"), "rest")
+        self.assertTrue((today.get("workout") or {}).get("is_rest_day"))
         meal = (body.get("nutrition_store") or {}).get("meal_plan")
         self.assertIsNotNone(meal)
-        blob = (meal.get("message") or "") + (wo["plan"].get("message") or "")
-        self.assertIn("Connect SuperGrok", blob)
+        self.assertTrue(meal.get("in_stock_only"))
+        self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
 
     def test_score_35_sparse_sleep_not_rest(self):
         status, body = self._signed_body(score=35, sleep_hours=None)
@@ -322,11 +385,42 @@ class VercelDashboardRestGate(unittest.TestCase):
         self.assertTrue(body["recovery"]["sparse"])
         self.assertFalse(wo["plan"]["is_rest_day"])
         self.assertNotEqual(wo["plan"]["session_type"], "rest")
+        self.assertEqual(wo["plan"].get("session_type"), "pull")
+        self.assertGreater(len(wo["plan"].get("exercises") or []), 0)
         self.assertEqual(wo["next_session_type"], "pull")
-        self.assertIn("Next session: PULL", wo["plan"].get("message") or "")
+        self.assertIn("PULL", (wo["plan"].get("message") or "").upper())
+        self.assertNotIn("Connect SuperGrok", wo["plan"].get("message") or "")
         today = (body.get("coach") or {}).get("today") or {}
         self.assertNotEqual(today.get("recommendation"), "rest")
         self.assertFalse((today.get("workout") or {}).get("is_rest_day"))
+        self.assertGreater(len((today.get("workout") or {}).get("exercises") or []), 0)
+
+    def test_planner_exception_is_explicit_fail(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ), mock.patch(
+                "api.dashboard.preview_workout_plan",
+                side_effect=RuntimeError("catalog boom"),
+            ):
+                status, body = dashboard_body(headers)
+        self.assertEqual(status, 200)
+        plan = body["workout_store"]["plan"]
+        self.assertEqual(plan.get("exercises") or [], [])
+        self.assertIn("Workout plan failed", plan.get("message") or "")
+        self.assertIn("catalog boom", plan.get("message") or "")
+        self.assertNotIn("Connect SuperGrok", plan.get("message") or "")
+        self.assertNotIn("Next session:", plan.get("message") or "")
+        self.assertFalse(plan.get("is_rest_day"))
 
 
 if __name__ == "__main__":

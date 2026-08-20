@@ -190,6 +190,7 @@ def build_hydration_bars_payload(
     sleep_battery: Optional[dict] = None,
     as_of: Optional[str] = None,
     now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
     target_ml_override: Optional[float] = None,
 ) -> Dict[str, Any]:
     """Compose hydration pacing payload for the dashboard JSON.
@@ -199,16 +200,25 @@ def build_hydration_bars_payload(
       2. 35 ml/kg from latest weight on/before as_of
       3. DEFAULT_HYDRATION_GOAL_ML (2500)
     """
+    if now is None or tz_name:
+        from .timeutil import local_now
+
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
+
     if as_of is None:
-        if now is not None:
-            as_of = now.astimezone().date().isoformat()
-        else:
-            as_of = datetime.now().astimezone().date().isoformat()
+        from .timeutil import local_today_iso
+
+        as_of = local_today_iso(tz_name, now=now)
     as_of = str(as_of)[:10]
 
     bat = sleep_battery or {}
     window = eating_window_fraction(
         now=now,
+        tz_name=tz_name,
         last_wake_at=bat.get("last_wake_at"),
         empty_at=bat.get("empty_at"),
         awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),

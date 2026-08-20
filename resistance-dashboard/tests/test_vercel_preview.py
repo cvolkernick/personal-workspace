@@ -3,11 +3,14 @@ import unittest
 from unittest import mock
 
 from api.auth.session_util import (
+    PROD_PUBLIC_URL,
     SESSION_COOKIE,
     make_session,
     make_state,
     missing_oauth_env,
+    public_base_url,
     read_session,
+    redirect_uri,
     verify_state,
 )
 from api.auth.status import auth_status_body
@@ -51,6 +54,61 @@ class VercelPreviewAuthStatus(unittest.TestCase):
             self.assertEqual(
                 missing,
                 ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "FITDASH_PUBLIC_URL"],
+            )
+
+    def test_production_public_url_uses_prod_alias_not_preview_host(self):
+        stale = (
+            "https://fitdash-git-feat-fitdash-vercel-adapter-cvolkernick.vercel.app"
+        )
+        env = {
+            "VERCEL_ENV": "production",
+            "FITDASH_PUBLIC_URL": stale,
+            "VERCEL_URL": "fitdash-git-feat-fitdash-vercel-adapter-cvolkernick.vercel.app",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(public_base_url(), PROD_PUBLIC_URL)
+            self.assertEqual(
+                redirect_uri(),
+                f"{PROD_PUBLIC_URL}/api/auth/google/callback",
+            )
+            self.assertNotIn("-git-", public_base_url())
+
+    def test_production_honors_non_preview_explicit_url(self):
+        env = {
+            "VERCEL_ENV": "production",
+            "FITDASH_PUBLIC_URL": "https://fitdash-cvolkernick.vercel.app",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(public_base_url(), PROD_PUBLIC_URL)
+
+    def test_production_uses_platform_production_url_when_set(self):
+        env = {
+            "VERCEL_ENV": "production",
+            "VERCEL_PROJECT_PRODUCTION_URL": "fitdash-cvolkernick.vercel.app",
+            "VERCEL_URL": "fitdash-abc123-cvolkernick.vercel.app",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(public_base_url(), PROD_PUBLIC_URL)
+
+    def test_production_does_not_require_fitdash_public_url_env(self):
+        env = {
+            "GOOGLE_CLIENT_ID": "cid",
+            "GOOGLE_CLIENT_SECRET": "sec",
+            "VERCEL_ENV": "production",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(missing_oauth_env(), [])
+            self.assertEqual(public_base_url(), PROD_PUBLIC_URL)
+
+    def test_preview_still_uses_vercel_url(self):
+        env = {
+            "VERCEL_ENV": "preview",
+            "VERCEL_URL": "fitdash-git-feat-other-cvolkernick.vercel.app",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            self.assertEqual(
+                public_base_url(),
+                "https://fitdash-git-feat-other-cvolkernick.vercel.app",
             )
 
 
