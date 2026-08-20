@@ -224,6 +224,32 @@ def refresh_body(headers, payload=None):
     return dashboard_body(headers)
 
 
+def stamp_quest_list_ids(daily):
+    """Copy a known list_id onto leaves that already have a task_id.
+
+    Does not invent quests or task ids. Vercel/GT payloads sometimes hoist
+    list_id to the group or daily root only; Today needs it on the leaf.
+    """
+    if not isinstance(daily, dict):
+        return daily
+    root_lid = str(daily.get("list_id") or "").strip() or None
+    for group in daily.get("groups") or []:
+        if not isinstance(group, dict):
+            continue
+        group_lid = str(group.get("list_id") or "").strip() or root_lid
+        if group_lid and not group.get("list_id"):
+            group["list_id"] = group_lid
+        for key in ("items", "open_items"):
+            for item in group.get(key) or []:
+                if not isinstance(item, dict):
+                    continue
+                if not item.get("task_id"):
+                    continue
+                if not str(item.get("list_id") or "").strip() and group_lid:
+                    item["list_id"] = group_lid
+    return daily
+
+
 def daily_tasks_body(headers, payload=None):
     """GET /api/daily-tasks — Pi ensure_daily_tasks against the GT Fitness list.
 
@@ -240,7 +266,7 @@ def daily_tasks_body(headers, payload=None):
         return status, dashboard
     today = ((dashboard.get("coach") or {}).get("today")) or {}
     day = today.get("date") or (dashboard.get("meta") or {}).get("local_today")
-    result = ensure_daily_tasks(today, day=day)
+    result = stamp_quest_list_ids(ensure_daily_tasks(today, day=day))
     if not result.get("ok"):
         return 200, {
             "ok": False,
@@ -389,6 +415,7 @@ __all__ = [
     "inventory_write",
     "daily_tasks_body",
     "daily_tasks_complete_body",
+    "stamp_quest_list_ids",
     "meal_plan_body",
     "refresh_body",
     "goals_read",

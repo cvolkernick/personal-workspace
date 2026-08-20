@@ -3359,13 +3359,30 @@
     renderTodayHub(data);
   }
 
+  function escQuest(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function questLeafIds(item, group, dailyListId) {
+    const it = item || {};
+    const g = group || {};
+    const tid = String(it.task_id || it.id || "").trim();
+    const lid = String(it.list_id || g.list_id || dailyListId || "").trim();
+    const pid = String(g.task_id || g.id || "").trim();
+    return { tid, lid, pid, ready: !!(tid && lid) };
+  }
+
   /** Build quest body HTML (sync note + groups) — never includes the collapsible shell. */
-  function buildDailyQuestBodyHtml(groups, { syncing, err, src }) {
+  function buildDailyQuestBodyHtml(groups, { syncing, err, src, listId }) {
     let html = "";
     if (syncing) {
       html += `<p class="muted quest-sync-note">Syncing with Google Tasks…</p>`;
     } else if (err) {
-      html += `<p class="muted quest-sync-note">${err}</p>`;
+      html += `<p class="muted quest-sync-note">${escQuest(err)}</p>`;
     } else if (src === "google_tasks") {
       html += `<p class="muted quest-sync-note">Fitness list · complete here or in Google Tasks</p>`;
     }
@@ -3375,10 +3392,10 @@
       const gTot = g.total || 0;
       const open = (g.open_items || g.items || []).filter((x) => !x.completed);
       const emoji = g.emoji || "✓";
-      html += `<div class="quest-group${g.completed || !open.length ? " is-done" : ""}" data-group="${g.group || ""}">
+      html += `<div class="quest-group${g.completed || !open.length ? " is-done" : ""}" data-group="${escQuest(g.group || "")}">
         <div class="quest-group-head">
           <span class="quest-group-emoji">${emoji}</span>
-          <span class="quest-group-title">${g.title || g.group || "Group"}</span>
+          <span class="quest-group-title">${escQuest(g.title || g.group || "Group")}</span>
           <span class="quest-group-prog">${gDone}/${gTot}</span>
         </div>`;
       if (!open.length) {
@@ -3393,20 +3410,19 @@
           } else noMeal.push(it);
         });
         const renderCard = (it, g) => {
-          const tid = it.task_id || "";
-          const lid = it.list_id || "";
-          const pid = g.task_id || "";
-          const ready = tid && lid;
+          const { tid, lid, pid, ready } = questLeafIds(it, g, listId);
           // Strip redundant "Next meal: " prefix if already under meal header
           let label = it.title || "";
           if (it.meal_label && label.startsWith(it.meal_label + ":")) {
             label = label.slice(it.meal_label.length + 1).trim();
           }
+          // Leaf with task_id + list_id is a real control (never native disabled —
+          // disabled buttons drop clicks so document delegation cannot bind them).
           return `<button type="button" class="quest-card${ready ? "" : " quest-card-pending"}"
-            data-task-id="${tid}" data-list-id="${lid}" data-parent-id="${pid}"
-            ${ready ? "" : "disabled"} aria-label="Complete: ${label}">
+            data-task-id="${escQuest(tid)}" data-list-id="${escQuest(lid)}" data-parent-id="${escQuest(pid)}"
+            ${ready ? "" : 'aria-disabled="true"'} aria-label="Complete: ${escQuest(label)}">
             <span class="quest-card-mark" aria-hidden="true"></span>
-            <span class="quest-card-text">${label}</span>
+            <span class="quest-card-text">${escQuest(label)}</span>
           </button>`;
         };
         Object.keys(byMeal).forEach((mealLab) => {
@@ -3492,7 +3508,12 @@
     const done = sum.done != null ? sum.done : 0;
     const total = sum.total != null ? sum.total : 0;
     const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    const bodyHtml = buildDailyQuestBodyHtml(groups, { syncing, err, src });
+    const bodyHtml = buildDailyQuestBodyHtml(groups, {
+      syncing,
+      err,
+      src,
+      listId: (daily && daily.list_id) || "",
+    });
 
     // Re-render path: update meter/count/body only — head + open/closed stay put
     if (existing) {
@@ -3528,9 +3549,9 @@
         cache: "no-store",
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.ok) return;
+      if (!res.ok) return;
       const daily = data.daily_tasks;
-      if (!daily) return;
+      if (!daily || typeof daily !== "object") return;
       if (state) {
         state.daily_tasks = daily;
         if (state.coach && state.coach.today) state.coach.today.daily_tasks = daily;
@@ -3541,16 +3562,32 @@
     }
   }
 
+  function unlockQuestCard(btn) {
+    if (!btn) return;
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.classList.remove("is-completing");
+  }
+
   async function onDailyQuestClick(ev) {
     const btn = ev.target.closest && ev.target.closest(".quest-card");
-    if (!btn || btn.disabled) return;
-    if (btn.classList.contains("quest-card-pending")) return;
-    const taskId = btn.getAttribute("data-task-id") || "";
-    const listId = btn.getAttribute("data-list-id") || "";
-    const parentId = btn.getAttribute("data-parent-id") || "";
-    if (!taskId || !listId) return;
+    if (!btn || btn.classList.contains("is-completing") || btn.classList.contains("is-done")) return;
+    const taskId = (btn.getAttribute("data-task-id") || "").trim();
+    const listId = (btn.getAttribute("data-list-id") || "").trim();
+    const parentId = (btn.getAttribute("data-parent-id") || "").trim();
+    // Leaf with both ids is a real control even if a stale pending/disabled paint remains.
+    if (!taskId || !listId) {
+      if (btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("quest-card-pending")) {
+        showAlert((state && state.daily_tasks && state.daily_tasks.error) || "Quest is not synced to Google Tasks yet", "err");
+      }
+      return;
+    }
+    ev.preventDefault();
+    btn.classList.remove("quest-card-pending");
+    btn.removeAttribute("aria-disabled");
     btn.disabled = true;
     btn.classList.add("is-completing");
+    btn.setAttribute("aria-busy", "true");
     const groupEl = btn.closest(".quest-group");
     const remaining = groupEl
       ? Array.from(groupEl.querySelectorAll(".quest-card:not(.is-completing):not(.is-done)"))
@@ -3571,17 +3608,22 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) {
-        btn.disabled = false;
-        btn.classList.remove("is-completing");
-        showAlert(data.error || "Could not complete quest", "err");
+        unlockQuestCard(btn);
+        const hint =
+          res.status === 405
+            ? "method_not_allowed"
+            : res.status === 404
+              ? "complete_not_found"
+              : data.error || "Could not complete quest";
+        showAlert(hint, "err");
         return;
       }
       btn.classList.add("is-done");
+      btn.removeAttribute("aria-busy");
       setTimeout(() => {
         btn.remove();
         if (groupEl && !groupEl.querySelector(".quest-card")) {
           groupEl.classList.add("is-done");
-          const row = groupEl.querySelector(".quest-card-row") || groupEl;
           const doneEl = document.createElement("div");
           doneEl.className = "quest-group-done";
           doneEl.textContent = "Cleared ✓";
@@ -3605,10 +3647,16 @@
         }
       }, 280);
     } catch (e) {
-      btn.disabled = false;
-      btn.classList.remove("is-completing");
+      unlockQuestCard(btn);
       showAlert(String(e.message || e), "err");
     }
+  }
+
+  function bindDailyQuestClicks() {
+    // Document-level so m-shell re-layouts / innerHTML quest rewrites never drop the handler.
+    if (document.documentElement.dataset.questDelegated === "1") return;
+    document.documentElement.dataset.questDelegated = "1";
+    document.addEventListener("click", onDailyQuestClick);
   }
 
   /** Event-delegated collapse — survives quest re-renders after GT sync. */
@@ -3786,8 +3834,9 @@
 
     // Daily quests: paint local plan immediately; sync GT in background (keeps dashboard snappy)
     const daily = today.daily_tasks || data.daily_tasks || null;
-    // Bind collapse delegation once on hub (before/after quest re-renders)
+    // Bind collapse + quest delegation once (before/after quest re-renders)
     bindCollapsibles($("today-hub") || document);
+    bindDailyQuestClicks();
     renderDailyPlanTasks(daily, today.actions || []);
     if (!daily || daily.needs_sync || daily.source !== "google_tasks") {
       syncDailyTasksFromServer();
@@ -4236,6 +4285,8 @@
     if (shell) shell.classList.toggle("is-first-loading", !!visible);
     if (el) {
       el.hidden = !visible;
+      el.inert = !visible;
+      el.setAttribute("aria-hidden", visible ? "false" : "true");
       el.setAttribute("aria-busy", visible ? "true" : "false");
     }
     const msg = $("today-first-load-msg");
@@ -4901,10 +4952,7 @@
     if ($("btn-log-plan")) {
       $("btn-log-plan").addEventListener("click", logPlanToForm);
     }
-    if ($("today-actions") && !$("today-actions").dataset.questBound) {
-      $("today-actions").dataset.questBound = "1";
-      $("today-actions").addEventListener("click", onDailyQuestClick);
-    }
+    bindDailyQuestClicks();
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
         // Training settings live under More; prescription is on Today Lift

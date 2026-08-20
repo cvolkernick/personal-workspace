@@ -2123,8 +2123,11 @@ footer {
   text-align: center;
   padding: 1.5rem 1.1rem;
 }
-.today-first-load[hidden] {
+.today-first-load[hidden],
+#app-shell:not(.is-first-loading) > #today-first-load {
   display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
 }
 .today-first-load-spinner {
   width: 2.15rem;
@@ -2353,6 +2356,13 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   cursor: pointer;
   transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
   min-height: 44px;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+body.m-shell .quest-card {
+  pointer-events: auto;
 }
 
 .quest-card:hover:not(:disabled) {
