@@ -4,6 +4,9 @@ NOW/NEXT come from day_plan.next3 (personal next moves). Recommendations,
 today.md examples, unfilled / “user to fill” / empty creative-slot
 placeholders, Buzz-board pull/ready jargon, July-17 tasks.json, stale
 backlog, and quests without a GT id stay off the page.
+
+Chris-actionable only: no Cadence / Ready-count team status, no one-liner
+that restates a NOW/NEXT title, no “nothing to do”.
 """
 
 from __future__ import annotations
@@ -36,9 +39,11 @@ from pulse import (  # noqa: E402
     build_world,
     is_example_today_line,
     keep_action_item,
+    keep_blocked_item,
     next_api_payload,
     now_api_payload,
     now_from_next3,
+    one_liner_duplicates_next,
     personal_next3,
 )
 from recommendations import synthesize_recommendations  # noqa: E402
@@ -646,7 +651,8 @@ class SeatFacingNextAssayTests(unittest.TestCase):
         self.assertFalse(any("watch protein remaining" in t.lower() for t in titles))
         self.assertFalse(any("band=watch" in (i.get("why") or "") for i in plan["next3"]))
 
-    def test_cadence_one_liner_only_with_real_board_fact(self) -> None:
+    def test_cadence_one_liner_never_emitted(self) -> None:
+        """Board Ready/free is team status — not a Chris action. Do not replace."""
         plan = compose_day_plan(
             [
                 _hol_today(),
@@ -658,7 +664,31 @@ class SeatFacingNextAssayTests(unittest.TestCase):
         )
         pulse = build_pulse(day_plan=plan, now=NOW)
         texts = [ln.get("text") or "" for ln in pulse["one_liners"]]
-        self.assertIn("Cadence: 2 Ready · 2 free", texts)
+        blob = " ".join(texts).lower()
+        self.assertFalse(any((ln.get("id") == "cadence") for ln in pulse["one_liners"]))
+        self.assertNotIn("cadence", blob)
+        self.assertNotIn("ready ·", blob)
+        self.assertNotIn("free agent", blob)
+        self.assertNotIn("pull candidate", blob)
+        self.assertFalse(any("nothing to do" in t.lower() for t in texts))
+        live = build_one_liners(
+            {
+                "next3": [],
+                "sources": {
+                    "workflow": {
+                        "stale": False,
+                        "fetch_ok": True,
+                        "ready_count": 1,
+                        "free_agent_count": 4,
+                    }
+                },
+            },
+            now=NOW,
+        )
+        live_blob = json.dumps(live).lower()
+        self.assertNotIn("cadence", live_blob)
+        self.assertNotIn("1 ready", live_blob)
+        self.assertNotIn("4 free", live_blob)
         unknown = build_one_liners(
             {"sources": {"workflow": {"stale": True, "fetch_ok": False}}},
             now=NOW,
@@ -772,15 +802,16 @@ class PulseChromeAssayTests(unittest.TestCase):
             now=NOW,
         )
         pulse = build_pulse(day_plan=plan, now=NOW)
+        now_title = ((pulse.get("now") or {}).get("title") or "")
+        next_titles = [x.get("title") or "" for x in pulse.get("next") or []]
+        self.assertTrue(
+            now_title.startswith("Train ") or any(t.startswith("Train ") for t in next_titles),
+            msg=(now_title, next_titles),
+        )
         texts = [ln.get("text") or "" for ln in pulse["one_liners"]]
         train_lines = [t for t in texts if t.lower().startswith("train")]
-        self.assertTrue(train_lines, msg=texts)
-        self.assertFalse(any(re.search(r"^train\s+train\b", t, re.I) for t in train_lines))
-        self.assertTrue(all(t.startswith("Train:") for t in train_lines))
-        self.assertIn("push", train_lines[0])
-        self.assertIn(" · ", train_lines[0])
-        # no invented single-letter PPL
-        self.assertFalse(any(re.search(r"^Train [PplL]\b", t) for t in train_lines))
+        # Train is already NOW/NEXT — do not repeat it as a one-liner.
+        self.assertFalse(train_lines, msg=texts)
 
         bare = build_one_liners(
             {
@@ -796,6 +827,141 @@ class PulseChromeAssayTests(unittest.TestCase):
         )
         bare_texts = [ln.get("text") or "" for ln in bare]
         self.assertEqual(bare_texts, ["Train: Rest · train"])
+        self.assertFalse(any(re.search(r"^train\s+train\b", t, re.I) for t in bare_texts))
+        # no invented single-letter PPL
+        self.assertFalse(any(re.search(r"^Train [PplL]\b", t) for t in bare_texts))
+
+        kept = build_one_liners(
+            {
+                "next3": [],
+                "sources": {
+                    "fitness": {
+                        "train_recommendation": "train",
+                        "session_type": "push",
+                        "recovery_label": "Ready",
+                        "stale": False,
+                    }
+                },
+            },
+            now=NOW,
+        )
+        kept_train = [
+            ln.get("text") or ""
+            for ln in kept
+            if (ln.get("text") or "").startswith("Train:")
+        ]
+        self.assertEqual(kept_train, ["Train: push · Ready"])
+        self.assertIn(" · ", kept_train[0])
+
+    def test_protein_one_liner_omitted_when_next_already_has_protein(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(
+                    session_due=False,
+                    train_recommendation="rest",
+                    protein_gap_band="watch",
+                    protein_remaining_g=72,
+                ),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        next_titles = [x.get("title") or "" for x in pulse.get("next") or []]
+        self.assertTrue(
+            any("protein" in t.lower() for t in next_titles),
+            msg=next_titles,
+        )
+        texts = [ln.get("text") or "" for ln in pulse["one_liners"]]
+        self.assertFalse(
+            any("protein" in t.lower() for t in texts),
+            msg=texts,
+        )
+        self.assertTrue(
+            one_liner_duplicates_next(
+                "Protein watch · remaining≈72g",
+                [{"title": "Watch protein · ~72g left", "kind": "protein"}],
+            )
+        )
+
+    def test_nothing_to_do_and_team_status_stay_off(self) -> None:
+        self.assertFalse(
+            keep_action_item({"id": "idle", "title": "Nothing for me to do"})
+        )
+        self.assertFalse(keep_action_item({"id": "idle2", "title": "nothing to do"}))
+        self.assertFalse(keep_action_item({"id": "empty", "title": "Empty"}))
+        pulse = build_pulse(
+            day_plan={
+                "next3": [
+                    {"id": "idle", "title": "Nothing for me to do", "kind": "fyi"},
+                    {"id": "fit-session", "title": "Train push", "domain": "fitness", "kind": "train"},
+                ]
+            },
+            now=NOW,
+        )
+        self.assertEqual((pulse.get("now") or {}).get("title"), "Train push")
+        blob = json.dumps({"now": pulse.get("now"), "next": pulse.get("next")}).lower()
+        self.assertNotIn("nothing for me to do", blob)
+        self.assertNotIn("nothing to do", blob)
+
+    def test_blocked_named_gate_is_constraint_not_code(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(session_due=False, train_recommendation="rest", recovery_score=30),
+                {
+                    "id": "finance",
+                    "available": True,
+                    "url": "http://127.0.0.1:8000/financial-command/",
+                    "signals": {
+                        "as_of": NOW.isoformat(),
+                        "stress_overall": "red",
+                        "red_mode": True,
+                        "free_cash_gate": "block_new_risk",
+                        "freshness": "fresh",
+                        "day_actions": [],
+                    },
+                },
+            ],
+            now=NOW,
+        )
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        blocked = pulse["blocked"]
+        titles = [i.get("title") or "" for i in blocked.get("items") or []]
+        title_blob = " ".join(titles)
+        self.assertTrue(
+            any("new risk" in t.lower() for t in titles)
+            or any("rest" in t.lower() for t in titles),
+            msg=titles,
+        )
+        self.assertNotIn("free_cash", title_blob)
+        self.assertNotIn("capital_red_mode", title_blob)
+        self.assertNotIn("body_rest", title_blob)
+        self.assertFalse(
+            keep_blocked_item(
+                {
+                    "id": "workflow_blocked",
+                    "title": "2 blocked",
+                    "domain": "workflow",
+                    "source": "gate",
+                    "severity": "warn",
+                }
+            )
+        )
+        self.assertTrue(
+            keep_blocked_item(
+                {
+                    "id": "free_cash",
+                    "title": "No new risk",
+                    "domain": "finance",
+                    "source": "gate",
+                    "severity": "block",
+                }
+            )
+        )
 
     def test_blocked_unknown_without_clock(self) -> None:
         blocked = build_blocked(
