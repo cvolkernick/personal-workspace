@@ -17,6 +17,10 @@
       "destination": "/api/dashboard?_r=refresh"
     },
     {
+      "source": "/api/daily-tasks/complete",
+      "destination": "/api/dashboard?_r=daily_tasks_complete"
+    },
+    {
       "source": "/api/daily-tasks",
       "destination": "/api/dashboard?_r=daily_tasks"
     },
