@@ -38,7 +38,111 @@
       align-items: center; justify-content: space-between;
       background: rgba(8,12,18,0.75);
       backdrop-filter: blur(8px);
-      position: sticky; top: 0; z-index: 12;
+      position: sticky; top: 2.15rem; z-index: 12;
+    }
+    /* v1 chrome: WORLD is a one-line Horizon deep-link, never an embed */
+    a.world-strip {
+      display: block;
+      padding: 0.4rem 1.5rem;
+      border-bottom: 1px solid #2a3a55;
+      background: linear-gradient(90deg, #101828 0%, #0c141c 70%);
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.86rem;
+      font-weight: 650;
+      letter-spacing: 0.01em;
+      position: sticky; top: 0; z-index: 13;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    a.world-strip:hover { color: var(--cyan); }
+    a.world-strip .w-kicker {
+      color: var(--muted); font-size: 0.68rem; font-weight: 800;
+      letter-spacing: 0.08em; text-transform: uppercase; margin-right: 0.55rem;
+    }
+    a.world-strip .w-hint { color: var(--muted); font-weight: 500; margin-left: 0.45rem; }
+    .week-strip, .gates-strip, .held-strip {
+      margin-bottom: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 0.75rem 0.95rem;
+      background: var(--panel);
+    }
+    .week-strip h2, .gates-strip h2, .held-strip h2 {
+      margin: 0 0 0.55rem; font-size: 0.78rem; font-weight: 800;
+      letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted);
+    }
+    .week-days {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 0.4rem;
+    }
+    @media (max-width: 720px) {
+      .week-days { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    }
+    .week-day {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.45rem 0.4rem 0.5rem;
+      min-height: 4.4rem;
+      background: var(--panel2);
+    }
+    .week-day.today { border-color: var(--cyan); box-shadow: 0 0 0 1px rgba(79, 209, 197, 0.25); }
+    .week-day.hinge { transform: translateY(6px); }
+    .week-day .wd-name { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; }
+    .week-day .wd-mode { font-size: 0.88rem; font-weight: 700; margin-top: 0.15rem; }
+    .week-day .wd-chip {
+      display: inline-block; margin-top: 0.3rem;
+      font-size: 0.68rem; font-weight: 700;
+      border: 1px solid var(--orange); color: var(--orange);
+      border-radius: 999px; padding: 0.05rem 0.4rem;
+    }
+    .week-note { color: var(--muted); font-size: 0.78rem; margin-top: 0.55rem; }
+    .gates-row {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.45rem;
+    }
+    @media (max-width: 720px) {
+      .gates-row { grid-template-columns: 1fr 1fr; }
+    }
+    .gate {
+      border-radius: 10px;
+      padding: 0.55rem 0.65rem;
+      min-height: 3.6rem;
+      border: 1.5px solid var(--border);
+      background: transparent;
+    }
+    .gate.open {
+      background: #1a3a55;
+      border-color: #2d6a9f;
+    }
+    .gate.closed {
+      background: transparent;
+      border-style: solid;
+      color: var(--muted);
+    }
+    .gate.dashed { border-style: dashed; }
+    .gate.never-red { color: inherit; }
+    .gate .g-name { font-weight: 750; font-size: 0.9rem; }
+    .gate .g-hint { font-size: 0.75rem; color: var(--muted); margin-top: 0.15rem; }
+    .held-strip { border-style: solid; }
+    .held-items { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .held-chip {
+      font-size: 0.78rem; color: var(--text);
+      background: var(--panel2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.2rem 0.5rem;
+    }
+    .held-meta { color: var(--muted); font-size: 0.8rem; margin-top: 0.45rem; }
+    .hinge-success {
+      margin: 0 0 0.75rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: 8px;
+      border: 1px dashed #3a5a8a;
+      color: var(--cyan);
+      font-size: 0.86rem;
+      font-weight: 650;
     }
     /* Grouped sticky dock — plane sections, not flat equal pills */
     .domain-nav {
@@ -414,21 +518,41 @@
   </style>
 </head>
 <body>
+  <a class="world-strip" id="world-strip" href="http://127.0.0.1:8795/" target="_blank" rel="noopener" aria-label="WORLD — open Horizon">
+    <span class="w-kicker">WORLD</span><span id="world-line">Horizon — open for world regime</span><span class="w-hint" id="world-hint"> · :8795</span>
+  </a>
   <header class="orch-chrome">
     <div class="orch-chrome-top">
       <div>
         <h1>Orchestrator</h1>
-        <div class="sub" id="purpose">Top-level coordination across all personal-workspace domains</div>
+        <div class="sub" id="purpose">Personal window — Horizon is world; Time Allocator and Workflow are the children</div>
       </div>
       <div class="actions">
         <button class="primary" id="btn-refresh" type="button">Refresh</button>
         <button id="btn-probe" type="button" title="Probe child server ports">Probe ports</button>
       </div>
     </div>
-    <nav class="domain-nav" id="domain-nav" aria-label="Grouped dashboard dock"></nav>
+    <nav class="domain-nav" id="domain-nav" aria-label="Personal dock — Time Allocator and Workflow"></nav>
   </header>
   <main>
     <div class="error-banner" id="error"></div>
+
+    <section class="week-strip" id="sec-week" aria-label="WEEK personal modes">
+      <h2>WEEK</h2>
+      <div class="week-days" id="week-days"></div>
+      <div class="week-note" id="week-note"></div>
+    </section>
+
+    <section class="gates-strip" id="sec-gates" aria-label="GATES personal windows">
+      <h2>GATES</h2>
+      <div class="gates-row" id="gates-row"></div>
+    </section>
+
+    <section class="held-strip" id="sec-held" aria-label="HELD Workflow to Holistic today">
+      <h2>HELD</h2>
+      <div class="held-items" id="held-items"></div>
+      <div class="held-meta" id="held-meta"></div>
+    </section>
 
     <!-- P2: Unitary daily planner — primary focus (reads payload.day_plan only) -->
     <section class="day-plan" id="sec-day-plan" aria-label="Today unitary day plan">
@@ -439,6 +563,7 @@
         </div>
         <div class="meta" id="dp-meta"></div>
       </header>
+      <div class="hinge-success" id="hinge-success" hidden></div>
       <div class="dp-grid">
         <div class="dp-col">
           <h3>Next 3</h3>
@@ -456,7 +581,6 @@
       </div>
     </section>
 
-    <div class="fan-in" id="fan-in" aria-label="Awareness fan-in strip"></div>
     <div class="summary" id="summary"></div>
 
     <div class="briefing" id="briefing" hidden>
@@ -519,39 +643,20 @@
     let lastData = null;
     let synFilter = "all";
 
-    /** #128 nav groups — plane-grouped dock (no new domains beyond known ports). */
+    /** v1 dock — personal children only. Horizon is WORLD strip, not a tile. */
     const NAV_GROUPS = [
       {
-        id: "today",
-        label: "Today",
+        id: "personal",
+        label: "Personal",
         chips: [
-          { id: "holistic", short: "Holistic", port: 8770, path: "/" },
-          { id: "fitness", short: "FitDash", port: 8787, path: "/" },
+          { id: "holistic", short: "Time Allocator", port: 8770, path: "/" },
           { id: "workflow", short: "Workflow", port: 8765, path: "/" },
-          { id: "finance", short: "FCC", port: 8000, path: "/financial-command/index.html" },
-        ],
-      },
-      {
-        id: "decide",
-        label: "Decide",
-        chips: [
-          { id: "horizon", short: "Horizon", port: 8795, path: "/" },
-          { id: "seasonal", short: "Seasonal", port: 8791, path: "/" },
-          { id: "b2", short: "B2", port: 8792, path: "/" },
-        ],
-      },
-      {
-        id: "home",
-        label: "Home",
-        chips: [
-          { id: "iot", short: "IoT", port: 8780, path: "/" },
         ],
       },
     ];
     const GATE_CTA = {
-      finance: { short: "Open FCC", domainId: "finance" },
-      fitness: { short: "Open FitDash", domainId: "fitness" },
       workflow: { short: "Open Workflow", domainId: "workflow" },
+      holistic: { short: "Open Time Allocator", domainId: "holistic" },
     };
 
     function pageHost() {
@@ -590,11 +695,11 @@
     function renderDock(data) {
       const el = $("domain-nav");
       if (!el) return;
+      const chromeDock = (data.chrome && data.chrome.dock) || [];
       const domains = data.domains || [];
       const domainById = {};
       domains.forEach((d) => { if (d && d.id) domainById[d.id] = d; });
-      // Strategy meta only if present in payload (files-only — no chip force)
-      const strategy = domainById.strategy;
+      chromeDock.forEach((d) => { if (d && d.id) domainById[d.id] = Object.assign({}, domainById[d.id] || {}, d); });
       el.innerHTML = NAV_GROUPS.map((g) => {
         const chips = g.chips.map((chip) => {
           const { klass, domain } = chipState(chip, domainById);
@@ -612,14 +717,7 @@
         return `<div class="nav-group" data-group="${esc(g.id)}">
           <span class="nav-group-label">${esc(g.label)}</span>${chips}
         </div>`;
-      }).join("") + (strategy
-        ? `<div class="nav-group" data-group="meta">
-            <span class="nav-group-label">Meta</span>
-            <span class="nav-chip unknown" title="files only — Strategy">
-              <span class="dot"></span>Strategy
-            </span>
-          </div>`
-        : "");
+      }).join("");
     }
 
     async function openDomain(domainId, fallbackUrl) {
@@ -776,6 +874,90 @@
       }).filter(Boolean).join(" ");
     }
 
+    function renderWorld(chrome) {
+      const a = $("world-strip");
+      const lineEl = $("world-line");
+      const hintEl = $("world-hint");
+      const world = (chrome && chrome.world) || {};
+      const href = publicizeUrl(world.url || "http://127.0.0.1:8795/");
+      if (a) a.href = href;
+      if (lineEl) lineEl.textContent = world.line || "Horizon — open for world regime";
+      if (hintEl) hintEl.textContent = world.placeholder ? " · placeholder · :8795" : " · :8795";
+    }
+
+    function renderWeek(chrome) {
+      const daysEl = $("week-days");
+      const noteEl = $("week-note");
+      const week = (chrome && chrome.week) || {};
+      const days = week.days || [];
+      if (daysEl) {
+        daysEl.innerHTML = days.map((d) => {
+          const klass = [
+            "week-day",
+            d.today ? "today" : "",
+            d.is_hinge ? "hinge" : "",
+          ].filter(Boolean).join(" ");
+          const chips = (d.chips || []).map((c) =>
+            `<span class="wd-chip">${esc(c.label || "")}</span>`
+          ).join("");
+          const todayMark = d.today ? " · today" : "";
+          return `<div class="${klass}" data-weekday="${esc(d.weekday || "")}">
+            <div class="wd-name">${esc(d.weekday_label || d.weekday || "")}${todayMark}</div>
+            <div class="wd-mode">${esc(d.label || d.mode || "")}</div>
+            ${chips}
+          </div>`;
+        }).join("");
+      }
+      if (noteEl) {
+        noteEl.textContent = week.note || "Hinges offset on purpose. Sunday-into-Monday is Hinge B.";
+      }
+    }
+
+    function renderGatesChrome(chrome) {
+      const el = $("gates-row");
+      if (!el) return;
+      const gates = (chrome && chrome.gates) || {};
+      const items = gates.items || [];
+      el.innerHTML = items.map((g) => {
+        const opened = !!g.open;
+        const dashed = (g.style === "dashed") || g.id === "hinge_buffer" || !!g.never_red;
+        const klass = [
+          "gate",
+          opened ? "open" : "closed",
+          dashed ? "dashed" : "",
+          g.never_red ? "never-red" : "",
+        ].filter(Boolean).join(" ");
+        const hint = opened ? "open" : (g.hint || "not this window");
+        return `<div class="${klass}" data-gate="${esc(g.id || "")}">
+          <div class="g-name">${esc(g.label || g.id || "")}</div>
+          <div class="g-hint">${esc(hint)}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderHeld(chrome) {
+      const itemsEl = $("held-items");
+      const metaEl = $("held-meta");
+      const held = (chrome && chrome.held) || {};
+      const items = held.items || [];
+      if (itemsEl) {
+        itemsEl.innerHTML = items.length
+          ? items.map((it) =>
+              `<span class="held-chip">${esc(it.title || "")}${it.kind ? " · " + esc(it.kind) : ""}</span>`
+            ).join("")
+          : `<span class="held-chip">Nothing held — Workflow → Holistic today is clear</span>`;
+      }
+      if (metaEl) {
+        const wf = held.workflow_url ? publicizeUrl(held.workflow_url) : "";
+        const al = held.allocator_url ? publicizeUrl(held.allocator_url) : "";
+        const links = [
+          wf ? `<a class="link" href="${esc(wf)}" target="_blank" rel="noopener">Workflow</a>` : "",
+          al ? `<a class="link" href="${esc(al)}" target="_blank" rel="noopener">Time Allocator</a>` : "",
+        ].filter(Boolean).join(" · ");
+        metaEl.innerHTML = `${esc(held.note || "Workflow → Holistic today")}${links ? " · " + links : ""}`;
+      }
+    }
+
     function renderDayPlan(dp) {
       const badge = $("dp-badge");
       const summaryEl = $("dp-summary");
@@ -783,13 +965,27 @@
       const nextEl = $("dp-next3");
       const blocksEl = $("dp-blocks");
       const gatesEl = $("dp-gates");
+      const hingeDay = !!(lastData && lastData.chrome && lastData.chrome.mode && lastData.chrome.mode.is_hinge);
+      const hingeNote = (lastData && lastData.chrome && lastData.chrome.mode && lastData.chrome.mode.success_note)
+        || "Hinge day — short or empty is success, not a failed day.";
+      const hingeBanner = $("hinge-success");
       if (!dp || typeof dp !== "object") {
-        badge.textContent = "missing";
-        summaryEl.textContent = "No day_plan on payload — composer not wired or server outdated.";
+        badge.textContent = hingeDay ? "hinge" : "missing";
+        summaryEl.textContent = hingeDay
+          ? hingeNote
+          : "No day_plan on payload — composer not wired or server outdated.";
         metaEl.innerHTML = "";
-        nextEl.innerHTML = '<div class="empty-hint">—</div>';
-        blocksEl.innerHTML = '<div class="empty-hint">—</div>';
+        nextEl.innerHTML = hingeDay
+          ? `<div class="empty-hint">${esc(hingeNote)}</div>`
+          : '<div class="empty-hint">—</div>';
+        blocksEl.innerHTML = hingeDay
+          ? `<div class="empty-hint">${esc(hingeNote)}</div>`
+          : '<div class="empty-hint">—</div>';
         gatesEl.innerHTML = '<div class="empty-hint">—</div>';
+        if (hingeBanner) {
+          hingeBanner.hidden = !hingeDay;
+          hingeBanner.textContent = hingeDay ? hingeNote : "";
+        }
         return;
       }
 
@@ -798,8 +994,16 @@
       const gates = Array.isArray(dp.gates) ? dp.gates : [];
       const sources = dp.sources || {};
 
-      badge.textContent = "v" + (dp.schema_version != null ? dp.schema_version : "?");
-      summaryEl.textContent = dp.summary || "day_plan empty — check domain freshness";
+      badge.textContent = hingeDay
+        ? "hinge"
+        : ("v" + (dp.schema_version != null ? dp.schema_version : "?"));
+      summaryEl.textContent = hingeDay
+        ? hingeNote
+        : (dp.summary || "day_plan empty — check domain freshness");
+      if (hingeBanner) {
+        hingeBanner.hidden = !hingeDay;
+        hingeBanner.textContent = hingeDay ? hingeNote : "";
+      }
       const genRel = relAge(dp.generated_at);
       metaEl.innerHTML = [
         genRel ? `<span class="tag">${esc(genRel)}</span>` : "",
@@ -825,7 +1029,7 @@
               <div class="meta">${link}${item.kind ? ` <span class="tag">${esc(item.kind)}</span>` : ""}</div>
             </div>`;
           }).join("")
-        : '<div class="empty-hint">No Next actions — gates or stale sources may be blocking, or domains empty.</div>';
+        : `<div class="empty-hint">${hingeDay ? esc(hingeNote) : "No Next actions — gates or stale sources may be blocking, or domains empty."}</div>`;
 
       // Blocks: Holistic-derived timeline (sleep + active when present)
       blocksEl.innerHTML = blocks.length
@@ -840,7 +1044,7 @@
               <span class="tl-min">${esc(mins)}</span>
             </div>`;
           }).join("")
-        : '<div class="empty-hint">No day blocks — Holistic plan empty or unavailable.</div>';
+        : `<div class="empty-hint">${hingeDay ? esc(hingeNote) : "No day blocks — Holistic plan empty or unavailable."}</div>`;
 
       // Gates: capital / body / WIP — never invent green; surface stale/unknown
       const activeGateDomains = new Set();
@@ -878,7 +1082,7 @@
           }).join("")
         : '<div class="empty-hint">No gates — domains may still be loading or all clear (not invented green).</div>';
 
-      // Primary gate CTAs (Open FCC / FitDash / Workflow) when block|warn|unknown
+      // Personal-window CTAs only (Workflow / Time Allocator)
       const ctaEl = $("dp-gate-ctas");
       if (ctaEl) {
         const ctas = [];
@@ -909,76 +1113,6 @@
       }
     }
 
-    function renderFanIn(fan) {
-      const el = $("fan-in");
-      if (!fan) {
-        el.innerHTML = `<div class="fi-cell"><div class="fi-label">Fan-in</div>
-          <div class="fi-value miss">—</div>
-          <div class="fi-meta">no fan_in in payload</div></div>`;
-        return;
-      }
-      const host = fan.host || {};
-      const regime = fan.regime || {};
-      const imps = fan.implications || {};
-      let hostClass = "miss";
-      let hostVal = "—";
-      if (host.available) {
-        hostClass = host.ok ? "ok" : "bad";
-        hostVal = host.ok ? "OK" : "DOWN";
-      } else {
-        hostVal = "n/a";
-      }
-      const hostMeta = [
-        host.host || null,
-        host.as_of ? ("as_of " + relAge(host.as_of) + (host.age_seconds != null ? " · " + ageLabel(host.age_seconds) : "")) : null,
-        (host.degraded && host.degraded.length) ? (host.degraded.length + " degraded") : null,
-        host.note || null,
-      ].filter(Boolean).join(" · ") || "await heartbeat file";
-
-      const regimeVal = regime.available && regime.primary_label
-        ? regime.primary_label
-        : (regime.available === false ? "stub" : "—");
-      const regimeClass = regime.available && regime.primary_label ? "ok" : "miss";
-      const conf = regime.confidence != null ? ("conf " + Number(regime.confidence).toFixed(2)) : null;
-      const prob = regime.primary_probability != null
-        ? ("p " + Number(regime.primary_probability).toFixed(2)) : null;
-      const regimeMeta = [conf, prob, regime.note || null].filter(Boolean).join(" · ") || "await L0 packet";
-
-      const top = imps.top || [];
-      const impHead = imps.available
-        ? ((imps.count || top.length) + " implication" + ((imps.count || top.length) === 1 ? "" : "s"))
-        : "stub";
-      const impMeta = [
-        imps.as_of ? relAge(imps.as_of) : null,
-        imps.stale ? "stale" : null,
-        imps.note || null,
-      ].filter(Boolean).join(" · ");
-      const impList = top.length
-        ? `<ul>${top.map((t) => {
-            const urg = t.urgency ? `<span class="pill ${esc(t.urgency)}">${esc(t.urgency)}</span> ` : "";
-            const own = t.owner_domain ? `<span class="tag">${esc(t.owner_domain)}</span> ` : "";
-            return `<li>${urg}${own}${esc(t.action || t.id || "")}</li>`;
-          }).join("")}</ul>`
-        : `<div class="fi-meta">${esc(imps.available ? (imps.note || "none") : "await #49 packet path")}</div>`;
-
-      el.innerHTML = `
-        <div class="fi-cell">
-          <div class="fi-label">Host</div>
-          <div class="fi-value ${hostClass}">${esc(hostVal)}</div>
-          <div class="fi-meta">${esc(hostMeta)}</div>
-        </div>
-        <div class="fi-cell">
-          <div class="fi-label">Regime</div>
-          <div class="fi-value ${regimeClass}">${esc(regimeVal)}</div>
-          <div class="fi-meta">${esc(regimeMeta)}</div>
-        </div>
-        <div class="fi-cell fi-imps">
-          <div class="fi-label">Top implications · ${esc(impHead)}</div>
-          ${impList}
-          ${impMeta ? `<div class="fi-meta">${esc(impMeta)}</div>` : ""}
-        </div>`;
-    }
-
     function render(data) {
       lastData = data;
       showError("");
@@ -994,9 +1128,12 @@
       const fresh = data.freshness || {};
       const staleN = c.stale_sources ?? fresh.stale_count ?? 0;
 
-      renderFanIn(data.fan_in);
+      renderWorld(data.chrome);
+      renderWeek(data.chrome);
+      renderGatesChrome(data.chrome);
+      renderHeld(data.chrome);
 
-      // Grouped sticky dock (Today / Decide / Home)
+      // Personal dock: Time Allocator :8770 + Workflow :8765 only
       renderDock(data);
       bindDockClicks();
 

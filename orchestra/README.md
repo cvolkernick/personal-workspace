@@ -4,12 +4,13 @@ Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/hea
 
 Surfaces:
 
-- **Recommended next actions** (primary) — automated merge of hygiene, high/medium synergies, and priorities
+- **v1 chrome** — WORLD (Horizon :8795 deep-link) · WEEK (mode chips) · GATES (Drive/Sleep/Desk/Hinge buffer) · HELD (Workflow → Holistic today)
+- **Today day_plan** + collectors (unchanged)
+- **Dock** — Time Allocator `:8770` and Workflow `:8765` only (no Horizon tile, no 4th app)
+- **Recommended next actions** — automated merge of hygiene, high/medium synergies, and priorities
 - Multi-domain status (file-based; optional live port probe)
-- Cross-domain **synergies** (high preferred; medium fallback when none are high)
 - Supporting streams: attention, raw priorities, day bridge
-- **Source freshness** ages for treasury snapshot and ops backlog
-- Deep-links / launch commands for every subordinate dashboard
+- Mode SoT: `orchestra/mode.json` (`America/New_York`)
 
 ## Launch (recommended)
 
@@ -24,8 +25,8 @@ python3 orchestra/server.py --port 8790
 Double-click **`open-command-center.command`** (opens Orchestra).
 
 - UI: http://127.0.0.1:8790/
-- Full payload: http://127.0.0.1:8790/api/orchestra
-- Fan-in strip (host + regime + implications): http://127.0.0.1:8790/api/fan-in
+- Full payload: http://127.0.0.1:8790/api/orchestra (`chrome` + `day_plan`)
+- Fan-in strip (host + regime + implications; WORLD reads this): http://127.0.0.1:8790/api/fan-in
 - Recommended actions: http://127.0.0.1:8790/api/recommendations
 - Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health

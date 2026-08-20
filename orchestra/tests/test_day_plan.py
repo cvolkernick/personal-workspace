@@ -828,6 +828,8 @@ class PayloadDayPlanTests(unittest.TestCase):
                     empty.cleanup()
             self.assertTrue(payload["ok"])
             self.assertIn("day_plan", payload)
+            self.assertIn("chrome", payload)
+            self.assertIn("world", payload["chrome"])
             dp = payload["day_plan"]
             self.assertLessEqual(len(dp["next3"]), 3)
             self.assertIn("gates", dp)
