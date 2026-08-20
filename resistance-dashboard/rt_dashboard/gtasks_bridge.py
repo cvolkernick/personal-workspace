@@ -2,42 +2,102 @@
 
 Uses the same OAuth files as google-tasks-mcp:
   ~/.config/google-tasks-mcp/{token,client_secret}.json
+
+Vercel Root Directory is resistance-dashboard/, so a byte-identical copy
+ships at resistance-dashboard/projects-dashboard/google_tasks.py (includeFiles).
+Nest SoT (parents[2]) still wins on Pi when that file exists.
 """
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 import sys
 from pathlib import Path
 from typing import Any, Optional
 
+_REL = Path("projects-dashboard") / "google_tasks.py"
+_MOD_NAME = "fitdash_google_tasks_mod"
 
-def _workspace_root() -> Path:
-    # resistance-dashboard/rt_dashboard/this → personal-workspace
-    return Path(__file__).resolve().parents[2]
+
+def _google_tasks_candidates() -> list[Path]:
+    """Nest SoT first, then the Vercel-bundled copy under resistance-dashboard/."""
+    here = Path(__file__).resolve()
+    ordered: list[Path] = []
+    # rt_dashboard/gtasks_bridge.py → parents[2] = repo root (Pi nest)
+    if len(here.parents) >= 3:
+        ordered.append(here.parents[2] / _REL)
+    # parents[1] = resistance-dashboard (Vercel project / function root)
+    if len(here.parents) >= 2:
+        ordered.append(here.parents[1] / _REL)
+    cwd = Path.cwd().resolve()
+    ordered.append(cwd / _REL)
+    for parent in cwd.parents:
+        ordered.append(parent / _REL)
+    seen: set[Path] = set()
+    out: list[Path] = []
+    for cand in ordered:
+        try:
+            resolved = cand.resolve()
+        except OSError:
+            continue
+        if resolved not in seen:
+            seen.add(resolved)
+            out.append(resolved)
+    return out
+
+
+def _exec_google_tasks(path: Path):
+    if _MOD_NAME in sys.modules:
+        return sys.modules[_MOD_NAME]
+    spec = importlib.util.spec_from_file_location(_MOD_NAME, path)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"cannot load {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[_MOD_NAME] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _import_google_tasks_from_sys_path():
+    """PYTHONPATH fallback (e.g. projects-dashboard on sys.path)."""
+    if "google_tasks" in sys.modules:
+        return sys.modules["google_tasks"]
+    try:
+        return importlib.import_module("google_tasks")
+    except ImportError:
+        return None
 
 
 def load_google_tasks():
     """Load projects-dashboard/google_tasks without requiring package install."""
-    path = _workspace_root() / "projects-dashboard" / "google_tasks.py"
-    if not path.is_file():
-        raise FileNotFoundError(f"google_tasks.py not found at {path}")
-    name = "fitdash_google_tasks_mod"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load {path}")
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[name] = mod
-    spec.loader.exec_module(mod)
-    return mod
+    if _MOD_NAME in sys.modules:
+        return sys.modules[_MOD_NAME]
+    for path in _google_tasks_candidates():
+        if path.is_file():
+            return _exec_google_tasks(path)
+    imported = _import_google_tasks_from_sys_path()
+    if imported is not None:
+        sys.modules[_MOD_NAME] = imported
+        return imported
+    raise FileNotFoundError(
+        "google_tasks.py not found in nest (projects-dashboard/) "
+        "or FitDash bundle (resistance-dashboard/projects-dashboard/)"
+    )
 
 
 def credentials_status() -> dict[str, Any]:
     try:
         gt = load_google_tasks()
-        return gt.credentials_status()
+        status = gt.credentials_status()
+        if not isinstance(status, dict):
+            return {"ok": False, "error": "Google Tasks not configured"}
+        if not status.get("ok") and not status.get("error"):
+            return {
+                **status,
+                "error": status.get("hint") or "Google Tasks not configured",
+            }
+        return status
     except Exception as e:
         return {"ok": False, "error": str(e)}
 
