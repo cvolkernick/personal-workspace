@@ -80,6 +80,9 @@ def synthesize_priorities(
     for i, line in enumerate(today_items):
         # strip markdown bold markers for cleaner title
         clean = line.replace("**", "").strip()
+        # strategy/today.md “e.g.” examples are not kind=today Do-now
+        if "e.g." in clean.lower() or "eg." in clean.lower():
+            continue
         add(
             title=clean,
             source="strategy/today.md",

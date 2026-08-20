@@ -28,8 +28,10 @@ from typing import Any, Optional
 
 try:
     from .domains import DOMAIN_SPECS
+    from .pulse import same_civil_day
 except ImportError:  # script / unittest path insert
     from domains import DOMAIN_SPECS
+    from pulse import same_civil_day
 
 
 def _now() -> str:
@@ -210,7 +212,11 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
     for name in ("Energy", "Bitcoin", "AI", "Autonomy", "Robotics"):
         if re.search(rf"\b{name}\b", bets_text, re.I):
             thematic.append(name)
-    open_items = _checklist_open(today_text)
+    open_items = [
+        item
+        for item in _checklist_open(today_text)
+        if "e.g." not in item.lower() and "eg." not in item.lower()
+    ]
     initiatives = collect_initiatives(ws)
     status = "ok" if bets_text or today_text else "missing"
     summary_bits = []
@@ -718,6 +724,16 @@ def collect_fitness(workspace: Path) -> dict[str, Any]:
             "summary": day_pkt.get("summary"),
             "confidence": day_pkt.get("confidence"),
             "deep_link": day_pkt.get("deep_link"),
+            "quests": [
+                q
+                for q in (day_pkt.get("quests") or [])
+                if isinstance(q, dict)
+                and (
+                    str(q.get("gt_task_id") or q.get("google_task_id") or q.get("gt_id") or "").strip()
+                )
+            ],
+            "pantry": day_pkt.get("pantry") if isinstance(day_pkt.get("pantry"), dict) else None,
+            "meals": day_pkt.get("meals") if isinstance(day_pkt.get("meals"), dict) else None,
         }
         if day_pkt.get("summary"):
             bits.insert(0, str(day_pkt["summary"]))
@@ -792,9 +808,27 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
         bits.append(f"{len(blocks)} plan block(s)")
 
     # Full block objects for day_plan spine (keep legacy id list under plan_block_ids)
+    # Dated windows that are not today (e.g. July-17 tasks.json) stay off the pulse.
+    plan_as_of = None
+    if isinstance(plan, dict):
+        plan_as_of = plan.get("as_of") or plan.get("window_start") or plan.get("generated_at")
+    plan_is_today = True
+    if plan_as_of and same_civil_day(plan_as_of) is False:
+        # Unparseable dates stay usable; a real other-day window does not.
+        from attention import parse_timestamp as _parse_ts
+
+        if _parse_ts(plan_as_of) is not None:
+            plan_is_today = False
+    if not plan_is_today:
+        blocks = []
     plan_blocks_full: list[dict[str, Any]] = []
     for b in blocks[:20]:
         if not isinstance(b, dict):
+            continue
+        kind = str(b.get("kind") or "").lower()
+        role = str(b.get("role") or "").lower()
+        if kind == "fill_remainder" or role == "fill":
+            # fill_remainder (e.g. 855m Lyft) is not today's work
             continue
         plan_blocks_full.append(
             {
@@ -856,6 +890,7 @@ def collect_holistic(workspace: Path) -> dict[str, Any]:
             "sleep_reserve_minutes": sleep_reserve,
             "window_start": plan.get("window_start") if isinstance(plan, dict) else None,
             "window_end": plan.get("window_end") if isinstance(plan, dict) else None,
+            "plan_as_of": plan_as_of,
             "source": "holistic/data/tasks.json" if data_path.is_file() else None,
         },
         "available": bool(state),

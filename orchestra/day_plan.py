@@ -14,8 +14,10 @@ from typing import Any, Optional
 
 try:
     from .attention import hours_since, parse_timestamp
+    from .pulse import keep_action_item, same_civil_day
 except ImportError:  # unittest path insert
     from attention import hours_since, parse_timestamp
+    from pulse import keep_action_item, same_civil_day
 
 SCHEMA_VERSION = 1
 MAX_NEXT3 = 3
@@ -236,14 +238,18 @@ def build_holistic_source(
     now: Optional[datetime] = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Envelope + day blocks from holistic domain snapshot."""
-    del now  # reserved for future age calc
     sig = holistic.get("signals") if isinstance(holistic.get("signals"), dict) else {}
     deep = holistic.get("url") or DEFAULT_DEEP_LINKS["holistic"]
     available = bool(holistic.get("available"))
 
     plan_blocks = sig.get("plan_blocks") or []
+    plan_as_of = sig.get("as_of") or sig.get("plan_as_of") or sig.get("window_start")
+    # Dated plan for another civil day (July-17 tasks.json) is not today
+    plan_is_today = True
+    if plan_as_of and parse_timestamp(plan_as_of) is not None:
+        plan_is_today = same_civil_day(plan_as_of, now=now)
     blocks_out: list[dict[str, Any]] = []
-    if isinstance(plan_blocks, list):
+    if plan_is_today and isinstance(plan_blocks, list):
         for b in plan_blocks:
             if not isinstance(b, dict):
                 # legacy string id
@@ -260,12 +266,17 @@ def build_holistic_source(
                     }
                 )
                 continue
+            kind = str(b.get("kind") or "").lower()
+            role = str(b.get("role") or "").lower()
+            mapped = _map_block_kind(b)
+            if kind == "fill_remainder" or role == "fill" or mapped == "fill":
+                continue
             bid = str(b.get("id") or b.get("title") or "block")
             blocks_out.append(
                 {
                     "id": bid,
                     "title": str(b.get("title") or bid),
-                    "kind": _map_block_kind(b),
+                    "kind": mapped,
                     "start": b.get("start"),
                     "end": b.get("end"),
                     "minutes": int(b.get("minutes") or 0),
@@ -294,7 +305,8 @@ def build_holistic_source(
     has_duchess_target = any("duchess" in tid for tid in target_ids) or any(
         "duchess" in t for t in target_titles_l
     )
-    if has_sleep_target and "sleep" not in existing_ids:
+    # Do not invent today's spine from a dated non-today plan (July-17 tasks.json)
+    if has_sleep_target and "sleep" not in existing_ids and plan_is_today:
         blocks_out.insert(
             0,
             {
@@ -307,7 +319,7 @@ def build_holistic_source(
                 "source": "holistic",
             },
         )
-    if has_duchess_target and not any(
+    if has_duchess_target and plan_is_today and not any(
         "duchess" in str(b.get("id") or "").lower() for b in blocks_out
     ):
         blocks_out.append(
@@ -322,8 +334,8 @@ def build_holistic_source(
             }
         )
 
-    as_of = sig.get("as_of") or sig.get("plan_as_of")
-    stale = not available or not blocks_out
+    as_of = sig.get("as_of") or sig.get("plan_as_of") or sig.get("window_start")
+    stale = not available or not blocks_out or not plan_is_today
     conf = 0.8 if available and blocks_out else 0.2 if available else 0.0
     summary_bits = []
     if free_minutes is not None:
@@ -846,6 +858,14 @@ def build_fitness_source(
             "sleep_battery": sleep_battery,
             "rest_blocks_train": rest_block,
             "age_hours": round(age, 2) if age is not None else None,
+            "quests": [
+                q
+                for q in (day.get("quests") or [])
+                if isinstance(q, dict) and keep_action_item(q)
+            ],
+            "protein_as_of": protein_as_of,
+            "pantry": day.get("pantry") if isinstance(day.get("pantry"), dict) else None,
+            "meals": day.get("meals") if isinstance(day.get("meals"), dict) else None,
         },
     )
     return env, gates, suggested
@@ -1177,35 +1197,12 @@ def compose_day_plan(
     candidates: list[dict[str, Any]] = []
     for pool in (wf_sugg, fit_sugg, fin_sugg):
         candidates.extend(pool)
-
-    # Optional light merge from recommendations (same shape filter)
-    if recommendations and isinstance(recommendations, dict):
-        for item in recommendations.get("items") or []:
-            if not isinstance(item, dict):
-                continue
-            domains_list = item.get("domains") or []
-            dom = None
-            for d in domains_list:
-                if d in ("fitness", "finance", "workflow", "holistic"):
-                    dom = d
-                    break
-            if not dom:
-                continue
-            candidates.append(
-                {
-                    "id": str(item.get("id") or item.get("title") or "rec"),
-                    "title": str(item.get("action") or item.get("title") or "")[:160],
-                    "domain": dom,
-                    "why": str(item.get("why") or item.get("rationale") or "")[:200],
-                    "severity": "info",
-                    "deep_link": DEFAULT_DEEP_LINKS.get(dom),
-                    "kind": item.get("kind"),
-                }
-            )
+    # NOW/NEXT are day_plan.next3 — do not merge recommendations (today.md / backlog theater)
+    _ = recommendations
 
     filtered: list[dict[str, Any]] = []
     for c in candidates:
-        if not c.get("title"):
+        if not keep_action_item(c):
             continue
         if rest_blocks_train and _is_train_action(c):
             continue
@@ -1239,6 +1236,54 @@ def compose_day_plan(
         )
         if len(deduped) >= MAX_NEXT3:
             break
+
+    session_due_fresh = bool(fit_src.get("session_due")) and not fit_src.get("stale")
+    try:
+        ready_n = int(wf_src.get("ready_count") or 0)
+    except (TypeError, ValueError):
+        ready_n = 0
+    ready_fresh = ready_n >= 1 and not wf_src.get("stale") and wf_src.get("fetch_ok") is not False
+    named_gate_ids = {str(g.get("id") or "") for g in gates}
+    named_explains = (rest_blocks_train and "body_rest" in named_gate_ids) or (
+        wip_overload and "wip_overload" in named_gate_ids
+    )
+    if session_due_fresh and ready_fresh and not named_explains:
+        # Next 3 cannot be 3 finance rows while session_due + ready are live
+        work_fit = [
+            c
+            for c in deduped
+            if c.get("domain") in ("workflow", "fitness", "holistic")
+        ]
+        finance_rows = [c for c in deduped if c.get("domain") == "finance"]
+        if len(finance_rows) >= 3 or (
+            len(finance_rows) == len(deduped) and len(deduped) >= 2
+        ):
+            preferred: list[dict[str, Any]] = []
+            seen_pref: set[str] = set()
+            extra_wf = [c for c in filtered if c.get("domain") in ("workflow", "fitness")]
+            for c in extra_wf + work_fit + finance_rows[:1]:
+                if not keep_action_item(c):
+                    continue
+                key = str(c.get("title") or "").strip().lower()
+                if key in seen_pref:
+                    continue
+                seen_pref.add(key)
+                preferred.append(
+                    {
+                        "id": str(c.get("id") or key)[:80],
+                        "title": str(c.get("title")),
+                        "domain": c.get("domain"),
+                        "why": c.get("why") or "",
+                        "severity": c.get("severity") or "info",
+                        "deep_link": c.get("deep_link")
+                        or DEFAULT_DEEP_LINKS.get(str(c.get("domain"))),
+                        "kind": c.get("kind"),
+                    }
+                )
+                if len(preferred) >= MAX_NEXT3:
+                    break
+            if preferred:
+                deduped = preferred
 
     # Summary line
     gate_titles = [g.get("title") for g in gates if g.get("severity") in ("block", "unknown")]
