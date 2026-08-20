@@ -289,6 +289,36 @@ class FormatTests(unittest.TestCase):
             glance.photo_for({"id": "m3-2022"}),
         )
 
+    def test_card_html_follows_roster_make_pairs(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=EMPTY_INBOX,
+            dimo_env={},
+            now=NOW,
+        )
+        html = glance.render_cards_html(
+            payload["units"], now=NOW, inbox_status=None
+        )
+        ids = []
+        needle = 'data-unit="'
+        start = 0
+        while True:
+            at = html.find(needle, start)
+            if at < 0:
+                break
+            end = html.find('"', at + len(needle))
+            ids.append(html[at + len(needle) : end])
+            start = end
+        self.assertEqual(
+            ids,
+            ["m3-2020", "m3-2022", "corolla-2022", "corolla-2024", "r1s-2023"],
+        )
+        index = (PKG / "index.html").read_text(encoding="utf-8")
+        grid = index[index.find(".grid {") : index.find(".card {")]
+        self.assertIn("grid-template-columns: repeat(2, minmax(0, 1fr))", grid)
+
 
 if __name__ == "__main__":
     unittest.main()

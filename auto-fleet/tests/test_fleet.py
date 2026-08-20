@@ -42,7 +42,7 @@ class FleetAssemblyTests(unittest.TestCase):
         ids = [u["id"] for u in payload["units"]]
         self.assertEqual(
             ids,
-            ["m3-2020", "r1s-2023", "m3-2022", "corolla-2022", "corolla-2024"],
+            ["m3-2020", "m3-2022", "corolla-2022", "corolla-2024", "r1s-2023"],
         )
         by_id = {u["id"]: u for u in payload["units"]}
         self.assertEqual(by_id["m3-2020"]["identity"]["role"], "personal")
@@ -79,6 +79,25 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertEqual(
             by_id["corolla-2022"]["glance"]["photo"],
             "/static/fleet/toyota-corolla-2022.jpg",
+        )
+
+    def test_display_order_tesla_tesla_corolla_corolla_rivian(self) -> None:
+        """2-col glance: Tesla|Tesla, Corolla|Corolla, Rivian alone. No sixth unit."""
+        payload = self._build(FIXTURES / "expenses_no_fleet.json")
+        units = payload["units"]
+        self.assertEqual(len(units), 5)
+        labels = []
+        for unit in units:
+            ident = unit["identity"]
+            labels.append(
+                ident["model"] if ident["make"] == "Toyota" else ident["make"]
+            )
+        self.assertEqual(
+            labels, ["Tesla", "Tesla", "Corolla", "Corolla", "Rivian"]
+        )
+        self.assertEqual(
+            [u["id"] for u in units],
+            ["m3-2020", "m3-2022", "corolla-2022", "corolla-2024", "r1s-2023"],
         )
 
     def test_no_fleet_tab_is_stale_not_invented_payoff(self) -> None:
