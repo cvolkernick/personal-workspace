@@ -1,0 +1,11 @@
+{
+  "source": "grok_cos",
+  "as_of": "2026-08-20T19:12:00+00:00",
+  "items": [
+    {
+      "title": "Put Google Tasks env on Vercel so FitDash quests work off the Pi",
+      "why": "Path bug is fixed. Sync still dies without GOOGLE_TASKS_* on the alias. File token stays on prism.",
+      "check": "Signed-in Today on fitdash-cvolkernick.vercel.app syncs a real quest, or shows an honest creds error (not a missing-file path)."
+    }
+  ]
+}
