@@ -1,6 +1,6 @@
 # Auto Fleet
 
-Internal **fleet management** dashboard for four owned units: vehicle / DIMO
+Internal **fleet management** dashboard for five owned units: vehicle / DIMO
 state, Turo bookings, then notes & costs. Not a financial interface. Not FCC.
 
 **Not TREAD.** Do not fold this into `safewheels-website`, the host-platform
@@ -26,7 +26,7 @@ Open http://127.0.0.1:8796/
 | Method | Path | Notes |
 |--------|------|--------|
 | GET | `/api/health` | `{ok, service: "auto-fleet", port}` |
-| GET | `/api/fleet` | Four roster units + strips |
+| GET | `/api/fleet` | Roster units + strips |
 
 Tests (full package):
 
@@ -41,11 +41,11 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `server.py` / `index.html` | Dashboard + JSON API (glance-first UI) |
 | `fleet.py` | Assemble `/api/fleet` |
 | `glance.py` | Miles / SoC / stale / PTP presentation helpers |
-| `static/fleet/` | Per-unit stills (`m3-2020` has its own hero; 2022 Turo M3 keeps the listing Tesla). Not TREAD chrome |
+| `static/fleet/` | Per-unit stills (`m3-2020` and `r1s-2023` have their own heroes; 2022 Turo M3 keeps the listing Tesla). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
-| `data/roster.json` | Four-unit seed |
+| `data/roster.json` | Five-unit seed |
 | `data/notes.json` | 2026-08-13 portal override (stale on purpose) |
 | `data/turo_inbox.json` | Empty fixture — no invented trips |
 | `tests/` | Unit + HTTP tests |
