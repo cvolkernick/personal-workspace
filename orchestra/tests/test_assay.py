@@ -1,12 +1,15 @@
 """Assay AC for the thin Orchestra pulse cut.
 
-NOW/NEXT come from day_plan.next3 (personal next moves). Recommendations,
-today.md examples, unfilled / “user to fill” / empty creative-slot
-placeholders, Buzz-board pull/ready jargon, July-17 tasks.json, stale
-backlog, and quests without a GT id stay off the page.
+NOW/NEXT come from day_plan.next3 (personal next moves + same-day
+actionable Time Allocator blocks). Recommendations, today.md examples,
+unfilled / “user to fill” / empty creative-slot placeholders, Buzz-board
+pull/ready jargon, July-17 tasks.json, stale backlog, sleep-reserve,
+fill_remainder / Lyft, other-day windows, and quests without a GT id
+stay off the page.
 
 Chris-actionable only: no Cadence / Ready-count team status, no one-liner
-that restates a NOW/NEXT title, no “nothing to do”.
+that restates a NOW/NEXT title, no “nothing to do”. ADVICE is COS-only
+and blank when there is no real call.
 """
 
 from __future__ import annotations
@@ -27,8 +30,9 @@ if str(ORCH) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from advice import build_advice, load_advice_packet  # noqa: E402
 from collectors import collect_holistic, collect_strategy  # noqa: E402
-from day_plan import compose_day_plan  # noqa: E402
+from day_plan import compose_day_plan, is_ta_actionable_block  # noqa: E402
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
 from pulse import (  # noqa: E402
@@ -72,12 +76,13 @@ def _finance(as_of: str, actions: list | None = None) -> dict:
             "red_mode": False,
             "free_cash_gate": "allow",
             "freshness": "fresh",
-            "day_actions": actions
-            or [
+            "day_actions": [
                 {"kind": "ltv_check", "title": "Confirm Morpho LTV"},
                 {"kind": "fill_manual", "title": "Fill missing Coinbase fields"},
                 {"kind": "card_float", "title": "Top up card float"},
-            ],
+            ]
+            if actions is None
+            else actions,
         },
     }
 
@@ -986,12 +991,17 @@ class PulseChromeAssayTests(unittest.TestCase):
             self.assertNotIn("held", payload["pulse"])
             self.assertNotIn("chrome", payload)
             self.assertEqual([d["id"] for d in payload["pulse"]["dock"]], ["holistic", "workflow"])
+            self.assertIn("advice", payload)
+            self.assertTrue((payload.get("advice") or {}).get("blank"))
+            self.assertEqual((payload.get("advice") or {}).get("items"), [])
+            self.assertTrue((payload["pulse"].get("advice") or {}).get("blank"))
 
     def test_index_is_thin_pulse_page(self) -> None:
         html = (ORCH / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="sec-now"', html)
         self.assertIn('id="sec-next"', html)
         self.assertIn('id="sec-blocked"', html)
+        self.assertIn('id="sec-advice"', html)
         self.assertIn('id="world-strip"', html)
         self.assertIn("Time Allocator", html)
         self.assertIn("Workflow", html)
@@ -1008,6 +1018,267 @@ class PulseChromeAssayTests(unittest.TestCase):
         self.assertNotIn("port: 8792", html)
         self.assertNotIn("Fleet", html)
         self.assertNotIn("IoT", html)
+        # ADVICE seat reads pulse.advice only — not old recs / today.md / Ready / Cadence
+        self.assertIn("pulse.advice", html)
+        self.assertNotIn("/api/recommendations", html)
+        self.assertNotIn("today.md", html)
+        self.assertNotIn("Cadence", html)
+        self.assertNotIn("Ready ·", html)
+        self.assertNotIn("WEEK", html)
+        self.assertNotIn("GATES", html)
+        self.assertNotIn("HELD", html)
+
+
+def _hol_timed_blocks() -> dict:
+    """Same-day TA plan with actionable + skip rows."""
+    earlier = (NOW + timedelta(hours=1)).isoformat()
+    later = (NOW + timedelta(hours=3)).isoformat()
+    other = (NOW - timedelta(days=1)).isoformat()
+    return {
+        "id": "holistic",
+        "available": True,
+        "url": "http://127.0.0.1:8770/",
+        "signals": {
+            "plan_as_of": NOW.isoformat(),
+            "as_of": NOW.isoformat(),
+            "targets": ["Sleep", "Walk Duchess"],
+            "plan_blocks": [
+                {
+                    "id": "sleep",
+                    "title": "Sleep",
+                    "minutes": 480,
+                    "role": "reserve",
+                    "kind": "rolling_avg",
+                },
+                {
+                    "id": "duchess-walk",
+                    "title": "Walk Duchess",
+                    "minutes": 45,
+                    "role": "fixed",
+                    "kind": "daily_duration",
+                    "start": earlier,
+                },
+                {
+                    "id": "deep-work",
+                    "title": "Deep work",
+                    "minutes": 90,
+                    "role": "work",
+                    "kind": "capacity",
+                    "start": later,
+                },
+                {
+                    "id": "lyft",
+                    "title": "Lyft driving",
+                    "minutes": 855,
+                    "role": "fill",
+                    "kind": "fill_remainder",
+                },
+                {
+                    "id": "other-day-meet",
+                    "title": "Yesterday leftover",
+                    "minutes": 30,
+                    "role": "work",
+                    "start": other,
+                },
+            ],
+        },
+    }
+
+
+class SameDayTaNowNextAssayTests(unittest.TestCase):
+    def test_same_day_ta_actionable_blocks_in_now_next_chronological(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_timed_blocks(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(session_due=False, train_recommendation="rest"),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        titles = [i.get("title") for i in plan["next3"]]
+        self.assertIn("Walk Duchess", titles, msg=plan["next3"])
+        self.assertIn("Deep work", titles, msg=plan["next3"])
+        self.assertLess(titles.index("Walk Duchess"), titles.index("Deep work"))
+        starts = [i.get("start") for i in plan["next3"] if i.get("title") in ("Walk Duchess", "Deep work")]
+        self.assertEqual(len(starts), 2)
+        self.assertLess(starts[0], starts[1])
+
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        now_title = (pulse.get("now") or {}).get("title")
+        next_titles = [x.get("title") for x in pulse.get("next") or []]
+        self.assertEqual(now_title, next_titles[0])
+        self.assertIn("Walk Duchess", next_titles)
+        self.assertIn("Deep work", next_titles)
+        self.assertLess(next_titles.index("Walk Duchess"), next_titles.index("Deep work"))
+        self.assertEqual(pulse["now"], plan["next3"][0])
+        api = next_api_payload({"day_plan": plan})
+        self.assertEqual(api["next"], plan["next3"])
+        self.assertEqual(api["next3"], api["next"])
+
+    def test_sleep_reserve_fill_remainder_other_day_not_in_now_next(self) -> None:
+        hol = _hol_timed_blocks()
+        self.assertFalse(
+            is_ta_actionable_block(hol["signals"]["plan_blocks"][0], now=NOW)
+        )  # sleep
+        self.assertTrue(
+            is_ta_actionable_block(hol["signals"]["plan_blocks"][1], now=NOW)
+        )  # duchess
+        self.assertFalse(
+            is_ta_actionable_block(
+                {"id": "lyft", "title": "Lyft driving", "kind": "fill_remainder", "role": "fill"},
+                now=NOW,
+            )
+        )
+        self.assertFalse(
+            is_ta_actionable_block(
+                {
+                    "id": "other-day-meet",
+                    "title": "Yesterday leftover",
+                    "role": "work",
+                    "start": (NOW - timedelta(days=1)).isoformat(),
+                },
+                now=NOW,
+            )
+        )
+        plan = compose_day_plan(
+            [
+                hol,
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(session_due=False, train_recommendation="rest"),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("sleep", blob)
+        self.assertNotIn("lyft", blob)
+        self.assertNotIn("fill_remainder", blob)
+        self.assertNotIn("yesterday leftover", blob)
+        self.assertNotIn("855", blob)
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        seat = json.dumps({"now": pulse.get("now"), "next": pulse.get("next")}).lower()
+        self.assertNotIn("sleep", seat)
+        self.assertNotIn("lyft", seat)
+        self.assertNotIn("yesterday leftover", seat)
+        self.assertNotIn("week", json.dumps(pulse).lower().split("non_goals")[0])
+        self.assertNotIn("gates", [k for k in pulse.keys()])
+        self.assertNotIn("held", pulse)
+
+
+class AdviceSeatAssayTests(unittest.TestCase):
+    def test_advice_blank_without_cos_and_ignores_old_streams(self) -> None:
+        self.assertTrue(build_advice(None)["blank"])
+        self.assertEqual(build_advice(None)["items"], [])
+        self.assertTrue(build_advice({"items": [{"title": "Invented course"}]})["blank"])
+        self.assertTrue(
+            build_advice(
+                {
+                    "source": "recommendations",
+                    "items": [{"title": "Do now (from today’s plan): e.g. review DCA"}],
+                }
+            )["blank"]
+        )
+        self.assertTrue(
+            build_advice(
+                {
+                    "source": "grok_cos",
+                    "items": [
+                        {"title": "Cadence: 1 Ready · 4 free"},
+                        {"title": "Pull candidate #110: Geo+time"},
+                        {"title": "Do now (from today’s plan): e.g. review DCA"},
+                    ],
+                }
+            )["blank"]
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write(
+                ws / "strategy" / "today.md",
+                "# Today\n"
+                "- [ ] **Investment / thematic bet maintenance** "
+                "(e.g. review DCA, research one Energy name).\n"
+                "- [ ] Ship the thin pulse cut\n",
+            )
+            _write(ws / "strategy" / "bets.md", "# Bets\n- **AI**\n")
+            _write_json(
+                ws / "ops" / "board" / "day_constraints.json",
+                {
+                    "as_of": NOW.isoformat(),
+                    "fetch_ok": True,
+                    "ready_count": 3,
+                    "ready_top": [{"number": 92, "title": "day plan"}],
+                    "in_progress": [],
+                    "pending_review_count": 0,
+                    "blocked": [],
+                    "wip_overload": False,
+                    "free_agent_count": 2,
+                    "pipeline_pressure": "ok",
+                    "summary": "Ready 3 · 2 free",
+                },
+            )
+            _write_json(ws / "ops" / "backlog" / "items.json", {"items": []})
+            self.assertIsNone(load_advice_packet(ws))
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            advice = payload.get("advice") or {}
+            self.assertTrue(advice.get("blank"))
+            self.assertEqual(advice.get("items"), [])
+            pulse_advice = (payload.get("pulse") or {}).get("advice") or {}
+            self.assertTrue(pulse_advice.get("blank"))
+            self.assertEqual(pulse_advice.get("items"), [])
+            blob = json.dumps(advice).lower() + json.dumps(pulse_advice).lower()
+            self.assertNotIn("review dca", blob)
+            self.assertNotIn("cadence", blob)
+            self.assertNotIn("ready ·", blob)
+            self.assertNotIn("pull candidate", blob)
+            rec_items = (payload.get("recommendations") or {}).get("items") or []
+            # Old stream may still exist on the payload — ADVICE must not copy it.
+            if rec_items:
+                rec_titles = [i.get("title") or i.get("action") or "" for i in rec_items]
+                advice_titles = [i.get("title") for i in (advice.get("items") or [])]
+                for t in rec_titles:
+                    self.assertNotIn(t, advice_titles)
+
+    def test_advice_cos_packet_is_the_only_feed(self) -> None:
+        packet = {
+            "source": "grok_cos",
+            "as_of": NOW.isoformat(),
+            "items": [
+                {
+                    "title": "Collapse Time into NOW/NEXT, keep :8770 as editor",
+                    "check": "No Time Allocator iframe on :8790",
+                }
+            ],
+        }
+        seat = build_advice(packet)
+        self.assertFalse(seat["blank"])
+        self.assertEqual(len(seat["items"]), 1)
+        self.assertEqual(
+            seat["items"][0]["title"],
+            "Collapse Time into NOW/NEXT, keep :8770 as editor",
+        )
+        pulse = build_pulse(day_plan={"next3": []}, now=NOW, advice=packet)
+        self.assertEqual(pulse["advice"]["items"], seat["items"])
+        self.assertNotIn("week", pulse)
+        self.assertNotIn("held", pulse)
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write(ws / "strategy" / "today.md", "# Today\n- [ ] e.g. review DCA\n")
+            _write(ws / "strategy" / "bets.md", "# Bets\n- **AI**\n")
+            _write_json(
+                ws / "orchestra" / "data" / "advice.json",
+                packet,
+            )
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            titles = [i.get("title") for i in (payload.get("advice") or {}).get("items") or []]
+            self.assertEqual(
+                titles,
+                ["Collapse Time into NOW/NEXT, keep :8770 as editor"],
+            )
+            self.assertFalse((payload.get("advice") or {}).get("blank"))
+            self.assertNotIn("review dca", json.dumps(payload.get("advice")).lower())
 
 
 if __name__ == "__main__":

@@ -176,6 +176,11 @@
     <section id="sec-one-liners" aria-label="Optional facts">
       <div class="one-liners" id="one-liners"></div>
     </section>
+
+    <section id="sec-advice" aria-label="ADVICE">
+      <h2>Advice</h2>
+      <div class="list" id="advice-list"></div>
+    </section>
   </main>
   <footer id="footer">Orchestra · :8790</footer>
 
@@ -342,6 +347,16 @@
       el.innerHTML = lines.map((ln) => `<div>${esc(ln.text || "")}</div>`).join("");
     }
 
+    function renderAdvice(pulse) {
+      const el = $("advice-list");
+      const advice = (pulse && pulse.advice) || {};
+      const items = advice.items || [];
+      // COS seat only. Do not read the old hygiene or board streams.
+      el.innerHTML = items.length
+        ? items.map((item) => itemHtml(item)).join("")
+        : "";
+    }
+
     function render(data) {
       showError("");
       const pulse = data.pulse || {};
@@ -353,6 +368,7 @@
       renderNext(pulse, data.day_plan);
       renderBlocked(pulse);
       renderOneLiners(pulse);
+      renderAdvice(pulse);
       const rel = relAge(data.generated_at);
       $("footer").textContent = `Orchestra · ${rel || data.generated_at || ""} · :8790`;
     }
