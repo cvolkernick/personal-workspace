@@ -6,6 +6,7 @@ Allocator :8770. Horizon is a WORLD deep-link only (:8795), never a dock tile.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -75,20 +76,67 @@ def is_quest(item: Optional[dict[str, Any]]) -> bool:
 
 
 def keep_action_item(item: Optional[dict[str, Any]]) -> bool:
-    """Quests without a Google Tasks id are omitted."""
+    """Quests without a Google Tasks id, and today.md placeholders, are omitted."""
     if not isinstance(item, dict):
         return False
-    if not str(item.get("title") or item.get("action") or "").strip():
+    title = str(item.get("title") or item.get("action") or "").strip()
+    if not title:
+        return False
+    if is_example_today_line(title):
         return False
     if is_quest(item) and not has_gt_task_id(item):
         return False
     return True
 
 
+# Creative-slot template in strategy/today.md — empty until the user writes a real action.
+_CREATIVE_SLOT_RE = re.compile(
+    r"\bcreative(?:\s+or\s+other(?:\s+domain)?)?\s+next\s+action\b",
+    re.I,
+)
+_PLACEHOLDER_CLAUSES = frozenset(
+    {"", "tbd", "...", "…", "todo", "fill", "to fill", "unfilled", "placeholder"}
+)
+
+
+def _is_placeholder_clause(text: str) -> bool:
+    t = text.strip(" .()[]*—-_")
+    if t in _PLACEHOLDER_CLAUSES:
+        return True
+    return (
+        "user to fill" in t
+        or "to be filled" in t
+        or t.startswith("unfilled")
+    )
+
+
+def _is_empty_creative_slot(low: str) -> bool:
+    if not _CREATIVE_SLOT_RE.search(low):
+        return False
+    for sep in (":", " — ", " – ", " - "):
+        if sep in low:
+            after = low.split(sep, 1)[1]
+            if after.strip() and not _is_placeholder_clause(after.lower()):
+                return False
+    return True
+
+
 def is_example_today_line(text: Any) -> bool:
-    """strategy/today.md 'e.g.' examples are not Do-now / kind=today."""
-    low = str(text or "").lower()
-    return "e.g." in low or "eg." in low
+    """strategy/today.md examples and unfilled slots are not Do-now / kind=today.
+
+    Drops e.g./eg. examples, “user to fill” / unfilled markers, and empty
+    creative-slot placeholders. A filled “Creative … next action: <real work>”
+    line is an action.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return True
+    low = raw.lower()
+    if "e.g." in low or "eg." in low:
+        return True
+    if "user to fill" in low or "unfilled" in low or "to be filled" in low:
+        return True
+    return _is_empty_creative_slot(low)
 
 
 def backlog_feeds_recs(
@@ -302,12 +350,18 @@ def build_blocked(
     }
 
 
-def _train_letter(fitness_src: dict[str, Any]) -> Optional[str]:
+def _train_line(fitness_src: dict[str, Any]) -> Optional[str]:
+    """Seat fact: Train: {session_type|Rest} · cue. Not “Train train” / fake PPL."""
     rec = fitness_src.get("train_recommendation")
     if rec is None or fitness_src.get("stale"):
         return None
-    text = str(rec).strip()
-    return text or None
+    rec_text = str(rec).strip()
+    if not rec_text:
+        return None
+    session = str(fitness_src.get("session_type") or "").strip()
+    slot = session if session else "Rest"
+    cue = str(fitness_src.get("recovery_label") or "").strip() or rec_text
+    return f"Train: {slot} · {cue}"
 
 
 def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
@@ -358,9 +412,9 @@ def build_one_liners(
     fit = sources.get("fitness") if isinstance(sources.get("fitness"), dict) else {}
     out: list[dict[str, Any]] = []
 
-    letter = _train_letter(fit)
-    if letter:
-        out.append({"id": "train", "text": f"Train {letter}"})
+    train = _train_line(fit)
+    if train:
+        out.append({"id": "train", "text": train})
 
     meal = _meal_line(fit, now=ref)
     if meal:

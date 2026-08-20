@@ -10,9 +10,9 @@ from __future__ import annotations
 from typing import Any
 
 try:
-    from .pulse import backlog_feeds_recs
+    from .pulse import backlog_feeds_recs, is_example_today_line
 except ImportError:  # unittest path insert
-    from pulse import backlog_feeds_recs
+    from pulse import backlog_feeds_recs, is_example_today_line
 
 
 _URGENCY_SCORE = {
@@ -254,6 +254,8 @@ def synthesize_recommendations(
 
     # --- 3) Priorities (boost if domains overlap high synergies) ---
     for i, pri in enumerate(priorities[:10]):
+        if is_example_today_line(pri.get("title")):
+            continue
         if (pri.get("kind") or "").lower() == "backlog" and not allow_backlog_recs:
             continue
         if (pri.get("source") or "").startswith("ops/backlog") and not allow_backlog_recs:

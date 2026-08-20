@@ -1,12 +1,14 @@
 """Assay AC for the thin Orchestra pulse cut.
 
 NOW/NEXT come from day_plan.next3. Recommendations, today.md examples,
-July-17 tasks.json, stale backlog, and quests without a GT id stay off the page.
+unfilled / “user to fill” / empty creative-slot placeholders, July-17
+tasks.json, stale backlog, and quests without a GT id stay off the page.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tempfile
 import threading
@@ -28,10 +30,13 @@ from priorities import synthesize_priorities  # noqa: E402
 from pulse import (  # noqa: E402
     build_blocked,
     build_dock,
+    build_one_liners,
     build_pulse,
     build_world,
+    is_example_today_line,
     next_api_payload,
     now_api_payload,
+    now_from_next3,
 )
 from recommendations import synthesize_recommendations  # noqa: E402
 from server import OrchestraHandler  # noqa: E402
@@ -299,6 +304,118 @@ class TodayExampleAssayTests(unittest.TestCase):
                 any("review dca" in (p.get("title") or "").lower() for p in today_kinds)
             )
 
+    def test_unfilled_user_to_fill_creative_slot_not_today_now_or_do_now(self) -> None:
+        live = (
+            "**Creative or other domain next action** that has high impact this week "
+            "(user to fill based on current weightings and energy)."
+        )
+        empty_slot = "Creative or other domain next action"
+        unfilled = "Unfilled creative slot"
+        filled = "Creative or other domain next action: finish Energy video cut"
+        real = "Ship the thin pulse cut"
+
+        self.assertTrue(is_example_today_line(live))
+        self.assertTrue(is_example_today_line(empty_slot))
+        self.assertTrue(is_example_today_line(unfilled))
+        self.assertFalse(is_example_today_line(filled))
+        self.assertFalse(is_example_today_line(real))
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write(
+                ws / "strategy" / "today.md",
+                "# Today\n"
+                f"- [ ] {live}\n"
+                f"- [ ] {empty_slot}\n"
+                f"- [ ] {unfilled}\n"
+                f"- [ ] {filled}\n"
+                f"- [ ] {real}\n",
+            )
+            _write(ws / "strategy" / "bets.md", "# Bets\n- **AI**\n")
+            strat = collect_strategy(ws)
+            open_items = strat["signals"]["today_open"]
+            blob_open = " ".join(open_items).lower()
+            self.assertTrue(any("Ship the thin pulse" in x for x in open_items))
+            self.assertTrue(any("finish Energy video" in x for x in open_items))
+            self.assertNotIn("user to fill", blob_open)
+            self.assertFalse(any("unfilled" in x.lower() for x in open_items))
+            self.assertFalse(
+                any(
+                    "creative or other domain next action" in x.lower()
+                    and "finish energy" not in x.lower()
+                    for x in open_items
+                )
+            )
+
+            pris = synthesize_priorities(
+                today_items=open_items + [live, empty_slot, unfilled, filled, real]
+            )
+            today_kinds = [p for p in pris if p.get("kind") == "today"]
+            today_blob = " ".join(p.get("title") or "" for p in today_kinds).lower()
+            self.assertNotIn("user to fill", today_blob)
+            self.assertNotIn("unfilled", today_blob)
+            self.assertTrue(any("ship the thin pulse" in (p.get("title") or "").lower() for p in today_kinds))
+            self.assertTrue(
+                any("finish energy video" in (p.get("title") or "").lower() for p in today_kinds)
+            )
+            self.assertFalse(
+                any(
+                    "creative or other domain next action" in (p.get("title") or "").lower()
+                    and "finish energy" not in (p.get("title") or "").lower()
+                    for p in today_kinds
+                )
+            )
+
+            rec = synthesize_recommendations(priorities=pris)
+            rec_blob = json.dumps(rec).lower()
+            self.assertNotIn("user to fill", rec_blob)
+            self.assertFalse(
+                any(
+                    "do now" in (i.get("title") or i.get("action") or "").lower()
+                    and (
+                        "user to fill" in (i.get("title") or i.get("action") or "").lower()
+                        or (
+                            "creative or other domain next action"
+                            in (i.get("title") or i.get("action") or "").lower()
+                            and "finish energy" not in (i.get("title") or i.get("action") or "").lower()
+                        )
+                    )
+                    for i in rec["items"]
+                )
+            )
+
+            leaked = [
+                {"id": "pri-1", "title": live.replace("**", ""), "kind": "today"},
+                {"id": "pri-2", "title": empty_slot, "kind": "today"},
+                {"id": "wf-ready-92", "title": "Pull candidate #92", "domain": "workflow"},
+            ]
+            first = now_from_next3(leaked)
+            self.assertIsNotNone(first)
+            self.assertEqual(first.get("title"), "Pull candidate #92")
+            pulse = build_pulse(day_plan={"next3": leaked}, now=NOW)
+            self.assertEqual((pulse.get("now") or {}).get("title"), "Pull candidate #92")
+            next_titles = [x.get("title") for x in pulse.get("next") or []]
+            self.assertEqual(next_titles, ["Pull candidate #92"])
+            self.assertFalse(any("user to fill" in (t or "").lower() for t in next_titles))
+
+            payload = build_orchestra_payload(ws, probe_ports=False)
+            pri_today = [p for p in payload.get("priorities") or [] if p.get("kind") == "today"]
+            self.assertFalse(
+                any("user to fill" in (p.get("title") or "").lower() for p in pri_today)
+            )
+            rec_items = (payload.get("recommendations") or {}).get("items") or []
+            self.assertFalse(
+                any(
+                    "do now" in (i.get("title") or i.get("action") or "").lower()
+                    and "user to fill" in (i.get("title") or i.get("action") or "").lower()
+                    for i in rec_items
+                )
+            )
+            now_title = ((payload.get("pulse") or {}).get("now") or {}).get("title") or ""
+            next_blob = json.dumps((payload.get("day_plan") or {}).get("next3") or []).lower()
+            self.assertNotIn("user to fill", now_title.lower())
+            self.assertNotIn("user to fill", next_blob)
+
 
 class BacklogRecsAssayTests(unittest.TestCase):
     def test_not_board_status_does_not_feed_recs(self) -> None:
@@ -459,6 +576,42 @@ class PulseChromeAssayTests(unittest.TestCase):
         self.assertEqual([d["id"] for d in dock], ["holistic", "workflow"])
         self.assertEqual(dock[0]["port"], 8770)
         self.assertEqual(dock[1]["port"], 8765)
+
+    def test_train_recommendation_not_train_train(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(session_due=True, session_type="push", train_recommendation="train"),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        texts = [ln.get("text") or "" for ln in pulse["one_liners"]]
+        train_lines = [t for t in texts if t.lower().startswith("train")]
+        self.assertTrue(train_lines, msg=texts)
+        self.assertFalse(any(re.search(r"^train\s+train\b", t, re.I) for t in train_lines))
+        self.assertTrue(all(t.startswith("Train:") for t in train_lines))
+        self.assertIn("push", train_lines[0])
+        self.assertIn(" · ", train_lines[0])
+        # no invented single-letter PPL
+        self.assertFalse(any(re.search(r"^Train [PplL]\b", t) for t in train_lines))
+
+        bare = build_one_liners(
+            {
+                "sources": {
+                    "fitness": {
+                        "train_recommendation": "train",
+                        "session_type": None,
+                        "stale": False,
+                    }
+                }
+            },
+            now=NOW,
+        )
+        bare_texts = [ln.get("text") or "" for ln in bare]
+        self.assertEqual(bare_texts, ["Train: Rest · train"])
 
     def test_blocked_unknown_without_clock(self) -> None:
         blocked = build_blocked(

@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Any
 
+try:
+    from .pulse import is_example_today_line
+except ImportError:  # unittest path insert
+    from pulse import is_example_today_line
+
 
 _PRIORITY_SCORE = {
     "critical": 100,
@@ -80,8 +85,8 @@ def synthesize_priorities(
     for i, line in enumerate(today_items):
         # strip markdown bold markers for cleaner title
         clean = line.replace("**", "").strip()
-        # strategy/today.md “e.g.” examples are not kind=today Do-now
-        if "e.g." in clean.lower() or "eg." in clean.lower():
+        # strategy/today.md examples / unfilled slots are not kind=today Do-now
+        if is_example_today_line(clean):
             continue
         add(
             title=clean,
