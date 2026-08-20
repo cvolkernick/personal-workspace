@@ -1,0 +1,12 @@
+[Unit]
+Description=Every 15 minutes: pull prism books/state onto finley
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+AccuracySec=1min
+Persistent=true
+Unit=b2-puller.service
+
+[Install]
+WantedBy=timers.target

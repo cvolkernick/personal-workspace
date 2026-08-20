@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "notes": "Swarm inventory for B2 / knowledge graph + books. Hostnames are MagicDNS/LAN names, not role tags.",
+  "hosts": [
+    {
+      "hostname": "prism-gateway",
+      "role": "app-books",
+      "lan": "192.168.100.98",
+      "tailscale": "100.67.114.2",
+      "user": "prism-agent",
+      "workspace": "/home/prism-agent/personal-workspace",
+      "stays": ["FCC :8000", "FitDash", "Orchestra", "Auto Fleet", "youtube-groom"]
+    },
+    {
+      "hostname": "finley-gateway",
+      "role": "b2-puller",
+      "lan": "192.168.100.216",
+      "tailscale": "100.124.165.50",
+      "user": "finley-agent",
+      "workspace": "/home/finley-agent/personal-workspace",
+      "b2_port": 8792,
+      "stays": ["B2 / knowledge graph primary", "prism puller (v1, same box until a third Pi exists)"]
+    }
+  ]
+}
