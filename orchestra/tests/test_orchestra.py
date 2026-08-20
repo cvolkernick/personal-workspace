@@ -465,7 +465,7 @@ class PrioritySynthesisTests(unittest.TestCase):
                 payload["meta"]["subordinate_ports"]["financial-command"], 8000
             )
             self.assertEqual(payload["meta"]["subordinate_ports"]["iot"], 8780)
-            self.assertEqual(payload["meta"].get("primary_output"), "recommendations")
+            self.assertEqual(payload["meta"].get("primary_output"), "pulse")
             # unused var silence
             _ = sources
 

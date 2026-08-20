@@ -12,6 +12,7 @@ try:
     from .day_plan import compose_day_plan
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
+    from .pulse import backlog_feeds_recs, build_pulse
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
@@ -20,6 +21,7 @@ except ImportError:
     from day_plan import compose_day_plan
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
+    from pulse import backlog_feeds_recs, build_pulse
     from recommendations import synthesize_recommendations
     from synergies import detect_synergies
 
@@ -95,6 +97,8 @@ def build_orchestra_payload(
     workflow = by_id.get("workflow") or {}
     backlog = (workflow.get("signals") or {}).get("backlog") or {}
     backlog_active = list(backlog.get("active") or [])
+    if not backlog_feeds_recs(backlog, now=generated_at, stale_hours=stale_hours):
+        backlog_active = []
 
     finance = by_id.get("finance") or {}
     finance_actions = list((finance.get("signals") or {}).get("action_titles") or [])
@@ -211,6 +215,12 @@ def build_orchestra_payload(
         from .fan_in import build_fan_in  # type: ignore
 
     fan_in = build_fan_in(ws)
+    pulse = build_pulse(
+        day_plan=day_plan,
+        domains=domains,
+        fan_in=fan_in,
+        now=generated_at,
+    )
 
     links = []
     for spec in DOMAIN_SPECS:
@@ -250,6 +260,7 @@ def build_orchestra_payload(
         "recommended_actions": recommended_actions,
         # Unitary daily planner (P1): Next 3 + blocks + gates + domain sources
         "day_plan": day_plan,
+        "pulse": pulse,
         # Intermediate streams (detail / debug; UI demotes vs recommendations)
         "synergies": synergies,
         "priorities": priorities,
@@ -280,9 +291,10 @@ def build_orchestra_payload(
             "url": ORCHESTRA_URL,
             "probe_ports": probe_ports,
             "stale_hours": stale_hours,
-            "primary_output": "recommendations",
+            "primary_output": "pulse",
             "streams": {
-                "recommendations": "Merged automated next actions (primary)",
+                "pulse": "Thin WORLD / NOW / NEXT / BLOCKED personal window",
+                "recommendations": "Supporting hygiene stream (not NOW/NEXT)",
                 "day_plan": "Unitary daily planner: next3 + blocks + gates",
                 "priorities": "Raw priority synthesis (input to recommendations)",
                 "attention": "Hygiene/attention digest (input to recommendations)",

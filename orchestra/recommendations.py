@@ -9,6 +9,11 @@ from __future__ import annotations
 
 from typing import Any
 
+try:
+    from .pulse import backlog_feeds_recs
+except ImportError:  # unittest path insert
+    from pulse import backlog_feeds_recs
+
 
 _URGENCY_SCORE = {
     "critical": 100,
@@ -136,6 +141,20 @@ def synthesize_recommendations(
     medium_syns = [s for s in synergies if (s.get("strength") or "") == "medium"]
     used_high = bool(high_syns)
 
+    workflow = next((d for d in domains if d.get("id") == "workflow"), None) or {}
+    backlog = ((workflow.get("signals") or {}).get("backlog") or {}) if isinstance(workflow, dict) else {}
+    freshness_sources = freshness.get("sources") if isinstance(freshness, dict) else None
+    if isinstance(freshness_sources, list):
+        bl_fresh = next(
+            (s for s in freshness_sources if isinstance(s, dict) and s.get("id") == "backlog"),
+            None,
+        )
+        if isinstance(bl_fresh, dict) and bl_fresh.get("as_of") and not backlog.get("updated_at"):
+            backlog = {**backlog, "updated_at": bl_fresh.get("as_of")}
+        if isinstance(bl_fresh, dict) and bl_fresh.get("stale"):
+            backlog = {**backlog, "updated_at": backlog.get("updated_at") or bl_fresh.get("as_of")}
+    allow_backlog_recs = backlog_feeds_recs(backlog)
+
     high_domain_set: set[str] = set()
     for s in high_syns:
         for d in s.get("domains") or []:
@@ -235,6 +254,10 @@ def synthesize_recommendations(
 
     # --- 3) Priorities (boost if domains overlap high synergies) ---
     for i, pri in enumerate(priorities[:10]):
+        if (pri.get("kind") or "").lower() == "backlog" and not allow_backlog_recs:
+            continue
+        if (pri.get("source") or "").startswith("ops/backlog") and not allow_backlog_recs:
+            continue
         pdoms = [str(d) for d in (pri.get("domains") or [])]
         overlap = high_domain_set.intersection(pdoms)
         boost = 18 - min(i, 6) * 2
@@ -296,6 +319,8 @@ def synthesize_recommendations(
 
     # --- 5) Bridge fill if still sparse ---
     candidates = bridge.get("candidates") or []
+    if not allow_backlog_recs:
+        candidates = []
     if len(items) < max(3, focus_limit) and candidates:
         for c in candidates[:3]:
             if not isinstance(c, dict):

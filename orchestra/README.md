@@ -4,12 +4,10 @@ Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/hea
 
 Surfaces:
 
-- **Recommended next actions** (primary) — automated merge of hygiene, high/medium synergies, and priorities
-- Multi-domain status (file-based; optional live port probe)
-- Cross-domain **synergies** (high preferred; medium fallback when none are high)
-- Supporting streams: attention, raw priorities, day bridge
-- **Source freshness** ages for treasury snapshot and ops backlog
-- Deep-links / launch commands for every subordinate dashboard
+- **Pulse** — WORLD (Horizon :8795 deep-link if Meridian packet is live) · NOW · NEXT · BLOCKED
+- NOW / NEXT read `day_plan.next3` (not recommendations, not today.md examples)
+- **Dock** — Time Allocator `:8770` and Workflow `:8765` only
+- Supporting streams stay on the payload (`/api/recommendations`, attention, synergies)
 
 ## Launch (recommended)
 
@@ -26,7 +24,10 @@ Double-click **`open-command-center.command`** (opens Orchestra).
 - UI: http://127.0.0.1:8790/
 - Full payload: http://127.0.0.1:8790/api/orchestra
 - Fan-in strip (host + regime + implications): http://127.0.0.1:8790/api/fan-in
-- Recommended actions: http://127.0.0.1:8790/api/recommendations
+- Next 3: http://127.0.0.1:8790/api/next
+- Now: http://127.0.0.1:8790/api/now
+- Pulse: http://127.0.0.1:8790/api/pulse
+- Recommended actions (supporting): http://127.0.0.1:8790/api/recommendations
 - Attention + freshness: http://127.0.0.1:8790/api/attention
 - Health: http://127.0.0.1:8790/api/health
 - Pi heartbeat (ops plane): http://127.0.0.1:8790/api/heartbeat  

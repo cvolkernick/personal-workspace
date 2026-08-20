@@ -12,7 +12,10 @@
   GET  /api/synergies
   GET  /api/priorities
   GET  /api/attention   — attention digest + freshness
-  GET  /api/recommendations — automated recommended next actions (primary)
+  GET  /api/next            — day_plan.next3 (not recommendations)
+  GET  /api/now             — day_plan.next3[0] or 204
+  GET  /api/pulse           — thin WORLD / NOW / NEXT / BLOCKED
+  GET  /api/recommendations — supporting hygiene stream (not NOW/NEXT)
   GET  /                — unified UI
 
 Usage:
@@ -44,6 +47,7 @@ from fan_in import build_fan_in  # noqa: E402
 from heartbeat import heartbeat_api_payload  # noqa: E402
 from launcher import domain_spec, ensure_domain, probe_port, status_all  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
+from pulse import next_api_payload, now_api_payload  # noqa: E402
 from public_base import (  # noqa: E402
     public_hostname,
     rewrite_loopback_url,
@@ -327,7 +331,56 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
             )
             return
 
-        if path in ("/api/recommendations", "/api/actions", "/api/next"):
+        if path == "/api/next":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            self._json(200, next_api_payload(payload))
+            return
+
+        if path == "/api/now":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            code, body = now_api_payload(payload)
+            if code == 204:
+                self.send_response(204)
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Access-Control-Allow-Origin", "*")
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._json(code, body or {"ok": False})
+            return
+
+        if path == "/api/pulse":
+            try:
+                payload = build_orchestra_payload(
+                    WORKSPACE_ROOT, probe_ports=probe
+                )
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e)})
+                return
+            payload = _with_public_urls(self, payload)
+            self._json(
+                200,
+                {
+                    "ok": True,
+                    "pulse": payload.get("pulse") or {},
+                    "day_plan": payload.get("day_plan") or {},
+                },
+            )
+            return
+
+        if path in ("/api/recommendations", "/api/actions"):
             try:
                 payload = build_orchestra_payload(
                     WORKSPACE_ROOT, probe_ports=probe
