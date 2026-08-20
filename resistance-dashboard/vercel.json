@@ -5,6 +5,18 @@
   "outputDirectory": "static",
   "rewrites": [
     {
+      "source": "/api/meal-plan/generate",
+      "destination": "/api/dashboard?_r=meal_generate"
+    },
+    {
+      "source": "/api/meal-plan",
+      "destination": "/api/dashboard?_r=meal_plan"
+    },
+    {
+      "source": "/api/refresh",
+      "destination": "/api/dashboard?_r=refresh"
+    },
+    {
       "source": "/api/workout-plan/generate",
       "destination": "/api/ask/plan?_r=generate"
     },

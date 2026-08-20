@@ -23,8 +23,12 @@ _ROUTES = (
     "inv_add",
     "inv_remove",
     "inv_stock",
+    "meal_plan",
+    "meal_generate",
+    "refresh",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock")
+_MEAL_ROUTES = ("meal_plan", "meal_generate")
 
 
 def read_json(handler: BaseHTTPRequestHandler) -> dict:
@@ -72,6 +76,12 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "inv_remove"
     if "/api/inventory/stock" in blob:
         return "inv_stock"
+    if "/api/meal-plan/generate" in blob:
+        return "meal_generate"
+    if "/api/meal-plan" in blob:
+        return "meal_plan"
+    if "/api/refresh" in blob:
+        return "refresh"
     return ""
 
 
@@ -184,6 +194,30 @@ def generate_body(headers, payload=None):
     }
 
 
+def meal_plan_body(headers, payload=None):
+    """GET/POST /api/meal-plan and /api/meal-plan/generate — Pi generate_meal_plan."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.dashboard import dashboard_body
+
+    status, dashboard = dashboard_body(headers)
+    if status != 200:
+        return status, dashboard
+    plan = (dashboard.get("nutrition_store") or {}).get("meal_plan") or {}
+    return 200, {"ok": True, "plan": plan, "action": "refresh_meal_plan"}
+
+
+def refresh_body(headers, payload=None):
+    """GET/POST /api/refresh — Pi reloads dashboard (which regenerates the meal plan)."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.dashboard import dashboard_body
+
+    return dashboard_body(headers)
+
+
 def inventory_write(headers, route: str, payload=None):
     """Kitchen add/remove/stock to Turso. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -253,6 +287,10 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         return workouts_write(headers) if method == "POST" else workouts_body(headers)
     if route == "generate":
         return generate_body(headers, payload)
+    if route in _MEAL_ROUTES:
+        return meal_plan_body(headers, payload)
+    if route == "refresh":
+        return refresh_body(headers, payload)
     if route in _INV_ROUTES:
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -271,6 +309,8 @@ __all__ = [
     "generate_body",
     "goals_body",
     "inventory_write",
+    "meal_plan_body",
+    "refresh_body",
     "goals_read",
     "goals_write",
     "read_json",

@@ -312,8 +312,10 @@ class VercelDashboardRestGate(unittest.TestCase):
         self.assertFalse((today.get("workout") or {}).get("is_rest_day"))
         meal = (body.get("nutrition_store") or {}).get("meal_plan")
         self.assertIsNotNone(meal)
-        blob = (meal.get("message") or "") + (wo["plan"].get("message") or "")
-        self.assertIn("Connect SuperGrok", blob)
+        self.assertTrue(meal.get("in_stock_only"))
+        # Workout slot stays SuperGrok honest-empty. Meal is Pi generate_meal_plan.
+        self.assertIn("Connect SuperGrok", wo["plan"].get("message") or "")
+        self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
 
     def test_score_35_sparse_sleep_not_rest(self):
         status, body = self._signed_body(score=35, sleep_hours=None)

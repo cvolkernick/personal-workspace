@@ -111,6 +111,18 @@ def _today_consumed(health, today: str) -> dict:
     }
 
 
+def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dict:
+    """Same remaining-day planner as Pi ``generate_meal_plan``. In-stock pantry only."""
+    from rt_dashboard.nutrition_planner import generate_meal_plan
+
+    return generate_meal_plan(
+        inventory or {"ingredients": []},
+        targets or {},
+        consumed or {},
+        food_logs_today=food_logs_today or [],
+    )
+
+
 def request_tz_name(headers, query: str = "") -> str:
     """Viewer IANA zone: ?tz= or X-Viewer-TZ / X-Dashboard-TZ, else env fallback.
 
@@ -220,7 +232,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "targets": targets,
         "inventory": inventory,
         "sources": {"inventory": inventory_src, "targets": targets_src},
-        "meal_plan": None,
+        "meal_plan": preview_meal_plan(
+            inventory, targets, consumed, food_logs_today=today_logs
+        ),
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
@@ -268,8 +282,9 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         payload["hydration_bars"] = {"pacing": None}
     from rt_dashboard.grok_planner import dashboard_plan_slots
 
-    meal_plan, workout_plan = dashboard_plan_slots(str(user.get("id") or ""))
-    payload["nutrition_store"]["meal_plan"] = meal_plan
+    # Meal slot is Pi generate_meal_plan (already set). SuperGrok does not invent meals.
+    meal_plan = payload["nutrition_store"]["meal_plan"]
+    _, workout_plan = dashboard_plan_slots(str(user.get("id") or ""))
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()
     # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
