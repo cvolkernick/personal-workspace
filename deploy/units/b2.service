@@ -1,0 +1,20 @@
+[Unit]
+Description=B2 knowledge graph dashboard (finley-gateway / b2-puller)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/personal-workspace
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=%h/personal-workspace:%h/personal-workspace/b2-ux
+Environment=B2_ROLE=b2-puller
+Environment=B2_HOST=finley-gateway
+Environment=B2_GRAPH_PATH=%h/B2
+# Bind all interfaces so prism (app-books) can query http://finley-gateway:8792/
+ExecStart=/usr/bin/python3 %h/personal-workspace/b2-ux/server.py --host 0.0.0.0 --port 8792 --no-browser
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

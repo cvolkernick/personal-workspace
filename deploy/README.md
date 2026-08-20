@@ -134,3 +134,11 @@ starts `workspace-sync.service` immediately; otherwise the 5‑minute timer is e
 - Per-package IoT-only deploy: `iot/deploy/` (worker vs dashboard).
 - Shared proxy helper: `remote_backend.py` at monorepo root.
 - Runbook: `ops/SDLC_MERGE_DEPLOY.md`.
+- Finley B2 / knowledge graph + prism puller (role `b2-puller`, not app-books):
+  `deploy/b2-puller/install_finley.sh`, `ops/B2_FINLEY.md`. One timer
+  (`b2-puller.timer`, PULSE LOCK) hourly at :20 `America/New_York`, all 7 days
+  including overnight — one job for books + youtube-groom + published + units
+  FROM prism-gateway. No prism self-backup, no venue keys, no units-only timer,
+  no replica, no off-site bucket, no machine rename. Do not
+  use this installer on prism. Do not rsync the graph onto prism. Do not load
+  `FCC_TREASURY_JSON` onto Vercel.
