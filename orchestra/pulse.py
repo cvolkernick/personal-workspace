@@ -75,14 +75,43 @@ def is_quest(item: Optional[dict[str, Any]]) -> bool:
     return "quest" in title
 
 
+_TEAM_BOARD_KINDS = frozenset({"ready", "in_progress", "pipeline", "pending_review"})
+_TEAM_BOARD_TITLE_RE = re.compile(
+    r"pull candidate\s*#|pull ready:|continue / unblock\s*#|promote parked",
+    re.I,
+)
+_ISSUE_EPIC_TITLE_RE = re.compile(r"#\d+\s*:")
+
+
+def is_team_board_action(item: Optional[dict[str, Any]]) -> bool:
+    """Buzz-board pull/ready/epic rows are team work, not seat NOW/NEXT."""
+    if not isinstance(item, dict):
+        return False
+    kind = str(item.get("kind") or "").strip().lower()
+    if kind in _TEAM_BOARD_KINDS:
+        return True
+    title = str(item.get("title") or item.get("action") or "")
+    why = str(item.get("why") or item.get("detail") or "")
+    blob = f"{title} {why}".lower()
+    if "ready supply" in blob or "free agent" in blob:
+        return True
+    if _TEAM_BOARD_TITLE_RE.search(title):
+        return True
+    if _ISSUE_EPIC_TITLE_RE.search(title):
+        return True
+    return False
+
+
 def keep_action_item(item: Optional[dict[str, Any]]) -> bool:
-    """Quests without a Google Tasks id, and today.md placeholders, are omitted."""
+    """Quests without a GT id, today.md placeholders, and board jargon are omitted."""
     if not isinstance(item, dict):
         return False
     title = str(item.get("title") or item.get("action") or "").strip()
     if not title:
         return False
     if is_example_today_line(title):
+        return False
+    if is_team_board_action(item):
         return False
     if is_quest(item) and not has_gt_task_id(item):
         return False
@@ -386,6 +415,22 @@ def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
     return None
 
 
+def _cadence_line(workflow_src: dict[str, Any]) -> Optional[str]:
+    """Optional Cadence fact. Omit unless Ready and free-agent counts are real."""
+    if workflow_src.get("stale") or workflow_src.get("fetch_ok") is False:
+        return None
+    ready = workflow_src.get("ready_count")
+    free = workflow_src.get("free_agent_count")
+    if ready is None or free is None:
+        return None
+    try:
+        ready_n = int(ready)
+        free_n = int(free)
+    except (TypeError, ValueError):
+        return None
+    return f"Cadence: {ready_n} Ready · {free_n} free"
+
+
 def _quest_lines(fitness_src: dict[str, Any]) -> list[str]:
     raw = fitness_src.get("quests") or []
     if not isinstance(raw, list):
@@ -422,6 +467,11 @@ def build_one_liners(
 
     for title in _quest_lines(fit):
         out.append({"id": "quest", "text": title})
+
+    wf = sources.get("workflow") if isinstance(sources.get("workflow"), dict) else {}
+    cadence = _cadence_line(wf)
+    if cadence:
+        out.append({"id": "cadence", "text": cadence})
 
     return out
 
@@ -461,6 +511,7 @@ def build_pulse(
             "non_goals": [
                 "no WEEK/GATES/HELD chrome",
                 "no recommendations as NOW/NEXT",
+                "no Buzz-board pull/ready jargon as NOW/NEXT",
                 "no Horizon embed or dock tile",
                 "no FCC/FitDash/Fleet/B2/IoT dock tiles",
             ],

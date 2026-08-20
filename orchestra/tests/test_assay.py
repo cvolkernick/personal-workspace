@@ -1,8 +1,9 @@
 """Assay AC for the thin Orchestra pulse cut.
 
-NOW/NEXT come from day_plan.next3. Recommendations, today.md examples,
-unfilled / “user to fill” / empty creative-slot placeholders, July-17
-tasks.json, stale backlog, and quests without a GT id stay off the page.
+NOW/NEXT come from day_plan.next3 (personal next moves). Recommendations,
+today.md examples, unfilled / “user to fill” / empty creative-slot
+placeholders, Buzz-board pull/ready jargon, July-17 tasks.json, stale
+backlog, and quests without a GT id stay off the page.
 """
 
 from __future__ import annotations
@@ -176,7 +177,7 @@ class ApiNextAssayTests(unittest.TestCase):
             "ok": True,
             "day_plan": {
                 "next3": [
-                    {"id": "wf-ready-92", "title": "Pull candidate #92", "domain": "workflow"}
+                    {"id": "fit-session", "title": "Train push", "domain": "fitness", "kind": "train"}
                 ]
             },
             "recommendations": {
@@ -269,11 +270,16 @@ class Next3FinanceTheaterAssayTests(unittest.TestCase):
         )
         kinds = {i.get("kind") for i in plan["next3"]}
         titles = " ".join(str(i.get("title") or "") for i in plan["next3"]).lower()
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("pull candidate", blob)
+        self.assertNotIn("ready supply", blob)
+        self.assertNotIn("free agent", blob)
         self.assertTrue(
-            "ready" in kinds
-            or "train" in kinds
-            or "pull" in titles
-            or "train" in titles,
+            "train" in kinds or "train" in titles,
+            msg=plan["next3"],
+        )
+        self.assertTrue(
+            any((i.get("title") or "").startswith("Train ") for i in plan["next3"]),
             msg=plan["next3"],
         )
 
@@ -387,15 +393,15 @@ class TodayExampleAssayTests(unittest.TestCase):
             leaked = [
                 {"id": "pri-1", "title": live.replace("**", ""), "kind": "today"},
                 {"id": "pri-2", "title": empty_slot, "kind": "today"},
-                {"id": "wf-ready-92", "title": "Pull candidate #92", "domain": "workflow"},
+                {"id": "fit-session", "title": "Train push", "domain": "fitness", "kind": "train"},
             ]
             first = now_from_next3(leaked)
             self.assertIsNotNone(first)
-            self.assertEqual(first.get("title"), "Pull candidate #92")
+            self.assertEqual(first.get("title"), "Train push")
             pulse = build_pulse(day_plan={"next3": leaked}, now=NOW)
-            self.assertEqual((pulse.get("now") or {}).get("title"), "Pull candidate #92")
+            self.assertEqual((pulse.get("now") or {}).get("title"), "Train push")
             next_titles = [x.get("title") for x in pulse.get("next") or []]
-            self.assertEqual(next_titles, ["Pull candidate #92"])
+            self.assertEqual(next_titles, ["Train push"])
             self.assertFalse(any("user to fill" in (t or "").lower() for t in next_titles))
 
             payload = build_orchestra_payload(ws, probe_ports=False)
@@ -541,6 +547,145 @@ class QuestAssayTests(unittest.TestCase):
         pulse = build_pulse(day_plan=plan, now=NOW)
         texts = [ln.get("text") for ln in pulse["one_liners"]]
         self.assertTrue(any("Close protein gap" in (t or "") for t in texts), msg=texts)
+
+
+class SeatFacingNextAssayTests(unittest.TestCase):
+    def test_ready_pull_and_epic_titles_omitted_from_now_next(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(
+                    ready_count=2,
+                    free_agent_count=2,
+                    ready_top=[
+                        {
+                            "number": 110,
+                            "title": "Geo+time flight plan — living day logistics layer (orchestration)",
+                        }
+                    ],
+                ),
+                _fit(session_due=True, session_type="push", train_recommendation="train"),
+                _finance((NOW - timedelta(hours=1)).isoformat()),
+            ],
+            now=NOW,
+        )
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("pull candidate", blob)
+        self.assertNotIn("ready supply", blob)
+        self.assertNotIn("free agent", blob)
+        self.assertNotIn("geo+time", blob)
+        self.assertNotIn("#110", blob)
+        self.assertFalse(any(i.get("kind") == "ready" for i in plan["next3"]))
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        now_title = ((pulse.get("now") or {}).get("title") or "").lower()
+        next_blob = json.dumps(pulse.get("next") or []).lower()
+        self.assertNotIn("pull candidate", now_title)
+        self.assertNotIn("geo+time", now_title)
+        self.assertNotIn("pull candidate", next_blob)
+        self.assertNotIn("ready supply", next_blob)
+
+    def test_fitness_titles_are_human_actions(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(
+                    session_due=True,
+                    session_type="push",
+                    train_recommendation="train",
+                    protein_gap_band="watch",
+                    protein_remaining_g=72,
+                ),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        titles = [i.get("title") or "" for i in plan["next3"]]
+        self.assertIn("Train push", titles)
+        self.assertTrue(any(t == "Watch protein · ~72g left" for t in titles), msg=titles)
+        self.assertFalse(any("train session" in t.lower() for t in titles))
+        self.assertFalse(any("watch protein remaining" in t.lower() for t in titles))
+        self.assertFalse(any("band=watch" in (i.get("why") or "") for i in plan["next3"]))
+
+    def test_cadence_one_liner_only_with_real_board_fact(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=2, free_agent_count=2),
+                _fit(session_due=False, train_recommendation="rest"),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        pulse = build_pulse(day_plan=plan, now=NOW)
+        texts = [ln.get("text") or "" for ln in pulse["one_liners"]]
+        self.assertIn("Cadence: 2 Ready · 2 free", texts)
+        unknown = build_one_liners(
+            {"sources": {"workflow": {"stale": True, "fetch_ok": False}}},
+            now=NOW,
+        )
+        self.assertFalse(any((ln.get("id") == "cadence") for ln in unknown))
+        missing = build_one_liners(
+            {"sources": {"workflow": {"stale": False, "fetch_ok": True}}},
+            now=NOW,
+        )
+        self.assertFalse(any((ln.get("id") == "cadence") for ln in missing))
+
+    def test_next3_chronological_when_time_exists(self) -> None:
+        later = (NOW + timedelta(hours=3)).isoformat()
+        earlier = (NOW + timedelta(hours=1)).isoformat()
+        plan = compose_day_plan(
+            [
+                _hol_today(),
+                _wf(ready_count=0, free_agent_count=0),
+                {
+                    "id": "fitness",
+                    "available": True,
+                    "url": "http://127.0.0.1:8787/",
+                    "signals": {
+                        "day": {
+                            "as_of": NOW.isoformat(),
+                            "session_due": True,
+                            "session_type": "push",
+                            "train_recommendation": "train",
+                            "recovery_score": 70,
+                            "protein_gap_band": "watch",
+                            "protein_remaining_g": 72,
+                            "protein_as_of": NOW.isoformat(),
+                            "day_actions": [],
+                        }
+                    },
+                },
+                _finance(
+                    (NOW - timedelta(hours=1)).isoformat(),
+                    actions=[
+                        {
+                            "kind": "ltv_check",
+                            "title": "Confirm Morpho LTV",
+                            "start": later,
+                        }
+                    ],
+                ),
+            ],
+            now=NOW,
+        )
+        # Inject timed protein vs later LTV via compose output: fitness has no start,
+        # finance LTV has start=later. Untimed train/protein effective-now should
+        # precede the later LTV row when both are present.
+        titles = [i.get("title") for i in plan["next3"]]
+        if "Confirm Morpho LTV" in titles and "Train push" in titles:
+            self.assertLess(titles.index("Train push"), titles.index("Confirm Morpho LTV"))
+
+        # Direct sort: earlier timed action before later
+        from day_plan import _next_sort_key
+
+        a = {"title": "Walk Duchess", "start": later, "kind": "fixed", "severity": "info"}
+        b = {"title": "Watch protein · ~72g left", "start": earlier, "kind": "protein", "severity": "info"}
+        ordered = sorted([a, b], key=lambda x: _next_sort_key(x, now=NOW))
+        self.assertEqual([x["title"] for x in ordered], [
+            "Watch protein · ~72g left",
+            "Walk Duchess",
+        ])
 
 
 class PulseChromeAssayTests(unittest.TestCase):

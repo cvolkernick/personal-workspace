@@ -789,9 +789,9 @@ def build_fitness_source(
             suggested.append(
                 {
                     "id": "fit-protein",
-                    "title": "Close protein gap",
+                    "title": _protein_action_title("gap", protein_remaining),
                     "domain": "fitness",
-                    "why": f"band=gap; remaining≈{protein_remaining}g",
+                    "why": "",
                     "severity": "warn",
                     "deep_link": deep,
                     "kind": "protein",
@@ -801,9 +801,9 @@ def build_fitness_source(
             suggested.append(
                 {
                     "id": "fit-protein-watch",
-                    "title": "Watch protein remaining",
+                    "title": _protein_action_title("watch", protein_remaining),
                     "domain": "fitness",
-                    "why": f"band=watch; remaining≈{protein_remaining}g",
+                    "why": "",
                     "severity": "info",
                     "deep_link": deep,
                     "kind": "protein",
@@ -819,9 +819,9 @@ def build_fitness_source(
                 suggested.append(
                     {
                         "id": "fit-session",
-                        "title": f"Train session ({session_type or 'planned'})",
+                        "title": _train_action_title(session_type),
                         "domain": "fitness",
-                        "why": f"session_due; rec={train_rec or 'train'}",
+                        "why": "",
                         "severity": "info",
                         "deep_link": deep,
                         "kind": "train",
@@ -1073,17 +1073,19 @@ def build_finance_source(
         if freshness == "unknown" and kind != "refresh":
             # only refresh competes when hard unknown
             continue
-        suggested.append(
-            {
-                "id": f"fin-{kind or 'act'}-{len(suggested)}",
-                "title": str(title)[:160],
-                "domain": "finance",
-                "why": str(a.get("detail") or a.get("why") or kind or "treasury whitelist"),
-                "severity": "block" if red_mode else ("warn" if tier["stale"] else "info"),
-                "deep_link": deep,
-                "kind": kind,
-            }
-        )
+        fin_row = {
+            "id": f"fin-{kind or 'act'}-{len(suggested)}",
+            "title": str(title)[:160],
+            "domain": "finance",
+            "why": str(a.get("detail") or a.get("why") or ""),
+            "severity": "block" if red_mode else ("warn" if tier["stale"] else "info"),
+            "deep_link": deep,
+            "kind": kind,
+        }
+        when = a.get("start") or a.get("at") or a.get("when")
+        if when:
+            fin_row["start"] = when
+        suggested.append(fin_row)
         if len(suggested) >= 3:
             break
 
@@ -1138,13 +1140,68 @@ def build_finance_source(
     return env, gates, suggested[:3]
 
 
+def _protein_action_title(band: str, remaining: Any) -> str:
+    """Human seat title — not internal kind names."""
+    base = "Close protein" if str(band).lower() == "gap" else "Watch protein"
+    grams = None
+    try:
+        if remaining is not None:
+            grams = int(round(float(remaining)))
+    except (TypeError, ValueError):
+        grams = None
+    if grams is not None:
+        return f"{base} · ~{grams}g left"
+    return base
+
+
+def _train_action_title(session_type: Any) -> str:
+    st = str(session_type or "").strip()
+    if st and st.lower() not in ("rest", "planned"):
+        return f"Train {st}"
+    return "Train"
+
+
 def _rank_key(item: dict[str, Any]) -> tuple[int, int]:
     sev = str(item.get("severity") or "info")
     sev_score = {"block": 0, "warn": 1, "info": 2, "unknown": 1}.get(sev, 3)
     # Prefer non-refresh work/body when not blocked
     kind = str(item.get("kind") or "")
-    kind_bump = 0 if kind in ("in_progress", "train", "protein", "ltv_check", "fill_manual") else 1
+    kind_bump = 0 if kind in ("train", "protein", "ltv_check", "fill_manual") else 1
     return (sev_score, kind_bump)
+
+
+def _item_when(item: dict[str, Any]) -> Optional[datetime]:
+    for key in ("start", "at", "when", "time"):
+        dt = parse_timestamp(item.get(key))
+        if dt is not None:
+            return dt
+    return None
+
+
+def _next_sort_key(
+    item: dict[str, Any], *, now: datetime
+) -> tuple[datetime, int, int]:
+    """Chronological when a time exists; otherwise rank at 'now'."""
+    when = _item_when(item) or now
+    sev, bump = _rank_key(item)
+    return (when, sev, bump)
+
+
+def _next3_row(item: dict[str, Any]) -> dict[str, Any]:
+    key = str(item.get("title") or "").strip().lower()
+    row = {
+        "id": str(item.get("id") or key)[:80],
+        "title": str(item.get("title")),
+        "domain": item.get("domain"),
+        "why": item.get("why") or "",
+        "severity": item.get("severity") or "info",
+        "deep_link": item.get("deep_link") or DEFAULT_DEEP_LINKS.get(str(item.get("domain"))),
+        "kind": item.get("kind"),
+    }
+    when = _item_when(item)
+    if when is not None:
+        row["start"] = when.isoformat()
+    return row
 
 
 def _is_train_action(item: dict[str, Any]) -> bool:
@@ -1152,7 +1209,10 @@ def _is_train_action(item: dict[str, Any]) -> bool:
     title = str(item.get("title") or "").lower()
     if kind in ("train", "session", "workout"):
         return True
-    return any(x in title for x in ("train session", "ppl", "workout session", "hit the full"))
+    return any(
+        x in title
+        for x in ("train session", "train push", "train pull", "train legs", "ppl", "workout session")
+    ) or title.startswith("train ")
 
 
 def _is_free_dollar_risk(item: dict[str, Any]) -> bool:
@@ -1215,25 +1275,15 @@ def compose_day_plan(
             continue
         filtered.append(c)
 
-    # Dedup by title
+    # Dedup by title. Chronological when a start/at/when exists.
     seen: set[str] = set()
     deduped: list[dict[str, Any]] = []
-    for c in sorted(filtered, key=_rank_key):
+    for c in sorted(filtered, key=lambda x: _next_sort_key(x, now=ref)):
         key = str(c.get("title") or "").strip().lower()
         if key in seen:
             continue
         seen.add(key)
-        deduped.append(
-            {
-                "id": str(c.get("id") or key)[:80],
-                "title": str(c.get("title")),
-                "domain": c.get("domain"),
-                "why": c.get("why") or "",
-                "severity": c.get("severity") or "info",
-                "deep_link": c.get("deep_link") or DEFAULT_DEEP_LINKS.get(str(c.get("domain"))),
-                "kind": c.get("kind"),
-            }
-        )
+        deduped.append(_next3_row(c))
         if len(deduped) >= MAX_NEXT3:
             break
 
@@ -1268,18 +1318,7 @@ def compose_day_plan(
                 if key in seen_pref:
                     continue
                 seen_pref.add(key)
-                preferred.append(
-                    {
-                        "id": str(c.get("id") or key)[:80],
-                        "title": str(c.get("title")),
-                        "domain": c.get("domain"),
-                        "why": c.get("why") or "",
-                        "severity": c.get("severity") or "info",
-                        "deep_link": c.get("deep_link")
-                        or DEFAULT_DEEP_LINKS.get(str(c.get("domain"))),
-                        "kind": c.get("kind"),
-                    }
-                )
+                preferred.append(_next3_row(c))
                 if len(preferred) >= MAX_NEXT3:
                     break
             if preferred:
