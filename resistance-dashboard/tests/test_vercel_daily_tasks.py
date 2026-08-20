@@ -50,6 +50,7 @@ class DailyTasksRewrites(unittest.TestCase):
         self.assertFalse((ROOT / "api" / "daily_tasks.py").exists())
         self.assertFalse((ROOT / "api" / "daily-tasks").is_dir())
         self.assertFalse((ROOT / "api" / "daily-tasks" / "complete.py").exists())
+        self.assertIn("projects-dashboard/google_tasks.py", raw)
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"
