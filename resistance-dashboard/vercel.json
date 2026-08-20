@@ -17,6 +17,10 @@
       "destination": "/api/dashboard?_r=refresh"
     },
     {
+      "source": "/api/daily-tasks",
+      "destination": "/api/dashboard?_r=daily_tasks"
+    },
+    {
       "source": "/api/workout-plan/generate",
       "destination": "/api/ask/plan?_r=generate"
     },

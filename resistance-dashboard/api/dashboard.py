@@ -123,6 +123,30 @@ def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dic
     )
 
 
+def preview_workout_plan(
+    catalog,
+    goals,
+    sessions,
+    *,
+    recovery_label=None,
+    recovery_score=None,
+    recovery_sparse=False,
+    as_of=None,
+) -> dict:
+    """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
+    from rt_dashboard.workout_planner import generate_workout_plan
+
+    return generate_workout_plan(
+        catalog or {"exercises": []},
+        goals or {},
+        sessions or [],
+        recovery_label=recovery_label,
+        recovery_score=recovery_score,
+        recovery_sparse=bool(recovery_sparse),
+        as_of=as_of,
+    )
+
+
 def request_tz_name(headers, query: str = "") -> str:
     """Viewer IANA zone: ?tz= or X-Viewer-TZ / X-Dashboard-TZ, else env fallback.
 
@@ -280,47 +304,51 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"hydration_bars: {type(exc).__name__}")
         payload["hydration_bars"] = {"pacing": None}
-    from rt_dashboard.grok_planner import dashboard_plan_slots
-
     # Meal slot is Pi generate_meal_plan (already set). SuperGrok does not invent meals.
     meal_plan = payload["nutrition_store"]["meal_plan"]
-    _, workout_plan = dashboard_plan_slots(str(user.get("id") or ""))
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()
     # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
     catalog = apply_goals_volume_caps(catalog, goals)
-    gate = rest_gate(goals, recovery_dict)
-    nxt = next_session_brief(sessions, goals)
-    if isinstance(workout_plan, dict):
-        workout_plan = dict(workout_plan)
-    else:
-        workout_plan = {}
-    # Rest gate is INPUT to SuperGrok, not a reason to omit the slot or next PPL.
-    # A generated rest day is a plan. Honest-empty only when SuperGrok is dark.
-    if not (workout_plan.get("exercises") or []) and not workout_plan.get("is_rest_day"):
-        workout_plan["session_type"] = nxt["next_session_type"]
-        existing = str(workout_plan.get("message") or "").strip()
-        line = str(nxt.get("line") or "").strip()
-        if line and line not in existing:
-            workout_plan["message"] = f"{line}. {existing}".strip() if existing else line
-        ctx = dict(workout_plan.get("context") or {})
-        ctx["next_session_type"] = nxt["next_session_type"]
-        ctx["last_session_type"] = nxt.get("last_session_type")
-        ctx["rest_gate"] = gate
-        ctx["rest_if_recovery_below"] = gate.get("threshold")
-        workout_plan["context"] = ctx
-    workout_plan = apply_rest_gate(workout_plan, goals, recovery_dict)
-    shown_next = nxt["next_session_type"]
+    try:
+        workout_plan = preview_workout_plan(
+            catalog,
+            goals,
+            sessions,
+            recovery_label=recovery_dict.get("label"),
+            recovery_score=recovery_dict.get("score"),
+            recovery_sparse=not had_real_sleep,
+            as_of=today,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"workout_plan: {type(exc).__name__}")
+        workout_plan = {
+            "message": f"Workout plan failed: {exc}",
+            "exercises": [],
+        }
+    effective_goals = dict(goals or {})
+    if isinstance(workout_plan.get("goals"), dict):
+        effective_goals = {
+            **effective_goals,
+            **{
+                k: v
+                for k, v in workout_plan["goals"].items()
+                if not str(k).startswith("_")
+            },
+        }
+    gate = rest_gate(effective_goals, recovery_dict)
+    nxt = next_session_brief(sessions, effective_goals)
+    workout_plan = apply_rest_gate(workout_plan, effective_goals, recovery_dict)
     pack = build_training_pack(
-        goals, catalog, sessions, next_brief=nxt, limit=5
+        effective_goals, catalog, sessions, next_brief=nxt, limit=5
     )
     pack["rest_gate"] = gate
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
-        "goals": goals,
+        "goals": effective_goals,
         "sources": {"catalog": catalog_src, "goals": goals_src},
-        "next_session_type": shown_next,
+        "next_session_type": nxt["next_session_type"],
         "training_pack": pack,
     }
     try:
@@ -353,10 +381,22 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     if isinstance(payload.get("coach"), dict):
         today_board = payload["coach"].get("today") or {}
     try:
-        payload["daily_tasks"] = plan_preview(today_board, day=today)
+        daily = plan_preview(today_board, day=today)
+        daily["needs_sync"] = True
+        payload["daily_tasks"] = daily
+        if isinstance(payload.get("coach"), dict) and isinstance(
+            payload["coach"].get("today"), dict
+        ):
+            payload["coach"]["today"]["daily_tasks"] = daily
     except Exception as exc:  # noqa: BLE001
         errors.append(f"daily_tasks: {type(exc).__name__}")
-        payload["daily_tasks"] = None
+        payload["daily_tasks"] = {
+            "ok": False,
+            "error": type(exc).__name__,
+            "groups": [],
+            "summary": {"done": 0, "total": 0},
+            "needs_sync": True,
+        }
     try:
         payload["day_constraints"] = export_day_constraints_from_dashboard(
             payload,

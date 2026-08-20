@@ -26,6 +26,7 @@ _ROUTES = (
     "meal_plan",
     "meal_generate",
     "refresh",
+    "daily_tasks",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
@@ -82,6 +83,10 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "meal_plan"
     if "/api/refresh" in blob:
         return "refresh"
+    if "/api/daily-tasks/complete" in blob:
+        return ""
+    if "/api/daily-tasks" in blob:
+        return "daily_tasks"
     return ""
 
 
@@ -218,6 +223,26 @@ def refresh_body(headers, payload=None):
     return dashboard_body(headers)
 
 
+def daily_tasks_body(headers, payload=None):
+    """GET /api/daily-tasks — Pi ensure_daily_tasks against the GT Fitness list.
+
+    Missing Google Tasks creds fail honest (error + local leaves, no invented ids).
+    """
+    user, err = require_user(headers)
+    if err:
+        return err
+    from api.dashboard import dashboard_body
+    from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
+
+    status, dashboard = dashboard_body(headers)
+    if status != 200:
+        return status, dashboard
+    today = ((dashboard.get("coach") or {}).get("today")) or {}
+    day = today.get("date") or (dashboard.get("meta") or {}).get("local_today")
+    result = ensure_daily_tasks(today, day=day)
+    return 200, {"ok": True, "daily_tasks": result}
+
+
 def inventory_write(headers, route: str, payload=None):
     """Kitchen add/remove/stock to Turso. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
@@ -291,6 +316,8 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         return meal_plan_body(headers, payload)
     if route == "refresh":
         return refresh_body(headers, payload)
+    if route == "daily_tasks":
+        return daily_tasks_body(headers, payload)
     if route in _INV_ROUTES:
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
@@ -309,6 +336,7 @@ __all__ = [
     "generate_body",
     "goals_body",
     "inventory_write",
+    "daily_tasks_body",
     "meal_plan_body",
     "refresh_body",
     "goals_read",

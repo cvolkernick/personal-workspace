@@ -36,6 +36,8 @@ class MealPlanRewrites(unittest.TestCase):
         self.assertIn("/api/dashboard?_r=meal_plan", raw)
         self.assertIn("/api/refresh", raw)
         self.assertIn("/api/dashboard?_r=refresh", raw)
+        self.assertIn("/api/daily-tasks", raw)
+        self.assertIn("/api/dashboard?_r=daily_tasks", raw)
         self.assertNotIn("api/meal-plan.py", raw)
         self.assertNotIn("api/meal_plan.py", raw)
         self.assertNotIn("api/refresh.py", raw)
