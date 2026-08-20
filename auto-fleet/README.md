@@ -41,7 +41,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `server.py` / `index.html` | Dashboard + JSON API (glance-first UI) |
 | `fleet.py` | Assemble `/api/fleet` |
 | `glance.py` | Miles / SoC / stale / PTP presentation helpers |
-| `static/fleet/` | Per-unit stills (`m3-2020` and `r1s-2023` have their own heroes; 2022 Turo M3 keeps the listing Tesla). Not TREAD chrome |
+| `static/fleet/` | Per-unit stills (`m3-2020`, `m3-2022`, `r1s-2023`, both Corollas). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
