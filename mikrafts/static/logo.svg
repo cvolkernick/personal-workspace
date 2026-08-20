@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="mk-logo-title">
+  <title id="mk-logo-title">MiKrafts</title>
+  <defs>
+    <filter id="word-shadow" x="-10%" y="-10%" width="120%" height="140%">
+      <feDropShadow dx="0" dy="1.4" stdDeviation="0.6" flood-color="#000000" flood-opacity="0.85"/>
+    </filter>
+  </defs>
+
+  <!-- Shield / circle mark -->
+  <circle cx="128" cy="128" r="124" fill="#C9A227"/>
+  <circle cx="128" cy="128" r="116" fill="#ffffff"/>
+  <circle cx="128" cy="128" r="116" fill="none" stroke="#2B2B2B" stroke-width="1.25" opacity="0.18"/>
+
+  <!-- 3D printer hotend / nozzle (charcoal), angled downward -->
+  <g transform="translate(128 46) rotate(-8)">
+    <rect x="-18" y="0" width="36" height="7" rx="1.2" fill="#2B2B2B"/>
+    <rect x="-16" y="8" width="32" height="4" fill="#3A3A3A"/>
+    <rect x="-16" y="13" width="32" height="4" fill="#2B2B2B"/>
+    <rect x="-16" y="18" width="32" height="4" fill="#3A3A3A"/>
+    <rect x="-16" y="23" width="32" height="4" fill="#2B2B2B"/>
+    <rect x="-13" y="28" width="26" height="11" rx="1" fill="#2B2B2B"/>
+    <path d="M-8 39 H8 L3.2 56 H-3.2 Z" fill="#2B2B2B"/>
+    <path d="M-2.1 56 H2.1 L0.7 62 H-0.7 Z" fill="#1A1A1A"/>
+  </g>
+
+  <!-- Extruded filament into the print -->
+  <path d="M131 108 C132 116, 128 122, 118 128" fill="none" stroke="#C9A227" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- Gold cube (front-left) -->
+  <g transform="translate(86 132)">
+    <polygon points="28,8 52,20 28,32 4,20" fill="#E2C04A"/>
+    <polygon points="4,20 28,32 28,56 4,44" fill="#A7841C"/>
+    <polygon points="28,32 52,20 52,44 28,56" fill="#C9A227"/>
+  </g>
+
+  <!-- Lavender cube (back-right) -->
+  <g transform="translate(128 118)">
+    <polygon points="28,8 52,20 28,32 4,20" fill="#D2C0E8"/>
+    <polygon points="4,20 28,32 28,56 4,44" fill="#8E74B0"/>
+    <polygon points="28,32 52,20 52,44 28,56" fill="#B79AD4"/>
+  </g>
+
+  <!-- Italic wordmark banner -->
+  <path d="M28 188 C28 176, 228 176, 228 188 C228 204, 28 204, 28 188 Z" fill="#1A1A1A"/>
+  <text
+    x="128"
+    y="196"
+    text-anchor="middle"
+    font-family="Arial Black, Arial, Helvetica, sans-serif"
+    font-style="italic"
+    font-weight="800"
+    font-size="28"
+    fill="#F2F0F4"
+    filter="url(#word-shadow)"
+    letter-spacing="0.5"
+  >MiKrafts</text>
+</svg>
