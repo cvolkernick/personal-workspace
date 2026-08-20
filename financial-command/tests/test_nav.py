@@ -81,7 +81,7 @@ class TestFccNavFleet(unittest.TestCase):
     def test_fleet_href_uses_current_hostname_port_8796(self) -> None:
         js = (FCC / "nav-fleet.js").read_text(encoding="utf-8")
         self.assertIn("location.hostname", js)
-        self.assertIn(":8796", js)
+        self.assertIn("FLEET_PORT = 8796", js)
         self.assertIn("fccFleetHref", js)
         self.assertNotIn("<iframe", js.lower())
         for ip in HARDCODED_IPS:
