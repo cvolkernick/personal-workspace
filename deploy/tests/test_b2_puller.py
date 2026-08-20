@@ -220,12 +220,14 @@ class TestLockedPullCadence(unittest.TestCase):
         timer = (ROOT / "deploy" / "units" / "b2-puller.timer").read_text(
             encoding="utf-8"
         )
+        self.assertIn("PULSE LOCK", timer)
         self.assertIn(f"OnCalendar={P.PULL_ONCALENDAR}", timer)
         self.assertIn("America/New_York", timer)
         self.assertIn("*:20:00", timer)
         self.assertNotIn("OnUnitActiveSec", timer)
         self.assertNotIn("OnBootSec", timer)
         self.assertIn("Unit=b2-puller.service", timer)
+        self.assertNotIn("vault", timer.lower())
 
     def test_one_puller_timer_no_sidecar_clocks(self):
         units = ROOT / "deploy" / "units"
@@ -253,8 +255,11 @@ class TestLockedPullCadence(unittest.TestCase):
         svc = (ROOT / "deploy" / "units" / "b2-puller.service").read_text(
             encoding="utf-8"
         )
+        self.assertIn("PULSE LOCK", svc)
         self.assertIn("pull_from_prism.py", svc)
         self.assertEqual(svc.count("ExecStart="), 1)
+        self.assertIn("prism-gateway", svc)
+        self.assertNotIn("vault", svc.lower())
 
 
 class TestB2ServerWording(unittest.TestCase):

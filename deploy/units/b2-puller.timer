@@ -1,9 +1,13 @@
 [Unit]
-Description=Hourly :20 America/New_York: one pull of prism books + youtube-groom + published + units onto finley
+Description=PULSE LOCK: hourly :20 America/New_York — one pull (books + youtube-groom + published + units)
 
 [Timer]
-# Locked cadence — the only pull clock. All 7 days, overnight included.
-# Do not add a prism self-backup timer, a units-only timer, or an off-site tarball clock.
+# PULSE LOCK (do not add a second timer)
+# Cadence: hourly at minute 20, America/New_York, all 7 days including overnight.
+# One systemd timer, one job (b2-puller.service).
+# Pulls together: book snapshots, youtube-groom state, published copies, units.
+# Do NOT add: prism self-backup, venue keys, a units-only timer, off-site clock.
+# v1: pull FROM prism-gateway onto finley (b2-puller). No replica. No machine rename.
 OnCalendar=*-*-* *:20:00 America/New_York
 AccuracySec=1min
 Persistent=true

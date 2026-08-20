@@ -1,5 +1,5 @@
 [Unit]
-Description=One job: pull prism book snapshots + youtube-groom state + published copies + units onto finley
+Description=PULSE LOCK job: pull books + youtube-groom + published + units FROM prism-gateway
 After=network-online.target
 Wants=network-online.target
 
@@ -10,6 +10,7 @@ Environment=PYTHONUNBUFFERED=1
 Environment=B2_ROLE=b2-puller
 Environment=B2_PULL_DEST=%h/b2-pulls/prism
 Environment=B2_PULL_REMOTE=prism-agent@prism-gateway
-# Live pull only on finley-gateway. Do not write Vercel / Mac dests.
+# v1: same box as B2 / knowledge graph :8792. Write only what was pulled.
+# No replica, no off-site bucket, no venue keys, no prism self-backup.
 ExecStart=/usr/bin/python3 %h/personal-workspace/deploy/b2-puller/pull_from_prism.py
 Nice=10

@@ -8,8 +8,9 @@
 #
 # Installs only:
 #   b2.service          :8792 knowledge graph (app Pi queries this; do not rsync B2 onto prism)
-#   b2-puller.timer     hourly :20 America/New_York — one job: books + youtube-groom + published + units
-#                       (no prism self-backup timer, no units-only timer, no off-site clock)
+#   b2-puller.timer     PULSE LOCK hourly :20 America/New_York — one job:
+#                       books + youtube-groom + published + units FROM prism-gateway
+#                       (no prism self-backup, no venue keys, no units-only timer, no replica)
 #   workspace-sync.timer git pull of this repo (no app-books units)
 #
 # Does not install FCC, FitDash, Orchestra, Auto Fleet, youtube-groom.

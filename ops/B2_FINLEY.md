@@ -10,8 +10,10 @@ seat cannot reach the LAN — do not SSH from here.
 | `prism-gateway` | `app-books` | `prism-agent` | 192.168.100.98 | 100.67.114.2 |
 | `finley-gateway` | `b2-puller` | `finley-agent` | 192.168.100.216 | 100.124.165.50 |
 
-v1: B2 primary **and** puller live on **one box** (finley) until a third Pi exists.
-Do **not** rsync the knowledge graph onto prism. Prism **queries** `:8792`.
+v1: B2 / knowledge graph primary on finley **:8792** **and** this puller on the
+**same box**. Pull **FROM** `prism-gateway`. Write only what was pulled.
+No replica, no off-site bucket, no machine rename. Role tags only:
+`app-books` (prism), `b2-puller` (finley). Prism **queries** `:8792`.
 
 Inventory: `deploy/b2-puller/hosts.json`.
 
@@ -23,10 +25,11 @@ Inventory: `deploy/b2-puller/hosts.json`.
 | `b2-puller.timer` | **hourly :20 `America/New_York`**, all 7 days incl. overnight | One job PULLS books + youtube-groom + published + units **from** prism |
 | `workspace-sync.timer` | 5m | git pull of this repo (not a pull clock; no FCC / FitDash / Orchestra units) |
 
-**Locked pull cadence:** one systemd timer on finley (`b2-puller.timer` → `b2-puller.service`).
-`OnCalendar=*-*-* *:20:00 America/New_York`. Do **not** add a prism self-backup
-timer or a units-only timer. Off-site tarball is later and must **not** get its
-own clock — it rides this job or waits.
+**PULSE LOCK:** one systemd timer on finley (`b2-puller.timer` → `b2-puller.service`).
+`OnCalendar=*-*-* *:20:00 America/New_York`. One job pulls book snapshots +
+youtube-groom state + published copies + units. Do **not** add a prism
+self-backup, venue keys, or a units-only timer. No off-site bucket in v1
+(and it must not get its own clock later).
 
 Graph root: `~/B2` (`B2_GRAPH_PATH`). Pull dest: `~/b2-pulls/prism`.
 App Pi query: `http://finley-gateway:8792/api/health` (or Tailscale `100.124.165.50`).

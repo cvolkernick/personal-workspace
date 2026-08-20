@@ -28,12 +28,13 @@ FINLEY_HOSTNAME = "finley-gateway"
 ROLE_APP_BOOKS = "app-books"
 ROLE_B2_PULLER = "b2-puller"
 
-# Locked pull clock (one timer on finley). Off-site tarball later must not
-# get its own OnCalendar. No prism self-backup timer. No units-only timer.
+# PULSE LOCK — one timer, one job, this cadence only.
+# No prism self-backup. No units-only timer. No off-site clock. No replica.
 PULL_TZ = "America/New_York"
 PULL_ONCALENDAR = "*-*-* *:20:00 America/New_York"
 PULL_TIMER_UNIT = "b2-puller.timer"
 PULL_SERVICE_UNIT = "b2-puller.service"
+PULSE_LOCK = "PULSE LOCK"
 
 # Book / restore allowlist (paths relative to prism $HOME).
 # Snapshots only — not treasury/config.json (account numbers + venue wiring).
