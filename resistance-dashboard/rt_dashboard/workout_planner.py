@@ -882,15 +882,26 @@ def prescribe(
     *,
     recovery_score: Optional[float] = None,
     continuity: Optional[Dict[str, Any]] = None,
+    default_hard_sets: Optional[int] = None,
 ) -> dict:
     """Double-progression style prescription from last logged set.
 
     When ``continuity`` is not normal, hold or cut load vs last log instead of
     progressing — re-establish pattern/work capacity after silence.
+
+    Set volume is seeded from goals.default_hard_sets, never catalog default_sets=3.
     """
     lo, hi = catalog_ex["rep_range"]
-    sets = int(catalog_ex["default_sets"])
-    reps = int(catalog_ex["default_reps"])
+    if default_hard_sets is not None:
+        sets = max(1, int(default_hard_sets))
+    else:
+        try:
+            raw_i = int(catalog_ex.get("default_sets") or 0)
+        except (TypeError, ValueError):
+            raw_i = 0
+        # Blind catalog default_sets=3 is junk volume (DeanT / default_hard_sets=2).
+        sets = 2 if raw_i in (0, 3) else raw_i
+    reps = int(catalog_ex.get("default_reps") or 10)
     weight: Optional[float] = None
     rationale = "Default starter prescription (no history for this lift)."
     cont = continuity or training_continuity(0)
@@ -1143,12 +1154,15 @@ def generate_workout_plan(
                     last = last_performance(sessions, alias)
                     if last:
                         break
-        # Prefer thinner hard-set defaults when no history (fits 4–8/week model)
+        # Volume from goals.default_hard_sets — never catalog default_sets=3
         ex_rx = dict(ex)
-        if not last:
-            ex_rx["default_sets"] = min(int(ex.get("default_sets") or 3), default_hard)
+        ex_rx["default_sets"] = default_hard
         rx = prescribe(
-            ex_rx, last, recovery_score=recovery_score, continuity=continuity
+            ex_rx,
+            last,
+            recovery_score=recovery_score,
+            continuity=continuity,
+            default_hard_sets=default_hard,
         )
         hard = int(rx["sets"] or default_hard)
         hard = _cap_sets_for_muscles(
@@ -1162,7 +1176,10 @@ def generate_workout_plan(
         # Also respect remaining session budget
         hard = max(1, min(hard, session_cap - session_sets))
         rx["sets"] = hard
-        if hard < int((last or {}).get("sets") or ex.get("default_sets") or hard):
+        prior_sets = (last or {}).get("sets")
+        if prior_sets is None:
+            prior_sets = default_hard
+        if hard < int(prior_sets or hard):
             framework_note = (
                 f"Volume cap: {hard} hard sets "
                 f"(ramped band · continuity {continuity.get('label')})."

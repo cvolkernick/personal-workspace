@@ -1,4 +1,56 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1"
+  "ignoreCommand": "python3 scripts/vercel_ignore.py || exit 1",
+  "framework": null,
+  "outputDirectory": "static",
+  "rewrites": [
+    {
+      "source": "/api/workout-plan/generate",
+      "destination": "/api/ask/plan?_r=generate"
+    },
+    {
+      "source": "/api/workout/goals",
+      "destination": "/api/dashboard?_r=goals"
+    },
+    {
+      "source": "/api/workout/exercise/available",
+      "destination": "/api/dashboard?_r=available"
+    },
+    {
+      "source": "/api/workouts",
+      "destination": "/api/dashboard?_r=workouts"
+    },
+    {
+      "source": "/api/inventory/add",
+      "destination": "/api/dashboard?_r=inv_add"
+    },
+    {
+      "source": "/api/inventory/remove",
+      "destination": "/api/dashboard?_r=inv_remove"
+    },
+    {
+      "source": "/api/inventory/stock",
+      "destination": "/api/dashboard?_r=inv_stock"
+    }
+  ],
+  "functions": {
+    "api/ask.py": {
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    },
+    "api/ask/plan.py": {
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    },
+    "api/ask/grok/start.py": {
+      "maxDuration": 15
+    },
+    "api/ask/grok/poll.py": {
+      "maxDuration": 15
+    },
+    "api/dashboard.py": {
+      "maxDuration": 60,
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+    }
+  }
 }

@@ -177,21 +177,91 @@ class GoogleHealthClient:
                 f"Google Health/Fit API error HTTP {e.code}", status=e.code, body=err
             ) from e
 
-    def _paginate_data_points(self, data_type: str, max_pages: int = 10) -> dict:
-        """Collect dataPoints pages for a Google Health data type."""
+    def _data_point_date(self, pt: dict) -> Optional[str]:
+        """Best-effort YYYY-MM-DD from a Google Health dataPoint."""
+        if not isinstance(pt, dict):
+            return None
+
+        def _civil(d) -> Optional[str]:
+            if isinstance(d, dict) and d.get("year"):
+                try:
+                    return f"{int(d['year']):04d}-{int(d['month']):02d}-{int(d['day']):02d}"
+                except (TypeError, ValueError):
+                    return None
+            return None
+
+        for nest in (
+            pt,
+            pt.get("nutritionLog") or {},
+            pt.get("nutrition_log") or {},
+            pt.get("hydrationLog") or {},
+            pt.get("hydration_log") or {},
+            pt.get("sleep") or {},
+            pt.get("weight") or {},
+        ):
+            if not isinstance(nest, dict):
+                continue
+            interval = nest.get("interval") or {}
+            if not isinstance(interval, dict):
+                interval = {}
+            for key in ("civilStartTime", "civilEndTime", "civilTime"):
+                block = interval.get(key) or nest.get(key) or {}
+                if isinstance(block, dict):
+                    got = _civil(block.get("date") or block)
+                    if got:
+                        return got
+            st = nest.get("sampleTime") or {}
+            if isinstance(st, dict):
+                got = _civil(((st.get("civilTime") or {}) or {}).get("date"))
+                if got:
+                    return got
+            for ts_key in ("startTime", "endTime"):
+                ts = interval.get(ts_key) or nest.get(ts_key) or pt.get(ts_key)
+                s = str(ts or "")
+                if len(s) >= 10 and s[4] == "-":
+                    return s[:10]
+        return None
+
+    def _paginate_data_points(
+        self,
+        data_type: str,
+        max_pages: int = 10,
+        *,
+        until_date: Optional[str] = None,
+    ) -> dict:
+        """Collect dataPoints pages. If until_date (YYYY-MM-DD), keep paging
+        newest-first until a page older than that cutoff, not a tiny page cap.
+        """
+        cache_key = (data_type, until_date or "", int(max_pages or 0))
+        cache = getattr(self, "_page_cache", None)
+        if cache is None:
+            self._page_cache = {}
+            cache = self._page_cache
+        if cache_key in cache:
+            return cache[cache_key]
         all_pts: List[dict] = []
         page_token: Optional[str] = None
-        for _ in range(max_pages):
+        cap = min(max(int(max_pages or 10), 1), 40)
+        if until_date:
+            cap = max(cap, 40)
+        for _ in range(cap):
             q: Dict[str, str] = {"pageSize": "100"}
             if page_token:
                 q["pageToken"] = page_token
             url = f"{HEALTH_BASE}/dataTypes/{data_type}/dataPoints?{urllib.parse.urlencode(q)}"
             data = self._request("GET", url)
-            all_pts.extend(data.get("dataPoints") or [])
+            pts = data.get("dataPoints") or []
+            all_pts.extend(pts)
             page_token = data.get("nextPageToken")
             if not page_token:
                 break
-        return {"dataPoints": all_pts}
+            if until_date and pts:
+                dates = [d for d in (self._data_point_date(p) for p in pts) if d]
+                if dates and min(dates) < until_date:
+                    break
+        out = {"dataPoints": all_pts}
+        cache[cache_key] = out
+        return out
 
     def fetch_weight_health_api(self, days: int = 30) -> List[WeightSample]:
         """Google Health API: GET .../dataTypes/weight/dataPoints"""
@@ -216,8 +286,8 @@ class GoogleHealthClient:
         """
         end = datetime.now(timezone.utc)
         start = end - timedelta(days=days)
-        max_pages = 4 if days >= 60 else 2
-        data = self._paginate_data_points("sleep", max_pages=max_pages)
+        until = start.strftime("%Y-%m-%d")
+        data = self._paginate_data_points("sleep", max_pages=40, until_date=until)
         intervals = parse_sleep_intervals(data, start=start)
         # Prefer daily totals derived from timed intervals (local wake date)
         samples = sleep_samples_from_intervals(intervals)
@@ -379,66 +449,35 @@ class GoogleHealthClient:
             end = end - timedelta(days=take)
         return {"rollupDataPoints": all_pts}
 
+    def fetch_nutrition_bundle(
+        self, days: int = 90
+    ) -> Tuple[List[NutritionDay], List[FoodLogEntry]]:
+        """One nutrition-log walk → daily totals + meal-level food_logs."""
+        days = max(1, min(int(days), 90))
+        cutoff = (datetime.now().astimezone().date() - timedelta(days=days - 1)).isoformat()
+        data = self._paginate_data_points("nutrition-log", max_pages=40, until_date=cutoff)
+        return (
+            parse_nutrition_log_points(data, days=days),
+            parse_food_log_entries(data, days=days),
+        )
+
     def fetch_nutrition(self, days: int = 90) -> List[NutritionDay]:
         """Food log macros/calories — needs googlehealth.nutrition.readonly."""
-        days = max(1, min(int(days), 90))
-        # Prefer daily rollup; chunk if a single long window fails.
-        try:
-            data = self.daily_rollup("nutrition-log", days=days)
-            days_list = parse_nutrition_rollup(data)
-            if days_list:
-                return days_list
-        except GoogleHealthError:
-            try:
-                data = self._chunked_daily_rollup("nutrition-log", days, chunk_days=30)
-                days_list = parse_nutrition_rollup(data)
-                if days_list:
-                    return days_list
-            except GoogleHealthError:
-                pass
-        try:
-            data = self._paginate_data_points("nutrition-log", max_pages=6)
-            return parse_nutrition_log_points(data, days=days)
-        except GoogleHealthError:
-            return []
+        nutrition, _logs = self.fetch_nutrition_bundle(days=days)
+        return nutrition
 
     def fetch_food_logs(self, days: int = 14) -> List[FoodLogEntry]:
-        """Meal-level nutrition-log entries (food names + macros + micros).
-
-        Daily rollups only give totals; meal plan / coach commentary need
-        individual foodDisplayName points. Bound pages tightly — food logs
-        are denser than daily weigh-ins.
-        """
-        days = max(1, min(int(days), 30))
-        # ~100 pts/page; heavy loggers may need more pages for 14d.
-        max_pages = 8 if days >= 14 else 4
-        try:
-            data = self._paginate_data_points("nutrition-log", max_pages=max_pages)
-            return parse_food_log_entries(data, days=days)
-        except GoogleHealthError:
-            return []
+        """Meal-level entries from the same nutrition-log pages as daily totals."""
+        _nutrition, logs = self.fetch_nutrition_bundle(days=days)
+        return logs
 
     def fetch_hydration(self, days: int = 90) -> List[HydrationDay]:
         """Water intake — needs googlehealth.nutrition.readonly."""
         days = max(1, min(int(days), 90))
-        try:
-            data = self.daily_rollup("hydration-log", days=days)
-            days_list = parse_hydration_rollup(data)
-            if days_list:
-                return days_list
-        except GoogleHealthError:
-            try:
-                data = self._chunked_daily_rollup("hydration-log", days, chunk_days=30)
-                days_list = parse_hydration_rollup(data)
-                if days_list:
-                    return days_list
-            except GoogleHealthError:
-                pass
-        try:
-            data = self._paginate_data_points("hydration-log", max_pages=4)
-            return parse_hydration_log_points(data, days=days)
-        except GoogleHealthError:
-            return []
+        # Paginate first. dailyRollUp POST is HTTP 400 and burns Vercel time.
+        max_pages = 6 if days >= 60 else 4
+        data = self._paginate_data_points("hydration-log", max_pages=max_pages)
+        return parse_hydration_log_points(data, days=days)
 
     def fetch_calories_burned(self, days: int = 90) -> List[CaloriesBurnedDay]:
         """Activity total calories — needs activity_and_fitness.readonly.
@@ -489,12 +528,10 @@ class GoogleHealthClient:
         def _sleep() -> Tuple[List[SleepSample], List[Dict[str, Any]]]:
             return self.fetch_sleep_bundle(days=days)
 
-        def _nutrition() -> List[NutritionDay]:
-            return self.fetch_nutrition(days=days)
-
-        def _food_logs() -> List[FoodLogEntry]:
-            # Meal-level detail for coach + meal plan (shorter window).
-            return self.fetch_food_logs(days=min(14, days))
+        def _nutrition() -> Tuple[List[NutritionDay], List[FoodLogEntry]]:
+            # Same pages for daily totals and meal-level food_logs — no parallel
+            # fetch_food_logs that can independently return [].
+            return self.fetch_nutrition_bundle(days=days)
 
         def _hydration() -> List[HydrationDay]:
             return self.fetch_hydration(days=days)
@@ -506,7 +543,6 @@ class GoogleHealthClient:
             "weight": _weight,
             "sleep": _sleep,
             "nutrition": _nutrition,
-            "food_logs": _food_logs,
             "hydration": _hydration,
             "calories_burned": _burned,
         }
@@ -529,9 +565,7 @@ class GoogleHealthClient:
                 elif name == "sleep":
                     sleep, sleep_intervals = result  # type: ignore[misc]
                 elif name == "nutrition":
-                    nutrition = result  # type: ignore[assignment]
-                elif name == "food_logs":
-                    food_logs = result  # type: ignore[assignment]
+                    nutrition, food_logs = result  # type: ignore[misc]
                 elif name == "hydration":
                     hydration = result  # type: ignore[assignment]
                 elif name == "calories_burned":

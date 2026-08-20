@@ -69,7 +69,16 @@ python3 scripts/vercel_ignore.py --changed resistance-dashboard/server.py; echo 
 Prove on Vercel: push a SHA whose diff vs `VERCEL_GIT_PREVIOUS_SHA` (else
 `HEAD^`) has no `resistance-dashboard/` path. FitDash should be **Canceled**,
 not `PYTHON_ENTRYPOINT_NOT_FOUND`. A commit that *does* touch
-`resistance-dashboard/` still builds (entrypoint work is #194, not this file).
+`resistance-dashboard/` still builds.
+
+### Vercel preview (not prod)
+
+Project: `fitdash` (https://vercel.com/cvolkernick/fitdash). Root Directory =
+`resistance-dashboard`. `vercel.json` + `.vercelignore` make Vercel serve
+`static/` and `GET /api/healthz` (`role=vercel-preview`). They do **not** run
+`server.py` (no WSGI `app`). Pi stays on `deploy/install_remote.sh` and the
+systemd unit. OAuth/SQLite/dashboard APIs stay unproven on Vercel until secrets
+and a preview URL exist.
 
 ## Configuration (env)
 
@@ -119,6 +128,7 @@ Without Google credentials the UI still loads lift charts and recovery from trai
 ```bash
 python3 -m unittest tests.test_analytics -v
 python3 -m unittest tests.test_vercel_ignore -v
+python3 -m unittest tests.test_vercel_preview -v
 python3 scripts/verify_github.py
 python3 scripts/verify_google.py
 python3 scripts/verify_launch.py
@@ -128,9 +138,11 @@ python3 scripts/verify_launch.py
 
 ```
 resistance-dashboard/
-  server.py                 # real entry
-  vercel.json               # ignoreCommand only (skip non-FitDash SHAs)
+  server.py                 # real entry (Pi / Mac)
+  api/healthz.py            # Vercel preview liveness only
+  vercel.json               # ignoreCommand + static output; not a WSGI app
   vercel-ignore-paths.txt   # prefixes that count as FitDash for Vercel
+  .vercelignore             # keeps server.py out of the Vercel build
   rt_dashboard/             # parse, analytics, recovery, GitHub, Google Fit
   static/                   # mobile-first UI + Chart.js
   tests/                    # pure logic + wire-format fixtures

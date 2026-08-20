@@ -134,6 +134,32 @@ class TestWorkoutPlanner(unittest.TestCase):
         self.assertEqual(plan["session_type"], "rest")
         self.assertIn("volume", plan)
 
+    def test_caution_35_not_sparse_is_rest(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [],
+            recovery_score=35,
+            recovery_label="Caution",
+            recovery_sparse=False,
+        )
+        self.assertTrue(plan["is_rest_day"])
+        self.assertEqual(plan["session_type"], "rest")
+        self.assertEqual(plan["exercises"], [])
+
+    def test_caution_35_sparse_sleep_is_not_rest(self):
+        plan = generate_workout_plan(
+            self.catalog,
+            self.goals,
+            [_session("2026-07-10", "push", "DB Flat Press", 50)],
+            recovery_score=35,
+            recovery_label="Caution",
+            recovery_sparse=True,
+            as_of="2026-07-11",
+        )
+        self.assertFalse(plan["is_rest_day"])
+        self.assertNotEqual(plan["session_type"], "rest")
+
     def test_compound_overlap_credits(self):
         credits = credit_sets_for_exercise(
             ["hamstrings", "glutes"], ["back"], 2, secondary_fraction=0.5
@@ -296,6 +322,48 @@ class TestWorkoutPlanner(unittest.TestCase):
             14,
         )
         self.assertIn("Re-entry", plan.get("message") or "")
+
+    def test_prescribe_ignores_catalog_default_sets_three(self):
+        ex = {
+            "default_sets": 3,
+            "default_reps": 10,
+            "rep_range": [8, 12],
+        }
+        rx = prescribe(ex, None, default_hard_sets=2)
+        self.assertEqual(rx["sets"], 2)
+        rx_blind = prescribe(ex, None)
+        self.assertEqual(rx_blind["sets"], 2)
+        self.assertNotEqual(rx_blind["sets"], 3)
+
+    def test_plan_no_history_uses_goals_hard_sets_not_catalog_three(self):
+        catalog = {
+            "exercises": [
+                {
+                    "id": "leg-press",
+                    "name": "Leg Press",
+                    "session_types": ["legs"],
+                    "primary_muscles": ["quads"],
+                    "movement": "compound",
+                    "default_sets": 3,
+                    "default_reps": 10,
+                    "rep_range": [8, 12],
+                    "priority": 10,
+                    "available": True,
+                }
+            ]
+        }
+        sessions = [_session("2026-07-21", "pull", "Seated Cable Row", 100, 2, 10)]
+        plan = generate_workout_plan(
+            catalog,
+            {**self.goals, "default_hard_sets": 2, "session_working_set_cap": 14},
+            sessions,
+            recovery_score=80,
+            as_of="2026-07-22",
+        )
+        self.assertEqual(plan["session_type"], "legs")
+        self.assertTrue(plan["exercises"])
+        for e in plan["exercises"]:
+            self.assertEqual(int((e.get("prescription") or {}).get("sets") or 0), 2)
 
 
 if __name__ == "__main__":

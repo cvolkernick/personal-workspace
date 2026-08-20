@@ -84,7 +84,13 @@ class TestFitDashPrefixes(unittest.TestCase):
             cfg.get("ignoreCommand"),
             "python3 scripts/vercel_ignore.py || exit 1",
         )
-        self.assertEqual(list(cfg.keys()), ["$schema", "ignoreCommand"])
+        # #194 adapter fields may coexist. Dropping ignoreCommand burns a
+        # Hobby deploy on every Orchestra/Fleet/FCC SHA.
+        self.assertIn("$schema", cfg)
+        self.assertIn("framework", cfg)
+        self.assertIn("outputDirectory", cfg)
+        self.assertIn("rewrites", cfg)
+        self.assertIn("functions", cfg)
 
 
 class TestGitCompare(unittest.TestCase):

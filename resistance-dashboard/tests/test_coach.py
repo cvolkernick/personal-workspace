@@ -53,6 +53,22 @@ class TestCoach(unittest.TestCase):
         brief = build_coach_brief(today=board, weekly={"bullets": ["Training: 3 sessions"]}, recovery=rec)
         self.assertIn("rest", brief["markdown"].lower())
 
+    def test_caution_score_without_rest_plan_is_not_rest(self):
+        """Sparse / rest-gate-off: score 35 must not print Rest next to a lift slot."""
+        rec = RecoveryStatus(label="Caution", score=35.0, reasons=["low sleep"])
+        board = build_today_board(
+            as_of="2026-07-11",
+            recovery=rec,
+            workout_plan={"is_rest_day": False, "session_type": "pull", "exercises": []},
+            meal_plan={"remaining_before_plan": {"calories": 500, "protein_g": 40}},
+            consumed={"calories": 1000, "protein_g": 80},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={"protein": {"pct": 50}, "sleep": {"pct": 40}},
+        )
+        self.assertNotEqual(board["recommendation"], "rest")
+        self.assertEqual(board["workout"]["session_type"], "pull")
+        self.assertFalse(board["workout"]["is_rest_day"])
+
     def test_today_guide_stock_only_meal_and_purchases(self):
         """Shipped meal planner + today board: only stocked ids; restock when OOS."""
         inv = {

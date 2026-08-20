@@ -3665,6 +3665,101 @@
     applyStaticCollapseState(root);
   }
 
+  function civilDay(value) {
+    return String(value || "").slice(0, 10);
+  }
+
+  function hasLoggedMacros(c) {
+    if (!c || typeof c !== "object") return false;
+    return (
+      c.calories != null ||
+      c.protein_g != null ||
+      c.carbs_g != null ||
+      c.fat_g != null
+    );
+  }
+
+  function lastNutritionDate(data) {
+    const store = (data && data.nutrition_store) || {};
+    if (store.last_nutrition_date) return civilDay(store.last_nutrition_date);
+    const dates = [];
+    (((data && data.health) || {}).nutrition || []).forEach((n) => {
+      const d = civilDay(n.date);
+      if (d) dates.push(d);
+    });
+    (store.food_logs || []).forEach((f) => {
+      const d = civilDay(f.date);
+      if (d) dates.push(d);
+    });
+    dates.sort();
+    return dates.length ? dates[dates.length - 1] : "";
+  }
+
+  function loggedConsumedForToday(data) {
+    const today = civilDay((data.meta && data.meta.local_today) || "");
+    const store = (data && data.nutrition_store) || {};
+    const coachCons = ((((data.coach || {}).today || {}).nutrition || {}).consumed) || null;
+    const storeCons = store.today_consumed || null;
+    const matchDay = (c) =>
+      hasLoggedMacros(c) && (!today || !c.date || civilDay(c.date) === today);
+    if (matchDay(storeCons)) return storeCons;
+    if (matchDay(coachCons)) return coachCons;
+    const day = (((data.health || {}).nutrition) || []).find(
+      (n) => today && civilDay(n.date) === today
+    );
+    if (hasLoggedMacros(day)) return day;
+    const logs = (store.food_logs_today || []).filter(
+      (f) => !today || !f.date || civilDay(f.date) === today
+    );
+    if (!logs.length) return null;
+    return {
+      date: today,
+      calories: logs.reduce((s, f) => s + (Number(f.calories) || 0), 0),
+      protein_g: logs.reduce((s, f) => s + (Number(f.protein_g) || 0), 0),
+      carbs_g: logs.reduce((s, f) => s + (Number(f.carbs_g) || 0), 0),
+      fat_g: logs.reduce((s, f) => s + (Number(f.fat_g) || 0), 0),
+      food_log_count: logs.length,
+      source: "food_logs",
+    };
+  }
+
+  function renderTodayLoggedFoods(data) {
+    const box = $("today-logged-foods");
+    const today = civilDay((data.meta && data.meta.local_today) || "");
+    const store = (data && data.nutrition_store) || {};
+    const all = (store.food_logs || []).length
+      ? store.food_logs
+      : ((((data.health || {}).food_logs) || []).length
+          ? data.health.food_logs
+          : (store.food_logs_recent || store.food_logs_today || []));
+    let logs = today ? all.filter((f) => civilDay(f.date) === today) : (store.food_logs_today || []);
+    let heading = "Logged today";
+    if (!logs.length) {
+      const last = lastNutritionDate(data) || "";
+      if (last) {
+        logs = all.filter((f) => civilDay(f.date) === last);
+        if (logs.length) heading = `Logged ${last}`;
+      }
+    }
+    if (!box) return logs;
+    if (!logs.length) {
+      box.textContent =
+        `local_today=${today || "—"}; last_nutrition_date=${lastNutritionDate(data) || "—"}; food_log_count=${all.length || 0}`;
+      return logs;
+    }
+    box.innerHTML =
+      `<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">${heading}</div>` +
+      `<ul style="margin:0;padding-left:1.1rem">` +
+      logs
+        .map((f) => {
+          const kcal = f.calories != null ? `${fmtNum(f.calories)} kcal` : "— kcal";
+          return `<li><strong>${f.name || "Food"}</strong> · ${kcal}</li>`;
+        })
+        .join("") +
+      `</ul>`;
+    return logs;
+  }
+
   function renderTodayHub(data) {
     const coach = data.coach || {};
     const today = coach.today || {};
@@ -3704,7 +3799,7 @@
       if (!rows.length) {
         // Fallback from nutrition_store
         const t = nutStore.targets || {};
-        const c = nutStore.today_consumed || {};
+        const c = loggedConsumedForToday(data) || nutStore.today_consumed || {};
         $("today-targets").innerHTML = `
           <div class="today-target-row"><div class="today-target-top">
             <span>Calories</span><span>${fmtNum(c.calories)} / ${fmtNum(t.calories)}</span>
@@ -3867,14 +3962,18 @@
         `;
       }
     }
+    const loggedFoods = renderTodayLoggedFoods(data);
     if ($("today-macros")) {
       const n = today.nutrition || {};
-      const cons =
-        n.consumed ||
-        (data.nutrition_store && data.nutrition_store.today_consumed) ||
-        {};
+      const cons = loggedConsumedForToday(data) || {};
       const rem = n.remaining || {};
-      const nLogs = n.food_log_count != null ? n.food_log_count : "";
+      const localToday = civilDay((data.meta && data.meta.local_today) || today.date || "");
+      const nLogs =
+        cons.food_log_count != null
+          ? cons.food_log_count
+          : n.food_log_count != null
+          ? n.food_log_count
+          : loggedFoods.length;
       const pace =
         (today.calorie_bars && today.calorie_bars.pacing_summary) ||
         ((data.calorie_bars || {}).pacing || {}).summary ||
@@ -3883,18 +3982,35 @@
         (today.calorie_bars && today.calorie_bars.delta_summary) ||
         ((data.calorie_bars || {}).delta || {}).summary ||
         "";
-      $("today-macros").innerHTML = `
+      if (!hasLoggedMacros(cons)) {
+        const last = lastNutritionDate(data) || "—";
+        $("today-macros").innerHTML =
+          `local_today=${localToday || "—"}; last_nutrition_date=${last}; food_log_count=${nLogs || 0}`;
+      } else {
+        const tgt = n.targets || nutStore.targets || {};
+        const hasTargets = tgt.calories != null || tgt.protein_g != null;
+        const hasRem =
+          hasTargets &&
+          (rem.calories != null ||
+            rem.protein_g != null ||
+            rem.carbs_g != null ||
+            rem.fat_g != null);
+        $("today-macros").innerHTML = `
         <strong>Logged so far</strong>${
-          nLogs !== "" ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
+          nLogs !== "" && nLogs != null ? ` (${nLogs} meal log${nLogs === 1 ? "" : "s"})` : ""
         }: ${fmtNum(cons.calories)} kcal · P${fmtNum(cons.protein_g)}
-        C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}<br/>
-        <strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(
-        rem.protein_g
-      )}
-        C${fmtNum(rem.carbs_g)} F${fmtNum(rem.fat_g)}
+        C${fmtNum(cons.carbs_g)} F${fmtNum(cons.fat_g)}
+        ${
+          hasRem
+            ? `<br/><strong>Remaining</strong>: ${fmtNum(rem.calories)} kcal · P${fmtNum(
+                rem.protein_g
+              )} C${fmtNum(rem.carbs_g)} F${fmtNum(rem.fat_g)}`
+            : ""
+        }
         ${pace ? `<br/><span style="font-size:0.8rem">${pace}</span>` : ""}
         ${delta ? `<br/><span style="font-size:0.8rem">${delta}</span>` : ""}
       `;
+      }
     }
   }
 
@@ -4558,7 +4674,7 @@
         const who = data.email ? ` (${data.email})` : "";
         el.textContent = `Ready · ${src}${who} · model ${data.model || "default"}`;
       } else {
-        el.textContent = data.error || "Grok auth not ready — run `grok login`";
+        el.textContent = data.error || "Grok auth not ready — Connect SuperGrok in More";
       }
     } catch (e) {
       el.textContent = `Could not check Grok auth: ${e.message}`;
@@ -4629,7 +4745,7 @@
     } catch (e) {
       askHistory.push({
         role: "assistant",
-        content: `Error: ${e.message}\n\nIf the SuperGrok session expired, run \`grok login\` in a terminal and retry.`,
+        content: `Error: ${e.message}\n\nIf SuperGrok expired, open More → Connect SuperGrok and retry.`,
       });
       renderAskMessages();
       if (status) status.textContent = "";
