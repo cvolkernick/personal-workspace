@@ -15,7 +15,7 @@ DEAD_AFTER_S = 7 * 24 * 3600
 DEFAULT_POLL_S = 900
 
 PHOTOS = {
-    "m3-2020": "/static/fleet/tesla-model-3.jpg",
+    "m3-2020": "/static/fleet/tesla-model-3-2020.jpg",
     "m3-2022": "/static/fleet/tesla-model-3.jpg",
     "corolla-2022": "/static/fleet/toyota-corolla-2022.jpg",
     "corolla-2024": "/static/fleet/toyota-corolla-2024.jpg",
@@ -185,7 +185,7 @@ def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
     model = str(ident.get("model") or "").lower()
     year = ident.get("year")
     if "tesla" in make and "3" in model:
-        return PHOTOS["m3-2020"]
+        return PHOTOS["m3-2022"]
     if "corolla" in model and year == 2024:
         return PHOTOS["corolla-2024"]
     if "corolla" in model:

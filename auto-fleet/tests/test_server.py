@@ -164,6 +164,7 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn('id="turo-inbox"', html)
         self.assertIn("min-height: 44px", html)
         self.assertIn("grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr)", html)
+        self.assertIn("/static/fleet/tesla-model-3-2020.jpg", html)
         self.assertIn("/static/fleet/tesla-model-3.jpg", html)
         self.assertIn("/static/fleet/toyota-corolla-2022.jpg", html)
         self.assertIn("/static/fleet/toyota-corolla-2024.jpg", html)
