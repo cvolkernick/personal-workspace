@@ -4227,9 +4227,30 @@
 
   /** True after auth/status says we may load personal APIs (signed in, or legacy no-auth). */
   let bootAllowsData = false;
+  /** First blocking /api/dashboard has settled (ok or fail). Quiet polls never flip this. */
+  let firstDashboardSettled = false;
+
+  function setFirstLoadVisible(visible, message) {
+    const shell = $("app-shell");
+    const el = $("today-first-load");
+    if (shell) shell.classList.toggle("is-first-loading", !!visible);
+    if (el) {
+      el.hidden = !visible;
+      el.setAttribute("aria-busy", visible ? "true" : "false");
+    }
+    const msg = $("today-first-load-msg");
+    if (msg && message) msg.textContent = message;
+  }
+
+  function finishFirstDashboardLoad() {
+    if (firstDashboardSettled) return;
+    firstDashboardSettled = true;
+    setFirstLoadVisible(false);
+  }
 
   function showLoginGate(message) {
     bootAllowsData = false;
+    finishFirstDashboardLoad();
     clearAlerts();
     const gate = $("auth-gate");
     const shell = $("app-shell");
@@ -4249,6 +4270,7 @@
     const shell = $("app-shell");
     if (gate) gate.hidden = true;
     if (shell) shell.hidden = false;
+    if (!firstDashboardSettled) setFirstLoadVisible(true, "Loading Today…");
     const line = $("auth-user-line");
     if (line && user) {
       line.textContent = user.email
@@ -4319,6 +4341,9 @@
     const meta = $("meta-line");
     const started = Date.now();
     let tick = null;
+    if (!quiet && !firstDashboardSettled) {
+      setFirstLoadVisible(true, forceRefresh ? "Refreshing Today…" : "Loading Today…");
+    }
     if (!quiet) {
       if (meta) {
         meta.textContent = forceRefresh
@@ -4326,11 +4351,18 @@
           : "Loading dashboard (local + cache)…";
       }
       tick = setInterval(() => {
-        if (!meta) return;
         const sec = Math.round((Date.now() - started) / 1000);
-        meta.textContent = forceRefresh
-          ? `Refreshing data… ${sec}s`
-          : `Loading… ${sec}s (uses ~1h cache for Health)`;
+        if (meta) {
+          meta.textContent = forceRefresh
+            ? `Refreshing data… ${sec}s`
+            : `Loading… ${sec}s (uses ~1h cache for Health)`;
+        }
+        if (!firstDashboardSettled) {
+          setFirstLoadVisible(
+            true,
+            forceRefresh ? `Refreshing Today… ${sec}s` : `Loading Today… ${sec}s`
+          );
+        }
       }, 500);
     }
     try {
@@ -4373,7 +4405,10 @@
       if (tick) clearInterval(tick);
       if (!quiet && $("btn-refresh")) $("btn-refresh").disabled = false;
       if (quiet) quietLoadInFlight = false;
-      else blockingLoadInFlight = false;
+      else {
+        blockingLoadInFlight = false;
+        finishFirstDashboardLoad();
+      }
     }
   }
 
