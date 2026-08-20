@@ -36,6 +36,37 @@ def _headers():
     return {"Cookie": f"{SESSION_COOKIE}={token}"}
 
 
+class PlanPreviewStaysPending(unittest.TestCase):
+    def test_plan_preview_items_have_null_ids(self):
+        from rt_dashboard.daily_plan_tasks import plan_preview
+
+        prev = plan_preview(
+            {
+                "date": "2026-08-20",
+                "actions": [{"kind": "training", "text": "Train", "id": "t"}],
+                "workout": {"is_rest_day": True, "exercises": []},
+                "meal": {"meals": [], "items": []},
+                "purchases": [],
+            }
+        )
+        self.assertEqual(prev["source"], "plan_preview")
+        self.assertIsNone(prev.get("list_id"))
+        for g in prev.get("groups") or []:
+            self.assertIsNone(g.get("task_id"))
+            self.assertIsNone(g.get("list_id"))
+            for item in g.get("items") or []:
+                self.assertIsNone(item.get("task_id"))
+                self.assertIsNone(item.get("list_id"))
+
+    def test_renderer_marks_null_id_leaves_pending(self):
+        self.assertIn("ready: !!(tid && lid)", JS)
+        render = JS.split("const renderCard = (it, g) =>", 1)[1].split(
+            "Object.keys(byMeal)", 1
+        )[0]
+        self.assertIn("quest-card-pending", render)
+        self.assertIn('aria-disabled="true"', render)
+
+
 class LeafQuestIsARealControl(unittest.TestCase):
     def test_leaf_with_ids_is_not_natively_disabled(self):
         self.assertIn("function questLeafIds", JS)
@@ -75,6 +106,27 @@ class LeafQuestIsARealControl(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertIn("ok", proc.stdout)
+
+
+class FailedDailyTasksIsVisible(unittest.TestCase):
+    def test_sync_failure_is_not_swallowed(self):
+        sync = JS.split("async function syncDailyTasksFromServer", 1)[1].split(
+            "function unlockQuestCard", 1
+        )[0]
+        self.assertNotIn("if (!res.ok || !data.ok) return", sync)
+        self.assertIn("markQuestSyncFailed", sync)
+        self.assertIn("Could not sync quests with Google Tasks", JS)
+        self.assertIn("data-quest-retry", JS)
+        self.assertIn("function markQuestSyncFailed", JS)
+        self.assertIn("Retry sync", JS)
+        self.assertIn(".quest-sync-error", CSS)
+        self.assertIn(".daily-quests.is-sync-failed .quest-card-pending", CSS)
+
+    def test_dashboard_plan_preview_still_needs_follow_up(self):
+        dash = (ROOT / "api" / "dashboard.py").read_text(encoding="utf-8")
+        self.assertIn("plan_preview(", dash)
+        self.assertIn('daily["needs_sync"] = True', dash)
+        self.assertIn("syncDailyTasksFromServer()", JS)
 
 
 class OverlayLeavesHitBox(unittest.TestCase):

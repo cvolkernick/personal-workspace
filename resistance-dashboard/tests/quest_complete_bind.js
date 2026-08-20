@@ -172,7 +172,8 @@ async function click(btn) {
   const bindDailyQuestClicks = loadFn("bindDailyQuestClicks");
   bindDailyQuestClicks();
   bindDailyQuestClicks();
-  assert(listeners.length === 1 && listeners[0].type === "click", "document click bound once");
+  assert(listeners.length === 2, "quest click + retry bound once each");
+  assert(listeners.every((l) => l.type === "click"), "both handlers are click");
   assert(listeners[0].fn === onDailyQuestClick, "bound handler is onDailyQuestClick");
 
   console.log("ok");

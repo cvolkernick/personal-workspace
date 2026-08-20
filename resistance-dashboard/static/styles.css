@@ -2280,6 +2280,18 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   margin: 0.15rem 0 0.35rem;
 }
 
+.quest-sync-error {
+  color: var(--danger, #f07178);
+  font-weight: 650;
+}
+
+.quest-sync-retry {
+  margin: 0 0 0.45rem;
+  font-size: 0.8rem;
+  min-height: 36px;
+  cursor: pointer;
+}
+
 .quest-group {
   border: 1px solid var(--border);
   border-radius: 12px;
@@ -2399,7 +2411,15 @@ body.m-shell .quest-card {
 
 .quest-card-pending {
   opacity: 0.7;
+  cursor: default;
+}
+
+.daily-quests.is-syncing .quest-card-pending {
   cursor: wait;
+}
+
+.daily-quests.is-sync-failed .quest-card-pending {
+  cursor: default;
 }
 
 .quest-card-text {
