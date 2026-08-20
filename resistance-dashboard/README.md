@@ -36,6 +36,41 @@ bash resistance-dashboard/deploy/install_remote.sh prism-agent@192.168.100.98
 
 Off-LAN: Tailscale on Pi + client (do **not** public port-forward while single-user).
 
+### Vercel ignore-build (Hobby FitDash project)
+
+The Vercel project **FitDash** is Git-linked to this monorepo with
+`rootDirectory=resistance-dashboard`. `commandForIgnoringBuildStep` is unset
+in the dashboard; this repo owns the skip via `vercel.json`:
+
+```
+python3 scripts/vercel_ignore.py || exit 1
+```
+
+Vercel: exit **0** → deployment **Canceled** (skip). Exit **1** → build.
+Git/shallow-clone errors also exit 1 (build), never 128.
+
+**Paths that count as FitDash** (see `vercel-ignore-paths.txt`):
+
+- `resistance-dashboard/` only
+
+`fitness/` is **not** a Vercel trigger (Pi `path_unit_map.json` still maps it
+for the systemd unit). Orchestra, FCC, Auto Fleet, treasury, and other apps
+must skip.
+
+Prove skip **without** talking to Vercel:
+
+```bash
+cd resistance-dashboard
+python3 -m unittest tests.test_vercel_ignore -v
+python3 scripts/vercel_ignore.py --changed orchestra/server.py; echo $?   # 0
+python3 scripts/vercel_ignore.py --changed resistance-dashboard/server.py; echo $?  # 1
+```
+
+Prove on Vercel: push a SHA whose diff vs `VERCEL_GIT_PREVIOUS_SHA` (else
+`HEAD^`) has no `resistance-dashboard/` path. FitDash should be **Canceled**,
+not `PYTHON_ENTRYPOINT_NOT_FOUND`. A commit that *does* touch
+`resistance-dashboard/` still builds (entrypoint work is #194, not this file).
+
 ## Configuration (env)
 
 | Variable | Purpose |
@@ -83,6 +118,7 @@ Without Google credentials the UI still loads lift charts and recovery from trai
 
 ```bash
 python3 -m unittest tests.test_analytics -v
+python3 -m unittest tests.test_vercel_ignore -v
 python3 scripts/verify_github.py
 python3 scripts/verify_google.py
 python3 scripts/verify_launch.py
@@ -93,10 +129,12 @@ python3 scripts/verify_launch.py
 ```
 resistance-dashboard/
   server.py                 # real entry
+  vercel.json               # ignoreCommand only (skip non-FitDash SHAs)
+  vercel-ignore-paths.txt   # prefixes that count as FitDash for Vercel
   rt_dashboard/             # parse, analytics, recovery, GitHub, Google Fit
   static/                   # mobile-first UI + Chart.js
   tests/                    # pure logic + wire-format fixtures
-  scripts/                  # verification helpers
+  scripts/                  # verification helpers + vercel_ignore.py
   REVIEW.md                 # post-build improvement suggestions
 ```
 
