@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
+import socket
+import threading
 import unittest
+import urllib.error
+import urllib.request
 from html.parser import HTMLParser
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -144,6 +150,101 @@ class TestFccNavFleet(unittest.TestCase):
         )
         self.assertNotIn(":8796", fitdash)
         self.assertNotIn('id="nav-fleet"', fitdash)
+
+    def test_live_entry_fleet_href_is_page_host_not_loopback(self) -> None:
+        """Live AC: FCC / Fleet href after JS is same-host :8796.
+
+        Not 127.0.0.1 unless the page host is localhost / 127.0.0.1.
+        Phone / LAN / Tailscale entry uses window.location.hostname.
+        """
+        self.assertEqual(fleet_href("prism-gateway"), "http://prism-gateway:8796/")
+        self.assertEqual(fleet_href("192.168.100.98"), "http://192.168.100.98:8796/")
+        self.assertEqual(fleet_href("100.67.114.2"), "http://100.67.114.2:8796/")
+        self.assertNotEqual(fleet_href("prism-gateway"), "http://127.0.0.1:8796/")
+        self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
+        self.assertEqual(fleet_href("localhost"), "http://localhost:8796/")
+
+
+def _load_fcc_server():
+    spec = importlib.util.spec_from_file_location("fcc_server", FCC / "server.py")
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _free_port() -> int:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = int(s.getsockname()[1])
+    s.close()
+    return port
+
+
+class TestRootNavJsRemap(unittest.TestCase):
+    """GET /nav-*.js must serve financial-command siblings (favicon-style remap)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.mod = _load_fcc_server()
+        cls.port = _free_port()
+        cls.httpd = ThreadingHTTPServer(("127.0.0.1", cls.port), cls.mod.FCCHandler)
+        cls.thread = threading.Thread(target=cls.httpd.serve_forever, daemon=True)
+        cls.thread.start()
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.httpd.shutdown()
+        cls.httpd.server_close()
+        cls.thread.join(timeout=5)
+
+    def _get(self, path: str) -> tuple[int, bytes]:
+        url = f"http://127.0.0.1:{self.port}{path}"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as resp:
+                return resp.status, resp.read()
+        except urllib.error.HTTPError as exc:
+            return exc.code, exc.read()
+
+    def test_root_nav_fleet_js_is_fcc_sibling(self) -> None:
+        expected = (FCC / "nav-fleet.js").read_bytes()
+        code, body = self._get("/nav-fleet.js")
+        self.assertEqual(code, 200)
+        self.assertEqual(body, expected)
+        prefixed, prefixed_body = self._get("/financial-command/nav-fleet.js")
+        self.assertEqual(prefixed, 200)
+        self.assertEqual(prefixed_body, expected)
+
+    def test_root_nav_orchestra_js_is_fcc_sibling(self) -> None:
+        expected = (FCC / "nav-orchestra.js").read_bytes()
+        code, body = self._get("/nav-orchestra.js")
+        self.assertEqual(code, 200)
+        self.assertEqual(body, expected)
+        prefixed, prefixed_body = self._get("/financial-command/nav-orchestra.js")
+        self.assertEqual(prefixed, 200)
+        self.assertEqual(prefixed_body, expected)
+
+    def test_root_missing_js_stays_404(self) -> None:
+        code, _ = self._get("/no-such-nav.js")
+        self.assertEqual(code, 404)
+
+    def test_entry_and_prefixed_html_still_work(self) -> None:
+        root_code, root_body = self._get("/")
+        self.assertEqual(root_code, 200)
+        self.assertIn(b'id="nav-fleet"', root_body)
+        self.assertIn(b"nav-fleet.js", root_body)
+        html_code, html_body = self._get("/financial-command/index.html")
+        self.assertEqual(html_code, 200)
+        self.assertIn(b'id="nav-fleet"', html_body)
+
+    def test_remap_helper_only_fcc_js_basenames(self) -> None:
+        remap = self.mod._root_fcc_js_remap
+        self.assertEqual(remap("/nav-fleet.js"), "/financial-command/nav-fleet.js")
+        self.assertEqual(remap("/nav-orchestra.js"), "/financial-command/nav-orchestra.js")
+        self.assertIsNone(remap("/financial-command/nav-fleet.js"))
+        self.assertIsNone(remap("/no-such-nav.js"))
+        self.assertIsNone(remap("/../nav-fleet.js"))
+        self.assertIsNone(remap("/"))
 
 
 if __name__ == "__main__":
