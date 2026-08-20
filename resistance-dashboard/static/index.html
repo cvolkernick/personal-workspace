@@ -13,12 +13,12 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=live-poll-1" />
+    <link rel="stylesheet" href="/styles.css?v=first-load-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=ask-copy-1" defer></script>
+    <script src="/app.js?v=first-load-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -62,7 +62,7 @@
       </div>
     </div>
 
-    <div class="wrap" id="app-shell" hidden>
+    <div class="wrap is-first-loading" id="app-shell" hidden>
       <header class="app-header">
         <div>
           <h1>💪 FitDash</h1>
@@ -111,6 +111,18 @@
       </nav>
 
       <div id="alerts"></div>
+
+      <div
+        id="today-first-load"
+        class="card today-first-load"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div class="today-first-load-spinner" aria-hidden="true"></div>
+        <p class="today-first-load-msg" id="today-first-load-msg">Loading Today…</p>
+        <p class="today-first-load-sub">Dashboard data is on the way. This can take a few seconds.</p>
+      </div>
 
       <section class="card" style="margin-top: 0" id="ask-card" data-m-panel="more">
         <h2>Ask Grok about your data</h2>
