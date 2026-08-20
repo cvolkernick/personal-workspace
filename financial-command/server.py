@@ -665,6 +665,22 @@ def _capital_flows_payload() -> dict:
     return data
 
 
+def _root_fcc_js_remap(path: str) -> str | None:
+    """Map GET /foo.js → /financial-command/foo.js when that sibling exists.
+
+    Live FCC is served with directory=ROOT. GET / remaps to
+    /financial-command/index.html, so relative <script src="nav-fleet.js">
+    hits /nav-fleet.js (404) unless we remap — same hole as /favicon.ico.
+    Only a basename under financial-command/ is eligible (no path traversal).
+    """
+    name = path.lstrip("/")
+    if not name or "/" in name or not name.endswith(".js"):
+        return None
+    if not (ROOT / "financial-command" / name).is_file():
+        return None
+    return f"/financial-command/{name}"
+
+
 class FCCHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -895,6 +911,10 @@ class FCCHandler(SimpleHTTPRequestHandler):
             "/apple-touch-icon-180x180-precomposed.png",
         ):
             self.path = "/financial-command/apple-touch-icon.png"
+        else:
+            remapped = _root_fcc_js_remap(path)
+            if remapped:
+                self.path = remapped
         return super().do_GET()
 
     def _load_treasury_payload(self) -> dict:
