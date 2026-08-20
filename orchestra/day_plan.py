@@ -1301,6 +1301,61 @@ def _next_sort_key(
     return (when, sev, bump)
 
 
+def _prefer_same_day_ta(
+    deduped: list[dict[str, Any]],
+    filtered: list[dict[str, Any]],
+    *,
+    now: datetime,
+) -> list[dict[str, Any]]:
+    """Keep same-day TA actions on NOW/NEXT when untimed rows fill the cap."""
+    ta_rows: list[dict[str, Any]] = []
+    seen_ta: set[str] = set()
+    for c in sorted(filtered, key=lambda x: _next_sort_key(x, now=now)):
+        if c.get("domain") != "holistic" or not keep_action_item(c):
+            continue
+        key = str(c.get("title") or "").strip().lower()
+        if not key or key in seen_ta:
+            continue
+        seen_ta.add(key)
+        ta_rows.append(_next3_row(c))
+    if not ta_rows:
+        return deduped
+    have = {str(x.get("title") or "").strip().lower() for x in deduped}
+    missing = [
+        t
+        for t in ta_rows
+        if str(t.get("title") or "").strip().lower() not in have
+    ]
+    if not missing:
+        return deduped
+    out = list(deduped)
+    for miss in missing:
+        key = str(miss.get("title") or "").strip().lower()
+        if key in have:
+            continue
+        if len(out) < MAX_NEXT3:
+            out.append(miss)
+            have.add(key)
+            continue
+        replaced = False
+        for i in range(len(out) - 1, -1, -1):
+            row = out[i]
+            if row.get("domain") == "holistic":
+                continue
+            kind = str(row.get("kind") or "").lower()
+            if kind in ("train", "protein") or _is_train_action(row):
+                continue
+            if _item_when(row) is not None:
+                continue
+            out[i] = miss
+            have.add(key)
+            replaced = True
+            break
+        if not replaced:
+            break
+    return sorted(out, key=lambda x: _next_sort_key(x, now=now))[:MAX_NEXT3]
+
+
 def _next3_row(item: dict[str, Any]) -> dict[str, Any]:
     key = str(item.get("title") or "").strip().lower()
     row = {
@@ -1410,6 +1465,10 @@ def compose_day_plan(
         if len(deduped) >= MAX_NEXT3:
             break
 
+    # Untimed finance/fit rows sort at "now" and can hide later same-day TA
+    # blocks. Keep the day's actionable TA visible inside the next3 cap.
+    deduped = _prefer_same_day_ta(deduped, filtered, now=ref)
+
     session_due_fresh = bool(fit_src.get("session_due")) and not fit_src.get("stale")
     try:
         ready_n = int(wf_src.get("ready_count") or 0)
@@ -1433,7 +1492,11 @@ def compose_day_plan(
         ):
             preferred: list[dict[str, Any]] = []
             seen_pref: set[str] = set()
-            extra_wf = [c for c in filtered if c.get("domain") in ("workflow", "fitness")]
+            extra_wf = [
+                c
+                for c in filtered
+                if c.get("domain") in ("workflow", "fitness", "holistic")
+            ]
             for c in extra_wf + work_fit + finance_rows[:1]:
                 if not keep_action_item(c):
                     continue

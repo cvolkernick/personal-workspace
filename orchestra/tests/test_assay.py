@@ -76,12 +76,13 @@ def _finance(as_of: str, actions: list | None = None) -> dict:
             "red_mode": False,
             "free_cash_gate": "allow",
             "freshness": "fresh",
-            "day_actions": actions
-            or [
+            "day_actions": [
                 {"kind": "ltv_check", "title": "Confirm Morpho LTV"},
                 {"kind": "fill_manual", "title": "Fill missing Coinbase fields"},
                 {"kind": "card_float", "title": "Top up card float"},
-            ],
+            ]
+            if actions is None
+            else actions,
         },
     }
 
