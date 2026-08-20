@@ -14,7 +14,7 @@
   GET  /api/attention   — attention digest + freshness
   GET  /api/next            — day_plan.next3 (not recommendations)
   GET  /api/now             — day_plan.next3[0] or 204
-  GET  /api/pulse           — thin WORLD / NOW / NEXT / BLOCKED
+  GET  /api/pulse           — thin WORLD / NOW / NEXT / BLOCKED + COS ADVICE
   GET  /api/recommendations — supporting hygiene stream (not NOW/NEXT)
   GET  /                — unified UI
 

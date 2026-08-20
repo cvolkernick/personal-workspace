@@ -9,6 +9,7 @@ Domains remain write SoT. Composer is read-only.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -230,6 +231,119 @@ def _map_block_kind(block: dict[str, Any]) -> str:
     if kind in ("rolling_avg", "daily_duration"):
         return "reserve" if role == "reserve" else "fixed"
     return "work"
+
+
+_SLEEP_RESERVE_RE = re.compile(r"\b(sleep|sleep[-_ ]?reserve)\b", re.I)
+_FILL_REMAINDER_RE = re.compile(r"\b(fill[-_ ]?remainder|lyft)\b", re.I)
+_NON_ACTION_BLOCK_RE = re.compile(
+    r"^(week|gates|held|unallocated|free time|capacity leftover)$",
+    re.I,
+)
+
+
+def is_sleep_reserve_block(block: Optional[dict[str, Any]]) -> bool:
+    if not isinstance(block, dict):
+        return False
+    kind = str(block.get("kind") or "").lower()
+    role = str(block.get("role") or "").lower()
+    bid = str(block.get("id") or "").lower()
+    title = str(block.get("title") or "")
+    if kind in ("sleep", "reserve", "sleep-reserve", "sleep_reserve"):
+        return True
+    if role in ("reserve", "sleep"):
+        return True
+    if bid in ("sleep", "sleep-reserve", "sleep_reserve"):
+        return True
+    if _SLEEP_RESERVE_RE.search(title) or _SLEEP_RESERVE_RE.search(bid):
+        return True
+    return _map_block_kind(block) in ("sleep", "reserve")
+
+
+def is_fill_remainder_block(block: Optional[dict[str, Any]]) -> bool:
+    if not isinstance(block, dict):
+        return False
+    kind = str(block.get("kind") or "").lower()
+    role = str(block.get("role") or "").lower()
+    bid = str(block.get("id") or "").lower()
+    title = str(block.get("title") or "")
+    if kind == "fill_remainder" or role == "fill" or _map_block_kind(block) == "fill":
+        return True
+    return bool(_FILL_REMAINDER_RE.search(f"{bid} {title} {kind} {role}"))
+
+
+def is_other_day_block(
+    block: Optional[dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> bool:
+    """True when the block's own window is a different civil day."""
+    if not isinstance(block, dict):
+        return False
+    for key in ("start", "end", "window_start", "at", "when", "time"):
+        raw = block.get(key)
+        if raw is None:
+            continue
+        if parse_timestamp(raw) is None:
+            continue
+        if not same_civil_day(raw, now=now):
+            return True
+    return False
+
+
+def is_ta_actionable_block(
+    block: Optional[dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Same-day Chris action (do / decide / spend / train / eat). Not TA chrome."""
+    if not isinstance(block, dict):
+        return False
+    if is_sleep_reserve_block(block) or is_fill_remainder_block(block):
+        return False
+    if is_other_day_block(block, now=now):
+        return False
+    title = str(block.get("title") or block.get("id") or "").strip()
+    if not title or _NON_ACTION_BLOCK_RE.match(title):
+        return False
+    mapped = _map_block_kind(block)
+    if mapped in ("sleep", "reserve", "fill"):
+        return False
+    return keep_action_item(ta_block_to_candidate(block))
+
+
+def ta_block_to_candidate(
+    block: dict[str, Any],
+    *,
+    deep_link: Optional[str] = None,
+) -> dict[str, Any]:
+    """NOW/NEXT row from a Time Allocator block. Deep-link :8770; do not embed UI."""
+    title = str(block.get("title") or block.get("id") or "").strip()
+    bid = str(block.get("id") or title)
+    mapped = _map_block_kind(block)
+    low = title.lower()
+    kind = mapped
+    if (
+        mapped in ("session",)
+        or "workout" in low
+        or "train" in low
+        or str(block.get("kind") or "").lower() in ("train", "session", "workout")
+    ):
+        kind = "train"
+    elif any(x in low for x in ("eat", "meal", "protein")):
+        kind = "protein"
+    row: dict[str, Any] = {
+        "id": bid[:80],
+        "title": title,
+        "domain": "holistic",
+        "why": "",
+        "severity": block.get("severity") or "info",
+        "deep_link": deep_link or DEFAULT_DEEP_LINKS["holistic"],
+        "kind": kind,
+    }
+    for key in ("start", "at", "when", "time"):
+        if block.get(key) is not None:
+            row[key] = block.get(key)
+    return row
 
 
 def build_holistic_source(
@@ -1260,6 +1374,12 @@ def compose_day_plan(
     _ = wf_sugg
     for pool in (fit_sugg, fin_sugg):
         candidates.extend(pool)
+    # Same-day actionable Time Allocator blocks → NOW/NEXT (not the :8770 UI).
+    hol_deep = hol_src.get("deep_link") or DEFAULT_DEEP_LINKS["holistic"]
+    for block in blocks:
+        if not is_ta_actionable_block(block, now=ref):
+            continue
+        candidates.append(ta_block_to_candidate(block, deep_link=hol_deep))
     # NOW/NEXT are day_plan.next3 — do not merge recommendations (today.md / backlog theater)
     _ = recommendations
 

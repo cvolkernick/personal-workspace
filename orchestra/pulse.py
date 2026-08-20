@@ -12,8 +12,10 @@ from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
 try:
+    from .advice import build_advice
     from .attention import hours_since, parse_timestamp
 except ImportError:  # unittest path insert
+    from advice import build_advice
     from attention import hours_since, parse_timestamp
 
 CIVIL_TZ = ZoneInfo("America/New_York")
@@ -603,6 +605,7 @@ def build_pulse(
     domains: Optional[list[dict[str, Any]]] = None,
     fan_in: Optional[dict[str, Any]] = None,
     now: Optional[datetime] = None,
+    advice: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """Assemble the thin personal-window pulse for one :8790 load."""
     ref = _utc_now(now)
@@ -613,6 +616,7 @@ def build_pulse(
         for d in (domains or [])
         if isinstance(d, dict) and d.get("id")
     }
+    advice_seat = build_advice(advice)
     return {
         "schema_version": 1,
         "world": build_world(fan_in),
@@ -620,15 +624,18 @@ def build_pulse(
         "next": next3,
         "blocked": build_blocked(plan, workflow=by_id.get("workflow"), now=ref),
         "one_liners": build_one_liners(plan, now=ref, next3=next3),
+        "advice": advice_seat,
         "dock": build_dock(domains),
         "meta": {
             "timezone": "America/New_York",
             "primary": "now_next_blocked",
             "non_goals": [
                 "no WEEK/GATES/HELD chrome",
+                "no Time Allocator UI embed",
                 "no recommendations as NOW/NEXT",
                 "no Buzz-board pull/ready jargon as NOW/NEXT",
                 "no Cadence / Ready-count team status",
+                "ADVICE is COS-only; not recommendations/today.md/Ready/Cadence",
                 "no Horizon embed or dock tile",
                 "no FCC/FitDash/Fleet/B2/IoT dock tiles",
             ],

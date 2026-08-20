@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 try:
+    from .advice import build_advice, load_advice_packet
     from .attention import compute_freshness, synthesize_attention
     from .collectors import collect_all_domains
     from .day_plan import compose_day_plan
@@ -16,6 +17,7 @@ try:
     from .recommendations import synthesize_recommendations
     from .synergies import detect_synergies
 except ImportError:
+    from advice import build_advice, load_advice_packet
     from attention import compute_freshness, synthesize_attention
     from collectors import collect_all_domains
     from day_plan import compose_day_plan
@@ -215,11 +217,14 @@ def build_orchestra_payload(
         from .fan_in import build_fan_in  # type: ignore
 
     fan_in = build_fan_in(ws)
+    advice_packet = load_advice_packet(ws)
+    advice = build_advice(advice_packet)
     pulse = build_pulse(
         day_plan=day_plan,
         domains=domains,
         fan_in=fan_in,
         now=generated_at,
+        advice=advice_packet,
     )
 
     links = []
@@ -261,6 +266,8 @@ def build_orchestra_payload(
         # Unitary daily planner (P1): Next 3 + blocks + gates + domain sources
         "day_plan": day_plan,
         "pulse": pulse,
+        # COS-only seat. Empty unless orchestra/data/advice.json is a real call.
+        "advice": advice,
         # Intermediate streams (detail / debug; UI demotes vs recommendations)
         "synergies": synergies,
         "priorities": priorities,
@@ -294,6 +301,7 @@ def build_orchestra_payload(
             "primary_output": "pulse",
             "streams": {
                 "pulse": "Thin WORLD / NOW / NEXT / BLOCKED personal window",
+                "advice": "Grok COS courses (blank if no packet; not recommendations)",
                 "recommendations": "Supporting hygiene stream (not NOW/NEXT)",
                 "day_plan": "Unitary daily planner: next3 + blocks + gates",
                 "priorities": "Raw priority synthesis (input to recommendations)",

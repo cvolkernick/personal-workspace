@@ -4,8 +4,9 @@ Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/hea
 
 Surfaces:
 
-- **Pulse** — WORLD (Horizon :8795 deep-link if Meridian packet is live) · NOW · NEXT · BLOCKED
-- NOW / NEXT read `day_plan.next3` — personal next moves in plain language (not recommendations, not today.md placeholders, not Buzz-board pull/ready jargon)
+- **Pulse** — WORLD (Horizon :8795 deep-link if Meridian packet is live) · NOW · NEXT · BLOCKED · ADVICE
+- NOW / NEXT read `day_plan.next3` — personal next moves in plain language, including same-day **actionable** Time Allocator blocks (do / decide / spend / train / eat). Sleep-reserve, `fill_remainder` / Lyft, and other-day windows stay off. `:8770` remains the week/plan editor — Orchestra does not embed the Time Allocator UI.
+- **ADVICE** — Grok COS proposed courses to improve the system. Few, plain, falsifiable. Blank when there is no COS packet (`orchestra/data/advice.json`). Does not read `/api/recommendations`, `today.md`, Ready, or Cadence.
 - **Dock** — Time Allocator `:8770` and Workflow `:8765` only
 - Supporting streams stay on the payload (`/api/recommendations`, attention, synergies)
 
