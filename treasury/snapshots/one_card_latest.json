@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-19T19:50:52.374808+00:00",
+  "as_of": "2026-08-20T16:07:53.045017+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,16 +9,16 @@
   "account_type": "creditCard",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -454.77,
-  "balance_owed": 454.77,
-  "card_balance": 454.77,
+  "balance_raw": -455.82,
+  "balance_owed": 455.82,
+  "card_balance": 455.82,
   "available_credit": null,
   "card_available_credit": null,
-  "cleared_balance": -454.77,
+  "cleared_balance": -455.82,
   "uncleared_balance": 0.0,
-  "spend_30d": 261.61,
-  "payments_30d": 377.59,
-  "transaction_count": 50,
+  "spend_30d": 94.98,
+  "payments_30d": 117.59,
+  "transaction_count": 51,
   "transactions": [
     {
       "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -483,7 +483,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -494,7 +494,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -560,11 +560,11 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "7bd67e5b-7e2d-431c-82d7-a019db08d76f",
-      "date": "2026-08-19",
-      "payee": "Payment",
-      "amount": 10.0,
-      "amount_display": 10.0,
+      "id": "95c3dfd2-7d1f-47f8-8f18-66851bfb2782",
+      "date": "2026-08-17",
+      "payee": "McDonald's",
+      "amount": -1.05,
+      "amount_display": -1.05,
       "memo": null,
       "cleared": "cleared",
       "approved": false,
@@ -573,5 +573,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-21"
+  "since": "2026-05-22"
 }

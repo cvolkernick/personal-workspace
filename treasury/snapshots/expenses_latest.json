@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-19T19:50:58.732220+00:00",
+  "as_of": "2026-08-20T16:07:57.665543+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -46,7 +46,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "from": "X Money",
           "item": "Banfield",
           "daily": 2.79,
@@ -59,7 +59,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "from": "X Money",
           "item": "SuperGrok Heavy",
           "daily": 3.25,
@@ -402,7 +402,7 @@
           "item": "SuperGrok Heavy",
           "monthly": 99.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -410,7 +410,7 @@
           "item": "Banfield",
           "monthly": 85.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -454,22 +454,6 @@
           "from": "Coinbase",
           "monthly": 11275.0,
           "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Banfield",
-          "from": "X Money",
-          "monthly": 85.0,
-          "weekly": 19.56,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "SuperGrok Heavy",
-          "from": "X Money",
-          "monthly": 99.0,
-          "weekly": 22.78,
           "tab": "Essential"
         },
         {
@@ -574,6 +558,22 @@
           "from": "X Money",
           "monthly": 67.0,
           "weekly": 15.42,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "item": "Banfield",
+          "from": "X Money",
+          "monthly": 85.0,
+          "weekly": 19.56,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "item": "SuperGrok Heavy",
+          "from": "X Money",
+          "monthly": 99.0,
+          "weekly": 22.78,
           "tab": "Essential"
         },
         {
@@ -1227,7 +1227,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "from": "X Money",
           "item": "Banfield",
           "daily": 2.79,
@@ -1240,7 +1240,7 @@
           "tab": "Essential"
         },
         {
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "from": "X Money",
           "item": "SuperGrok Heavy",
           "daily": 3.25,
@@ -1583,7 +1583,7 @@
           "item": "SuperGrok Heavy",
           "monthly": 99.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1591,7 +1591,7 @@
           "item": "Banfield",
           "monthly": 85.0,
           "from": "X Money",
-          "date": "8/19/2026",
+          "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1635,22 +1635,6 @@
           "from": "Coinbase",
           "monthly": 11275.0,
           "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "Banfield",
-          "from": "X Money",
-          "monthly": 85.0,
-          "weekly": 19.56,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/19/2026",
-          "item": "SuperGrok Heavy",
-          "from": "X Money",
-          "monthly": 99.0,
-          "weekly": 22.78,
           "tab": "Essential"
         },
         {
@@ -1755,6 +1739,22 @@
           "from": "X Money",
           "monthly": 67.0,
           "weekly": 15.42,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "item": "Banfield",
+          "from": "X Money",
+          "monthly": 85.0,
+          "weekly": 19.56,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "item": "SuperGrok Heavy",
+          "from": "X Money",
+          "monthly": 99.0,
+          "weekly": 22.78,
           "tab": "Essential"
         },
         {
