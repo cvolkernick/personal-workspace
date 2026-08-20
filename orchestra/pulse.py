@@ -81,6 +81,45 @@ _TEAM_BOARD_TITLE_RE = re.compile(
     re.I,
 )
 _ISSUE_EPIC_TITLE_RE = re.compile(r"#\d+\s*:")
+_NOTHING_TO_DO_RE = re.compile(r"nothing (for me )?to do", re.I)
+_TEAM_STATUS_TEXT_RE = re.compile(
+    r"^cadence:|\b\d+\s+ready\b.*\bfree\b|ready supply|free agent",
+    re.I,
+)
+_LINE_FILLER = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "to",
+        "of",
+        "and",
+        "or",
+        "left",
+        "remaining",
+        "ok",
+        "ready",
+        "cue",
+        "g",
+        "approx",
+    }
+)
+# Named gates that change what Chris can do (train / spend / eat). Team
+# board and unknown/FYI gates stay off BLOCKED.
+_CHRIS_CONSTRAINT_GATE_IDS = frozenset(
+    {
+        "body_rest",
+        "body_caution",
+        "protein_gap",
+        "free_cash",
+        "capital_red_mode",
+    }
+)
+_CONSTRAINT_TITLES = {
+    "body_rest": "Rest / low recovery",
+    "free_cash": "No new risk",
+    "capital_red_mode": "No new risk",
+}
 
 
 def is_team_board_action(item: Optional[dict[str, Any]]) -> bool:
@@ -99,15 +138,21 @@ def is_team_board_action(item: Optional[dict[str, Any]]) -> bool:
         return True
     if _ISSUE_EPIC_TITLE_RE.search(title):
         return True
+    if _TEAM_STATUS_TEXT_RE.search(title) or _TEAM_STATUS_TEXT_RE.search(blob):
+        return True
     return False
 
 
 def keep_action_item(item: Optional[dict[str, Any]]) -> bool:
-    """Quests without a GT id, today.md placeholders, and board jargon are omitted."""
+    """Chris-actionable rows only. Team status, placeholders, and empty stay off."""
     if not isinstance(item, dict):
         return False
     title = str(item.get("title") or item.get("action") or "").strip()
     if not title:
+        return False
+    if title.lower() in {"empty", "unknown", "fyi"}:
+        return False
+    if _NOTHING_TO_DO_RE.search(title):
         return False
     if is_example_today_line(title):
         return False
@@ -302,30 +347,77 @@ def is_falsifiable_fact(
     return age <= _fresh_window_hours(item)
 
 
+def _blocked_title(gate: dict[str, Any]) -> str:
+    """Constraint/action wording — never an internal gate id."""
+    gid = str(gate.get("id") or "").strip()
+    title = str(gate.get("title") or "").strip()
+    if gid in ("free_cash", "capital_red_mode"):
+        return _CONSTRAINT_TITLES[gid]
+    if gid == "body_rest":
+        if title and title != gid and "_" not in title:
+            return title
+        return _CONSTRAINT_TITLES[gid]
+    if title and title != gid and "_" not in title:
+        return title
+    return title or gid
+
+
+def keep_blocked_item(item: Optional[dict[str, Any]]) -> bool:
+    """Named gates that change what Chris can do. Team status / unknown / FYI off."""
+    if not isinstance(item, dict):
+        return False
+    if item.get("source") == "workflow.blocked":
+        return False
+    if is_team_board_action(item):
+        return False
+    gid = str(item.get("id") or "")
+    title = str(item.get("title") or "")
+    blob = f"{gid} {title} {item.get('detail') or ''}".lower()
+    if _NOTHING_TO_DO_RE.search(blob):
+        return False
+    if str(item.get("severity") or "").lower() == "unknown":
+        return False
+    if any(x in blob for x in ("board unknown", "board stale", "wip overload")):
+        return False
+    if gid.startswith("workflow") or gid in {"wip_overload", "workflow_blocked"}:
+        return False
+    if gid in _CHRIS_CONSTRAINT_GATE_IDS:
+        return True
+    domain = str(item.get("domain") or "")
+    if domain in ("fitness", "finance") and str(item.get("severity") or "") in (
+        "block",
+        "warn",
+    ):
+        if any(x in blob for x in ("unknown", "stale", "freshness", "fyi")):
+            return False
+        return bool(title)
+    return False
+
+
 def build_blocked(
     day_plan: Optional[dict[str, Any]] = None,
     *,
     workflow: Optional[dict[str, Any]] = None,
     now: Optional[datetime] = None,
 ) -> dict[str, Any]:
-    """Named falsifiable gates ∪ workflow.blocked. Else unknown — not a timeline."""
+    """Named falsifiable Chris-constraint gates. Else unknown — not a timeline."""
     ref = _utc_now(now)
     plan = day_plan if isinstance(day_plan, dict) else {}
     gates = [g for g in (plan.get("gates") or []) if isinstance(g, dict)]
     wf = workflow if isinstance(workflow, dict) else {}
     sig = wf.get("signals") if isinstance(wf.get("signals"), dict) else {}
     board = sig.get("board") if isinstance(sig.get("board"), dict) else {}
+    # Workflow blocked cards are team board status — not a Chris action.
     blocked_cards = [b for b in (board.get("blocked") or []) if isinstance(b, dict)]
-    board_as_of = board.get("as_of")
-    board_fresh = float(board.get("fresh_for_hours") or DOMAIN_FRESH_HOURS["workflow"])
 
     items: list[dict[str, Any]] = []
     unknown = False
+    seen_titles: set[str] = set()
 
     for gate in gates:
         row = {
             "id": gate.get("id"),
-            "title": gate.get("title") or gate.get("id"),
+            "title": _blocked_title(gate),
             "detail": gate.get("detail") or "",
             "domain": gate.get("domain"),
             "severity": gate.get("severity"),
@@ -334,27 +426,19 @@ def build_blocked(
             "deep_link": gate.get("deep_link"),
             "fresh_for_hours": gate.get("fresh_for_hours") or _fresh_window_hours(gate),
         }
-        if is_falsifiable_fact(row, now=ref):
-            items.append(row)
-        else:
+        if not is_falsifiable_fact(row, now=ref):
             unknown = True
+            continue
+        if not keep_blocked_item(row):
+            continue
+        key = str(row.get("title") or "").strip().lower()
+        if not key or key in seen_titles:
+            continue
+        seen_titles.add(key)
+        items.append(row)
 
-    for card in blocked_cards:
-        row = {
-            "id": card.get("number") or card.get("id"),
-            "title": card.get("title") or card.get("reason") or "blocked",
-            "detail": card.get("reason") or card.get("detail") or "",
-            "domain": "workflow",
-            "severity": "warn",
-            "as_of": card.get("as_of") or board_as_of,
-            "source": "workflow.blocked",
-            "deep_link": board.get("deep_link") or wf.get("url") or WORKFLOW_URL,
-            "fresh_for_hours": board_fresh,
-        }
-        if is_falsifiable_fact(row, now=ref):
-            items.append(row)
-        else:
-            unknown = True
+    if blocked_cards and not items:
+        unknown = True
 
     if not items:
         status = "unknown" if (gates or blocked_cards or unknown or not gates) else "clear"
@@ -396,7 +480,7 @@ def _train_line(fitness_src: dict[str, Any]) -> Optional[str]:
 def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
     band = fitness_src.get("protein_gap_band")
     protein_as_of = fitness_src.get("protein_as_of") or fitness_src.get("as_of")
-    if band in (None, "", "unknown") or fitness_src.get("stale"):
+    if band in (None, "", "unknown", "ok") or fitness_src.get("stale"):
         return None
     if not same_civil_day(protein_as_of, now=now):
         return None
@@ -410,25 +494,47 @@ def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
     pantry = fitness_src.get("pantry") or fitness_src.get("meals")
     if isinstance(pantry, dict) and pantry.get("summary") and is_falsifiable_fact(pantry, now=now):
         return str(pantry.get("summary"))
-    if band == "ok" and remaining is not None:
-        return f"Protein ok · remaining≈{remaining}g"
     return None
 
 
-def _cadence_line(workflow_src: dict[str, Any]) -> Optional[str]:
-    """Optional Cadence fact. Omit unless Ready and free-agent counts are real."""
-    if workflow_src.get("stale") or workflow_src.get("fetch_ok") is False:
-        return None
-    ready = workflow_src.get("ready_count")
-    free = workflow_src.get("free_agent_count")
-    if ready is None or free is None:
-        return None
-    try:
-        ready_n = int(ready)
-        free_n = int(free)
-    except (TypeError, ValueError):
-        return None
-    return f"Cadence: {ready_n} Ready · {free_n} free"
+def _line_words(text: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", str(text or "").lower())) - _LINE_FILLER
+
+
+def one_liner_duplicates_next(
+    text: str,
+    next_items: Optional[list[Any]] = None,
+) -> bool:
+    """True when a one-liner only restates a NOW/NEXT title (train/protein repeats)."""
+    words = _line_words(text)
+    if not words:
+        return False
+    for item in next_items or []:
+        if not isinstance(item, dict):
+            continue
+        title = str(item.get("title") or item.get("action") or "")
+        title_words = _line_words(title)
+        if not title_words:
+            continue
+        kind = str(item.get("kind") or "").lower()
+        if "train" in words and (kind == "train" or "train" in title_words):
+            return True
+        if "protein" in words and (kind == "protein" or "protein" in title_words):
+            return True
+        if title_words <= words or words <= title_words:
+            return True
+    return False
+
+
+def _is_team_status_line(text: str) -> bool:
+    raw = str(text or "").strip()
+    if not raw:
+        return True
+    if _NOTHING_TO_DO_RE.search(raw):
+        return True
+    if raw.lower() in {"empty", "unknown", "fyi"}:
+        return True
+    return bool(_TEAM_STATUS_TEXT_RE.search(raw))
 
 
 def _quest_lines(fitness_src: dict[str, Any]) -> list[str]:
@@ -449,30 +555,35 @@ def build_one_liners(
     day_plan: Optional[dict[str, Any]] = None,
     *,
     now: Optional[datetime] = None,
+    next3: Optional[list[Any]] = None,
 ) -> list[dict[str, Any]]:
-    """Optional seat facts only. Omit if unknown. Do not invent."""
+    """Chris-actionable seat facts only. No Cadence/board status. Do not invent."""
     ref = _utc_now(now)
     plan = day_plan if isinstance(day_plan, dict) else {}
     sources = plan.get("sources") if isinstance(plan.get("sources"), dict) else {}
     fit = sources.get("fitness") if isinstance(sources.get("fitness"), dict) else {}
-    out: list[dict[str, Any]] = []
+    next_items = next3 if next3 is not None else personal_next3(plan.get("next3") or [])
+    candidates: list[dict[str, Any]] = []
 
     train = _train_line(fit)
     if train:
-        out.append({"id": "train", "text": train})
+        candidates.append({"id": "train", "text": train})
 
     meal = _meal_line(fit, now=ref)
     if meal:
-        out.append({"id": "meals", "text": meal})
+        candidates.append({"id": "meals", "text": meal})
 
     for title in _quest_lines(fit):
-        out.append({"id": "quest", "text": title})
+        candidates.append({"id": "quest", "text": title})
 
-    wf = sources.get("workflow") if isinstance(sources.get("workflow"), dict) else {}
-    cadence = _cadence_line(wf)
-    if cadence:
-        out.append({"id": "cadence", "text": cadence})
-
+    out: list[dict[str, Any]] = []
+    for row in candidates:
+        text = str(row.get("text") or "").strip()
+        if not text or _is_team_status_line(text):
+            continue
+        if one_liner_duplicates_next(text, next_items):
+            continue
+        out.append(row)
     return out
 
 
@@ -508,7 +619,7 @@ def build_pulse(
         "now": now_from_next3(next3),
         "next": next3,
         "blocked": build_blocked(plan, workflow=by_id.get("workflow"), now=ref),
-        "one_liners": build_one_liners(plan, now=ref),
+        "one_liners": build_one_liners(plan, now=ref, next3=next3),
         "dock": build_dock(domains),
         "meta": {
             "timezone": "America/New_York",
@@ -517,6 +628,7 @@ def build_pulse(
                 "no WEEK/GATES/HELD chrome",
                 "no recommendations as NOW/NEXT",
                 "no Buzz-board pull/ready jargon as NOW/NEXT",
+                "no Cadence / Ready-count team status",
                 "no Horizon embed or dock tile",
                 "no FCC/FitDash/Fleet/B2/IoT dock tiles",
             ],
