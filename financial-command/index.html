@@ -1779,7 +1779,8 @@
       }
       /* Hide secondary nav links on very tight chrome; keep Refresh + status */
       #nav-orchestra,
-      #nav-capital-flows {
+      #nav-capital-flows,
+      #nav-fleet {
         display: none;
       }
     }
@@ -1970,6 +1971,7 @@
         <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
         <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
         <button type="button" id="btn-refresh" class="primary">Refresh</button>
         <div id="overall-pill" class="pill yellow">loading</div>
@@ -5262,6 +5264,7 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
   <script src="nav-orchestra.js"></script>
+  <script src="nav-fleet.js"></script>
 
 </body>
 </html>

@@ -260,8 +260,9 @@
       </div>
       <div class="controls">
         <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
-        <a class="btn" href="index.html">← FCC</a>
-        <a class="btn" href="capital-flows.html">Capital Flows</a>
+        <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
+        <a class="btn" href="capital-flows.html" id="nav-capital-flows">Capital Flows</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
         <button type="button" class="primary" id="btn-refresh">Refresh</button>
       </div>
     </div>
@@ -713,5 +714,6 @@
     loadWatchlist();
   </script>
   <script src="nav-orchestra.js"></script>
+  <script src="nav-fleet.js"></script>
 </body>
 </html>
