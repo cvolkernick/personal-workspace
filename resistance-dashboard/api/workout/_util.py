@@ -240,6 +240,13 @@ def daily_tasks_body(headers, payload=None):
     today = ((dashboard.get("coach") or {}).get("today")) or {}
     day = today.get("date") or (dashboard.get("meta") or {}).get("local_today")
     result = ensure_daily_tasks(today, day=day)
+    if not result.get("ok"):
+        return 200, {
+            "ok": False,
+            "error": result.get("error") or "Google Tasks not configured",
+            "source": result.get("source") or "local_preview",
+            "daily_tasks": result,
+        }
     return 200, {"ok": True, "daily_tasks": result}
 
 

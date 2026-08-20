@@ -70,11 +70,15 @@ class CookieLessDailyTasks(unittest.TestCase):
 
     def test_dispatch_cookie_less_401(self):
         with mock.patch.dict(os.environ, {}, clear=True):
-            status, body = dispatch_client_route({}, "", "GET", path="/api/daily-tasks")
-            self.assertEqual(status, 401)
-            self.assertEqual(body["error"], "auth_required")
-            status, body = dispatch_client_route({}, "_r=daily_tasks", "GET")
-            self.assertEqual(status, 401)
+            for method in ("GET", "POST"):
+                status, body = dispatch_client_route(
+                    {}, "", method, path="/api/daily-tasks"
+                )
+                self.assertEqual(status, 401, method)
+                self.assertEqual(body["error"], "auth_required")
+                self.assertNotIn("<html", json.dumps(body).lower())
+                status, body = dispatch_client_route({}, "_r=daily_tasks", method)
+                self.assertEqual(status, 401, method)
 
 
 class QuestsFromGeneratedPlans(unittest.TestCase):
@@ -151,7 +155,9 @@ class QuestsFromGeneratedPlans(unittest.TestCase):
             ):
                 status, body = daily_tasks_body(_headers())
         self.assertEqual(status, 200)
-        self.assertTrue(body["ok"])
+        self.assertFalse(body["ok"])
+        self.assertIn("Google Tasks", body.get("error") or "")
+        self.assertNotIn("<html", json.dumps(body).lower())
         daily = body["daily_tasks"]
         self.assertFalse(daily.get("ok"))
         self.assertIn("Google Tasks", daily.get("error") or "")

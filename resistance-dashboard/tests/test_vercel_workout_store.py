@@ -186,6 +186,60 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         self.assertIn("Ignore catalog default_sets=3", ctx["workout_store"]["volume_framework"]["notes"])
         self.assertEqual(ctx["workout_store"]["volume_framework"]["default_hard_sets"], 2)
 
+    def test_get_dashboard_generates_workout_plan_locally(self):
+        """Assay: GET runs generate_workout_plan, not SuperGrok-empty overlay."""
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        session = Session(
+            date="2026-08-17",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Flat Press",
+                    sets=[SetEntry(weight_lbs=45, sets=3, reps=10)],
+                )
+            ],
+        )
+        with mock.patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([session], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ):
+                status, body = dashboard_body(headers)
+        self.assertEqual(status, 200)
+        plan = (body.get("workout_store") or {}).get("plan") or {}
+        msg = plan.get("message") or ""
+        self.assertNotIn("Connect SuperGrok", msg)
+        self.assertNotIn("SuperGrok connected", msg)
+        self.assertFalse(msg.startswith("Next session:"))
+        self.assertIn("rest_gate", plan)
+        self.assertIsNotNone(plan)
+        if plan.get("is_rest_day"):
+            self.assertEqual(plan.get("exercises") or [], [])
+            self.assertTrue(msg)
+        else:
+            exercises = plan.get("exercises") or []
+            self.assertGreater(len(exercises), 0)
+            catalog_names = {
+                e.get("name")
+                for e in ((body.get("workout_store") or {}).get("catalog") or {}).get(
+                    "exercises"
+                )
+                or []
+            }
+            for ex in exercises:
+                self.assertIn(ex.get("name"), catalog_names)
+        today = ((body.get("coach") or {}).get("today") or {}).get("workout") or {}
+        self.assertEqual(bool(today.get("is_rest_day")), bool(plan.get("is_rest_day")))
+        if not plan.get("is_rest_day"):
+            self.assertGreater(len(today.get("exercises") or []), 0)
+
     def test_apply_goals_volume_caps_ignores_catalog_three(self):
         catalog, _ = load_workspace_catalog()
         goals, _ = load_workspace_goals()
