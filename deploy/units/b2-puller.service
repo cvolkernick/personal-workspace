@@ -1,5 +1,5 @@
 [Unit]
-Description=Pull prism app-books snapshots onto finley (role b2-puller)
+Description=One job: pull prism book snapshots + youtube-groom state + published copies + units onto finley
 After=network-online.target
 Wants=network-online.target
 

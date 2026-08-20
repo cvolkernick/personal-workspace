@@ -213,6 +213,50 @@ class TestPullWritesOnlyAllowlist(unittest.TestCase):
         self.assertEqual(rc, 2)
 
 
+class TestLockedPullCadence(unittest.TestCase):
+    """One finley timer: hourly :20 America/New_York. No extra clocks."""
+
+    def test_timer_oncalendar_locked(self):
+        timer = (ROOT / "deploy" / "units" / "b2-puller.timer").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(f"OnCalendar={P.PULL_ONCALENDAR}", timer)
+        self.assertIn("America/New_York", timer)
+        self.assertIn("*:20:00", timer)
+        self.assertNotIn("OnUnitActiveSec", timer)
+        self.assertNotIn("OnBootSec", timer)
+        self.assertIn("Unit=b2-puller.service", timer)
+
+    def test_one_puller_timer_no_sidecar_clocks(self):
+        units = ROOT / "deploy" / "units"
+        puller_timers = sorted(p.name for p in units.glob("*puller*.timer"))
+        self.assertEqual(puller_timers, ["b2-puller.timer"])
+        forbidden = (
+            "prism-backup.timer",
+            "prism-self-backup.timer",
+            "b2-units-only.timer",
+            "units-only.timer",
+            "off-site.timer",
+            "offsite-tarball.timer",
+            "b2-tarball.timer",
+        )
+        for name in forbidden:
+            self.assertFalse((units / name).exists(), msg=name)
+
+    def test_one_job_covers_books_groom_published_units(self):
+        blob = " ".join(P.PULL_RELATIVE)
+        self.assertIn("treasury/snapshots", blob)
+        self.assertIn("youtube-groom/state.json", blob)
+        self.assertIn(".buzz/published", blob)
+        self.assertIn("nest-published", blob)
+        self.assertIn(".config/systemd/user", blob)
+        svc = (ROOT / "deploy" / "units" / "b2-puller.service").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("pull_from_prism.py", svc)
+        self.assertEqual(svc.count("ExecStart="), 1)
+
+
 class TestB2ServerWording(unittest.TestCase):
     def test_status_says_knowledge_graph_not_vault(self):
         sys.path.insert(0, str(ROOT / "b2-ux"))

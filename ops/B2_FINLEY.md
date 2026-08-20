@@ -20,8 +20,13 @@ Inventory: `deploy/b2-puller/hosts.json`.
 | Unit | Port / cadence | Purpose |
 |------|----------------|---------|
 | `b2.service` | **:8792** | B2 / knowledge graph dashboard (`b2-ux/server.py`) |
-| `b2-puller.timer` | 15m | PULL allowlisted books/state **from** prism |
-| `workspace-sync.timer` | 5m | git pull of this repo (no FCC / FitDash / Orchestra units) |
+| `b2-puller.timer` | **hourly :20 `America/New_York`**, all 7 days incl. overnight | One job PULLS books + youtube-groom + published + units **from** prism |
+| `workspace-sync.timer` | 5m | git pull of this repo (not a pull clock; no FCC / FitDash / Orchestra units) |
+
+**Locked pull cadence:** one systemd timer on finley (`b2-puller.timer` → `b2-puller.service`).
+`OnCalendar=*-*-* *:20:00 America/New_York`. Do **not** add a prism self-backup
+timer or a units-only timer. Off-site tarball is later and must **not** get its
+own clock — it rides this job or waits.
 
 Graph root: `~/B2` (`B2_GRAPH_PATH`). Pull dest: `~/b2-pulls/prism`.
 App Pi query: `http://finley-gateway:8792/api/health` (or Tailscale `100.124.165.50`).

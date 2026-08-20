@@ -1,9 +1,10 @@
 [Unit]
-Description=Every 15 minutes: pull prism books/state onto finley
+Description=Hourly :20 America/New_York: one pull of prism books + youtube-groom + published + units onto finley
 
 [Timer]
-OnBootSec=2min
-OnUnitActiveSec=15min
+# Locked cadence — the only pull clock. All 7 days, overnight included.
+# Do not add a prism self-backup timer, a units-only timer, or an off-site tarball clock.
+OnCalendar=*-*-* *:20:00 America/New_York
 AccuracySec=1min
 Persistent=true
 Unit=b2-puller.service

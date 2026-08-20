@@ -6,7 +6,9 @@
 **Keys:** not in the snapshot — re-issue (kill-switch).
 
 The puller **cannot restore itself**. Off-site bucket for finley is out of
-scope (store not chosen). If finley is gone too, this runbook cannot run.
+scope (store not chosen) and must **not** get its own timer — later tarball
+rides the existing hourly :20 `America/New_York` job or waits. If finley is
+gone too, this runbook cannot run.
 
 ## What you get
 

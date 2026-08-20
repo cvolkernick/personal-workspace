@@ -35,6 +35,7 @@ That path is not built.
 - Push the knowledge graph or keys onto prism “for convenience”
 - Commit keys to git
 - Let the puller restore itself from the book snapshot (that is an off-site
-  bucket, store not chosen — out of scope)
+  bucket, store not chosen — out of scope; when added it must **not** get
+  its own clock — the only pull timer is hourly :20 `America/New_York`)
 
 Until unlock, treat missing keys as **re-issue**, not restore.
