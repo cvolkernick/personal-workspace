@@ -8,15 +8,16 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
-from api.dashboard import request_tz_name
+from api.auth.session_util import SESSION_COOKIE, make_session
+from api.dashboard import dashboard_body, request_tz_name
 from rt_dashboard.calorie_bars import (
     build_calorie_bars_payload,
     eating_window_fraction,
 )
 from rt_dashboard.hydration_bars import build_hydration_bars_payload
-from rt_dashboard.models import SleepSample
+from rt_dashboard.models import HealthSnapshot, SleepSample
 from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
-from rt_dashboard.timeutil import local_now, local_today_iso, resolve_tz_name
+from rt_dashboard.timeutil import local_now, local_today_iso, local_tz, resolve_tz_name
 
 
 PINNED = datetime(2026, 8, 19, 2, 0, 0, tzinfo=timezone.utc)
@@ -190,6 +191,74 @@ class ViewerTzSleepAndEating(unittest.TestCase):
         self.assertIn("sleep_battery_from_fitdash_sleep", text)
         self.assertIn("build_calorie_bars_payload", text)
         self.assertIn("build_hydration_bars_payload", text)
+
+    def test_dashboard_wake_and_eating_windows_are_et_not_utc(self):
+        """Assay: ?tz=America/New_York → wake/eating are ET, one clock, not Vercel UTC."""
+        env = {"TZ": "UTC", "GOOGLE_CLIENT_SECRET": "test-secret"}
+        health = HealthSnapshot(
+            sleep=[
+                SleepSample(
+                    date="2026-08-18", sleep_hours=8.0, source="google_health"
+                )
+            ]
+        )
+        query = "tz=America/New_York"
+
+        def _pinned_local_now(preferred=None, *, now=None):
+            clock = now if now is not None else PINNED
+            if clock.tzinfo is None:
+                clock = clock.replace(tzinfo=timezone.utc)
+            return clock.astimezone(local_tz(preferred))
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            tz_name = request_tz_name(headers, query)
+            self.assertEqual(tz_name, "America/New_York")
+            with mock.patch(
+                "rt_dashboard.timeutil.local_now", side_effect=_pinned_local_now
+            ), mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(health, []),
+            ):
+                status, body = dashboard_body(headers, query)
+
+        self.assertEqual(status, 200)
+        self.assertEqual((body.get("meta") or {}).get("timezone"), "America/New_York")
+        self.assertEqual((body.get("meta") or {}).get("local_today"), "2026-08-18")
+
+        bat = body.get("sleep_battery") or {}
+        eat = ((body.get("calorie_bars") or {}).get("pacing") or {}).get("window") or {}
+        hydro = ((body.get("hydration_bars") or {}).get("pacing") or {}).get("window") or {}
+
+        wake = datetime.fromisoformat(bat["last_wake_at"])
+        eat_start = datetime.fromisoformat(eat["window_start"])
+        self.assertEqual(wake.strftime("%Y-%m-%d %H:%M"), "2026-08-18 07:00")
+        self.assertEqual(wake.utcoffset(), timedelta(hours=-4))
+        self.assertNotEqual(wake.utcoffset(), timedelta(0))
+        self.assertNotIn("+00:00", bat["last_wake_at"])
+        self.assertNotIn("+00:00", eat["window_start"])
+        # One clock: eating window is the sleep-battery wake→empty, not a second window.
+        self.assertEqual(eat["source"], "sleep_battery")
+        self.assertEqual(eat["window_start"], bat["last_wake_at"])
+        self.assertEqual(eat["window_end"], bat["empty_at"])
+        self.assertEqual(hydro["window_start"], eat["window_start"])
+        self.assertEqual(hydro["window_end"], eat["window_end"])
+        self.assertEqual(eat_start.utcoffset(), timedelta(hours=-4))
+        self.assertNotIn("T08:00:00", eat["window_start"])
+        self.assertNotIn("T20:00:00", eat["window_end"])
+
+        utc_bat = sleep_battery_from_fitdash_sleep(
+            health.sleep, now=PINNED
+        )
+        utc_wake = datetime.fromisoformat(utc_bat["last_wake_at"])
+        self.assertEqual(utc_wake.utcoffset(), timedelta(0))
+        self.assertNotEqual(bat["last_wake_at"], utc_bat["last_wake_at"])
 
 
 if __name__ == "__main__":
