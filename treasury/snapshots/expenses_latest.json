@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-20T16:07:57.665543+00:00",
+  "as_of": "2026-08-20T18:09:42.534052+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -24,12 +24,12 @@
       "role": "upcoming_expense_estimates",
       "item_count": 24,
       "totals": {
-        "daily": 483.26,
-        "weekly": 3382.79,
-        "biweekly": 6765.57,
-        "monthly": 14698.58,
-        "annually": 49561.92,
-        "quarterly": 15948.73
+        "daily": 485.92,
+        "weekly": 3401.43,
+        "biweekly": 6802.85,
+        "monthly": 14779.58,
+        "annually": 50533.92,
+        "quarterly": 16191.73
       },
       "items": [
         {
@@ -43,32 +43,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/19/2026",
-          "from": "X Money",
-          "item": "Banfield",
-          "daily": 2.79,
-          "weekly": 19.56,
-          "biweekly": 39.12,
-          "monthly": 85.0,
-          "annually": 1020.0,
-          "budget_allocation": null,
-          "quarterly": 255.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/19/2026",
-          "from": "X Money",
-          "item": "SuperGrok Heavy",
-          "daily": 3.25,
-          "weekly": 22.78,
-          "biweekly": 45.57,
-          "monthly": 99.0,
-          "annually": 1188.0,
-          "budget_allocation": null,
-          "quarterly": 297.0,
           "tab": "Essential"
         },
         {
@@ -153,13 +127,13 @@
           "date": "9/5/2026",
           "from": "X Money",
           "item": "Electric",
-          "daily": 11.34,
-          "weekly": 79.4,
-          "biweekly": 158.79,
-          "monthly": 345.0,
-          "annually": 4140.0,
+          "daily": 14.01,
+          "weekly": 98.04,
+          "biweekly": 196.08,
+          "monthly": 426.0,
+          "annually": 5112.0,
           "budget_allocation": null,
-          "quarterly": 1035.0,
+          "quarterly": 1278.0,
           "tab": "Essential"
         },
         {
@@ -238,6 +212,32 @@
           "annually": 228.0,
           "budget_allocation": null,
           "quarterly": 57.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "from": "X Money",
+          "item": "Banfield",
+          "daily": 2.79,
+          "weekly": 19.56,
+          "biweekly": 39.12,
+          "monthly": 85.0,
+          "annually": 1020.0,
+          "budget_allocation": null,
+          "quarterly": 255.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "from": "X Money",
+          "item": "SuperGrok Heavy",
+          "daily": 3.25,
+          "weekly": 22.78,
+          "biweekly": 45.57,
+          "monthly": 99.0,
+          "annually": 1188.0,
+          "budget_allocation": null,
+          "quarterly": 297.0,
           "tab": "Essential"
         },
         {
@@ -347,7 +347,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1146.67
+        "X Money": 1227.67
       },
       "top_monthly": [
         {
@@ -376,7 +376,7 @@
         },
         {
           "item": "Electric",
-          "monthly": 345.0,
+          "monthly": 426.0,
           "from": "X Money",
           "date": "9/5/2026",
           "budget_allocation": null,
@@ -508,8 +508,8 @@
           "date": "9/5/2026",
           "item": "Electric",
           "from": "X Money",
-          "monthly": 345.0,
-          "weekly": 79.4,
+          "monthly": 426.0,
+          "weekly": 98.04,
           "tab": "Essential"
         },
         {
@@ -1205,12 +1205,12 @@
       "role": "upcoming_expense_estimates",
       "item_count": 24,
       "totals": {
-        "daily": 483.26,
-        "weekly": 3382.79,
-        "biweekly": 6765.57,
-        "monthly": 14698.58,
-        "annually": 49561.92,
-        "quarterly": 15948.73
+        "daily": 485.92,
+        "weekly": 3401.43,
+        "biweekly": 6802.85,
+        "monthly": 14779.58,
+        "annually": 50533.92,
+        "quarterly": 16191.73
       },
       "items": [
         {
@@ -1224,32 +1224,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/19/2026",
-          "from": "X Money",
-          "item": "Banfield",
-          "daily": 2.79,
-          "weekly": 19.56,
-          "biweekly": 39.12,
-          "monthly": 85.0,
-          "annually": 1020.0,
-          "budget_allocation": null,
-          "quarterly": 255.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/19/2026",
-          "from": "X Money",
-          "item": "SuperGrok Heavy",
-          "daily": 3.25,
-          "weekly": 22.78,
-          "biweekly": 45.57,
-          "monthly": 99.0,
-          "annually": 1188.0,
-          "budget_allocation": null,
-          "quarterly": 297.0,
           "tab": "Essential"
         },
         {
@@ -1334,13 +1308,13 @@
           "date": "9/5/2026",
           "from": "X Money",
           "item": "Electric",
-          "daily": 11.34,
-          "weekly": 79.4,
-          "biweekly": 158.79,
-          "monthly": 345.0,
-          "annually": 4140.0,
+          "daily": 14.01,
+          "weekly": 98.04,
+          "biweekly": 196.08,
+          "monthly": 426.0,
+          "annually": 5112.0,
           "budget_allocation": null,
-          "quarterly": 1035.0,
+          "quarterly": 1278.0,
           "tab": "Essential"
         },
         {
@@ -1419,6 +1393,32 @@
           "annually": 228.0,
           "budget_allocation": null,
           "quarterly": 57.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "from": "X Money",
+          "item": "Banfield",
+          "daily": 2.79,
+          "weekly": 19.56,
+          "biweekly": 39.12,
+          "monthly": 85.0,
+          "annually": 1020.0,
+          "budget_allocation": null,
+          "quarterly": 255.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/19/2026",
+          "from": "X Money",
+          "item": "SuperGrok Heavy",
+          "daily": 3.25,
+          "weekly": 22.78,
+          "biweekly": 45.57,
+          "monthly": 99.0,
+          "annually": 1188.0,
+          "budget_allocation": null,
+          "quarterly": 297.0,
           "tab": "Essential"
         },
         {
@@ -1528,7 +1528,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1146.67
+        "X Money": 1227.67
       },
       "top_monthly": [
         {
@@ -1557,7 +1557,7 @@
         },
         {
           "item": "Electric",
-          "monthly": 345.0,
+          "monthly": 426.0,
           "from": "X Money",
           "date": "9/5/2026",
           "budget_allocation": null,
@@ -1689,8 +1689,8 @@
           "date": "9/5/2026",
           "item": "Electric",
           "from": "X Money",
-          "monthly": 345.0,
-          "weekly": 79.4,
+          "monthly": 426.0,
+          "weekly": 98.04,
           "tab": "Essential"
         },
         {
@@ -1973,13 +1973,13 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18910.34,
-    "essential_monthly": 14698.58,
-    "personal_monthly": 14698.58,
-    "personal_daily": 483.26,
-    "essential_daily": 483.26,
-    "personal_weekly": 3382.79,
-    "personal_annually": 49561.92,
+    "upcoming_expense_monthly": 18991.34,
+    "essential_monthly": 14779.58,
+    "personal_monthly": 14779.58,
+    "personal_daily": 485.92,
+    "essential_daily": 485.92,
+    "personal_weekly": 3401.43,
+    "personal_annually": 50533.92,
     "fleet_monthly": 5561.76,
     "fleet_daily": 185.09,
     "fleet_annually": 27958.09,
@@ -1991,16 +1991,16 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18910.34,
-    "combined_daily": 623.35,
+    "combined_monthly": 18991.34,
+    "combined_daily": 626.01,
     "by_source_monthly": {
       "Coinbase": 13569.91,
-      "X Money": 5340.43
+      "X Money": 5421.43
     },
     "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5340.43
+    "x_money_funded_monthly": 5421.43
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
