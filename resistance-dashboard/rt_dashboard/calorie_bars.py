@@ -74,7 +74,12 @@ def food_log_event_time(
         y, m, dd = int(day[0:4]), int(day[5:7]), int(day[8:10])
     except ValueError:
         return None
-    tz = default_tz or datetime.now().astimezone().tzinfo or timezone.utc
+    if default_tz is None:
+        from .timeutil import local_tz
+
+        tz = local_tz()
+    else:
+        tz = default_tz
     hh, mm = 12, 0  # noon fallback for date-only logs
     traw = d.get("time")
     if traw:
@@ -106,9 +111,13 @@ def sum_intake_in_window(
     Spans midnight correctly when the wake window crosses civil days.
     """
     if now is None:
-        now = datetime.now(timezone.utc).astimezone()
+        from .timeutil import local_now
+
+        now = local_now()
     elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc).astimezone()
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz())
 
     start = _parse_dt(window_start)
     end = _parse_dt(window_end)
@@ -160,6 +169,7 @@ def sum_intake_in_window(
 def eating_window_fraction(
     *,
     now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
     last_wake_at: Any = None,
     empty_at: Any = None,
     awake_budget_hours: float = 15.0,
@@ -167,12 +177,17 @@ def eating_window_fraction(
     """Fraction of the eating/wake window elapsed in [0, 1].
 
     Window start = last wake; end = empty_at or wake + awake_budget_hours.
-    Fallback (no wake): use local civil day so far (midnight → now / 24h).
+    Fallback (no wake): viewer civil day so far (midnight → now / 24h).
+    Same clock as sleep-battery wake → empty — not a second 08:00–20:00 window.
     """
-    if now is None:
-        now = datetime.now(timezone.utc).astimezone()
+    if now is None or tz_name:
+        from .timeutil import local_now
+
+        now = local_now(tz_name, now=now)
     elif now.tzinfo is None:
-        now = now.replace(tzinfo=timezone.utc).astimezone()
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
 
     wake = _parse_dt(last_wake_at)
     end = _parse_dt(empty_at)
@@ -180,8 +195,9 @@ def eating_window_fraction(
     source = "sleep_battery"
 
     def _civil_day_window(src: str) -> Dict[str, Any]:
-        local = now.astimezone()
-        start = local.replace(hour=0, minute=0, second=0, microsecond=0)
+        # Stay on the clock attached to `now` (viewer TZ when dashboard passes it).
+        # Do not re-project through process TZ (UTC on Vercel).
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
         day_end = start + timedelta(hours=24)
         total = max(1.0, (day_end - start).total_seconds())
         elapsed = (now - start).total_seconds()
@@ -508,14 +524,24 @@ def build_calorie_bars_payload(
     calories_burned_today: Optional[float] = None,
     food_logs: Optional[Sequence[Any]] = None,
     now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Compose both bar payloads for the dashboard JSON.
 
     Pacing intake prefers food logs timed inside the sleep-battery eating
     window (can span midnight). Falls back to civil-day ``today_consumed``
     when no window logs are found. In/out delta still uses civil-day intake
-    vs same-day burned.
+    vs same-day burned. Wake and eating share ``eating_window_fraction``.
     """
+    if now is None or tz_name:
+        from .timeutil import local_now
+
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
+
     civil = today_consumed or {}
     civil_consumed = float(civil.get("calories") or 0)
     targets = targets or {}
@@ -524,6 +550,7 @@ def build_calorie_bars_payload(
 
     window = eating_window_fraction(
         now=now,
+        tz_name=tz_name,
         last_wake_at=bat.get("last_wake_at"),
         empty_at=bat.get("empty_at"),
         awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),

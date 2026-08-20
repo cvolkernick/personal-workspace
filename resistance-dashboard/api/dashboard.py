@@ -190,14 +190,15 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
     from rt_dashboard.sleep_series import expand_sleep_calendar
-    from rt_dashboard.timeutil import local_today_iso
+    from rt_dashboard.timeutil import local_now, local_today_iso
 
     user = session_from_headers(headers) or {}
     t0 = time.perf_counter()
     sessions, sess_err, source = _load_sessions(str(user.get("id") or "default"))
     health, health_err = _load_health()
     tz_name = request_tz_name(headers, query)
-    today = local_today_iso(tz_name)
+    now = local_now(tz_name)
+    today = local_today_iso(tz_name, now=now)
     had_real_sleep = any(
         float(getattr(s, "sleep_hours", 0) or 0) > 0
         and str(getattr(s, "source", "") or "") != "implied_zero"
@@ -218,6 +219,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     )
     sleep_battery = sleep_battery_from_fitdash_sleep(
         [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        now=now,
+        tz_name=tz_name,
         sleep_target_hours=8.0,
         sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
@@ -290,6 +293,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             sleep_battery=sleep_battery,
             calories_burned_today=burned_today,
             food_logs=health.food_logs or [],
+            now=now,
+            tz_name=tz_name,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"calorie_bars: {type(exc).__name__}")
@@ -300,6 +305,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=today,
+            now=now,
+            tz_name=tz_name,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"hydration_bars: {type(exc).__name__}")

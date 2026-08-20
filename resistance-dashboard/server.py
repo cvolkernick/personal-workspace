@@ -97,7 +97,7 @@ from rt_dashboard.day_constraints import (  # noqa: E402
     export_day_constraints_from_dashboard,
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
-from rt_dashboard.timeutil import local_today_iso, local_tz_name  # noqa: E402
+from rt_dashboard.timeutil import local_now, local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
 from rt_dashboard.google_auth import (  # noqa: E402
     auth_flow_status as google_auth_status,
@@ -431,8 +431,9 @@ def load_dashboard_data(
     force_local = os.environ.get("GITHUB_PREFER_LOCAL", "").lower() in ("1", "true", "yes")
     token = os.environ.get("GITHUB_TOKEN", "")
     cache_ttl = ttl_sec()
-    local_today = local_today_iso()
     tz_name = local_tz_name()
+    now = local_now(tz_name)
+    local_today = local_today_iso(tz_name, now=now)
     uid = (user_id or "").strip() or None
     try:
         incremental_days = max(3, int(os.environ.get("HEALTH_INCREMENTAL_DAYS", "14")))
@@ -729,6 +730,8 @@ def load_dashboard_data(
     # totals alone assume a fixed 7am wake and skew the battery badly.
     sleep_battery = sleep_battery_from_fitdash_sleep(
         [s for s in (health.sleep or []) if float(s.sleep_hours or 0) > 0],
+        now=now,
+        tz_name=tz_name,
         sleep_target_hours=8.0,
         sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
     )
@@ -797,6 +800,8 @@ def load_dashboard_data(
             calories_burned_today=burned_today,
             # Timed logs so pacing can span midnight inside the wake window
             food_logs=health.food_logs or [],
+            now=now,
+            tz_name=tz_name,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"calorie_bars: {e}")
@@ -811,6 +816,8 @@ def load_dashboard_data(
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=local_today,
+            now=now,
+            tz_name=tz_name,
         )
     except Exception as e:  # noqa: BLE001
         errors.append(f"hydration_bars: {e}")
