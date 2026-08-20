@@ -1,4 +1,4 @@
-"""Fleet payload assembly — four units, no invented payoffs/bookings."""
+"""Fleet payload assembly — roster units, no invented payoffs/bookings."""
 
 from __future__ import annotations
 
@@ -35,13 +35,14 @@ class FleetAssemblyTests(unittest.TestCase):
             now="2026-08-17T16:00:00+00:00",
         )
 
-    def test_four_units_from_roster(self) -> None:
+    def test_units_from_roster(self) -> None:
         payload = self._build(FIXTURES / "expenses_no_fleet.json")
         self.assertTrue(payload["ok"])
-        self.assertEqual(payload["unit_count"], 4)
+        self.assertEqual(payload["unit_count"], 5)
         ids = [u["id"] for u in payload["units"]]
         self.assertEqual(
-            ids, ["m3-2020", "m3-2022", "corolla-2022", "corolla-2024"]
+            ids,
+            ["m3-2020", "r1s-2023", "m3-2022", "corolla-2022", "corolla-2024"],
         )
         by_id = {u["id"]: u for u in payload["units"]}
         self.assertEqual(by_id["m3-2020"]["identity"]["role"], "personal")
@@ -50,6 +51,26 @@ class FleetAssemblyTests(unittest.TestCase):
             by_id["m3-2022"]["identity"]["vin"], "5YJ3E1EA6NF289917"
         )
         self.assertIsNone(by_id["m3-2020"]["identity"]["vin"])
+        r1s = by_id["r1s-2023"]
+        self.assertEqual(r1s["identity"]["year"], 2023)
+        self.assertEqual(r1s["identity"]["make"], "Rivian")
+        self.assertEqual(r1s["identity"]["model"], "R1S")
+        self.assertEqual(r1s["identity"]["role"], "personal")
+        self.assertIsNone(r1s["identity"]["vin"])
+        self.assertIsNone(r1s["identity"]["lender"])
+        self.assertNotIn("color", r1s["identity"])
+        self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
+        self.assertEqual(
+            r1s["glance"]["photo"], "/static/fleet/rivian-r1s-2023.jpg"
+        )
+        self.assertEqual(
+            by_id["m3-2020"]["glance"]["photo"],
+            "/static/fleet/tesla-model-3-2020.jpg",
+        )
+        self.assertEqual(
+            by_id["m3-2022"]["glance"]["photo"],
+            "/static/fleet/tesla-model-3.jpg",
+        )
 
     def test_no_fleet_tab_is_stale_not_invented_payoff(self) -> None:
         payload = self._build(FIXTURES / "expenses_no_fleet.json")
@@ -89,6 +110,8 @@ class FleetAssemblyTests(unittest.TestCase):
 
         personal = by_id["m3-2020"]["finance"]
         self.assertEqual(personal["sheet_lines"], [])
+        rivian = by_id["r1s-2023"]["finance"]
+        self.assertEqual(rivian["sheet_lines"], [])
 
         shared_names = {l["item"] for l in payload["shared_finance"]["lines"]}
         self.assertIn("Fleet Insurance", shared_names)

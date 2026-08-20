@@ -240,6 +240,7 @@ class FormatTests(unittest.TestCase):
         self.assertNotIn("inbox_status", turo_fn)
         self.assertIn("<details", html)
         self.assertIn("static/fleet/tesla-model-3-2020.jpg", html)
+        self.assertIn("static/fleet/rivian-r1s-2023.jpg", html)
         self.assertIn("static/fleet/tesla-model-3.jpg", html)
         self.assertIn("maps.google.com", html)
         self.assertIn("max-width: 390px", html)
@@ -255,6 +256,7 @@ class FormatTests(unittest.TestCase):
         for name in (
             "tesla-model-3.jpg",
             "tesla-model-3-2020.jpg",
+            "rivian-r1s-2023.jpg",
             "toyota-corolla-2022.jpg",
             "toyota-corolla-2024.jpg",
         ):
@@ -268,6 +270,10 @@ class FormatTests(unittest.TestCase):
         self.assertEqual(
             glance.photo_for({"id": "m3-2022"}),
             "/static/fleet/tesla-model-3.jpg",
+        )
+        self.assertEqual(
+            glance.photo_for({"id": "r1s-2023"}),
+            "/static/fleet/rivian-r1s-2023.jpg",
         )
         self.assertNotEqual(
             glance.photo_for({"id": "m3-2020"}),

@@ -2,7 +2,7 @@
 """Internal Auto Fleet ops dashboard (not TREAD).
 
   GET  /api/health  → {ok, service: "auto-fleet", port}
-  GET  /api/fleet   → four roster units + DIMO / Turo / costs strips
+  GET  /api/fleet   → roster units + DIMO / Turo / costs strips
   GET  /            → UI
 
 Usage:

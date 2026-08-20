@@ -258,7 +258,7 @@ def shared_finance(
         "lines": lines,
         "items": lines,
         "monthly": round(sum(float(i.get("monthly") or 0) for i in lines), 2),
-        "note": "Insurance / wash / planned Rivian / unassigned Tesla lines. Not a fifth roster unit.",
+        "note": "Insurance / wash / planned Rivian / unassigned Tesla lines. Planned Rivian cash is not pinned to r1s-2023 yet.",
     }
 
 
