@@ -25,8 +25,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "197.24353409",
-      "equity_value": "197.15353409",
+      "total_value": "194.96508183",
+      "equity_value": "194.87508183",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -139,7 +139,7 @@
     {
       "symbol": "BITA",
       "quantity": "0.291610",
-      "intraday_quantity": "0.004416",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "51.880000",
       "shares_available_for_sells": "0.291610",
       "shares_held_for_sells": "0.000000",
