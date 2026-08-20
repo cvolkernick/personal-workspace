@@ -476,8 +476,13 @@ def build_one_liners(
     return out
 
 
+def personal_next3(next3: Optional[list[Any]]) -> list[dict[str, Any]]:
+    """Chris-facing NOW/NEXT list — no board pull/ready jargon, no placeholders."""
+    return [x for x in (next3 or []) if isinstance(x, dict) and keep_action_item(x)]
+
+
 def now_from_next3(next3: Optional[list[Any]]) -> Optional[dict[str, Any]]:
-    rows = [x for x in (next3 or []) if isinstance(x, dict) and keep_action_item(x)]
+    rows = personal_next3(next3)
     return rows[0] if rows else None
 
 
@@ -491,7 +496,7 @@ def build_pulse(
     """Assemble the thin personal-window pulse for one :8790 load."""
     ref = _utc_now(now)
     plan = day_plan if isinstance(day_plan, dict) else {}
-    next3 = [x for x in (plan.get("next3") or []) if keep_action_item(x)]
+    next3 = personal_next3(plan.get("next3") or [])
     by_id = {
         str(d.get("id")): d
         for d in (domains or [])
@@ -520,9 +525,9 @@ def build_pulse(
 
 
 def next_api_payload(orchestra: dict[str, Any]) -> dict[str, Any]:
-    """GET /api/next body — day_plan.next3, never recommendations."""
+    """GET /api/next body — personal next3, never recommendations or board jargon."""
     plan = orchestra.get("day_plan") if isinstance(orchestra, dict) else {}
-    next3 = list((plan or {}).get("next3") or [])
+    next3 = personal_next3((plan or {}).get("next3") or [])
     return {
         "ok": True,
         "next": next3,

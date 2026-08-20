@@ -1255,7 +1255,10 @@ def compose_day_plan(
     wip_overload = wf_src.get("wip_overload") is True
 
     candidates: list[dict[str, Any]] = []
-    for pool in (wf_sugg, fit_sugg, fin_sugg):
+    # Board suggested_actions stay on the workflow source. They are team work
+    # (Pull candidate / Ready supply) and must not enter NOW/NEXT.
+    _ = wf_sugg
+    for pool in (fit_sugg, fin_sugg):
         candidates.extend(pool)
     # NOW/NEXT are day_plan.next3 — do not merge recommendations (today.md / backlog theater)
     _ = recommendations

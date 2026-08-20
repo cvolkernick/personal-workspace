@@ -35,9 +35,11 @@ from pulse import (  # noqa: E402
     build_pulse,
     build_world,
     is_example_today_line,
+    keep_action_item,
     next_api_payload,
     now_api_payload,
     now_from_next3,
+    personal_next3,
 )
 from recommendations import synthesize_recommendations  # noqa: E402
 from server import OrchestraHandler  # noqa: E402
@@ -550,6 +552,43 @@ class QuestAssayTests(unittest.TestCase):
 
 
 class SeatFacingNextAssayTests(unittest.TestCase):
+    LIVE_PULL = {
+        "id": "wf-ready-110",
+        "title": (
+            "Pull candidate #110: Geo+time flight plan — "
+            "living day logistics layer (orchestration)"
+        ),
+        "why": "Ready supply + free agent",
+        "domain": "workflow",
+        "kind": "ready",
+    }
+
+    def test_pull_candidate_ready_supply_style_item_not_now_or_next(self) -> None:
+        """Exact live :8790 row must not become NOW/NEXT or /api/next."""
+        seat = {"id": "fit-session", "title": "Train push", "domain": "fitness", "kind": "train"}
+        dirty = [self.LIVE_PULL, seat]
+        self.assertFalse(keep_action_item(self.LIVE_PULL))
+        self.assertEqual([x["title"] for x in personal_next3(dirty)], ["Train push"])
+        first = now_from_next3(dirty)
+        self.assertIsNotNone(first)
+        self.assertEqual(first.get("title"), "Train push")
+        pulse = build_pulse(day_plan={"next3": dirty}, now=NOW)
+        self.assertEqual((pulse.get("now") or {}).get("title"), "Train push")
+        next_titles = [x.get("title") for x in pulse.get("next") or []]
+        self.assertEqual(next_titles, ["Train push"])
+        blob = json.dumps({"now": pulse.get("now"), "next": pulse.get("next")}).lower()
+        self.assertNotIn("pull candidate", blob)
+        self.assertNotIn("ready supply", blob)
+        self.assertNotIn("#110", blob)
+        api = next_api_payload({"day_plan": {"next3": dirty}})
+        self.assertEqual(api["next"], personal_next3(dirty))
+        self.assertEqual(api["next3"], api["next"])
+        self.assertNotIn("pull candidate", json.dumps(api).lower())
+        self.assertNotIn("ready supply", json.dumps(api).lower())
+        code, now_body = now_api_payload({"day_plan": {"next3": dirty}})
+        self.assertEqual(code, 200)
+        self.assertEqual((now_body or {}).get("now", {}).get("title"), "Train push")
+
     def test_ready_pull_and_epic_titles_omitted_from_now_next(self) -> None:
         plan = compose_day_plan(
             [
