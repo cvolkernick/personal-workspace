@@ -5,7 +5,7 @@ Unifies **strategy**, **workflow/projects**, **finance/treasury**, **fitness/hea
 Surfaces:
 
 - **Pulse** — WORLD (Horizon :8795 deep-link if Meridian packet is live) · NOW · NEXT · BLOCKED
-- NOW / NEXT read `day_plan.next3` (not recommendations, not today.md examples)
+- NOW / NEXT read `day_plan.next3` — personal next moves in plain language (not recommendations, not today.md placeholders, not Buzz-board pull/ready jargon)
 - **Dock** — Time Allocator `:8770` and Workflow `:8765` only
 - Supporting streams stay on the payload (`/api/recommendations`, attention, synergies)
 

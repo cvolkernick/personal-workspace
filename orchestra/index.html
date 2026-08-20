@@ -313,8 +313,8 @@
         return;
       }
       el.className = "seat now";
-      el.innerHTML = `<div class="title">${esc(now.title || "")}</div>
-        <div class="detail">${esc(now.why || "")}</div>`;
+      el.innerHTML = `<div class="title">${esc(now.title || "")}</div>`
+        + (now.why ? `<div class="detail">${esc(now.why)}</div>` : "");
     }
 
     function renderNext(pulse, dayPlan) {

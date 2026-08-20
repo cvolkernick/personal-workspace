@@ -28,10 +28,10 @@ from typing import Any, Optional
 
 try:
     from .domains import DOMAIN_SPECS
-    from .pulse import same_civil_day
+    from .pulse import is_example_today_line, same_civil_day
 except ImportError:  # script / unittest path insert
     from domains import DOMAIN_SPECS
-    from pulse import same_civil_day
+    from pulse import is_example_today_line, same_civil_day
 
 
 def _now() -> str:
@@ -215,7 +215,7 @@ def collect_strategy(workspace: Path) -> dict[str, Any]:
     open_items = [
         item
         for item in _checklist_open(today_text)
-        if "e.g." not in item.lower() and "eg." not in item.lower()
+        if not is_example_today_line(item)
     ]
     initiatives = collect_initiatives(ws)
     status = "ok" if bets_text or today_text else "missing"

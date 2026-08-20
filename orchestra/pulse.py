@@ -6,6 +6,7 @@ Allocator :8770. Horizon is a WORLD deep-link only (:8795), never a dock tile.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
@@ -74,21 +75,97 @@ def is_quest(item: Optional[dict[str, Any]]) -> bool:
     return "quest" in title
 
 
-def keep_action_item(item: Optional[dict[str, Any]]) -> bool:
-    """Quests without a Google Tasks id are omitted."""
+_TEAM_BOARD_KINDS = frozenset({"ready", "in_progress", "pipeline", "pending_review"})
+_TEAM_BOARD_TITLE_RE = re.compile(
+    r"pull candidate\s*#|pull ready:|continue / unblock\s*#|promote parked",
+    re.I,
+)
+_ISSUE_EPIC_TITLE_RE = re.compile(r"#\d+\s*:")
+
+
+def is_team_board_action(item: Optional[dict[str, Any]]) -> bool:
+    """Buzz-board pull/ready/epic rows are team work, not seat NOW/NEXT."""
     if not isinstance(item, dict):
         return False
-    if not str(item.get("title") or item.get("action") or "").strip():
+    kind = str(item.get("kind") or "").strip().lower()
+    if kind in _TEAM_BOARD_KINDS:
+        return True
+    title = str(item.get("title") or item.get("action") or "")
+    why = str(item.get("why") or item.get("detail") or "")
+    blob = f"{title} {why}".lower()
+    if "ready supply" in blob or "free agent" in blob:
+        return True
+    if _TEAM_BOARD_TITLE_RE.search(title):
+        return True
+    if _ISSUE_EPIC_TITLE_RE.search(title):
+        return True
+    return False
+
+
+def keep_action_item(item: Optional[dict[str, Any]]) -> bool:
+    """Quests without a GT id, today.md placeholders, and board jargon are omitted."""
+    if not isinstance(item, dict):
+        return False
+    title = str(item.get("title") or item.get("action") or "").strip()
+    if not title:
+        return False
+    if is_example_today_line(title):
+        return False
+    if is_team_board_action(item):
         return False
     if is_quest(item) and not has_gt_task_id(item):
         return False
     return True
 
 
+# Creative-slot template in strategy/today.md — empty until the user writes a real action.
+_CREATIVE_SLOT_RE = re.compile(
+    r"\bcreative(?:\s+or\s+other(?:\s+domain)?)?\s+next\s+action\b",
+    re.I,
+)
+_PLACEHOLDER_CLAUSES = frozenset(
+    {"", "tbd", "...", "…", "todo", "fill", "to fill", "unfilled", "placeholder"}
+)
+
+
+def _is_placeholder_clause(text: str) -> bool:
+    t = text.strip(" .()[]*—-_")
+    if t in _PLACEHOLDER_CLAUSES:
+        return True
+    return (
+        "user to fill" in t
+        or "to be filled" in t
+        or t.startswith("unfilled")
+    )
+
+
+def _is_empty_creative_slot(low: str) -> bool:
+    if not _CREATIVE_SLOT_RE.search(low):
+        return False
+    for sep in (":", " — ", " – ", " - "):
+        if sep in low:
+            after = low.split(sep, 1)[1]
+            if after.strip() and not _is_placeholder_clause(after.lower()):
+                return False
+    return True
+
+
 def is_example_today_line(text: Any) -> bool:
-    """strategy/today.md 'e.g.' examples are not Do-now / kind=today."""
-    low = str(text or "").lower()
-    return "e.g." in low or "eg." in low
+    """strategy/today.md examples and unfilled slots are not Do-now / kind=today.
+
+    Drops e.g./eg. examples, “user to fill” / unfilled markers, and empty
+    creative-slot placeholders. A filled “Creative … next action: <real work>”
+    line is an action.
+    """
+    raw = str(text or "").strip()
+    if not raw:
+        return True
+    low = raw.lower()
+    if "e.g." in low or "eg." in low:
+        return True
+    if "user to fill" in low or "unfilled" in low or "to be filled" in low:
+        return True
+    return _is_empty_creative_slot(low)
 
 
 def backlog_feeds_recs(
@@ -302,12 +379,18 @@ def build_blocked(
     }
 
 
-def _train_letter(fitness_src: dict[str, Any]) -> Optional[str]:
+def _train_line(fitness_src: dict[str, Any]) -> Optional[str]:
+    """Seat fact: Train: {session_type|Rest} · cue. Not “Train train” / fake PPL."""
     rec = fitness_src.get("train_recommendation")
     if rec is None or fitness_src.get("stale"):
         return None
-    text = str(rec).strip()
-    return text or None
+    rec_text = str(rec).strip()
+    if not rec_text:
+        return None
+    session = str(fitness_src.get("session_type") or "").strip()
+    slot = session if session else "Rest"
+    cue = str(fitness_src.get("recovery_label") or "").strip() or rec_text
+    return f"Train: {slot} · {cue}"
 
 
 def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
@@ -330,6 +413,22 @@ def _meal_line(fitness_src: dict[str, Any], *, now: datetime) -> Optional[str]:
     if band == "ok" and remaining is not None:
         return f"Protein ok · remaining≈{remaining}g"
     return None
+
+
+def _cadence_line(workflow_src: dict[str, Any]) -> Optional[str]:
+    """Optional Cadence fact. Omit unless Ready and free-agent counts are real."""
+    if workflow_src.get("stale") or workflow_src.get("fetch_ok") is False:
+        return None
+    ready = workflow_src.get("ready_count")
+    free = workflow_src.get("free_agent_count")
+    if ready is None or free is None:
+        return None
+    try:
+        ready_n = int(ready)
+        free_n = int(free)
+    except (TypeError, ValueError):
+        return None
+    return f"Cadence: {ready_n} Ready · {free_n} free"
 
 
 def _quest_lines(fitness_src: dict[str, Any]) -> list[str]:
@@ -358,9 +457,9 @@ def build_one_liners(
     fit = sources.get("fitness") if isinstance(sources.get("fitness"), dict) else {}
     out: list[dict[str, Any]] = []
 
-    letter = _train_letter(fit)
-    if letter:
-        out.append({"id": "train", "text": f"Train {letter}"})
+    train = _train_line(fit)
+    if train:
+        out.append({"id": "train", "text": train})
 
     meal = _meal_line(fit, now=ref)
     if meal:
@@ -369,11 +468,21 @@ def build_one_liners(
     for title in _quest_lines(fit):
         out.append({"id": "quest", "text": title})
 
+    wf = sources.get("workflow") if isinstance(sources.get("workflow"), dict) else {}
+    cadence = _cadence_line(wf)
+    if cadence:
+        out.append({"id": "cadence", "text": cadence})
+
     return out
 
 
+def personal_next3(next3: Optional[list[Any]]) -> list[dict[str, Any]]:
+    """Chris-facing NOW/NEXT list — no board pull/ready jargon, no placeholders."""
+    return [x for x in (next3 or []) if isinstance(x, dict) and keep_action_item(x)]
+
+
 def now_from_next3(next3: Optional[list[Any]]) -> Optional[dict[str, Any]]:
-    rows = [x for x in (next3 or []) if isinstance(x, dict) and keep_action_item(x)]
+    rows = personal_next3(next3)
     return rows[0] if rows else None
 
 
@@ -387,7 +496,7 @@ def build_pulse(
     """Assemble the thin personal-window pulse for one :8790 load."""
     ref = _utc_now(now)
     plan = day_plan if isinstance(day_plan, dict) else {}
-    next3 = [x for x in (plan.get("next3") or []) if keep_action_item(x)]
+    next3 = personal_next3(plan.get("next3") or [])
     by_id = {
         str(d.get("id")): d
         for d in (domains or [])
@@ -407,6 +516,7 @@ def build_pulse(
             "non_goals": [
                 "no WEEK/GATES/HELD chrome",
                 "no recommendations as NOW/NEXT",
+                "no Buzz-board pull/ready jargon as NOW/NEXT",
                 "no Horizon embed or dock tile",
                 "no FCC/FitDash/Fleet/B2/IoT dock tiles",
             ],
@@ -415,9 +525,9 @@ def build_pulse(
 
 
 def next_api_payload(orchestra: dict[str, Any]) -> dict[str, Any]:
-    """GET /api/next body — day_plan.next3, never recommendations."""
+    """GET /api/next body — personal next3, never recommendations or board jargon."""
     plan = orchestra.get("day_plan") if isinstance(orchestra, dict) else {}
-    next3 = list((plan or {}).get("next3") or [])
+    next3 = personal_next3((plan or {}).get("next3") or [])
     return {
         "ok": True,
         "next": next3,
