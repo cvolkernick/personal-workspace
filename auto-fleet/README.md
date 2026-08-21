@@ -94,6 +94,10 @@ does not invent amounts, VINs, or trips. Checkbox completes the item in
 Google Tasks. No open items → strip omitted (no empty-state theater).
 Missing creds → honest error, not fake rows.
 
+Auto Fleet is the standing surface for invoice-ready Turo items. Orchestra
+may later show the same Google Task only when it is NOW/NEXT in that
+window — do not add Orchestra chrome here. Chat ping is not this page.
+
 ## Honest empty states
 
 - No Turo bookings → inbox status explains empty vs parse error and names X Money as payout dest. The UI does not invent trips.

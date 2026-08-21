@@ -201,6 +201,7 @@ class SurfaceContractTests(unittest.TestCase):
         self.assertNotIn("nothing to do", html.lower())
         self.assertNotIn("no invoice-ready", html.lower())
         self.assertNotIn("Orchestra", html)
+        self.assertNotIn("NOW/NEXT", html)
         self.assertNotIn("gmail", html.lower())
         self.assertIn("/static/fleet/tesla-model-3-2020.jpg", html)
         self.assertIn("/static/fleet/rivian-r1s-2023.jpg", html)
