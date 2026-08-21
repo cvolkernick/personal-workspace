@@ -10,11 +10,13 @@ import os
 import secrets
 import time
 from typing import Any, Optional
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs, unquote
 
 SESSION_COOKIE = "fitdash_session"
 SESSION_MAX_AGE = 14 * 24 * 3600
 STATE_MAX_AGE = 600
+# Browsers silently drop a cookie over 4096 bytes (name + value).
+COOKIE_SOFT_LIMIT = 3500
 
 # Same FitDash Google login also grants Tasks. User re-consents once.
 TASKS_SCOPE = "https://www.googleapis.com/auth/tasks"
@@ -143,16 +145,62 @@ def verify_state(state: str) -> bool:
     return issued > 0 and (time.time() - issued) <= STATE_MAX_AGE
 
 
+def normalize_scope_string(raw: str) -> str:
+    """Google sometimes uses '+' or percent-encoding in scope strings."""
+    text = str(raw or "").replace("+", " ")
+    try:
+        text = unquote(text)
+    except Exception:
+        pass
+    return text
+
+
+def granted_scope_from_tokens(scope: str) -> str:
+    """Use Google's scope when present; otherwise the scopes this login requested.
+
+    ``include_granted_scopes=false`` means a successful code exchange granted
+    LOGIN_SCOPES. Google occasionally omits ``scope`` on the token JSON.
+    """
+    raw = normalize_scope_string(scope).strip()
+    return raw or " ".join(LOGIN_SCOPES)
+
+
+def compact_session_scope(scope: str) -> str:
+    """Store a short Tasks grant, not the full Health+Tasks scope string."""
+    raw = granted_scope_from_tokens(scope)
+    if session_has_tasks_scope({"scope": raw}):
+        return TASKS_SCOPE
+    return raw
+
+
 def make_session(user: dict) -> str:
+    refresh = (user.get("refresh_token") or "").strip()
+    access = (user.get("access_token") or "").strip()
+    raw_scope = (user.get("scope") or "").strip()
+    if raw_scope:
+        scope = compact_session_scope(raw_scope)
+    elif refresh or access:
+        # Successful token exchange requested LOGIN_SCOPES; Google sometimes
+        # omits the scope field. Do not invent scope on identity-only cookies.
+        scope = compact_session_scope("")
+    else:
+        scope = ""
+    # Access tokens are large and live ~1h. Refresh (small) is enough; the
+    # server mints a new access token with GOOGLE_CLIENT_ID/SECRET.
+    include_access = bool(access) and not refresh
+    token = _sign(_session_fields(user, refresh, access if include_access else "", scope))
+    if include_access and _cookie_value_len(token) > COOKIE_SOFT_LIMIT:
+        token = _sign(_session_fields(user, refresh, "", scope))
+    return token
+
+
+def _session_fields(user: dict, refresh: str, access: str, scope: str) -> dict:
     payload = {
         "sub": user["id"],
         "email": user.get("email") or "",
         "name": user.get("display_name") or "",
         "exp": int(time.time()) + SESSION_MAX_AGE,
     }
-    refresh = (user.get("refresh_token") or "").strip()
-    access = (user.get("access_token") or "").strip()
-    scope = (user.get("scope") or "").strip()
     if refresh:
         payload["rt"] = refresh
     if access:
@@ -160,12 +208,16 @@ def make_session(user: dict) -> str:
     if scope:
         payload["sc"] = scope
     expires_in = user.get("expires_in")
-    if expires_in not in (None, ""):
+    if access and expires_in not in (None, ""):
         try:
             payload["ate"] = int(time.time()) + int(expires_in)
         except (TypeError, ValueError):
             pass
-    return _sign(payload)
+    return payload
+
+
+def _cookie_value_len(token: str) -> int:
+    return len(SESSION_COOKIE) + 1 + len(token)
 
 
 def _session_payload(token: str) -> Optional[dict]:
@@ -218,8 +270,10 @@ def read_session_google(token: str) -> Optional[dict]:
 def session_has_tasks_scope(google: Optional[dict]) -> bool:
     if not google:
         return False
-    scopes = str(google.get("scope") or "").split()
-    return TASKS_SCOPE in scopes
+    raw = normalize_scope_string(str(google.get("scope") or "")).strip()
+    if raw in ("1", "tasks", "true"):
+        return True
+    return TASKS_SCOPE in raw.split()
 
 
 def session_google_from_headers(headers) -> Optional[dict]:
