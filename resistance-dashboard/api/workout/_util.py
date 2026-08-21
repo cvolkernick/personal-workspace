@@ -251,22 +251,27 @@ def stamp_quest_list_ids(daily):
 
 
 def daily_tasks_body(headers, payload=None):
-    """GET /api/daily-tasks — Pi ensure_daily_tasks against the GT Fitness list.
+    """GET /api/daily-tasks — ensure_daily_tasks against the GT Fitness list.
 
-    Missing Google Tasks creds fail honest (error + local leaves, no invented ids).
+    Vercel uses the Google login session (Tasks scope). Pi keeps the file token.
+    Missing Tasks permission fails honest (error + local leaves, no invented ids).
     """
     user, err = require_user(headers)
     if err:
         return err
+    from api.auth.session_util import session_google_from_headers
     from api.dashboard import dashboard_body
     from rt_dashboard.daily_plan_tasks import ensure_daily_tasks
+    from rt_dashboard.gtasks_session import bound_session_google
 
     status, dashboard = dashboard_body(headers)
     if status != 200:
         return status, dashboard
     today = ((dashboard.get("coach") or {}).get("today")) or {}
     day = today.get("date") or (dashboard.get("meta") or {}).get("local_today")
-    result = stamp_quest_list_ids(ensure_daily_tasks(today, day=day))
+    google = session_google_from_headers(headers) or {}
+    with bound_session_google(google):
+        result = stamp_quest_list_ids(ensure_daily_tasks(today, day=day))
     if not result.get("ok"):
         return 200, {
             "ok": False,
@@ -297,18 +302,22 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
     parent_id = payload.get("parent_id")
     parent_id = str(parent_id).strip() if parent_id else None
     sibling_all_done = payload.get("sibling_all_done")
+    from api.auth.session_util import session_google_from_headers
     from rt_dashboard.daily_plan_tasks import complete_leaf
+    from rt_dashboard.gtasks_session import bound_session_google
 
+    google = session_google_from_headers(headers) or {}
     try:
-        result = complete_leaf(
-            list_id,
-            task_id,
-            completed=bool(completed),
-            parent_id=parent_id,
-            sibling_all_done=sibling_all_done
-            if sibling_all_done is None
-            else bool(sibling_all_done),
-        )
+        with bound_session_google(google):
+            result = complete_leaf(
+                list_id,
+                task_id,
+                completed=bool(completed),
+                parent_id=parent_id,
+                sibling_all_done=sibling_all_done
+                if sibling_all_done is None
+                else bool(sibling_all_done),
+            )
     except Exception as exc:  # noqa: BLE001
         return 500, {"ok": False, "error": str(exc) or type(exc).__name__}
     if not isinstance(result, dict):

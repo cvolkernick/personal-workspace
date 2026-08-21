@@ -19,6 +19,10 @@ from typing import Any
 
 SCOPES = ["https://www.googleapis.com/auth/tasks"]
 DEFAULT_CONFIG_DIR = Path.home() / ".config" / "google-tasks-mcp"
+_VERCEL_NO_FILE = (
+    "Google sign-in is missing Tasks permission. "
+    "Sign in again to allow Google Tasks."
+)
 # Parse gh / github.com issue refs from notes/title for UI chips
 _GH_ISSUE_RE = re.compile(
     r"(?:https?://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/issues/(\d+))"
@@ -26,6 +30,13 @@ _GH_ISSUE_RE = re.compile(
     r"|(?:\b([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)#(\d+)\b)",
     re.I,
 )
+
+
+def _on_vercel() -> bool:
+    return bool(
+        (os.environ.get("VERCEL") or "").strip()
+        or (os.environ.get("VERCEL_ENV") or "").strip()
+    )
 
 
 def _config_dir() -> Path:
@@ -68,11 +79,13 @@ def _token_blob_from_env() -> dict[str, Any]:
 
 def _load_token_blob() -> dict[str, Any]:
     path = _config_dir() / "token.json"
-    if path.is_file():
+    if not _on_vercel() and path.is_file():
         return json.loads(path.read_text(encoding="utf-8"))
     env_blob = _token_blob_from_env()
     if env_blob:
         return env_blob
+    if _on_vercel():
+        raise RuntimeError(_VERCEL_NO_FILE)
     raise FileNotFoundError(
         f"Missing {path} — run: npx google-tasks-mcp auth "
         "(or set GOOGLE_TASKS_REFRESH_TOKEN + client id/secret)"
@@ -98,6 +111,20 @@ def _load_client_blob() -> dict[str, Any]:
 
 def credentials_status() -> dict[str, Any]:
     """Non-secret readiness check for health / UI."""
+    if _on_vercel():
+        env_blob = _token_blob_from_env()
+        has_refresh = bool(env_blob.get("refresh_token"))
+        ok = bool(env_blob) and has_refresh
+        return {
+            "ok": ok,
+            "config_dir": None,
+            "source": "env" if env_blob else None,
+            "token_present": bool(env_blob),
+            "client_secret_present": bool(env_blob.get("client_secret")),
+            "refresh_token_present": has_refresh,
+            "hint": None if ok else _VERCEL_NO_FILE,
+            "error": None if ok else _VERCEL_NO_FILE,
+        }
     cfg = _config_dir()
     token_path = cfg / "token.json"
     secret_path = cfg / "client_secret.json"

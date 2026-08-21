@@ -16,6 +16,9 @@ SESSION_COOKIE = "fitdash_session"
 SESSION_MAX_AGE = 14 * 24 * 3600
 STATE_MAX_AGE = 600
 
+# Same FitDash Google login also grants Tasks. User re-consents once.
+TASKS_SCOPE = "https://www.googleapis.com/auth/tasks"
+
 LOGIN_SCOPES = [
     "openid",
     "email",
@@ -24,6 +27,7 @@ LOGIN_SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
     "https://www.googleapis.com/auth/googlehealth.nutrition.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+    TASKS_SCOPE,
 ]
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -140,17 +144,31 @@ def verify_state(state: str) -> bool:
 
 
 def make_session(user: dict) -> str:
-    return _sign(
-        {
-            "sub": user["id"],
-            "email": user.get("email") or "",
-            "name": user.get("display_name") or "",
-            "exp": int(time.time()) + SESSION_MAX_AGE,
-        }
-    )
+    payload = {
+        "sub": user["id"],
+        "email": user.get("email") or "",
+        "name": user.get("display_name") or "",
+        "exp": int(time.time()) + SESSION_MAX_AGE,
+    }
+    refresh = (user.get("refresh_token") or "").strip()
+    access = (user.get("access_token") or "").strip()
+    scope = (user.get("scope") or "").strip()
+    if refresh:
+        payload["rt"] = refresh
+    if access:
+        payload["at"] = access
+    if scope:
+        payload["sc"] = scope
+    expires_in = user.get("expires_in")
+    if expires_in not in (None, ""):
+        try:
+            payload["ate"] = int(time.time()) + int(expires_in)
+        except (TypeError, ValueError):
+            pass
+    return _sign(payload)
 
 
-def read_session(token: str) -> Optional[dict]:
+def _session_payload(token: str) -> Optional[dict]:
     data = _verify(token)
     if not data:
         return None
@@ -163,11 +181,50 @@ def read_session(token: str) -> Optional[dict]:
     sub = str(data.get("sub") or "").strip()
     if not sub:
         return None
+    data["sub"] = sub
+    return data
+
+
+def read_session(token: str) -> Optional[dict]:
+    """Public identity only. Never returns Google tokens."""
+    data = _session_payload(token)
+    if not data:
+        return None
+    sub = str(data.get("sub") or "").strip()
     return {
         "id": sub,
         "email": str(data.get("email") or ""),
         "display_name": str(data.get("name") or data.get("email") or sub),
     }
+
+
+def read_session_google(token: str) -> Optional[dict]:
+    """Server-only Google OAuth fields from the signed session cookie."""
+    data = _session_payload(token)
+    if not data:
+        return None
+    try:
+        access_expires_at = int(data.get("ate") or 0)
+    except (TypeError, ValueError):
+        access_expires_at = 0
+    return {
+        "refresh_token": str(data.get("rt") or ""),
+        "access_token": str(data.get("at") or ""),
+        "scope": str(data.get("sc") or ""),
+        "access_expires_at": access_expires_at,
+    }
+
+
+def session_has_tasks_scope(google: Optional[dict]) -> bool:
+    if not google:
+        return False
+    scopes = str(google.get("scope") or "").split()
+    return TASKS_SCOPE in scopes
+
+
+def session_google_from_headers(headers) -> Optional[dict]:
+    cookies = cookie_from_header((headers or {}).get("Cookie") or "")
+    return read_session_google(cookies.get(SESSION_COOKIE) or "")
 
 
 def cookie_from_header(header: str) -> dict[str, str]:

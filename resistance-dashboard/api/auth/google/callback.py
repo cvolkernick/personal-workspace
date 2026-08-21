@@ -76,7 +76,17 @@ class handler(BaseHTTPRequestHandler):
             email = str(info.get("email") or "")
             name = str(info.get("name") or info.get("given_name") or email or sub)
             cookie = session_set_cookie(
-                make_session({"id": sub, "email": email, "display_name": name})
+                make_session(
+                    {
+                        "id": sub,
+                        "email": email,
+                        "display_name": name,
+                        "refresh_token": tokens.get("refresh_token") or "",
+                        "access_token": access,
+                        "scope": tokens.get("scope") or "",
+                        "expires_in": tokens.get("expires_in"),
+                    }
+                )
             )
             self.send_response(302)
             self.send_header("Set-Cookie", cookie)
