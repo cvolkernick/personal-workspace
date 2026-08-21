@@ -1,0 +1,7 @@
+tests/
+docs/
+*.md
+ingest.py
+requirements.txt
+__pycache__/
+.gitkeep

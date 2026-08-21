@@ -1,0 +1,416 @@
+:root {
+  --white: #ffffff;
+  --plum: #4e1b7a;
+  --plum-deep: #3a145c;
+  --charcoal: #2b2b2b;
+  --gold: #c9a227;
+  --lavender: #b79ad4;
+  --silver: #d5d0da;
+  --muted: #5c5c5c;
+  --empty: #6e6680;
+  --max: 1080px;
+  --font: "Avenir Next", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  font-size: 17px;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--charcoal);
+  background: var(--white);
+}
+
+img {
+  max-width: 100%;
+  display: block;
+}
+
+a {
+  color: inherit;
+}
+
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0.75rem;
+  z-index: 100;
+  padding: 0.5rem 0.85rem;
+  background: var(--plum);
+  color: var(--white);
+}
+
+.skip-link:focus {
+  left: 0.75rem;
+}
+
+.wrap {
+  width: min(var(--max), calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+/* --- Card hero (business-card split) --- */
+.card-hero {
+  display: flex;
+  flex-direction: column;
+  min-height: min(100vh, 760px);
+}
+
+.card-hero-top {
+  flex: 45 1 auto;
+  background: var(--white);
+  color: var(--charcoal);
+  display: flex;
+  align-items: center;
+  padding: 1.75rem 0 1.5rem;
+}
+
+.card-hero-top-inner {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2rem 3rem;
+  align-items: center;
+  width: min(var(--max), calc(100% - 2.5rem));
+  margin-inline: auto;
+}
+
+.logo {
+  width: min(168px, 38vw);
+  height: auto;
+}
+
+.owner-block {
+  justify-self: end;
+  text-align: right;
+}
+
+.owner-name {
+  margin: 0;
+  font-size: clamp(1.6rem, 3.4vw, 2.15rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.owner-role {
+  margin: 0.15rem 0 0.85rem;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.owner-block a {
+  text-decoration: none;
+}
+
+.owner-block a:hover,
+.owner-block a:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.owner-contact {
+  margin: 0.2rem 0;
+  font-size: 1.02rem;
+}
+
+.card-hero-bottom {
+  flex: 55 1 auto;
+  background: var(--plum);
+  color: var(--silver);
+  display: flex;
+  align-items: center;
+  padding: 2.25rem 0 2.5rem;
+}
+
+.card-hero-bottom .wrap {
+  width: min(var(--max), calc(100% - 2.5rem));
+}
+
+.company-name {
+  margin: 0;
+  color: var(--white);
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.tagline {
+  margin: 0.35rem 0 0;
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: var(--silver);
+}
+
+.card-address {
+  margin: 1.6rem 0 0;
+  font-style: normal;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: var(--silver);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 1.75rem;
+}
+
+.btn {
+  display: inline-block;
+  padding: 0.7rem 1.25rem;
+  border-radius: 2px;
+  font-weight: 600;
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+.btn-gold {
+  background: var(--gold);
+  color: var(--charcoal);
+}
+
+.btn-gold:hover,
+.btn-gold:focus-visible {
+  filter: brightness(1.08);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--silver);
+  box-shadow: inset 0 0 0 1px var(--silver);
+}
+
+.btn-ghost:hover,
+.btn-ghost:focus-visible {
+  color: var(--white);
+  box-shadow: inset 0 0 0 1px var(--white);
+}
+
+/* --- Page chrome for Catalog --- */
+.brand-bar {
+  background: var(--white);
+  border-bottom: 1px solid #ece8ef;
+}
+
+.brand-bar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.25rem;
+  padding: 0.9rem 0;
+}
+
+.brand-home {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: var(--charcoal);
+}
+
+.brand-home .logo {
+  width: 64px;
+}
+
+.brand-word {
+  font-style: italic;
+  font-weight: 800;
+  font-size: 1.25rem;
+}
+
+.site-nav {
+  display: flex;
+  gap: 1.25rem;
+  font-weight: 600;
+}
+
+.site-nav a {
+  text-decoration: none;
+}
+
+.site-nav a:hover,
+.site-nav a[aria-current="page"] {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* --- Landing sections --- */
+.section {
+  padding: 3.25rem 0;
+  background: var(--white);
+}
+
+.section-plum {
+  background: var(--plum);
+  color: var(--silver);
+}
+
+.section h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.55rem;
+}
+
+.section-lead {
+  margin: 0 0 1.75rem;
+  max-width: 40rem;
+}
+
+.print-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.print-card {
+  padding: 1.35rem 1.2rem;
+  border-top: 3px solid var(--gold);
+  background: #f7f5f8;
+  min-height: 4.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.print-card h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.1rem;
+}
+
+.print-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.contact-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contact-list li + li {
+  margin-top: 0.4rem;
+}
+
+.contact-list a {
+  color: var(--silver);
+}
+
+.site-footer {
+  background: var(--plum-deep);
+  color: var(--silver);
+  padding: 1.5rem 0;
+  font-size: 0.95rem;
+}
+
+.footer-inner {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.footer-inner a {
+  color: var(--silver);
+}
+
+/* --- Catalog --- */
+.catalog-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog-page main {
+  flex: 1;
+  padding: 2.5rem 0 3.5rem;
+}
+
+.catalog-head h1 {
+  margin: 0 0 0.4rem;
+  font-size: 1.8rem;
+}
+
+.catalog-head p {
+  margin: 0 0 1.75rem;
+  color: var(--muted);
+}
+
+.catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1.25rem;
+}
+
+.catalog-grid[data-state="empty"] {
+  display: block;
+}
+
+.catalog-empty {
+  margin: 0;
+  padding: 2.5rem 1.25rem;
+  background: #f7f5f8;
+  border-left: 4px solid var(--plum);
+  color: var(--empty);
+  font-size: 1.05rem;
+}
+
+.catalog-card {
+  background: var(--white);
+  border: 1px solid #ece8ef;
+  display: flex;
+  flex-direction: column;
+}
+
+.catalog-card img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  background: #f3eef8;
+}
+
+.catalog-card h2,
+.catalog-title {
+  margin: 0.9rem 1rem 0.35rem;
+  font-size: 1.15rem;
+}
+
+.catalog-note {
+  margin: 0 1rem 0.5rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.catalog-added {
+  margin: auto 1rem 1rem;
+  color: var(--empty);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 720px) {
+  .card-hero-top-inner {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    gap: 1.25rem;
+  }
+
+  .owner-block {
+    justify-self: start;
+    text-align: left;
+  }
+
+  .print-grid {
+    grid-template-columns: 1fr;
+  }
+}
