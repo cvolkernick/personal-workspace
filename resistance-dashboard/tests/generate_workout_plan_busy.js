@@ -168,6 +168,10 @@ function assertBusy(on) {
   assert(fetches[0].url === "/api/workout-plan/generate", "still posts workout-plan generate");
   assert(fetches[0].method === "POST", "method is POST");
   assert(fetches[0].body === "{}", "Refresh plan body stays empty (workout only)");
+  assert(
+    fetches.every((f) => f.url !== "/api/meal-plan/generate"),
+    "Refresh plan must not POST meal-plan generate"
+  );
   assert(rendered === null, "plan is not rendered before the network returns");
 
   release();
@@ -195,6 +199,10 @@ function assertBusy(on) {
   assertBusy(true);
   assert(fetches[0].url === "/api/workout-plan/generate", "force-session still hits generate");
   assert(JSON.parse(fetches[0].body).session_type === "pull", "force-session still sends session_type");
+  assert(
+    fetches.every((f) => f.url !== "/api/meal-plan/generate"),
+    "force-session must not POST meal-plan generate"
+  );
   release();
   await failing;
   assertBusy(false);

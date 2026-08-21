@@ -82,6 +82,8 @@ class WorkoutPlanRefreshBoot(unittest.TestCase):
         self.assertNotIn("setFirstLoadVisible", gen)
         self.assertNotIn("/api/meal-plan", gen)
         self.assertNotIn("renderMealPlan", gen)
+        self.assertNotIn("generatePlan", gen)
+        self.assertNotIn("setMealPlanBusy", gen)
         self.assertIn("renderWorkoutPlan(data.plan)", gen)
         self.assertIn("showAlert(`Workout plan failed:", gen)
 

@@ -4837,8 +4837,22 @@
     }
   }
 
-  /** Rebuild rest-of-day meal plan (inventory stock toggles; dashboard load also regenerates). */
+  function setMealPlanBusy(busy) {
+    const banner = $("meal-plan-refreshing");
+    if (banner) banner.hidden = !busy;
+
+    const el = $("meal-plan-result");
+    if (!el) return;
+    el.classList.toggle("is-refreshing", !!busy);
+    if (busy) el.setAttribute("aria-busy", "true");
+    else el.removeAttribute("aria-busy");
+  }
+
+  /** Rebuild rest-of-day meal plan after inventory add/edit/remove/stock. Meal only. */
   async function generatePlan() {
+    const box = $("meal-plan-result");
+    if (box && box.getAttribute("aria-busy") === "true") return;
+    setMealPlanBusy(true);
     try {
       const res = await fetch("/api/meal-plan/generate", {
         method: "POST",
@@ -4850,6 +4864,8 @@
       renderMealPlan(data.plan);
     } catch (e) {
       showAlert(`Meal plan failed: ${e.message}`, "err");
+    } finally {
+      setMealPlanBusy(false);
     }
   }
 
