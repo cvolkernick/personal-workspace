@@ -1458,8 +1458,21 @@ class NowNextCheckAssayTests(unittest.TestCase):
 
 
 def _quiet_now_domains() -> list:
+    """No TA / finance / fit next-moves, so window GT rows are visible."""
     return [
-        _hol_today(),
+        {
+            "id": "holistic",
+            "available": True,
+            "url": "http://127.0.0.1:8770/",
+            "signals": {
+                "plan_as_of": NOW.isoformat(),
+                "as_of": NOW.isoformat(),
+                "targets": ["Sleep"],
+                "plan_blocks": [
+                    {"id": "sleep", "title": "Sleep", "minutes": 480, "role": "reserve"},
+                ],
+            },
+        },
         _wf(ready_count=0, free_agent_count=0),
         _fit(session_due=False, train_recommendation="rest"),
         _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
