@@ -16,13 +16,16 @@
         "buying_power": "0.0900",
         "unleveraged_buying_power": "0.0900",
         "display_currency": "USD"
+      },
+      "crypto_buying_power": {
+        "buying_power": "0.0900"
       }
     }
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "192.3647923771",
-      "equity_value": "192.2747923771",
+      "total_value": "203.256452664",
+      "equity_value": "203.166452664",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -36,6 +39,9 @@
         "buying_power": "0.0900",
         "unleveraged_buying_power": "0.0900",
         "display_currency": "USD"
+      },
+      "crypto_buying_power": {
+        "buying_power": "0.0900"
       }
     }
   },
@@ -43,6 +49,7 @@
     {
       "account_number": "5QW39737",
       "rhs_account_number": "106397375",
+      "rhc_account_number": "311250215027",
       "type": "cash",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
@@ -58,6 +65,7 @@
     {
       "account_number": "674601752",
       "rhs_account_number": "674601752",
+      "rhc_account_number": "311264401076",
       "type": "cash",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
@@ -128,10 +136,10 @@
     },
     {
       "symbol": "BITA",
-      "quantity": "0.287194",
+      "quantity": "0.291610",
       "intraday_quantity": "0.000000",
       "average_buy_price": "51.880000",
-      "shares_available_for_sells": "0.287194",
+      "shares_available_for_sells": "0.291610",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
