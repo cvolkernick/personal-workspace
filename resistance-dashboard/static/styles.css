@@ -2271,7 +2271,7 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   box-shadow: 0 0 0 1px rgba(61, 156, 240, 0.25);
 }
 
-/* Inline busy state for Refresh plan (workout) and inventory meal rebuild. */
+/* Inline busy state for Refresh plan (workout + meal) and inventory meal rebuild. */
 .workout-plan-refreshing {
   display: flex;
   align-items: center;

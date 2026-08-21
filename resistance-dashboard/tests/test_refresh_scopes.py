@@ -1,8 +1,8 @@
-"""FitDash refresh scopes stay targeted: inventory=meals, plan=workout, data=Health.
+"""FitDash refresh scopes: inventory=meals, Refresh plan=both, Refresh data=Health+both.
 
-Chris: do not brute-force everything. Inventory add/edit/remove/stock rebuilds
-the meal plan with a visible busy state. Refresh plan stays workout-only (#224).
-Refresh data stays /api/dashboard?refresh=1 and does not call generateWorkoutPlan.
+Chris: add/edit/remove/stock automatically rebuilds the meal plan with a visible
+busy state (meal only — do not re-roll the lift). Refresh plan is the manual
+workout+meal redo. Refresh data is Health pull then the same combined redo.
 No extra meal-section button.
 """
 
@@ -44,19 +44,18 @@ class NoExtraMealButton(unittest.TestCase):
     def test_copy_names_the_three_scopes(self):
         meal = HTML[HTML.find('id="meal-plan-card"') : HTML.find('id="meal-plan-result"')]
         self.assertIn("rebuilds this meal plan", meal)
-        self.assertIn("workout only", meal)
-        self.assertIn("Health and food logs", meal)
-        self.assertNotIn("workout + meals", meal)
-        self.assertNotIn("then both plans", meal)
-        self.assertIn("Rebuild today's workout plan only", HTML)
-        self.assertIn("pull Google Health and food logs now", HTML)
+        self.assertIn("removing", meal)
+        self.assertIn("workout + meals", meal)
+        self.assertIn("Health, then both plans", meal)
+        self.assertIn("Rebuild today's workout and meal plans", HTML)
+        self.assertIn("pull Google Health now, then rebuild workout + meal plans", HTML)
 
 
 class InventoryMealOnly(unittest.TestCase):
     def test_generate_plan_busy_and_restore(self):
         self.assertIn("function setMealPlanBusy", JS)
         self.assertIn("Refreshing meal plan…", HTML)
-        gen = _fn("async function generatePlan()", "const WORKOUT_PLAN_TRIGGER_IDS")
+        gen = _fn("async function generatePlan", "const WORKOUT_PLAN_TRIGGER_IDS")
         self.assertIn("setMealPlanBusy(true)", gen)
         self.assertIn("setMealPlanBusy(false)", gen)
         self.assertIn("finally {", gen)
@@ -96,29 +95,33 @@ class InventoryMealOnly(unittest.TestCase):
         self.assertIn("ok", proc.stdout)
 
 
-class RefreshPlanWorkoutOnly(unittest.TestCase):
-    def test_generate_workout_stays_workout_only(self):
+class RefreshPlanBothPlans(unittest.TestCase):
+    def test_generate_workout_then_meal(self):
         gen = _fn("async function generateWorkoutPlan", "async function submitExerciseCatalog")
         self.assertIn('fetch("/api/workout-plan/generate"', gen)
-        self.assertIn("setWorkoutPlanBusy(true)", gen)
-        self.assertIn("setWorkoutPlanBusy(false)", gen)
+        self.assertIn("await generatePlan({ busyAlready: true })", gen)
+        self.assertIn("setRefreshPlanBusy(true)", gen)
+        self.assertIn("setRefreshPlanBusy(false)", gen)
         self.assertIn("renderWorkoutPlan(data.plan)", gen)
-        self.assertNotIn("generatePlan", gen)
-        self.assertNotIn("/api/meal-plan", gen)
-        self.assertNotIn("setMealPlanBusy", gen)
         self.assertNotIn("loadDashboard", gen)
         self.assertNotIn("/api/dashboard", gen)
+        workout_at = gen.find('fetch("/api/workout-plan/generate"')
+        meal_at = gen.find("await generatePlan({ busyAlready: true })")
+        self.assertGreater(meal_at, workout_at)
 
 
-class RefreshDataHealthOnly(unittest.TestCase):
-    def test_force_refresh_hits_dashboard_not_plan_generate(self):
+class RefreshDataHealthThenBoth(unittest.TestCase):
+    def test_force_refresh_health_then_combined_plan(self):
         fn = _fn("async function loadDashboard", "function startQuietPoll")
         self.assertIn('"/api/dashboard?refresh=1"', fn)
         self.assertIn('"/api/dashboard"', fn)
-        self.assertNotIn("generateWorkoutPlan", fn)
-        self.assertNotIn("generatePlan", fn)
-        self.assertNotIn("/api/workout-plan", fn)
-        self.assertNotIn("/api/meal-plan", fn)
+        self.assertIn("await generateWorkoutPlan()", fn)
+        render_at = fn.find("render(data")
+        gen_at = fn.find("await generateWorkoutPlan()")
+        catch_at = fn.find("} catch (e) {")
+        self.assertGreater(gen_at, render_at)
+        self.assertGreater(catch_at, gen_at)
+        self.assertIn("if (forceRefresh === true && !quiet)", fn)
         self.assertIn('() => loadDashboard(true)', JS)
         self.assertIn('$("btn-refresh").addEventListener("click", () => loadDashboard(true))', JS)
         self.assertIn('$("btn-refresh-mobile").addEventListener("click", () => loadDashboard(true))', JS)
@@ -126,10 +129,10 @@ class RefreshDataHealthOnly(unittest.TestCase):
 
 class CacheAndHobbyLock(unittest.TestCase):
     def test_static_cache_bumped(self):
-        self.assertIn("?v=meal-plan-busy-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v51"', SW)
-        self.assertIn("/styles.css?v=meal-plan-busy-1", SW)
-        self.assertIn("/app.js?v=meal-plan-busy-1", SW)
+        self.assertIn("?v=meal-plan-busy-2", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v52"', SW)
+        self.assertIn("/styles.css?v=meal-plan-busy-2", SW)
+        self.assertIn("/app.js?v=meal-plan-busy-2", SW)
         self.assertNotIn("refresh-plan-1", HTML)
         self.assertNotIn("refresh-plan-1", SW)
 

@@ -4685,6 +4685,10 @@
       if (!quiet && data.meta && data.meta.error) {
         showAlert(`Partial load: ${data.meta.error}`, "warn");
       }
+      // Refresh data = Health pull first, then the same combined Refresh plan.
+      if (forceRefresh === true && !quiet) {
+        await generateWorkoutPlan();
+      }
     } catch (e) {
       if (isAuthRequiredError(null, null, e && e.message)) {
         showLoginGate("Session expired — sign in again.");
@@ -4848,11 +4852,19 @@
     else el.removeAttribute("aria-busy");
   }
 
+  function setRefreshPlanBusy(busy) {
+    setWorkoutPlanBusy(busy);
+    setMealPlanBusy(busy);
+  }
+
   /** Rebuild rest-of-day meal plan after inventory add/edit/remove/stock. Meal only. */
-  async function generatePlan() {
+  async function generatePlan(opts) {
+    const busyAlready = !!(opts && opts.busyAlready);
     const box = $("meal-plan-result");
-    if (box && box.getAttribute("aria-busy") === "true") return;
-    setMealPlanBusy(true);
+    if (!busyAlready) {
+      if (box && box.getAttribute("aria-busy") === "true") return;
+      setMealPlanBusy(true);
+    }
     try {
       const res = await fetch("/api/meal-plan/generate", {
         method: "POST",
@@ -4865,7 +4877,7 @@
     } catch (e) {
       showAlert(`Meal plan failed: ${e.message}`, "err");
     } finally {
-      setMealPlanBusy(false);
+      if (!busyAlready) setMealPlanBusy(false);
     }
   }
 
@@ -4915,26 +4927,29 @@
   async function generateWorkoutPlan(sessionType) {
     const btn = $("btn-generate-workout");
     if (btn && btn.getAttribute("aria-busy") === "true") return;
-    setWorkoutPlanBusy(true);
+    setRefreshPlanBusy(true);
     try {
-      const res = await fetch("/api/workout-plan/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionType ? { session_type: sessionType } : {}),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-      renderWorkoutPlan(data.plan);
-      showAlert(
-        data.plan && data.plan.is_rest_day
-          ? "Rest day suggested"
-          : `Workout plan: ${(data.plan && data.plan.session_type) || "session"}`,
-        "ok"
-      );
-    } catch (e) {
-      showAlert(`Workout plan failed: ${e.message}`, "err");
+      try {
+        const res = await fetch("/api/workout-plan/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sessionType ? { session_type: sessionType } : {}),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+        renderWorkoutPlan(data.plan);
+        showAlert(
+          data.plan && data.plan.is_rest_day
+            ? "Rest day suggested"
+            : `Workout plan: ${(data.plan && data.plan.session_type) || "session"}`,
+          "ok"
+        );
+      } catch (e) {
+        showAlert(`Workout plan failed: ${e.message}`, "err");
+      }
+      await generatePlan({ busyAlready: true });
     } finally {
-      setWorkoutPlanBusy(false);
+      setRefreshPlanBusy(false);
     }
   }
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Behavioral check: generateWorkoutPlan shows a busy state before the network
- * returns, and restores it in finally on success and failure.
+ * Behavioral check: generateWorkoutPlan shows a busy state across workout +
+ * meal generate, and restores it in finally on success and workout failure.
  */
 "use strict";
 
@@ -80,6 +80,8 @@ const els = {
   "workout-plan-refreshing": makeEl("workout-plan-refreshing", "Refreshing workout plan…"),
   "today-workout": makeEl("today-workout", "Mode: train · prescription below"),
   "workout-plan-result": makeEl("workout-plan-result", "<p>PUSH · 5 lifts</p>"),
+  "meal-plan-refreshing": makeEl("meal-plan-refreshing", "Refreshing meal plan…"),
+  "meal-plan-result": makeEl("meal-plan-result", "<p>Next meal · oats 80g</p>"),
 };
 
 global.$ = (id) => els[id] || null;
@@ -98,6 +100,9 @@ global.WORKOUT_PLAN_REFRESH_LABEL = WORKOUT_PLAN_REFRESH_LABEL;
 global.WORKOUT_PLAN_IDLE_LABEL = WORKOUT_PLAN_IDLE_LABEL;
 
 global.setWorkoutPlanBusy = loadFn("setWorkoutPlanBusy");
+global.setMealPlanBusy = loadFn("setMealPlanBusy");
+global.setRefreshPlanBusy = loadFn("setRefreshPlanBusy");
+global.generatePlan = loadFn("generatePlan");
 global.generateWorkoutPlan = loadFn("generateWorkoutPlan");
 const generateWorkoutPlan = global.generateWorkoutPlan;
 
@@ -132,62 +137,108 @@ function assertBusy(on) {
     `workout-plan-result is-refreshing should be ${on}`
   );
   assert(
+    els["meal-plan-result"].classList.contains("is-refreshing") === on,
+    `meal-plan-result is-refreshing should be ${on}`
+  );
+  assert(
     els["today-workout"].innerHTML.indexOf("Mode: train") >= 0,
     "in-flight busy must not wipe the existing Today workout lead"
   );
+  assert(
+    els["meal-plan-result"].innerHTML.indexOf("oats 80g") >= 0,
+    "in-flight busy must not wipe the existing meal plan"
+  );
 }
 
-(async () => {
-  let release;
-  const fetches = [];
-  let rendered = null;
-  const alerts = [];
-
-  global.renderWorkoutPlan = (plan) => {
-    rendered = plan;
+function workoutOk() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, plan: { session_type: "push", is_rest_day: false } }),
   };
-  global.showAlert = (msg, kind) => {
-    alerts.push({ msg: String(msg || ""), kind });
-  };
+}
 
+function mealOk() {
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({ ok: true, plan: { meals: [], message: "No in-stock" } }),
+  };
+}
+
+function workoutFail() {
+  return {
+    ok: false,
+    status: 500,
+    json: async () => ({ ok: false, error: "planner_failed" }),
+  };
+}
+
+function installHeldFetch() {
+  const pending = [];
   global.fetch = (url, opts) => {
     fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
     return new Promise((resolve) => {
-      release = () =>
-        resolve({
-          ok: true,
-          status: 200,
-          json: async () => ({ ok: true, plan: { session_type: "push", is_rest_day: false } }),
-        });
+      pending.push(() =>
+        resolve(url.indexOf("meal-plan") >= 0 ? mealOk() : workoutOk())
+      );
     });
   };
+  return pending;
+}
+
+const fetches = [];
+let renderedWorkout = null;
+let renderedMeal = null;
+const alerts = [];
+
+global.renderWorkoutPlan = (plan) => {
+  renderedWorkout = plan;
+};
+global.renderMealPlan = (plan) => {
+  renderedMeal = plan;
+};
+global.showAlert = (msg, kind) => {
+  alerts.push({ msg: String(msg || ""), kind });
+};
+
+(async () => {
+  let pendingReleases = installHeldFetch();
 
   const pending = generateWorkoutPlan();
   assertBusy(true);
-  assert(fetches.length === 1, "POST starts while busy is visible");
-  assert(fetches[0].url === "/api/workout-plan/generate", "still posts workout-plan generate");
+  assert(fetches.length === 1, "workout POST starts while busy is visible");
+  assert(fetches[0].url === "/api/workout-plan/generate", "first post is workout-plan generate");
   assert(fetches[0].method === "POST", "method is POST");
-  assert(fetches[0].body === "{}", "Refresh plan body stays empty (workout only)");
-  assert(rendered === null, "plan is not rendered before the network returns");
+  assert(fetches[0].body === "{}", "Refresh plan workout body stays empty");
+  assert(renderedWorkout === null, "workout is not rendered before the network returns");
 
-  release();
+  pendingReleases.shift()();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert(fetches.length === 2, "meal generate starts after workout returns");
+  assert(fetches[1].url === "/api/meal-plan/generate", "second post is meal-plan generate");
+  assertBusy(true);
+  assert(renderedMeal === null, "meal is not rendered before its network returns");
+
+  pendingReleases.shift()();
   await pending;
   assertBusy(false);
-  assert(rendered && rendered.session_type === "push", "success still renders the workout plan");
+  assert(renderedWorkout && renderedWorkout.session_type === "push", "success still renders the workout plan");
+  assert(renderedMeal && renderedMeal.message === "No in-stock", "success still renders the honest meal plan");
   assert(alerts.some((a) => a.kind === "ok"), "success toast stays");
 
   fetches.length = 0;
-  rendered = null;
+  renderedWorkout = null;
+  renderedMeal = null;
   alerts.length = 0;
+  pendingReleases = [];
   global.fetch = (url, opts) => {
     fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
     return new Promise((resolve) => {
-      release = () =>
-        resolve({
-          ok: false,
-          status: 500,
-          json: async () => ({ ok: false, error: "planner_failed" }),
-        });
+      pendingReleases.push(() =>
+        resolve(url.indexOf("workout-plan") >= 0 ? workoutFail() : mealOk())
+      );
     });
   };
 
@@ -195,10 +246,15 @@ function assertBusy(on) {
   assertBusy(true);
   assert(fetches[0].url === "/api/workout-plan/generate", "force-session still hits generate");
   assert(JSON.parse(fetches[0].body).session_type === "pull", "force-session still sends session_type");
-  release();
+  pendingReleases.shift()();
+  await Promise.resolve();
+  await Promise.resolve();
+  assert(fetches[1] && fetches[1].url === "/api/meal-plan/generate", "meal generate still runs after workout failure");
+  pendingReleases.shift()();
   await failing;
   assertBusy(false);
-  assert(rendered === null, "failure does not render a plan");
+  assert(renderedWorkout === null, "workout failure does not render a workout plan");
+  assert(renderedMeal && renderedMeal.message === "No in-stock", "meal still renders after workout failure");
   assert(
     alerts.some((a) => a.kind === "err" && a.msg.indexOf("planner_failed") >= 0),
     "existing error toast stays"

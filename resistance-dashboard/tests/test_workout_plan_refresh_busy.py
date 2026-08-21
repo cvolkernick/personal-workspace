@@ -74,17 +74,15 @@ class WorkoutPlanRefreshBoot(unittest.TestCase):
         self.assertIn('setAttribute("aria-busy", "true")', JS)
         self.assertIn("is-refreshing", JS)
 
-    def test_generate_still_workout_only(self):
+    def test_generate_does_workout_then_meal(self):
         gen = _generate_fn()
         self.assertIn('fetch("/api/workout-plan/generate"', gen)
+        self.assertIn("await generatePlan({ busyAlready: true })", gen)
+        self.assertIn("setRefreshPlanBusy(true)", gen)
+        self.assertIn("setRefreshPlanBusy(false)", gen)
         self.assertNotIn("/api/dashboard", gen)
         self.assertNotIn("loadDashboard", gen)
         self.assertNotIn("setFirstLoadVisible", gen)
-        self.assertNotIn("/api/meal-plan", gen)
-        self.assertNotIn("renderMealPlan", gen)
-        self.assertNotIn("generatePlan", gen)
-        self.assertNotIn("setMealPlanBusy", gen)
-        self.assertNotIn("setRefreshPlanBusy", JS)
         self.assertIn("renderWorkoutPlan(data.plan)", gen)
         self.assertIn("showAlert(`Workout plan failed:", gen)
 

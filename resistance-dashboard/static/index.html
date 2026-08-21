@@ -13,12 +13,12 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=meal-plan-busy-1" />
+    <link rel="stylesheet" href="/styles.css?v=meal-plan-busy-2" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=meal-plan-busy-1" defer></script>
+    <script src="/app.js?v=meal-plan-busy-2" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -73,7 +73,7 @@
           <button
             type="button"
             id="btn-refresh"
-            title="Bypass cache — pull Google Health and food logs now"
+            title="Bypass cache — pull Google Health now, then rebuild workout + meal plans"
           >
             Refresh data
           </button>
@@ -163,7 +163,7 @@
           </div>
           <div class="actions actions-row-single today-hub-actions">
             <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
-            <button type="button" id="btn-generate-workout" title="Rebuild today's workout plan only">Refresh plan</button>
+            <button type="button" id="btn-generate-workout" title="Rebuild today's workout and meal plans">Refresh plan</button>
             <button type="button" id="btn-scroll-meal-plan">Meal plan ↓</button>
           </div>
         </div>
@@ -407,9 +407,10 @@
           <h2>Today · meal plan</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Rest-of-day plan from <strong>in-stock</strong> only · portions in grams.
-            Adding, editing, or stocking ingredients under <strong>Kitchen</strong>
-            rebuilds this meal plan. <strong>Refresh plan</strong> rebuilds the
-            workout only. <strong>Refresh data</strong> pulls Health and food logs.
+            Adding, editing, removing, or stocking ingredients under
+            <strong>Kitchen</strong> rebuilds this meal plan.
+            <strong>Refresh plan</strong> rebuilds workout + meals.
+            <strong>Refresh data</strong> pulls Health, then both plans.
           </p>
           <p
             id="meal-plan-refreshing"
@@ -531,8 +532,8 @@
           Day targets in <code>fitness/nutrition/targets.json</code>. Live intake,
           pace bars, and today’s meal plan are on the <strong>Today</strong> tab.
           After stock edits the meal plan rebuilds automatically.
-          Today <strong>Refresh plan</strong> rebuilds the workout only; header
-          <strong>Refresh data</strong> pulls Health and food logs.
+          Today <strong>Refresh plan</strong> rebuilds workout + meals; header
+          <strong>Refresh data</strong> pulls Health, then both plans.
         </p>
         <form class="log-form" id="targets-form">
           <div class="row cols-4">
@@ -704,7 +705,7 @@
           Lifts are local SQLite (not GitHub pull). While this tab is visible, Health
           + Hidrate refresh about every 3 minutes (no spinner). The Pi also warms the
           cache every 5 minutes when the page is closed. <strong>Refresh data</strong>
-          still force-pulls Health and food logs now.
+          still force-pulls Health now, then rebuilds workout + meal plans.
           Reconnect Google only when Health auth expires.
         </p>
         <div class="actions mobile-admin-actions">
@@ -720,7 +721,7 @@
             type="button"
             id="btn-refresh-mobile"
             class="btn-touch"
-            title="Same as header Refresh data — Health and food logs only"
+            title="Same as header Refresh data — Health pull, then workout + meal plans"
           >
             Refresh data
           </button>
