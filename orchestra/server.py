@@ -9,7 +9,7 @@
   GET  /api/launch?domain=  — publicized open URL + live probe (nav v1)
   GET  /api/launch/status   — which domain servers are live
   POST /api/launch          — {domain} ensure server if offline, return url
-  POST /api/complete        — NOW/NEXT source write-back (TA / FitDash; no local store)
+  POST /api/complete        — NOW/NEXT Google Tasks complete (no local store)
   GET  /api/synergies
   GET  /api/priorities
   GET  /api/attention   — attention digest + freshness

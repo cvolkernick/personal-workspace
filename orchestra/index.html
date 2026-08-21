@@ -295,15 +295,16 @@
     }
 
     function isCheckable(item) {
-      return !!(item && item.checkable && item.source && item.source_id);
+      return !!(item && item.checkable && item.source_id && (item.list_id || item.list_title));
     }
 
     function checkboxHtml(item) {
       if (!isCheckable(item)) return "";
       return `<label class="chk"><input type="checkbox" data-complete`
-        + ` data-source="${esc(item.source)}"`
+        + ` data-source="${esc(item.source || "google_tasks")}"`
         + ` data-source-id="${esc(item.source_id)}"`
         + ` data-list-id="${esc(item.list_id || "")}"`
+        + ` data-list-title="${esc(item.list_title || "")}"`
         + ` aria-label="Complete ${esc(item.title || "item")}"></label>`;
     }
 
@@ -406,10 +407,11 @@
     }
 
     async function completeFromInput(input) {
-      const source = (input.getAttribute("data-source") || "").trim();
+      const source = (input.getAttribute("data-source") || "google_tasks").trim();
       const sourceId = (input.getAttribute("data-source-id") || "").trim();
       const listId = (input.getAttribute("data-list-id") || "").trim();
-      if (!source || !sourceId) {
+      const listTitle = (input.getAttribute("data-list-title") || "").trim();
+      if (!sourceId || (!listId && !listTitle)) {
         input.checked = false;
         return;
       }
@@ -417,6 +419,7 @@
       try {
         const body = { source, source_id: sourceId };
         if (listId) body.list_id = listId;
+        if (listTitle) body.list_title = listTitle;
         const res = await fetch("/api/complete", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -1283,9 +1283,9 @@ class AdviceSeatAssayTests(unittest.TestCase):
 
 
 class NowNextCheckAssayTests(unittest.TestCase):
-    """Checkboxes write the source. No Orchestra task store."""
+    """Checkboxes write Google Tasks. No Orchestra or TA task store."""
 
-    def test_ta_source_id_is_checkable_composer_ids_are_not(self) -> None:
+    def test_schedule_block_without_gt_is_uncheckable(self) -> None:
         plan = compose_day_plan(
             [
                 _hol_timed_blocks(),
@@ -1297,36 +1297,58 @@ class NowNextCheckAssayTests(unittest.TestCase):
         )
         by_title = {i.get("title"): i for i in plan["next3"]}
         duchess = by_title.get("Walk Duchess") or {}
-        self.assertTrue(duchess.get("checkable"), msg=plan["next3"])
-        self.assertEqual(duchess.get("source"), "time_allocator")
-        self.assertEqual(duchess.get("source_id"), "duchess-walk")
-        self.assertTrue(is_checkable(duchess))
+        self.assertTrue(duchess, msg=plan["next3"])
+        self.assertFalse(duchess.get("checkable"), msg=duchess)
+        self.assertIsNone(writable_source(duchess))
+        self.assertNotEqual(duchess.get("source"), "time_allocator")
 
-        finance_only = compose_day_plan(
-            [
-                _hol_today(),
-                _wf(ready_count=0, free_agent_count=0),
-                _fit(session_due=False, train_recommendation="rest"),
-                _finance((NOW - timedelta(hours=1)).isoformat()),
-            ],
-            now=NOW,
-        )
-        for item in finance_only["next3"]:
+        for item in plan["next3"]:
             if item.get("domain") == "finance":
                 self.assertFalse(item.get("checkable"), msg=item)
-                self.assertIsNone(writable_source(item))
-
         self.assertFalse(
             is_checkable({"id": "fit-session", "title": "Train push", "kind": "train"})
         )
-        self.assertFalse(
-            is_checkable({"source": "fitdash", "source_id": "t1"})
-        )  # quest without list id
+        self.assertFalse(is_checkable({"source": "time_allocator", "source_id": "duchess-walk"}))
+        self.assertFalse(is_checkable({"source": "google_tasks", "source_id": "t1"}))
         self.assertTrue(
-            is_checkable(
-                {"source": "fitdash", "source_id": "t1", "list_id": "L1"}
-            )
+            is_checkable({"source": "google_tasks", "source_id": "t1", "list_id": "L1"})
         )
+        self.assertTrue(
+            is_checkable({"source": "turo", "source_id": "t2", "list_id": "L-turo"})
+        )
+
+    def test_existing_gt_task_maps_onto_matching_now_title(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_timed_blocks(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(
+                    session_due=False,
+                    train_recommendation="rest",
+                    quests=[
+                        {
+                            "title": "Walk Duchess",
+                            "kind": "quest",
+                            "gt_task_id": "GT-duchess",
+                            "list_id": "L-fit",
+                            "list_title": "Fitness",
+                        }
+                    ],
+                ),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        by_title = {i.get("title"): i for i in plan["next3"]}
+        duchess = by_title.get("Walk Duchess") or {}
+        self.assertTrue(duchess.get("checkable"), msg=plan["next3"])
+        self.assertEqual(duchess.get("source"), "google_tasks")
+        self.assertEqual(duchess.get("source_id"), "GT-duchess")
+        self.assertEqual(duchess.get("list_id"), "L-fit")
+        self.assertTrue(is_checkable(duchess))
+        # Did not force a non-matching quest onto NOW/NEXT
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("invented quest", blob)
 
     def test_index_checkbox_only_on_now_next(self) -> None:
         html = (ORCH / "index.html").read_text(encoding="utf-8")
@@ -1342,81 +1364,48 @@ class NowNextCheckAssayTests(unittest.TestCase):
         complete_src = (ORCH / "complete.py").read_text(encoding="utf-8")
         self.assertNotIn("orchestra/data/tasks", complete_src)
         self.assertNotIn("orchestra/data/done", complete_src)
+        self.assertNotIn("complete_block", complete_src)
+        self.assertNotIn("time_allocator.store", complete_src)
+        self.assertNotIn("holistic/data/tasks", complete_src)
 
-    def test_complete_without_source_id_is_noop(self) -> None:
+    def test_complete_without_gt_id_is_noop(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             ws = Path(td)
             _write(ws / "strategy" / "today.md", "# Today\n- [ ] Ship\n")
             result = complete_item({"title": "No source"}, workspace=ws)
             self.assertFalse(result.get("accepted"))
             self.assertFalse(result.get("ok"))
-            result2 = complete_item({"source": "time_allocator"}, workspace=ws)
+            result2 = complete_item(
+                {"source": "time_allocator", "source_id": "duchess-walk"},
+                workspace=ws,
+            )
             self.assertFalse(result2.get("accepted"))
             self.assertFalse((ws / "orchestra" / "data" / "tasks.json").exists())
             self.assertFalse((ORCH / "data" / "tasks.json").exists())
 
-    def test_complete_ta_source_drops_now(self) -> None:
-        from holistic.time_allocator.domain import (  # noqa: WPS433
-            apply_plan,
-            empty_state,
-            seed_starter,
-        )
-        from holistic.time_allocator.store import save_state  # noqa: WPS433
-
-        with tempfile.TemporaryDirectory() as td:
-            ws = Path(td)
-            _write(ws / "strategy" / "today.md", "# Today\n- [ ] Ship pulse\n")
-            _write(ws / "strategy" / "bets.md", "# Bets\n- **AI**\n")
-            _write_json(ws / "ops" / "backlog" / "items.json", {"items": []})
-            state = apply_plan(seed_starter(empty_state(), personal=True))
-            save_state(state, ws / "holistic" / "data" / "tasks.json")
-            payload = build_orchestra_payload(ws, probe_ports=False)
-            pulse = payload.get("pulse") or {}
-            rows = [pulse.get("now")] + list(pulse.get("next") or [])
-            ta = next(
-                (
-                    r
-                    for r in rows
-                    if isinstance(r, dict)
-                    and r.get("source") == "time_allocator"
-                    and r.get("source_id")
-                ),
-                None,
-            )
-            self.assertIsNotNone(ta, msg=rows)
-            result = complete_item(ta, workspace=ws)
-            self.assertTrue(result.get("accepted"), msg=result)
-            self.assertFalse((ws / "orchestra" / "data" / "tasks.json").exists())
-            after = build_orchestra_payload(ws, probe_ports=False)
-            after_pulse = after.get("pulse") or {}
-            titles = [
-                (after_pulse.get("now") or {}).get("title"),
-                *[x.get("title") for x in after_pulse.get("next") or []],
-            ]
-            self.assertNotIn(ta.get("title"), titles, msg=titles)
-
-    def test_fitdash_complete_uses_existing_path_not_local_store(self) -> None:
+    def test_complete_writes_google_tasks_only(self) -> None:
         from unittest.mock import patch
 
         with tempfile.TemporaryDirectory() as td:
             ws = Path(td)
             with patch(
-                "complete._complete_fitdash_quest",
+                "complete._complete_google_task",
                 return_value={"ok": True, "task": {"id": "t1"}},
             ) as fn:
                 result = complete_item(
-                    {"source": "fitdash", "source_id": "t1", "list_id": "L1"},
+                    {"source": "google_tasks", "source_id": "t1", "list_id": "L1"},
                     workspace=ws,
                 )
             self.assertTrue(result.get("accepted"), msg=result)
             fn.assert_called_once()
+            self.assertEqual(fn.call_args[0][:2], ("L1", "t1"))
             self.assertFalse((ws / "orchestra" / "data" / "tasks.json").exists())
             with patch(
-                "complete._complete_fitdash_quest",
+                "complete._complete_google_task",
                 return_value={"ok": False, "error": "source rejected"},
             ):
                 refused = complete_item(
-                    {"source": "fitdash", "source_id": "t1", "list_id": "L1"},
+                    {"source": "turo", "source_id": "t2", "list_id": "L-turo"},
                     workspace=ws,
                 )
             self.assertFalse(refused.get("accepted"))

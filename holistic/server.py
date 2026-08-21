@@ -8,7 +8,6 @@
   POST /api/add | remove | allocate | set
   POST /api/targets/add | remove | update
   POST /api/log
-  POST /api/complete     — mark a day-block done (log target / remove item)
   POST /api/plan
   POST /api/health/sync       — import sleep into logs
   POST /api/recommend         — optional body {limit}
@@ -42,7 +41,6 @@ from holistic.time_allocator.domain import (  # noqa: E402
     allocate_total,
     apply_plan,
     build_rolling_plan,
-    complete_block,
     kpi_status,
     list_items,
     list_targets,
@@ -313,29 +311,6 @@ class TimeAllocatorHandler(SimpleHTTPRequestHandler):
                 state = apply_plan(state)
                 save_state(state, _data())
                 self._json(200, state_payload())
-                return
-
-            if path == "/api/complete":
-                key = str(
-                    body.get("source_id") or body.get("id") or body.get("key") or ""
-                ).strip()
-                if not key:
-                    self._json(400, {"ok": False, "accepted": False, "error": "source_id is required"})
-                    return
-                state, result = complete_block(
-                    load_state(_data()),
-                    key,
-                    on=body.get("date"),
-                    note=str(body.get("note") or ""),
-                )
-                if not result.get("accepted"):
-                    self._json(400, result)
-                    return
-                state = apply_plan(state)
-                save_state(state, _data())
-                payload = state_payload()
-                payload.update(result)
-                self._json(200, payload)
                 return
 
             if path == "/api/plan":
