@@ -17,6 +17,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     normalize_ingredient,
     remaining_macros,
     remove_ingredient,
+    update_ingredient,
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
@@ -388,6 +389,83 @@ class TestNutritionPlanner(unittest.TestCase):
         iid = inv["ingredients"][0]["id"]
         inv = remove_ingredient(inv, ingredient_id=iid)
         self.assertEqual(len(inv["ingredients"]), 0)
+
+    def test_update_existing_ingredient(self):
+        inv = add_ingredient(
+            {"ingredients": []},
+            {
+                "id": "oats",
+                "name": "Oats",
+                "category": "carb",
+                "serving_g": 40,
+                "calories": 150,
+                "protein_g": 5,
+                "carbs_g": 27,
+                "fat_g": 3,
+                "in_stock": True,
+            },
+        )
+        source = inv
+        updated = update_ingredient(
+            inv,
+            {
+                "id": "oats",
+                "name": "Rolled oats",
+                "category": "carb",
+                "serving_g": 80,
+                "serving_label": "dry",
+                "calories": 300,
+                "protein_g": 10,
+                "carbs_g": 54,
+                "fat_g": 6,
+            },
+        )
+        self.assertEqual(len(updated["ingredients"]), 1)
+        row = updated["ingredients"][0]
+        self.assertEqual(row["id"], "oats")
+        self.assertEqual(row["name"], "Rolled oats")
+        self.assertEqual(row["serving_g"], 80.0)
+        self.assertEqual(row["calories"], 300.0)
+        self.assertEqual(row["protein_g"], 10.0)
+        self.assertTrue(row["in_stock"])
+        # Source inventory is unchanged until the caller persists (cancel analog).
+        self.assertEqual(source["ingredients"][0]["name"], "Oats")
+        self.assertEqual(source["ingredients"][0]["calories"], 150.0)
+
+    def test_update_unknown_id_does_not_invent(self):
+        inv = add_ingredient(
+            {"ingredients": []},
+            {
+                "id": "oats",
+                "name": "Oats",
+                "calories": 150,
+                "protein_g": 5,
+                "carbs_g": 27,
+                "fat_g": 3,
+            },
+        )
+        with self.assertRaises(ValueError) as ctx:
+            update_ingredient(
+                inv,
+                {
+                    "id": "unicorn-steak",
+                    "name": "Unicorn steak",
+                    "calories": 900,
+                    "protein_g": 80,
+                    "carbs_g": 0,
+                    "fat_g": 40,
+                },
+            )
+        self.assertIn("not found", str(ctx.exception).lower())
+        self.assertEqual(len(inv["ingredients"]), 1)
+        self.assertEqual(inv["ingredients"][0]["id"], "oats")
+
+    def test_update_missing_id_is_required(self):
+        inv = {"ingredients": [{"id": "oats", "name": "Oats", "calories": 1}]}
+        with self.assertRaises(ValueError) as ctx:
+            update_ingredient(inv, {"name": "Oats", "calories": 9})
+        self.assertIn("id required", str(ctx.exception).lower())
+        self.assertEqual(inv["ingredients"][0]["calories"], 1)
 
 
 if __name__ == "__main__":

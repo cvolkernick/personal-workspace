@@ -669,6 +669,52 @@ def set_in_stock(inventory: dict, ingredient_id: str, in_stock: bool) -> dict:
     return inv
 
 
+def update_ingredient(inventory: dict, raw: dict) -> dict:
+    """Edit an existing inventory row. Never invents a new item.
+
+    Requires ``id``. Unknown / missing id raises ValueError (honest error).
+    Same add-form fields are overlaid; stable id and in_stock stay unless sent.
+    """
+    inv = deepcopy(inventory) if inventory else {"ingredients": []}
+    iid = str((raw or {}).get("id") or "").strip()
+    if not iid:
+        raise ValueError("ingredient id required")
+    want = iid.lower()
+    ingredients = inv.setdefault("ingredients", [])
+    idx = None
+    for i, existing in enumerate(ingredients):
+        if str(existing.get("id") or "").strip().lower() == want:
+            idx = i
+            break
+    if idx is None:
+        raise ValueError("ingredient not found")
+    existing = dict(ingredients[idx])
+    overlay = {
+        "id": existing.get("id") or iid,
+        "name": raw.get("name", existing.get("name")),
+        "category": raw.get("category", existing.get("category")),
+        "serving_label": (
+            raw["serving_label"] if "serving_label" in raw else existing.get("serving_label")
+        ),
+        "calories": raw.get("calories", existing.get("calories")),
+        "protein_g": raw.get("protein_g", existing.get("protein_g")),
+        "carbs_g": raw.get("carbs_g", existing.get("carbs_g")),
+        "fat_g": raw.get("fat_g", existing.get("fat_g")),
+        "in_stock": raw.get("in_stock", existing.get("in_stock", True)),
+        "notes": raw.get("notes", existing.get("notes", "")),
+    }
+    if "serving_g" in raw:
+        overlay["serving_g"] = raw.get("serving_g")
+    elif existing.get("serving_g") is not None:
+        overlay["serving_g"] = existing.get("serving_g")
+    ing = normalize_ingredient(overlay)
+    # Keep the existing id so a rename does not mint a second row.
+    ing["id"] = str(existing.get("id") or iid)
+    ingredients[idx] = ing
+    inv["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return inv
+
+
 def update_targets(raw: dict) -> dict:
     t = normalize_targets(raw)
     t["updated_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%d")

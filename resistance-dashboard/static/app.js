@@ -3,6 +3,8 @@
   const $ = (id) => document.getElementById(id);
 
   let state = null;
+  /** Inventory row currently in inline edit. Null means display-only (no write). */
+  let inventoryEditId = null;
   let volumeChart = null;
   let strengthChart = null;
   let weightChart = null;
@@ -1896,6 +1898,104 @@
     return String(ing.serving_label || "1 serving").trim() || "1 serving";
   }
 
+  function invEscapeAttr(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;");
+  }
+
+  function inventoryEditNote(ing) {
+    const sg = Number(ing && ing.serving_g);
+    const gVal = Number.isFinite(sg) && sg > 0 ? String(Math.round(sg)) : "";
+    let note = String((ing && ing.serving_label) || "").trim();
+    if (!note || note.toLowerCase() === "1 serving") return "";
+    if (gVal && (note === `${gVal}g` || note.toLowerCase() === `${gVal}g`)) return "";
+    if (gVal && note.toLowerCase().startsWith(`${gVal}g`)) {
+      return note.slice(String(`${gVal}g`).length).replace(/^[\s·,-]+/, "").trim();
+    }
+    return note;
+  }
+
+  function cancelInventoryEdit() {
+    if (!inventoryEditId) return;
+    inventoryEditId = null;
+    renderInventory(state && state.nutrition_store);
+  }
+
+  function collectInventoryEdit(card) {
+    const get = (field) => {
+      const el = card && card.querySelector(`[data-edit-field="${field}"]`);
+      return el ? String(el.value || "").trim() : "";
+    };
+    const servingGRaw = get("serving_g");
+    const servingG = servingGRaw === "" ? null : Number(servingGRaw);
+    const body = {
+      id: String((card && card.getAttribute("data-ing-id")) || "").trim(),
+      name: get("name"),
+      category: get("category") || "other",
+      serving_label: get("serving_label"),
+      calories: Number(get("calories")),
+      protein_g: Number(get("protein_g")),
+      carbs_g: Number(get("carbs_g")),
+      fat_g: Number(get("fat_g")),
+    };
+    if (Number.isFinite(servingG) && servingG > 0) {
+      body.serving_g = servingG;
+      if (!body.serving_label) body.serving_label = `${Math.round(servingG)}g`;
+    } else if (!body.serving_label) {
+      body.serving_label = "1 serving";
+    }
+    return body;
+  }
+
+  function inventoryEditFormHtml(ing) {
+    const iid = invEscapeAttr(ing.id || "");
+    const cat = String(ing.category || "other");
+    const sg = Number(ing.serving_g);
+    const gVal = Number.isFinite(sg) && sg > 0 ? String(Math.round(sg)) : "";
+    const cats = ["protein", "carb", "veg", "fat", "other"];
+    const opts = cats
+      .map((c) => {
+        const label = c.charAt(0).toUpperCase() + c.slice(1);
+        return `<option value="${c}"${c === cat ? " selected" : ""}>${label}</option>`;
+      })
+      .join("");
+    return `
+      <form class="inv-edit-form" data-ing-id="${iid}">
+        <div class="inv-edit-row">
+          <label>Name <input type="text" data-edit-field="name" value="${invEscapeAttr(
+            ing.name || ""
+          )}" required /></label>
+          <label>Category <select data-edit-field="category">${opts}</select></label>
+          <label>Portion (g) <input type="number" data-edit-field="serving_g" min="1" step="1" value="${invEscapeAttr(
+            gVal
+          )}" /></label>
+        </div>
+        <label class="inv-edit-note">Note <input type="text" data-edit-field="serving_label" value="${invEscapeAttr(
+          inventoryEditNote(ing)
+        )}" placeholder="e.g. cooked" /></label>
+        <div class="inv-edit-row macros">
+          <label>Cal <input type="number" data-edit-field="calories" min="0" step="1" value="${invEscapeAttr(
+            ing.calories
+          )}" required /></label>
+          <label>Protein (g) <input type="number" data-edit-field="protein_g" min="0" step="0.1" value="${invEscapeAttr(
+            ing.protein_g
+          )}" required /></label>
+          <label>Carbs (g) <input type="number" data-edit-field="carbs_g" min="0" step="0.1" value="${invEscapeAttr(
+            ing.carbs_g
+          )}" required /></label>
+          <label>Fat (g) <input type="number" data-edit-field="fat_g" min="0" step="0.1" value="${invEscapeAttr(
+            ing.fat_g
+          )}" required /></label>
+        </div>
+        <div class="actions inv-card-actions">
+          <button type="submit" class="primary" data-action="edit-save" data-id="${iid}">Save</button>
+          <button type="button" data-action="edit-cancel" data-id="${iid}">Cancel</button>
+        </div>
+      </form>`;
+  }
+
   function renderInventory(store) {
     const list = $("inventory-list");
     if (!list) return;
@@ -1917,9 +2017,17 @@
     let cards = "";
     items.forEach((ing) => {
       const stock = ing.in_stock !== false;
-      const iid = String(ing.id || "").replace(/"/g, "&quot;");
-      const iname = String(ing.name || "").replace(/"/g, "&quot;");
-      cards += `<div class="inv-card${stock ? "" : " out"}">
+      const iid = invEscapeAttr(ing.id || "");
+      const iname = invEscapeAttr(ing.name || "");
+      const rawId = String(ing.id || "");
+      const editing = inventoryEditId && rawId && inventoryEditId === rawId;
+      if (editing) {
+        cards += `<div class="inv-card editing${stock ? "" : " out"}" data-ing-id="${iid}">
+          ${inventoryEditFormHtml(ing)}
+        </div>`;
+        return;
+      }
+      cards += `<div class="inv-card${stock ? "" : " out"}" data-ing-id="${iid}">
         <div class="inv-card-name">${ing.name || "Ingredient"}${
         stock ? "" : ' <span class="inv-out-badge">out</span>'
       }</div>
@@ -1928,6 +2036,7 @@
       )}</div>
         ${invMacroStrip(ing, false)}
         <div class="actions inv-card-actions">
+          <button type="button" class="btn-edit" data-action="edit" data-id="${iid}" data-name="${iname}">Edit</button>
           <button type="button" class="btn-stock" data-action="stock" data-id="${iid}" data-name="${iname}" data-stock="${stock ? "0" : "1"}">
             ${stock ? "Mark out" : "Mark in stock"}
           </button>
@@ -2056,6 +2165,19 @@
     const root = $("inventory-section") || $("inventory-card") || document;
     if (root.dataset && root.dataset.invBound === "1") return;
     if (root.dataset) root.dataset.invBound = "1";
+    root.addEventListener("keydown", (ev) => {
+      if (ev.key !== "Escape") return;
+      if (!inventoryEditId) return;
+      ev.preventDefault();
+      cancelInventoryEdit();
+    });
+    root.addEventListener("submit", (ev) => {
+      const form = ev.target.closest && ev.target.closest(".inv-edit-form");
+      if (!form || !root.contains(form)) return;
+      ev.preventDefault();
+      const saveBtn = form.querySelector('[data-action="edit-save"]');
+      if (saveBtn) saveBtn.click();
+    });
     root.addEventListener("click", async (ev) => {
       const btn = ev.target.closest("button[data-action]");
       if (!btn || !root.contains(btn)) return;
@@ -2092,6 +2214,24 @@
       ev.stopPropagation();
       const id = (btn.getAttribute("data-id") || "").trim();
       const name = (btn.getAttribute("data-name") || "").trim();
+      if (action === "edit") {
+        if (!id) {
+          showAlert("Edit failed: missing ingredient id", "err");
+          return;
+        }
+        inventoryEditId = id;
+        renderInventory(state && state.nutrition_store);
+        const card = Array.from(root.querySelectorAll(".inv-card.editing")).find(
+          (el) => el.getAttribute("data-ing-id") === id
+        );
+        const first = card && card.querySelector("[data-edit-field=name]");
+        if (first) first.focus();
+        return;
+      }
+      if (action === "edit-cancel") {
+        cancelInventoryEdit();
+        return;
+      }
       btn.disabled = true;
       try {
         if (action === "suggest-remove") {
@@ -2173,6 +2313,34 @@
             }
             renderInventorySuggestions(state.nutrition_store);
           }
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
+          return;
+        }
+        if (action === "edit-save") {
+          const card = btn.closest(".inv-card");
+          const body = collectInventoryEdit(card);
+          if (!body.id) {
+            throw new Error("missing ingredient id");
+          }
+          if (!body.name) {
+            throw new Error("ingredient name required");
+          }
+          const res = await fetch("/api/inventory/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok || !data.ok) {
+            throw new Error(data.error || `HTTP ${res.status}`);
+          }
+          inventoryEditId = null;
+          applyInventoryUpdate(data.inventory);
+          showAlert(`Updated ${body.name}`, "ok");
           try {
             await generatePlan();
           } catch (_) {

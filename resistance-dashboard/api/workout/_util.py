@@ -23,13 +23,14 @@ _ROUTES = (
     "inv_add",
     "inv_remove",
     "inv_stock",
+    "inv_update",
     "meal_plan",
     "meal_generate",
     "refresh",
     "daily_tasks",
     "daily_tasks_complete",
 )
-_INV_ROUTES = ("inv_add", "inv_remove", "inv_stock")
+_INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
 
 
@@ -72,6 +73,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "generate"
     if "/api/workouts" in blob:
         return "workouts"
+    if "/api/inventory/update" in blob:
+        return "inv_update"
     if "/api/inventory/add" in blob:
         return "inv_add"
     if "/api/inventory/remove" in blob:
@@ -328,7 +331,7 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
 
 
 def inventory_write(headers, route: str, payload=None):
-    """Kitchen add/remove/stock to Turso. Cookie-less 401. Failed persist is 5xx."""
+    """Kitchen add/remove/stock/update to Turso. Cookie-less 401. Failed persist is 5xx."""
     user, err = require_user(headers)
     if err:
         return err
@@ -341,6 +344,7 @@ def inventory_write(headers, route: str, payload=None):
         add_ingredient,
         remove_ingredient,
         set_in_stock,
+        update_ingredient,
     )
 
     uid = str(user.get("id") or "")
@@ -360,6 +364,8 @@ def inventory_write(headers, route: str, payload=None):
                 ingredient_id=str(payload.get("id") or ""),
                 in_stock=bool(payload.get("in_stock", True)),
             )
+        elif route == "inv_update":
+            updated = update_ingredient(current, payload)
         else:
             return 400, {"ok": False, "error": "unknown_inventory_route"}
         saved = save_preview_inventory(updated, uid)

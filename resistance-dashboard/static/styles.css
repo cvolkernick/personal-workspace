@@ -2075,6 +2075,52 @@ footer {
 }
 
 
+.inv-card.editing {
+  border-color: var(--accent);
+}
+
+.inv-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.inv-edit-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.4rem;
+}
+
+.inv-edit-row.macros {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.inv-edit-form label,
+.inv-edit-note {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.inv-edit-form input,
+.inv-edit-form select {
+  font: inherit;
+  font-weight: 500;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.btn-edit {
+  border-color: rgba(61, 156, 240, 0.45) !important;
+}
+
 .inv-card-actions {
   margin-top: 0.55rem;
 }
@@ -2104,6 +2150,10 @@ footer {
   }
   .inv-slide {
     flex-basis: min(170px, 78vw);
+  }
+  .inv-edit-row,
+  .inv-edit-row.macros {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
