@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-21T16:36:50.561847+00:00",
+  "as_of": "2026-08-21T17:53:02.778184+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -648,19 +648,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "9/20/2026",
-          "from": "X Money",
-          "item": "Sud Stop Car Wash",
-          "daily": 0.87,
-          "weekly": 6.12,
-          "biweekly": 12.23,
-          "monthly": 26.58,
-          "annually": 318.96,
-          "budget_allocation": null,
-          "quarterly": 79.74,
-          "tab": "Fleet"
-        },
-        {
           "date": "8/21/2026",
           "from": "X Money",
           "item": "Fleet Insurance",
@@ -710,6 +697,19 @@
           "annually": 108.0,
           "budget_allocation": null,
           "quarterly": 27.0,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/20/2026",
+          "from": "X Money",
+          "item": "Sud Stop Car Wash",
+          "daily": 0.87,
+          "weekly": 6.12,
+          "biweekly": 12.23,
+          "monthly": 26.58,
+          "annually": 318.96,
+          "budget_allocation": null,
+          "quarterly": 79.74,
           "tab": "Fleet"
         },
         {
