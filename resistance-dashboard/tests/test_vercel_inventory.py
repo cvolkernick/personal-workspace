@@ -75,12 +75,15 @@ class BundledInventoryFile(unittest.TestCase):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
         self.assertIn("fitness/nutrition/inventory.json", raw)
         self.assertIn("/api/inventory/add", raw)
+        self.assertIn("/api/inventory/update", raw)
         self.assertIn("/api/inventory/remove", raw)
         self.assertIn("/api/inventory/stock", raw)
         self.assertIn("/api/dashboard?_r=inv_add", raw)
+        self.assertIn("/api/dashboard?_r=inv_update", raw)
         self.assertNotIn("api/inventory.py", raw)
         self.assertFalse((ROOT / "api" / "inventory.py").exists())
         self.assertFalse((ROOT / "api" / "inventory").is_dir())
+        self.assertFalse((ROOT / "api" / "inventory" / "update.py").exists())
 
 
 class EmptyTursoSeedsFromFile(unittest.TestCase):
@@ -157,6 +160,7 @@ class KitchenWrites(unittest.TestCase):
         with mock.patch.dict(os.environ, {}, clear=True):
             for path, route in (
                 ("/api/inventory/add", "inv_add"),
+                ("/api/inventory/update", "inv_update"),
                 ("/api/inventory/remove", "inv_remove"),
                 ("/api/inventory/stock", "inv_stock"),
             ):
@@ -243,6 +247,161 @@ class KitchenWrites(unittest.TestCase):
         self.assertIn(status, (500, 503))
         self.assertFalse(body["ok"])
         self.assertTrue(body.get("error"))
+
+    def _seeded_store(self):
+        return {
+            "updated_at": "2026-08-19",
+            "ingredients": [
+                {
+                    "id": "oats",
+                    "name": "Oats",
+                    "category": "carb",
+                    "serving_g": 40,
+                    "serving_label": "40g dry",
+                    "calories": 150,
+                    "protein_g": 5,
+                    "carbs_g": 27,
+                    "fat_g": 3,
+                    "in_stock": True,
+                },
+                {
+                    "id": "egg-whites",
+                    "name": "Egg whites",
+                    "category": "protein",
+                    "calories": 125,
+                    "protein_g": 26,
+                    "carbs_g": 2,
+                    "fat_g": 0,
+                    "in_stock": True,
+                },
+            ],
+        }
+
+    def test_signed_in_update_persists_to_turso(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        store = {"sub-1": self._seeded_store()}
+        puts = []
+
+        def get(uid):
+            return store.get(uid)
+
+        def put(uid, inv):
+            puts.append((uid, inv))
+            store[uid] = inv
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_get_inventory",
+                side_effect=get,
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_put_inventory",
+                side_effect=put,
+            ):
+                status, body = inventory_write(
+                    self._headers(),
+                    "inv_update",
+                    {
+                        "id": "oats",
+                        "name": "Rolled oats",
+                        "category": "carb",
+                        "serving_g": 80,
+                        "serving_label": "dry",
+                        "calories": 300,
+                        "protein_g": 10,
+                        "carbs_g": 54,
+                        "fat_g": 6,
+                    },
+                )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        oats = next(i for i in body["inventory"]["ingredients"] if i["id"] == "oats")
+        self.assertEqual(oats["name"], "Rolled oats")
+        self.assertEqual(oats["calories"], 300.0)
+        self.assertEqual(oats["serving_g"], 80.0)
+        self.assertEqual(len(body["inventory"]["ingredients"]), 2)
+        self.assertTrue(puts)
+        self.assertEqual(puts[-1][0], "sub-1")
+        self.assertTrue(body["write"]["ok"])
+        self.assertEqual(body["write"]["source"], "turso")
+
+    def test_update_unknown_id_is_honest_error_not_invented(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        seed = self._seeded_store()
+        store = {"sub-1": seed}
+        puts = []
+
+        def get(uid):
+            return store.get(uid)
+
+        def put(uid, inv):
+            puts.append((uid, inv))
+            store[uid] = inv
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_get_inventory",
+                side_effect=get,
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_put_inventory",
+                side_effect=put,
+            ):
+                status, body = inventory_write(
+                    self._headers(),
+                    "inv_update",
+                    {
+                        "id": "unicorn-steak",
+                        "name": "Unicorn steak",
+                        "calories": 900,
+                        "protein_g": 80,
+                        "carbs_g": 0,
+                        "fat_g": 40,
+                    },
+                )
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertIn("not found", str(body.get("error") or "").lower())
+        self.assertNotIn("inventory", body)
+        self.assertEqual(puts, [])
+        self.assertEqual(len(store["sub-1"]["ingredients"]), 2)
+        names = [i["name"] for i in store["sub-1"]["ingredients"]]
+        self.assertNotIn("Unicorn steak", names)
+
+    def test_dispatch_update_path_uses_existing_dashboard_function(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            status, body = dispatch_client_route(
+                {}, "", "POST", payload={"id": "oats"}, path="/api/inventory/update"
+            )
+        self.assertEqual(status, 401)
+        self.assertEqual(body["error"], "auth_required")
+
+
+class InventoryEditUi(unittest.TestCase):
+    def test_row_has_edit_and_cancel_does_not_write(self):
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        css = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
+        html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn('data-action="edit"', js)
+        self.assertIn(">Edit</button>", js)
+        self.assertIn('data-action="edit-save"', js)
+        self.assertIn('data-action="edit-cancel"', js)
+        self.assertIn('fetch("/api/inventory/update"', js)
+        self.assertIn("function cancelInventoryEdit", js)
+        cancel = js.split("function cancelInventoryEdit()", 1)[1].split("function ", 1)[0]
+        self.assertNotIn("fetch(", cancel)
+        self.assertNotIn("/api/inventory/update", cancel)
+        self.assertIn("inventoryEditId = null", cancel)
+        self.assertIn('ev.key !== "Escape"', js)
+        escape = js.split('ev.key !== "Escape"', 1)[1].split("root.addEventListener", 1)[0]
+        self.assertIn("cancelInventoryEdit()", escape)
+        self.assertNotIn("fetch(", escape)
+        self.assertIn("Ingredient Inventory", html)
+        self.assertIn(".inv-edit-form", css)
+        self.assertIn(".btn-edit", css)
 
 
 class DashboardInventoryPayload(unittest.TestCase):

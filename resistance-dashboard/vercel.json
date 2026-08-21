@@ -45,6 +45,10 @@
       "destination": "/api/dashboard?_r=inv_add"
     },
     {
+      "source": "/api/inventory/update",
+      "destination": "/api/dashboard?_r=inv_update"
+    },
+    {
       "source": "/api/inventory/remove",
       "destination": "/api/dashboard?_r=inv_remove"
     },

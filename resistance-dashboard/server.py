@@ -120,6 +120,7 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
+    update_ingredient,
     update_targets,
 )
 from rt_dashboard.nutrition_store import (  # noqa: E402
@@ -1703,6 +1704,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     INVENTORY_PATH,
                     updated,
                     message=f"nutrition: add/update ingredient {body.get('name', '')}",
+                )
+                self._send_json({"ok": True, "inventory": updated, "write": write})
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/inventory/update":
+            try:
+                body = self._read_json()
+                client = build_github_client(for_write=True)
+                store = load_inventory_and_targets(client)
+                updated = update_ingredient(store["inventory"], body)
+                write = write_nutrition_file(
+                    client,
+                    INVENTORY_PATH,
+                    updated,
+                    message=f"nutrition: edit ingredient {body.get('id') or body.get('name', '')}",
                 )
                 self._send_json({"ok": True, "inventory": updated, "write": write})
             except (ValueError, json.JSONDecodeError) as e:
