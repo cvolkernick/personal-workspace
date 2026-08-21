@@ -13,12 +13,12 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=refresh-plan-1" />
+    <link rel="stylesheet" href="/styles.css?v=meal-plan-busy-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=refresh-plan-1" defer></script>
+    <script src="/app.js?v=meal-plan-busy-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -73,7 +73,7 @@
           <button
             type="button"
             id="btn-refresh"
-            title="Bypass cache — pull Google Health (weight, sleep, food, hydration) now"
+            title="Bypass cache — pull Google Health and food logs now"
           >
             Refresh data
           </button>
@@ -163,7 +163,7 @@
           </div>
           <div class="actions actions-row-single today-hub-actions">
             <button type="button" class="primary" id="btn-log-plan">Log this plan</button>
-            <button type="button" id="btn-generate-workout">Refresh plan</button>
+            <button type="button" id="btn-generate-workout" title="Rebuild today's workout plan only">Refresh plan</button>
             <button type="button" id="btn-scroll-meal-plan">Meal plan ↓</button>
           </div>
         </div>
@@ -407,8 +407,19 @@
           <h2>Today · meal plan</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Rest-of-day plan from <strong>in-stock</strong> only · portions in grams.
-            Stock toggles under <strong>Kitchen</strong>. Rebuilds on dashboard
-            <strong>Refresh data</strong> (and after stock edits).
+            Adding, editing, or stocking ingredients under <strong>Kitchen</strong>
+            rebuilds this meal plan. <strong>Refresh plan</strong> rebuilds the
+            workout only. <strong>Refresh data</strong> pulls Health and food logs.
+          </p>
+          <p
+            id="meal-plan-refreshing"
+            class="workout-plan-refreshing"
+            hidden
+            role="status"
+            aria-live="polite"
+          >
+            <span class="workout-plan-refreshing-spinner" aria-hidden="true"></span>
+            Refreshing meal plan…
           </p>
           <div id="meal-plan-result" style="margin-top: 0.75rem"></div>
         </article>
@@ -467,6 +478,7 @@
             are secondary. Data:
             <code>fitness/nutrition/inventory.json</code>.
             Day macros/weight goal: <strong>More → Daily Targets</strong>.
+            Add, edit, remove, or stock changes rebuild today’s meal plan.
           </p>
           <form class="log-form" id="ingredient-form">
             <div class="row cols-3">
@@ -518,8 +530,9 @@
         <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
           Day targets in <code>fitness/nutrition/targets.json</code>. Live intake,
           pace bars, and today’s meal plan are on the <strong>Today</strong> tab.
-          After stock edits the meal plan rebuilds automatically; use header
-          <strong>Refresh data</strong> anytime.
+          After stock edits the meal plan rebuilds automatically.
+          Today <strong>Refresh plan</strong> rebuilds the workout only; header
+          <strong>Refresh data</strong> pulls Health and food logs.
         </p>
         <form class="log-form" id="targets-form">
           <div class="row cols-4">
@@ -691,7 +704,8 @@
           Lifts are local SQLite (not GitHub pull). While this tab is visible, Health
           + Hidrate refresh about every 3 minutes (no spinner). The Pi also warms the
           cache every 5 minutes when the page is closed. <strong>Refresh data</strong>
-          still force-pulls now. Reconnect Google only when Health auth expires.
+          still force-pulls Health and food logs now.
+          Reconnect Google only when Health auth expires.
         </p>
         <div class="actions mobile-admin-actions">
           <button
@@ -706,7 +720,7 @@
             type="button"
             id="btn-refresh-mobile"
             class="btn-touch"
-            title="Same as header Refresh data — force Health pull"
+            title="Same as header Refresh data — Health and food logs only"
           >
             Refresh data
           </button>

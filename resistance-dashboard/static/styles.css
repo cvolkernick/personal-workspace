@@ -2271,7 +2271,7 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   box-shadow: 0 0 0 1px rgba(61, 156, 240, 0.25);
 }
 
-/* Inline busy state for Refresh plan / force-session (workout only). */
+/* Inline busy state for Refresh plan (workout) and inventory meal rebuild. */
 .workout-plan-refreshing {
   display: flex;
   align-items: center;
@@ -2293,7 +2293,8 @@ body.m-shell[data-m-active="today"] #app-shell.is-first-loading section.grid[dat
   flex: 0 0 auto;
 }
 #today-workout.is-refreshing,
-#workout-plan-result.is-refreshing {
+#workout-plan-result.is-refreshing,
+#meal-plan-result.is-refreshing {
   opacity: 0.5;
 }
 #btn-generate-workout.is-refreshing,
