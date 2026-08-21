@@ -39,7 +39,9 @@ geometry onto the print.
 
 ## Live catalog
 
-`mikrafts/catalog/items.json` ships as `[]`. Do not seed dummy prints.
+`mikrafts/catalog/items.json` plus `catalog/images/` is the catalog source of
+truth. The first live row is Faith & Flow Tabletop Fountain. Do not seed
+dummy prints, prices, or purchase orders.
 
 An **example** card exists only in `docs/design.md` and `tests/fixtures/`.
 It is not a live catalog row.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MiKrafts v1: card copy, honest empty catalog, ingest stub, isolation."""
+"""MiKrafts: card copy, first live catalog item, ingest stub, isolation."""
 
 from __future__ import annotations
 
@@ -86,30 +86,64 @@ class TestLandingCardCopy(unittest.TestCase):
         self.assertIn("nozzle", logo.lower())
 
 
-class TestHonestEmptyCatalog(unittest.TestCase):
-    def test_live_items_json_is_empty_array(self) -> None:
-        data = json.loads(ITEMS.read_text(encoding="utf-8"))
-        self.assertEqual(data, [])
+FAITH_TITLE = "Faith & Flow Tabletop Fountain"
+FAITH_NOTE = (
+    "Bring a sense of peace and serenity to any space with this elegant "
+    "tabletop fountain."
+)
 
-    def test_no_live_catalog_images(self) -> None:
+
+class TestFirstLiveCatalog(unittest.TestCase):
+    def test_live_items_json_is_exactly_one_faith_flow(self) -> None:
+        data = json.loads(ITEMS.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 1)
+        item = data[0]
+        self.assertEqual(item["title"], FAITH_TITLE)
+        self.assertEqual(item["note"], FAITH_NOTE)
+        self.assertNotIn("price", item)
+        self.assertNotIn("buy", item)
+        blob = json.dumps(item).lower()
+        self.assertNotIn("$", blob)
+        self.assertNotIn("purchase order", blob)
+        self.assertNotIn('"po"', blob)
+
+    def test_live_catalog_has_one_processed_jpeg(self) -> None:
+        data = json.loads(ITEMS.read_text(encoding="utf-8"))
+        self.assertEqual(len(data), 1)
+        image_path = ROOT / data[0]["image"]
+        self.assertTrue(image_path.is_file(), image_path)
+        self.assertEqual(image_path.suffix.lower(), ".jpg")
+        self.assertGreater(image_path.stat().st_size, 100)
         live = [
             p
             for p in IMAGES.iterdir()
             if p.is_file() and p.name != ".gitkeep" and not p.name.startswith(".")
         ]
-        self.assertEqual(live, [])
+        self.assertEqual([p.name for p in live], [image_path.name])
 
-    def test_catalog_page_ships_honest_empty(self) -> None:
+    def test_one_item_renders_one_card_without_empty_copy(self) -> None:
+        items = json.loads(ITEMS.read_text(encoding="utf-8"))
+        html = render_catalog_cards(items)
+        self.assertEqual(html.count("catalog-card"), 1)
+        self.assertIn(FAITH_TITLE, html)
+        self.assertIn(FAITH_NOTE, html)
+        self.assertIn(items[0]["image"], html)
+        self.assertNotIn("No prints in the catalog yet.", html)
+        self.assertNotIn("$", html)
+        self.assertNotIn("Buy", html)
+        self.assertNotIn("Add to cart", html)
+
+    def test_catalog_page_has_no_prices_or_dummy_cards(self) -> None:
         html = CATALOG_PAGE.read_text(encoding="utf-8")
         js = CATALOG_JS.read_text(encoding="utf-8")
-        self.assertIn("No prints in the catalog yet.", html)
-        self.assertIn('data-state="empty"', html)
         self.assertIn("catalog/items.json", js)
-        self.assertIn("No prints in the catalog yet.", js)
+        self.assertIn("No prices on this page.", html)
         self.assertNotIn("catalog-card", html)
         self.assertIsNone(DUMMY_PRINT_RE.search(html))
         self.assertIsNone(DUMMY_PRINT_RE.search(js))
         self.assertNotIn("Example print", html)
+        self.assertNotIn("$", html)
+        self.assertNotIn("Add to cart", html)
 
     def test_empty_render_is_not_a_dummy_card(self) -> None:
         html = render_catalog_cards([])
@@ -155,7 +189,9 @@ class TestIngestStub(unittest.TestCase):
             self.assertIn(FIXTURE.name.split(".")[0] or "example", FIXTURE.name)
 
         live = json.loads(ITEMS.read_text(encoding="utf-8"))
-        self.assertEqual(live, [], "ingest must not write the live catalog")
+        self.assertEqual(len(live), 1, "temp ingest must not add a second live row")
+        self.assertEqual(live[0]["title"], FAITH_TITLE)
+        self.assertNotIn("Example print", json.dumps(live))
 
     def test_example_lives_only_in_docs_and_tests(self) -> None:
         live = ITEMS.read_text(encoding="utf-8")
