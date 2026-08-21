@@ -3,8 +3,9 @@
 Public landing + catalog for **Mike Volkernick**'s 3D printing shop.
 Product owner: Chris. First pass only — no pricing, cart, or purchase orders.
 
-Open `index.html` and `catalog.html` in a browser, or serve this folder with
-any static file server. A separate Vercel project will host it later.
+Open `index.html`, `catalog.html`, or `feedback.html` in a browser, or serve
+this folder with any static file server. Grok publishes the own Vercel
+project after merge (`docs/hosting.md`).
 
 ## Catalog
 
@@ -17,8 +18,8 @@ To add a print later (not a mail watcher):
 python3 mikrafts/ingest.py --image /path/to/photo.jpg --title "Title" --note "Optional note"
 ```
 
-Email contract for the future Gmail pipeline: `docs/ingest.md`.
-Brand notes: `docs/design.md`.
+Email contracts: `docs/ingest.md` (`new print`) and `docs/feedback.md`
+(`mikrafts feedback` → cvolkern@gmail.com). Brand notes: `docs/design.md`.
 
 ## Verify
 

@@ -43,3 +43,6 @@ geometry onto the print.
 
 An **example** card exists only in `docs/design.md` and `tests/fixtures/`.
 It is not a live catalog row.
+
+Site feedback is a separate contract (`docs/feedback.md`): subject contains
+`mikrafts feedback`, delivered via mailto to Chris — not this ingest path.

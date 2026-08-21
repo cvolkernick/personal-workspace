@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Send MiKrafts site feedback to Chris." />
+  <title>Feedback · MiKrafts LLC</title>
+  <link rel="icon" href="static/logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="static/styles.css" />
+</head>
+<body class="catalog-page">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="brand-bar">
+    <div class="wrap brand-bar-inner">
+      <a class="brand-home" href="index.html">
+        <img class="logo" src="static/logo.svg" width="64" height="64" alt="" />
+        <span class="brand-word">MiKrafts</span>
+      </a>
+      <nav class="site-nav" aria-label="Primary">
+        <a href="index.html">Home</a>
+        <a href="catalog.html">Catalog</a>
+        <a href="feedback.html" aria-current="page">Feedback</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="wrap">
+      <header class="catalog-head">
+        <h1>Feedback</h1>
+        <p>
+          Send notes on this site to Chris at
+          <a href="mailto:cvolkern@gmail.com?subject=mikrafts%20feedback">cvolkern@gmail.com</a>.
+          The subject must contain <strong>mikrafts feedback</strong>.
+        </p>
+      </header>
+
+      <form id="feedback-form" class="feedback-form" novalidate>
+        <div class="form-row">
+          <label for="feedback-name">Name</label>
+          <input id="feedback-name" name="name" type="text" autocomplete="name" placeholder="Mike Volkernick" />
+        </div>
+        <div class="form-row">
+          <label for="feedback-email">Reply-to email</label>
+          <input
+            id="feedback-email"
+            name="email"
+            type="email"
+            autocomplete="email"
+            placeholder="MiKraftsLLC@gmail.com"
+          />
+        </div>
+        <div class="form-row">
+          <label for="feedback-message">Message</label>
+          <textarea id="feedback-message" name="message" rows="6" required placeholder="What should Chris know?"></textarea>
+        </div>
+        <p id="feedback-status" class="form-status" role="status" aria-live="polite"></p>
+        <button type="submit" class="btn btn-gold">Open email to Chris</button>
+      </form>
+
+      <p class="feedback-fallback">
+        This page does not send mail by itself. If your email app does not open,
+        write <a href="mailto:cvolkern@gmail.com?subject=mikrafts%20feedback">cvolkern@gmail.com</a>
+        and put <strong>mikrafts feedback</strong> in the subject.
+      </p>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <span>MiKrafts LLC · 3D Printing Services</span>
+      <a href="index.html">Home</a>
+    </div>
+  </footer>
+  <script src="static/feedback.js"></script>
+</body>
+</html>

@@ -398,6 +398,75 @@ a {
   font-size: 0.85rem;
 }
 
+/* --- Feedback form --- */
+.feedback-form {
+  max-width: 36rem;
+  padding: 1.5rem 0 0.5rem;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.form-row label {
+  font-weight: 600;
+}
+
+.form-row input,
+.form-row textarea {
+  font: inherit;
+  color: var(--charcoal);
+  background: var(--white);
+  border: 1px solid #d8d0e0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 2px;
+}
+
+.form-row input:focus,
+.form-row textarea:focus {
+  outline: 2px solid var(--plum);
+  outline-offset: 1px;
+}
+
+.form-row textarea {
+  resize: vertical;
+  min-height: 8rem;
+}
+
+.feedback-form .btn {
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.form-status {
+  min-height: 1.4em;
+  margin: 0 0 0.85rem;
+  color: var(--muted);
+}
+
+.form-status[data-state="error"] {
+  color: var(--plum);
+}
+
+.form-status[data-state="open-mail"] {
+  color: var(--charcoal);
+}
+
+.feedback-fallback {
+  margin: 1.75rem 0 0;
+  max-width: 36rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.feedback-fallback a {
+  color: var(--plum);
+}
+
 @media (max-width: 720px) {
   .card-hero-top-inner {
     grid-template-columns: 1fr;

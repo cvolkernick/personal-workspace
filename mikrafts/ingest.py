@@ -29,9 +29,44 @@ WHITE = (255, 255, 255)
 EMPTY_CATALOG_HTML = '<p class="catalog-empty">No prints in the catalog yet.</p>'
 
 
+FEEDBACK_TO = "cvolkern@gmail.com"
+FEEDBACK_SUBJECT = "mikrafts feedback"
+FEEDBACK_REPLY_HINT = "MiKraftsLLC@gmail.com"
+
+
 def subject_is_new_print(subject: str) -> bool:
     """True when an inbound subject matches the email contract."""
     return "new print" in (subject or "").lower()
+
+
+def subject_is_mikrafts_feedback(subject: str) -> bool:
+    """True when an inbound subject matches the feedback contract."""
+    return FEEDBACK_SUBJECT in (subject or "").lower()
+
+
+def build_feedback_mailto(
+    message: str,
+    name: str = "",
+    reply_to: str = "",
+) -> str:
+    """Build a mailto URL. Does not send mail and needs no secrets."""
+    from urllib.parse import quote
+
+    text = (message or "").strip()
+    if not text:
+        raise ValueError("message is required")
+    reply = (reply_to or "").strip() or FEEDBACK_REPLY_HINT
+    lines: list[str] = []
+    if (name or "").strip():
+        lines.append(f"Name: {name.strip()}")
+    lines.append(f"Reply-to: {reply}")
+    lines.append("")
+    lines.append(text)
+    return (
+        f"mailto:{FEEDBACK_TO}"
+        f"?subject={quote(FEEDBACK_SUBJECT)}"
+        f"&body={quote(chr(10).join(lines))}"
+    )
 
 
 def parse_email_body(body: str) -> tuple[str, str]:
