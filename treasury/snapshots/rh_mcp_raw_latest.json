@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-08-21T19:50:05.073700+00:00",
+  "as_of": "2026-08-21T20:52:29.755612+00:00",
   "accounts_payload": {
     "data": {
       "accounts": [
@@ -66,8 +66,8 @@
   },
   "agentic_portfolio_payload": {
     "data": {
-      "total_value": "204.4059436068",
-      "equity_value": "204.3159436068",
+      "total_value": "204.3353703482",
+      "equity_value": "204.2453703482",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
