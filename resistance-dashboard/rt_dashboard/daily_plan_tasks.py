@@ -1,10 +1,18 @@
 """Daily plan quests synced to Google Tasks (Fitness list).
 
-Sync identity lives in a **local cache** (not in GT titles/notes):
+Sync identity:
+  * Durable marker in notes: ``[fitdash-quest:YYYY-MM-DD]`` (titles stay human-only).
+  * Local cache when the filesystem persists (Pi). Vercel is ephemeral — do not
+    key rollover on cache alone.
+  * Known group headers (Training / Nutrition / Shopping / Sleep & recovery)
+    and their children, so unmarked user-OAuth leftovers can still be swept.
+
   ~/.config/resistance-dashboard/daily_quest_cache.json
   { "day": { "list_id": "...", "ids": { "training|group": "taskId", "training|ex-foo": "..." } } }
 
-Task titles are human-only. Due date = civil day. Notes = optional motivation only.
+Due date = civil day. Notes = optional motivation + the FitDash marker.
+Chris jots, Turo, and Orchestra NOW/NEXT that are not FitDash quests are
+never deleted.
 """
 
 from __future__ import annotations
@@ -20,6 +28,7 @@ from . import gtasks_bridge as gtb
 from .timeutil import local_today_iso
 
 DEFAULT_LIST_TITLE = "Fitness"
+QUEST_MARK_RE = re.compile(r"\[fitdash-quest:(\d{4}-\d{2}-\d{2})\]")
 
 GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
@@ -67,6 +76,90 @@ def _save_cache(data: dict) -> None:
 
 def cache_key(group: str, slug: str) -> str:
     return f"{group}|{slug}"
+
+
+def group_header_titles() -> set:
+    return {
+        str(m.get("title") or "").strip()
+        for m in GROUP_META.values()
+        if str(m.get("title") or "").strip()
+    }
+
+
+def quest_marker(day: str) -> str:
+    return f"[fitdash-quest:{str(day or '')[:10]}]"
+
+
+def quest_mark_day(notes: str) -> Optional[str]:
+    match = QUEST_MARK_RE.search(notes or "")
+    if not match:
+        return None
+    day = match.group(1)
+    return day if _is_day_key(day) else None
+
+
+def quest_notes(motivation: str, day: str) -> str:
+    """Human motivation (optional) plus the durable FitDash marker."""
+    mark = quest_marker(day)
+    extra = QUEST_MARK_RE.sub("", motivation or "").strip()
+    if extra:
+        return f"{extra}\n\n{mark}"
+    return mark
+
+
+def _is_incomplete(task: dict) -> bool:
+    return str((task or {}).get("status") or "") != "completed"
+
+
+def _quest_civil_day(task: dict) -> str:
+    """Civil day this quest belongs to: marker first, then due."""
+    marked = quest_mark_day((task or {}).get("notes") or "")
+    if marked:
+        return marked
+    return _task_due_day(task)
+
+
+def collect_fitdash_quest_ids(tasks: Sequence[dict]) -> set:
+    """Ids FitDash wrote: marker, known group header, or child of those.
+
+    Unmarked user-OAuth leftovers are still identifiable when they sit under
+    Training / Nutrition / Shopping / Sleep & recovery. Top-level jots and
+    other lists are not included.
+    """
+    headers = group_header_titles()
+    quest_ids: set = set()
+    for task in tasks:
+        if not isinstance(task, dict):
+            continue
+        tid = str(task.get("id") or "")
+        if not tid:
+            continue
+        if quest_mark_day(task.get("notes") or ""):
+            quest_ids.add(tid)
+        if (task.get("title") or "").strip() in headers:
+            quest_ids.add(tid)
+    changed = True
+    while changed:
+        changed = False
+        for task in tasks:
+            if not isinstance(task, dict):
+                continue
+            tid = str(task.get("id") or "")
+            parent = str(task.get("parent") or "")
+            if tid and parent and parent in quest_ids and tid not in quest_ids:
+                quest_ids.add(tid)
+                changed = True
+    return quest_ids
+
+
+def _belonging_day(task: dict, by_id: Dict[str, dict]) -> str:
+    day = _quest_civil_day(task)
+    if day:
+        return day
+    parent = by_id.get(str((task or {}).get("parent") or ""))
+    if parent:
+        return _quest_civil_day(parent)
+    return ""
 
 
 @dataclass
@@ -306,14 +399,14 @@ def purge_stale_quest_tasks(
     cache: Optional[dict] = None,
     save: bool = True,
 ) -> Dict[str, Any]:
-    """Delete FitDash quest GT tasks for every cache day other than ``today``.
+    """Delete yesterday's incomplete FitDash quests; leave everything else.
 
-    On civil-day rollover, incomplete (and completed) prior-day quest tasks
-    would otherwise pile up on the Fitness list. Identity is local cache only
-    (human titles have no marker) — we delete every task id recorded for
-    stale days, then drop those days from the cache.
+    User-OAuth writes on Vercel have no durable local cache. Identity is the
+    notes marker, known group headers + children, then cache ids when present.
+    Completed prior-day quests are left completed (never uncompleted).
+    Non-FitDash tasks on this list (jots) and every other list are untouched.
 
-    Returns stats: ``{days_purged, deleted, failed, errors}``.
+    Returns stats: ``{days_purged, deleted, orphan_deleted, failed, errors}``.
     """
     today = str(today or "")[:10]
     if cache is None:
@@ -322,6 +415,7 @@ def purge_stale_quest_tasks(
         return {
             "days_purged": [],
             "deleted": 0,
+            "orphan_deleted": 0,
             "failed": 0,
             "errors": [],
             "ok": False,
@@ -337,8 +431,24 @@ def purge_stale_quest_tasks(
     failed = 0
     errors: List[str] = []
     days_purged: List[str] = []
-
     already: set = set()
+    headers = group_header_titles()
+
+    def _delete(target_list: str, tid: str, label: str) -> bool:
+        nonlocal deleted, failed
+        try:
+            result = gtb.delete_task(target_list, tid)
+            already.add(tid)
+            if result.get("ok"):
+                deleted += 1
+                return True
+            failed += 1
+            errors.append(f"{label}: {result.get('error') or 'delete failed'}")
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            errors.append(f"{label}: {e}")
+        return False
+
     for stale in stale_days:
         entry = cache.get(stale) or {}
         entry_list = str(entry.get("list_id") or list_id)
@@ -346,59 +456,47 @@ def purge_stale_quest_tasks(
         for ck, tid in _delete_order(ids):
             if tid in already:
                 continue
-            try:
-                # Prefer the list recorded for that day (list may have been renamed)
-                target_list = entry_list or list_id
-                result = gtb.delete_task(target_list, tid)
+            target_list = entry_list or list_id
+            task = _get_task_safe(target_list, tid)
+            if task and not _is_incomplete(task):
                 already.add(tid)
-                if result.get("ok"):
-                    deleted += 1
-                else:
-                    failed += 1
-                    err = result.get("error") or "delete failed"
-                    errors.append(f"{stale}/{ck}: {err}")
-            except Exception as e:  # noqa: BLE001
-                failed += 1
-                errors.append(f"{stale}/{ck}: {e}")
+                continue
+            _delete(target_list, tid, f"{stale}/{ck}")
         cache.pop(stale, None)
         days_purged.append(stale)
 
-    # Safety net for orphans (cache pruned without GT delete, or lost cache):
-    # incomplete Fitness tasks with a due date strictly before today.
-    # The Fitness list is FitDash quest SoT — open past-due items are stale quests.
+    # Vercel / empty-cache safety net: identify FitDash quests on this list
+    # and drop incomplete ones that belong to a prior civil day.
     orphan_deleted = 0
     try:
-        listed = gtb.list_tasks(
-            list_id, show_completed=False, show_hidden=False
-        )
+        listed = gtb.list_tasks(list_id, show_completed=True, show_hidden=True)
         if listed.get("ok"):
-            for task in listed.get("tasks") or []:
-                if not isinstance(task, dict):
-                    continue
-                if str(task.get("status") or "") == "completed":
-                    continue
-                due = str(task.get("due") or "")[:10]
+            tasks = [t for t in (listed.get("tasks") or []) if isinstance(t, dict)]
+            quest_ids = collect_fitdash_quest_ids(tasks)
+            by_id = {str(t.get("id")): t for t in tasks if t.get("id")}
+            stale_tasks = []
+            for task in tasks:
                 tid = str(task.get("id") or "")
-                if not tid or not due or not _is_day_key(due):
+                if not tid or tid not in quest_ids or tid in already:
                     continue
-                if due >= today:
+                if not _is_incomplete(task):
                     continue
+                day = _belonging_day(task, by_id)
+                if not day or not _is_day_key(day) or day >= today:
+                    continue
+                stale_tasks.append(task)
+            stale_tasks.sort(
+                key=lambda t: (
+                    1 if (t.get("title") or "").strip() in headers else 0,
+                    str(t.get("id") or ""),
+                )
+            )
+            for task in stale_tasks:
+                tid = str(task.get("id") or "")
                 if tid in already:
                     continue
-                try:
-                    result = gtb.delete_task(list_id, tid)
-                    already.add(tid)
-                    if result.get("ok"):
-                        deleted += 1
-                        orphan_deleted += 1
-                    else:
-                        failed += 1
-                        errors.append(
-                            f"orphan/{tid}: {result.get('error') or 'delete failed'}"
-                        )
-                except Exception as e:  # noqa: BLE001
-                    failed += 1
-                    errors.append(f"orphan/{tid}: {e}")
+                if _delete(list_id, tid, f"orphan/{tid}"):
+                    orphan_deleted += 1
     except Exception as e:  # noqa: BLE001
         errors.append(f"orphan_sweep: {e}")
 
@@ -422,11 +520,11 @@ def ensure_daily_tasks(
     day: Optional[str] = None,
     create_missing: bool = True,
 ) -> dict:
-    """Ensure / refresh quests. Uses local cache; human-only GT titles/notes.
+    """Ensure / refresh quests. Titles stay human-only; notes carry the marker.
 
-    On each ensure for civil day D: purge all quest task ids cached for days
-    other than D (delete on Google Tasks + drop cache), then create/refresh
-    today's groups and leaves so incomplete prior-day quests never pile up.
+    On each ensure for civil day D: remove incomplete FitDash quests that
+    belong to any day other than D, then create/refresh today's groups and
+    leaves. Completed prior-day quests are left completed.
     """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
@@ -474,8 +572,8 @@ def ensure_daily_tasks(
             if not parent_task and create_missing:
                 created = gtb.create_task(
                     list_id,
-                    g.title,  # no date stamp
-                    notes="",  # human-empty; mapping is local
+                    g.title,  # no date stamp in the title
+                    notes=quest_notes("", day),
                     due=day,
                 )
                 if created.get("ok") and created.get("task"):
@@ -492,7 +590,7 @@ def ensure_daily_tasks(
                 tid = ids.get(ck)
                 task = _get_task_safe(list_id, tid) if tid else None
                 if not task and create_missing:
-                    notes = (it.notes_extra or "").strip()
+                    notes = quest_notes(it.notes_extra or "", day)
                     created = gtb.create_task(
                         list_id,
                         it.title,
