@@ -30,12 +30,13 @@ custom / proofs of concept / products. No prices, quotes, or carts.
 |------|------|
 | `index.html` | Split-hero card + what we print + contact |
 | `catalog.html` | Grid from `catalog/items.json` |
-| `feedback.html` | Mailto form to Chris (`mikrafts feedback`) |
 | `static/styles.css` | Shared card palette |
 | `static/catalog.js` | Renders cards or the honest empty state |
-| `static/feedback.js` | Builds the no-secret mailto URL |
 | `catalog/items.json` | Array of live prints (starts empty) |
 | `catalog/images/` | Processed JPEGs |
+
+Email contracts live in `docs/` only (`new print`, `mikrafts feedback`).
+They are not a public UI.
 
 ## Example catalog card (NOT live)
 

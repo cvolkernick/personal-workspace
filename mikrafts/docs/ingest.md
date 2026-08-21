@@ -44,5 +44,6 @@ geometry onto the print.
 An **example** card exists only in `docs/design.md` and `tests/fixtures/`.
 It is not a live catalog row.
 
-Site feedback is a separate contract (`docs/feedback.md`): subject contains
-`mikrafts feedback`, delivered via mailto to Chris — not this ingest path.
+Site notes are a separate docs-only contract (`docs/feedback.md`): Mike
+emails `cvolkern@gmail.com` with subject containing `mikrafts feedback`.
+Grok parses, implements, and replies. Not a site UI and not this ingest path.

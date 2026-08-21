@@ -15,21 +15,15 @@ REPO = ROOT.parent
 sys.path.insert(0, str(ROOT))
 
 from ingest import (  # noqa: E402
-    FEEDBACK_SUBJECT,
-    FEEDBACK_TO,
-    build_feedback_mailto,
     ingest_print,
     parse_email_body,
     render_catalog_cards,
-    subject_is_mikrafts_feedback,
     subject_is_new_print,
 )
 
 INDEX = ROOT / "index.html"
 CATALOG_PAGE = ROOT / "catalog.html"
-FEEDBACK_PAGE = ROOT / "feedback.html"
 CATALOG_JS = ROOT / "static" / "catalog.js"
-FEEDBACK_JS = ROOT / "static" / "feedback.js"
 STYLES = ROOT / "static" / "styles.css"
 ITEMS = ROOT / "catalog" / "items.json"
 IMAGES = ROOT / "catalog" / "images"
@@ -37,6 +31,8 @@ FIXTURE = Path(__file__).resolve().parent / "fixtures" / "example-print.jpg"
 VERCEL_JSON = ROOT / "vercel.json"
 FITDASH_IGNORE = REPO / "resistance-dashboard" / "vercel-ignore-paths.txt"
 FITDASH_VERCEL = REPO / "resistance-dashboard" / "vercel.json"
+FEEDBACK_DOC = ROOT / "docs" / "feedback.md"
+INGEST_DOC = ROOT / "docs" / "ingest.md"
 
 CARD_STRINGS = (
     "MiKrafts LLC",
@@ -50,15 +46,7 @@ CARD_STRINGS = (
 )
 
 # Customer-facing surfaces only. Developer docs may mention local servers.
-VISIBLE_FILES = (
-    INDEX,
-    CATALOG_PAGE,
-    FEEDBACK_PAGE,
-    CATALOG_JS,
-    FEEDBACK_JS,
-    STYLES,
-    ROOT / "static" / "logo.svg",
-)
+VISIBLE_FILES = (INDEX, CATALOG_PAGE, CATALOG_JS, STYLES, ROOT / "static" / "logo.svg")
 
 HOST_RE = re.compile(r"localhost|127\.0\.0\.1|0\.0\.0\.0|192\.168\.\d+\.\d+")
 DASHBOARD_PORTS = (":8790", ":8000", ":8765", ":8770", ":8780", ":8787", ":8796", ":8795")
@@ -80,8 +68,6 @@ class TestLandingCardCopy(unittest.TestCase):
             self.assertIn(text, html, text)
         self.assertIn("Catalog", html)
         self.assertIn("catalog.html", html)
-        self.assertIn("feedback.html", html)
-        self.assertIn("Feedback", html)
         self.assertIn("Custom", html)
         self.assertIn("Proofs of concept", html)
         self.assertIn("Products", html)
@@ -124,7 +110,6 @@ class TestHonestEmptyCatalog(unittest.TestCase):
         self.assertIsNone(DUMMY_PRINT_RE.search(html))
         self.assertIsNone(DUMMY_PRINT_RE.search(js))
         self.assertNotIn("Example print", html)
-        self.assertIn("feedback.html", html)
 
     def test_empty_render_is_not_a_dummy_card(self) -> None:
         html = render_catalog_cards([])
@@ -181,59 +166,27 @@ class TestIngestStub(unittest.TestCase):
         self.assertTrue(FIXTURE.is_file())
 
 
-class TestFeedbackContract(unittest.TestCase):
-    def test_feedback_subject_and_chris_email_on_page(self) -> None:
-        html = FEEDBACK_PAGE.read_text(encoding="utf-8")
-        js = FEEDBACK_JS.read_text(encoding="utf-8")
-        self.assertEqual(FEEDBACK_TO, "cvolkern@gmail.com")
-        self.assertEqual(FEEDBACK_SUBJECT, "mikrafts feedback")
-        self.assertIn("cvolkern@gmail.com", html)
-        self.assertIn("mikrafts feedback", html)
-        self.assertIn("cvolkern@gmail.com", js)
-        self.assertIn("mikrafts feedback", js)
-        self.assertIn('mailto:cvolkern@gmail.com?subject=mikrafts%20feedback', html)
-        self.assertIn('id="feedback-form"', html)
-        self.assertIn('id="feedback-message"', html)
-        self.assertIn("MiKraftsLLC@gmail.com", html)
-        self.assertIn("required", html)
+class TestEmailContractsStayInDocs(unittest.TestCase):
+    def test_docs_name_both_subject_contracts(self) -> None:
+        ingest = INGEST_DOC.read_text(encoding="utf-8")
+        feedback = FEEDBACK_DOC.read_text(encoding="utf-8")
+        self.assertIn("new print", ingest)
+        self.assertIn("mikrafts feedback", feedback)
+        self.assertIn("cvolkern@gmail.com", feedback)
+        self.assertIn("no Feedback page", feedback)
 
-    def test_landing_and_catalog_link_feedback(self) -> None:
-        self.assertIn("feedback.html", INDEX.read_text(encoding="utf-8"))
-        self.assertIn("feedback.html", CATALOG_PAGE.read_text(encoding="utf-8"))
-
-    def test_feedback_helpers_match_mailto_contract(self) -> None:
-        self.assertTrue(subject_is_mikrafts_feedback("mikrafts feedback"))
-        self.assertTrue(subject_is_mikrafts_feedback("Re: MIKRAFTS FEEDBACK — logo"))
-        self.assertFalse(subject_is_mikrafts_feedback("new print"))
-        href = build_feedback_mailto("The plum is right.", "Mike", "")
-        self.assertTrue(href.startswith("mailto:cvolkern@gmail.com?"))
-        self.assertIn("subject=mikrafts%20feedback", href)
-        self.assertIn("The%20plum%20is%20right.", href)
-        self.assertIn("MiKraftsLLC%40gmail.com", href)
-        with self.assertRaises(ValueError):
-            build_feedback_mailto("   ")
-
-    def test_no_fake_sent_success_and_no_secrets(self) -> None:
-        html = FEEDBACK_PAGE.read_text(encoding="utf-8")
-        js = FEEDBACK_JS.read_text(encoding="utf-8")
-        blob = html + "\n" + js
-        self.assertNotRegex(blob, r"message sent|feedback was sent|successfully sent", re.I)
-        self.assertIn("Opening your email app", js)
-        pkg = "\n".join(
-            path.read_text(encoding="utf-8", errors="ignore")
-            for path in (
-                VERCEL_JSON,
-                ROOT / ".vercelignore",
-                FEEDBACK_PAGE,
-                FEEDBACK_JS,
-            )
-        )
-        self.assertNotIn("GOOGLE_", pkg)
-        self.assertNotIn("SMTP", pkg)
-        self.assertNotIn("GMAIL_TOKEN", pkg)
+    def test_no_feedback_ui_on_customer_surfaces(self) -> None:
+        self.assertFalse((ROOT / "feedback.html").exists())
+        self.assertFalse((ROOT / "static" / "feedback.js").exists())
+        visible = _visible_text()
+        self.assertNotIn("feedback.html", visible)
+        self.assertNotIn("Feedback", visible)
+        self.assertNotIn("mikrafts feedback", visible)
+        self.assertNotIn("cvolkern@gmail.com", visible)
+        self.assertNotIn("feedback-form", visible)
         cfg = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
-        self.assertNotIn("env", cfg)
         self.assertNotIn("functions", cfg)
+        self.assertNotIn("env", cfg)
 
 
 class TestNoRequiredPortsInVisibleCopy(unittest.TestCase):
