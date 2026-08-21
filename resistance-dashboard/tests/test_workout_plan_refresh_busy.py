@@ -89,13 +89,14 @@ class WorkoutPlanRefreshBoot(unittest.TestCase):
         self.assertIn("btn-force-session-push", JS)
         self.assertIn("btn-force-session-pull", JS)
         self.assertIn("btn-force-session-legs", JS)
-        helper = JS.split("function setWorkoutPlanBusy", 1)[1].split(
+        helper = JS.split("const WORKOUT_PLAN_TRIGGER_IDS", 1)[1].split(
             "async function generateWorkoutPlan", 1
         )[0]
         self.assertIn("btn-force-session-push", helper)
         self.assertIn("btn-force-session-pull", helper)
         self.assertIn("btn-force-session-legs", helper)
         self.assertIn("btn-generate-workout", helper)
+        self.assertIn("function setWorkoutPlanBusy", helper)
         self.assertIn("workout-plan-refreshing", helper)
         self.assertIn("today-workout", helper)
         self.assertIn("workout-plan-result", helper)
