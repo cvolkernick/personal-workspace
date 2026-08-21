@@ -1,11 +1,12 @@
-"""Bridge FitDash → monorepo Google Tasks client (projects-dashboard/google_tasks.py).
+"""Bridge FitDash → Google Tasks.
 
-Uses the same OAuth files as google-tasks-mcp:
-  ~/.config/google-tasks-mcp/{token,client_secret}.json
+Public FitDash (Vercel) uses the Google login session (Tasks scope).
+Pi Today still uses nest/file token via projects-dashboard/google_tasks.py.
 
 Vercel Root Directory is resistance-dashboard/, so a byte-identical copy
 ships at resistance-dashboard/projects-dashboard/google_tasks.py (includeFiles).
 Nest SoT (parents[2]) still wins on Pi when that file exists.
+The Pi file token is never read on Vercel.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ import importlib.util
 import sys
 from pathlib import Path
 from typing import Any, Optional
+
+from . import gtasks_session as gts
 
 _REL = Path("projects-dashboard") / "google_tasks.py"
 _MOD_NAME = "fitdash_google_tasks_mod"
@@ -86,7 +89,30 @@ def load_google_tasks():
     )
 
 
+def _session_client():
+    """Login-session Tasks client when bound. Never the Pi file token."""
+    if gts.session_is_bound():
+        return gts
+    return None
+
+
+def _pi_client_or_vercel_error():
+    if gts.running_on_vercel():
+        raise RuntimeError(gts.MISSING_TASKS_SCOPE)
+    return load_google_tasks()
+
+
 def credentials_status() -> dict[str, Any]:
+    if gts.session_is_bound():
+        return gts.credentials_status()
+    if gts.running_on_vercel():
+        return {
+            "ok": False,
+            "source": None,
+            "error": gts.MISSING_TASKS_SCOPE,
+            "token_present": False,
+            "refresh_token_present": False,
+        }
     try:
         gt = load_google_tasks()
         status = gt.credentials_status()
@@ -104,8 +130,8 @@ def credentials_status() -> dict[str, Any]:
 
 def resolve_list_id(title: str = "Fitness") -> Optional[str]:
     """Find a task list by title (case-insensitive)."""
-    gt = load_google_tasks()
-    payload = gt.list_tasklists()
+    client = _session_client() or _pi_client_or_vercel_error()
+    payload = client.list_tasklists()
     if not payload.get("ok"):
         return None
     want = (title or "").strip().lower()
@@ -118,9 +144,8 @@ def resolve_list_id(title: str = "Fitness") -> Optional[str]:
 def list_tasks(
     list_id: str, *, show_completed: bool = True, show_hidden: bool = True
 ) -> dict[str, Any]:
-    gt = load_google_tasks()
-    # projects-dashboard list_tasks signature
-    return gt.list_tasks(
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.list_tasks(
         list_id,
         show_completed=show_completed,
         show_hidden=show_hidden,
@@ -135,8 +160,8 @@ def create_task(
     due: Optional[str] = None,
     parent: Optional[str] = None,
 ) -> dict[str, Any]:
-    gt = load_google_tasks()
-    return gt.create_task(
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.create_task(
         list_id, title, notes=notes, due=due, parent=parent
     )
 
@@ -144,10 +169,15 @@ def create_task(
 def complete_task(
     list_id: str, task_id: str, *, completed: bool = True
 ) -> dict[str, Any]:
-    gt = load_google_tasks()
-    return gt.complete_task(list_id, task_id, completed=completed)
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.complete_task(list_id, task_id, completed=completed)
 
 
 def delete_task(list_id: str, task_id: str) -> dict[str, Any]:
-    gt = load_google_tasks()
-    return gt.delete_task(list_id, task_id)
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.delete_task(list_id, task_id)
+
+
+def get_task(list_id: str, task_id: str) -> dict[str, Any]:
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.get_task(list_id, task_id)

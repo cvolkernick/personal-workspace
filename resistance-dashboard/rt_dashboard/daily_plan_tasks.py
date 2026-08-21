@@ -222,13 +222,65 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
 
 def _get_task_safe(list_id: str, task_id: str) -> Optional[dict]:
     try:
-        gt = gtb.load_google_tasks()
-        r = gt.get_task(list_id, task_id)
+        r = gtb.get_task(list_id, task_id)
         if r.get("ok"):
             return r.get("task")
     except Exception:
         return None
     return None
+
+
+def _task_due_day(task: dict) -> str:
+    return str((task or {}).get("due") or "")[:10]
+
+
+def _hydrate_ids_from_listed(
+    ids: Dict[str, str],
+    planned: List[PlannedGroup],
+    listed: dict,
+    day: str,
+) -> Dict[str, str]:
+    """Reuse existing Fitness tasks when the local cache is empty (Vercel)."""
+    tasks = [t for t in (listed.get("tasks") or []) if isinstance(t, dict)]
+    unused = list(tasks)
+    used_ids = {str(v) for v in (ids or {}).values() if v}
+
+    def take(title: str, parent_id: Optional[str] = None) -> Optional[dict]:
+        want = (title or "").strip()
+        for i, t in enumerate(unused):
+            tid = str(t.get("id") or "")
+            if tid and tid in used_ids:
+                continue
+            if (t.get("title") or "").strip() != want:
+                continue
+            due = _task_due_day(t)
+            if due and due != day:
+                continue
+            if parent_id and str(t.get("parent") or "") not in ("", parent_id):
+                continue
+            unused.pop(i)
+            return t
+        return None
+
+    out = dict(ids)
+    for g in planned:
+        parent_ck = cache_key(g.group, "group")
+        parent_id = out.get(parent_ck)
+        if not parent_id:
+            found = take(g.title)
+            if found and found.get("id"):
+                parent_id = str(found["id"])
+                out[parent_ck] = parent_id
+                used_ids.add(parent_id)
+        for it in g.items:
+            ck = cache_key(g.group, it.slug)
+            if out.get(ck):
+                continue
+            found = take(it.title, parent_id=parent_id)
+            if found and found.get("id"):
+                out[ck] = str(found["id"])
+                used_ids.add(str(found["id"]))
+    return out
 
 
 def _is_day_key(key: str) -> bool:
@@ -404,6 +456,14 @@ def ensure_daily_tasks(
         if day_cache.get("list_id") != list_id:
             day_cache = {"list_id": list_id, "ids": {}}
         ids: Dict[str, str] = dict(day_cache.get("ids") or {})
+        try:
+            listed = gtb.list_tasks(
+                list_id, show_completed=True, show_hidden=True
+            )
+        except Exception:
+            listed = None
+        if listed and listed.get("ok"):
+            ids = _hydrate_ids_from_listed(ids, planned, listed, day)
 
         groups_out: List[dict] = []
 

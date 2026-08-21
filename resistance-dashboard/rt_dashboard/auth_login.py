@@ -24,7 +24,8 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
-# Login + Health in one consent so demo uses Chris's Google as both identity and health
+# Login + Health + Tasks in one consent (same FitDash Google client).
+TASKS_SCOPE = "https://www.googleapis.com/auth/tasks"
 LOGIN_SCOPES = [
     "openid",
     "email",
@@ -33,6 +34,7 @@ LOGIN_SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.sleep.readonly",
     "https://www.googleapis.com/auth/googlehealth.nutrition.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
+    TASKS_SCOPE,
 ]
 
 # CSRF state store (in-memory; fine for single-process Pi)
