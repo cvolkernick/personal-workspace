@@ -13,12 +13,12 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=quest-complete-2" />
+    <link rel="stylesheet" href="/styles.css?v=refresh-plan-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=quest-complete-2" defer></script>
+    <script src="/app.js?v=refresh-plan-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -212,6 +212,16 @@
                 <button type="button" id="btn-force-session-pull" data-session="pull" title="Override: generate a Pull session">Pull</button>
                 <button type="button" id="btn-force-session-legs" data-session="legs" title="Override: generate a Legs session">Legs</button>
               </div>
+              <p
+                id="workout-plan-refreshing"
+                class="workout-plan-refreshing"
+                hidden
+                role="status"
+                aria-live="polite"
+              >
+                <span class="workout-plan-refreshing-spinner" aria-hidden="true"></span>
+                Refreshing workout plan…
+              </p>
               <div id="today-workout" style="font-size: 0.88rem; margin-top: 0.45rem"></div>
               <div id="workout-plan-result" class="today-plan-result" style="margin-top: 0.4rem"></div>
               <p class="muted" style="margin: 0.45rem 0 0; font-size: 0.78rem">

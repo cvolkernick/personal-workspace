@@ -4853,9 +4853,53 @@
     }
   }
 
+  const WORKOUT_PLAN_TRIGGER_IDS = [
+    "btn-generate-workout",
+    "btn-force-session-push",
+    "btn-force-session-pull",
+    "btn-force-session-legs",
+  ];
+  const WORKOUT_PLAN_REFRESH_LABEL = "Refreshing plan…";
+  const WORKOUT_PLAN_IDLE_LABEL = "Refresh plan";
+
+  function setWorkoutPlanBusy(busy) {
+    WORKOUT_PLAN_TRIGGER_IDS.forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.disabled = !!busy;
+      if (busy) {
+        el.setAttribute("aria-busy", "true");
+        el.classList.add("is-refreshing");
+      } else {
+        el.removeAttribute("aria-busy");
+        el.classList.remove("is-refreshing");
+      }
+      if (id !== "btn-generate-workout") return;
+      if (busy) {
+        if (el.dataset.idleLabel == null) el.dataset.idleLabel = el.textContent;
+        el.textContent = WORKOUT_PLAN_REFRESH_LABEL;
+      } else {
+        el.textContent = el.dataset.idleLabel || WORKOUT_PLAN_IDLE_LABEL;
+        delete el.dataset.idleLabel;
+      }
+    });
+
+    const banner = $("workout-plan-refreshing");
+    if (banner) banner.hidden = !busy;
+
+    ["today-workout", "workout-plan-result"].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.classList.toggle("is-refreshing", !!busy);
+      if (busy) el.setAttribute("aria-busy", "true");
+      else el.removeAttribute("aria-busy");
+    });
+  }
+
   async function generateWorkoutPlan(sessionType) {
     const btn = $("btn-generate-workout");
-    if (btn) btn.disabled = true;
+    if (btn && btn.getAttribute("aria-busy") === "true") return;
+    setWorkoutPlanBusy(true);
     try {
       const res = await fetch("/api/workout-plan/generate", {
         method: "POST",
@@ -4874,7 +4918,7 @@
     } catch (e) {
       showAlert(`Workout plan failed: ${e.message}`, "err");
     } finally {
-      if (btn) btn.disabled = false;
+      setWorkoutPlanBusy(false);
     }
   }
 
