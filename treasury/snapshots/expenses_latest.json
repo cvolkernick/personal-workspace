@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-20T19:24:23.681793+00:00",
+  "as_of": "2026-08-21T13:34:51.131166+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,14 +22,14 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 23,
       "totals": {
-        "daily": 485.92,
-        "weekly": 3401.43,
-        "biweekly": 6802.85,
-        "monthly": 14779.58,
-        "annually": 50533.92,
-        "quarterly": 16191.73
+        "daily": 485.59,
+        "weekly": 3399.13,
+        "biweekly": 6798.25,
+        "monthly": 14769.59,
+        "annually": 50414.04,
+        "quarterly": 16161.76
       },
       "items": [
         {
@@ -72,20 +72,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
-          "budget_allocation": null,
-          "quarterly": 250.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "from": "X Money",
           "item": "Dog Food",
           "daily": 4.11,
@@ -100,14 +87,14 @@
         {
           "date": "9/1/2026",
           "from": "X Money",
-          "item": "Google Health",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 9.99,
-          "annually": 119.88,
+          "item": "Student Loan",
+          "daily": 2.74,
+          "weekly": 19.18,
+          "biweekly": 38.36,
+          "monthly": 83.33,
+          "annually": 1000.0,
           "budget_allocation": null,
-          "quarterly": 29.97,
+          "quarterly": 250.0,
           "tab": "Essential"
         },
         {
@@ -347,7 +334,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1227.67
+        "X Money": 1217.68
       },
       "top_monthly": [
         {
@@ -394,7 +381,7 @@
           "item": "Dog Food",
           "monthly": 125.0,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -473,19 +460,11 @@
           "tab": "Essential"
         },
         {
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "item": "Dog Food",
           "from": "X Money",
           "monthly": 125.0,
           "weekly": 28.77,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Google Health",
-          "from": "X Money",
-          "monthly": 9.99,
-          "weekly": 2.3,
           "tab": "Essential"
         },
         {
@@ -607,6 +586,14 @@
           "monthly": 11.67,
           "weekly": 2.68,
           "tab": "Essential"
+        },
+        {
+          "date": "2/14/2027",
+          "item": "Google One",
+          "from": "X Money",
+          "monthly": 19.99,
+          "weekly": 4.61,
+          "tab": "Essential"
         }
       ],
       "label": "Essential",
@@ -661,7 +648,7 @@
           "tab": "Fleet"
         },
         {
-          "date": "8/20/2026",
+          "date": "9/20/2026",
           "from": "X Money",
           "item": "Sud Stop Car Wash",
           "daily": 0.87,
@@ -789,7 +776,7 @@
           "item": "Sud Stop Car Wash",
           "monthly": 26.58,
           "from": "X Money",
-          "date": "8/20/2026",
+          "date": "9/20/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -844,14 +831,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "8/20/2026",
-          "item": "Sud Stop Car Wash",
-          "from": "X Money",
-          "monthly": 26.58,
-          "weekly": 6.12,
-          "tab": "Fleet"
-        },
-        {
           "date": "8/21/2026",
           "item": "Fleet Insurance",
           "from": "X Money",
@@ -884,6 +863,14 @@
           "tab": "Fleet"
         },
         {
+          "date": "9/20/2026",
+          "item": "Sud Stop Car Wash",
+          "from": "X Money",
+          "monthly": 26.58,
+          "weekly": 6.12,
+          "tab": "Fleet"
+        },
+        {
           "date": "2/1/2027",
           "item": "Premium Connectivity",
           "from": "X Money",
@@ -899,13 +886,25 @@
       "role": "collateral_investments",
       "item_count": 2,
       "totals": {
-        "daily": 17.71,
-        "weekly": 123.97,
-        "biweekly": 247.94,
-        "monthly": 537.2,
-        "annually": 6446.4
+        "daily": 17.98,
+        "weekly": 125.89,
+        "biweekly": 251.78,
+        "monthly": 545.53,
+        "annually": 6546.4
       },
       "items": [
+        {
+          "item": "Agentic Fund Allocation",
+          "date": "8/24/2026",
+          "daily": 3.57,
+          "weekly": 25.0,
+          "biweekly": 50.0,
+          "monthly": 108.33,
+          "annually": 1300.0,
+          "from": "X Money",
+          "to": null,
+          "tab": "Collateral"
+        },
         {
           "item": "ASIC Fleet OpEx",
           "date": "9/1/2026",
@@ -914,18 +913,6 @@
           "biweekly": 201.78,
           "monthly": 437.2,
           "annually": 5246.4,
-          "from": "X Money",
-          "to": null,
-          "tab": "Collateral"
-        },
-        {
-          "item": "Agentic Fund Allocation",
-          "date": "9/1/2026",
-          "daily": 3.3,
-          "weekly": 23.08,
-          "biweekly": 46.15,
-          "monthly": 100.0,
-          "annually": 1200.0,
           "from": "X Money",
           "to": null,
           "tab": "Collateral"
@@ -942,9 +929,9 @@
         },
         {
           "item": "Agentic Fund Allocation",
-          "monthly": 100.0,
+          "monthly": 108.33,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "8/24/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         }
@@ -960,9 +947,9 @@
         },
         {
           "item": "Agentic Fund Allocation",
-          "monthly": 100.0,
+          "monthly": 108.33,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "8/24/2026",
           "budget_allocation": null,
           "tab": "Collateral"
         }
@@ -1203,14 +1190,14 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 23,
       "totals": {
-        "daily": 485.92,
-        "weekly": 3401.43,
-        "biweekly": 6802.85,
-        "monthly": 14779.58,
-        "annually": 50533.92,
-        "quarterly": 16191.73
+        "daily": 485.59,
+        "weekly": 3399.13,
+        "biweekly": 6798.25,
+        "monthly": 14769.59,
+        "annually": 50414.04,
+        "quarterly": 16161.76
       },
       "items": [
         {
@@ -1253,20 +1240,7 @@
           "tab": "Essential"
         },
         {
-          "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
-          "budget_allocation": null,
-          "quarterly": 250.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "from": "X Money",
           "item": "Dog Food",
           "daily": 4.11,
@@ -1281,14 +1255,14 @@
         {
           "date": "9/1/2026",
           "from": "X Money",
-          "item": "Google Health",
-          "daily": 0.33,
-          "weekly": 2.3,
-          "biweekly": 4.6,
-          "monthly": 9.99,
-          "annually": 119.88,
+          "item": "Student Loan",
+          "daily": 2.74,
+          "weekly": 19.18,
+          "biweekly": 38.36,
+          "monthly": 83.33,
+          "annually": 1000.0,
           "budget_allocation": null,
-          "quarterly": 29.97,
+          "quarterly": 250.0,
           "tab": "Essential"
         },
         {
@@ -1528,7 +1502,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1227.67
+        "X Money": 1217.68
       },
       "top_monthly": [
         {
@@ -1575,7 +1549,7 @@
           "item": "Dog Food",
           "monthly": 125.0,
           "from": "X Money",
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1654,19 +1628,11 @@
           "tab": "Essential"
         },
         {
-          "date": "9/1/2026",
+          "date": "8/31/2026",
           "item": "Dog Food",
           "from": "X Money",
           "monthly": 125.0,
           "weekly": 28.77,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/1/2026",
-          "item": "Google Health",
-          "from": "X Money",
-          "monthly": 9.99,
-          "weekly": 2.3,
           "tab": "Essential"
         },
         {
@@ -1787,6 +1753,14 @@
           "from": "X Money",
           "monthly": 11.67,
           "weekly": 2.68,
+          "tab": "Essential"
+        },
+        {
+          "date": "2/14/2027",
+          "item": "Google One",
+          "from": "X Money",
+          "monthly": 19.99,
+          "weekly": 4.61,
           "tab": "Essential"
         }
       ],
@@ -1973,35 +1947,34 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18991.34,
-    "essential_monthly": 14779.58,
-    "personal_monthly": 14779.58,
-    "personal_daily": 485.92,
-    "essential_daily": 485.92,
-    "personal_weekly": 3401.43,
-    "personal_annually": 50533.92,
+    "upcoming_expense_monthly": 18981.35,
+    "essential_monthly": 14769.59,
+    "personal_monthly": 14769.59,
+    "personal_daily": 485.59,
+    "essential_daily": 485.59,
+    "personal_weekly": 3399.13,
+    "personal_annually": 50414.04,
     "fleet_monthly": 5561.76,
     "fleet_daily": 185.09,
     "fleet_annually": 27958.09,
-    "collateral_investments_monthly": 537.2,
-    "collateral_monthly": 537.2,
+    "collateral_investments_monthly": 545.53,
+    "collateral_monthly": 545.53,
     "capital_targets_monthly": 3000.0,
     "productive_discretionary_monthly": 3000.0,
     "discretionary_monthly": 3000.0,
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18991.34,
-    "combined_daily": 626.01,
+    "combined_monthly": 18981.35,
+    "combined_daily": 625.68,
     "by_source_monthly": {
       "Coinbase": 13569.91,
-      "X Money": 5421.43
+      "X Money": 5411.44
     },
     "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5421.43
+    "x_money_funded_monthly": 5411.44
   },
-  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB.",
-  "live_error": "<urlopen error [Errno 8] nodename nor servname provided, or not known>"
+  "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }
