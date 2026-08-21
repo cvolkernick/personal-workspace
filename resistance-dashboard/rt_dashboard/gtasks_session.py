@@ -17,7 +17,7 @@ from contextvars import ContextVar
 from datetime import datetime, timezone
 from typing import Any, Iterator, Optional
 
-from api.auth.session_util import TASKS_SCOPE, session_has_tasks_scope
+from api.auth.session_util import session_has_tasks_scope
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 TASKS_API = "https://tasks.googleapis.com/tasks/v1"
@@ -26,6 +26,49 @@ MISSING_TASKS_SCOPE = (
     "Google sign-in is missing Tasks permission. "
     "Sign in again to allow Google Tasks."
 )
+TASKS_API_NOT_ENABLED = (
+    "Google Tasks API is not enabled for this Google Cloud project."
+)
+TOKEN_REFRESH_FAILED = "Google token refresh failed."
+TOKEN_REJECTED = "Google Tasks rejected the access token. Sign in again."
+LOGIN_CLIENT_MISSING = "Google login client is not configured."
+FITNESS_LIST_NOT_FOUND = "Task list 'Fitness' not found"
+
+
+def classify_google_http_error(
+    status: int, body: str = "", *, during: str = "tasks"
+) -> str:
+    """Map Google HTTP errors to distinct user-facing strings.
+
+    Do not rewrite every 401/403 as a missing-Tasks-scope message.
+    """
+    text = (body or "").lower()
+    if (
+        "access_not_configured" in text
+        or "accessnotconfigured" in text
+        or ("has not been used" in text and "task" in text)
+        or ("is disabled" in text and "task" in text)
+        or "enable it by visiting" in text
+        or ("tasks.googleapis.com" in text and "enable" in text)
+    ):
+        return TASKS_API_NOT_ENABLED
+    if (
+        "insufficient authentication scopes" in text
+        or "insufficientpermissions" in text
+        or "access_token_scope_insufficient" in text
+        or "insufficient_scope" in text
+        or "request had insufficient" in text
+    ):
+        return MISSING_TASKS_SCOPE
+    if during == "refresh":
+        if "invalid_grant" in text or status in (400, 401, 403):
+            return TOKEN_REFRESH_FAILED
+        return f"Google token refresh failed HTTP {status}"
+    if status == 401:
+        return TOKEN_REJECTED
+    if status == 403:
+        return "Google Tasks denied access (HTTP 403)."
+    return f"Google Tasks error HTTP {status}"
 
 _session_google: ContextVar[Optional[dict]] = ContextVar(
     "fitdash_gtasks_session", default=None
@@ -68,16 +111,22 @@ def credentials_status(google: Optional[dict] = None) -> dict[str, Any]:
             "ok": False,
             "source": None,
             "error": MISSING_TASKS_SCOPE,
+            "error_code": "missing_tasks_scope",
             "token_present": False,
             "refresh_token_present": False,
         }
     has_refresh = bool((blob.get("refresh_token") or "").strip())
     has_access = bool((blob.get("access_token") or "").strip())
-    if not session_has_tasks_scope(blob):
+    raw_scope = str(blob.get("scope") or "").strip()
+    # Only treat missing Tasks permission when the stored scope is present
+    # and does not include Tasks. Tokens with an omitted ``sc`` still try
+    # the API — Google sometimes leaves scope off the token JSON.
+    if raw_scope and not session_has_tasks_scope(blob):
         return {
             "ok": False,
             "source": "session",
             "error": MISSING_TASKS_SCOPE,
+            "error_code": "missing_tasks_scope",
             "token_present": has_refresh or has_access,
             "refresh_token_present": has_refresh,
         }
@@ -86,6 +135,7 @@ def credentials_status(google: Optional[dict] = None) -> dict[str, Any]:
             "ok": False,
             "source": "session",
             "error": MISSING_TASKS_SCOPE,
+            "error_code": "missing_tasks_scope",
             "token_present": False,
             "refresh_token_present": False,
         }
@@ -93,6 +143,7 @@ def credentials_status(google: Optional[dict] = None) -> dict[str, Any]:
         "ok": True,
         "source": "session",
         "error": None,
+        "error_code": None,
         "token_present": True,
         "refresh_token_present": has_refresh,
     }
@@ -150,16 +201,17 @@ def ensure_access_token(google: dict) -> str:
     refresh = (google.get("refresh_token") or "").strip()
     client_id, client_secret = _login_client()
     if not refresh:
+        if access:
+            raise RuntimeError(TOKEN_REFRESH_FAILED)
         raise RuntimeError(MISSING_TASKS_SCOPE)
     if not client_id or not client_secret:
-        raise RuntimeError(MISSING_TASKS_SCOPE)
+        raise RuntimeError(LOGIN_CLIENT_MISSING)
     body = urllib.parse.urlencode(
         {
             "client_id": client_id,
             "client_secret": client_secret,
             "refresh_token": refresh,
             "grant_type": "refresh_token",
-            "scope": TASKS_SCOPE,
         }
     ).encode("utf-8")
     req = urllib.request.Request(
@@ -172,13 +224,13 @@ def ensure_access_token(google: dict) -> str:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        exc.read()
-        if exc.code in (400, 401, 403):
-            raise RuntimeError(MISSING_TASKS_SCOPE) from exc
-        raise RuntimeError(f"Google token refresh failed HTTP {exc.code}") from exc
+        detail = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(
+            classify_google_http_error(exc.code, detail, during="refresh")
+        ) from exc
     token = str(data.get("access_token") or "").strip()
     if not token:
-        raise RuntimeError(MISSING_TASKS_SCOPE)
+        raise RuntimeError(TOKEN_REFRESH_FAILED)
     google["access_token"] = token
     google["access_expires_at"] = time.time() + int(data.get("expires_in") or 3600)
     if data.get("scope"):
@@ -193,10 +245,12 @@ def _request(
     *,
     body: Optional[dict] = None,
     query: Optional[dict] = None,
+    _retried: bool = False,
 ) -> dict[str, Any]:
     token = ensure_access_token(google)
+    request_url = url
     if query:
-        url = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(
+        request_url = url + ("&" if "?" in url else "?") + urllib.parse.urlencode(
             {k: v for k, v in query.items() if v is not None}
         )
     headers = {
@@ -207,16 +261,38 @@ def _request(
     if body is not None:
         data = json.dumps(body).encode("utf-8")
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    req = urllib.request.Request(request_url, data=data, headers=headers, method=method)
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             raw = resp.read().decode("utf-8")
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as exc:
-        exc.read()
-        if exc.code in (401, 403):
-            raise RuntimeError(MISSING_TASKS_SCOPE) from exc
-        raise RuntimeError(f"Google Tasks error HTTP {exc.code}") from exc
+        detail = exc.read().decode("utf-8", errors="replace")
+        if (
+            exc.code == 401
+            and not _retried
+            and (google.get("refresh_token") or "").strip()
+        ):
+            google["access_token"] = ""
+            google["access_expires_at"] = 0
+            try:
+                return _request(
+                    google,
+                    method,
+                    url,
+                    body=body,
+                    query=query,
+                    _retried=True,
+                )
+            except RuntimeError:
+                raise
+            except Exception:
+                raise RuntimeError(
+                    classify_google_http_error(exc.code, detail, during="tasks")
+                ) from exc
+        raise RuntimeError(
+            classify_google_http_error(exc.code, detail, during="tasks")
+        ) from exc
 
 
 def _require_session() -> dict:

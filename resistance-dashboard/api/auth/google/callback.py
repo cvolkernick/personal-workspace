@@ -12,6 +12,7 @@ from urllib.request import Request, urlopen
 from api.auth.session_util import (
     TOKEN_URL,
     USERINFO_URL,
+    granted_scope_from_tokens,
     make_session,
     query_first,
     redirect_uri,
@@ -83,7 +84,7 @@ class handler(BaseHTTPRequestHandler):
                         "display_name": name,
                         "refresh_token": tokens.get("refresh_token") or "",
                         "access_token": access,
-                        "scope": tokens.get("scope") or "",
+                        "scope": granted_scope_from_tokens(tokens.get("scope") or ""),
                         "expires_in": tokens.get("expires_in"),
                     }
                 )
