@@ -3527,6 +3527,11 @@
     renderTodayHub(data);
   }
 
+  /** Civil day of the last successful /api/daily-tasks sync in this page. */
+  let lastQuestSyncedDay = "";
+  /** Last GT-backed quest payload — Refresh data must not wipe task ids. */
+  let lastSyncedDailyTasks = null;
+
   function escQuest(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -3748,6 +3753,14 @@
     if (state && daily && typeof daily === "object") {
       state.daily_tasks = daily;
       if (state.coach && state.coach.today) state.coach.today.daily_tasks = daily;
+      if (
+        daily.source === "google_tasks" &&
+        daily.ok &&
+        !daily.needs_sync &&
+        !daily.sync_failed
+      ) {
+        lastSyncedDailyTasks = daily;
+      }
     }
     renderDailyPlanTasks(daily, questFallbackActions());
   }
@@ -3785,16 +3798,18 @@
       const daily = data && data.daily_tasks;
       if (!res.ok || !daily || typeof daily !== "object") {
         markQuestSyncFailed((data && data.error) || QUEST_SYNC_FAIL, current);
-        return;
+        return false;
       }
       if (dailyHasReadyLeaf(daily)) {
         questSyncUi = { status: "ok", error: "" };
         applyDailyTasks({ ...daily, needs_sync: false, sync_failed: false, error: null });
-        return;
+        return true;
       }
       markQuestSyncFailed(daily.error || data.error || QUEST_SYNC_FAIL, daily);
+      return false;
     } catch (e) {
       markQuestSyncFailed((e && e.message) || QUEST_SYNC_FAIL, current);
+      return false;
     }
   }
 
@@ -4074,14 +4089,25 @@
         "Rebuilt each load from live logs, stock, recovery, and planners.";
     }
 
-    // Daily quests: paint local plan immediately; sync GT in background (keeps dashboard snappy)
-    const daily = today.daily_tasks || data.daily_tasks || null;
+    // Daily quests: paint local plan immediately; GT ensure only on first
+    // Today load of a new local date (or retry). Refresh data / quiet poll
+    // / meal rebuild must not re-run the rollover sweep.
+    const incoming = today.daily_tasks || data.daily_tasks || null;
+    const day = civilDay((data.meta && data.meta.local_today) || today.date || "");
+    const alreadySyncedToday = !!(lastQuestSyncedDay && day && lastQuestSyncedDay === day);
+    const daily =
+      alreadySyncedToday && lastSyncedDailyTasks ? lastSyncedDailyTasks : incoming;
     // Bind collapse + quest delegation once (before/after quest re-renders)
     bindCollapsibles($("today-hub") || document);
     bindDailyQuestClicks();
     renderDailyPlanTasks(daily, today.actions || []);
-    if (!daily || daily.needs_sync || daily.source !== "google_tasks") {
-      syncDailyTasksFromServer();
+    if (
+      !alreadySyncedToday &&
+      (!daily || daily.needs_sync || daily.source !== "google_tasks")
+    ) {
+      syncDailyTasksFromServer().then((ok) => {
+        if (ok && day) lastQuestSyncedDay = day;
+      });
     }
 
     // Targets with motivations + progress

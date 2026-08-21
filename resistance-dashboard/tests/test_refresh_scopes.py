@@ -139,12 +139,39 @@ class RefreshDataHealthOnly(unittest.TestCase):
         )
 
 
+class QuestRolloverNotOnRefreshButtons(unittest.TestCase):
+    def test_refresh_plan_does_not_sync_quests(self):
+        gen = _fn("async function generateWorkoutPlan", "async function submitExerciseCatalog")
+        self.assertNotIn("syncDailyTasksFromServer", gen)
+        self.assertNotIn("/api/daily-tasks", gen)
+
+    def test_inventory_meal_does_not_sync_quests(self):
+        gen = _fn("async function generatePlan", "const WORKOUT_PLAN_TRIGGER_IDS")
+        self.assertNotIn("syncDailyTasksFromServer", gen)
+        self.assertNotIn("/api/daily-tasks", gen)
+
+    def test_refresh_data_does_not_call_daily_tasks(self):
+        fn = _fn("async function loadDashboard", "function startQuietPoll")
+        self.assertNotIn("syncDailyTasksFromServer", fn)
+        self.assertNotIn("/api/daily-tasks", fn)
+        self.assertIn('"/api/dashboard?refresh=1"', fn)
+
+    def test_today_hub_gates_sync_to_new_local_date(self):
+        hub = _fn("function renderTodayHub", "function prefillsFromWorkoutPlan")
+        self.assertIn("lastQuestSyncedDay", hub)
+        self.assertIn("alreadySyncedToday", hub)
+        self.assertIn("lastSyncedDailyTasks", hub)
+        self.assertIn("syncDailyTasksFromServer()", hub)
+
+
 class CacheAndHobbyLock(unittest.TestCase):
     def test_static_cache_bumped(self):
-        self.assertIn("?v=refresh-scopes-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v51"', SW)
-        self.assertIn("/styles.css?v=refresh-scopes-1", SW)
-        self.assertIn("/app.js?v=refresh-scopes-1", SW)
+        self.assertIn("?v=quest-rollover-1", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v52"', SW)
+        self.assertIn("/styles.css?v=quest-rollover-1", SW)
+        self.assertIn("/app.js?v=quest-rollover-1", SW)
+        self.assertNotIn("refresh-scopes-1", HTML)
+        self.assertNotIn("refresh-scopes-1", SW)
         self.assertNotIn("refresh-plan-1", HTML)
         self.assertNotIn("refresh-plan-1", SW)
         self.assertNotIn("meal-plan-busy-2", HTML)
