@@ -12,10 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from datetime import date, datetime, timezone  # noqa: E402
+
 from holistic.time_allocator.domain import (  # noqa: E402
     STARTER_ITEMS,
     add_item,
     allocate_total,
+    apply_plan,
+    complete_block,
     empty_state,
     get_item,
     list_items,
@@ -234,6 +238,47 @@ class CliTests(unittest.TestCase):
             payload2 = json.loads(r6.stdout)
             self.assertEqual([it["id"] for it in payload2["items"]], ["g1"])
             self.assertEqual(payload2["items"][0]["minutes"], 120)
+
+
+class CompleteBlockTests(unittest.TestCase):
+    NOW = datetime(2026, 8, 21, 16, 0, tzinfo=timezone.utc)
+
+    def test_daily_duration_log_drops_block_after_replan(self) -> None:
+        state = apply_plan(
+            seed_starter(empty_state(), personal=True), now=self.NOW
+        )
+        ids = {b["id"] for b in (state.get("plan") or {}).get("blocks") or []}
+        self.assertIn("duchess-walk", ids)
+        state, result = complete_block(state, "duchess-walk", on=date(2026, 8, 21))
+        self.assertTrue(result["accepted"])
+        state = apply_plan(state, now=self.NOW)
+        ids = {b["id"] for b in (state.get("plan") or {}).get("blocks") or []}
+        self.assertNotIn("duchess-walk", ids)
+
+    def test_workout_log_drops_session(self) -> None:
+        state = apply_plan(
+            seed_starter(empty_state(), personal=True), now=self.NOW
+        )
+        state, result = complete_block(state, "workout", on=date(2026, 8, 21))
+        self.assertTrue(result["accepted"])
+        state = apply_plan(state, now=self.NOW)
+        ids = {b["id"] for b in (state.get("plan") or {}).get("blocks") or []}
+        self.assertNotIn("workout", ids)
+
+    def test_adhoc_remove_is_the_source_done(self) -> None:
+        state = add_item(empty_state(), "Deep work", item_id="deep-work", minutes=90)
+        state, result = complete_block(state, "deep-work")
+        self.assertTrue(result["accepted"])
+        self.assertIsNone(get_item(state, "deep-work"))
+
+    def test_unknown_and_reserve_refused(self) -> None:
+        state = seed_starter(empty_state(), personal=True)
+        _, missing = complete_block(state, "no-such-block")
+        self.assertFalse(missing["accepted"])
+        _, sleep = complete_block(state, "sleep")
+        self.assertFalse(sleep["accepted"])
+        _, empty = complete_block(state, "")
+        self.assertFalse(empty["accepted"])
 
 
 if __name__ == "__main__":

@@ -15,9 +15,11 @@ from typing import Any, Optional
 
 try:
     from .attention import hours_since, parse_timestamp
+    from .complete import writable_source
     from .pulse import keep_action_item, same_civil_day
 except ImportError:  # unittest path insert
     from attention import hours_since, parse_timestamp
+    from complete import writable_source
     from pulse import keep_action_item, same_civil_day
 
 SCHEMA_VERSION = 1
@@ -318,7 +320,8 @@ def ta_block_to_candidate(
 ) -> dict[str, Any]:
     """NOW/NEXT row from a Time Allocator block. Deep-link :8770; do not embed UI."""
     title = str(block.get("title") or block.get("id") or "").strip()
-    bid = str(block.get("id") or title)
+    raw_id = block.get("id")
+    bid = str(raw_id).strip() if raw_id is not None and str(raw_id).strip() else ""
     mapped = _map_block_kind(block)
     low = title.lower()
     kind = mapped
@@ -332,7 +335,7 @@ def ta_block_to_candidate(
     elif any(x in low for x in ("eat", "meal", "protein")):
         kind = "protein"
     row: dict[str, Any] = {
-        "id": bid[:80],
+        "id": (bid or title)[:80],
         "title": title,
         "domain": "holistic",
         "why": "",
@@ -340,6 +343,9 @@ def ta_block_to_candidate(
         "deep_link": deep_link or DEFAULT_DEEP_LINKS["holistic"],
         "kind": kind,
     }
+    if bid:
+        row["source"] = "time_allocator"
+        row["source_id"] = bid[:80]
     for key in ("start", "at", "when", "time"):
         if block.get(key) is not None:
             row[key] = block.get(key)
@@ -1370,6 +1376,15 @@ def _next3_row(item: dict[str, Any]) -> dict[str, Any]:
     when = _item_when(item)
     if when is not None:
         row["start"] = when.isoformat()
+    ref = writable_source(item)
+    if ref:
+        row["source"] = ref["source"]
+        row["source_id"] = ref["source_id"]
+        row["checkable"] = True
+        if ref.get("list_id"):
+            row["list_id"] = ref["list_id"]
+    else:
+        row["checkable"] = False
     return row
 
 

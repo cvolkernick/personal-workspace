@@ -854,6 +854,78 @@ def build_rolling_plan(
     }
 
 
+# Day-block kinds Orchestra / TA can honestly mark done. Sleep reserve,
+# fill_remainder, and rolling averages are plan chrome, not a to-do.
+_COMPLETABLE_TARGET_KINDS = frozenset({"daily_duration", "weekly_frequency"})
+
+
+def complete_block(
+    state: dict[str, Any],
+    block_id: str,
+    *,
+    on: date | str | None = None,
+    note: str = "",
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Mark a Time Allocator day-block done in the TA store.
+
+    Target-backed blocks log today's value (workout=1, duration=plan minutes).
+    Ad-hoc items are removed — TA has no item-done flag. Unknown ids and
+    reserve/fill kinds are refused. Caller persists + replans.
+    """
+    key = (block_id or "").strip()
+    if not key:
+        return state, {"ok": False, "accepted": False, "error": "no source id"}
+
+    tgt = get_target(state, key)
+    if tgt is not None:
+        kind = str(tgt.get("kind") or "")
+        if kind not in _COMPLETABLE_TARGET_KINDS:
+            return state, {
+                "ok": False,
+                "accepted": False,
+                "error": f"target kind {kind or 'unknown'} is not completable",
+                "source": "time_allocator",
+                "source_id": str(tgt.get("id") or key),
+            }
+        if kind == "weekly_frequency":
+            value = 1.0
+        else:
+            value = float(tgt.get("minutes") or tgt.get("minutes_min") or 0)
+            if value <= 0:
+                value = 1.0
+        new_state = add_log(
+            state,
+            str(tgt["id"]),
+            value,
+            on=on,
+            note=note or "completed",
+        )
+        return new_state, {
+            "ok": True,
+            "accepted": True,
+            "source": "time_allocator",
+            "source_id": str(tgt["id"]),
+        }
+
+    item = get_item(state, key)
+    if item is not None:
+        new_state = remove_item(state, str(item["id"]))
+        return new_state, {
+            "ok": True,
+            "accepted": True,
+            "source": "time_allocator",
+            "source_id": str(item["id"]),
+        }
+
+    return state, {
+        "ok": False,
+        "accepted": False,
+        "error": f"no block matching: {key}",
+        "source": "time_allocator",
+        "source_id": key,
+    }
+
+
 def apply_plan(state: dict[str, Any], plan: dict[str, Any] | None = None, **plan_kwargs: Any) -> dict[str, Any]:
     """Compute plan (if needed), store on state, and mirror ad-hoc minutes from plan blocks."""
     out = normalize_state(state)

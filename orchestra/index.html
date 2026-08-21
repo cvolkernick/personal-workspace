@@ -116,6 +116,8 @@
     }
     .seat .title { font-weight: 700; font-size: 1.05rem; }
     .seat .detail { color: var(--muted); font-size: 0.88rem; margin-top: 0.25rem; }
+    .chk { display: inline-flex; align-items: center; margin-right: 0.45rem; vertical-align: middle; }
+    .chk input { width: 1rem; height: 1rem; accent-color: var(--cyan); cursor: pointer; }
     .list { display: flex; flex-direction: column; gap: 0.5rem; }
     .row {
       background: var(--panel); border: 1px solid var(--border);
@@ -292,14 +294,29 @@
       });
     }
 
-    function itemHtml(item, extraClass) {
+    function isCheckable(item) {
+      return !!(item && item.checkable && item.source && item.source_id);
+    }
+
+    function checkboxHtml(item) {
+      if (!isCheckable(item)) return "";
+      return `<label class="chk"><input type="checkbox" data-complete`
+        + ` data-source="${esc(item.source)}"`
+        + ` data-source-id="${esc(item.source_id)}"`
+        + ` data-list-id="${esc(item.list_id || "")}"`
+        + ` aria-label="Complete ${esc(item.title || "item")}"></label>`;
+    }
+
+    function itemHtml(item, extraClass, opts) {
       const domain = item.domain || "";
       const sev = item.severity || "";
       const link = item.deep_link
         ? `<a class="link" href="${esc(publicizeUrl(item.deep_link))}" target="_blank" rel="noopener">Open →</a>`
         : "";
+      const box = (opts && opts.check) ? checkboxHtml(item) : "";
       return `<div class="row ${extraClass || ""}">
         <div class="title">
+          ${box}
           ${sev ? `<span class="pill ${esc(sev)}">${esc(sev)}</span>` : ""}
           ${domain ? `<span class="pill info">${esc(domain)}</span>` : ""}
           ${esc(item.title || "")}
@@ -318,7 +335,7 @@
         return;
       }
       el.className = "seat now";
-      el.innerHTML = `<div class="title">${esc(now.title || "")}</div>`
+      el.innerHTML = `<div class="title">${checkboxHtml(now)}${esc(now.title || "")}</div>`
         + (now.why ? `<div class="detail">${esc(now.why)}</div>` : "");
     }
 
@@ -326,7 +343,7 @@
       const el = $("next-list");
       const next = (pulse && pulse.next) || (dayPlan && dayPlan.next3) || [];
       el.innerHTML = next.length
-        ? next.map((item) => itemHtml(item)).join("")
+        ? next.map((item) => itemHtml(item, "", { check: true })).join("")
         : '<div class="seat empty">Empty</div>';
     }
 
@@ -388,7 +405,56 @@
       }
     }
 
+    async function completeFromInput(input) {
+      const source = (input.getAttribute("data-source") || "").trim();
+      const sourceId = (input.getAttribute("data-source-id") || "").trim();
+      const listId = (input.getAttribute("data-list-id") || "").trim();
+      if (!source || !sourceId) {
+        input.checked = false;
+        return;
+      }
+      input.disabled = true;
+      try {
+        const body = { source, source_id: sourceId };
+        if (listId) body.list_id = listId;
+        const res = await fetch("/api/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok || !data.accepted) {
+          input.checked = false;
+          input.disabled = false;
+          showError(data.error || "Source did not accept completion");
+          return;
+        }
+        await load();
+      } catch (e) {
+        input.checked = false;
+        input.disabled = false;
+        showError("Could not complete item: " + (e && e.message ? e.message : e));
+      }
+    }
+
+    function bindComplete() {
+      const main = document.querySelector("main");
+      if (!main || main._completeBound) return;
+      main._completeBound = true;
+      main.addEventListener("change", (ev) => {
+        const input = ev.target.closest && ev.target.closest("input[data-complete]");
+        if (!input) return;
+        if (!input.closest("#now-seat, #next-list")) {
+          input.checked = false;
+          return;
+        }
+        completeFromInput(input);
+      });
+    }
+
     $("btn-refresh").addEventListener("click", () => load());
+    bindComplete();
     load();
   </script>
 </body>
