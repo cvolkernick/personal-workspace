@@ -1013,6 +1013,8 @@ class PulseChromeAssayTests(unittest.TestCase):
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn('short: "FitDash"', html)
         self.assertNotIn('short: "FCC"', html)
+        self.assertNotIn("Turo", html)
+        self.assertNotIn("host-mail", html.lower())
         self.assertNotIn("port: 8000", html)
         self.assertNotIn("port: 8787", html)
         self.assertNotIn("port: 8780", html)
@@ -1313,8 +1315,12 @@ class NowNextCheckAssayTests(unittest.TestCase):
         self.assertTrue(
             is_checkable({"source": "google_tasks", "source_id": "t1", "list_id": "L1"})
         )
-        self.assertTrue(
+        # Turo invoice-ready is Auto Fleet chrome, not an Orchestra source alias.
+        self.assertFalse(
             is_checkable({"source": "turo", "source_id": "t2", "list_id": "L-turo"})
+        )
+        self.assertTrue(
+            is_checkable({"gt_task_id": "t2", "list_id": "L1"})
         )
 
     def test_existing_gt_task_maps_onto_matching_now_title(self) -> None:
@@ -1367,6 +1373,11 @@ class NowNextCheckAssayTests(unittest.TestCase):
         self.assertNotIn("complete_block", complete_src)
         self.assertNotIn("time_allocator.store", complete_src)
         self.assertNotIn("holistic/data/tasks", complete_src)
+        self.assertNotIn("turo-fleet", complete_src)
+        html_l = html.lower()
+        self.assertNotIn("turo", html_l)
+        self.assertNotIn("host-mail", html_l)
+        self.assertNotIn("invoice-ready", html_l)
 
     def test_complete_without_gt_id_is_noop(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -1405,7 +1416,7 @@ class NowNextCheckAssayTests(unittest.TestCase):
                 return_value={"ok": False, "error": "source rejected"},
             ):
                 refused = complete_item(
-                    {"source": "turo", "source_id": "t2", "list_id": "L-turo"},
+                    {"source": "google_tasks", "source_id": "t2", "list_id": "L2"},
                     workspace=ws,
                 )
             self.assertFalse(refused.get("accepted"))

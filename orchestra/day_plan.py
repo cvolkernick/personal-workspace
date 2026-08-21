@@ -1434,7 +1434,7 @@ def compose_day_plan(
     wf_src, wf_gates, wf_sugg = build_workflow_source(by_id.get("workflow") or {}, now=ref)
     fit_src, fit_gates, fit_sugg = build_fitness_source(by_id.get("fitness") or {}, now=ref)
     fin_src, fin_gates, fin_sugg = build_finance_source(by_id.get("finance") or {}, now=ref)
-    # Existing GT tasks only (FitDash quests today; Turo list later). Do not create.
+    # Map existing GT ids onto matching NOW titles. Do not create tasks.
     gt_index = gt_task_index(fit_src, hol_src, wf_src, fin_src)
 
     gates = list(fin_gates) + list(fit_gates) + list(wf_gates)

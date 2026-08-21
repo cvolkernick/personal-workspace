@@ -1,8 +1,8 @@
 """Google Tasks write-back for Orchestra NOW/NEXT checkboxes.
 
-One central task bucket: Google Tasks. Orchestra / FitDash / Turo-Fleet
-only surface and complete their slice. No Orchestra task store. No Time
+One central task bucket: Google Tasks. No Orchestra task store. No Time
 Allocator task list — schedule blocks without a GT id stay uncheckable.
+No Turo / host-mail strip: invoice-ready lives on Auto Fleet.
 """
 
 from __future__ import annotations
@@ -13,9 +13,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 GT_SOURCE = "google_tasks"
-GT_SOURCE_ALIASES = frozenset(
-    {"google_tasks", "fitdash", "turo", "turo-fleet", "fleet"}
-)
+GT_SOURCE_ALIASES = frozenset({"google_tasks", "fitdash"})
 GT_ID_KEYS = ("gt_task_id", "google_task_id", "gt_id")
 LIST_ID_KEYS = ("list_id", "gt_list_id", "google_list_id")
 LIST_TITLE_KEYS = ("list_title", "gt_list_title", "google_list_title")
@@ -72,7 +70,7 @@ def _title_key(value: Any) -> str:
 
 
 def gt_task_index(*blobs: Any) -> dict[str, dict[str, Any]]:
-    """Title → GT handle from FitDash quests / future Turo tasks already collected."""
+    """Title → GT handle from collected quests that already have a GT id."""
     index: dict[str, dict[str, Any]] = {}
     for blob in blobs:
         if not isinstance(blob, dict):
