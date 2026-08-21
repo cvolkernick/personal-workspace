@@ -9,7 +9,8 @@ any static file server. Own Vercel project: see `docs/hosting.md`.
 ## Catalog
 
 Live data is `catalog/items.json` (an array) plus JPEGs in `catalog/images/`.
-The shipped catalog is empty on purpose.
+The first live item is **Faith & Flow Tabletop Fountain**. Do not seed dummy
+prints, prices, or purchase orders.
 
 To add a print later (not a mail watcher):
 

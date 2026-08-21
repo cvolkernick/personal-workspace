@@ -32,7 +32,7 @@ custom / proofs of concept / products. No prices, quotes, or carts.
 | `catalog.html` | Grid from `catalog/items.json` |
 | `static/styles.css` | Shared card palette |
 | `static/catalog.js` | Renders cards or the honest empty state |
-| `catalog/items.json` | Array of live prints (starts empty) |
+| `catalog/items.json` | Array of live prints (SoT with `catalog/images/`) |
 | `catalog/images/` | Processed JPEGs |
 
 Email contracts live in `docs/` only (`new print`, `mikrafts feedback`).
@@ -64,7 +64,10 @@ Rendered contract (same markup as `static/catalog.js` / `ingest.render_catalog_c
 </article>
 ```
 
-Honest empty (live catalog with zero items):
+First live row (Mike, 2026-08-21): Faith & Flow Tabletop Fountain. Title and
+note come from his `new print` email. No price on the card.
+
+Honest empty (only when the live array has zero items):
 
 ```html
 <p class="catalog-empty">No prints in the catalog yet.</p>
