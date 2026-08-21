@@ -65,8 +65,8 @@
   },
   "agentic_portfolio_payload": {
     "data": {
-      "total_value": "199.38898065",
-      "equity_value": "199.29898065",
+      "total_value": "201.60458618",
+      "equity_value": "201.51458618",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -317,8 +317,8 @@
     },
     "agentic_portfolio": {
       "data": {
-        "total_value": "199.38898065",
-        "equity_value": "199.29898065",
+        "total_value": "201.60458618",
+        "equity_value": "201.51458618",
         "options_value": "0",
         "futures_value": "0",
         "event_contracts_value": "0",
