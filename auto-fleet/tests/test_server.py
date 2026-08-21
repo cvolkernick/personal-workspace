@@ -41,7 +41,17 @@ class AutoFleetServerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             env_path = Path(td) / "env"
             env_path.write_text("# empty on purpose\n", encoding="utf-8")
-            proc_env = {**os.environ, "PYTHONPATH": str(ROOT)}
+            gtasks_dir = Path(td) / "gtasks"
+            gtasks_dir.mkdir()
+            proc_env = {
+                **os.environ,
+                "PYTHONPATH": str(ROOT),
+                "GOOGLE_TASKS_CONFIG_DIR": str(gtasks_dir),
+                "GOOGLE_TASKS_TOKEN_JSON": "",
+                "GOOGLE_TASKS_REFRESH_TOKEN": "",
+                "GOOGLE_TASKS_CLIENT_ID": "",
+                "GOOGLE_TASKS_CLIENT_SECRET": "",
+            }
             proc = subprocess.Popen(
                 [
                     sys.executable,
@@ -156,15 +166,26 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertFalse(fleet["sources"]["expenses"]["uses_combined_monthly"])
                 self.assertNotIn("combined_monthly", fleet)
 
+                code, tasks = _http_json("GET", f"{base}/api/turo-tasks")
+                self.assertEqual(code, 200, tasks)
+                self.assertFalse(tasks.get("ok"))
+                self.assertEqual(tasks.get("items"), [])
+                self.assertTrue(tasks.get("error"))
+                self.assertIn("Google Tasks", str(tasks.get("error")))
+
                 code, page = self._http_text(f"{base}/")
                 self.assertEqual(code, 200)
                 self.assertIn("Auto Fleet", page)
                 self.assertIn("/api/fleet", page)
+                self.assertIn("/api/turo-tasks", page)
+                self.assertIn('id="host-ops"', page)
+                self.assertIn("🚗", page)
                 self.assertIn("Notes & costs", page)
                 self.assertNotIn("<h3>Finance", page)
                 self.assertNotIn("combined_monthly", page)
                 self.assertNotIn("FCC", page)
                 self.assertNotIn("Mercury", page)
+                self.assertNotIn("nothing to do", page.lower())
             finally:
                 proc.terminate()
                 try:
@@ -217,6 +238,9 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertNotIn("SafeWheels", html)
         self.assertNotIn("Mercury", html)
         self.assertLess(html.find('id="glance"'), html.find('id="cards"'))
+        self.assertIn('id="host-ops"', html)
+        self.assertIn("🚗", html)
+        self.assertNotIn("nothing to do", html.lower())
 
     def test_financial_command_has_no_fleet_surface(self) -> None:
         fcc = ROOT / "financial-command" / "index.html"

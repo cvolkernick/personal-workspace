@@ -3,6 +3,8 @@
 
   GET  /api/health  → {ok, service: "auto-fleet", port}
   GET  /api/fleet   → roster units + DIMO / Turo / costs strips
+  GET  /api/turo-tasks → open Google Tasks on the Turo list
+  POST /api/turo-tasks/complete → checkbox write-back to Google Tasks
   GET  /            → UI
 
 Usage:
@@ -29,6 +31,7 @@ if str(PKG_DIR) not in sys.path:
     sys.path.insert(0, str(PKG_DIR))
 
 from fleet import build_fleet  # noqa: E402
+from turo_tasks import complete_task, list_open_tasks  # noqa: E402
 
 DEFAULT_PORT = 8796
 _BOUND_PORT: int = DEFAULT_PORT
@@ -68,7 +71,7 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
 
@@ -104,10 +107,50 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
             except Exception as exc:  # noqa: BLE001
                 self._json(500, {"ok": False, "error": str(exc)})
             return
+        if path == "/api/turo-tasks":
+            try:
+                self._json(200, list_open_tasks())
+            except Exception as exc:  # noqa: BLE001
+                self._json(
+                    200,
+                    {
+                        "ok": False,
+                        "error": str(exc) or "Google Tasks error",
+                        "items": [],
+                    },
+                )
+            return
         if path in ("/", "/index.html"):
             self.path = "/index.html"
             return super().do_GET()
         return super().do_GET()
+
+    def _read_json(self) -> dict[str, Any]:
+        length = int(self.headers.get("Content-Length") or 0)
+        raw = self.rfile.read(length) if length else b""
+        if not raw:
+            return {}
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    def do_POST(self) -> None:  # noqa: N802
+        path = urlparse(self.path).path
+        if path != "/api/turo-tasks/complete":
+            self._json(404, {"ok": False, "error": "not found"})
+            return
+        body = self._read_json()
+        task_id = str(body.get("task_id") or body.get("id") or "")
+        list_id = str(body.get("list_id") or "") or None
+        try:
+            result = complete_task(task_id, list_id)
+        except Exception as exc:  # noqa: BLE001
+            self._json(500, {"ok": False, "error": str(exc) or "complete_failed"})
+            return
+        code = 200 if result.get("ok") else 400
+        self._json(code, result)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -136,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     _BOUND_HOST, _BOUND_PORT = server.server_address[0], int(server.server_address[1])
     url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"Auto Fleet dashboard → {url}")
-    print("API: /api/health /api/fleet")
+    print("API: /api/health /api/fleet /api/turo-tasks")
     print("Secrets: ~/.config/auto-fleet/env (not in repo)")
     if not args.no_browser:
         webbrowser.open(url)

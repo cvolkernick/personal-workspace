@@ -223,6 +223,41 @@
       font-weight: 650;
       color: var(--muted);
     }
+    .host-ops {
+      margin: 0 0 1rem;
+      padding: 0.75rem 0.95rem 0.65rem;
+    }
+    .host-ops h2 {
+      margin: 0 0 0.45rem;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 650;
+    }
+    .host-ops-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.65rem;
+      margin: 0.2rem 0;
+      min-height: 44px;
+    }
+    .host-ops-item input[type="checkbox"] {
+      width: 22px;
+      height: 22px;
+      margin-top: 0.35rem;
+      flex: 0 0 auto;
+      accent-color: var(--green);
+      cursor: pointer;
+    }
+    .host-ops-copy { min-width: 0; padding-top: 0.2rem; }
+    .host-ops-copy .title { font-weight: 650; }
+    .host-ops-copy .notes {
+      color: var(--muted);
+      font-size: 0.82rem;
+      white-space: pre-wrap;
+      margin: 0.15rem 0 0;
+    }
     @media (max-width: 720px) {
       .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid { grid-template-columns: 1fr; }
@@ -247,6 +282,7 @@
   </header>
   <main>
     <p class="meta" id="status">Loading…</p>
+    <section class="card host-ops" id="host-ops" hidden></section>
     <div class="glance" id="glance"></div>
     <div class="grid" id="cards"></div>
     <section class="card shared" id="shared" hidden></section>
@@ -561,6 +597,87 @@
       box.innerHTML = html;
     }
 
+    function renderHostOps(data) {
+      const box = $("host-ops");
+      if (!box) return;
+      if (!data || !data.ok) {
+        const err = data && data.error;
+        if (!err) {
+          box.hidden = true;
+          box.innerHTML = "";
+          return;
+        }
+        box.hidden = false;
+        box.innerHTML =
+          `<h2>Invoice-ready</h2><p class="err">${esc(err)}</p>`;
+        return;
+      }
+      const items = (data.items || []).filter((it) => it && (it.title || it.notes));
+      if (!items.length) {
+        box.hidden = true;
+        box.innerHTML = "";
+        return;
+      }
+      const listId = data.list_id || "";
+      const rows = items.map((it) => {
+        const tid = esc(it.id || "");
+        const lid = esc(it.list_id || listId);
+        const notes = (it.notes || "").trim();
+        return `<label class="host-ops-item">
+          <input type="checkbox" data-task-id="${tid}" data-list-id="${lid}" />
+          <span class="host-ops-copy">
+            <span class="title">${esc(it.title || "")}</span>
+            ${notes ? `<p class="notes">${esc(notes)}</p>` : ""}
+          </span>
+        </label>`;
+      }).join("");
+      box.hidden = false;
+      box.innerHTML = `<h2>Invoice-ready</h2>${rows}`;
+      box.querySelectorAll('input[type="checkbox"]').forEach((el) => {
+        el.addEventListener("change", onHostOpsComplete);
+      });
+    }
+
+    async function onHostOpsComplete(ev) {
+      const el = ev.target;
+      if (!el || !el.checked) return;
+      const taskId = el.getAttribute("data-task-id") || "";
+      const listId = el.getAttribute("data-list-id") || "";
+      el.disabled = true;
+      try {
+        const res = await fetch("/api/turo-tasks/complete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ task_id: taskId, list_id: listId }),
+        });
+        const data = await res.json();
+        if (!data || !data.ok) {
+          el.checked = false;
+          el.disabled = false;
+          const box = $("host-ops");
+          const err = (data && data.error) || "Could not complete Google Task";
+          let note = box.querySelector(".host-ops-err");
+          if (!note) {
+            note = document.createElement("p");
+            note.className = "err host-ops-err";
+            box.appendChild(note);
+          }
+          note.textContent = err;
+          return;
+        }
+        const row = el.closest(".host-ops-item");
+        if (row) row.remove();
+        const left = $("host-ops").querySelectorAll(".host-ops-item");
+        if (!left.length) {
+          $("host-ops").hidden = true;
+          $("host-ops").innerHTML = "";
+        }
+      } catch (err) {
+        el.checked = false;
+        el.disabled = false;
+      }
+    }
+
     function renderTuroFooter(payload) {
       const box = $("turo-inbox");
       const body = $("turo-inbox-body");
@@ -577,12 +694,19 @@
     async function load() {
       const status = $("status");
       try {
-        const [healthRes, fleetRes] = await Promise.all([
+        const [healthRes, fleetRes, tasksRes] = await Promise.all([
           fetch("/api/health", { cache: "no-store" }),
           fetch("/api/fleet", { cache: "no-store" }),
+          fetch("/api/turo-tasks", { cache: "no-store" }).catch(() => null),
         ]);
         const health = await healthRes.json();
         const fleet = await fleetRes.json();
+        let tasks = null;
+        try {
+          tasks = tasksRes ? await tasksRes.json() : null;
+        } catch (_err) {
+          tasks = null;
+        }
         if (!health.ok) throw new Error(health.error || "health not ok");
         if (!fleet.ok) throw new Error(fleet.error || "fleet payload not ok");
         const dimoSrc = fleet.sources && fleet.sources.dimo;
@@ -599,6 +723,7 @@
           ` · Turo ${turoAt}` +
           (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
         const list = fleet.units || [];
+        renderHostOps(tasks);
         $("glance").innerHTML = list.map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
         $("cards").innerHTML = list.map((u) => renderUnit(u, nowMs, pollS)).join("");
         renderShared(fleet);
