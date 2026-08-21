@@ -15,11 +15,11 @@ from typing import Any, Optional
 
 try:
     from .attention import hours_since, parse_timestamp
-    from .complete import attach_gt_ref, gt_task_index, writable_source
+    from .complete import attach_gt_ref, gt_task_index, window_gt_candidates, writable_source
     from .pulse import keep_action_item, same_civil_day
 except ImportError:  # unittest path insert
     from attention import hours_since, parse_timestamp
-    from complete import attach_gt_ref, gt_task_index, writable_source
+    from complete import attach_gt_ref, gt_task_index, window_gt_candidates, writable_source
     from pulse import keep_action_item, same_civil_day
 
 SCHEMA_VERSION = 1
@@ -1421,11 +1421,15 @@ def compose_day_plan(
     *,
     recommendations: Optional[dict[str, Any]] = None,
     now: Optional[datetime] = None,
+    gt_tasks: Optional[list[Any]] = None,
 ) -> dict[str, Any]:
     """Compose frozen day_plan from domain snapshots.
 
     Pure function. Optional recommendations items may contribute candidates
     after domain suggested_actions (not a permanent second ranker).
+    Optional gt_tasks are pre-fetched Google Tasks (e.g. the Turo list)
+    already scoped by the caller; only today's-window action items enter
+    NOW/NEXT. Composer does not create tasks or call Google.
     """
     ref = _utc_now(now)
     by_id = _domain_by_id(domains)
@@ -1434,8 +1438,11 @@ def compose_day_plan(
     wf_src, wf_gates, wf_sugg = build_workflow_source(by_id.get("workflow") or {}, now=ref)
     fit_src, fit_gates, fit_sugg = build_fitness_source(by_id.get("fitness") or {}, now=ref)
     fin_src, fin_gates, fin_sugg = build_finance_source(by_id.get("finance") or {}, now=ref)
+    # Open Turo-list (or other) GT items that belong in today's window.
+    # Not a Turo inbox and not a Fleet embed — same keep_action_item filter.
+    gt_window = window_gt_candidates(gt_tasks, now=ref)
     # Map existing GT ids onto matching NOW titles. Do not create tasks.
-    gt_index = gt_task_index(fit_src, hol_src, wf_src, fin_src)
+    gt_index = gt_task_index(fit_src, hol_src, wf_src, fin_src, {"tasks": gt_window})
 
     gates = list(fin_gates) + list(fit_gates) + list(wf_gates)
 
@@ -1448,7 +1455,7 @@ def compose_day_plan(
     # Board suggested_actions stay on the workflow source. They are team work
     # (Pull candidate / Ready supply) and must not enter NOW/NEXT.
     _ = wf_sugg
-    for pool in (fit_sugg, fin_sugg):
+    for pool in (fit_sugg, fin_sugg, gt_window):
         candidates.extend(pool)
     # Same-day actionable Time Allocator blocks → NOW/NEXT (not the :8770 UI).
     hol_deep = hol_src.get("deep_link") or DEFAULT_DEEP_LINKS["holistic"]

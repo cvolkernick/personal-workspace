@@ -1,22 +1,30 @@
-"""Google Tasks write-back for Orchestra NOW/NEXT checkboxes.
+"""Google Tasks write-back and today-window listing for Orchestra NOW/NEXT.
 
 One central task bucket: Google Tasks. No Orchestra task store. No Time
 Allocator task list — schedule blocks without a GT id stay uncheckable.
-No Turo / host-mail strip: invoice-ready lives on Auto Fleet.
+The Turo *list* is a GT sub-list: open tasks in today's window may appear
+on NOW/NEXT. Invoice-ready standing line stays on Auto Fleet — no Orchestra
+inbox or Fleet embed.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 GT_SOURCE = "google_tasks"
 GT_SOURCE_ALIASES = frozenset({"google_tasks", "fitdash"})
 GT_ID_KEYS = ("gt_task_id", "google_task_id", "gt_id")
 LIST_ID_KEYS = ("list_id", "gt_list_id", "google_list_id")
 LIST_TITLE_KEYS = ("list_title", "gt_list_title", "google_list_title")
+TURO_LIST_TITLE = "Turo"
+CIVIL_TZ = ZoneInfo("America/New_York")
+_DUE_DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 
 _ORCH = Path(__file__).resolve().parent
 _ROOT = _ORCH.parent
@@ -90,6 +98,134 @@ def gt_task_index(*blobs: Any) -> dict[str, dict[str, Any]]:
                 if ref and title:
                     index[title] = ref
     return index
+
+
+def _civil_today(now: Optional[datetime] = None) -> date:
+    ref = now or datetime.now(timezone.utc)
+    if ref.tzinfo is None:
+        ref = ref.replace(tzinfo=timezone.utc)
+    return ref.astimezone(CIVIL_TZ).date()
+
+
+def due_date(task: Optional[dict[str, Any]]) -> Optional[date]:
+    """GT due is a calendar date (usually YYYY-MM-DDT00:00:00.000Z)."""
+    if not isinstance(task, dict):
+        return None
+    raw = task.get("due")
+    if raw is None or raw is False:
+        return None
+    match = _DUE_DATE_RE.match(str(raw).strip())
+    if not match:
+        return None
+    try:
+        return date(int(match.group(1)), int(match.group(2)), int(match.group(3)))
+    except ValueError:
+        return None
+
+
+def task_in_now_window(
+    task: Optional[dict[str, Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> bool:
+    """Open task due today, overdue, or undated. Future-dated stays off."""
+    if not isinstance(task, dict):
+        return False
+    if str(task.get("status") or "needsAction") == "completed":
+        return False
+    if task.get("deleted") or task.get("hidden"):
+        return False
+    when = due_date(task)
+    if when is None:
+        return True
+    return when <= _civil_today(now)
+
+
+def gt_task_to_candidate(task: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    """NOW/NEXT row from a Google Task. No GT id → None (uncheckable, do not invent)."""
+    if not isinstance(task, dict):
+        return None
+    title = str(task.get("title") or task.get("action") or "").strip()
+    task_id = _first_text(task, GT_ID_KEYS) or str(task.get("id") or "").strip()
+    list_id = _first_text(task, LIST_ID_KEYS)
+    list_title = _first_text(task, LIST_TITLE_KEYS)
+    if not title or not task_id or (not list_id and not list_title):
+        return None
+    row: dict[str, Any] = {
+        "id": task_id[:80],
+        "title": title,
+        "why": "",
+        "severity": "info",
+        "kind": "task",
+        "source": GT_SOURCE,
+        "source_id": task_id[:80],
+        "gt_task_id": task_id[:80],
+    }
+    if list_id:
+        row["list_id"] = list_id
+    if list_title:
+        row["list_title"] = list_title
+    raw_due = task.get("due")
+    if raw_due:
+        row["due"] = raw_due
+        row["at"] = raw_due
+    return row
+
+
+def window_gt_candidates(
+    tasks: Optional[list[Any]],
+    *,
+    now: Optional[datetime] = None,
+) -> list[dict[str, Any]]:
+    """Chris-actionable open GT tasks in today's window. Pure."""
+    try:
+        from pulse import keep_action_item
+    except ImportError:
+        from .pulse import keep_action_item
+
+    out: list[dict[str, Any]] = []
+    for raw in tasks or []:
+        if not task_in_now_window(raw, now=now):
+            continue
+        cand = gt_task_to_candidate(raw)
+        if cand and keep_action_item(cand):
+            out.append(cand)
+    return out
+
+
+def list_window_gt_tasks(
+    *,
+    list_title: str = TURO_LIST_TITLE,
+    workspace: Optional[Path] = None,
+    now: Optional[datetime] = None,
+) -> list[dict[str, Any]]:
+    """Read one GT list. Missing list / creds → empty (honest). Does not create."""
+    ws = Path(workspace) if workspace is not None else _ROOT
+    title = (list_title or "").strip()
+    if not title:
+        return []
+    try:
+        gt = _load_google_tasks(ws)
+        list_id = ""
+        lists = gt.list_tasklists()
+        if lists.get("ok"):
+            want = title.lower()
+            for tl in lists.get("lists") or []:
+                if str(tl.get("title") or "").strip().lower() == want:
+                    list_id = str(tl.get("id") or "")
+                    break
+        if not list_id:
+            return []
+        payload = gt.list_tasks(
+            list_id,
+            show_completed=False,
+            list_title=title,
+        )
+        if not payload.get("ok"):
+            return []
+        return window_gt_candidates(payload.get("tasks") or [], now=now)
+    except Exception:
+        return []
 
 
 def attach_gt_ref(
