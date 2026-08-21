@@ -9,6 +9,7 @@
   GET  /api/launch?domain=  — publicized open URL + live probe (nav v1)
   GET  /api/launch/status   — which domain servers are live
   POST /api/launch          — {domain} ensure server if offline, return url
+  POST /api/complete        — NOW/NEXT Google Tasks complete (no local store)
   GET  /api/synergies
   GET  /api/priorities
   GET  /api/attention   — attention digest + freshness
@@ -47,6 +48,7 @@ from fan_in import build_fan_in  # noqa: E402
 from heartbeat import heartbeat_api_payload  # noqa: E402
 from launcher import domain_spec, ensure_domain, probe_port, status_all  # noqa: E402
 from payload import DEFAULT_PORT, WORKSPACE_ROOT, build_orchestra_payload  # noqa: E402
+from complete import complete_item  # noqa: E402
 from pulse import next_api_payload, now_api_payload  # noqa: E402
 from public_base import (  # noqa: E402
     public_hostname,
@@ -181,6 +183,16 @@ class OrchestraHandler(SimpleHTTPRequestHandler):
                 result = dict(result)
                 result["url"] = rewrite_loopback_url(result.get("url"), host)
             code = 200 if result.get("ok") else 400
+            self._json(code, result)
+            return
+        if path == "/api/complete":
+            body = self._read_json_body()
+            try:
+                result = complete_item(body, workspace=WORKSPACE_ROOT)
+            except Exception as e:  # noqa: BLE001
+                self._json(500, {"ok": False, "accepted": False, "error": str(e)})
+                return
+            code = 200 if result.get("accepted") else 400
             self._json(code, result)
             return
         self._json(404, {"ok": False, "error": f"unknown path {path}"})

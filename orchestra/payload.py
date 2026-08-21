@@ -10,6 +10,7 @@ try:
     from .advice import build_advice, load_advice_packet
     from .attention import compute_freshness, synthesize_attention
     from .collectors import collect_all_domains
+    from .complete import TURO_LIST_TITLE, list_window_gt_tasks
     from .day_plan import compose_day_plan
     from .domains import DOMAIN_SPECS
     from .priorities import synthesize_priorities
@@ -20,6 +21,7 @@ except ImportError:
     from advice import build_advice, load_advice_packet
     from attention import compute_freshness, synthesize_attention
     from collectors import collect_all_domains
+    from complete import TURO_LIST_TITLE, list_window_gt_tasks
     from day_plan import compose_day_plan
     from domains import DOMAIN_SPECS
     from priorities import synthesize_priorities
@@ -205,10 +207,21 @@ def build_orchestra_payload(
     # Primary operator-facing action list (recommendations.items)
     recommended_actions = list(recommendations.get("items") or [])
 
+    gt_window_tasks: list[dict[str, Any]] = []
+    try:
+        gt_window_tasks = list_window_gt_tasks(
+            list_title=TURO_LIST_TITLE,
+            workspace=ws,
+            now=generated_at,
+        )
+    except Exception:  # noqa: BLE001
+        gt_window_tasks = []
+
     day_plan = compose_day_plan(
         domains,
         recommendations=recommendations,
         now=generated_at,
+        gt_tasks=gt_window_tasks,
     )
 
     try:

@@ -20,7 +20,7 @@ import sys
 import tempfile
 import threading
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
@@ -32,6 +32,15 @@ if str(ROOT) not in sys.path:
 
 from advice import build_advice, load_advice_packet  # noqa: E402
 from collectors import collect_holistic, collect_strategy  # noqa: E402
+from complete import (  # noqa: E402
+    complete_item,
+    due_date,
+    is_checkable,
+    list_window_gt_tasks,
+    task_in_now_window,
+    window_gt_candidates,
+    writable_source,
+)
 from day_plan import compose_day_plan, is_ta_actionable_block  # noqa: E402
 from payload import build_orchestra_payload  # noqa: E402
 from priorities import synthesize_priorities  # noqa: E402
@@ -1012,6 +1021,8 @@ class PulseChromeAssayTests(unittest.TestCase):
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn('short: "FitDash"', html)
         self.assertNotIn('short: "FCC"', html)
+        self.assertNotIn("Turo", html)
+        self.assertNotIn("host-mail", html.lower())
         self.assertNotIn("port: 8000", html)
         self.assertNotIn("port: 8787", html)
         self.assertNotIn("port: 8780", html)
@@ -1279,6 +1290,374 @@ class AdviceSeatAssayTests(unittest.TestCase):
             )
             self.assertFalse((payload.get("advice") or {}).get("blank"))
             self.assertNotIn("review dca", json.dumps(payload.get("advice")).lower())
+
+
+class NowNextCheckAssayTests(unittest.TestCase):
+    """Checkboxes write Google Tasks. No Orchestra or TA task store."""
+
+    def test_schedule_block_without_gt_is_uncheckable(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_timed_blocks(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(session_due=False, train_recommendation="rest"),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        by_title = {i.get("title"): i for i in plan["next3"]}
+        duchess = by_title.get("Walk Duchess") or {}
+        self.assertTrue(duchess, msg=plan["next3"])
+        self.assertFalse(duchess.get("checkable"), msg=duchess)
+        self.assertIsNone(writable_source(duchess))
+        self.assertNotEqual(duchess.get("source"), "time_allocator")
+
+        for item in plan["next3"]:
+            if item.get("domain") == "finance":
+                self.assertFalse(item.get("checkable"), msg=item)
+        self.assertFalse(
+            is_checkable({"id": "fit-session", "title": "Train push", "kind": "train"})
+        )
+        self.assertFalse(is_checkable({"source": "time_allocator", "source_id": "duchess-walk"}))
+        self.assertFalse(is_checkable({"source": "google_tasks", "source_id": "t1"}))
+        self.assertTrue(
+            is_checkable({"source": "google_tasks", "source_id": "t1", "list_id": "L1"})
+        )
+        # Turo invoice-ready is Auto Fleet chrome, not an Orchestra source alias.
+        self.assertFalse(
+            is_checkable({"source": "turo", "source_id": "t2", "list_id": "L-turo"})
+        )
+        self.assertTrue(
+            is_checkable({"gt_task_id": "t2", "list_id": "L1"})
+        )
+
+    def test_existing_gt_task_maps_onto_matching_now_title(self) -> None:
+        plan = compose_day_plan(
+            [
+                _hol_timed_blocks(),
+                _wf(ready_count=0, free_agent_count=0),
+                _fit(
+                    session_due=False,
+                    train_recommendation="rest",
+                    quests=[
+                        {
+                            "title": "Walk Duchess",
+                            "kind": "quest",
+                            "gt_task_id": "GT-duchess",
+                            "list_id": "L-fit",
+                            "list_title": "Fitness",
+                        }
+                    ],
+                ),
+                _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+            ],
+            now=NOW,
+        )
+        by_title = {i.get("title"): i for i in plan["next3"]}
+        duchess = by_title.get("Walk Duchess") or {}
+        self.assertTrue(duchess.get("checkable"), msg=plan["next3"])
+        self.assertEqual(duchess.get("source"), "google_tasks")
+        self.assertEqual(duchess.get("source_id"), "GT-duchess")
+        self.assertEqual(duchess.get("list_id"), "L-fit")
+        self.assertTrue(is_checkable(duchess))
+        # Did not force a non-matching quest onto NOW/NEXT
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("invented quest", blob)
+
+    def test_index_checkbox_only_on_now_next(self) -> None:
+        html = (ORCH / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function checkboxHtml", html)
+        self.assertIn('itemHtml(item, "", { check: true })', html)
+        self.assertIn('itemHtml(item, "blocked")', html)
+        self.assertNotIn('itemHtml(item, "blocked",', html)
+        self.assertIn("items.map((item) => itemHtml(item))", html)
+        self.assertIn("#now-seat, #next-list", html)
+        self.assertIn("/api/complete", html)
+        self.assertNotIn("orchestra/data/tasks", html)
+        self.assertFalse((ORCH / "data" / "tasks.json").exists())
+        complete_src = (ORCH / "complete.py").read_text(encoding="utf-8")
+        self.assertNotIn("orchestra/data/tasks", complete_src)
+        self.assertNotIn("orchestra/data/done", complete_src)
+        self.assertNotIn("complete_block", complete_src)
+        self.assertNotIn("time_allocator.store", complete_src)
+        self.assertNotIn("holistic/data/tasks", complete_src)
+        self.assertNotIn("turo-fleet", complete_src)
+        html_l = html.lower()
+        self.assertNotIn("turo", html_l)
+        self.assertNotIn("host-mail", html_l)
+        self.assertNotIn("invoice-ready", html_l)
+
+    def test_complete_without_gt_id_is_noop(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write(ws / "strategy" / "today.md", "# Today\n- [ ] Ship\n")
+            result = complete_item({"title": "No source"}, workspace=ws)
+            self.assertFalse(result.get("accepted"))
+            self.assertFalse(result.get("ok"))
+            result2 = complete_item(
+                {"source": "time_allocator", "source_id": "duchess-walk"},
+                workspace=ws,
+            )
+            self.assertFalse(result2.get("accepted"))
+            self.assertFalse((ws / "orchestra" / "data" / "tasks.json").exists())
+            self.assertFalse((ORCH / "data" / "tasks.json").exists())
+
+    def test_complete_writes_google_tasks_only(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            with patch(
+                "complete._complete_google_task",
+                return_value={"ok": True, "task": {"id": "t1"}},
+            ) as fn:
+                result = complete_item(
+                    {"source": "google_tasks", "source_id": "t1", "list_id": "L1"},
+                    workspace=ws,
+                )
+            self.assertTrue(result.get("accepted"), msg=result)
+            fn.assert_called_once()
+            self.assertEqual(fn.call_args[0][:2], ("L1", "t1"))
+            self.assertFalse((ws / "orchestra" / "data" / "tasks.json").exists())
+            with patch(
+                "complete._complete_google_task",
+                return_value={"ok": False, "error": "source rejected"},
+            ):
+                refused = complete_item(
+                    {"source": "google_tasks", "source_id": "t2", "list_id": "L2"},
+                    workspace=ws,
+                )
+            self.assertFalse(refused.get("accepted"))
+
+    def test_http_complete_without_source_id_does_not_write(self) -> None:
+        import urllib.error
+        import urllib.request
+
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), OrchestraHandler)
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        try:
+            host, port = httpd.server_address
+            req = urllib.request.Request(
+                f"http://{host}:{port}/api/complete",
+                data=b"{}",
+                method="POST",
+                headers={"Content-Type": "application/json"},
+            )
+            try:
+                urllib.request.urlopen(req, timeout=10)
+                self.fail("expected HTTP error for missing source id")
+            except urllib.error.HTTPError as e:
+                self.assertEqual(e.code, 400)
+                body = json.loads(e.read().decode("utf-8"))
+            self.assertFalse(body.get("accepted"))
+            self.assertFalse((ORCH / "data" / "tasks.json").exists())
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+
+def _quiet_now_domains() -> list:
+    """No TA / finance / fit next-moves, so window GT rows are visible."""
+    return [
+        {
+            "id": "holistic",
+            "available": True,
+            "url": "http://127.0.0.1:8770/",
+            "signals": {
+                "plan_as_of": NOW.isoformat(),
+                "as_of": NOW.isoformat(),
+                "targets": ["Sleep"],
+                "plan_blocks": [
+                    {"id": "sleep", "title": "Sleep", "minutes": 480, "role": "reserve"},
+                ],
+            },
+        },
+        _wf(ready_count=0, free_agent_count=0),
+        _fit(session_due=False, train_recommendation="rest"),
+        _finance((NOW - timedelta(hours=1)).isoformat(), actions=[]),
+    ]
+
+
+def _turo_gt(**overrides: object) -> dict:
+    row: dict = {
+        "id": "GT-turo-1",
+        "title": "Text guest about late return",
+        "status": "needsAction",
+        "list_id": "L-turo",
+        "list_title": "Turo",
+        "due": "2026-08-20T00:00:00.000Z",
+    }
+    row.update(overrides)
+    return row
+
+
+class TuroWindowNowNextAssayTests(unittest.TestCase):
+    """Turo store is a GT list. Window action items may appear on NOW/NEXT."""
+
+    def test_due_date_is_calendar_prefix_not_utc_as_et(self) -> None:
+        # GT due 2026-08-21T00:00:00.000Z is calendar Aug 21, not Aug 20 20:00 ET.
+        self.assertEqual(due_date({"due": "2026-08-21T00:00:00.000Z"}), date(2026, 8, 21))
+        self.assertFalse(
+            task_in_now_window({"status": "needsAction", "due": "2026-08-21T00:00:00.000Z"}, now=NOW)
+        )
+        self.assertTrue(
+            task_in_now_window({"status": "needsAction", "due": "2026-08-20T00:00:00.000Z"}, now=NOW)
+        )
+        self.assertTrue(task_in_now_window({"status": "needsAction"}, now=NOW))
+        self.assertTrue(
+            task_in_now_window({"status": "needsAction", "due": "2026-08-19T00:00:00.000Z"}, now=NOW)
+        )
+        self.assertFalse(
+            task_in_now_window({"status": "completed", "due": "2026-08-20T00:00:00.000Z"}, now=NOW)
+        )
+
+    def test_due_today_and_undated_turo_tasks_appear_checkable(self) -> None:
+        plan = compose_day_plan(
+            _quiet_now_domains(),
+            now=NOW,
+            gt_tasks=[
+                _turo_gt(),
+                _turo_gt(
+                    id="GT-turo-undated",
+                    title="Call Turo support about deposit",
+                    due=None,
+                ),
+            ],
+        )
+        by_title = {i.get("title"): i for i in plan["next3"]}
+        texted = by_title.get("Text guest about late return") or {}
+        called = by_title.get("Call Turo support about deposit") or {}
+        self.assertTrue(texted, msg=plan["next3"])
+        self.assertTrue(called, msg=plan["next3"])
+        for row in (texted, called):
+            self.assertTrue(row.get("checkable"), msg=row)
+            self.assertEqual(row.get("source"), "google_tasks")
+            self.assertEqual(row.get("list_id"), "L-turo")
+            self.assertEqual(row.get("list_title"), "Turo")
+            self.assertTrue(is_checkable(row))
+            self.assertNotEqual(row.get("source"), "turo")
+            self.assertNotEqual(row.get("domain"), "turo")
+            self.assertNotIn("fleet", str(row.get("deep_link") or "").lower())
+
+    def test_future_and_completed_turo_tasks_stay_off(self) -> None:
+        plan = compose_day_plan(
+            _quiet_now_domains(),
+            now=NOW,
+            gt_tasks=[
+                _turo_gt(
+                    id="GT-future",
+                    title="Host Sunday turnover",
+                    due="2026-08-25T00:00:00.000Z",
+                ),
+                _turo_gt(
+                    id="GT-done",
+                    title="Already messaged guest",
+                    status="completed",
+                ),
+                _turo_gt(id="GT-hidden", title="Hidden Turo note", hidden=True),
+            ],
+        )
+        blob = json.dumps(plan["next3"]).lower()
+        self.assertNotIn("host sunday turnover", blob)
+        self.assertNotIn("already messaged guest", blob)
+        self.assertNotIn("hidden turo note", blob)
+        self.assertEqual(window_gt_candidates([], now=NOW), [])
+
+    def test_missing_turo_list_is_empty_not_created(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        missing = MagicMock()
+        missing.list_tasklists.return_value = {
+            "ok": True,
+            "lists": [{"id": "L-other", "title": "Personal"}],
+        }
+        with patch("complete._load_google_tasks", return_value=missing):
+            self.assertEqual(list_window_gt_tasks(list_title="Turo", now=NOW), [])
+        missing.list_tasks.assert_not_called()
+        missing.create_tasklist.assert_not_called()
+
+        with patch("complete._load_google_tasks", side_effect=FileNotFoundError("no creds")):
+            self.assertEqual(list_window_gt_tasks(list_title="Turo", now=NOW), [])
+
+    def test_list_window_returns_only_turo_window_tasks(self) -> None:
+        from unittest.mock import MagicMock, patch
+
+        gt = MagicMock()
+        gt.list_tasklists.return_value = {
+            "ok": True,
+            "lists": [{"id": "L-turo", "title": "Turo"}],
+        }
+        gt.list_tasks.return_value = {
+            "ok": True,
+            "tasks": [
+                _turo_gt(),
+                _turo_gt(
+                    id="GT-future",
+                    title="Host Sunday turnover",
+                    due="2026-08-25T00:00:00.000Z",
+                ),
+            ],
+        }
+        with patch("complete._load_google_tasks", return_value=gt):
+            rows = list_window_gt_tasks(list_title="Turo", now=NOW)
+        titles = [r.get("title") for r in rows]
+        self.assertIn("Text guest about late return", titles)
+        self.assertNotIn("Host Sunday turnover", titles)
+        gt.list_tasks.assert_called_once()
+        self.assertEqual(gt.list_tasks.call_args[0][0], "L-turo")
+
+    def test_complete_turo_list_task_writes_google_tasks(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            with patch(
+                "complete._complete_google_task",
+                return_value={"ok": True, "task": {"id": "GT-turo-1"}},
+            ) as fn:
+                result = complete_item(
+                    {
+                        "source": "google_tasks",
+                        "source_id": "GT-turo-1",
+                        "list_id": "L-turo",
+                        "list_title": "Turo",
+                    },
+                    workspace=ws,
+                )
+            self.assertTrue(result.get("accepted"), msg=result)
+            fn.assert_called_once()
+            self.assertEqual(fn.call_args[0][:2], ("L-turo", "GT-turo-1"))
+
+    def test_payload_includes_window_turo_tasks_without_inbox_chrome(self) -> None:
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as td:
+            ws = Path(td)
+            _write(ws / "strategy" / "today.md", "# Today\n- [ ] Ship pulse\n")
+            _write(ws / "strategy" / "bets.md", "# Bets\n- **AI**\n")
+            _write_json(ws / "ops" / "backlog" / "items.json", {"items": []})
+            with patch(
+                "payload.list_window_gt_tasks",
+                return_value=[_turo_gt()],
+            ) as listed:
+                payload = build_orchestra_payload(ws, probe_ports=False)
+            listed.assert_called_once()
+            self.assertEqual(listed.call_args.kwargs.get("list_title"), "Turo")
+            titles = [i.get("title") for i in (payload.get("day_plan") or {}).get("next3") or []]
+            self.assertIn("Text guest about late return", titles)
+            next3 = (payload.get("day_plan") or {}).get("next3") or []
+            hit = next(i for i in next3 if i.get("title") == "Text guest about late return")
+            self.assertTrue(hit.get("checkable"))
+            self.assertEqual(hit.get("source"), "google_tasks")
+            blob = json.dumps(payload)
+            self.assertNotIn("turo-fleet", blob.lower())
+            self.assertNotIn("host-mail", blob.lower())
+            self.assertNotIn('"source": "turo"', blob)
+            self.assertNotIn("invoice-ready", blob.lower())
+            html = (ORCH / "index.html").read_text(encoding="utf-8")
+            self.assertNotIn("Turo", html)
+            self.assertNotIn("Fleet", html)
 
 
 if __name__ == "__main__":

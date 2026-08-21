@@ -15,9 +15,11 @@ from typing import Any, Optional
 
 try:
     from .attention import hours_since, parse_timestamp
+    from .complete import attach_gt_ref, gt_task_index, window_gt_candidates, writable_source
     from .pulse import keep_action_item, same_civil_day
 except ImportError:  # unittest path insert
     from attention import hours_since, parse_timestamp
+    from complete import attach_gt_ref, gt_task_index, window_gt_candidates, writable_source
     from pulse import keep_action_item, same_civil_day
 
 SCHEMA_VERSION = 1
@@ -318,7 +320,7 @@ def ta_block_to_candidate(
 ) -> dict[str, Any]:
     """NOW/NEXT row from a Time Allocator block. Deep-link :8770; do not embed UI."""
     title = str(block.get("title") or block.get("id") or "").strip()
-    bid = str(block.get("id") or title)
+    bid = str(block.get("id") or title).strip()
     mapped = _map_block_kind(block)
     low = title.lower()
     kind = mapped
@@ -332,7 +334,7 @@ def ta_block_to_candidate(
     elif any(x in low for x in ("eat", "meal", "protein")):
         kind = "protein"
     row: dict[str, Any] = {
-        "id": bid[:80],
+        "id": (bid or title)[:80],
         "title": title,
         "domain": "holistic",
         "why": "",
@@ -1306,6 +1308,7 @@ def _prefer_same_day_ta(
     filtered: list[dict[str, Any]],
     *,
     now: datetime,
+    gt_index: Optional[dict[str, dict[str, Any]]] = None,
 ) -> list[dict[str, Any]]:
     """Keep same-day TA actions on NOW/NEXT when untimed rows fill the cap."""
     ta_rows: list[dict[str, Any]] = []
@@ -1317,7 +1320,7 @@ def _prefer_same_day_ta(
         if not key or key in seen_ta:
             continue
         seen_ta.add(key)
-        ta_rows.append(_next3_row(c))
+        ta_rows.append(_next3_row(c, gt_index=gt_index))
     if not ta_rows:
         return deduped
     have = {str(x.get("title") or "").strip().lower() for x in deduped}
@@ -1356,20 +1359,36 @@ def _prefer_same_day_ta(
     return sorted(out, key=lambda x: _next_sort_key(x, now=now))[:MAX_NEXT3]
 
 
-def _next3_row(item: dict[str, Any]) -> dict[str, Any]:
+def _next3_row(
+    item: dict[str, Any],
+    *,
+    gt_index: Optional[dict[str, dict[str, Any]]] = None,
+) -> dict[str, Any]:
     key = str(item.get("title") or "").strip().lower()
+    mapped = attach_gt_ref(item, gt_index) or item
     row = {
-        "id": str(item.get("id") or key)[:80],
-        "title": str(item.get("title")),
-        "domain": item.get("domain"),
-        "why": item.get("why") or "",
-        "severity": item.get("severity") or "info",
-        "deep_link": item.get("deep_link") or DEFAULT_DEEP_LINKS.get(str(item.get("domain"))),
-        "kind": item.get("kind"),
+        "id": str(mapped.get("id") or key)[:80],
+        "title": str(mapped.get("title")),
+        "domain": mapped.get("domain"),
+        "why": mapped.get("why") or "",
+        "severity": mapped.get("severity") or "info",
+        "deep_link": mapped.get("deep_link") or DEFAULT_DEEP_LINKS.get(str(mapped.get("domain"))),
+        "kind": mapped.get("kind"),
     }
-    when = _item_when(item)
+    when = _item_when(mapped)
     if when is not None:
         row["start"] = when.isoformat()
+    ref = writable_source(mapped)
+    if ref:
+        row["source"] = ref["source"]
+        row["source_id"] = ref["source_id"]
+        row["checkable"] = True
+        if ref.get("list_id"):
+            row["list_id"] = ref["list_id"]
+        if ref.get("list_title"):
+            row["list_title"] = ref["list_title"]
+    else:
+        row["checkable"] = False
     return row
 
 
@@ -1402,11 +1421,15 @@ def compose_day_plan(
     *,
     recommendations: Optional[dict[str, Any]] = None,
     now: Optional[datetime] = None,
+    gt_tasks: Optional[list[Any]] = None,
 ) -> dict[str, Any]:
     """Compose frozen day_plan from domain snapshots.
 
     Pure function. Optional recommendations items may contribute candidates
     after domain suggested_actions (not a permanent second ranker).
+    Optional gt_tasks are pre-fetched Google Tasks (e.g. the Turo list)
+    already scoped by the caller; only today's-window action items enter
+    NOW/NEXT. Composer does not create tasks or call Google.
     """
     ref = _utc_now(now)
     by_id = _domain_by_id(domains)
@@ -1415,6 +1438,11 @@ def compose_day_plan(
     wf_src, wf_gates, wf_sugg = build_workflow_source(by_id.get("workflow") or {}, now=ref)
     fit_src, fit_gates, fit_sugg = build_fitness_source(by_id.get("fitness") or {}, now=ref)
     fin_src, fin_gates, fin_sugg = build_finance_source(by_id.get("finance") or {}, now=ref)
+    # Open Turo-list (or other) GT items that belong in today's window.
+    # Not a Turo inbox and not a Fleet embed — same keep_action_item filter.
+    gt_window = window_gt_candidates(gt_tasks, now=ref)
+    # Map existing GT ids onto matching NOW titles. Do not create tasks.
+    gt_index = gt_task_index(fit_src, hol_src, wf_src, fin_src, {"tasks": gt_window})
 
     gates = list(fin_gates) + list(fit_gates) + list(wf_gates)
 
@@ -1427,7 +1455,7 @@ def compose_day_plan(
     # Board suggested_actions stay on the workflow source. They are team work
     # (Pull candidate / Ready supply) and must not enter NOW/NEXT.
     _ = wf_sugg
-    for pool in (fit_sugg, fin_sugg):
+    for pool in (fit_sugg, fin_sugg, gt_window):
         candidates.extend(pool)
     # Same-day actionable Time Allocator blocks → NOW/NEXT (not the :8770 UI).
     hol_deep = hol_src.get("deep_link") or DEFAULT_DEEP_LINKS["holistic"]
@@ -1461,13 +1489,13 @@ def compose_day_plan(
         if key in seen:
             continue
         seen.add(key)
-        deduped.append(_next3_row(c))
+        deduped.append(_next3_row(c, gt_index=gt_index))
         if len(deduped) >= MAX_NEXT3:
             break
 
     # Untimed finance/fit rows sort at "now" and can hide later same-day TA
     # blocks. Keep the day's actionable TA visible inside the next3 cap.
-    deduped = _prefer_same_day_ta(deduped, filtered, now=ref)
+    deduped = _prefer_same_day_ta(deduped, filtered, now=ref, gt_index=gt_index)
 
     session_due_fresh = bool(fit_src.get("session_due")) and not fit_src.get("stale")
     try:
@@ -1504,7 +1532,7 @@ def compose_day_plan(
                 if key in seen_pref:
                     continue
                 seen_pref.add(key)
-                preferred.append(_next3_row(c))
+                preferred.append(_next3_row(c, gt_index=gt_index))
                 if len(preferred) >= MAX_NEXT3:
                     break
             if preferred:
