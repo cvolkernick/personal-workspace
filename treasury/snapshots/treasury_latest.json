@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-20T22:29:02.963135+00:00",
+    "as_of": "2026-08-21T01:31:46.737980+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-20T19:24:17.380557+00:00",
@@ -3285,7 +3285,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-20T22:28:56.654479+00:00",
+      "as_of": "2026-08-21T01:31:46.621524+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3299,9 +3299,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-20T22:28:56.654475+00:00",
-        "total_value": 196.89867866,
-        "equity_value": 196.80867866,
+        "as_of": "2026-08-21T01:31:46.621519+00:00",
+        "total_value": 199.61649339,
+        "equity_value": 199.52649339,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3589,7 +3589,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 196.89867866,
+      "rh_agentic_total_value": 199.61649339,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -3641,7 +3641,7 @@
       "coinbase_liquid": "red",
       "coinbase_card": "red",
       "robinhood": "green",
-      "data_quality": "green",
+      "data_quality": "yellow",
       "morpho_band": "cool",
       "rh_margin_band": "unknown",
       "overall": "red",
@@ -3650,7 +3650,7 @@
         "coinbase_liquid": "red",
         "coinbase_card": "red",
         "robinhood": "green",
-        "data_quality": "green",
+        "data_quality": "yellow",
         "morpho_band": "cool",
         "rh_margin_band": "unknown",
         "overall": "red"
@@ -3683,7 +3683,7 @@
       }
     },
     "data_quality": {
-      "status": "green",
+      "status": "yellow",
       "completeness_score": 0.929,
       "missing_manual_fields": [],
       "manual_filled": 6,
@@ -3697,16 +3697,29 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-20T19:24:17.380557+00:00",
-        "robinhood_as_of": "2026-08-20T22:28:56.654479+00:00",
+        "robinhood_as_of": "2026-08-21T01:31:46.621524+00:00",
         "one_card_as_of": "2026-08-20T19:24:18.290371+00:00",
         "rh_checking_as_of": "2026-08-20T19:24:18.659197+00:00",
         "x_money_as_of": "2026-08-20T19:24:19.153184+00:00",
         "solana_as_of": "2026-08-20T19:24:26.279687+00:00",
         "expenses_as_of": "2026-08-20T19:24:23.681793+00:00"
       },
-      "stale": [],
+      "stale": [
+        "coinbase data 6.1h old (>6.0h)",
+        "one_card data 6.1h old (>6.0h)",
+        "rh_checking data 6.1h old (>6.0h)",
+        "x_money data 6.1h old (>6.0h)",
+        "solana data 6.1h old (>6.0h)",
+        "expenses data 6.1h old (>6.0h)"
+      ],
       "warnings": [
-        "Expense sheet: <urlopen error [Errno 8] nodename nor servname provided, or not known>"
+        "Expense sheet: <urlopen error [Errno 8] nodename nor servname provided, or not known>",
+        "coinbase data 6.1h old (>6.0h)",
+        "one_card data 6.1h old (>6.0h)",
+        "rh_checking data 6.1h old (>6.0h)",
+        "x_money data 6.1h old (>6.0h)",
+        "solana data 6.1h old (>6.0h)",
+        "expenses data 6.1h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -3792,7 +3805,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00192049 (~$139.42)\nOne Card owed: $458.71 (source=ynab) | 30d spend $97.87 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $18991.34/mo (personal $14779.58 | fleet tab $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5421.43 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $509.21 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $8.55 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: green score=0.929\nTop actions:\n  P1 [human|manual] Refinance One Card $459 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00192049 (~$139.42)\nOne Card owed: $458.71 (source=ynab) | 30d spend $97.87 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $18991.34/mo (personal $14779.58 | fleet tab $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5421.43 | Collateral investments (not burn) $537.20/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $509.21 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $8.55 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=0.929\nTop actions:\n  P1 [human|manual] Refinance One Card $459 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -3922,7 +3935,7 @@
         "critical_total": 11328.99,
         "overdue_count": 1,
         "due_soon_count": 2,
-        "as_of_date": "2026-08-20"
+        "as_of_date": "2026-08-21"
       },
       "capex": {
         "fund_from": "collateralized_margin",
@@ -4031,25 +4044,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-20T22:29:02.967934+00:00",
+      "as_of": "2026-08-21T01:31:46.742746+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-20T22:29:02.965093+00:00",
+        "as_of": "2026-08-21T01:31:46.739831+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 196.8987,
+        "nav_usd": 199.6165,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.7291,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3557,
-          "stocks_growth": 0.5317,
+          "btc_digital_credit": 0.3508,
+          "stocks_growth": 0.5245,
           "other": 0.0,
           "cash": 0.0005
         },
@@ -6159,25 +6172,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-20T22:29:02.967934+00:00",
+    "as_of": "2026-08-21T01:31:46.742746+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-20T22:29:02.965093+00:00",
+      "as_of": "2026-08-21T01:31:46.739831+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 196.8987,
+      "nav_usd": 199.6165,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.7291,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3557,
-        "stocks_growth": 0.5317,
+        "btc_digital_credit": 0.3508,
+        "stocks_growth": 0.5245,
         "other": 0.0,
         "cash": 0.0005
       },
