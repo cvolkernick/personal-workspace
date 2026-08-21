@@ -27,6 +27,8 @@ Open http://127.0.0.1:8796/
 |--------|------|--------|
 | GET | `/api/health` | `{ok, service: "auto-fleet", port}` |
 | GET | `/api/fleet` | Roster units + strips |
+| GET | `/api/turo-tasks` | Open Google Tasks on the **Turo** list |
+| POST | `/api/turo-tasks/complete` | Checkbox write-back (`task_id`, `list_id`) |
 
 Tests (full package):
 
@@ -44,6 +46,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `static/fleet/` | Per-unit stills (`m3-2020`, `m3-2022`, `r1s-2023`, both Corollas). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
+| `gtasks.py` / `turo_tasks.py` | Prism Google Tasks client + Turo list read/complete |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
 | `data/roster.json` | Five-unit seed |
 | `data/notes.json` | 2026-08-13 portal override (stale on purpose) |
@@ -69,6 +72,10 @@ DIMO_TOKEN_COROLLA_2022=
 
 Missing file / missing keys → DIMO `status: unconfigured`. The process does not crash.
 
+Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
+`~/.config/google-tasks-mcp/{token,client_secret}.json`. Do **not** put
+`GOOGLE_TASKS_*` on Vercel — Auto Fleet is intranet-only.
+
 ## What is stubbed
 
 | Source | MVP behavior |
@@ -77,6 +84,19 @@ Missing file / missing keys → DIMO `status: unconfigured`. The process does no
 | **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. Prod writer is the Pi 15m timer (`auto-fleet-turo-writer.timer`) — not a Mac Grok/MCP poll. Historical / `label:Turo` 2024 mail is dropped. The server does not call Gmail. Payout dest is **X Money**. |
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |
+
+## Invoice-ready (Google Tasks)
+
+A thin host-ops strip lists open items from the Google Tasks list named
+**Turo** (find-or-create that list only — no extra lists, no Fleet-local
+task JSON). Title and notes come from the GT item Helm files; this page
+does not invent amounts, VINs, or trips. Checkbox completes the item in
+Google Tasks. No open items → strip omitted (no empty-state theater).
+Missing creds → honest error, not fake rows.
+
+Auto Fleet is the standing surface for invoice-ready Turo items. Orchestra
+may later show the same Google Task only when it is NOW/NEXT in that
+window — do not add Orchestra chrome here. Chat ping is not this page.
 
 ## Honest empty states
 
