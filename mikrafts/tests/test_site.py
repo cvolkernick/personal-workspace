@@ -8,6 +8,7 @@ import re
 import sys
 import tempfile
 import unittest
+from html import escape
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,8 +126,8 @@ class TestFirstLiveCatalog(unittest.TestCase):
         items = json.loads(ITEMS.read_text(encoding="utf-8"))
         html = render_catalog_cards(items)
         self.assertEqual(html.count("catalog-card"), 1)
-        self.assertIn(FAITH_TITLE, html)
-        self.assertIn(FAITH_NOTE, html)
+        self.assertIn(escape(FAITH_TITLE), html)
+        self.assertIn(escape(FAITH_NOTE), html)
         self.assertIn(items[0]["image"], html)
         self.assertNotIn("No prints in the catalog yet.", html)
         self.assertNotIn("$", html)
