@@ -123,6 +123,33 @@ def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dic
     )
 
 
+def preview_inventory_carousels(inventory, targets, food_logs=None, consumed=None):
+    """Same staples/removals as Pi ``suggest_inventory_*``. Empty pantry stays empty."""
+    from rt_dashboard.nutrition_planner import (
+        suggest_inventory_removals,
+        suggest_inventory_staples,
+    )
+
+    inv = inventory if isinstance(inventory, dict) else {}
+    if not (inv.get("ingredients") or []):
+        return (
+            {"suggestions": [], "summary": "No pantry items yet.", "count": 0},
+            {"suggestions": [], "summary": "No inventory items to review.", "count": 0},
+        )
+    suggestions = suggest_inventory_staples(
+        inv,
+        targets=targets or {},
+        food_logs=food_logs or [],
+        consumed=consumed or {},
+    )
+    removals = suggest_inventory_removals(
+        inv,
+        targets=targets or {},
+        food_logs=food_logs or [],
+    )
+    return suggestions, removals
+
+
 def preview_workout_plan(
     catalog,
     goals,
@@ -250,6 +277,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     targets, targets_src = load_workspace_targets()
     inventory, inventory_src = load_preview_inventory(str(user.get("id") or ""))
+    inv_suggestions, inv_removals = preview_inventory_carousels(
+        inventory,
+        targets,
+        food_logs=health.food_logs or [],
+        consumed=consumed,
+    )
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
@@ -262,6 +295,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "meal_plan": preview_meal_plan(
             inventory, targets, consumed, food_logs_today=today_logs
         ),
+        "inventory_suggestions": inv_suggestions,
+        "inventory_removals": inv_removals,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
@@ -371,6 +406,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             sleep_battery=sleep_battery,
             calorie_bars=payload.get("calorie_bars"),
             inventory=inventory,
+            inventory_suggestions=inv_suggestions,
+            inventory_removals=inv_removals,
             inventory_dark=not bool((inventory or {}).get("ingredients")),
         )
     except Exception as exc:  # noqa: BLE001
