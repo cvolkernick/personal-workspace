@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-06",
+  "as_of": "2026-08-22",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -171,6 +171,30 @@
       "last_verdict": "ready_consider_low_priority_show_me_superchargers",
       "next_catalyst": "First EVgo Supercharger sites live + utilization; next earnings; or >25% move from ~$1.5 base",
       "notes": "Deep-dive 2026-08-06. Owner asked whether Supercharger white-label changes circumstances enough for watchlist. Verdict: yes, low-priority ready \u2014 homework done; no size until free capital + post-deployment proof. Chart skepticism stands. Not auto-buy."
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon.com",
+      "theme": "ai_stack",
+      "themes": [
+        "ai_stack",
+        "growth_equity",
+        "cloud",
+        "e_commerce",
+        "advertising"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "monitor",
+      "priority": "medium",
+      "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist.",
+      "added": "2026-08-22",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": null,
+      "last_deep_dive_path": null,
+      "last_verdict": null,
+      "next_catalyst": "pending first deep-dive",
+      "notes": "Owner jot 2026-08-22 via Grok. Deep-dive queued. Not auto-buy. No size while household free-dollar red / until dive ready."
     }
   ]
 }
