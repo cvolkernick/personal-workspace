@@ -12,8 +12,12 @@ sys.path.insert(0, str(ROOT))
 
 from rt_dashboard.hidrate_client import (  # noqa: E402
     HidrateClient,
+    HidrateError,
+    _bottle_battery_percent,
     _day_total_ml,
+    hidrate_bottle_charge,
     overlay_hidrate_hydration,
+    summarize_bottle_charge,
 )
 from rt_dashboard.models import HealthSnapshot, HydrationDay  # noqa: E402
 
@@ -111,6 +115,230 @@ class TestFetchHydrationDaysParse(unittest.TestCase):
         self.assertEqual(by["2026-08-05"], 2276.0)
         self.assertEqual(by["2026-08-04"], 50.0)
         self.assertTrue(all(h.source == "hidrate" for h in series))
+
+
+class TestBottleBatteryField(unittest.TestCase):
+    def test_reads_battery_level(self):
+        self.assertEqual(_bottle_battery_percent({"batteryLevel": 42}), (42.0, "batteryLevel"))
+
+    def test_accepts_battery_alias(self):
+        self.assertEqual(_bottle_battery_percent({"battery": 7}), (7.0, "battery"))
+
+    def test_prefers_battery_level_over_alias(self):
+        self.assertEqual(
+            _bottle_battery_percent({"batteryLevel": 55, "battery": 9}),
+            (55.0, "batteryLevel"),
+        )
+
+    def test_missing_and_unparseable_are_none(self):
+        self.assertIsNone(_bottle_battery_percent({}))
+        self.assertIsNone(_bottle_battery_percent({"name": "Spark"}))
+        self.assertIsNone(_bottle_battery_percent({"batteryLevel": None}))
+        self.assertIsNone(_bottle_battery_percent({"batteryLevel": "charged"}))
+        self.assertIsNone(_bottle_battery_percent({"batteryLevel": 250}))
+
+    def test_zero_is_a_real_reading(self):
+        self.assertEqual(_bottle_battery_percent({"batteryLevel": 0}), (0.0, "batteryLevel"))
+
+
+class TestSummarizeBottleCharge(unittest.TestCase):
+    def test_battery_present_is_surfaced(self):
+        got = summarize_bottle_charge(
+            [
+                {
+                    "name": "Spark Steel",
+                    "serialNumber": "ABC",
+                    "batteryLevel": 68,
+                    "updatedAt": "2026-08-22T11:00:00.000Z",
+                }
+            ]
+        )
+        self.assertTrue(got["available"])
+        self.assertEqual(got["percent"], 68.0)
+        self.assertEqual(got["field"], "batteryLevel")
+        self.assertEqual(got["name"], "Spark Steel")
+        self.assertEqual(got["status"], "ok")
+        self.assertIsNone(got["error"])
+
+    def test_prefers_newer_bottle(self):
+        got = summarize_bottle_charge(
+            [
+                {"name": "Old", "batteryLevel": 10, "updatedAt": "2026-01-01T00:00:00.000Z"},
+                {"name": "New", "batteryLevel": 90, "updatedAt": "2026-08-22T00:00:00.000Z"},
+            ]
+        )
+        self.assertEqual(got["percent"], 90.0)
+        self.assertEqual(got["name"], "New")
+
+    def test_missing_field_is_honest_empty(self):
+        got = summarize_bottle_charge(
+            [{"name": "Spark", "serialNumber": "ABC", "capacity": 600}]
+        )
+        self.assertFalse(got["available"])
+        self.assertIsNone(got["percent"])
+        self.assertEqual(got["status"], "missing_field")
+        self.assertNotIn("%", str(got["percent"]))
+
+    def test_empty_results_are_honest_empty(self):
+        got = summarize_bottle_charge([])
+        self.assertFalse(got["available"])
+        self.assertIsNone(got["percent"])
+        self.assertEqual(got["status"], "empty")
+
+
+class TestHidrateBottleChargeHelper(unittest.TestCase):
+    def test_battery_present_via_client(self):
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_bottle_charge(self, use_cache: bool = True):
+                return summarize_bottle_charge([{"batteryLevel": 33, "name": "Puck"}])
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            got = hidrate_bottle_charge(client=FakeClient())  # type: ignore[arg-type]
+        self.assertTrue(got["available"])
+        self.assertEqual(got["percent"], 33.0)
+        self.assertEqual(got["field"], "batteryLevel")
+
+    def test_missing_field_via_client(self):
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_bottle_charge(self, use_cache: bool = True):
+                return summarize_bottle_charge([{"name": "Puck"}])
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            got = hidrate_bottle_charge(client=FakeClient())  # type: ignore[arg-type]
+        self.assertFalse(got["available"])
+        self.assertIsNone(got["percent"])
+        self.assertEqual(got["status"], "missing_field")
+
+    def test_auth_fail_is_unavailable_not_fake_percent(self):
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_bottle_charge(self, use_cache: bool = True):
+                raise HidrateError("Hidrate HTTP 401: unauthorized", status=401)
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            got = hidrate_bottle_charge(client=FakeClient())  # type: ignore[arg-type]
+        self.assertFalse(got["available"])
+        self.assertIsNone(got["percent"])
+        self.assertEqual(got["status"], "unavailable")
+        self.assertIn("401", str(got["error"] or ""))
+        self.assertNotEqual(got["percent"], 0)
+        self.assertNotEqual(got["percent"], 100)
+
+    def test_fetch_retries_session_then_surfaces_unavailable(self):
+        client = HidrateClient(email="x@y.z", password="secret")
+        with patch.object(
+            client,
+            "fetch_bottle_rows",
+            side_effect=HidrateError("invalid session", status=401),
+        ):
+            with self.assertRaises(HidrateError):
+                client.fetch_bottle_charge(use_cache=False)
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present", return_value=True
+        ):
+            with patch.object(
+                client,
+                "fetch_bottle_charge",
+                side_effect=HidrateError("invalid session", status=401),
+            ):
+                got = hidrate_bottle_charge(client=client)
+        self.assertEqual(got["status"], "unavailable")
+        self.assertIsNone(got["percent"])
+
+
+class TestDashboardBottlePayload(unittest.TestCase):
+    def test_dashboard_surfaces_bottle_charge(self):
+        import os
+
+        from api.auth.session_util import SESSION_COOKIE, make_session
+        from api.dashboard import dashboard_body
+
+        charge = summarize_bottle_charge([{"batteryLevel": 81, "name": "Spark"}])
+        health = HealthSnapshot()
+        env = {"TZ": "UTC", "GOOGLE_CLIENT_SECRET": "test-secret"}
+        with patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with patch(
+                "api.dashboard._load_sessions", return_value=([], [], "turso")
+            ), patch(
+                "api.dashboard._load_health", return_value=(health, [])
+            ), patch(
+                "rt_dashboard.hidrate_client.hidrate_bottle_charge", return_value=charge
+            ):
+                status, body = dashboard_body(headers, "")
+        self.assertEqual(status, 200)
+        self.assertEqual(body["hidrate_bottle"]["percent"], 81.0)
+        self.assertEqual(body["hidrate_bottle"]["field"], "batteryLevel")
+        self.assertEqual((body.get("hydration_bars") or {}).get("bottle", {}).get("percent"), 81.0)
+
+    def test_dashboard_auth_fail_is_honest_empty(self):
+        import os
+
+        from api.auth.session_util import SESSION_COOKIE, make_session
+        from api.dashboard import dashboard_body
+
+        empty = {
+            "available": False,
+            "percent": None,
+            "field": None,
+            "name": None,
+            "serial": None,
+            "status": "unavailable",
+            "error": "Hidrate HTTP 403: forbidden",
+        }
+        health = HealthSnapshot()
+        env = {"TZ": "UTC", "GOOGLE_CLIENT_SECRET": "test-secret"}
+        with patch.dict(os.environ, env, clear=True):
+            token = make_session(
+                {"id": "sub-1", "email": "c@example.com", "display_name": "Chris"}
+            )
+            headers = {"Cookie": f"{SESSION_COOKIE}={token}"}
+            with patch(
+                "api.dashboard._load_sessions", return_value=([], [], "turso")
+            ), patch(
+                "api.dashboard._load_health", return_value=(health, [])
+            ), patch(
+                "rt_dashboard.hidrate_client.hidrate_bottle_charge", return_value=empty
+            ):
+                status, body = dashboard_body(headers, "")
+        self.assertEqual(status, 200)
+        bottle = body["hidrate_bottle"]
+        self.assertFalse(bottle["available"])
+        self.assertIsNone(bottle["percent"])
+        self.assertEqual(bottle["status"], "unavailable")
+
+
+class TestBottleChargeUiOverlay(unittest.TestCase):
+    def test_thin_overlay_not_app_js_stub(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "static" / "index.html").read_text(encoding="utf-8")
+        js = (root / "static" / "hidrate-bottle.js").read_text(encoding="utf-8")
+        app_js = root / "static" / "app.js"
+        self.assertGreater(app_js.stat().st_size, 180_000)
+        self.assertIn("hidrate-bottle.js", html)
+        self.assertIn('id="hidrate-bottle-charge"', html)
+        self.assertIn("hidrate_bottle", js)
+        self.assertIn("Bottle —", js)
+        self.assertIn("unavailable", js)
+        self.assertNotIn("battery: 100", js)
+        self.assertNotIn('"percent": 100', js)
 
 
 if __name__ == "__main__":

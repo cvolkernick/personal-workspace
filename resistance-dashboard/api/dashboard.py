@@ -222,6 +222,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.coach import build_coach_payload
     from rt_dashboard.daily_plan_tasks import plan_preview
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
+    from rt_dashboard.hidrate_client import hidrate_bottle_charge
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import load_preview_inventory
@@ -375,6 +376,10 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     except Exception as exc:  # noqa: BLE001
         errors.append(f"hydration_bars: {type(exc).__name__}")
         payload["hydration_bars"] = {"pacing": None}
+    bottle = hidrate_bottle_charge()
+    payload["hidrate_bottle"] = bottle
+    if isinstance(payload.get("hydration_bars"), dict):
+        payload["hydration_bars"]["bottle"] = bottle
     # Meal slot is Pi generate_meal_plan (already set). SuperGrok does not invent meals.
     meal_plan = payload["nutrition_store"]["meal_plan"]
     goals, goals_src = load_workspace_goals()
