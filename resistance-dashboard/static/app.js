@@ -3175,8 +3175,14 @@
         html += `<p class="muted">Day is essentially full (≈${fmtNumShort(
           remCals
         )} kcal / ${fmtNumShort(remP)}g protein left) — nothing useful to add from stock.</p>`;
-      } else {
-        html += `<p class="muted">No items planned — check in-stock inventory or remaining macros.</p>`;
+      } else if (plan.pantry_dark) {
+        if (!/Pantry unavailable/i.test(plan.message || "")) {
+          html += `<p class="muted">Pantry unavailable</p>`;
+        }
+      } else if (plan.stocked_count === 0) {
+        if (!/No in-stock/i.test(plan.message || "")) {
+          html += `<p class="muted">No in-stock items</p>`;
+        }
       }
     } else {
       // Vertical snap carousel: one meal bucket visible at a time (balances height vs Today so far)
@@ -4219,12 +4225,20 @@
       const meals = meal.meals || [];
       const items = meal.items || [];
       let html = "";
-      if (meal.message) {
+      if (meal.empty || (!meals.length && !items.length)) {
+        let copy = meal.message || "";
+        if (meal.pantry_dark || meal.empty_reason === "pantry_unavailable") {
+          copy = "Pantry unavailable";
+        } else if (meal.stocked_count === 0 || meal.empty_reason === "no_in_stock") {
+          copy = "No in-stock items";
+        } else if (!copy) {
+          copy = "No in-stock items";
+        }
+        html += `<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">${copy}</p>`;
+      } else if (meal.message) {
         html += `<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">${meal.message}</p>`;
       }
-      if (meal.empty || (!meals.length && !items.length)) {
-        html += `<p class="muted">No stocked meal plan yet — restock staples below, then refresh.</p>`;
-      } else if (meals.length) {
+      if (meals.length) {
         meals.forEach((bucket) => {
           const its = bucket.items || [];
           const clock = mealBucketClock(bucket);
@@ -4241,7 +4255,7 @@
           });
           html += `</ul></div>`;
         });
-      } else {
+      } else if (items.length) {
         html += `<ul style="margin:0;padding-left:1.1rem">`;
         items.forEach((it) => {
           html += `<li><strong>${it.name}</strong> · ${fmtNum(it.calories)} kcal · P${fmtNum(it.protein_g)}</li>`;
@@ -4908,6 +4922,13 @@
     const banner = $("meal-plan-refreshing");
     if (banner) banner.hidden = !busy;
 
+    const btn = $("btn-generate-meal");
+    if (btn) {
+      btn.disabled = !!busy;
+      if (busy) btn.setAttribute("aria-busy", "true");
+      else btn.removeAttribute("aria-busy");
+    }
+
     const el = $("meal-plan-result");
     if (!el) return;
     el.classList.toggle("is-refreshing", !!busy);
@@ -4935,6 +4956,7 @@
       setMealPlanBusy(false);
     }
   }
+  window.generateMealPlan = generatePlan;
 
   const WORKOUT_PLAN_TRIGGER_IDS = [
     "btn-generate-workout",

@@ -146,8 +146,83 @@
     }
     return null;
   }
+  function honestEmptyCopy(plan, inventory) {
+    const inv = inventory || {};
+    const ings = inv.ingredients;
+    const dark =
+      !!(plan && plan.pantry_dark) ||
+      !ings ||
+      !ings.length;
+    if (dark) return "Pantry unavailable";
+    if (plan && (plan.stocked_count === 0 || plan.empty_reason === "no_in_stock")) {
+      return "No in-stock items";
+    }
+    const remB = (plan && plan.remaining_before_plan) || {};
+    const remCals = Number(remB.calories);
+    const remP = Number(remB.protein_g);
+    if (
+      Number.isFinite(remCals) &&
+      Number.isFinite(remP) &&
+      remCals < 150 &&
+      remP < 20
+    ) {
+      return (plan && plan.message) || "";
+    }
+    return (plan && plan.message) || "No in-stock items";
+  }
+  function paintMealSlot(data) {
+    const store = (data && data.nutrition_store) || {};
+    const plan =
+      store.meal_plan ||
+      ((((data || {}).coach || {}).today || {}).meal) ||
+      (data && data.plan) ||
+      {};
+    const inventory = store.inventory || {};
+    const meals = plan.meals || [];
+    const items = plan.items || [];
+    const empty = !meals.length && !items.length;
+    const mealEl = $("today-meal");
+    if (mealEl && empty) {
+      const copy = honestEmptyCopy(plan, inventory);
+      mealEl.innerHTML =
+        '<p class="muted" style="margin:0 0 0.4rem;font-size:0.82rem">' +
+        copy +
+        "</p>";
+    }
+    const box = $("meal-plan-result");
+    if (box && empty) {
+      const html = String(box.innerHTML || "");
+      if (
+        html.indexOf("check in-stock inventory") >= 0 ||
+        html.indexOf("restock staples") >= 0
+      ) {
+        const copy = honestEmptyCopy(plan, inventory);
+        box.innerHTML =
+          '<div class="meal-plan-panel"><p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">' +
+          copy +
+          "</p></div>";
+      }
+    }
+  }
+  function bindGenerateMeal() {
+    const btn = $("btn-generate-meal");
+    if (!btn || btn.dataset.mealBound === "1") return;
+    btn.dataset.mealBound = "1";
+    btn.addEventListener("click", function () {
+      if (typeof window.generateMealPlan === "function") {
+        window.generateMealPlan();
+        return;
+      }
+      fetch("/api/meal-plan/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: "{}",
+      }).catch(function () {});
+    });
+  }
   function paint(data) {
     if (!data) return;
+    paintMealSlot(data);
     const store = (data && data.nutrition_store) || {};
     const picked = collectDayLogs(data);
     const logs = picked.logs;
@@ -225,18 +300,35 @@
     }
     const url = typeof args[0] === "string" ? args[0] : (args[0] && args[0].url) || "";
     return origFetch.apply(this, args).then(function (res) {
-      if (res && res.ok && String(url).indexOf("/api/dashboard") !== -1) {
+      const path = String(url);
+      if (
+        res &&
+        res.ok &&
+        (path.indexOf("/api/dashboard") !== -1 ||
+          path.indexOf("/api/meal-plan") !== -1)
+      ) {
         res
           .clone()
           .json()
           .then(function (data) {
-            setTimeout(function () { paint(data); }, 40);
-            setTimeout(function () { paint(data); }, 350);
-            setTimeout(function () { paint(data); }, 800);
+            const payload =
+              data && data.nutrition_store
+                ? data
+                : data && data.plan
+                ? { nutrition_store: { meal_plan: data.plan }, plan: data.plan }
+                : data;
+            setTimeout(function () { paint(payload); }, 40);
+            setTimeout(function () { paint(payload); }, 350);
+            setTimeout(function () { paint(payload); }, 800);
           })
           .catch(function () {});
       }
       return res;
     });
   };
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bindGenerateMeal);
+  } else {
+    bindGenerateMeal();
+  }
 })();

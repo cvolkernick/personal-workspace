@@ -220,6 +220,62 @@ class TestCoach(unittest.TestCase):
         self.assertTrue(board.get("purchases"))
         self.assertTrue(any("stock" in (p.get("reason") or "").lower() or p.get("name") for p in board["purchases"]))
 
+    def test_today_pantry_dark_is_unavailable_not_restock_copy(self):
+        rec = RecoveryStatus(label="Ready", score=80.0, reasons=[])
+        plan = generate_meal_plan(
+            {"ingredients": []},
+            {"calories": 2100, "protein_g": 200, "carbs_g": 180, "fat_g": 55},
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        board = build_today_board(
+            as_of="2026-07-11",
+            recovery=rec,
+            workout_plan={"is_rest_day": False, "session_type": "legs", "exercises": []},
+            meal_plan=plan,
+            consumed={"calories": 0, "protein_g": 0},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={},
+            inventory_suggestions={"suggestions": []},
+            inventory_dark=True,
+        )
+        self.assertTrue(board["meal"].get("empty"))
+        self.assertEqual(board["meal"].get("message"), "Pantry unavailable")
+        self.assertEqual(board["meal"].get("empty_reason"), "pantry_unavailable")
+        self.assertFalse(board.get("purchases"))
+
+    def test_today_oos_is_no_in_stock_items(self):
+        rec = RecoveryStatus(label="Ready", score=80.0, reasons=[])
+        plan = generate_meal_plan(
+            {
+                "ingredients": [
+                    {
+                        "id": "chicken",
+                        "name": "Chicken",
+                        "calories": 280,
+                        "protein_g": 52,
+                        "carbs_g": 0,
+                        "fat_g": 6,
+                        "in_stock": False,
+                    }
+                ]
+            },
+            {"calories": 2100, "protein_g": 200, "carbs_g": 180, "fat_g": 55},
+            {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0},
+        )
+        board = build_today_board(
+            as_of="2026-07-11",
+            recovery=rec,
+            workout_plan={"is_rest_day": False, "session_type": "legs", "exercises": []},
+            meal_plan=plan,
+            consumed={"calories": 0, "protein_g": 0},
+            targets={"calories": 2100, "protein_g": 200},
+            adherence={},
+            inventory_suggestions={"suggestions": []},
+        )
+        self.assertTrue(board["meal"].get("empty"))
+        self.assertEqual(board["meal"].get("message"), "No in-stock items")
+        self.assertEqual(board["meal"].get("empty_reason"), "no_in_stock")
+
     def test_food_commentary_protein_gap(self):
         logs = [
             FoodLogEntry(
