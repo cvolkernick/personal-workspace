@@ -132,6 +132,7 @@ def preview_workout_plan(
     recovery_score=None,
     recovery_sparse=False,
     as_of=None,
+    equipment=None,
 ) -> dict:
     """Same local planner as Pi ``generate_workout_plan``. Fail is explicit."""
     from rt_dashboard.workout_planner import generate_workout_plan
@@ -144,6 +145,7 @@ def preview_workout_plan(
         recovery_score=recovery_score,
         recovery_sparse=bool(recovery_sparse),
         as_of=as_of,
+        equipment=equipment,
     )
 
 
@@ -176,6 +178,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.daily_plan_tasks import plan_preview
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import load_preview_inventory
     from rt_dashboard.nutrition_store import load_workspace_targets
     from rt_dashboard.workout_store import (
@@ -315,6 +318,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     meal_plan = payload["nutrition_store"]["meal_plan"]
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()
+    equipment, equipment_src = load_preview_equipment(str(user.get("id") or ""))
     # Frankenfit: catalog names/movements only. Set caps from goals, never default_sets=3.
     catalog = apply_goals_volume_caps(catalog, goals)
     try:
@@ -326,6 +330,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             recovery_score=recovery_dict.get("score"),
             recovery_sparse=not had_real_sleep,
             as_of=today,
+            equipment=equipment,
         )
     except Exception as exc:  # noqa: BLE001
         errors.append(f"workout_plan: {type(exc).__name__}")
@@ -353,8 +358,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
+        "equipment": equipment,
         "goals": effective_goals,
-        "sources": {"catalog": catalog_src, "goals": goals_src},
+        "sources": {
+            "catalog": catalog_src,
+            "goals": goals_src,
+            "equipment": equipment_src,
+        },
         "next_session_type": nxt["next_session_type"],
         "training_pack": pack,
     }

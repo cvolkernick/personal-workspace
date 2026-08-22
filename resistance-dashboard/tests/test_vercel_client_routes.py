@@ -62,6 +62,9 @@ class ClientRouteLayout(unittest.TestCase):
         self.assertNotIn("api/workout_plan_generate.py", raw)
         self.assertIn("fitness/exercises/goals.json", raw)
         self.assertIn("fitness/exercises/catalog.json", raw)
+        self.assertIn("fitness/exercises/equipment.json", raw)
+        self.assertIn("/api/equipment/add", raw)
+        self.assertIn("/api/dashboard?_r=eq_add", raw)
 
     def test_hobby_function_count_stays_at_12(self):
         api = ROOT / "api"

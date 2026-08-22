@@ -136,6 +136,13 @@ from rt_dashboard.grok_ask import (  # noqa: E402
 )
 from rt_dashboard.recovery import compute_recovery_status  # noqa: E402
 from rt_dashboard.session_merge import merge_sessions  # noqa: E402
+from rt_dashboard.equipment_store import (  # noqa: E402
+    add_equipment_item,
+    load_preview_equipment,
+    remove_equipment_item,
+    save_preview_equipment,
+    update_equipment_item,
+)
 from rt_dashboard.workout_planner import (  # noqa: E402
     add_or_update_exercise,
     generate_workout_plan,
@@ -827,6 +834,7 @@ def load_dashboard_data(
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
     try:
         wo = load_catalog_and_goals(nut_client)
+        equipment, equipment_src = load_preview_equipment(str(uid or ""))
         workout_plan = generate_workout_plan(
             wo["catalog"],
             wo["goals"],
@@ -836,6 +844,7 @@ def load_dashboard_data(
             # Sparse Health (no real sleep) → do not auto-rest on debt-filled score
             recovery_sparse=not had_real_sleep,
             as_of=local_today,
+            equipment=equipment,
         )
         # Effective goals include autonomous focus_muscles from plan gen
         effective_goals = dict(wo["goals"] or {})
@@ -850,8 +859,9 @@ def load_dashboard_data(
             }
         payload["workout_store"] = {
             "catalog": wo["catalog"],
+            "equipment": equipment,
             "goals": effective_goals,
-            "sources": wo["sources"],
+            "sources": {**wo["sources"], "equipment": equipment_src},
             "plan": workout_plan,
         }
     except Exception as e:  # noqa: BLE001
@@ -859,6 +869,7 @@ def load_dashboard_data(
         workout_plan = {"message": f"Workout plan failed: {e}", "exercises": []}
         payload["workout_store"] = {
             "catalog": {"exercises": []},
+            "equipment": {"items": []},
             "goals": {},
             "sources": {},
             "plan": workout_plan,
@@ -1952,6 +1963,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     recovery_score=rec.get("score"),
                     recovery_sparse=bool(rec.get("sparse")),
                     session_type=str(session_type).lower() if session_type else None,
+                    equipment=wo.get("equipment"),
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:
@@ -1984,6 +1996,68 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 )
                 self._send_json({"ok": True, "catalog": updated, "write": write})
             except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/equipment/add":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                current, _src = load_preview_equipment(str(uid))
+                updated = add_equipment_item(current, body)
+                saved = save_preview_equipment(updated, str(uid))
+                self._send_json(
+                    {
+                        "ok": True,
+                        "equipment": saved,
+                        "write": {"ok": True, "source": "turso"},
+                    }
+                )
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/equipment/update":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                current, _src = load_preview_equipment(str(uid))
+                updated = update_equipment_item(current, body)
+                saved = save_preview_equipment(updated, str(uid))
+                self._send_json(
+                    {
+                        "ok": True,
+                        "equipment": saved,
+                        "write": {"ok": True, "source": "turso"},
+                    }
+                )
+            except ValueError as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/equipment/remove":
+            try:
+                body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
+                current, _src = load_preview_equipment(str(uid))
+                updated = remove_equipment_item(
+                    current,
+                    equipment_id=str(body.get("id") or ""),
+                    tag=str(body.get("tag") or ""),
+                    name=str(body.get("name") or ""),
+                )
+                saved = save_preview_equipment(updated, str(uid))
+                self._send_json(
+                    {
+                        "ok": True,
+                        "equipment": saved,
+                        "write": {"ok": True, "source": "turso"},
+                    }
+                )
+            except ValueError as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=500)

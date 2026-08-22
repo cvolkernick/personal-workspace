@@ -2868,45 +2868,65 @@
     const items = ((store && store.catalog && store.catalog.exercises) || []).slice();
     items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     if (!items.length) {
-      list.innerHTML = `<li class="muted">No exercises in catalog yet.</li>`;
+      list.innerHTML = `<li class="muted">No movements in the catalog library.</li>`;
       return;
     }
+    const owned = new Set(
+      ((store && store.equipment && store.equipment.items) || [])
+        .map((g) => String((g && g.tag) || "").toLowerCase())
+        .filter(Boolean)
+    );
     items.forEach((ex) => {
       const li = document.createElement("li");
-      const avail = ex.available !== false;
       const muscles = (ex.primary_muscles || []).join(", ") || "—";
       const sessions = (ex.session_types || []).join("/");
+      const req = (ex.equipment || []).filter(Boolean);
+      const any = (ex.equipment_any || []).filter(Boolean);
+      const tags = req.concat(any);
+      const feasible =
+        (!req.length || req.every((t) => owned.has(String(t).toLowerCase()))) &&
+        (!any.length || any.some((t) => owned.has(String(t).toLowerCase())));
+      const gear = tags.length ? tags.join(", ") : "no gear tags";
       li.innerHTML = `
-        <div class="title">${ex.name} ${avail ? "" : "<span class='muted'>(off)</span>"}</div>
+        <div class="title">${ex.name}${feasible ? "" : " <span class='muted'>(needs gear)</span>"}</div>
         <div class="meta">${sessions || "?"} · ${ex.movement || "compound"} · ${muscles}
-          · ${ex.default_sets || 3}×${ex.default_reps || 10}</div>
-        <div class="actions" style="margin-top:0.35rem">
-          <button type="button" class="btn-ex-avail" data-id="${ex.id}" data-avail="${avail ? "0" : "1"}">
-            ${avail ? "Disable in plans" : "Enable in plans"}
-          </button>
-        </div>
+          · ${gear}</div>
       `;
       list.appendChild(li);
     });
-    list.querySelectorAll(".btn-ex-avail").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const id = btn.getAttribute("data-id");
-        const available = btn.getAttribute("data-avail") === "1";
-        try {
-          const res = await fetch("/api/workout/exercise/available", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ id, available }),
-          });
-          const data = await res.json();
-          if (!res.ok || !data.ok) throw new Error(data.error || res.status);
-          showAlert(`Exercise ${available ? "enabled" : "disabled"}`, "ok");
-          await loadDashboard(false);
-        } catch (e) {
-          showAlert(`Update failed: ${e.message}`, "err");
-        }
-      });
+  }
+
+  function renderEquipmentInventory(store) {
+    const list = $("equipment-list");
+    if (!list) return;
+    const items = ((store && store.equipment && store.equipment.items) || []).slice();
+    items.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    if (!items.length) {
+      list.innerHTML = `<p class="muted">No owned gear yet — add what you have and the max load. The planner will not invent cable/smith/assisted-pullup.</p>`;
+      return;
+    }
+    let cards = "";
+    items.forEach((g) => {
+      const id = String(g.id || "").replace(/"/g, "&quot;");
+      const name = String(g.name || "").replace(/"/g, "&quot;");
+      const max =
+        g.max_weight_lbs != null && g.max_weight_lbs !== ""
+          ? `${g.max_weight_lbs} lb max`
+          : "no load cap";
+      cards += `<div class="inv-card" data-eq-id="${id}">
+        <div class="inv-card-name">${g.name || g.tag || "Gear"}</div>
+        <div class="inv-card-meta muted">${g.tag || "—"} · ${max}${
+        g.notes ? ` · ${String(g.notes).slice(0, 80)}` : ""
+      }</div>
+        <div class="actions inv-card-actions">
+          <button type="button" class="btn-edit" data-eq-action="edit" data-id="${id}"
+            data-name="${name}" data-tag="${String(g.tag || "").replace(/"/g, "&quot;")}"
+            data-max="${g.max_weight_lbs != null ? g.max_weight_lbs : ""}">Edit</button>
+          <button type="button" class="btn-remove" data-eq-action="remove" data-id="${id}" data-name="${name}">Remove</button>
+        </div>
+      </div>`;
     });
+    list.innerHTML = `<div class="inv-cards">${cards}</div>`;
   }
 
   function renderWorkoutGoals(store) {
@@ -3066,7 +3086,10 @@
     markForcedSessionButtons(stRaw);
     const items = plan.exercises || [];
     if (!items.length) {
-      html += `<p class="muted">No exercises planned — expand the catalog or enable exercises.</p>`;
+      html += `<p class="muted">${
+        plan.message ||
+        "No owned equipment can load a lift for this session. Add gear — do not invent cable/smith/assisted-pullup."
+      }</p>`;
     } else {
       html += `<ul class="session-list" style="margin-top:0.5rem">`;
       items.forEach((ex) => {
@@ -3520,6 +3543,7 @@
     }
     renderFoodCoach(data.coach, data.nutrition_store);
     renderExerciseCatalog(data.workout_store);
+    renderEquipmentInventory(data.workout_store);
     renderWorkoutGoals(data.workout_store);
     if (data.workout_store && data.workout_store.plan) {
       renderWorkoutPlan(data.workout_store.plan);
@@ -4964,23 +4988,17 @@
     }
   }
 
-  async function submitExerciseCatalog(ev) {
+  async function submitEquipmentInventory(ev) {
     ev.preventDefault();
-    const status = $("excat-status");
+    const status = $("eq-status");
+    const maxRaw = $("eq-max") && $("eq-max").value;
     const body = {
-      name: $("excat-name").value.trim(),
-      session_types: [$("excat-session").value],
-      primary_muscles: ($("excat-muscle").value || "other")
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-      movement: $("excat-movement").value,
-      default_sets: Number($("excat-sets").value) || 3,
-      default_reps: Number($("excat-reps").value) || 10,
-      available: true,
+      name: $("eq-name").value.trim(),
+      tag: $("eq-tag").value,
+      max_weight_lbs: maxRaw === "" || maxRaw == null ? null : Number(maxRaw),
     };
     try {
-      const res = await fetch("/api/workout/exercise", {
+      const res = await fetch("/api/equipment/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -4988,12 +5006,18 @@
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || res.status);
       if (status) status.textContent = "Saved";
-      showAlert(`Exercise saved: ${body.name}`, "ok");
-      $("excat-name").value = "";
+      showAlert(`Gear saved: ${body.name}`, "ok");
+      $("eq-name").value = "";
+      $("eq-max").value = "";
+      if (data.equipment && state && state.workout_store) {
+        state.workout_store.equipment = data.equipment;
+        renderEquipmentInventory(state.workout_store);
+        renderExerciseCatalog(state.workout_store);
+      }
       await loadDashboard(false);
     } catch (e) {
       if (status) status.textContent = "";
-      showAlert(`Exercise save failed: ${e.message}`, "err");
+      showAlert(`Gear save failed: ${e.message}`, "err");
     }
   }
 
@@ -5310,8 +5334,50 @@
       $("targets-form").addEventListener("submit", submitTargets);
     }
 
-    if ($("exercise-form")) {
-      $("exercise-form").addEventListener("submit", submitExerciseCatalog);
+    if ($("equipment-form")) {
+      $("equipment-form").addEventListener("submit", submitEquipmentInventory);
+    }
+    const eqList = $("equipment-list");
+    if (eqList && !eqList.dataset.eqBound) {
+      eqList.dataset.eqBound = "1";
+      eqList.addEventListener("click", async (ev) => {
+        const btn = ev.target.closest("button[data-eq-action]");
+        if (!btn) return;
+        const action = btn.getAttribute("data-eq-action");
+        const id = (btn.getAttribute("data-id") || "").trim();
+        const name = (btn.getAttribute("data-name") || "").trim();
+        if (action === "edit") {
+          if ($("eq-name")) $("eq-name").value = name;
+          if ($("eq-tag") && btn.getAttribute("data-tag")) {
+            $("eq-tag").value = btn.getAttribute("data-tag");
+          }
+          if ($("eq-max")) $("eq-max").value = btn.getAttribute("data-max") || "";
+          $("eq-name") && $("eq-name").focus();
+          return;
+        }
+        if (action !== "remove") return;
+        btn.disabled = true;
+        try {
+          const res = await fetch("/api/equipment/remove", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, name }),
+          });
+          const data = await res.json();
+          if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+          showAlert(`Removed ${name || id}`, "ok");
+          if (data.equipment && state && state.workout_store) {
+            state.workout_store.equipment = data.equipment;
+            renderEquipmentInventory(state.workout_store);
+            renderExerciseCatalog(state.workout_store);
+          }
+          await loadDashboard(false);
+        } catch (e) {
+          showAlert(`Remove failed: ${e.message}`, "err");
+        } finally {
+          btn.disabled = false;
+        }
+      });
     }
     if ($("workout-goals-form")) {
       $("workout-goals-form").addEventListener("submit", submitWorkoutGoals);

@@ -3322,11 +3322,13 @@ body.m-shell[data-m-active="more"] section.grid[data-m-panel="more"] {
 }
 
 /* Catalog lives under More only; plan controls live inside Today hub Training */
-body.m-shell[data-m-active="more"] #exercise-catalog-section {
+body.m-shell[data-m-active="more"] #exercise-catalog-section,
+body.m-shell[data-m-active="more"] #equipment-inventory-section {
   display: block !important;
 }
 
-body.m-shell[data-m-active="more"] #exercise-catalog-card {
+body.m-shell[data-m-active="more"] #exercise-catalog-card,
+body.m-shell[data-m-active="more"] #equipment-inventory-card {
   display: block !important;
 }
 
