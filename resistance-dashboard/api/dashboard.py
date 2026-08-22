@@ -111,7 +111,19 @@ def _today_consumed(health, today: str) -> dict:
     }
 
 
-def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dict:
+def preview_meal_plan(
+    inventory,
+    targets,
+    consumed,
+    food_logs_today=None,
+    *,
+    now=None,
+    tz_name=None,
+    window_start=None,
+    window_end=None,
+    eat_slots=None,
+    sleep_battery=None,
+) -> dict:
     """Same remaining-day planner as Pi ``generate_meal_plan``. In-stock pantry only."""
     from rt_dashboard.nutrition_planner import generate_meal_plan
 
@@ -120,6 +132,12 @@ def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dic
         targets or {},
         consumed or {},
         food_logs_today=food_logs_today or [],
+        now=now,
+        tz_name=tz_name,
+        window_start=window_start,
+        window_end=window_end,
+        eat_slots=eat_slots,
+        sleep_battery=sleep_battery,
     )
 
 
@@ -293,7 +311,13 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "inventory": inventory,
         "sources": {"inventory": inventory_src, "targets": targets_src},
         "meal_plan": preview_meal_plan(
-            inventory, targets, consumed, food_logs_today=today_logs
+            inventory,
+            targets,
+            consumed,
+            food_logs_today=today_logs,
+            now=now,
+            tz_name=tz_name,
+            sleep_battery=sleep_battery,
         ),
         "inventory_suggestions": inv_suggestions,
         "inventory_removals": inv_removals,

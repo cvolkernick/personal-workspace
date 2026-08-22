@@ -125,9 +125,20 @@ class GenerateOnGet(unittest.TestCase):
         self.assertGreater(len(meal.get("meals") or []), 0)
         labels = [m.get("label") for m in meal["meals"]]
         self.assertIn("Next meal", labels)
+        self.assertGreaterEqual(len(meal["meals"]), 1)
+        self.assertLessEqual(len(meal["meals"]), 4)
         stocked_names = {i["name"] for i in stocked}
         for it in meal["items"]:
             self.assertIn(it["name"], stocked_names)
+        for bucket in meal["meals"]:
+            self.assertTrue(bucket.get("items"))
+            self.assertTrue(bucket.get("eat_at"))
+            self.assertTrue(bucket.get("eat_at_label"))
+            self.assertIn("T", str(bucket["eat_at"]))
+            for it in bucket["items"]:
+                self.assertIn(it["name"], stocked_names)
+                if it.get("portion_g") is not None:
+                    self.assertGreater(it["portion_g"], 0)
         self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
         nut = body.get("nutrition_store") or {}
         self.assertIn("inventory_suggestions", nut)
@@ -157,6 +168,7 @@ class GenerateOnGet(unittest.TestCase):
         self.assertEqual(meal.get("stocked_count"), 0)
         self.assertTrue(meal.get("in_stock_only"))
         self.assertIn("No in-stock", meal.get("message") or "")
+        self.assertFalse(any((m or {}).get("eat_at") for m in meal.get("meals") or []))
         self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
         nut = body.get("nutrition_store") or {}
         self.assertEqual((nut.get("inventory_suggestions") or {}).get("suggestions"), [])

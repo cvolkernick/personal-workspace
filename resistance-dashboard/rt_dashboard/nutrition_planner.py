@@ -6,9 +6,10 @@ import json
 import re
 import uuid
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
+from zoneinfo import ZoneInfo
 
 from .models import FoodLogEntry, NutritionDay
 
@@ -25,6 +26,13 @@ DEFAULT_TARGETS = {
     "notes": "Default cutting targets",
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 }
+
+# FitDash Today meal clocks (issue #250). Defaults sit inside the eating window.
+MEAL_TZ_NAME = "America/New_York"
+DEFAULT_SLOT_HM = ((12, 0), (15, 30), (19, 0))
+FOURTH_SLOT_HM = (21, 0)
+UPCOMING_MEAL_LABELS = ("Next meal", "Later meal", "Evening", "Optional snack")
+PAST_MEAL_LABEL = "Earlier meal"
 
 
 def _slug(name: str) -> str:
@@ -332,6 +340,13 @@ def generate_meal_plan(
     consumed: dict,
     max_items: int = 12,
     food_logs_today: Optional[Sequence[dict]] = None,
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    window_start: Any = None,
+    window_end: Any = None,
+    eat_slots: Optional[Sequence[Any]] = None,
+    sleep_battery: Optional[dict] = None,
 ) -> dict:
     """
     Greedy remaining-day plan from stocked ingredients.
@@ -342,6 +357,12 @@ def generate_meal_plan(
     the inventory row has mass; otherwise free-text ``serving_label``.
     When food_logs_today is provided, the message and scoring bias away from
     foods already eaten heavily today.
+
+    Meal buckets get America/New_York (or viewer) ``eat_at`` clocks. Times use
+    the FitDash eating window (wake→end) when known; optional ``eat_slots``
+    only if a caller passes them. Defaults otherwise: ~12:00 / 15:30 / 19:00.
+    Slot count is 1–4 from remaining macros + in-stock items — never empty
+    timed hinges, never invented food.
     """
     targets = normalize_targets(targets)
     rem = remaining_macros(targets, consumed)
@@ -438,8 +459,17 @@ def generate_meal_plan(
     ]
     # Collapse repeated picks into one line with servings (e.g. 3× chicken)
     plan_items = _collapse_plan_items(plan_items)
-    # Group into simple meal buckets
-    meals = _bucket_meals(plan_items)
+    # Group into timed meal buckets (1–4). No empty hinges; no invented food.
+    meals = _bucket_meals(
+        plan_items,
+        remaining=remaining_macros(targets, consumed),
+        now=now,
+        tz_name=tz_name,
+        window_start=window_start,
+        window_end=window_end,
+        eat_slots=eat_slots,
+        sleep_battery=sleep_battery,
+    )
     for k in totals:
         totals[k] = round(totals[k], 1)
 
@@ -592,24 +622,392 @@ def _collapse_plan_items(items: List[dict]) -> List[dict]:
     return out
 
 
-def _bucket_meals(items: List[dict]) -> List[dict]:
+def _meal_tz(tz_name: Optional[str] = None):
+    name = (tz_name or "").strip() or MEAL_TZ_NAME
+    try:
+        return ZoneInfo(name), name
+    except Exception:
+        return ZoneInfo(MEAL_TZ_NAME), MEAL_TZ_NAME
+
+
+def _parse_meal_dt(value: Any) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        dt = value
+    else:
+        s = str(value).strip()
+        if not s:
+            return None
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        try:
+            dt = datetime.fromisoformat(s)
+        except ValueError:
+            return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _clock_label(dt: datetime) -> str:
+    h24 = dt.hour
+    h = h24 % 12 or 12
+    return f"{h}:{dt.minute:02d} {'AM' if h24 < 12 else 'PM'}"
+
+
+def _dedupe_sorted_times(times: Sequence[datetime]) -> List[datetime]:
+    out: List[datetime] = []
+    seen = set()
+    for t in sorted(times):
+        key = t.replace(second=0, microsecond=0).isoformat()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(t.replace(second=0, microsecond=0))
+    return out
+
+
+def _clamp_into_window(dt: datetime, start: datetime, end: datetime) -> datetime:
+    if dt < start:
+        return start.replace(second=0, microsecond=0)
+    if dt > end:
+        return end.replace(second=0, microsecond=0)
+    return dt.replace(second=0, microsecond=0)
+
+
+def _space_in_range(
+    n: int,
+    lo: datetime,
+    hi: datetime,
+    avoid: Optional[Sequence[datetime]] = None,
+) -> List[datetime]:
+    if n <= 0:
+        return []
+    avoid_keys = {
+        t.replace(second=0, microsecond=0).isoformat() for t in (avoid or [])
+    }
+    if hi <= lo:
+        return [lo.replace(second=0, microsecond=0)][:n]
+    span = max(60.0, (hi - lo).total_seconds())
+    out: List[datetime] = []
+    # n+1 so first/last are not glued to the window edges.
+    step = span / (n + 1)
+    for i in range(1, n + 1):
+        t = (lo + timedelta(seconds=step * i)).replace(second=0, microsecond=0)
+        key = t.isoformat()
+        if key in avoid_keys:
+            t = (t + timedelta(minutes=25)).replace(second=0, microsecond=0)
+            if t > hi:
+                t = hi.replace(second=0, microsecond=0)
+            key = t.isoformat()
+        if key not in avoid_keys:
+            avoid_keys.add(key)
+            out.append(t)
+    return out
+
+
+def _parse_eat_slot(raw: Any, tz, day: datetime) -> Optional[datetime]:
+    if raw is None:
+        return None
+    if isinstance(raw, datetime):
+        dt = raw if raw.tzinfo else raw.replace(tzinfo=tz)
+        return dt.astimezone(tz)
+    if isinstance(raw, dict):
+        if raw.get("eat_at") is not None:
+            return _parse_eat_slot(raw.get("eat_at"), tz, day)
+        if raw.get("time") is not None:
+            return _parse_eat_slot(raw.get("time"), tz, day)
+        if raw.get("hour") is not None:
+            try:
+                h = int(raw.get("hour"))
+                m = int(raw.get("minute") or 0)
+                return day.replace(hour=h, minute=m, second=0, microsecond=0)
+            except (TypeError, ValueError):
+                return None
+        return None
+    s = str(raw).strip()
+    if not s:
+        return None
+    if "T" in s or s.endswith("Z"):
+        dt = _parse_meal_dt(s)
+        return dt.astimezone(tz) if dt else None
+    parts = s.replace(".", ":").split(":")
+    try:
+        if len(parts) >= 2:
+            h = int(parts[0])
+            m = int(parts[1])
+            return day.replace(hour=h, minute=m, second=0, microsecond=0)
+        if len(parts) == 1 and parts[0].isdigit():
+            return day.replace(hour=int(parts[0]), minute=0, second=0, microsecond=0)
+    except (TypeError, ValueError):
+        return None
+    return None
+
+
+def _eating_window_bounds(
+    now: datetime,
+    tz,
+    tz_name: str,
+    window_start: Any = None,
+    window_end: Any = None,
+    sleep_battery: Optional[dict] = None,
+) -> tuple:
+    start = _parse_meal_dt(window_start)
+    end = _parse_meal_dt(window_end)
+    bat = sleep_battery if isinstance(sleep_battery, dict) else {}
+    if (start is None or end is None) and bat:
+        try:
+            from .calorie_bars import eating_window_fraction
+
+            win = eating_window_fraction(
+                now=now,
+                tz_name=tz_name,
+                last_wake_at=bat.get("last_wake_at"),
+                empty_at=bat.get("empty_at"),
+                awake_budget_hours=float(bat.get("awake_budget_hours") or 15.0),
+            )
+            start = start or _parse_meal_dt(win.get("window_start"))
+            end = end or _parse_meal_dt(win.get("window_end"))
+        except Exception:
+            start = start or _parse_meal_dt(bat.get("last_wake_at"))
+            end = end or _parse_meal_dt(bat.get("empty_at"))
+    if start is not None:
+        start = start.astimezone(tz)
+    if end is not None:
+        end = end.astimezone(tz)
+    if start is None:
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    if end is None:
+        end = start + timedelta(hours=24)
+    if end <= start:
+        end = start + timedelta(hours=12)
+    return start, end
+
+
+def _default_slot_hms(n: int) -> List[tuple]:
+    if n <= 1:
+        return list(DEFAULT_SLOT_HM)
+    if n == 2:
+        return [(12, 0), (19, 0)]
+    if n == 3:
+        return list(DEFAULT_SLOT_HM)
+    return list(DEFAULT_SLOT_HM) + [FOURTH_SLOT_HM]
+
+
+def _resolve_eat_times(
+    n: int,
+    *,
+    now: datetime,
+    start: datetime,
+    end: datetime,
+    tz,
+    eat_slots: Optional[Sequence[Any]] = None,
+) -> List[datetime]:
+    """n clock times inside the eating window. Never invents food slots.
+
+    Prefer a stable day plan (~12:00 / 15:30 / 19:00, or caller ``eat_slots``).
+    Only spread when clamping collapsed two hinges onto the same minute.
+    """
+    if n <= 0:
+        return []
+    day = now.replace(second=0, microsecond=0)
+    parsed: List[datetime] = []
+    for raw in eat_slots or []:
+        dt = _parse_eat_slot(raw, tz, day)
+        if dt is None:
+            continue
+        parsed.append(_clamp_into_window(dt, start, end))
+    parsed = _dedupe_sorted_times(parsed)
+
+    if n == 1 and not parsed:
+        cands = _dedupe_sorted_times(
+            [
+                _clamp_into_window(
+                    day.replace(hour=h, minute=m, second=0, microsecond=0),
+                    start,
+                    end,
+                )
+                for h, m in DEFAULT_SLOT_HM
+            ]
+        )
+        upcoming = [t for t in cands if t >= now]
+        if upcoming:
+            return [upcoming[0]]
+        if start <= now < end:
+            return [_clamp_into_window(now, start, end)]
+        return [cands[-1] if cands else _clamp_into_window(day.replace(hour=12, minute=0), start, end)]
+
+    if parsed:
+        chosen = parsed[:n]
+    else:
+        chosen = _dedupe_sorted_times(
+            [
+                _clamp_into_window(
+                    day.replace(hour=h, minute=m, second=0, microsecond=0),
+                    start,
+                    end,
+                )
+                for h, m in _default_slot_hms(n)
+            ]
+        )
+    if len(chosen) < n:
+        chosen = _dedupe_sorted_times(
+            chosen + _space_in_range(n - len(chosen), start, end, avoid=chosen)
+        )
+    return chosen[:n]
+
+
+def _serving_unit_count(items: Sequence[dict]) -> int:
+    total = 0
+    for it in items:
+        n = float(it.get("servings") or 1)
+        if n <= 0:
+            total += 1
+            continue
+        if abs(n - round(n)) < 1e-9:
+            total += max(1, int(round(n)))
+        else:
+            total += 1
+    return total
+
+
+def _desired_slot_count(items: Sequence[dict], remaining: Optional[dict]) -> int:
+    units = _serving_unit_count(items)
+    if units <= 0:
+        return 0
+    rem = remaining or {}
+    cal = float(rem.get("calories") or 0)
+    prot = float(rem.get("protein_g") or 0)
+    if cal >= 1400 or prot >= 120:
+        want = 4
+    elif cal >= 800 or prot >= 70:
+        want = 3
+    elif cal >= 350 or prot >= 30:
+        want = 2
+    else:
+        want = 1
+    return max(1, min(4, units, want))
+
+
+def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
+    """Split whole multi-servings so one in-stock food can land in several slots."""
+    units: List[dict] = []
+    for it in items:
+        n = float(it.get("servings") or 1)
+        whole = n >= 1 and abs(n - round(n)) < 1e-9
+        count = int(round(n)) if whole else 1
+        if count <= 1:
+            units.append(deepcopy(it))
+            continue
+        base = deepcopy(it)
+        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+            base[k] = round(float(it.get(k) or 0) / count, 1)
+        if it.get("portion_g") is not None:
+            try:
+                base["portion_g"] = round(float(it["portion_g"]) / count)
+            except (TypeError, ValueError):
+                pass
+        elif it.get("serving_g") is not None:
+            try:
+                base["portion_g"] = round(float(it["serving_g"]))
+            except (TypeError, ValueError):
+                pass
+        base["servings"] = 1
+        if base.get("serving_g") is not None:
+            base["serving_label"] = format_portion_label(
+                serving_g=float(base["serving_g"]),
+                servings=1,
+                serving_label=str(it.get("serving_label") or ""),
+            )
+        units.extend(deepcopy(base) for _ in range(count))
+    return units
+
+
+def _chunk_units(units: Sequence[dict], n_slots: int) -> List[List[dict]]:
+    """Deal servings across slots so a 3× protein pick is not one lunch blob."""
+    if not units:
+        return []
+    n = max(1, min(int(n_slots), len(units)))
+    slots: List[List[dict]] = [[] for _ in range(n)]
+    for i, unit in enumerate(units):
+        slots[i % n].append(unit)
+    return [part for part in slots if part]
+
+
+def _bucket_meals(
+    items: List[dict],
+    remaining: Optional[dict] = None,
+    *,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+    window_start: Any = None,
+    window_end: Any = None,
+    eat_slots: Optional[Sequence[Any]] = None,
+    sleep_battery: Optional[dict] = None,
+) -> List[dict]:
+    """Split in-stock plan items into 1–4 timed buckets. No empty hinges."""
     if not items:
         return []
-    labels = ["Next meal", "Later meal", "Evening", "Optional snack"]
-    # Split by ~3 distinct items; multi-serving rows already collapsed
-    meals = []
-    chunk = 3
-    for i in range(0, len(items), chunk):
-        part = items[i : i + chunk]
-        label = labels[min(i // chunk, len(labels) - 1)]
+    tz, resolved_tz = _meal_tz(tz_name)
+    if now is None:
+        from .timeutil import local_now
+
+        now = local_now(resolved_tz)
+    elif now.tzinfo is None:
+        now = now.replace(tzinfo=tz)
+    else:
+        now = now.astimezone(tz)
+
+    start, end = _eating_window_bounds(
+        now,
+        tz,
+        resolved_tz,
+        window_start=window_start,
+        window_end=window_end,
+        sleep_battery=sleep_battery,
+    )
+    n_slots = _desired_slot_count(items, remaining)
+    units = _expand_serving_units(items)
+    n_slots = max(1, min(n_slots, len(units)))
+    chunks = _chunk_units(units, n_slots)
+    times = _resolve_eat_times(
+        len(chunks), now=now, start=start, end=end, tz=tz, eat_slots=eat_slots
+    )
+    while len(times) < len(chunks):
+        times.append(times[-1] if times else now)
+
+    meals: List[dict] = []
+    next_idx = None
+    for i, t in enumerate(times[: len(chunks)]):
+        if t >= now:
+            next_idx = i
+            break
+    if next_idx is None:
+        next_idx = 0
+
+    upcoming_i = 0
+    past_used = False
+    for i, part in enumerate(chunks):
+        collapsed = _collapse_plan_items(list(part))
         sub = {"calories": 0.0, "protein_g": 0.0, "carbs_g": 0.0, "fat_g": 0.0}
-        for it in part:
+        for it in collapsed:
             for k in sub:
-                sub[k] += float(it[k])
+                sub[k] += float(it.get(k) or 0)
+        eat_at = times[i]
+        if i < next_idx:
+            label = PAST_MEAL_LABEL if not past_used else "Afternoon"
+            past_used = True
+        else:
+            label = UPCOMING_MEAL_LABELS[min(upcoming_i, len(UPCOMING_MEAL_LABELS) - 1)]
+            upcoming_i += 1
         meals.append(
             {
                 "label": label,
-                "items": part,
+                "eat_at": eat_at.isoformat(timespec="seconds"),
+                "eat_at_label": _clock_label(eat_at),
+                "timezone": resolved_tz,
+                "items": collapsed,
                 "totals": {k: round(v, 1) for k, v in sub.items()},
             }
         )

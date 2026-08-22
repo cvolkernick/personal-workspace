@@ -74,6 +74,18 @@ class InventoryMealOnly(unittest.TestCase):
         self.assertNotIn("setWorkoutPlanBusy", gen)
         self.assertIn("renderMealPlan(data.plan)", gen)
 
+    def test_meal_bucket_head_shows_local_eat_at_clock(self):
+        self.assertIn("function mealBucketClock", JS)
+        self.assertIn("m.eat_at", JS)
+        self.assertIn("m.eat_at_label", JS)
+        render = _fn("function renderMealPlan", "function liveFingerprint")
+        self.assertIn("mealBucketClock(m)", render)
+        self.assertIn("meal-bucket-time", render)
+        today = _fn('if ($("today-meal"))', 'if ($("today-purchases"))')
+        self.assertIn("mealBucketClock(bucket)", today)
+        self.assertIn("today-meal-bucket-time", today)
+        self.assertIn(".meal-bucket-time", CSS)
+
     def test_inventory_mutations_call_generate_plan_only(self):
         submit = _fn("async function submitIngredient", "async function submitTargets")
         self.assertIn("await generatePlan()", submit)

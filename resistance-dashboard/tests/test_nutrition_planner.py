@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sys
 import unittest
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -22,6 +24,69 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     suggest_inventory_staples,
     today_consumed_from_nutrition,
 )
+
+ET = ZoneInfo("America/New_York")
+
+STOCKED_CUTTING = {
+    "ingredients": [
+        {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 170,
+            "serving_label": "170g cooked",
+            "calories": 280,
+            "protein_g": 52,
+            "carbs_g": 0,
+            "fat_g": 6,
+            "in_stock": True,
+        },
+        {
+            "id": "rice",
+            "name": "Rice",
+            "serving_g": 195,
+            "serving_label": "195g cooked",
+            "calories": 215,
+            "protein_g": 5,
+            "carbs_g": 45,
+            "fat_g": 2,
+            "in_stock": True,
+        },
+        {
+            "id": "yogurt",
+            "name": "Greek yogurt",
+            "serving_g": 200,
+            "serving_label": "200g",
+            "calories": 130,
+            "protein_g": 20,
+            "carbs_g": 8,
+            "fat_g": 0,
+            "in_stock": True,
+        },
+        {
+            "id": "broccoli",
+            "name": "Broccoli",
+            "serving_g": 180,
+            "serving_label": "180g",
+            "calories": 60,
+            "protein_g": 5,
+            "carbs_g": 12,
+            "fat_g": 0.5,
+            "in_stock": True,
+        },
+        {
+            "id": "candy",
+            "name": "Candy",
+            "serving_g": 50,
+            "calories": 250,
+            "protein_g": 1,
+            "carbs_g": 40,
+            "fat_g": 10,
+            "in_stock": False,
+        },
+    ]
+}
+FULL_TARGETS = {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55}
+EMPTY_CONSUMED = {"calories": 0, "protein_g": 0, "carbs_g": 0, "fat_g": 0}
 
 
 class TestNutritionPlanner(unittest.TestCase):
@@ -466,6 +531,169 @@ class TestNutritionPlanner(unittest.TestCase):
             update_ingredient(inv, {"name": "Oats", "calories": 9})
         self.assertIn("id required", str(ctx.exception).lower())
         self.assertEqual(inv["ingredients"][0]["calories"], 1)
+
+    def test_multi_slot_times_and_grams(self):
+        now = datetime(2026, 8, 22, 10, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        meals = plan["meals"]
+        self.assertGreaterEqual(len(meals), 2)
+        self.assertLessEqual(len(meals), 4)
+        labels = [m["label"] for m in meals]
+        self.assertIn("Next meal", labels)
+        self.assertEqual(labels.count("Next meal"), 1)
+        stocked_names = {"Chicken", "Rice", "Greek yogurt", "Broccoli"}
+        eat_hours = []
+        for meal in meals:
+            self.assertTrue(meal.get("items"), "do not force empty timed slots")
+            self.assertTrue(meal.get("eat_at"))
+            self.assertTrue(meal.get("eat_at_label"))
+            self.assertEqual(meal.get("timezone"), "America/New_York")
+            eat = datetime.fromisoformat(meal["eat_at"])
+            self.assertEqual(eat.utcoffset(), ET.utcoffset(eat))
+            eat_hours.append((eat.hour, eat.minute))
+            for it in meal["items"]:
+                self.assertIn(it["name"], stocked_names)
+                self.assertNotEqual(it["name"], "Candy")
+                self.assertIn("portion_g", it)
+                self.assertGreater(it["portion_g"], 0)
+                self.assertIn("g", str(it["serving_label"]))
+        # Morning plan uses the default lunch / afternoon / dinner hinges.
+        self.assertTrue(
+            any(hm in ((12, 0), (15, 30), (19, 0), (21, 0)) for hm in eat_hours)
+        )
+        next_meal = next(m for m in meals if m["label"] == "Next meal")
+        next_eat = datetime.fromisoformat(next_meal["eat_at"])
+        self.assertGreaterEqual(next_eat, now)
+        for meal in meals:
+            eat = datetime.fromisoformat(meal["eat_at"])
+            if meal["label"] != "Next meal":
+                self.assertTrue(eat >= next_eat or eat < now)
+
+    def test_next_meal_is_soonest_upcoming(self):
+        now = datetime(2026, 8, 22, 16, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        meals = plan["meals"]
+        self.assertGreaterEqual(len(meals), 2)
+        next_meal = next(m for m in meals if m["label"] == "Next meal")
+        next_eat = datetime.fromisoformat(next_meal["eat_at"])
+        self.assertGreaterEqual(next_eat, now)
+        upcoming = [
+            datetime.fromisoformat(m["eat_at"])
+            for m in meals
+            if datetime.fromisoformat(m["eat_at"]) >= now
+        ]
+        self.assertEqual(next_eat, min(upcoming))
+        self.assertEqual(next_eat.hour, 19)
+        self.assertEqual(next_eat.minute, 0)
+
+    def test_eat_slots_override_defaults_without_inventing_food(self):
+        now = datetime(2026, 8, 22, 9, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            {"calories": 1600, "protein_g": 150, "carbs_g": 140, "fat_g": 40},
+            now=now,
+            tz_name="America/New_York",
+            eat_slots=["13:15", "18:45"],
+        )
+        meals = plan["meals"]
+        self.assertGreaterEqual(len(meals), 1)
+        self.assertLessEqual(len(meals), 2)
+        times = [datetime.fromisoformat(m["eat_at"]) for m in meals]
+        allowed = {
+            (13, 15),
+            (18, 45),
+        }
+        for t in times:
+            self.assertIn((t.hour, t.minute), allowed)
+        names = {it["name"] for m in meals for it in m["items"]}
+        self.assertTrue(names <= {"Chicken", "Rice", "Greek yogurt", "Broccoli"})
+        self.assertNotIn("Candy", names)
+
+    def test_no_invented_grams_when_row_has_no_mass(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "eggs",
+                    "name": "Whole eggs",
+                    "serving_label": "3 eggs",
+                    "calories": 210,
+                    "protein_g": 18,
+                    "carbs_g": 2,
+                    "fat_g": 15,
+                    "in_stock": True,
+                }
+            ]
+        }
+        plan = generate_meal_plan(
+            inv,
+            FULL_TARGETS,
+            {"calories": 1800, "protein_g": 180, "carbs_g": 160, "fat_g": 40},
+            now=datetime(2026, 8, 22, 11, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        row = plan["items"][0]
+        self.assertEqual(row["name"], "Whole eggs")
+        self.assertNotIn("portion_g", row)
+        self.assertNotIn("serving_g", row)
+        self.assertIn("egg", str(row["serving_label"]).lower())
+        self.assertNotIn("g", str(row["serving_label"]).lower().replace("egg", ""))
+        for meal in plan["meals"]:
+            self.assertTrue(meal.get("eat_at"))
+            for it in meal["items"]:
+                self.assertNotIn("portion_g", it)
+
+    def test_empty_pantry_has_no_timed_slots_or_food(self):
+        plan = generate_meal_plan(
+            {"ingredients": []},
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=datetime(2026, 8, 22, 12, 0, tzinfo=ET),
+        )
+        self.assertEqual(plan["meals"], [])
+        self.assertEqual(plan["items"], [])
+        self.assertEqual(plan["stocked_count"], 0)
+        self.assertIn("No in-stock", plan["message"])
+
+    def test_low_remaining_does_not_force_four_slots(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "yogurt",
+                    "name": "Greek yogurt",
+                    "serving_g": 200,
+                    "calories": 130,
+                    "protein_g": 20,
+                    "carbs_g": 8,
+                    "fat_g": 0,
+                    "in_stock": True,
+                }
+            ]
+        }
+        plan = generate_meal_plan(
+            inv,
+            FULL_TARGETS,
+            {"calories": 1950, "protein_g": 190, "carbs_g": 170, "fat_g": 50},
+            now=datetime(2026, 8, 22, 17, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertLessEqual(len(plan["meals"]), 2)
+        for meal in plan["meals"]:
+            self.assertTrue(meal["items"])
+            self.assertTrue(meal.get("eat_at"))
 
 
 if __name__ == "__main__":

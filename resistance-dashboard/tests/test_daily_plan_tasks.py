@@ -104,6 +104,31 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("Later meal", meal_titles)
         self.assertTrue(any(i.meal_label == "Next meal" for i in by["nutrition"].items))
 
+    def test_meal_bucket_clock_lands_on_quest_label(self):
+        board = {
+            "date": "2026-08-22",
+            "actions": [],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {
+                "meals": [
+                    {
+                        "label": "Next meal",
+                        "eat_at": "2026-08-22T15:30:00-04:00",
+                        "eat_at_label": "3:30 PM",
+                        "items": [
+                            {"name": "Chicken", "portion_g": 170, "serving_label": "170g"}
+                        ],
+                    }
+                ],
+            },
+        }
+        groups = plan_from_today_board(board, day="2026-08-22")
+        nutrition = next(g for g in groups if g.group == "nutrition")
+        self.assertTrue(nutrition.items)
+        self.assertEqual(nutrition.items[0].meal_label, "Next meal · 3:30 PM")
+        self.assertIn("3:30 PM", nutrition.items[0].title)
+        self.assertIn("170g", nutrition.items[0].title)
+
     def test_rest_day_skips_exercises(self):
         board = {
             "date": "2026-08-08",
