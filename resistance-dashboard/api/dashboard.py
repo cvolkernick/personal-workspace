@@ -178,6 +178,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.inventory_store import load_preview_inventory
     from rt_dashboard.nutrition_store import load_workspace_targets
+    from rt_dashboard.grok_planner import dashboard_plan_slots
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
         apply_rest_gate,
@@ -186,6 +187,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         load_workspace_goals,
         next_session_brief,
         rest_gate,
+        stamp_today_session,
     )
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
@@ -346,16 +348,38 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     gate = rest_gate(effective_goals, recovery_dict)
     nxt = next_session_brief(sessions, effective_goals)
     workout_plan = apply_rest_gate(workout_plan, effective_goals, recovery_dict)
+    # Hybrid Today slot: session_type + continuity even when exercises stay [].
+    # SuperGrok Generate still owns the exercise list + cues.
+    _, today_workout = dashboard_plan_slots(
+        str(user.get("id") or "default"),
+        sessions=sessions,
+        goals=effective_goals,
+        recovery=recovery_dict,
+        as_of=today,
+    )
+    workout_plan = stamp_today_session(
+        workout_plan,
+        sessions,
+        effective_goals,
+        recovery_dict,
+        as_of=today,
+        fill_rest=bool(workout_plan.get("is_rest_day"))
+        or not (workout_plan.get("exercises") or []),
+        next_st_override=nxt.get("next_session_type"),
+    )
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5
     )
     pack["rest_gate"] = gate
+    pack["training_continuity"] = today_workout.get("training_continuity")
+    payload["workout"] = today_workout
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
         "goals": effective_goals,
         "sources": {"catalog": catalog_src, "goals": goals_src},
         "next_session_type": nxt["next_session_type"],
+        "training_continuity": today_workout.get("training_continuity"),
         "training_pack": pack,
     }
     try:
