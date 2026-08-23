@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
+  <title>Interest Spectrum · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --debt: #ff8a6b;
+      --yield: #3dd6b0;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1rem;
+      align-items: center; justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    button, .btn, a.btn {
+      cursor: pointer; border: 1px solid var(--border); background: #1a2836;
+      color: var(--text); border-radius: 8px; padding: 0.4rem 0.75rem;
+      font-weight: 600; font-size: 0.85rem; text-decoration: none;
+      display: inline-flex; align-items: center;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    main {
+      max-width: 1100px; margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid; gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex; align-items: center; padding: 0.18rem 0.5rem;
+      border-radius: 999px; font-weight: 650; font-size: 0.68rem;
+      border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .pill.debt { color: var(--debt); border-color: #6b3a2e; }
+    .pill.yield { color: var(--yield); border-color: #245c4a; }
+    .error {
+      background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
+      border-radius: 10px; padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .axis-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0d141c;
+      padding: 0.5rem 0.4rem 0.35rem;
+    }
+    .spectrum {
+      position: relative;
+      min-width: 760px;
+      height: 360px;
+      margin: 0 8px;
+    }
+    .spectrum-svg { display: block; width: 100%; height: 360px; }
+    .chip {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.08rem;
+      width: 7.4rem;
+      min-height: 2.55rem;
+      padding: 0.28rem 0.4rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #15202c;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      text-align: center;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+    }
+    .chip.above { transform: translate(-50%, -100%); }
+    .chip.below { transform: translate(-50%, 0); }
+    .chip:hover { filter: brightness(1.08); text-decoration: none; }
+    .chip.debt { border-color: #a04838; background: #221418; }
+    .chip.yield { border-color: #2a6a58; background: #10221c; }
+    .chip .who { font-weight: 700; font-size: 0.74rem; }
+    .chip .rate { font-weight: 750; letter-spacing: -0.02em; }
+    .chip.debt .rate { color: var(--debt); }
+    .chip.yield .rate { color: var(--yield); }
+    .chip .subn { color: var(--muted); font-size: 0.62rem; }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 1rem;
+      margin-top: 0.7rem; font-size: 0.78rem; color: var(--muted);
+    }
+    .swatch {
+      width: 12px; height: 12px; border-radius: 3px;
+      display: inline-block; margin-right: 0.35rem;
+      vertical-align: -1px;
+    }
+    .swatch.debt { background: var(--debt); }
+    .swatch.yield { background: var(--yield); }
+    .chip-list { margin: 0; padding-left: 1.15rem; font-size: 0.86rem; }
+    .chip-list li { margin: 0.35rem 0; }
+    footer {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Interest Spectrum</h1>
+        <div class="sub" id="subtitle">APR / APY · FCC</div>
+      </div>
+      <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
+        <a class="btn" href="capital-flows.html" id="nav-capital-flows">Capital Flows</a>
+        <a class="btn" href="watchlist.html" id="nav-watchlist">Watchlist</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet">Fleet</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card">
+      <h2>Spectrum</h2>
+      <p class="hint">
+        Shared APR/APY axis: <strong>0%</strong> left → <strong>~30%</strong> right
+        (cap at One Card / highest contractual rate). Debt cost above the axis;
+        asset yield below. Chip size is not a balance. Equity / BTC appreciation
+        stays off this page. Wells / 20 Tesla stays off FCC.
+      </p>
+      <div class="axis-wrap">
+        <div class="spectrum" id="spectrum" data-layout="two_lane">
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane interest spectrum: debt cost above, asset yield below, 0 to about 30 percent"></svg>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch debt"></i>Debt cost (above)</span>
+        <span><i class="swatch yield"></i>Asset yield (below)</span>
+        <span>Tap a chip for the FCC / Fleet deep-link. No trade or mint controls.</span>
+      </div>
+    </section>
+
+    <section class="card" id="unknown-card">
+      <h2>Rate unknown</h2>
+      <p class="hint">Yield venues appear only when FCC already has an APY. Honest empty otherwise.</p>
+      <div id="unknown-row"></div>
+    </section>
+
+    <section class="card">
+      <h2>Chips (detail)</h2>
+      <ul class="chip-list" id="chip-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    Interest Spectrum · FCC · APR/APY only · two-lane axis · no coach wiring
+  </footer>
+
+  <script src="nav-orchestra.js"></script>
+  <script src="nav-fleet.js"></script>
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function fmtRate(chip) {
+      if (chip.rate_pct == null || !Number.isFinite(Number(chip.rate_pct))) return "rate unknown";
+      const n = Number(chip.rate_pct);
+      const kind = chip.rate_kind || (chip.kind === "yield" ? "APY" : "APR");
+      const body = n.toFixed(2).replace(/\.00$/, "") + "% " + kind;
+      return chip.approx ? "~" + body : body;
+    }
+
+    function fmtNotional(chip) {
+      if (chip.notional == null || !Number.isFinite(Number(chip.notional))) return "";
+      const n = Number(chip.notional);
+      const money = "$" + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+      return chip.notional_kind === "monthly" ? money + "/mo" : money;
+    }
+
+    function chipHref(chip) {
+      if (chip.deep_link === "fleet") {
+        const host = (window.location && window.location.hostname) || "127.0.0.1";
+        const base = window.fccFleetHref ? window.fccFleetHref(host) : ("http://" + host + ":8796/");
+        return base + (chip.fleet_unit ? "#unit-" + chip.fleet_unit : "");
+      }
+      return chip.deep_link || "";
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/interest-spectrum?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent =
+          "Could not load Interest Spectrum (" + e.message + "). Start FCC: python3 financial-command/server.py";
+      }
+    }
+
+    function xFor(rate, maxPct) {
+      const mag = Math.max(0, Number(rate) || 0);
+      return 70 + (mag / Math.max(maxPct, 1)) * 860;
+    }
+
+    function stackLanes(chips, maxPct) {
+      const above = [];
+      const below = [];
+      chips.forEach((c) => (c.kind === "yield" ? below : above).push(c));
+      function assign(list) {
+        const sorted = list.slice().sort((a, b) => Number(a.rate_pct) - Number(b.rate_pct));
+        const used = [];
+        sorted.forEach((chip) => {
+          const x = xFor(chip.rate_pct, maxPct);
+          let lane = 0;
+          while (used.some((p) => p.lane === lane && Math.abs(p.x - x) < 86)) lane++;
+          chip._x = x;
+          chip._stack = lane;
+          used.push({ x, lane });
+        });
+        return sorted;
+      }
+      return assign(above).concat(assign(below));
+    }
+
+    function drawAxis(data) {
+      const svg = document.getElementById("spectrum-svg");
+      const stage = document.getElementById("spectrum");
+      stage.querySelectorAll(".chip").forEach((n) => n.remove());
+      const maxPct = Number((data.axis && data.axis.max_pct) || 30);
+      const ticks = (data.axis && data.axis.ticks) || [0, 5, 10.18, 11.14, 18.15, 29];
+      const axisY = 180;
+
+      let html = `
+        <text x="70" y="28" fill="#ff8a6b" font-size="12" font-weight="700" letter-spacing="0.06em">DEBT COST</text>
+        <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~30%</text>
+        <text x="70" y="348" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">ASSET YIELD</text>
+        <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
+      `;
+      ticks.forEach((t, i) => {
+        const x = xFor(t, maxPct);
+        const label = (t === 5 || t === 29 ? "~" : "") + String(t).replace(/\.0$/, "") + "%";
+        const labY = axisY + (i % 2 === 0 ? 22 : 36);
+        html += `<line x1="${x}" y1="${axisY - 7}" x2="${x}" y2="${axisY + 7}" stroke="#8aa0b5" stroke-width="1.4"/>`;
+        html += `<text x="${x}" y="${labY}" fill="#8aa0b5" font-size="10" text-anchor="middle">${esc(label)}</text>`;
+      });
+      svg.innerHTML = html;
+
+      stackLanes(data.placed || [], maxPct).forEach((chip) => {
+        const leftPct = (chip._x / 1000) * 100;
+        const stack = chip._stack || 0;
+        const top = chip.kind === "yield"
+          ? axisY + 14 + stack * 58
+          : axisY - 14 - stack * 58;
+        const href = chipHref(chip);
+        const tag = href ? "a" : "div";
+        const extra = href
+          ? ` href="${esc(href)}"${chip.deep_link === "fleet" ? " data-nav-fleet" : ""}`
+          : "";
+        const sub = fmtNotional(chip);
+        const el = document.createElement("div");
+        el.innerHTML = `<${tag} class="chip ${esc(chip.kind)} ${chip.kind === "yield" ? "below" : "above"}"${extra} style="left:${leftPct}%;top:${top}px">
+          <span class="who">${esc(chip.venue || chip.label)}</span>
+          <span class="rate">${esc(fmtRate(chip))}</span>
+          ${sub ? `<span class="subn">${esc(sub)}</span>` : ""}
+        </${tag}>`;
+        stage.appendChild(el.firstElementChild);
+      });
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        "APR / APY · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
+
+      drawAxis(data);
+
+      const unknown = data.unknown || [];
+      const uroot = document.getElementById("unknown-row");
+      const ucard = document.getElementById("unknown-card");
+      if (!unknown.length) {
+        uroot.innerHTML = `<p class="hint" style="margin:0">No yield APY on books yet — axis shows locked debt seeds only.</p>`;
+        if (ucard) ucard.classList.remove("hidden");
+      } else {
+        uroot.innerHTML = unknown
+          .map(
+            (c) => `<div class="hint"><strong>${esc(c.label)}</strong> · rate unknown</div>`
+          )
+          .join("");
+      }
+
+      const list = document.getElementById("chip-list");
+      list.innerHTML = (data.chips || [])
+        .map((c) => {
+          const href = chipHref(c);
+          const name = href
+            ? `<a href="${esc(href)}">${esc(c.venue || c.label)}</a>`
+            : `<strong>${esc(c.venue || c.label)}</strong>`;
+          const sub = fmtNotional(c);
+          return `<li><span class="pill ${esc(c.kind)}">${esc(c.kind)} ${esc(c.rate_kind || "")}</span>
+            ${name} · ${esc(fmtRate(c))}
+            ${c.detail ? ` · ${esc(c.detail)}` : ""}
+            ${sub ? ` · ${esc(sub)}` : ""}
+            ${c.notes ? `<div class="hint" style="margin:0.12rem 0 0">${esc(c.notes)}</div>` : ""}
+          </li>`;
+        })
+        .join("");
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>

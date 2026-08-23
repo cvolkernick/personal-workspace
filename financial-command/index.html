@@ -1780,6 +1780,7 @@
       /* Hide secondary nav links on very tight chrome; keep Refresh + status */
       #nav-orchestra,
       #nav-capital-flows,
+      #nav-interest-spectrum,
       #nav-fleet {
         display: none;
       }
@@ -1970,6 +1971,7 @@
       <div class="controls">
         <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
+        <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum" title="APR / APY interest spectrum">Interest Spectrum</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
         <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet ops (same host :8796)">Fleet</a>
         <span class="poll-note" id="poll-note" title="Local treasury JSON poll">auto 5m</span>
@@ -2119,6 +2121,9 @@
 
 
     <section class="card compact-metrics" id="cash-credit" data-m-panel="cash">
+      <span id="one-card" hidden></span>
+      <span id="hy" hidden></span>
+      <span id="x-money" hidden></span>
       <div class="card-head">
         <h2>Cash &amp; credit</h2>
       </div>
@@ -2176,6 +2181,7 @@
           <div id="braiins-workers" class="braiins-workers-grid"></div>
           <p class="hint" style="margin:0.35rem 0 0">
             <a href="capital-flows.html">Capital Flows →</a>
+            · <a href="interest-spectrum.html">Interest Spectrum →</a>
           </p>
         </div>
       </div>
@@ -2239,6 +2245,7 @@
     <details class="panel" id="panel-settings" data-m-panel="more">
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
+        <span id="morpho" hidden></span>
         <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
@@ -2297,6 +2304,7 @@
     Financial Command Center ·
     <a href="watchlist.html">watchlist research</a> ·
     <a href="capital-flows.html">Capital Flows</a> ·
+    <a href="interest-spectrum.html">Interest Spectrum</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
   </footer>
@@ -5239,6 +5247,27 @@
         });
       }
     }
+    function openFccDeepLink(raw) {
+      const key = String(raw || "").replace(/^#/, "");
+      if (!key) return false;
+      const aliases = {
+        "one-card": "cash-credit",
+        hy: "cash-credit",
+        "x-money": "cash-credit",
+        morpho: "panel-settings",
+      };
+      const id = aliases[key] || key;
+      const node = document.getElementById(id);
+      if (!node) return false;
+      const panel = node.getAttribute("data-m-panel");
+      if (panel) setFccTab(panel, { preserveScroll: true });
+      if (node.tagName === "DETAILS") node.open = true;
+      const pin = document.getElementById(key) || node;
+      try {
+        pin.scrollIntoView({ behavior: "smooth", block: "start" });
+      } catch (_) {}
+      return true;
+    }
     function initFccMobileShell() {
       const bar = document.getElementById("mobile-tabbar");
       if (bar) {
@@ -5249,6 +5278,8 @@
         });
       }
       syncMobileLayout();
+      if (location.hash) openFccDeepLink(location.hash);
+      window.addEventListener("hashchange", () => openFccDeepLink(location.hash));
       window.addEventListener("resize", syncMobileLayout, { passive: true });
       try {
         window
