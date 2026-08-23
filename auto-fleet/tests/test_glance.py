@@ -110,8 +110,13 @@ class FormatTests(unittest.TestCase):
             "finance": {},
         }
         html = glance.render_unit_card_html(unit, now=NOW)
-        self.assertIn("booked · MEGAN · 2026-08-22 → 2026-08-24 · #60615645", html)
-        self.assertIn("Punta Gorda Airport FBO", html)
+        sched = html[html.find("<h3>Schedule</h3>") : html.find("<h3>Money</h3>")]
+        self.assertIn('class="booking-who">MEGAN</div>', sched)
+        self.assertIn("Aug 22–24", sched)
+        self.assertIn("#60615645", sched)
+        self.assertIn("Punta Gorda Airport FBO", sched)
+        self.assertIn('class="queue"', sched)
+        self.assertNotIn("booked · MEGAN", html)
         self.assertNotIn("0 trips · watching", html)
 
     def test_due_from_2024_corolla_portal(self) -> None:
@@ -179,7 +184,8 @@ class FormatTests(unittest.TestCase):
             units, now=NOW, inbox_status=status, poll_interval_s=900
         )
         self.assertEqual(html.count(status), 1)
-        self.assertEqual(html.count("0 trips · watching 15m"), 4)
+        self.assertEqual(html.count("No upcoming trips"), 4)
+        self.assertNotIn("0 trips · watching 15m", html[html.find('<div class="grid">') :])
         self.assertIn('class="glance"', html)
         self.assertIn("available", html)
         self.assertIn('data-freshness="dead"', html)

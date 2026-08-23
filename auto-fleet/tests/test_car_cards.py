@@ -280,6 +280,77 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("Vivek", rivian)
         self.assertIn("$1,350.00/mo", rivian)
 
+    def test_schedule_queue_is_structured_not_joined_prose(self) -> None:
+        index = (PKG / "index.html").read_text(encoding="utf-8")
+        booking_fn = index[index.find("function bookingRow") : index.find("function tripIdFromText")]
+        self.assertGreater(index.find("function bookingRow"), 0)
+        self.assertNotIn('bits.join(" · ")', booking_fn)
+        self.assertIn("booking-when", booking_fn)
+        self.assertIn("booking-who", booking_fn)
+        self.assertIn("booking-res", booking_fn)
+        self.assertIn("booking-pickup", booking_fn)
+        self.assertIn('class="queue"', index)
+        self.assertIn("No upcoming trips", index)
+        self.assertIn(".booking.canceled", index)
+        self.assertNotIn("CIC", index)
+        self.assertNotIn(":8796", index)
+
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=BODY_YEAR,
+            dimo_env={},
+            now=NOW,
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+
+        c22 = glance.render_unit_card_html(by_id["corolla-2022"], now=NOW)
+        sched22 = c22[c22.find("<h3>Schedule</h3>") : c22.find("<h3>Money</h3>")]
+        self.assertIn('class="queue"', sched22)
+        self.assertIn('class="booking-who">Marie</div>', sched22)
+        self.assertIn("Nayive", sched22)
+        self.assertIn("Jeffrey", sched22)
+        self.assertLess(sched22.find("Marie"), sched22.find("Nayive"))
+        self.assertLess(sched22.find("Nayive"), sched22.find("Jeffrey"))
+        self.assertIn("Aug 23–25", sched22)
+        self.assertIn("Aug 26–27", sched22)
+        self.assertIn("Aug 29–31", sched22)
+        self.assertIn("NEXT", sched22)
+        self.assertIn('data-phase="active"', sched22)
+        self.assertIn("#60110022", sched22)
+        self.assertNotIn(" · ", sched22)
+        self.assertNotIn("drop-off", sched22)
+        self.assertNotIn("phone", sched22.lower())
+
+        c24 = glance.render_unit_card_html(by_id["corolla-2024"], now=NOW)
+        sched24 = c24[c24.find("<h3>Schedule</h3>") : c24.find("<h3>Money</h3>")]
+        self.assertIn('class="booking-who">Myles</div>', sched24)
+        self.assertIn("Matthew", sched24)
+        self.assertIn("MEGAN", sched24)
+        self.assertLess(sched24.find("Myles"), sched24.find("Matthew"))
+        self.assertLess(sched24.find("Matthew"), sched24.find("MEGAN"))
+        self.assertIn("Aug 25–27", sched24)
+        self.assertIn("Aug 28–30", sched24)
+        self.assertIn("#60463692", sched24)
+        self.assertIn("driveway", sched24)
+        self.assertIn("booking canceled", sched24)
+        self.assertIn('data-phase="canceled"', sched24)
+        self.assertNotIn(" · ", sched24)
+        self.assertNotIn("$", sched24)
+        self.assertNotIn("APR", sched24)
+
+        wells = glance.render_unit_card_html(by_id["m3-2020"], now=NOW)
+        sched_wells = wells[wells.find("<h3>Schedule</h3>") : wells.find("<h3>Money</h3>")]
+        self.assertIn("No upcoming trips", sched_wells)
+        self.assertNotIn("Jessica", wells)
+        self.assertNotIn("Kia", wells)
+        self.assertNotIn("class=\"booking ", sched_wells)
+
+        self.assertEqual(glance.human_when("2026-08-28", "2026-08-30"), "Aug 28–30")
+        self.assertEqual(glance.human_when("2026-08-28", "2026-09-02"), "Aug 28–Sep 2")
+        self.assertEqual(glance.human_when("2026-08-28", "2026-08-28"), "Aug 28")
+
     def test_index_is_car_first_no_invent_no_cic(self) -> None:
         html = (PKG / "index.html").read_text(encoding="utf-8")
         self.assertIn("<title>Auto Fleet</title>", html)

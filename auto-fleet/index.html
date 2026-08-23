@@ -272,6 +272,107 @@
       font-weight: 650;
     }
     .ops-flag { color: var(--yellow); }
+    .chip.mute { color: var(--muted); border-color: #3a4a5a; }
+    .chip.next { color: var(--green); border-color: #2a5a40; background: #12301f; }
+    .queue {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+      position: relative;
+      margin: 0.1rem 0 0.35rem;
+      padding: 0.1rem 0 0.15rem 0.15rem;
+    }
+    .queue::before {
+      content: "";
+      position: absolute;
+      left: 0.52rem;
+      top: 0.55rem;
+      bottom: 0.55rem;
+      width: 2px;
+      background: #243140;
+      border-radius: 2px;
+    }
+    .booking {
+      position: relative;
+      display: grid;
+      grid-template-columns: 14px minmax(0, 1fr);
+      column-gap: 0.55rem;
+      padding: 0.5rem 0.65rem 0.5rem 0.1rem;
+      background: #0e161e;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      min-width: 0;
+    }
+    .booking.next {
+      border-color: #2a5a40;
+      box-shadow: inset 3px 0 0 var(--green);
+    }
+    .booking.canceled {
+      opacity: 0.58;
+      background: #0c1218;
+    }
+    .booking-dot {
+      width: 10px;
+      height: 10px;
+      margin-top: 0.38rem;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 0 3px #0e161e;
+    }
+    .booking.active .booking-dot { background: var(--green); }
+    .booking.canceled .booking-dot { background: #5a6a7a; }
+    .booking-main { min-width: 0; }
+    .booking-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.3rem 0.5rem;
+    }
+    .booking-when {
+      font-weight: 750;
+      font-size: 0.98rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .booking-when .tz {
+      color: var(--muted);
+      font-size: 0.7rem;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+    }
+    .booking-flags { display: flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
+    .booking-who {
+      margin: 0.18rem 0 0.12rem;
+      font-size: 1.05rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+    .booking-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem 0.65rem;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .booking-pickup { min-width: 0; }
+    button.booking-res {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.78rem;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      color: var(--text);
+      background: #152033;
+      border: 1px solid #2a3a4a;
+      border-radius: 6px;
+      padding: 0.2rem 0.5rem;
+      min-height: 36px;
+      min-width: 44px;
+    }
+    button.booking-res:hover { border-color: var(--accent); color: var(--accent); }
+    button.booking-res.copied { color: var(--green); border-color: #2a5a40; }
     @media (max-width: 720px) {
       .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid { grid-template-columns: 1fr; }
@@ -479,13 +580,82 @@
       return `<div class="strip"><h3>DIMO ${chip(st, kind)}</h3>${body}</div>`;
     }
 
-    function bookingRow(b) {
-      const bits = [b.status || "booked"];
-      if (b.guest) bits.push(b.guest);
-      if (b.start || b.end) bits.push(`${b.start || "?"} → ${b.end || "?"}`);
-      if (b.trip_id) bits.push(`#${b.trip_id}`);
-      if (b.pickup) bits.push(b.pickup);
-      return `<div class="row">${esc(bits.join(" · "))}</div>`;
+    function parseDay(value) {
+      if (!value) return null;
+      const text = String(value).trim().slice(0, 10);
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+      if (!m) return null;
+      return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    }
+
+    function humanWhen(start, end) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const a = parseDay(start);
+      const b = parseDay(end);
+      const fmt = (d) => `${months[d.getMonth()]} ${d.getDate()}`;
+      if (!a && !b) return "";
+      if (a && !b) return fmt(a);
+      if (!a && b) return fmt(b);
+      if (a.getTime() === b.getTime()) return fmt(a);
+      if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
+        return `${months[a.getMonth()]} ${a.getDate()}–${b.getDate()}`;
+      }
+      return `${fmt(a)}–${fmt(b)}`;
+    }
+
+    function tripPhase(b) {
+      const st = String((b && b.status) || "").toLowerCase();
+      if (st === "canceled" || st === "cancelled" || (b && b.phase) === "canceled") return "canceled";
+      if (b && (b.phase === "active" || b.phase === "upcoming")) return b.phase;
+      return "upcoming";
+    }
+
+    function startKey(b) {
+      return String((b && b.start) || "");
+    }
+
+    function queueBookings(trips) {
+      const live = [];
+      const canceled = [];
+      (trips || []).forEach((b) => {
+        if (tripPhase(b) === "canceled") canceled.push(b);
+        else live.push(b);
+      });
+      live.sort((a, b) => {
+        const ap = tripPhase(a) === "active" ? 0 : 1;
+        const bp = tripPhase(b) === "active" ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return startKey(a).localeCompare(startKey(b));
+      });
+      canceled.sort((a, b) => startKey(a).localeCompare(startKey(b)));
+      return { live, canceled };
+    }
+
+    function bookingRow(b, opts) {
+      const next = !!(opts && opts.next);
+      const phase = tripPhase(b);
+      const when = humanWhen(b.start, b.end);
+      const chipKind = phase === "active" ? "ok" : (phase === "canceled" ? "mute" : "");
+      const nextBadge = next ? `<span class="chip next">NEXT</span>` : "";
+      const who = b.guest ? `<div class="booking-who">${esc(b.guest)}</div>` : "";
+      const res = b.trip_id
+        ? `<button type="button" class="booking-res" data-copy="${esc(b.trip_id)}" title="Copy reservation">#${esc(b.trip_id)}</button>`
+        : "";
+      const pickup = b.pickup ? `<span class="booking-pickup">${esc(b.pickup)}</span>` : "";
+      const whenHtml = when
+        ? `<div class="booking-when">${esc(when)} <span class="tz">ET</span></div>`
+        : "";
+      return `<article class="booking ${esc(phase)}${next ? " next" : ""}" data-phase="${esc(phase)}">
+        <span class="booking-dot" aria-hidden="true"></span>
+        <div class="booking-main">
+          <div class="booking-top">
+            ${whenHtml}
+            <div class="booking-flags">${nextBadge}${chip(phase, chipKind)}</div>
+          </div>
+          ${who}
+          <div class="booking-meta">${res}${pickup}</div>
+        </div>
+      </article>`;
     }
 
     function tripIdFromText(text) {
@@ -572,16 +742,14 @@
 
     function scheduleStrip(t, g) {
       const trips = scheduleOf(t);
-      const live = trips.filter((b) => (b.phase || "upcoming") !== "canceled");
-      const canceled = trips.filter((b) => b.phase === "canceled" || b.status === "canceled");
+      const queued = queueBookings(trips);
       const rows = [];
-      live.forEach((b) => rows.push(bookingRow(b)));
-      canceled.forEach((b) => rows.push(bookingRow({ ...b, status: "canceled" })));
-      if (!rows.length) {
-        const line = (g && g.turo_line) || turoOneLine(t || {}, 900);
-        rows.push(`<div class="row">${esc(line)}</div>`);
-      }
-      return `<div class="strip"><h3>Schedule</h3>${rows.join("")}</div>`;
+      queued.live.forEach((b, i) => rows.push(bookingRow(b, { next: i === 0 })));
+      queued.canceled.forEach((b) => rows.push(bookingRow(b, { next: false })));
+      const body = rows.length
+        ? `<div class="queue">${rows.join("")}</div>`
+        : `<div class="empty">No upcoming trips</div>`;
+      return `<div class="strip"><h3>Schedule</h3>${body}</div>`;
     }
 
     function moneyStrip(f, invoiceItems, listId) {
@@ -885,6 +1053,16 @@
       if (el && el.matches && el.matches('input[type="checkbox"][data-task-id]')) {
         onHostOpsComplete(ev);
       }
+    });
+    document.addEventListener("click", (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest(".booking-res");
+      if (!btn) return;
+      const id = btn.getAttribute("data-copy") || "";
+      if (!id || !navigator.clipboard || !navigator.clipboard.writeText) return;
+      navigator.clipboard.writeText(id).then(() => {
+        btn.classList.add("copied");
+        window.setTimeout(() => btn.classList.remove("copied"), 1200);
+      }).catch(() => {});
     });
     load();
     setInterval(load, 15 * 60 * 1000);

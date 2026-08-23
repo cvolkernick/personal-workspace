@@ -196,6 +196,117 @@ def turo_line(
     return f"0 trips · watching {mins}m"
 
 
+_MONTHS = (
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+)
+
+
+def _ymd(value: Any):
+    if value is None or value == "":
+        return None
+    text = str(value).strip()[:10]
+    try:
+        return datetime.strptime(text, "%Y-%m-%d").date()
+    except ValueError:
+        return None
+
+
+def human_when(start: Any, end: Any) -> str:
+    """Human date span for Schedule rows, e.g. Aug 28–30. No invented times."""
+    a = _ymd(start)
+    b = _ymd(end)
+    if a is None and b is None:
+        return ""
+    if a is not None and b is None:
+        return f"{_MONTHS[a.month - 1]} {a.day}"
+    if a is None and b is not None:
+        return f"{_MONTHS[b.month - 1]} {b.day}"
+    if a == b:
+        return f"{_MONTHS[a.month - 1]} {a.day}"
+    if a.month == b.month and a.year == b.year:
+        return f"{_MONTHS[a.month - 1]} {a.day}–{b.day}"
+    return f"{_MONTHS[a.month - 1]} {a.day}–{_MONTHS[b.month - 1]} {b.day}"
+
+
+def trip_phase(booking: Mapping[str, Any]) -> str:
+    status = str(booking.get("status") or "").lower()
+    if status in {"canceled", "cancelled"} or booking.get("phase") == "canceled":
+        return "canceled"
+    phase = booking.get("phase")
+    if phase in {"active", "upcoming"}:
+        return str(phase)
+    return "upcoming"
+
+
+def queue_bookings(
+    trips: Sequence[Mapping[str, Any]] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    live: list[dict[str, Any]] = []
+    canceled: list[dict[str, Any]] = []
+    for raw in trips or []:
+        if not isinstance(raw, dict):
+            continue
+        if trip_phase(raw) == "canceled":
+            canceled.append(dict(raw))
+        else:
+            live.append(dict(raw))
+    live.sort(
+        key=lambda b: (0 if trip_phase(b) == "active" else 1, str(b.get("start") or ""))
+    )
+    canceled.sort(key=lambda b: str(b.get("start") or ""))
+    return live, canceled
+
+
+def booking_row_html(booking: Mapping[str, Any], *, next_trip: bool = False) -> str:
+    """Structured Schedule row — not a joined prose line."""
+    phase = trip_phase(booking)
+    when = human_when(booking.get("start"), booking.get("end"))
+    chip_kind = "ok" if phase == "active" else ("mute" if phase == "canceled" else "")
+    next_badge = _chip("NEXT", "next") if next_trip else ""
+    who = (
+        f'<div class="booking-who">{_esc(booking.get("guest"))}</div>'
+        if booking.get("guest")
+        else ""
+    )
+    res = ""
+    if booking.get("trip_id"):
+        tid = _esc(booking["trip_id"])
+        res = (
+            f'<button type="button" class="booking-res" data-copy="{tid}" '
+            f'title="Copy reservation">#{tid}</button>'
+        )
+    pickup = (
+        f'<span class="booking-pickup">{_esc(booking.get("pickup"))}</span>'
+        if booking.get("pickup")
+        else ""
+    )
+    when_html = (
+        f'<div class="booking-when">{_esc(when)} <span class="tz">ET</span></div>'
+        if when
+        else ""
+    )
+    cls = f"booking {phase}" + (" next" if next_trip else "")
+    return (
+        f'<article class="{cls}" data-phase="{_esc(phase)}">'
+        f'<span class="booking-dot" aria-hidden="true"></span>'
+        f'<div class="booking-main">'
+        f'<div class="booking-top">{when_html}'
+        f'<div class="booking-flags">{next_badge}{_chip(phase, chip_kind)}</div></div>'
+        f'{who}<div class="booking-meta">{res}{pickup}</div>'
+        f"</div></article>"
+    )
+
+
+def schedule_queue_html(schedule: Sequence[Mapping[str, Any]] | None) -> str:
+    live, canceled = queue_bookings(schedule)
+    rows = [booking_row_html(b, next_trip=(i == 0)) for i, b in enumerate(live)]
+    rows.extend(booking_row_html(b) for b in canceled)
+    if not rows:
+        return '<div class="empty">No upcoming trips</div>'
+    return f'<div class="queue">{"".join(rows)}</div>'
+
+
 def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
     uid = str(unit.get("id") or "")
     if uid in PHOTOS:
@@ -363,22 +474,7 @@ def render_unit_card_html(
     if schedule is None:
         schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
     schedule = [b for b in schedule if isinstance(b, dict)]
-    if schedule:
-        rows = []
-        for b in schedule:
-            bits = [str(b.get("status") or "booked")]
-            if b.get("guest"):
-                bits.append(str(b["guest"]))
-            if b.get("start") or b.get("end"):
-                bits.append(f"{b.get('start') or '?'} → {b.get('end') or '?'}")
-            if b.get("trip_id"):
-                bits.append(f"#{b['trip_id']}")
-            if b.get("pickup"):
-                bits.append(str(b["pickup"]))
-            rows.append(f'<div class="row">{_esc(" · ".join(bits))}</div>')
-        schedule_html = "".join(rows)
-    else:
-        schedule_html = f'<div class="row">{_esc(g.get("turo_line") or "0 trips")}</div>'
+    schedule_html = schedule_queue_html(schedule)
 
     portal = _portal(finance)
     due = due_from_finance(finance)
