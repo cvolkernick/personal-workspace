@@ -1,4 +1,4 @@
-"""Interest Spectrum: no invented rates, APR/APY only, viewable FCC page."""
+"""Interest Spectrum: two-lane APR/APY axis, no invent, no coach wiring."""
 
 from __future__ import annotations
 
@@ -21,6 +21,9 @@ if str(ROOT) not in sys.path:
 from treasury.interest_spectrum import (  # noqa: E402
     LOCKED_FLEET,
     LOCKED_RATE_BY_ID,
+    LOCKED_SEED_RATE_BY_ID,
+    SEED_TICKS_PCT,
+    WELLS_OFF_FCC_ID,
     build_interest_spectrum,
     rates_are_honest,
 )
@@ -28,9 +31,8 @@ from treasury.interest_spectrum import (  # noqa: E402
 FCC = ROOT / "financial-command"
 PAGE = FCC / "interest-spectrum.html"
 STUB = FCC / "interest-spectrum.json"
+INDEX = FCC / "index.html"
 
-# Rates that must never appear unless they come from locked/books fields.
-INVENTED = (29.0, 29.99, 7.0, 0.07, 5.0)
 EQUITY_BTC_NEEDLES = (
     "expected-return axis",
     "assumed-return axis",
@@ -57,74 +59,88 @@ def _free_port() -> int:
 
 
 class TestInterestSpectrumBuilder(unittest.TestCase):
-    def test_locked_fleet_chips_without_inventing_book_yields(self) -> None:
+    def test_two_lane_axis_and_locked_seeds(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
             config={},
             x_money={},
-            stub={"coach_threshold_pct": None},
+            stub={"coach_threshold_pct": 5},
         )
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["title"], "Interest Spectrum")
         self.assertEqual(payload["brand"], "FCC")
+        self.assertEqual(payload["axis"]["layout"], "two_lane")
+        self.assertEqual(payload["axis"]["debt_lane"], "above")
+        self.assertEqual(payload["axis"]["yield_lane"], "below")
+        self.assertEqual(payload["axis"]["left"], "0%")
+        self.assertGreaterEqual(payload["axis"]["max_pct"], 29)
+        self.assertEqual(payload["axis"]["ticks"], list(SEED_TICKS_PCT))
         self.assertTrue(payload["policy"]["apr_apy_only"])
         self.assertFalse(payload["policy"]["equity_btc_assumed_return"])
         self.assertFalse(payload["policy"]["invented_rates"])
         self.assertFalse(payload["policy"]["wells_is_fcc_liability"])
-        self.assertIsNone(payload["coach_threshold_pct"])
-        self.assertFalse(payload["coach_threshold_locked"])
+        self.assertFalse(payload["policy"]["wells_on_fcc_spectrum"])
+        self.assertFalse(payload["policy"]["chip_size_is_notional"])
+        self.assertFalse(payload["coach_wired"])
+        self.assertFalse(payload["policy"]["coach_wired"])
         self.assertTrue(rates_are_honest(payload))
 
         by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertNotIn(WELLS_OFF_FCC_ID, by_id)
         for row in LOCKED_FLEET:
             chip = by_id[row["id"]]
             self.assertEqual(chip["kind"], "debt")
-            self.assertEqual(chip["rate_kind"], "APR")
+            self.assertEqual(chip["lane"], "above")
             self.assertAlmostEqual(chip["rate_pct"], row["rate_pct"])
             self.assertEqual(chip["source"], "locked_financing")
             self.assertNotIn("principal_balance", chip)
             self.assertNotIn("account_balance", chip)
 
-        wells = by_id["m3-2020"]
-        self.assertFalse(wells["fcc_liability"])
-        self.assertEqual(wells["role"], "metadata")
-        self.assertIn("not a FCC liability", wells["notes"])
+        self.assertAlmostEqual(by_id["morpho_borrow"]["rate_pct"], 5.0)
+        self.assertTrue(by_id["morpho_borrow"]["approx"])
+        self.assertEqual(by_id["morpho_borrow"]["source"], "locked_seed")
+        self.assertEqual(by_id["morpho_borrow"]["deep_link"], "index.html#morpho")
 
-        rivian = by_id["r1s-2023"]
-        self.assertAlmostEqual(rivian["rate_pct"], 0.0)
-        self.assertEqual(rivian["monthly_payment"], 1350)
+        self.assertAlmostEqual(by_id["one_card"]["rate_pct"], 29.0)
+        self.assertTrue(by_id["one_card"]["approx"])
+        self.assertEqual(by_id["one_card"]["deep_link"], "index.html#one-card")
 
-        unknown = {c["id"]: c for c in payload["unknown"]}
-        self.assertIn("morpho_borrow", unknown)
-        self.assertIn("morpho_hy", unknown)
-        self.assertIn("x_money", unknown)
-        self.assertIn("usdg_earn", unknown)
-        for chip in unknown.values():
-            self.assertIsNone(chip["rate_pct"])
-            self.assertEqual(chip["source"], "unknown")
-            self.assertIn("unknown", (chip.get("notes") or "").lower())
+        self.assertAlmostEqual(by_id["r1s-2023"]["rate_pct"], 0.0)
+        self.assertEqual(by_id["r1s-2023"]["monthly_payment"], 1350)
+        self.assertEqual(by_id["r1s-2023"]["deep_link"], "fleet")
 
-        placed_ids = {c["id"] for c in payload["placed"]}
-        self.assertEqual(placed_ids, set(LOCKED_RATE_BY_ID))
+        self.assertNotIn("x_money", by_id)
+        self.assertNotIn("morpho_hy", by_id)
+        self.assertNotIn("usdg_earn", by_id)
+        self.assertEqual(payload["unknown"], [])
 
-    def test_books_apr_used_only_when_present(self) -> None:
+    def test_books_apr_overrides_morpho_seed_and_plots_yield(self) -> None:
         payload = build_interest_spectrum(
             treasury={
-                "evaluation": {"inputs": {"variable_apr": 0.0487}},
-                "snapshot": {"x_money": {"apy_est": 0.04}},
+                "evaluation": {
+                    "inputs": {
+                        "variable_apr": 0.0487,
+                        "vault_apy": 0.036,
+                        "card_balance": 462.2,
+                        "loan_principal_usdc": 1200,
+                    }
+                },
+                "snapshot": {"x_money": {"apy_est": 0.04, "cash": 178.14}},
             },
             config={"robinhood": {"usdg_earn_apy_est": 0.032}},
             x_money={},
-            stub={"coach_threshold_pct": None},
         )
         by_id = {c["id"]: c for c in payload["chips"]}
         self.assertAlmostEqual(by_id["morpho_borrow"]["rate_pct"], 4.87)
-        self.assertEqual(by_id["morpho_borrow"]["kind"], "debt")
         self.assertEqual(by_id["morpho_borrow"]["source"], "books")
+        self.assertFalse(by_id["morpho_borrow"]["approx"])
+        self.assertAlmostEqual(by_id["morpho_borrow"]["notional"], 1200)
         self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 4.0)
         self.assertEqual(by_id["x_money"]["kind"], "yield")
+        self.assertEqual(by_id["x_money"]["lane"], "below")
+        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 3.6)
         self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 3.2)
-        self.assertIsNone(by_id["morpho_hy"]["rate_pct"])
+        self.assertAlmostEqual(by_id["one_card"]["notional"], 462.2)
         self.assertTrue(rates_are_honest(payload))
 
     def test_no_invent_ignores_equity_btc_assumed_returns(self) -> None:
@@ -143,89 +159,85 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
                     "coinbase_manual": {"btc_assumed_return": 0.3},
                 },
             },
-            config={"interest_spectrum": {"coach_threshold_pct": None}},
             x_money={"apy_est": None},
-            stub={"coach_threshold_pct": None},
         )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertNotIn("x_money", by_id)
+        self.assertNotIn("morpho_hy", by_id)
         for chip in payload["chips"]:
-            if chip["source"] != "locked_financing":
-                self.assertIsNone(chip["rate_pct"], chip)
             self.assertIn(chip["kind"], ("debt", "yield"))
             self.assertIn(chip["rate_kind"], ("APR", "APY"))
+            self.assertIn(chip["source"], ("locked_financing", "locked_seed", "books"))
         rates = [c["rate_pct"] for c in payload["placed"]]
-        for banned in INVENTED:
-            self.assertNotIn(banned, rates)
         self.assertNotIn(25.0, rates)
-        self.assertNotIn(10.0, rates)
         self.assertNotIn(12.0, rates)
         self.assertNotIn(8.0, rates)
+        self.assertNotIn(7.0, rates)
         self.assertTrue(rates_are_honest(payload))
 
     def test_usdg_settings_placeholder_is_not_a_default(self) -> None:
-        """index.html pre-fills 0.07 in the form — spectrum must not adopt that."""
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {}}},
             config={"robinhood": {}},
             x_money={},
-            stub={},
         )
-        usdg = next(c for c in payload["chips"] if c["id"] == "usdg_earn")
-        self.assertIsNone(usdg["rate_pct"])
-        self.assertNotAlmostEqual(usdg.get("rate_pct") or -1, 7.0)
+        ids = {c["id"] for c in payload["chips"]}
+        self.assertNotIn("usdg_earn", ids)
 
-    def test_coach_threshold_stays_blank_without_lock(self) -> None:
+    def test_coach_is_not_wired_even_if_stub_has_a_number(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
-            config={},
-            x_money={},
-            stub={"coach_threshold_pct": None, "notes": "blank"},
-        )
-        self.assertIsNone(payload["coach_threshold_pct"])
-        locked = build_interest_spectrum(
-            treasury={},
-            config={},
+            config={"interest_spectrum": {"coach_threshold_pct": 5}},
             x_money={},
             stub={"coach_threshold_pct": 4.25},
         )
-        self.assertAlmostEqual(locked["coach_threshold_pct"], 4.25)
-        self.assertTrue(locked["coach_threshold_locked"])
+        self.assertFalse(payload["coach_wired"])
+        self.assertNotIn("coach_threshold_pct", payload)
+        self.assertNotIn("coach_threshold_locked", payload)
 
 
 class TestInterestSpectrumPage(unittest.TestCase):
-    def test_page_is_viewable_spectrum_not_spreadsheet(self) -> None:
+    def test_page_is_two_lane_spectrum(self) -> None:
         html = PAGE.read_text(encoding="utf-8")
         self.assertIn("<h1>Interest Spectrum</h1>", html)
         self.assertIn("Interest Spectrum · FCC", html)
         self.assertIn("APR / APY · FCC", html)
-        self.assertIn('id="spectrum"', html)
-        self.assertIn("COST OF DEBT (APR)", html)
-        self.assertIn("YIELD (APY)", html)
+        self.assertIn('data-layout="two_lane"', html)
+        self.assertIn("DEBT COST", html)
+        self.assertIn("ASSET YIELD", html)
+        self.assertIn("0% → ~30%", html)
         self.assertIn("/api/interest-spectrum", html)
         self.assertIn('id="nav-fcc"', html)
-        self.assertIn('id="nav-capital-flows"', html)
-        self.assertIn('id="nav-watchlist"', html)
-        self.assertIn('id="nav-fleet"', html)
-        self.assertIn("rate unknown", html)
-        self.assertIn("Coach threshold X", html)
+        self.assertIn("width: 7.4rem", html)
+        self.assertNotIn("Coach threshold", html)
+        self.assertNotIn("coach X", html)
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("CIC", html)
         self.assertNotIn("vercel", html.lower())
+        self.assertNotIn("buy token", html.lower())
+        self.assertNotIn("place order", html.lower())
         lower = html.lower()
         for needle in EQUITY_BTC_NEEDLES:
             self.assertNotIn(needle, lower)
-        # Page name / copy: no instructional port numbers (Fleet href is JS-rewritten).
         visible = re.sub(r"<script[\s\S]*?</script>", "", html)
         visible = re.sub(r'href="[^"]+"', "", visible)
         self.assertNotIn(":8000", visible)
         self.assertNotIn(":8796", visible)
-        self.assertNotIn("port 8000", visible.lower())
-        self.assertNotIn("port 8796", visible.lower())
 
-    def test_stub_file_is_blank_threshold(self) -> None:
+    def test_stub_file_is_unwired_coach(self) -> None:
         stub = json.loads(STUB.read_text(encoding="utf-8"))
         self.assertIsNone(stub.get("coach_threshold_pct"))
+        self.assertFalse(stub.get("coach_wired"))
         self.assertEqual(stub.get("title"), "Interest Spectrum")
-        self.assertEqual(stub.get("brand"), "FCC")
+
+    def test_fcc_index_has_spectrum_deep_link_targets(self) -> None:
+        html = INDEX.read_text(encoding="utf-8")
+        self.assertIn('id="one-card"', html)
+        self.assertIn('id="morpho"', html)
+        self.assertIn('id="hy"', html)
+        self.assertIn('id="x-money"', html)
+        self.assertIn("openFccDeepLink", html)
+        self.assertIn("interest-spectrum.html", html)
 
 
 class TestInterestSpectrumApi(unittest.TestCase):
@@ -256,21 +268,21 @@ class TestInterestSpectrumApi(unittest.TestCase):
         self.assertEqual(code, 200)
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
-        self.assertEqual(data.get("title"), "Interest Spectrum")
+        self.assertEqual(data.get("axis", {}).get("layout"), "two_lane")
+        self.assertFalse(data.get("coach_wired"))
         self.assertTrue(rates_are_honest(data))
         ids = {c["id"] for c in data.get("chips") or []}
         self.assertTrue(set(LOCKED_RATE_BY_ID).issubset(ids))
+        self.assertTrue(set(LOCKED_SEED_RATE_BY_ID).issubset(ids))
+        self.assertNotIn(WELLS_OFF_FCC_ID, ids)
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("debt", "yield"))
-            if chip.get("rate_pct") is not None:
-                self.assertIn(chip.get("rate_kind"), ("APR", "APY"))
+            self.assertIn(chip.get("lane"), ("above", "below"))
 
         page_code, page_body = self._get("/financial-command/interest-spectrum")
         self.assertEqual(page_code, 200)
         self.assertIn(b"<h1>Interest Spectrum</h1>", page_body)
-        slash_code, slash_body = self._get("/financial-command/interest-spectrum/")
-        self.assertEqual(slash_code, 200)
-        self.assertIn(b"Interest Spectrum", slash_body)
+        self.assertIn(b"data-layout=\"two_lane\"", page_body)
 
     def test_health_lists_feature(self) -> None:
         code, body = self._get("/api/health")

@@ -2,5 +2,6 @@
   "title": "Interest Spectrum",
   "brand": "FCC",
   "coach_threshold_pct": null,
-  "notes": "Coach band threshold X is blank until Chris locks the number. Do not default to 5."
+  "coach_wired": false,
+  "notes": "Coach threshold X is still open. Do not invent X. Spectrum ships without coach wiring."
 }
