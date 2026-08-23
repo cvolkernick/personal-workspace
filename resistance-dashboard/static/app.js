@@ -4598,47 +4598,6 @@
     });
   }
 
-  function logPlanToForm() {
-    const plan =
-      (state && state.coach && state.coach.today && state.coach.today.workout) ||
-      (state && state.workout_store && state.workout_store.plan) ||
-      null;
-    // today.workout has flattened exercises; full plan has prescription
-    let prefills = [];
-    const full = state && state.workout_store && state.workout_store.plan;
-    if (full && !full.is_rest_day) {
-      prefills = prefillsFromWorkoutPlan(full);
-      if (full.session_type && $("session_type")) {
-        $("session_type").value = full.session_type;
-      }
-    } else if (plan && plan.exercises) {
-      prefills = plan.exercises.map((e) => ({
-        name: e.name,
-        sets: [
-          {
-            weight_lbs: e.weight_lbs != null ? e.weight_lbs : "",
-            sets: e.sets != null ? e.sets : 3,
-            reps: e.reps != null ? e.reps : 10,
-          },
-        ],
-      }));
-      if (plan.session_type && $("session_type")) {
-        $("session_type").value = plan.session_type;
-      }
-    }
-    if (!prefills.length) {
-      showAlert("No workout plan to log (rest day or empty plan).", "warn");
-      return;
-    }
-    const wrap = $("exercise-rows");
-    if (wrap) wrap.innerHTML = "";
-    prefills.forEach((p) => addExerciseRow(p));
-    if ($("log-date")) $("log-date").value = todayISO();
-    goMobileTab("log");
-    $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
-    showAlert(`Prefixed ${prefills.length} exercises from today’s plan — edit loads then Save.`, "ok");
-  }
-
   /* ---------- Mobile tab shell (≤720px) ---------- */
   /** Narrow phone density (CSS still uses 720px). Tab shell is always on. */
   const NARROW_MQ = "(max-width: 720px)";
@@ -5544,9 +5503,6 @@
       $("log-card").scrollIntoView({ behavior: "smooth", block: "start" });
       $("session_type").focus();
     });
-    if ($("btn-log-plan")) {
-      $("btn-log-plan").addEventListener("click", logPlanToForm);
-    }
     bindDailyQuestClicks();
     if ($("btn-scroll-workout-plan")) {
       $("btn-scroll-workout-plan").addEventListener("click", () => {
