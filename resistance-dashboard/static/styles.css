@@ -2760,6 +2760,20 @@ body.m-shell .quest-card {
   color: var(--text);
 }
 
+/* Chris 2026-08-23: less flat/wide. .hbb-* only — sleep .sb-shell unchanged.
+   Deltas vs #264: width 72px→64px (−8px), fill 16px→20px (+4px), nub 10px→12px (+2px). */
+.hidrate-bottle-charge .hbb-shell {
+  width: 64px;
+}
+
+.hidrate-bottle-charge .hbb-fill-wrap {
+  height: 20px;
+}
+
+.hidrate-bottle-charge .hbb-shell::after {
+  height: 12px;
+}
+
 /* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
 .pace-track {
   position: relative;
