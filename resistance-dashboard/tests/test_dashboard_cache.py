@@ -17,6 +17,7 @@ from rt_dashboard.dashboard_cache import (
     save_health_cache,
 )
 from rt_dashboard.models import (
+    ActiveZoneMinutesDay,
     ExerciseEntry,
     HealthSnapshot,
     Session,
@@ -79,6 +80,31 @@ class TestDashboardCache(unittest.TestCase):
         )
         self.assertEqual(snap.weight[0].weight_lbs, 100)
         self.assertEqual(snap.sleep[0].sleep_hours, 7.5)
+
+    def test_azm_roundtrip(self):
+        with tempfile.TemporaryDirectory() as td:
+            with mock.patch("rt_dashboard.dashboard_cache.CACHE_DIR", Path(td)):
+                snap = HealthSnapshot(
+                    active_zone_minutes=[
+                        ActiveZoneMinutesDay(
+                            date="2026-08-16",
+                            fat_burn_minutes=12,
+                            cardio_minutes=8,
+                            peak_minutes=2,
+                            total_minutes=22,
+                        )
+                    ]
+                )
+                save_health_cache(snap)
+                loaded, _, meta = load_health_cache()
+                self.assertTrue(meta.get("hit"))
+                self.assertIsNotNone(loaded)
+                self.assertEqual(len(loaded.active_zone_minutes), 1)
+                self.assertEqual(loaded.active_zone_minutes[0].total_minutes, 22.0)
+                self.assertEqual(
+                    loaded.to_dict()["active_zone_minutes"][0]["fat_burn_minutes"],
+                    12.0,
+                )
 
 
 if __name__ == "__main__":

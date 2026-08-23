@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
+    ActiveZoneMinutesDay,
     CaloriesBurnedDay,
     FoodLogEntry,
     HealthSnapshot,
@@ -499,6 +500,31 @@ class GoogleHealthClient:
             data = self.daily_rollup("total-calories", days=min(days, chunk))
             return parse_total_calories_rollup(data)
 
+    def fetch_active_zone_minutes(self, days: int = 14) -> List[ActiveZoneMinutesDay]:
+        """Activity AZM — needs activity_and_fitness.readonly (already granted).
+
+        Proof-first (#299): dailyRollUp('active-zone-minutes') for 7–14 civil
+        days, chunked like total-calories. AZM is not in Google's 14d-only
+        calories list (90d windows are allowed) but we still chunk for safety.
+
+        Honest empty list when the rollup is missing. Never substitutes
+        com.google.heart_minutes, com.google.active_minutes, steps, or burned
+        kcal. Filter hint on DailyRollupDataPoint is ``active_zone_minutes``.
+        """
+        days = max(1, min(int(days), 14))
+        chunk = 14
+        try:
+            if days <= chunk:
+                data = self.daily_rollup("active-zone-minutes", days=days)
+                return parse_active_zone_minutes_rollup(data)
+            data = self._chunked_daily_rollup(
+                "active-zone-minutes", days, chunk_days=chunk
+            )
+            return parse_active_zone_minutes_rollup(data)
+        except GoogleHealthError:
+            data = self.daily_rollup("active-zone-minutes", days=min(days, chunk))
+            return parse_active_zone_minutes_rollup(data)
+
     def fetch_health(self, days: int = 30) -> HealthSnapshot:
         if not self.credentials_present():
             return HealthSnapshot(
@@ -521,6 +547,7 @@ class GoogleHealthClient:
         food_logs: List[FoodLogEntry] = []
         hydration: List[HydrationDay] = []
         calories_burned: List[CaloriesBurnedDay] = []
+        active_zone_minutes: List[ActiveZoneMinutesDay] = []
 
         def _weight() -> List[WeightSample]:
             return self.fetch_weight(days=days)
@@ -539,12 +566,17 @@ class GoogleHealthClient:
         def _burned() -> List[CaloriesBurnedDay]:
             return self.fetch_calories_burned(days=days)
 
+        def _azm() -> List[ActiveZoneMinutesDay]:
+            # Proof-first window is 7–14d even when the snapshot asks for 90d.
+            return self.fetch_active_zone_minutes(days=min(max(1, int(days)), 14))
+
         jobs = {
             "weight": _weight,
             "sleep": _sleep,
             "nutrition": _nutrition,
             "hydration": _hydration,
             "calories_burned": _burned,
+            "active_zone_minutes": _azm,
         }
         # Parallel streams — sequential multi-calls was exceeding the dashboard
         # 20s wall timeout even when Google was healthy.
@@ -570,6 +602,8 @@ class GoogleHealthClient:
                     hydration = result  # type: ignore[assignment]
                 elif name == "calories_burned":
                     calories_burned = result  # type: ignore[assignment]
+                elif name == "active_zone_minutes":
+                    active_zone_minutes = result  # type: ignore[assignment]
 
         err = "; ".join(errors) if errors else None
         if (
@@ -579,6 +613,7 @@ class GoogleHealthClient:
             and not food_logs
             and not hydration
             and not calories_burned
+            and not active_zone_minutes
             and err
         ):
             return HealthSnapshot(error=err)
@@ -590,6 +625,7 @@ class GoogleHealthClient:
             food_logs=food_logs,
             hydration=hydration,
             calories_burned=calories_burned,
+            active_zone_minutes=active_zone_minutes,
             error=err,
         )
 
@@ -1208,6 +1244,59 @@ def parse_total_calories_rollup(payload: dict) -> List[CaloriesBurnedDay]:
             continue
         by_date[date] = CaloriesBurnedDay(
             date=date, calories=round(kcal, 1), source="google_health"
+        )
+    return [by_date[k] for k in sorted(by_date.keys())]
+
+
+def parse_active_zone_minutes_rollup(payload: dict) -> List[ActiveZoneMinutesDay]:
+    """Parse dailyRollUp('active-zone-minutes') rollupDataPoints.
+
+    DailyRollupDataPoint union field is ``activeZoneMinutes`` /
+    ``active_zone_minutes`` (filter hint). Values are
+    ActiveZoneMinutesRollupValue int64 minutes (JSON number or string)::
+
+      sumInFatBurnHeartZone / sum_in_fat_burn_heart_zone
+      sumInCardioHeartZone  / sum_in_cardio_heart_zone
+      sumInPeakHeartZone    / sum_in_peak_heart_zone
+
+    Missing payload, missing rollupDataPoints, or a point with no zone
+    sums → that day is omitted. Empty result is ``[]``. Never reads
+    heart_minutes, active_minutes, steps, or totalCalories as AZM.
+    """
+    if not isinstance(payload, dict):
+        return []
+    by_date: Dict[str, ActiveZoneMinutesDay] = {}
+    for pt in payload.get("rollupDataPoints") or []:
+        if not isinstance(pt, dict):
+            continue
+        date = _civil_date_str(pt.get("civilStartTime"))
+        if not date:
+            continue
+        azm = pt.get("activeZoneMinutes") or pt.get("active_zone_minutes") or {}
+        if not isinstance(azm, dict):
+            continue
+        fat = _num(
+            azm.get("sumInFatBurnHeartZone"),
+            azm.get("sum_in_fat_burn_heart_zone"),
+        )
+        cardio = _num(
+            azm.get("sumInCardioHeartZone"),
+            azm.get("sum_in_cardio_heart_zone"),
+        )
+        peak = _num(
+            azm.get("sumInPeakHeartZone"),
+            azm.get("sum_in_peak_heart_zone"),
+        )
+        present = [v for v in (fat, cardio, peak) if v is not None]
+        if not present:
+            continue
+        by_date[date] = ActiveZoneMinutesDay(
+            date=date,
+            fat_burn_minutes=round(fat, 1) if fat is not None else None,
+            cardio_minutes=round(cardio, 1) if cardio is not None else None,
+            peak_minutes=round(peak, 1) if peak is not None else None,
+            total_minutes=round(sum(present), 1),
+            source="google_health",
         )
     return [by_date[k] for k in sorted(by_date.keys())]
 
