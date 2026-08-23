@@ -262,8 +262,7 @@ def _books_ctx(
 
 
 def _fleet_chips() -> List[Dict[str, Any]]:
-    """Locked financing table. notes.json may confirm labels; rates stay locked."""
-    notes = (_load_json(FLEET_NOTES).get("units") or {}) if FLEET_NOTES.is_file() else {}
+    """Locked financing table. Rates stay locked; roster only supplies vehicle labels."""
     roster_by_id: Dict[str, Any] = {}
     roster = _load_json(FLEET_ROSTER)
     for unit in roster.get("units") or []:
@@ -275,11 +274,8 @@ def _fleet_chips() -> List[Dict[str, Any]]:
         unit_id = str(row["id"])
         if unit_id == WELLS_OFF_FCC_ID:
             continue
-        portal = notes.get(unit_id) if isinstance(notes, dict) else None
         roster_u = roster_by_id.get(unit_id) or {}
         venue = str(row["venue"])
-        if isinstance(portal, dict) and portal.get("lender"):
-            venue = str(portal.get("lender") or venue)
         chip: Dict[str, Any] = {
             "id": unit_id,
             "venue": venue,

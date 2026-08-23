@@ -106,6 +106,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(by_id["one_card"]["deep_link"], "index.html#one-card")
 
         self.assertAlmostEqual(by_id["r1s-2023"]["rate_pct"], 0.0)
+        self.assertEqual(by_id["r1s-2023"]["venue"], "Rivian")
         self.assertEqual(by_id["r1s-2023"]["monthly_payment"], 1350)
         self.assertEqual(by_id["r1s-2023"]["deep_link"], "fleet")
 
