@@ -23,6 +23,7 @@ ROSTER_UNITS = [
         "year": 2022,
         "make": "Tesla",
         "model": "Model 3",
+        "role": "turo",
         "vin": "5YJ3E1EA6NF289917",
     },
     {
@@ -30,6 +31,7 @@ ROSTER_UNITS = [
         "year": 2022,
         "make": "Toyota",
         "model": "Corolla",
+        "role": "turo",
         "vin": "5YFVPMAE9NP362974",
     },
     {
@@ -37,9 +39,43 @@ ROSTER_UNITS = [
         "year": 2020,
         "make": "Tesla",
         "model": "Model 3",
+        "role": "personal",
+        "vin": None,
+    },
+    {
+        "id": "corolla-2024",
+        "year": 2024,
+        "make": "Toyota",
+        "model": "Corolla",
+        "role": "turo",
+        "vin": "5YFB4MDE9RP121896",
+    },
+    {
+        "id": "r1s-2023",
+        "year": 2023,
+        "make": "Rivian",
+        "model": "R1S",
+        "role": "personal",
         "vin": None,
     },
 ]
+
+
+def _with_roles(units: list[dict]) -> list[dict]:
+    """Copy of the shipped roster roles used by host-scope tests."""
+    roles = {
+        "m3-2020": "personal",
+        "m3-2022": "turo",
+        "corolla-2022": "turo",
+        "corolla-2024": "turo",
+        "r1s-2023": "personal",
+    }
+    out = []
+    for u in units:
+        rec = dict(u)
+        rec["role"] = roles.get(str(u["id"]), rec.get("role"))
+        out.append(rec)
+    return out
 
 
 class TuroInboxTests(unittest.TestCase):
@@ -385,6 +421,161 @@ class TuroInboxTests(unittest.TestCase):
             self.assertIn("401", data["error"])
             payload = turo_inbox.turo_payload(inbox_path=path, units=ROSTER_UNITS)
             self.assertEqual(payload["bookings"], [])
+
+    def test_body_year_maps_2024_and_2022_corollas(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_mike_corolla_body_year.json",
+            units=_with_roles(ROSTER_UNITS),
+        )
+        matched = [b for b in payload["bookings"] if b.get("unit_id")]
+        unmatched = payload["unmatched"]
+        by_guest = {b.get("guest"): b for b in matched}
+        self.assertEqual(by_guest["MEGAN"]["unit_id"], "corolla-2024")
+        self.assertEqual(by_guest["MEGAN"]["trip_id"], "60615645")
+        self.assertEqual(by_guest["MEGAN"]["status"], "canceled")
+        self.assertEqual(by_guest["Myles"]["unit_id"], "corolla-2024")
+        self.assertEqual(by_guest["Myles"]["trip_id"], "60463692")
+        self.assertEqual(by_guest["Myles"]["pickup"], "driveway")
+        self.assertEqual(by_guest["Matthew"]["unit_id"], "corolla-2024")
+        self.assertEqual(by_guest["Matthew"]["status"], "modified")
+        self.assertEqual(by_guest["Marie"]["unit_id"], "corolla-2022")
+        self.assertEqual(by_guest["Nayive"]["unit_id"], "corolla-2022")
+        self.assertEqual(by_guest["Nayive"]["trip_id"], "60220022")
+        self.assertEqual(by_guest["Jeffrey"]["unit_id"], "corolla-2022")
+        c24 = turo_inbox.turo_for_unit("corolla-2024", payload)
+        c22 = turo_inbox.turo_for_unit("corolla-2022", payload)
+        self.assertEqual({b["trip_id"] for b in c24["bookings"]}, {"60615645", "60463692", "60881200"})
+        self.assertEqual({b["trip_id"] for b in c22["bookings"]}, {"60110022", "60220022", "60330022"})
+        self.assertTrue(all(b.get("unit_id") != "m3-2020" for b in payload["bookings"]))
+        self.assertTrue(all(b.get("unit_id") != "r1s-2023" for b in payload["bookings"]))
+        self.assertEqual(len(unmatched), 1)
+        self.assertIsNone(unmatched[0]["unit_id"])
+        self.assertEqual(unmatched[0]["guest"], "Pat Kim")
+        self.assertEqual(unmatched[0]["trip_id"], "60990000")
+        self.assertNotIn("body", unmatched[0])
+        megan_trips = [b for b in c24["bookings"] if b["trip_id"] == "60615645"]
+        self.assertEqual({b["status"] for b in megan_trips}, {"booked", "canceled"})
+
+    def test_yearless_corolla_stays_unmatched(self) -> None:
+        rec = {
+            "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+            "from": "Turo <noreply@mail.turo.com>",
+            "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+            "body": "Toyota Corolla\nbooked by Pat Kim\nReservation ID #60990000\n",
+        }
+        parsed = turo_inbox.parse_message(rec)
+        self.assertIsNotNone(parsed)
+        self.assertIsNone(turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)))
+
+    def test_guest_name_is_not_a_unit_map(self) -> None:
+        """Ops hint guests still require a body year — never guest→year alone."""
+        rec = {
+            "subject": "(Mike's vehicle) - MEGAN's trip with your Toyota Corolla is booked!",
+            "from": "Turo <noreply@mail.turo.com>",
+            "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+            "body": "Toyota Corolla\nbooked by MEGAN\nReservation ID #60615645\n",
+        }
+        parsed = turo_inbox.parse_message(rec)
+        self.assertEqual(parsed["guest"], "MEGAN")
+        self.assertEqual(parsed["trip_id"], "60615645")
+        self.assertIsNone(turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)))
+
+    def test_mike_host_mail_does_not_attach_to_chris_personal(self) -> None:
+        rec = {
+            "subject": "(Mike's vehicle) - Alex's trip with your Tesla Model 3 is booked!",
+            "from": "Turo <noreply@mail.turo.com>",
+            "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+            "body": "2020 Tesla Model 3\nbooked by Alex Rivera\nReservation ID #77001122\n",
+        }
+        parsed = turo_inbox.parse_message(rec)
+        self.assertIsNone(turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)))
+
+    def test_html_body_year_and_reservation_flatten(self) -> None:
+        html = (
+            "<html><body><p>MEGAN&rsquo;s trip with your "
+            "<b>Toyota Corolla 2024</b> is booked.</p>"
+            "<p>Reservation ID #60615645</p>"
+            "<p>Pickup: Punta Gorda Airport FBO</p></body></html>"
+        )
+        rec = {
+            "subject": "(Mike's vehicle) - MEGAN's trip with your Toyota Corolla is booked!",
+            "from": "Turo <noreply@mail.turo.com>",
+            "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+            "body": html,
+        }
+        parsed = turo_inbox.parse_message(rec)
+        self.assertEqual(parsed["trip_id"], "60615645")
+        self.assertEqual(parsed["pickup"], "Punta Gorda Airport FBO")
+        self.assertEqual(
+            turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)),
+            "corolla-2024",
+        )
+
+    def test_gmail_writer_keeps_html_body_year_and_snippet(self) -> None:
+        import turo_gmail
+
+        html = (
+            "<p>Toyota Corolla 2024</p><p>Reservation ID #60615645</p>"
+        ).encode("utf-8")
+
+        def fake_http(url: str, data, headers):
+            if "oauth2.googleapis.com/token" in url:
+                return {"access_token": "tok-test"}
+            if url.startswith(turo_gmail.GMAIL_API + "/messages?") and "q=" in url:
+                return {"messages": [{"id": "m-html"}]}
+            if "/messages/m-html" in url:
+                return {
+                    "id": "m-html",
+                    "snippet": "Toyota Corolla 2024 Reservation ID #60615645",
+                    "payload": {
+                        "mimeType": "text/html",
+                        "headers": [
+                            {"name": "From", "value": "Turo <noreply@mail.turo.com>"},
+                            {
+                                "name": "Subject",
+                                "value": "(Mike's vehicle) - MEGAN's trip is booked!",
+                            },
+                            {"name": "Date", "value": "Tue, 19 Aug 2026 14:10:00 +0000"},
+                        ],
+                        "body": {
+                            "data": turo_gmail.base64.urlsafe_b64encode(html).decode(
+                                "ascii"
+                            )
+                        },
+                    },
+                }
+            raise AssertionError(f"unexpected url {url}")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            token = Path(td) / "gmail-token.json"
+            token.write_text(
+                json.dumps(
+                    {
+                        "refresh_token": "r",
+                        "client_id": "cid",
+                        "client_secret": "sec",
+                    }
+                ),
+                encoding="utf-8",
+            )
+            turo_gmail.fetch_and_write(
+                dest,
+                token_path=token,
+                env_file=Path(td) / "missing.env",
+                env={},
+                http=fake_http,
+            )
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            msg = data["messages"][0]
+            self.assertIn("Toyota Corolla 2024", msg["body"])
+            self.assertIn("60615645", msg["body"])
+            self.assertIn("60615645", msg["snippet"])
+            payload = turo_inbox.turo_payload(
+                inbox_path=dest, units=_with_roles(ROSTER_UNITS)
+            )
+            self.assertEqual(payload["bookings"][0]["unit_id"], "corolla-2024")
+            self.assertEqual(payload["bookings"][0]["trip_id"], "60615645")
 
 
 if __name__ == "__main__":

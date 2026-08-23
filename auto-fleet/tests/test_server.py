@@ -224,6 +224,8 @@ class AutoFleetServerTests(unittest.TestCase):
         # Slice G — glance-first. inbox_status lives once in the footer, not in turoStrip.
         turo_fn_src = html[turo_fn:costs_fn]
         self.assertNotIn("inbox_status", turo_fn_src)
+        self.assertIn("function bookingRow", html)
+        self.assertIn("bookings.map(bookingRow)", turo_fn_src)
         self.assertIn('class="glance"', html)
         self.assertIn("function renderGlanceCell", html)
         self.assertIn('id="turo-inbox"', html)

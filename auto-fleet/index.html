@@ -465,9 +465,22 @@
       return `<div class="strip"><h3>DIMO ${chip(st, kind)}</h3>${body}</div>`;
     }
 
+    function bookingRow(b) {
+      const bits = [b.status || "booked"];
+      if (b.guest) bits.push(b.guest);
+      if (b.start || b.end) bits.push(`${b.start || "?"} → ${b.end || "?"}`);
+      if (b.trip_id) bits.push(`#${b.trip_id}`);
+      if (b.pickup) bits.push(b.pickup);
+      return `<div class="row">${esc(bits.join(" · "))}</div>`;
+    }
+
     function turoStrip(t, g) {
+      const bookings = (t && t.bookings) || [];
       const line = (g && g.turo_line) || turoOneLine(t || {}, 900);
-      return `<div class="strip"><h3>Turo</h3><div class="row">${esc(line)}</div></div>`;
+      const rows = bookings.length
+        ? bookings.map(bookingRow).join("")
+        : `<div class="row">${esc(line)}</div>`;
+      return `<div class="strip"><h3>Turo</h3>${rows}</div>`;
     }
 
     function costsStrip(f) {

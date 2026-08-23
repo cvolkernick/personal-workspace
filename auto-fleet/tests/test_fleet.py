@@ -180,6 +180,27 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertNotEqual(tesla["finance"]["sheet_monthly"], 8427.0)
         self.assertFalse(tesla["finance"]["stale"])
 
+    def test_body_year_bookings_paint_on_unit_not_unmatched(self) -> None:
+        payload = self._build(
+            FIXTURES / "expenses_no_fleet.json",
+            inbox=FIXTURES / "turo_mike_corolla_body_year.json",
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+        c24 = by_id["corolla-2024"]["turo"]["bookings"]
+        c22 = by_id["corolla-2022"]["turo"]["bookings"]
+        self.assertTrue(c24)
+        self.assertTrue(c22)
+        self.assertTrue(all(b["unit_id"] == "corolla-2024" for b in c24))
+        self.assertTrue(all(b["unit_id"] == "corolla-2022" for b in c22))
+        self.assertIn("60615645", {b["trip_id"] for b in c24})
+        self.assertEqual(by_id["m3-2020"]["turo"]["bookings"], [])
+        self.assertEqual(by_id["r1s-2023"]["turo"]["bookings"], [])
+        unmatched = payload["turo_unmatched"]
+        self.assertEqual(len(unmatched), 1)
+        self.assertIsNone(unmatched[0]["unit_id"])
+        self.assertIn("Toyota Corolla", unmatched[0].get("vehicle") or unmatched[0]["subject"])
+        self.assertIn("booked", by_id["corolla-2024"]["glance"]["turo_line"])
+
     def test_resolve_prefers_worktree_fleet_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

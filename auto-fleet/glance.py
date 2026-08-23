@@ -318,7 +318,24 @@ def render_unit_card_html(
             rows.append(f'<div class="row"><a class="maps" href="{_esc(g["maps_url"])}">Map</a></div>')
         dimo_body = "".join(rows) or '<div class="empty">No vehicle signals</div>'
 
-    turo_html = f'<div class="row">{_esc(g.get("turo_line") or "0 trips")}</div>'
+    turo = unit.get("turo") if isinstance(unit.get("turo"), dict) else {}
+    bookings = [b for b in (turo.get("bookings") or []) if isinstance(b, dict)]
+    if bookings:
+        rows = []
+        for b in bookings:
+            bits = [str(b.get("status") or "booked")]
+            if b.get("guest"):
+                bits.append(str(b["guest"]))
+            if b.get("start") or b.get("end"):
+                bits.append(f"{b.get('start') or '?'} → {b.get('end') or '?'}")
+            if b.get("trip_id"):
+                bits.append(f"#{b['trip_id']}")
+            if b.get("pickup"):
+                bits.append(str(b["pickup"]))
+            rows.append(f'<div class="row">{_esc(" · ".join(bits))}</div>')
+        turo_html = "".join(rows)
+    else:
+        turo_html = f'<div class="row">{_esc(g.get("turo_line") or "0 trips")}</div>'
 
     portal = _portal(finance)
     due = due_from_finance(finance)

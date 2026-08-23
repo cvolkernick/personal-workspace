@@ -127,6 +127,10 @@ and zero messages — honest empty, not a crash.
 
 Current-host subject hint: `Mike's vehicle` (same shape as the old
 `(Jessica's vehicle) — …` mail). Jessica / Kia / Spark stay out.
+Unit match uses the mail **body** year (`Toyota Corolla 2024` →
+`corolla-2024`) plus reservation #. Yearless Corolla stays unmatched.
+Mike host mail does not attach to Chris personal units. Bookings paint
+on the car card; they are not Google Tasks.
 
 Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
 `off` disables, tests only).
