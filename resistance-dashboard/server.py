@@ -106,6 +106,7 @@ from rt_dashboard.google_auth import (  # noqa: E402
 from rt_dashboard.google_health import GoogleHealthClient  # noqa: E402
 from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E402
 from rt_dashboard.hidrate_client import (  # noqa: E402
+    hidrate_bottle_charge,
     hidrate_credentials_present,
     overlay_hidrate_hydration,
 )
@@ -833,6 +834,11 @@ def load_dashboard_data(
     except Exception as e:  # noqa: BLE001
         errors.append(f"hydration_bars: {e}")
         payload["hydration_bars"] = {"pacing": None}
+
+    bottle = hidrate_bottle_charge()
+    payload["hidrate_bottle"] = bottle
+    if isinstance(payload.get("hydration_bars"), dict):
+        payload["hydration_bars"]["bottle"] = bottle
 
     # Exercise catalog + daily workout plan (local-first, same pattern as meals)
     try:
