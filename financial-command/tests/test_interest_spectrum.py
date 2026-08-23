@@ -19,10 +19,15 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.interest_spectrum import (  # noqa: E402
+    JR_STRCUSX_ID,
+    JR_TARGET_LABEL,
+    JR_TARGET_PCT,
     LOCKED_FLEET,
     LOCKED_RATE_BY_ID,
     LOCKED_SEED_RATE_BY_ID,
+    LOCKED_YIELD_SEEDS,
     SEED_TICKS_PCT,
+    USDG_GOLD_CAVEAT,
     WELLS_OFF_FCC_ID,
     build_interest_spectrum,
     rates_are_honest,
@@ -64,6 +69,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
             treasury={},
             config={},
             x_money={},
+            solana={},
             stub={"coach_threshold_pct": 5},
         )
         self.assertTrue(payload["ok"])
@@ -110,9 +116,35 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(by_id["r1s-2023"]["monthly_payment"], 1350)
         self.assertEqual(by_id["r1s-2023"]["deep_link"], "fleet")
 
-        self.assertNotIn("x_money", by_id)
-        self.assertNotIn("morpho_hy", by_id)
-        self.assertNotIn("usdg_earn", by_id)
+        for row in LOCKED_YIELD_SEEDS:
+            chip = by_id[row["id"]]
+            self.assertEqual(chip["kind"], "yield")
+            self.assertEqual(chip["lane"], "below")
+            self.assertAlmostEqual(chip["rate_pct"], row["rate_pct"])
+            self.assertEqual(chip["source"], "locked_seed")
+            self.assertTrue(chip["approx"])
+            self.assertNotIn("principal_balance", chip)
+            self.assertNotIn("account_balance", chip)
+
+        self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 6.0)
+        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
+        self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 7.0)
+        self.assertIn("Gold", by_id["usdg_earn"]["notes"])
+        self.assertIn("cancel", by_id["usdg_earn"]["notes"].lower())
+        self.assertIn(USDG_GOLD_CAVEAT, by_id["usdg_earn"]["notes"])
+
+        jr = by_id[JR_STRCUSX_ID]
+        self.assertEqual(jr["kind"], "yield")
+        self.assertEqual(jr["lane"], "below")
+        self.assertAlmostEqual(jr["rate_pct"], JR_TARGET_PCT)
+        self.assertEqual(jr["rate_label"], JR_TARGET_LABEL)
+        self.assertEqual(jr["source"], "docs_target")
+        self.assertTrue(jr["approx"])
+        self.assertFalse(jr.get("counts_toward_hy"))
+        self.assertFalse(jr.get("counts_toward_ltv_defense"))
+        self.assertNotIn("notional", jr)
+        self.assertIn("docs.solstice.finance", jr["notes"])
+        self.assertIn("solstice.finance/vaults/strcusx", jr["notes"])
         self.assertEqual(payload["unknown"], [])
 
     def test_books_apr_overrides_morpho_seed_and_plots_yield(self) -> None:
@@ -141,6 +173,9 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(by_id["x_money"]["lane"], "below")
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 3.6)
         self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 3.2)
+        self.assertEqual(by_id["usdg_earn"]["source"], "books")
+        self.assertIn("Gold", by_id["usdg_earn"]["notes"])
+        self.assertIn("cancel", by_id["usdg_earn"]["notes"].lower())
         self.assertAlmostEqual(by_id["one_card"]["notional"], 462.2)
         self.assertTrue(rates_are_honest(payload))
 
@@ -161,29 +196,81 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
                 },
             },
             x_money={"apy_est": None},
+            solana={},
         )
         by_id = {c["id"]: c for c in payload["chips"]}
-        self.assertNotIn("x_money", by_id)
-        self.assertNotIn("morpho_hy", by_id)
+        self.assertEqual(by_id["x_money"]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 6.0)
+        self.assertEqual(by_id["morpho_hy"]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
+        self.assertEqual(by_id["usdg_earn"]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 7.0)
         for chip in payload["chips"]:
             self.assertIn(chip["kind"], ("debt", "yield"))
             self.assertIn(chip["rate_kind"], ("APR", "APY"))
-            self.assertIn(chip["source"], ("locked_financing", "locked_seed", "books"))
+            self.assertIn(chip["source"], ("locked_financing", "locked_seed", "books", "docs_target"))
         rates = [c["rate_pct"] for c in payload["placed"]]
         self.assertNotIn(25.0, rates)
         self.assertNotIn(12.0, rates)
         self.assertNotIn(8.0, rates)
-        self.assertNotIn(7.0, rates)
+        self.assertNotIn(11.0, rates)
         self.assertTrue(rates_are_honest(payload))
 
-    def test_usdg_settings_placeholder_is_not_a_default(self) -> None:
+    def test_jr_target_when_no_live_solstice_does_not_invent_balance(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "snapshot": {
+                    "solana": {
+                        "jr_strcusx": 3.317128,
+                        "jr_strcusx_usd": 3.40,
+                        "jr_strcusx_usd_price": 1.0255,
+                    }
+                }
+            },
+            config={},
+            x_money={},
+            solana={},
+        )
+        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
+        self.assertAlmostEqual(jr["rate_pct"], 20.0)
+        self.assertEqual(jr["rate_label"], "~20% target")
+        self.assertEqual(jr["source"], "docs_target")
+        self.assertTrue(jr["approx"])
+        self.assertFalse(jr.get("counts_toward_hy"))
+        self.assertFalse(jr.get("counts_toward_ltv_defense"))
+        self.assertNotIn("notional", jr)
+        self.assertIn("docs.solstice.finance", jr["notes"])
+        self.assertIn("solstice.finance/vaults/strcusx", jr["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_jr_uses_live_solstice_when_already_on_books(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"snapshot": {"solana": {"solstice_apy": 0.184, "jr_strcusx": 3.3}}},
+            config={},
+            x_money={},
+        )
+        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
+        self.assertAlmostEqual(jr["rate_pct"], 18.4)
+        self.assertEqual(jr["source"], "books")
+        self.assertFalse(jr["approx"])
+        self.assertNotIn("rate_label", jr)
+        self.assertNotIn("notional", jr)
+        self.assertFalse(jr.get("counts_toward_hy"))
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_usdg_seed_always_shows_with_gold_caveat(self) -> None:
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {}}},
             config={"robinhood": {}},
             x_money={},
+            solana={},
         )
-        ids = {c["id"] for c in payload["chips"]}
-        self.assertNotIn("usdg_earn", ids)
+        usdg = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(usdg["rate_pct"], 7.0)
+        self.assertEqual(usdg["source"], "locked_seed")
+        self.assertIn("Gold", usdg["notes"])
+        self.assertIn("cancel", usdg["notes"].lower())
+        self.assertIn("do not invent a post-Gold rate", usdg["notes"])
 
     def test_coach_is_not_wired_even_if_stub_has_a_number(self) -> None:
         payload = build_interest_spectrum(
@@ -210,6 +297,8 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn("/api/interest-spectrum", html)
         self.assertIn('id="nav-fcc"', html)
         self.assertIn("width: 7.4rem", html)
+        self.assertIn("Locked yield seeds always show", html)
+        self.assertNotIn("Yield venues appear only when", html)
         self.assertNotIn("Coach threshold", html)
         self.assertNotIn("coach X", html)
         self.assertNotIn("<iframe", html.lower())
@@ -237,6 +326,7 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn('id="morpho"', html)
         self.assertIn('id="hy"', html)
         self.assertIn('id="x-money"', html)
+        self.assertIn('id="panel-solana"', html)
         self.assertIn("openFccDeepLink", html)
         self.assertIn("interest-spectrum.html", html)
 
@@ -275,6 +365,7 @@ class TestInterestSpectrumApi(unittest.TestCase):
         ids = {c["id"] for c in data.get("chips") or []}
         self.assertTrue(set(LOCKED_RATE_BY_ID).issubset(ids))
         self.assertTrue(set(LOCKED_SEED_RATE_BY_ID).issubset(ids))
+        self.assertIn(JR_STRCUSX_ID, ids)
         self.assertNotIn(WELLS_OFF_FCC_ID, ids)
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("debt", "yield"))

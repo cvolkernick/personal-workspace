@@ -1,9 +1,11 @@
 """APR/APY interest spectrum for FCC (Nakatoshi strip AC).
 
 One shared 0% → ~30% axis. Debt chips above; yield chips below.
-Honest rates only: locked seeds + APR/APY already on books. Never invent
-yields. Equity/BTC assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
-Coach threshold X is not wired.
+Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
+and APR/APY already on books. Books override seeds when a real apy_est /
+vault_apy exists. Never invent yields. Equity/BTC assumed-return stays
+off-axis. Wells/20 Tesla stays off FCC. JR-strcUSX is a spectrum chip only
+(not HY/LTV). Coach threshold X is not wired.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ FCC_STUB = ROOT / "financial-command" / "interest-spectrum.json"
 TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
 TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
 XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
+SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -104,35 +107,19 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
     },
 )
 
-# Yield venues: plot only when an allowlisted apy_est (or vault APY) is present.
-YIELD_VENUES: tuple[dict[str, Any], ...] = (
-    {
-        "id": "morpho_hy",
-        "venue": "Morpho HY",
-        "label": "Morpho HY",
-        "kind": "yield",
-        "rate_kind": "APY",
-        "unit": "fraction",
-        "deep_link": "index.html#hy",
-        "paths": (
-            ("evaluation", "inputs", "vault_apy"),
-            ("evaluation", "inputs", "hy_vault_apy"),
-            ("snapshot", "coinbase_manual", "vault_apy"),
-            ("config", "coinbase_manual", "vault_apy"),
-        ),
-        "notional_paths": (
-            ("evaluation", "inputs", "vault_usdc"),
-            ("snapshot", "coinbase_manual", "vault_usdc"),
-            ("config", "coinbase_manual", "vault_usdc"),
-        ),
-    },
+# Chris 2026-08-23 locked yield seeds. Always show; books override when apy_est
+# / vault_apy is already present. Pattern matches Morpho borrow ~5% / One Card ~29%.
+LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
     {
         "id": "x_money",
         "venue": "X Money",
         "label": "X Money",
         "kind": "yield",
+        "rate_pct": 6.0,
+        "approx": True,
         "rate_kind": "APY",
         "unit": "fraction",
+        "notes": "locked seed 6% APY · books override when apy_est present",
         "deep_link": "index.html#x-money",
         "paths": (
             ("evaluation", "inputs", "x_money_apy_est"),
@@ -146,12 +133,44 @@ YIELD_VENUES: tuple[dict[str, Any], ...] = (
         ),
     },
     {
+        "id": "morpho_hy",
+        "venue": "Morpho HY",
+        "label": "Morpho HY",
+        "kind": "yield",
+        "rate_pct": 7.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "notes": "locked seed 7% APY · Coinbase One · variable · books override when vault_apy / morpho_hy apy_est present",
+        "deep_link": "index.html#hy",
+        "paths": (
+            ("evaluation", "inputs", "vault_apy"),
+            ("evaluation", "inputs", "hy_vault_apy"),
+            ("evaluation", "inputs", "morpho_hy_apy_est"),
+            ("snapshot", "coinbase_manual", "vault_apy"),
+            ("snapshot", "coinbase_manual", "morpho_hy_apy_est"),
+            ("snapshot", "morpho_hy", "apy_est"),
+            ("config", "coinbase_manual", "vault_apy"),
+        ),
+        "notional_paths": (
+            ("evaluation", "inputs", "vault_usdc"),
+            ("snapshot", "coinbase_manual", "vault_usdc"),
+            ("config", "coinbase_manual", "vault_usdc"),
+        ),
+    },
+    {
         "id": "usdg_earn",
         "venue": "RH USDG Earn",
         "label": "RH USDG Earn",
         "kind": "yield",
+        "rate_pct": 7.0,
+        "approx": True,
         "rate_kind": "APY",
         "unit": "fraction",
+        "notes": (
+            "locked seed 7% APY · may end when RH Gold cancels — "
+            "do not invent a post-Gold rate · books override when usdg_earn_apy_est present"
+        ),
         "deep_link": "index.html#panel-brokerage",
         "paths": (
             ("evaluation", "inputs", "rh_usdg_earn_apy_est"),
@@ -163,6 +182,35 @@ YIELD_VENUES: tuple[dict[str, Any], ...] = (
             ("snapshot", "robinhood", "usdg_earn_usdg"),
         ),
     },
+)
+
+# Back-compat alias: yield venues are now always-on seeds (books still win).
+YIELD_VENUES = LOCKED_YIELD_SEEDS
+
+USDG_GOLD_CAVEAT = "may end when RH Gold cancels — do not invent a post-Gold rate"
+
+# JR-strcUSX is not a locked seed. Live Solstice quote only if already on the
+# FCC/solana snapshot — no scrape. Else ~20% target (docs), spectrum chip only.
+JR_STRCUSX_ID = "jr_strcusx"
+JR_TARGET_PCT = 20.0
+JR_TARGET_LABEL = "~20% target"
+JR_DOCS_NOTES = (
+    "approx target · not a locked seed · docs.solstice.finance strcUSX · "
+    "solstice.finance/vaults/strcusx · does not count toward HY/LTV floors · "
+    "spectrum chip only"
+)
+JR_LIVE_APY_PATHS = (
+    ("evaluation", "inputs", "jr_strcusx_apy"),
+    ("evaluation", "inputs", "solstice_apy"),
+    ("evaluation", "inputs", "strcusx_apy"),
+    ("snapshot", "solana", "jr_strcusx_apy"),
+    ("snapshot", "solana", "solstice_apy"),
+    ("snapshot", "solana", "strcusx_apy"),
+    ("snapshot", "solana", "vault_apy"),
+    ("solana", "jr_strcusx_apy"),
+    ("solana", "solstice_apy"),
+    ("solana", "strcusx_apy"),
+    ("solana", "vault_apy"),
 )
 
 MORPHO_BOOK_PATHS = (
@@ -186,8 +234,12 @@ ONE_CARD_NOTIONAL_PATHS = (
 WELLS_OFF_FCC_ID = "m3-2020"
 
 ALLOWED_CHIP_KINDS = frozenset({"debt", "yield"})
+ALLOWED_SOURCES = frozenset({"locked_financing", "locked_seed", "books", "docs_target"})
 LOCKED_RATE_BY_ID = {row["id"]: float(row["rate_pct"]) for row in LOCKED_FLEET}
-LOCKED_SEED_RATE_BY_ID = {row["id"]: float(row["rate_pct"]) for row in LOCKED_SEEDS}
+LOCKED_SEED_RATE_BY_ID = {
+    **{row["id"]: float(row["rate_pct"]) for row in LOCKED_SEEDS},
+    **{row["id"]: float(row["rate_pct"]) for row in LOCKED_YIELD_SEEDS},
+}
 
 # Axis tick marks from locked seeds (percent).
 SEED_TICKS_PCT: tuple[float, ...] = (0.0, 5.0, 10.18, 11.14, 18.15, 29.0)
@@ -252,12 +304,18 @@ def _books_ctx(
     treasury: Dict[str, Any],
     config: Dict[str, Any],
     x_money: Dict[str, Any],
+    solana: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    sol = solana if isinstance(solana, dict) else {}
+    if not sol and isinstance(snap.get("solana"), dict):
+        sol = snap["solana"]
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
-        "snapshot": treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {},
+        "snapshot": snap,
         "config": config if isinstance(config, dict) else {},
         "x_money": x_money if isinstance(x_money, dict) else {},
+        "solana": sol,
     }
 
 
@@ -345,22 +403,64 @@ def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     return chips
 
 
-def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """X Money / HY / USDG — only when an allowlisted APY is actually present."""
-    chips: List[Dict[str, Any]] = []
-    for spec in YIELD_VENUES:
-        raw = None
-        hit = None
-        for path in spec["paths"]:
-            raw = _dig(ctx, path)
-            if raw is not None and raw != "":
-                hit = ".".join(path)
-                break
-        rate = (
-            _fraction_field_to_pct(raw) if spec.get("unit") == "fraction" else _as_float(raw)
-        )
+def _first_apy_hit(
+    ctx: Dict[str, Any],
+    paths: Iterable[Iterable[str]],
+    *,
+    unit: str = "fraction",
+) -> tuple[Optional[float], Optional[str]]:
+    for path in paths:
+        raw = _dig(ctx, path)
+        if raw is None or raw == "":
+            continue
+        rate = _fraction_field_to_pct(raw) if unit == "fraction" else _as_float(raw)
         if rate is None:
             continue
+        return rate, ".".join(path)
+    return None, None
+
+
+def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Spectrum-only JR chip. Live Solstice APY if already on books; else ~20% target.
+
+    Never attaches wallet balances. Never counts toward HY / LTV floors.
+    """
+    chip: Dict[str, Any] = {
+        "id": JR_STRCUSX_ID,
+        "venue": "JR-strcUSX",
+        "label": "JR-strcUSX",
+        "kind": "yield",
+        "lane": "below",
+        "rate_kind": "APY",
+        "fcc_liability": False,
+        "counts_toward_hy": False,
+        "counts_toward_ltv_defense": False,
+        "deep_link": "index.html#panel-solana",
+        "placed": True,
+    }
+    live, hit = _first_apy_hit(ctx, JR_LIVE_APY_PATHS)
+    if live is not None:
+        chip["rate_pct"] = live
+        chip["approx"] = False
+        chip["source"] = "books"
+        chip["notes"] = (
+            f"from {hit} · does not count toward HY/LTV floors · spectrum chip only"
+            if hit
+            else "live Solstice on books · does not count toward HY/LTV floors · spectrum chip only"
+        )
+        return chip
+    chip["rate_pct"] = JR_TARGET_PCT
+    chip["rate_label"] = JR_TARGET_LABEL
+    chip["approx"] = True
+    chip["source"] = "docs_target"
+    chip["notes"] = JR_DOCS_NOTES
+    return chip
+
+
+def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """X Money / Morpho HY / USDG always appear (locked seeds); books override APY."""
+    chips: List[Dict[str, Any]] = []
+    for spec in LOCKED_YIELD_SEEDS:
         chip: Dict[str, Any] = {
             "id": spec["id"],
             "venue": spec["venue"],
@@ -368,19 +468,29 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "kind": "yield",
             "lane": "below",
             "rate_kind": "APY",
-            "approx": False,
-            "source": "books",
-            "notes": f"from {hit}" if hit else None,
+            "approx": True,
+            "source": "locked_seed",
+            "notes": spec.get("notes"),
             "fcc_liability": False,
             "deep_link": spec.get("deep_link"),
             "placed": True,
-            "rate_pct": rate,
+            "rate_pct": float(spec["rate_pct"]),
         }
+        rate, hit = _first_apy_hit(ctx, spec.get("paths") or (), unit=str(spec.get("unit") or "fraction"))
+        if rate is not None:
+            chip["rate_pct"] = rate
+            chip["approx"] = False
+            chip["source"] = "books"
+            notes = f"from {hit}" if hit else None
+            if spec["id"] == "usdg_earn":
+                notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
+            chip["notes"] = notes
         notional = _first_number(ctx, spec.get("notional_paths") or ())
         if notional is not None:
             chip["notional"] = notional
             chip["notional_kind"] = "balance"
         chips.append(chip)
+    chips.append(_jr_strcusx_chip(ctx))
     return chips
 
 
@@ -398,6 +508,7 @@ def build_interest_spectrum(
     treasury: Optional[Dict[str, Any]] = None,
     config: Optional[Dict[str, Any]] = None,
     x_money: Optional[Dict[str, Any]] = None,
+    solana: Optional[Dict[str, Any]] = None,
     stub: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble APR/APY chips on a shared 0→~30% two-lane axis."""
@@ -410,10 +521,15 @@ def build_interest_spectrum(
         snap_xm = (treasury.get("snapshot") or {}).get("x_money")
         if isinstance(snap_xm, dict):
             x_money = snap_xm
+    solana = solana if isinstance(solana, dict) else _load_json(SOLANA_SNAPSHOT)
+    if not solana:
+        snap_sol = (treasury.get("snapshot") or {}).get("solana")
+        if isinstance(snap_sol, dict):
+            solana = snap_sol
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
-    ctx = _books_ctx(treasury, config, x_money)
+    ctx = _books_ctx(treasury, config, x_money, solana)
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
@@ -464,7 +580,7 @@ def build_interest_spectrum(
 
 
 def rates_are_honest(payload: Dict[str, Any]) -> bool:
-    """True when every placed rate is locked-fleet, locked-seed, or books."""
+    """True when every placed rate is locked-fleet, locked-seed, books, or JR docs target."""
     if not isinstance(payload, dict):
         return False
     if payload.get("coach_wired"):
@@ -482,6 +598,8 @@ def rates_are_honest(payload: Dict[str, Any]) -> bool:
         if rate is None:
             return False
         source = chip.get("source")
+        if source not in ALLOWED_SOURCES:
+            return False
         if source == "locked_financing":
             locked = LOCKED_RATE_BY_ID.get(str(chip.get("id")))
             if locked is None or abs(float(rate) - locked) > 1e-9:
@@ -490,6 +608,14 @@ def rates_are_honest(payload: Dict[str, Any]) -> bool:
         if source == "locked_seed":
             locked = LOCKED_SEED_RATE_BY_ID.get(str(chip.get("id")))
             if locked is None or abs(float(rate) - locked) > 1e-9:
+                return False
+            continue
+        if source == "docs_target":
+            if str(chip.get("id")) != JR_STRCUSX_ID:
+                return False
+            if abs(float(rate) - JR_TARGET_PCT) > 1e-9:
+                return False
+            if chip.get("rate_label") != JR_TARGET_LABEL:
                 return False
             continue
         if source != "books":
