@@ -1,4 +1,4 @@
-"""FitDash #239: Trends Avg intake / Avg burned on the Σ 45d paired window.
+"""FitDash #254: Trends Avg intake / Avg burned on the Σ 60d paired window.
 
 Overlay only — same pairDays set as the Σ chips (days with both series).
 No invented food. No extra Vercel function. Ignore-build stays put.
@@ -20,9 +20,9 @@ VERCEL = (ROOT / "vercel.json").read_text(encoding="utf-8")
 
 class TrendsPairedAvgMarkup(unittest.TestCase):
     def test_overlay_wired_under_trends_card(self):
-        self.assertIn("Calories intake vs burned · 45d", HTML)
+        self.assertIn("Calories intake vs burned · 60d", HTML)
         self.assertIn('id="nutrition-note"', HTML)
-        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-1", HTML)
+        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-2", HTML)
         self.assertIn("Avg intake", OVERLAY)
         self.assertIn("Avg burned", OVERLAY)
         self.assertIn("kcal/day", OVERLAY)
@@ -30,9 +30,11 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
         self.assertIn("trends-avg-intake", OVERLAY)
         self.assertIn("trends-avg-burned", OVERLAY)
 
-    def test_same_45d_paired_window_as_sigma_chips(self):
-        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 45;", APP_JS)
-        self.assertIn("var SPAN_DAYS = 45;", OVERLAY)
+    def test_same_60d_paired_window_as_sigma_chips(self):
+        self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
+        self.assertIn("var SPAN_DAYS = 60;", OVERLAY)
+        self.assertNotIn("const CAL_IN_OUT_SPAN_DAYS = 45;", APP_JS)
+        self.assertNotIn("var SPAN_DAYS = 45;", OVERLAY)
         self.assertIn("pairDays", APP_JS)
         self.assertIn("pairDays", OVERLAY)
         self.assertIn("sumIn += vin;", APP_JS)
