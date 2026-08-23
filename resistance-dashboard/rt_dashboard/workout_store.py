@@ -170,7 +170,13 @@ def brief_sessions(sessions: Sequence[Any], limit: int = 5) -> List[dict]:
 
 def next_session_brief(sessions: Sequence[Any], goals: dict) -> Dict[str, Any]:
     """One-line next PPL slot from rotation + last logged session. Not a plan."""
-    from .workout_planner import last_session_type, next_session_type, normalize_goals
+    from .workout_planner import (
+        last_session_type,
+        next_session_type,
+        normalize_goals,
+        session_date_of,
+        session_type_of,
+    )
 
     goals = normalize_goals(goals if isinstance(goals, dict) else None)
     next_st = next_session_type(sessions, goals)
@@ -179,10 +185,10 @@ def next_session_brief(sessions: Sequence[Any], goals: dict) -> Dict[str, Any]:
     ppl = [
         s
         for s in (sessions or [])
-        if getattr(s, "session_type", None) in ("push", "pull", "legs")
+        if session_type_of(s) in ("push", "pull", "legs")
     ]
     if ppl:
-        last_date = max(ppl, key=lambda s: s.date).date
+        last_date = max(session_date_of(s) for s in ppl) or None
     if last_st and last_date:
         line = f"Next session: {next_st.upper()} (PPL after last {last_st} on {last_date})"
     elif last_st:
@@ -195,6 +201,84 @@ def next_session_brief(sessions: Sequence[Any], goals: dict) -> Dict[str, Any]:
         "last_session_date": last_date,
         "line": line,
     }
+
+
+def _rotation_set(goals: Optional[dict]) -> bool:
+    rot = (goals or {}).get("rotation") if isinstance(goals, dict) else None
+    return isinstance(rot, list) and bool(rot)
+
+
+def slim_training_continuity(
+    sessions: Sequence[Any],
+    *,
+    as_of: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Public continuity card: phase, days_since, summary (+ banner extras)."""
+    from .workout_planner import days_since_last_session, training_continuity
+
+    full = training_continuity(days_since_last_session(sessions or [], as_of=as_of))
+    return {
+        "phase": full.get("phase"),
+        "days_since": full.get("days_since"),
+        "summary": full.get("summary"),
+        "label": full.get("label"),
+        "load_cut_pct": full.get("load_cut_pct"),
+        "volume_band_scale": full.get("volume_band_scale"),
+        "allow_load_progression": full.get("allow_load_progression"),
+    }
+
+
+def stamp_today_session(
+    workout: Optional[dict],
+    sessions: Sequence[Any],
+    goals: Optional[dict],
+    recovery: Optional[dict] = None,
+    *,
+    as_of: Optional[str] = None,
+    fill_rest: bool = True,
+    next_st_override: Optional[str] = None,
+) -> dict:
+    """Hybrid Today fill: session_type + continuity. Never invent exercises.
+
+    session_type comes from next_session_type when goals.rotation is set;
+    null only if goals/rotation are missing. Rest gate may fill a rest-day
+    slot (is_rest_day + session_type=rest) while keeping next_session_type.
+    """
+    from .workout_planner import next_session_type, normalize_goals
+
+    plan = dict(workout) if isinstance(workout, dict) else {}
+    continuity = slim_training_continuity(sessions, as_of=as_of)
+    plan["training_continuity"] = continuity
+    ctx = dict(plan.get("context") or {})
+    ctx["training_continuity"] = continuity
+    ctx["days_since_last"] = continuity.get("days_since")
+
+    next_st = None
+    override = str(next_st_override or "").strip().lower()
+    if override:
+        next_st = override
+    elif _rotation_set(goals):
+        next_st = next_session_type(sessions or [], normalize_goals(goals))
+    plan["next_session_type"] = next_st
+    ctx["next_session_type"] = next_st
+    if plan.get("session_type") in (None, ""):
+        plan["session_type"] = next_st
+    plan["context"] = ctx
+
+    if "exercises" not in plan:
+        plan["exercises"] = []
+
+    plan = apply_rest_gate(plan, goals if isinstance(goals, dict) else {}, recovery or {})
+    gate = plan.get("rest_gate") or {}
+    if fill_rest and gate.get("force_rest"):
+        plan["is_rest_day"] = True
+        plan["session_type"] = "rest"
+        reason = gate.get("reason")
+        if reason and (plan.get("empty") or not (plan.get("message") or "").strip()):
+            plan["message"] = reason
+        elif reason and "below threshold" not in str(plan.get("message") or ""):
+            plan["message"] = reason
+    return plan
 
 
 def build_training_pack(

@@ -641,6 +641,10 @@ def build_today_board(
             "focus": focus,
             "motivation": TARGET_MOTIVATIONS["training"],
             "recommendation": rec_label,
+            "next_session_type": wp.get("next_session_type")
+            or (wp.get("context") or {}).get("next_session_type"),
+            "training_continuity": wp.get("training_continuity")
+            or (wp.get("context") or {}).get("training_continuity"),
         },
         "meal": meal_block,
         "purchases": purchases,

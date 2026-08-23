@@ -921,18 +921,32 @@ def last_performance(
     return None
 
 
-def last_session_type(sessions: Sequence[Session]) -> Optional[str]:
+def session_type_of(session: Any) -> str:
+    """Session.session_type or brief dict session_type/type."""
+    if isinstance(session, dict):
+        return str(session.get("session_type") or session.get("type") or "").lower()
+    return str(getattr(session, "session_type", "") or "").lower()
+
+
+def session_date_of(session: Any) -> str:
+    """Session.date or brief dict date (YYYY-MM-DD)."""
+    if isinstance(session, dict):
+        return str(session.get("date") or "")[:10]
+    return str(getattr(session, "date", "") or "")[:10]
+
+
+def last_session_type(sessions: Sequence[Any]) -> Optional[str]:
     ordered = sorted(
-        [s for s in sessions if s.session_type in ("push", "pull", "legs")],
-        key=lambda s: s.date,
+        [s for s in sessions if session_type_of(s) in ("push", "pull", "legs")],
+        key=session_date_of,
         reverse=True,
     )
     if not ordered:
         return None
-    return ordered[0].session_type.lower()
+    return session_type_of(ordered[0])
 
 
-def next_session_type(sessions: Sequence[Session], goals: dict) -> str:
+def next_session_type(sessions: Sequence[Any], goals: dict) -> str:
     rotation = goals.get("rotation") or ["push", "pull", "legs"]
     rotation = [str(r).lower() for r in rotation]
     last = last_session_type(sessions)
@@ -942,8 +956,9 @@ def next_session_type(sessions: Sequence[Session], goals: dict) -> str:
     return rotation[(idx + 1) % len(rotation)]
 
 
-def days_since_last_session(sessions: Sequence[Session], as_of: Optional[str] = None) -> Optional[int]:
-    if not sessions:
+def days_since_last_session(sessions: Sequence[Any], as_of: Optional[str] = None) -> Optional[int]:
+    dated = [s for s in (sessions or []) if session_date_of(s)]
+    if not dated:
         return None
     if as_of is None:
         from .timeutil import local_today_iso
@@ -951,10 +966,10 @@ def days_since_last_session(sessions: Sequence[Session], as_of: Optional[str] = 
         day = local_today_iso()
     else:
         day = as_of
-    ordered = sorted(sessions, key=lambda s: s.date, reverse=True)
+    ordered = sorted(dated, key=session_date_of, reverse=True)
     try:
-        last = datetime.strptime(ordered[0].date, "%Y-%m-%d")
-        today = datetime.strptime(day, "%Y-%m-%d")
+        last = datetime.strptime(session_date_of(ordered[0]), "%Y-%m-%d")
+        today = datetime.strptime(str(day)[:10], "%Y-%m-%d")
         return max(0, (today - last).days)
     except ValueError:
         return None

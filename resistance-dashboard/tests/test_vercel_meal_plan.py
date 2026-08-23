@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from api.auth.session_util import SESSION_COOKIE, make_session
-from api.dashboard import dashboard_body, preview_meal_plan
+from api.dashboard import dashboard_body, preview_inventory_carousels, preview_meal_plan
 from api.workout._util import dispatch_client_route, meal_plan_body, refresh_body
 from rt_dashboard.inventory_store import INVENTORY_PATH, load_workspace_inventory
 from rt_dashboard.models import HealthSnapshot
@@ -125,11 +125,26 @@ class GenerateOnGet(unittest.TestCase):
         self.assertGreater(len(meal.get("meals") or []), 0)
         labels = [m.get("label") for m in meal["meals"]]
         self.assertIn("Next meal", labels)
+        self.assertGreaterEqual(len(meal["meals"]), 1)
+        self.assertLessEqual(len(meal["meals"]), 4)
         stocked_names = {i["name"] for i in stocked}
         for it in meal["items"]:
             self.assertIn(it["name"], stocked_names)
+        for bucket in meal["meals"]:
+            self.assertTrue(bucket.get("items"))
+            self.assertTrue(bucket.get("eat_at"))
+            self.assertTrue(bucket.get("eat_at_label"))
+            self.assertIn("T", str(bucket["eat_at"]))
+            for it in bucket["items"]:
+                self.assertIn(it["name"], stocked_names)
+                if it.get("portion_g") is not None:
+                    self.assertGreater(it["portion_g"], 0)
         self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
-        self.assertNotIn("inventory_suggestions", body.get("nutrition_store") or {})
+        nut = body.get("nutrition_store") or {}
+        self.assertIn("inventory_suggestions", nut)
+        self.assertIn("inventory_removals", nut)
+        self.assertIsInstance((nut["inventory_suggestions"] or {}).get("suggestions"), list)
+        self.assertIsInstance((nut["inventory_removals"] or {}).get("suggestions"), list)
 
     def test_empty_in_stock_is_honest_empty(self):
         empty = {"updated_at": "2026-08-20", "ingredients": []}
@@ -153,7 +168,13 @@ class GenerateOnGet(unittest.TestCase):
         self.assertEqual(meal.get("stocked_count"), 0)
         self.assertTrue(meal.get("in_stock_only"))
         self.assertIn("No in-stock", meal.get("message") or "")
+        self.assertFalse(any((m or {}).get("eat_at") for m in meal.get("meals") or []))
         self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
+        nut = body.get("nutrition_store") or {}
+        self.assertEqual((nut.get("inventory_suggestions") or {}).get("suggestions"), [])
+        self.assertEqual((nut.get("inventory_removals") or {}).get("suggestions"), [])
+        self.assertEqual((nut.get("inventory_suggestions") or {}).get("count"), 0)
+        self.assertEqual((nut.get("inventory_removals") or {}).get("count"), 0)
 
     def test_all_out_of_stock_is_honest_empty(self):
         oos = {
@@ -234,6 +255,133 @@ class GenerateOnGet(unittest.TestCase):
             [m["label"] for m in got["meals"]],
             [m["label"] for m in expected["meals"]],
         )
+
+
+class InventoryCarouselsOnDashboard(unittest.TestCase):
+    def test_helper_empty_pantry_stays_empty_even_with_food_logs(self):
+        logs = [
+            {"date": "2026-08-22", "name": "Unicorn steak", "calories": 900, "protein_g": 80},
+            {"date": "2026-08-21", "name": "Unicorn steak", "calories": 900, "protein_g": 80},
+        ]
+        sug, rem = preview_inventory_carousels(
+            {"ingredients": []},
+            {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            food_logs=logs,
+            consumed={"calories": 0, "protein_g": 0},
+        )
+        self.assertEqual(sug.get("suggestions"), [])
+        self.assertEqual(rem.get("suggestions"), [])
+        self.assertEqual(sug.get("count"), 0)
+        self.assertEqual(rem.get("count"), 0)
+        blob = json.dumps({"suggestions": sug, "removals": rem}).lower()
+        self.assertNotIn("unicorn", blob)
+        self.assertNotIn("chicken breast", blob)
+        self.assertNotIn("greek yogurt", blob)
+
+    def test_helper_restocks_existing_oos_and_does_not_fabricate_removals(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "category": "protein",
+                    "serving_label": "6 oz",
+                    "calories": 280,
+                    "protein_g": 52,
+                    "carbs_g": 0,
+                    "fat_g": 6,
+                    "in_stock": False,
+                },
+                {
+                    "id": "chicken-dup",
+                    "name": "Chicken breast",
+                    "category": "protein",
+                    "serving_label": "8 oz",
+                    "calories": 300,
+                    "protein_g": 50,
+                    "carbs_g": 0,
+                    "fat_g": 7,
+                    "in_stock": True,
+                },
+            ]
+        }
+        pantry_names = {i["name"].lower() for i in inv["ingredients"]}
+        sug, rem = preview_inventory_carousels(
+            inv,
+            {"calories": 2100, "protein_g": 210, "carbs_g": 180, "fat_g": 55},
+            food_logs=[],
+            consumed={"calories": 0, "protein_g": 0},
+        )
+        self.assertTrue(sug.get("suggestions"))
+        restocks = [s for s in sug["suggestions"] if s.get("action") == "restock"]
+        self.assertTrue(restocks)
+        for s in restocks:
+            self.assertIn(str(s.get("name") or "").lower(), pantry_names)
+        for s in rem.get("suggestions") or []:
+            self.assertIn(str(s.get("name") or "").lower(), pantry_names)
+            self.assertEqual(s.get("action"), "remove")
+        for s in sug["suggestions"]:
+            self.assertNotEqual((s.get("name") or "").lower(), "unicorn steak")
+
+    def test_signed_in_dashboard_sets_both_carousel_keys(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ), mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=False
+            ):
+                status, body = dashboard_body(_headers())
+        self.assertEqual(status, 200)
+        nut = body.get("nutrition_store") or {}
+        sug = nut.get("inventory_suggestions") or {}
+        rem = nut.get("inventory_removals") or {}
+        self.assertIsInstance(sug.get("suggestions"), list)
+        self.assertIsInstance(rem.get("suggestions"), list)
+        self.assertIn("count", sug)
+        self.assertIn("count", rem)
+        pantry = {
+            str(i.get("name") or "").lower()
+            for i in (nut.get("inventory") or {}).get("ingredients") or []
+        }
+        self.assertGreaterEqual(len(pantry), 1)
+        for s in rem.get("suggestions") or []:
+            self.assertIn(str(s.get("name") or "").lower(), pantry)
+        for s in sug.get("suggestions") or []:
+            if s.get("action") == "restock":
+                self.assertIn(str(s.get("name") or "").lower(), pantry)
+
+    def test_empty_pantry_dashboard_does_not_invent_staples(self):
+        empty = {"updated_at": "2026-08-22", "ingredients": []}
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "api.dashboard._load_sessions",
+                return_value=([], [], "turso"),
+            ), mock.patch(
+                "api.dashboard._load_health",
+                return_value=(HealthSnapshot(), []),
+            ), mock.patch(
+                "rt_dashboard.inventory_store.load_preview_inventory",
+                return_value=(empty, "test-empty"),
+            ):
+                status, body = dashboard_body(_headers())
+        self.assertEqual(status, 200)
+        nut = body.get("nutrition_store") or {}
+        sug = nut.get("inventory_suggestions") or {}
+        rem = nut.get("inventory_removals") or {}
+        self.assertEqual(sug.get("suggestions"), [])
+        self.assertEqual(rem.get("suggestions"), [])
+        today = ((body.get("coach") or {}).get("today") or {})
+        purchases = today.get("purchases") or today.get("inventory_purchases") or []
+        names = " ".join(str(p.get("name") or "") for p in purchases).lower()
+        self.assertNotIn("chicken", names)
+        self.assertNotIn("unicorn", names)
+        self.assertNotIn("high-protein staples", names)
 
 
 if __name__ == "__main__":

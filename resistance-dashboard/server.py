@@ -762,6 +762,9 @@ def load_dashboard_data(
         nut["targets"] or {},
         consumed,
         food_logs_today=today_logs,
+        now=now,
+        tz_name=tz_name,
+        sleep_battery=sleep_battery,
     )
     inv_base = nut["inventory"] or {"ingredients": []}
     inv_suggestions = suggest_inventory_staples(
@@ -1110,10 +1113,22 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
         if kind == "refresh_meal_plan":
             data = load_dashboard_data(force_refresh=False, user_id=uid)
             store = data.get("nutrition_store") or {}
+            bat = data.get("sleep_battery") or (data.get("recovery") or {}).get(
+                "sleep_battery"
+            )
+            win = ((data.get("calorie_bars") or {}).get("pacing") or {}).get(
+                "window"
+            ) or {}
             plan = generate_meal_plan(
                 store.get("inventory") or {"ingredients": []},
                 store.get("targets") or {},
                 store.get("today_consumed") or {},
+                food_logs_today=store.get("food_logs_today") or [],
+                now=local_now(),
+                tz_name=local_tz_name(),
+                window_start=win.get("window_start"),
+                window_end=win.get("window_end"),
+                sleep_battery=bat if isinstance(bat, dict) else None,
             )
             return {"ok": True, "action": kind, "plan": plan}
         if kind == "refresh_workout_plan":
@@ -1932,11 +1947,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 # allow override for testing
                 if body.get("consumed"):
                     consumed.update({k: float(body["consumed"][k]) for k in body["consumed"] if k in consumed})
+                bat = data.get("sleep_battery") or (data.get("recovery") or {}).get(
+                    "sleep_battery"
+                )
+                win = ((data.get("calorie_bars") or {}).get("pacing") or {}).get(
+                    "window"
+                ) or {}
                 plan = generate_meal_plan(
                     store.get("inventory") or {"ingredients": []},
                     store.get("targets") or {},
                     consumed,
                     food_logs_today=today_logs,
+                    now=local_now(),
+                    tz_name=local_tz_name(),
+                    window_start=win.get("window_start") or body.get("window_start"),
+                    window_end=win.get("window_end") or body.get("window_end"),
+                    eat_slots=body.get("eat_slots") or body.get("slots"),
+                    sleep_battery=bat if isinstance(bat, dict) else None,
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:

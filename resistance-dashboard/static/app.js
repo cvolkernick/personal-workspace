@@ -1872,6 +1872,15 @@
       </div>`;
   }
 
+  /** Local clock for a meal bucket (server eat_at is America/New_York-aware ISO). */
+  function mealBucketClock(m) {
+    if (m && m.eat_at) {
+      const clock = fmtBarWhen(m.eat_at);
+      if (clock && clock !== "—") return clock;
+    }
+    return String((m && m.eat_at_label) || "").trim();
+  }
+
   /** Prefer weighable grams on meal-plan / inventory lines (food scale). */
   function formatPlanPortion(it) {
     if (!it) return "1 serving";
@@ -3185,9 +3194,13 @@
           </div>`;
         });
         const cid = `meal-carousel-${mi}`;
+        const clock = mealBucketClock(m);
+        const clockBit = clock
+          ? ` · <span class="meal-bucket-time">${clock}</span>`
+          : "";
         mealSlides += `<div class="meal-vslide meal-bucket" data-meal-idx="${mi}">
           <div class="meal-bucket-head">
-            <div class="title">${m.label || "Meal"} · ${items.length} item${
+            <div class="title">${m.label || "Meal"}${clockBit} · ${items.length} item${
           items.length === 1 ? "" : "s"
         }</div>
             ${invMacroStrip(m.totals || {}, true)}
@@ -4214,8 +4227,12 @@
       } else if (meals.length) {
         meals.forEach((bucket) => {
           const its = bucket.items || [];
+          const clock = mealBucketClock(bucket);
+          const clockBit = clock
+            ? ` · <span class="today-meal-bucket-time">${clock}</span>`
+            : "";
           html += `<div class="today-meal-bucket">
-            <div class="today-meal-bucket-label">${bucket.label || "Meal"}</div>
+            <div class="today-meal-bucket-label">${bucket.label || "Meal"}${clockBit}</div>
             <ul style="margin:0;padding-left:1.1rem">`;
           its.forEach((it) => {
             const serve = formatPlanPortion(it);

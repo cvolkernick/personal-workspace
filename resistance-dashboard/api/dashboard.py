@@ -111,7 +111,19 @@ def _today_consumed(health, today: str) -> dict:
     }
 
 
-def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dict:
+def preview_meal_plan(
+    inventory,
+    targets,
+    consumed,
+    food_logs_today=None,
+    *,
+    now=None,
+    tz_name=None,
+    window_start=None,
+    window_end=None,
+    eat_slots=None,
+    sleep_battery=None,
+) -> dict:
     """Same remaining-day planner as Pi ``generate_meal_plan``. In-stock pantry only."""
     from rt_dashboard.nutrition_planner import generate_meal_plan
 
@@ -120,7 +132,40 @@ def preview_meal_plan(inventory, targets, consumed, food_logs_today=None) -> dic
         targets or {},
         consumed or {},
         food_logs_today=food_logs_today or [],
+        now=now,
+        tz_name=tz_name,
+        window_start=window_start,
+        window_end=window_end,
+        eat_slots=eat_slots,
+        sleep_battery=sleep_battery,
     )
+
+
+def preview_inventory_carousels(inventory, targets, food_logs=None, consumed=None):
+    """Same staples/removals as Pi ``suggest_inventory_*``. Empty pantry stays empty."""
+    from rt_dashboard.nutrition_planner import (
+        suggest_inventory_removals,
+        suggest_inventory_staples,
+    )
+
+    inv = inventory if isinstance(inventory, dict) else {}
+    if not (inv.get("ingredients") or []):
+        return (
+            {"suggestions": [], "summary": "No pantry items yet.", "count": 0},
+            {"suggestions": [], "summary": "No inventory items to review.", "count": 0},
+        )
+    suggestions = suggest_inventory_staples(
+        inv,
+        targets=targets or {},
+        food_logs=food_logs or [],
+        consumed=consumed or {},
+    )
+    removals = suggest_inventory_removals(
+        inv,
+        targets=targets or {},
+        food_logs=food_logs or [],
+    )
+    return suggestions, removals
 
 
 def preview_workout_plan(
@@ -181,6 +226,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import load_preview_inventory
     from rt_dashboard.nutrition_store import load_workspace_targets
+    from rt_dashboard.grok_planner import dashboard_plan_slots
     from rt_dashboard.workout_store import (
         apply_goals_volume_caps,
         apply_rest_gate,
@@ -189,6 +235,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         load_workspace_goals,
         next_session_brief,
         rest_gate,
+        stamp_today_session,
     )
     from rt_dashboard.recovery import compute_recovery_status
     from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
@@ -253,6 +300,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
 
     targets, targets_src = load_workspace_targets()
     inventory, inventory_src = load_preview_inventory(str(user.get("id") or ""))
+    inv_suggestions, inv_removals = preview_inventory_carousels(
+        inventory,
+        targets,
+        food_logs=health.food_logs or [],
+        consumed=consumed,
+    )
 
     payload = dashboard_payload(sessions)
     payload["health"] = health.to_dict()
@@ -263,8 +316,16 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         "inventory": inventory,
         "sources": {"inventory": inventory_src, "targets": targets_src},
         "meal_plan": preview_meal_plan(
-            inventory, targets, consumed, food_logs_today=today_logs
+            inventory,
+            targets,
+            consumed,
+            food_logs_today=today_logs,
+            now=now,
+            tz_name=tz_name,
+            sleep_battery=sleep_battery,
         ),
+        "inventory_suggestions": inv_suggestions,
+        "inventory_removals": inv_removals,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
         "food_logs_today": today_logs,
         "food_logs_recent": [f.to_dict() for f in (health.food_logs or [])[-80:]],
@@ -351,10 +412,31 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     gate = rest_gate(effective_goals, recovery_dict)
     nxt = next_session_brief(sessions, effective_goals)
     workout_plan = apply_rest_gate(workout_plan, effective_goals, recovery_dict)
+    # Hybrid Today slot: session_type + continuity even when exercises stay [].
+    # SuperGrok Generate still owns the exercise list + cues.
+    _, today_workout = dashboard_plan_slots(
+        str(user.get("id") or "default"),
+        sessions=sessions,
+        goals=effective_goals,
+        recovery=recovery_dict,
+        as_of=today,
+    )
+    workout_plan = stamp_today_session(
+        workout_plan,
+        sessions,
+        effective_goals,
+        recovery_dict,
+        as_of=today,
+        fill_rest=bool(workout_plan.get("is_rest_day"))
+        or not (workout_plan.get("exercises") or []),
+        next_st_override=nxt.get("next_session_type"),
+    )
     pack = build_training_pack(
         effective_goals, catalog, sessions, next_brief=nxt, limit=5
     )
     pack["rest_gate"] = gate
+    pack["training_continuity"] = today_workout.get("training_continuity")
+    payload["workout"] = today_workout
     payload["workout_store"] = {
         "plan": workout_plan,
         "catalog": catalog,
@@ -366,6 +448,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             "equipment": equipment_src,
         },
         "next_session_type": nxt["next_session_type"],
+        "training_continuity": today_workout.get("training_continuity"),
         "training_pack": pack,
     }
     try:
@@ -381,6 +464,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
             sleep_battery=sleep_battery,
             calorie_bars=payload.get("calorie_bars"),
             inventory=inventory,
+            inventory_suggestions=inv_suggestions,
+            inventory_removals=inv_removals,
             inventory_dark=not bool((inventory or {}).get("ingredients")),
         )
     except Exception as exc:  # noqa: BLE001

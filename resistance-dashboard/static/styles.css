@@ -1079,6 +1079,12 @@ textarea {
   margin-bottom: 0.35rem;
 }
 
+.meal-bucket-time,
+.today-meal-bucket-time {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Vertical meal carousel — one planned meal visible; balances height vs Today so far */
 .meal-vcarousel-shell {
   margin-top: 0.55rem;
