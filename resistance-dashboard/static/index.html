@@ -13,14 +13,14 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=quest-rollover-1" />
+    <link rel="stylesheet" href="/styles.css?v=meal-slot-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
-    <script src="/meal-snapshot.js?v=viewer-tz-1" defer></script>
+    <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
     <script src="/trends-paired-avgs.js?v=paired-avgs-2" defer></script>
     <script src="/hidrate-bottle.js?v=bottle-charge-1" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=quest-rollover-1" defer></script>
+    <script src="/app.js?v=meal-slot-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -171,6 +171,12 @@
               title="Rebuild today's workout plan only"
               aria-label="Refresh plan — workout only"
             >Refresh plan</button>
+            <button
+              type="button"
+              id="btn-generate-meal"
+              title="Rebuild today's meal plan from in-stock inventory"
+              aria-label="Generate meal — in-stock only"
+            >Generate meal</button>
             <button type="button" id="btn-scroll-meal-plan">Meal plan ↓</button>
           </div>
         </div>
@@ -419,8 +425,9 @@
           <h2>Today · meal plan</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
             Rest-of-day plan from <strong>in-stock</strong> only · portions in grams.
+            <strong>Generate meal</strong> rebuilds this meal plan from in-stock inventory.
             Adding, editing, removing, or stocking ingredients under
-            <strong>Kitchen</strong> rebuilds this meal plan.
+            <strong>Kitchen</strong> also rebuilds it.
             <strong>Refresh plan</strong> rebuilds the workout plan only.
             <strong>Refresh data</strong> pulls Health and logs only.
           </p>

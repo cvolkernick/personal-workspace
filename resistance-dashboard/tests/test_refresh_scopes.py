@@ -1,8 +1,9 @@
 """FitDash refresh scopes: inventory=meals, Refresh plan=workout, Refresh data=Health.
 
-Chris lock (2026-08-20): add/edit/remove/stock rebuilds the meal plan with a
-visible busy state (meal only — do not re-roll the lift). Refresh plan is
-workout-only. Refresh data is Health / logs only. No extra meal-section button.
+Chris lock (2026-08-22): add/edit/remove/stock rebuilds the meal plan with a
+visible busy state (meal only — do not re-roll the lift). Generate meal is the
+dedicated meal control (same /api/meal-plan/generate). Refresh plan is
+workout-only. Refresh data is Health / logs only.
 Do not recouple Refresh plan or Refresh data.
 """
 
@@ -24,13 +25,14 @@ def _fn(name: str, until: str) -> str:
     return JS.split(name, 1)[1].split(until, 1)[0]
 
 
-class NoExtraMealButton(unittest.TestCase):
-    def test_meal_card_has_busy_banner_not_a_refresh_button(self):
+class GenerateMealControl(unittest.TestCase):
+    def test_one_generate_meal_control_and_busy_banner(self):
+        self.assertIn('id="btn-generate-meal"', HTML)
+        self.assertIn("Generate meal", HTML)
+        self.assertNotIn("Refresh meal plan", HTML)
+        self.assertNotIn('id="btn-refresh-meal"', HTML)
         self.assertIn('id="meal-plan-refreshing"', HTML)
         self.assertIn("Refreshing meal plan", HTML)
-        self.assertNotIn("Refresh meal plan", HTML)
-        self.assertNotIn('id="btn-generate-meal"', HTML)
-        self.assertNotIn('id="btn-refresh-meal"', HTML)
         banner_at = HTML.find('id="meal-plan-refreshing"')
         card_at = HTML.find('id="meal-plan-card"')
         result_at = HTML.find('id="meal-plan-result"')
@@ -178,10 +180,13 @@ class QuestRolloverNotOnRefreshButtons(unittest.TestCase):
 
 class CacheAndHobbyLock(unittest.TestCase):
     def test_static_cache_bumped(self):
-        self.assertIn("?v=quest-rollover-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v52"', SW)
-        self.assertIn("/styles.css?v=quest-rollover-1", SW)
-        self.assertIn("/app.js?v=quest-rollover-1", SW)
+        self.assertIn("?v=meal-slot-1", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v53"', SW)
+        self.assertIn("/styles.css?v=meal-slot-1", SW)
+        self.assertIn("/app.js?v=meal-slot-1", SW)
+        self.assertIn("/meal-snapshot.js?v=meal-slot-1", HTML)
+        self.assertNotIn("quest-rollover-1", HTML)
+        self.assertNotIn("quest-rollover-1", SW)
         self.assertNotIn("refresh-scopes-1", HTML)
         self.assertNotIn("refresh-scopes-1", SW)
         self.assertNotIn("refresh-plan-1", HTML)

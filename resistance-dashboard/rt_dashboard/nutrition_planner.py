@@ -375,7 +375,11 @@ def generate_meal_plan(
     logged = list(food_logs_today or [])
     logged_names = {str(x.get("name") or "").strip().lower() for x in logged if x}
 
+    ings = inventory.get("ingredients") if isinstance(inventory, dict) else None
+    pantry_dark = not isinstance(ings, list) or len(ings) == 0
     if not stocked:
+        from .meal_plan_store import MSG_NO_IN_STOCK, MSG_PANTRY_UNAVAILABLE
+
         return {
             "meals": [],
             "items": [],
@@ -386,8 +390,9 @@ def generate_meal_plan(
             "consumed": consumed,
             "food_logs_today": logged,
             "stocked_count": 0,
+            "pantry_dark": pantry_dark,
             "in_stock_only": True,
-            "message": "No in-stock ingredients. Mark items in stock (or add staples) first.",
+            "message": MSG_PANTRY_UNAVAILABLE if pantry_dark else MSG_NO_IN_STOCK,
         }
 
     # Soft calorie ceiling: don't exceed remaining + 10% or +80 kcal
@@ -513,6 +518,7 @@ def generate_meal_plan(
         "consumed": consumed,
         "food_logs_today": logged,
         "stocked_count": len(stocked),
+        "pantry_dark": False,
         "in_stock_only": True,
         "message": msg,
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",

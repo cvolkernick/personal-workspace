@@ -299,6 +299,8 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     if health_msg and health_msg not in errors:
         errors.append(health_msg)
 
+    from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
+
     targets, targets_src = load_workspace_targets()
     inventory, inventory_src = load_preview_inventory(str(user.get("id") or ""))
     inv_suggestions, inv_removals = preview_inventory_carousels(
@@ -306,6 +308,21 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
         targets,
         food_logs=health.food_logs or [],
         consumed=consumed,
+    )
+    generated_plan = preview_meal_plan(
+        inventory,
+        targets,
+        consumed,
+        food_logs_today=today_logs,
+        now=now,
+        tz_name=tz_name,
+        sleep_battery=sleep_battery,
+    )
+    meal_plan = resolve_dashboard_meal_plan(
+        str(user.get("id") or ""),
+        today,
+        generated_plan,
+        inventory,
     )
 
     payload = dashboard_payload(sessions)
@@ -315,16 +332,12 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     payload["nutrition_store"] = {
         "targets": targets,
         "inventory": inventory,
-        "sources": {"inventory": inventory_src, "targets": targets_src},
-        "meal_plan": preview_meal_plan(
-            inventory,
-            targets,
-            consumed,
-            food_logs_today=today_logs,
-            now=now,
-            tz_name=tz_name,
-            sleep_battery=sleep_battery,
-        ),
+        "sources": {
+            "inventory": inventory_src,
+            "targets": targets_src,
+            "meal_plan": meal_plan.get("source") or "generate",
+        },
+        "meal_plan": meal_plan,
         "inventory_suggestions": inv_suggestions,
         "inventory_removals": inv_removals,
         "food_logs": [f.to_dict() for f in (health.food_logs or [])],
@@ -380,7 +393,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     payload["hidrate_bottle"] = bottle
     if isinstance(payload.get("hydration_bars"), dict):
         payload["hydration_bars"]["bottle"] = bottle
-    # Meal slot is Pi generate_meal_plan (already set). SuperGrok does not invent meals.
+    # Meal slot is Pi generate_meal_plan + last-good persist. SuperGrok does not invent meals.
     meal_plan = payload["nutrition_store"]["meal_plan"]
     goals, goals_src = load_workspace_goals()
     catalog, catalog_src = load_workspace_catalog()

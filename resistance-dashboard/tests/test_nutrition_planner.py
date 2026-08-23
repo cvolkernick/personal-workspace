@@ -666,7 +666,9 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertEqual(plan["meals"], [])
         self.assertEqual(plan["items"], [])
         self.assertEqual(plan["stocked_count"], 0)
-        self.assertIn("No in-stock", plan["message"])
+        self.assertTrue(plan.get("pantry_dark"))
+        self.assertEqual(plan["message"], "Pantry unavailable")
+        self.assertFalse(any((m or {}).get("eat_at") for m in plan.get("meals") or []))
 
     def test_low_remaining_does_not_force_four_slots(self):
         inv = {

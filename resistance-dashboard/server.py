@@ -758,8 +758,9 @@ def load_dashboard_data(
         as_of=local_today,
         food_logs=health.food_logs or [],
     )
+    inv_base = nut["inventory"] or {"ingredients": []}
     auto_plan = generate_meal_plan(
-        nut["inventory"] or {"ingredients": []},
+        inv_base,
         nut["targets"] or {},
         consumed,
         food_logs_today=today_logs,
@@ -767,7 +768,14 @@ def load_dashboard_data(
         tz_name=tz_name,
         sleep_battery=sleep_battery,
     )
-    inv_base = nut["inventory"] or {"ingredients": []}
+    from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
+
+    auto_plan = resolve_dashboard_meal_plan(
+        str(uid or ""),
+        local_today,
+        auto_plan,
+        inv_base,
+    )
     inv_suggestions = suggest_inventory_staples(
         inv_base,
         targets=nut.get("targets") or {},
@@ -1135,6 +1143,14 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 window_start=win.get("window_start"),
                 window_end=win.get("window_end"),
                 sleep_battery=bat if isinstance(bat, dict) else None,
+            )
+            from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
+
+            plan = resolve_dashboard_meal_plan(
+                str(uid or ""),
+                (data.get("meta") or {}).get("local_today") or "",
+                plan,
+                store.get("inventory") or {"ingredients": []},
             )
             return {"ok": True, "action": kind, "plan": plan}
         if kind == "refresh_workout_plan":
@@ -1970,6 +1986,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     window_end=win.get("window_end") or body.get("window_end"),
                     eat_slots=body.get("eat_slots") or body.get("slots"),
                     sleep_battery=bat if isinstance(bat, dict) else None,
+                )
+                from rt_dashboard.meal_plan_store import resolve_dashboard_meal_plan
+                from rt_dashboard.timeutil import local_today_iso as _local_today_iso
+
+                plan = resolve_dashboard_meal_plan(
+                    str(uid or ""),
+                    (data.get("meta") or {}).get("local_today") or _local_today_iso(),
+                    plan,
+                    store.get("inventory") or {"ingredients": []},
                 )
                 self._send_json({"ok": True, "plan": plan})
             except Exception as e:

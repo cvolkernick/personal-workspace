@@ -421,15 +421,42 @@ def build_today_board(
     # Meal plan (stock-only) — pass through planner structure
     meals = list(mp.get("meals") or [])
     meal_items = list(mp.get("items") or [])
+    pantry_dark = bool(inventory_dark or mp.get("pantry_dark"))
+    stocked_count = mp.get("stocked_count")
+    empty = not meals and not meal_items
+    message = mp.get("message") or ""
+    empty_reason = None
+    if empty:
+        rem_b = mp.get("remaining_before_plan") or rem or {}
+        try:
+            rem_cals = float(rem_b.get("calories"))
+            rem_p = float(rem_b.get("protein_g"))
+            rem_full = rem_cals < 150 and rem_p < 20
+        except (TypeError, ValueError):
+            rem_full = False
+        if pantry_dark:
+            message = "Pantry unavailable"
+            empty_reason = "pantry_unavailable"
+        elif stocked_count == 0 or stocked_count == "0":
+            message = "No in-stock items"
+            empty_reason = "no_in_stock"
+        elif rem_full:
+            empty_reason = "remaining_macros"
+        else:
+            empty_reason = "empty"
     meal_block = {
-        "message": mp.get("message") or "",
+        "message": message,
         "in_stock_only": bool(mp.get("in_stock_only", True)),
-        "stocked_count": mp.get("stocked_count"),
+        "stocked_count": stocked_count,
+        "pantry_dark": pantry_dark,
+        "empty_reason": empty_reason,
+        "source": mp.get("source"),
+        "persist_key": mp.get("persist_key"),
         "meals": meals,
         "items": meal_items,
         "planned_totals": mp.get("planned_totals") or {},
         "remaining_after_plan": mp.get("remaining_after_plan") or {},
-        "empty": not meals and not meal_items,
+        "empty": empty,
     }
 
     # Purchase / restock recommendations

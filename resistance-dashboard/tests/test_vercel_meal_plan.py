@@ -166,8 +166,9 @@ class GenerateOnGet(unittest.TestCase):
         self.assertEqual(meal.get("items"), [])
         self.assertEqual(meal.get("meals"), [])
         self.assertEqual(meal.get("stocked_count"), 0)
+        self.assertTrue(meal.get("pantry_dark"))
         self.assertTrue(meal.get("in_stock_only"))
-        self.assertIn("No in-stock", meal.get("message") or "")
+        self.assertEqual(meal.get("message"), "Pantry unavailable")
         self.assertFalse(any((m or {}).get("eat_at") for m in meal.get("meals") or []))
         self.assertNotIn("Connect SuperGrok", meal.get("message") or "")
         nut = body.get("nutrition_store") or {}
@@ -199,7 +200,8 @@ class GenerateOnGet(unittest.TestCase):
         self.assertEqual(plan["items"], [])
         self.assertEqual(plan["meals"], [])
         self.assertEqual(plan["stocked_count"], 0)
-        self.assertIn("No in-stock", plan["message"])
+        self.assertFalse(plan.get("pantry_dark"))
+        self.assertEqual(plan["message"], "No in-stock items")
 
     def test_meal_plan_route_returns_same_planner(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
