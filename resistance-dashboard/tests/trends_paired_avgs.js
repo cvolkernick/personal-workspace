@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * #254/#258: Avg intake / Avg burned / Avg deficit share the Σ 60d
- * paired-days window. Same pair-day honesty as #243. No invented rows.
+ * #254/#258/#268: Avg intake / Avg burned / Avg deficit share the Σ 60d
+ * paired-days window. Same pair-day honesty as #243. Sign: surplus +,
+ * deficit − (mean intake − burned). No invented rows.
  */
 "use strict";
 
@@ -67,22 +68,22 @@ almostEqual(stats.avgIn, stats.sumIn / 4, "avg intake = Σ intake / N");
 almostEqual(stats.avgOut, stats.sumOut / 4, "avg burned = Σ burned / N");
 almostEqual(stats.avgIn, 1777.75, "avg intake 1777.75");
 almostEqual(stats.avgOut, 2355.5, "avg burned 2355.5");
-const perDayDeltas = [2500 - 2000, 2300 - 2200, 2400 - 1800, 2222 - 1111];
+const perDayDeltas = [2000 - 2500, 2200 - 2300, 1800 - 2400, 1111 - 2222];
 const meanDelta =
   perDayDeltas.reduce(function (a, b) {
     return a + b;
   }, 0) / perDayDeltas.length;
 almostEqual(stats.sumDelta, perDayDeltas.reduce(function (a, b) {
   return a + b;
-}, 0), "sumDelta is Σ (burned_i − intake_i)");
+}, 0), "sumDelta is Σ (intake_i − burned_i)");
 almostEqual(stats.avgDelta, meanDelta, "avgDelta is mean of per-day deltas");
 almostEqual(
   stats.avgDelta,
-  stats.avgOut - stats.avgIn,
-  "mean(delta) matches burned_avg − intake_avg on the same pair set"
+  stats.avgIn - stats.avgOut,
+  "mean(delta) matches intake_avg − burned_avg on the same pair set"
 );
-almostEqual(stats.avgDelta, 577.75, "avg deficit 577.75 (positive = deficit)");
-assert(stats.avgDelta > 0, "this fixture is a net deficit");
+almostEqual(stats.avgDelta, -577.75, "avg deficit −577.75 (negative = deficit)");
+assert(stats.avgDelta < 0, "this fixture is a net deficit");
 assert(
   JSON.stringify(nutrition) === JSON.stringify(nutritionCopy),
   "must not invent or mutate nutrition rows"
@@ -133,7 +134,7 @@ const nanSkip = avgs.pairedCalorieWindow(
 assert(nanSkip.pairDays === 1, "NaN intake is skipped like Σ chips");
 almostEqual(nanSkip.avgIn, 2000, "remaining pair avg intake");
 almostEqual(nanSkip.avgOut, 2100, "remaining pair avg burned");
-almostEqual(nanSkip.avgDelta, 100, "remaining pair avg deficit");
+almostEqual(nanSkip.avgDelta, -100, "remaining pair avg deficit");
 
 const surplus = avgs.pairedCalorieWindow(
   [
@@ -147,13 +148,15 @@ const surplus = avgs.pairedCalorieWindow(
   60,
   now
 );
-almostEqual(surplus.avgDelta, (2000 - 2500 + 2100 - 2300) / 2, "surplus is mean of per-day deltas");
-assert(surplus.avgDelta < 0, "intake > burned → negative surplus");
-assert(avgs.formatAvgDelta(surplus.pairDays, surplus.sumDelta) === "−350", "surplus shown as −");
+almostEqual(surplus.avgDelta, (2500 - 2000 + 2300 - 2100) / 2, "surplus is mean of per-day deltas");
+assert(surplus.avgDelta > 0, "intake > burned → positive surplus");
+assert(avgs.formatAvgDelta(surplus.pairDays, surplus.sumDelta) === "+350", "surplus shown as +");
 assert(avgs.deltaChipKind(surplus.pairDays, surplus.avgDelta) === "chip-surplus", "surplus tint");
 
-assert(avgs.formatAvgDelta(3, 1200) === "+400", "deficit shown as +");
-assert(avgs.deltaChipKind(3, 400) === "chip-deficit", "deficit tint");
+assert(avgs.formatAvgDelta(3, -1200) === "−400", "deficit shown as −");
+assert(avgs.deltaChipKind(3, -400) === "chip-deficit", "deficit tint");
+assert(avgs.formatAvgDelta(3, 1200) === "+400", "surplus shown as +");
+assert(avgs.deltaChipKind(3, 400) === "chip-surplus", "surplus tint on +");
 assert(avgs.formatAvgDelta(2, 0) === "0", "balanced mean is 0");
 assert(avgs.deltaChipKind(2, 0) === "chip-balance", "balanced tint");
 assert(avgs.deltaChipKind(0, null) === "chip-balance", "empty Δ uses balance chrome");
@@ -241,9 +244,9 @@ assert(row.innerHTML.indexOf("Avg burned") !== -1, "Avg burned chip");
 assert(row.innerHTML.indexOf("Avg deficit") !== -1, "Avg deficit chip on the same row");
 assert(row.innerHTML.indexOf("2,000") !== -1 || row.innerHTML.indexOf("2000") !== -1, "avg intake value");
 assert(row.innerHTML.indexOf("2,400") !== -1 || row.innerHTML.indexOf("2400") !== -1, "avg burned value");
-assert(row.innerHTML.indexOf("+400") !== -1, "avg deficit +400 from the same 3 paired days");
-assert(row.innerHTML.indexOf("+deficit") !== -1, "sign copy: +deficit");
-assert(row.innerHTML.indexOf("−surplus") !== -1, "sign copy: −surplus");
+assert(row.innerHTML.indexOf("−400") !== -1, "avg deficit −400 from the same 3 paired days");
+assert(row.innerHTML.indexOf("−deficit") !== -1, "sign copy: −deficit");
+assert(row.innerHTML.indexOf("+surplus") !== -1, "sign copy: +surplus");
 assert(row.innerHTML.indexOf("chip-deficit") !== -1, "deficit tint on the Δ chip");
 assert(row.innerHTML.indexOf("chicken") === -1, "does not invent food");
 assert(row.innerHTML.indexOf("oats") === -1, "does not invent food");
@@ -284,10 +287,10 @@ const surplusPaint = avgs.paintAvgChips(
   },
   now
 );
-assert(surplusPaint && surplusPaint.avgDelta === -500, "paint surplus from one pair");
+assert(surplusPaint && surplusPaint.avgDelta === 500, "paint surplus from one pair");
 const surplusRow = els["trends-avg-row"];
 assert(surplusRow.innerHTML.indexOf("Avg deficit") !== -1, "surplus still labeled Avg deficit");
-assert(surplusRow.innerHTML.indexOf("−500") !== -1, "surplus value is negative");
+assert(surplusRow.innerHTML.indexOf("+500") !== -1, "surplus value is positive");
 assert(surplusRow.innerHTML.indexOf("chip-surplus") !== -1, "surplus tint");
 assert(surplusRow.innerHTML.indexOf("chicken") === -1, "surplus paint does not invent food");
 

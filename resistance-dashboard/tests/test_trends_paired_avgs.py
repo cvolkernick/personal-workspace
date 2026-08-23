@@ -1,7 +1,8 @@
-"""FitDash #254/#258: Trends avgs on the Σ 60d paired window.
+"""FitDash #254/#258/#268: Trends avgs on the Σ 60d paired window.
 
 Overlay only — same pairDays set as the Σ chips (days with both series).
-Avg deficit = mean(burned_i − intake_i). No invented food. No extra function.
+Avg deficit = mean(intake_i − burned_i). Deficit negative/red, surplus
+positive/green. No invented food. No extra function.
 """
 
 from __future__ import annotations
@@ -22,14 +23,14 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
     def test_overlay_wired_under_trends_card(self):
         self.assertIn("Calories intake vs burned · 60d", HTML)
         self.assertIn('id="nutrition-note"', HTML)
-        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-3", HTML)
-        self.assertNotIn("/trends-paired-avgs.js?v=paired-avgs-2", HTML)
+        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-4", HTML)
+        self.assertNotIn("/trends-paired-avgs.js?v=paired-avgs-3", HTML)
         self.assertIn("Avg intake", OVERLAY)
         self.assertIn("Avg burned", OVERLAY)
         self.assertIn("Avg deficit", OVERLAY)
         self.assertIn("kcal/day", OVERLAY)
-        self.assertIn("+deficit", OVERLAY)
-        self.assertIn("−surplus", OVERLAY)
+        self.assertIn("−deficit", OVERLAY)
+        self.assertIn("+surplus", OVERLAY)
         self.assertIn('row.id = "trends-avg-row"', OVERLAY)
         self.assertIn("trends-avg-intake", OVERLAY)
         self.assertIn("trends-avg-burned", OVERLAY)
@@ -55,7 +56,7 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
         self.assertIn("health.calories_burned", OVERLAY)
         self.assertIn("avgIn: pairDays > 0 ? sumIn / pairDays : null", OVERLAY)
         self.assertIn("avgOut: pairDays > 0 ? sumOut / pairDays : null", OVERLAY)
-        self.assertIn("sumDelta += vout - vin;", OVERLAY)
+        self.assertIn("sumDelta += vin - vout;", OVERLAY)
         self.assertIn(
             "avgDelta: pairDays > 0 ? sumDelta / pairDays : null", OVERLAY
         )
