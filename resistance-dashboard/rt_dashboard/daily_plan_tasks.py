@@ -21,6 +21,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
@@ -246,6 +247,20 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             if not isinstance(bucket, dict):
                 continue
             label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            clock = str(bucket.get("eat_at_label") or "").strip()
+            if not clock and bucket.get("eat_at"):
+                try:
+                    raw_eat = str(bucket.get("eat_at") or "")
+                    if raw_eat.endswith("Z"):
+                        raw_eat = raw_eat[:-1] + "+00:00"
+                    eat_dt = datetime.fromisoformat(raw_eat)
+                    h24 = eat_dt.hour
+                    h = h24 % 12 or 12
+                    clock = f"{h}:{eat_dt.minute:02d} {'AM' if h24 < 12 else 'PM'}"
+                except ValueError:
+                    clock = ""
+            if clock:
+                label = f"{label} · {clock}"
             items = list(bucket.get("items") or [])
             if not items:
                 continue
