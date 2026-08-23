@@ -139,11 +139,84 @@ def _coerce_serving_g(raw: dict) -> Optional[float]:
     return None
 
 
+_MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
+# Health imports often land as "1 logged serving (avg)" with macros and no mass.
+_GENERIC_SERVING_RE = re.compile(
+    r"^\s*(?:\d+(?:\.\d+)?\s+)?(?:logged\s+)?servings?\s*(?:\([^)]*\))?\s*$",
+    re.I,
+)
+SERVING_GRAMS_REQUIRED_MSG = (
+    "serving grams required — logged serving has no weighable mass"
+)
+
+
+def _has_macros(raw: dict) -> bool:
+    if not isinstance(raw, dict):
+        return False
+    for k in _MACRO_KEYS:
+        try:
+            if float(raw.get(k) or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def needs_serving_grams(raw: dict) -> bool:
+    """True when macros exist but serving mass is unknown / unparseable.
+
+    Does not invent grams. Cups/eggs/medium stay unknown until the user enters mass.
+    """
+    if not isinstance(raw, dict):
+        return False
+    if not _has_macros(raw):
+        return False
+    return _coerce_serving_g(raw) is None
+
+
+def serving_grams_required(raw: dict) -> bool:
+    """Block save for Health logged-serving / generic serving labels without mass."""
+    if not needs_serving_grams(raw):
+        return False
+    label = str(raw.get("serving_label") or "").strip()
+    if not label:
+        return False
+    if re.search(r"logged\s+serving", label, re.I):
+        return True
+    return bool(_GENERIC_SERVING_RE.match(label))
+
+
+def require_serving_grams_or_raise(raw: dict) -> None:
+    if serving_grams_required(raw):
+        raise ValueError(SERVING_GRAMS_REQUIRED_MSG)
+
+
+def serving_grams_nudge_text(items: Optional[Sequence[dict]]) -> str:
+    """Honest FitDash note when plan foods have macros but no weighable mass."""
+    missing: List[str] = []
+    seen = set()
+    for it in items or []:
+        if not isinstance(it, dict):
+            continue
+        if not needs_serving_grams(it):
+            continue
+        name = str(it.get("name") or "").strip()
+        key = name.lower()
+        if not name or key in seen:
+            continue
+        seen.add(key)
+        missing.append(name)
+    if not missing:
+        return ""
+    shown = missing[:3]
+    extra = f" (+{len(missing) - 3} more)" if len(missing) > 3 else ""
+    return f"Set serving grams on {', '.join(shown)}{extra} to get weighable portions."
+
+
 # Continuous meal portions (issue #267). Not locked to whole inventory servings.
 MIN_PORTION_G = 25.0
 PORTION_STEP_G = 5.0
 MAX_PORTION_G = 1200.0
-_MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
 
 
 def format_portion_label(
@@ -533,6 +606,7 @@ def generate_meal_plan(
             "pantry_dark": pantry_dark,
             "in_stock_only": True,
             "message": MSG_PANTRY_UNAVAILABLE if pantry_dark else MSG_NO_IN_STOCK,
+            "serving_grams_nudge": "",
         }
 
     # Soft calorie ceiling: don't exceed remaining + 10% or +80 kcal
@@ -663,6 +737,7 @@ def generate_meal_plan(
         "pantry_dark": False,
         "in_stock_only": True,
         "message": msg,
+        "serving_grams_nudge": serving_grams_nudge_text(plan_items),
         "generated_at": datetime.now(timezone.utc).isoformat() + "Z",
     }
 
@@ -1304,6 +1379,7 @@ def _bucket_meals(
 
 
 def add_ingredient(inventory: dict, raw: dict) -> dict:
+    require_serving_grams_or_raise(raw if isinstance(raw, dict) else {})
     inv = deepcopy(inventory) if inventory else {"ingredients": []}
     ing = normalize_ingredient(raw)
     ingredients = inv.setdefault("ingredients", [])
@@ -1394,6 +1470,7 @@ def update_ingredient(inventory: dict, raw: dict) -> dict:
         overlay["serving_g"] = raw.get("serving_g")
     elif existing.get("serving_g") is not None:
         overlay["serving_g"] = existing.get("serving_g")
+    require_serving_grams_or_raise(overlay)
     ing = normalize_ingredient(overlay)
     # Keep the existing id so a rename does not mint a second row.
     ing["id"] = str(existing.get("id") or iid)

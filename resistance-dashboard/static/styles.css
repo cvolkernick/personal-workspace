@@ -2123,6 +2123,47 @@ footer {
   box-sizing: border-box;
 }
 
+.inv-grams-prompt,
+.meal-grams-nudge {
+  margin: 0.2rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.35;
+  color: #f0c36a;
+}
+
+.inv-grams-prompt.compact {
+  margin: 0.15rem 0 0.1rem;
+  font-size: 0.72rem;
+}
+
+.inv-grams-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.inv-grams-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-size: 0.75rem;
+  font-weight: 650;
+}
+
+.inv-grams-form input {
+  font: inherit;
+  font-weight: 500;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid rgba(240, 195, 106, 0.55);
+  border-radius: 8px;
+  background: var(--bg-card);
+  color: var(--text);
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .btn-edit {
   border-color: rgba(61, 156, 240, 0.45) !important;
 }
