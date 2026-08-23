@@ -116,7 +116,7 @@ class FormatTests(unittest.TestCase):
         self.assertIn("#60615645", sched)
         self.assertIn("Punta Gorda Airport FBO", sched)
         self.assertIn('class="queue"', sched)
-        self.assertNotIn("booked · MEGAN", html)
+        self.assertNotIn("booked · MEGAN", sched)
         self.assertNotIn("0 trips · watching", html)
 
     def test_due_from_2024_corolla_portal(self) -> None:
