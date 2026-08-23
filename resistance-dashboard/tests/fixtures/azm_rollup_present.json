@@ -1,0 +1,26 @@
+{
+  "rollupDataPoints": [
+    {
+      "civilStartTime": {"date": {"year": 2026, "month": 8, "day": 16}},
+      "activeZoneMinutes": {
+        "sumInFatBurnHeartZone": "12",
+        "sumInCardioHeartZone": "8",
+        "sumInPeakHeartZone": "2"
+      }
+    },
+    {
+      "civilStartTime": {"date": {"year": 2026, "month": 8, "day": 17}},
+      "active_zone_minutes": {
+        "sum_in_fat_burn_heart_zone": 20,
+        "sum_in_cardio_heart_zone": 6,
+        "sum_in_peak_heart_zone": 1
+      }
+    },
+    {
+      "civilStartTime": {"date": {"year": 2026, "month": 8, "day": 18}},
+      "activeZoneMinutes": {
+        "sumInFatBurnHeartZone": 15
+      }
+    }
+  ]
+}

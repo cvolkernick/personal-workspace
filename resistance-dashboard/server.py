@@ -980,6 +980,7 @@ def load_dashboard_data(
         "health_food_logs": len(health.food_logs or []),
         "health_hydration_days": len(health.hydration),
         "health_calories_burned_days": len(health.calories_burned),
+        "health_active_zone_minutes_days": len(health.active_zone_minutes or []),
         "inventory_count": len((nut["inventory"].get("ingredients") or [])),
         "labs_panels": len((labs.get("panels") or [])),
         "load_ms": elapsed_ms,

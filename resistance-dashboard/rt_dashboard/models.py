@@ -167,6 +167,31 @@ class CaloriesBurnedDay:
 
 
 @dataclass
+class ActiveZoneMinutesDay:
+    """Daily Active Zone Minutes from Google Health dailyRollUp.
+
+    Honest mapping from ActiveZoneMinutesRollupValue only — never invent
+    numbers, and never substitute heart_minutes / active_minutes / steps /
+    burned kcal as AZM.
+
+      sumInFatBurnHeartZone  → fat_burn_minutes  (HeartRateZone.FAT_BURN)
+      sumInCardioHeartZone   → cardio_minutes    (HeartRateZone.CARDIO)
+      sumInPeakHeartZone     → peak_minutes      (HeartRateZone.PEAK)
+    total_minutes is the sum of whichever zone fields were actually present.
+    """
+
+    date: str
+    fat_burn_minutes: Optional[float] = None
+    cardio_minutes: Optional[float] = None
+    peak_minutes: Optional[float] = None
+    total_minutes: Optional[float] = None
+    source: str = "google_health"
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class HealthSnapshot:
     weight: List[WeightSample] = field(default_factory=list)
     sleep: List[SleepSample] = field(default_factory=list)
@@ -176,6 +201,7 @@ class HealthSnapshot:
     food_logs: List[FoodLogEntry] = field(default_factory=list)
     hydration: List[HydrationDay] = field(default_factory=list)
     calories_burned: List[CaloriesBurnedDay] = field(default_factory=list)
+    active_zone_minutes: List[ActiveZoneMinutesDay] = field(default_factory=list)
     error: Optional[str] = None
 
     def to_dict(self) -> Dict[str, Any]:
@@ -187,6 +213,7 @@ class HealthSnapshot:
             "food_logs": [f.to_dict() for f in self.food_logs],
             "hydration": [h.to_dict() for h in self.hydration],
             "calories_burned": [c.to_dict() for c in self.calories_burned],
+            "active_zone_minutes": [a.to_dict() for a in self.active_zone_minutes],
             "error": self.error,
         }
 

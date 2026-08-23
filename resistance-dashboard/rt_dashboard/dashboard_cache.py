@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from .models import (
+    ActiveZoneMinutesDay,
     CaloriesBurnedDay,
     FoodLogEntry,
     HealthSnapshot,
@@ -105,6 +106,7 @@ def health_cache_is_fresh(
             or health.food_logs
             or health.hydration
             or health.calories_burned
+            or health.active_zone_minutes
         )
     )
     if has_data and not last_error:
@@ -210,6 +212,27 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         for c in (data.get("calories_burned") or [])
         if isinstance(c, dict) and c.get("date")
     ]
+
+    def _opt_float(value: Any) -> Optional[float]:
+        if value is None or value == "":
+            return None
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    azm = [
+        ActiveZoneMinutesDay(
+            date=str(a.get("date") or ""),
+            fat_burn_minutes=_opt_float(a.get("fat_burn_minutes")),
+            cardio_minutes=_opt_float(a.get("cardio_minutes")),
+            peak_minutes=_opt_float(a.get("peak_minutes")),
+            total_minutes=_opt_float(a.get("total_minutes")),
+            source=str(a.get("source") or "cache"),
+        )
+        for a in (data.get("active_zone_minutes") or [])
+        if isinstance(a, dict) and a.get("date")
+    ]
     return HealthSnapshot(
         weight=weights,
         sleep=sleep,
@@ -218,6 +241,7 @@ def health_from_dict(data: dict) -> HealthSnapshot:
         food_logs=food_logs,
         hydration=hydration,
         calories_burned=burned,
+        active_zone_minutes=azm,
         error=data.get("error"),
     )
 
@@ -289,6 +313,7 @@ def merge_health_snapshots(
     n = _merge_dated(base.nutrition, update.nutrition)
     h = _merge_dated(base.hydration, update.hydration)
     b = _merge_dated(base.calories_burned, update.calories_burned)
+    azm = _merge_dated(base.active_zone_minutes, update.active_zone_minutes)
     # Food logs: keep all unique entries (date+name+time+cals), prefer update window
     fl_by: Dict[str, Any] = {}
     for item in list(base.food_logs or []) + list(update.food_logs or []):
@@ -317,6 +342,7 @@ def merge_health_snapshots(
         or update.food_logs
         or update.hydration
         or update.calories_burned
+        or update.active_zone_minutes
         or update.sleep_intervals
     )
     if update.error:
@@ -335,6 +361,7 @@ def merge_health_snapshots(
             "food_logs": fl,
             "hydration": h,
             "calories_burned": b,
+            "active_zone_minutes": azm,
             "error": err,
         }
     )
@@ -365,6 +392,7 @@ def save_health_cache(
             or hdict.get("food_logs")
             or hdict.get("hydration")
             or hdict.get("calories_burned")
+            or hdict.get("active_zone_minutes")
         )
         if not has_data and keep_previous_if_empty and prev_health:
             # Keep last good points; attach latest error if any
@@ -386,6 +414,7 @@ def save_health_cache(
             "food_logs": [],
             "hydration": [],
             "calories_burned": [],
+            "active_zone_minutes": [],
             "error": error,
         }
 
@@ -408,6 +437,7 @@ def save_health_cache(
             or hdict.get("food_logs")
             or hdict.get("hydration")
             or hdict.get("calories_burned")
+            or hdict.get("active_zone_minutes")
         ),
     }
 
