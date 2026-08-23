@@ -24,8 +24,10 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
-# Login + Health + Tasks in one consent (same FitDash Google client).
+# Login + Health + Tasks + Calendar events in one consent (same FitDash Google
+# client). Health-only connect stays Calendar-free — see google_auth.py.
 TASKS_SCOPE = "https://www.googleapis.com/auth/tasks"
+CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 LOGIN_SCOPES = [
     "openid",
     "email",
@@ -35,6 +37,7 @@ LOGIN_SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.nutrition.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
     TASKS_SCOPE,
+    CALENDAR_EVENTS_SCOPE,
 ]
 
 # CSRF state store (in-memory; fine for single-process Pi)

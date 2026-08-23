@@ -132,6 +132,8 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(nutrition.items[0].meal_label, "Next meal · 3:30 PM")
         self.assertIn("3:30 PM", nutrition.items[0].title)
         self.assertIn("170g", nutrition.items[0].title)
+        self.assertEqual(nutrition.items[0].eat_at, "2026-08-22T15:30:00-04:00")
+        self.assertEqual(nutrition.items[0].meal_slot, "meal-0")
 
     def test_quest_title_uses_portion_g_as_primary_cue(self):
         board = {

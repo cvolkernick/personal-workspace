@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 from api.auth.session_util import (
+    CALENDAR_EVENTS_SCOPE,
     COOKIE_SOFT_LIMIT,
     LOGIN_SCOPES,
     SESSION_COOKIE,
@@ -21,6 +22,7 @@ from api.auth.session_util import (
     make_session,
     read_session,
     read_session_google,
+    session_has_calendar_scope,
     session_has_tasks_scope,
     session_set_cookie,
 )
@@ -150,6 +152,9 @@ class LoginScopeAndCookie(unittest.TestCase):
     def test_fitdash_login_requests_tasks_scope(self):
         self.assertIn(TASKS_SCOPE, LOGIN_SCOPES)
         self.assertIn(TASKS_SCOPE, PI_LOGIN_SCOPES)
+        self.assertIn(CALENDAR_EVENTS_SCOPE, LOGIN_SCOPES)
+        self.assertIn(CALENDAR_EVENTS_SCOPE, PI_LOGIN_SCOPES)
+        self.assertEqual(list(LOGIN_SCOPES), list(PI_LOGIN_SCOPES))
         start = (ROOT / "api" / "auth" / "google" / "start.py").read_text(
             encoding="utf-8"
         )
@@ -571,6 +576,7 @@ class CompactSessionCookie(unittest.TestCase):
         self.assertTrue(google["refresh_token"].startswith("1//"))
         self.assertFalse(google["access_token"])
         self.assertTrue(session_has_tasks_scope(google))
+        self.assertTrue(session_has_calendar_scope(google))
         self.assertNotIn("1//", json.dumps(read_session(token)))
 
     def test_plus_encoded_scope_counts_as_tasks(self):

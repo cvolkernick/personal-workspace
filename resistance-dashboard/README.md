@@ -105,6 +105,23 @@ https://www.googleapis.com/auth/fitness.sleep.read
 
 Without Google credentials the UI still loads lift charts and recovery from training volume, and surfaces a clear health auth error (does not invent metrics).
 
+### Google login scopes (FitDash sign-in)
+
+Same OAuth client as Health + Tasks. Meal `eat_at` reminders need:
+
+```
+https://www.googleapis.com/auth/calendar.events
+```
+
+Re-consent after this lands (sign in again). Health-only Connect does **not** request Calendar — `health.googleapis.com` rejects access tokens that also carry Calendar (`DISALLOWED_OAUTH_SCOPES`). Login refresh tokens may include Calendar; `GoogleHealthClient` already subset-refreshes to Health-only scopes.
+
+Honest gaps (no fake events):
+
+- Session missing `calendar.events` → skip Calendar, Google Tasks checklist still writes.
+- Calendar API disabled on the Cloud project → same skip + error string.
+- Pi file-token Today (no login session) → no Calendar writes. Vercel / signed-in session only.
+- No `eat_at` on the meal slot → no event.
+
 ## API
 
 - `GET /api/healthz` — liveness
