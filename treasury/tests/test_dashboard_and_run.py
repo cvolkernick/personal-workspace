@@ -54,6 +54,15 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertGreaterEqual(dash.get("count", 0), 1)
         syms = [e["symbol"] for e in dash.get("entries") or []]
         self.assertIn("BE", syms)
+        nvda = next((e for e in dash.get("entries") or [] if e.get("symbol") == "NVDA"), None)
+        self.assertIsNotNone(nvda, "NVDA missing from watchlist dashboard")
+        nvda_blob = " ".join(
+            [str(nvda.get("thesis_fit") or ""), str(nvda.get("notes") or "")]
+        ).lower()
+        self.assertIn("open-source", nvda_blob)
+        self.assertIn("open-weight", nvda_blob)
+        self.assertEqual(nvda.get("status"), "ready")
+        self.assertFalse(bool(nvda.get("held")))
         dive = get_deep_dive_markdown("BE")
         self.assertTrue(dive.get("ok"), dive.get("error"))
         self.assertIn("Bloom", (dive.get("markdown") or "")[:500] or "x")

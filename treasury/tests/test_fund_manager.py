@@ -76,6 +76,41 @@ class TestFundPolicy(unittest.TestCase):
         self.assertIn("BE", summary["symbols"])
         self.assertGreaterEqual(summary["count"], 1)
 
+    def test_watchlist_nvda_open_weight_note(self):
+        """NVDA thesis note mentions open-source/open-weight; not a held or buy claim."""
+        wl = load_watchlist()
+        nvda = next(
+            (
+                e
+                for e in (wl.get("entries") or [])
+                if (e.get("symbol") or "").upper() == "NVDA"
+            ),
+            None,
+        )
+        self.assertIsNotNone(nvda, "NVDA public watchlist entry missing")
+        self.assertEqual(nvda.get("status"), "ready")
+        self.assertNotEqual((nvda.get("status") or "").lower(), "buy")
+        self.assertNotEqual((nvda.get("status") or "").lower(), "held")
+        self.assertFalse(bool(nvda.get("held")))
+        thesis_notes = nvda.get("thesis_notes")
+        if isinstance(thesis_notes, list):
+            extra = " ".join(str(x) for x in thesis_notes)
+        else:
+            extra = str(thesis_notes or "")
+        blob = " ".join(
+            [
+                str(nvda.get("thesis_fit") or ""),
+                str(nvda.get("notes") or ""),
+                extra,
+            ]
+        ).lower()
+        self.assertIn("open-source", blob)
+        self.assertIn("open-weight", blob)
+        self.assertIn("not held", blob)
+        p = load_fund_policy()
+        core = ((p.get("allowlist") or {}).get("core") or [])
+        self.assertNotIn("NVDA", [str(s).upper() for s in core])
+
 
 class TestDecisionLog(unittest.TestCase):
     def test_append_and_load(self):
