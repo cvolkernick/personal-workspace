@@ -1,44 +1,44 @@
 {
   "schema_version": 2,
-  "version_id": "20260805T234722Z",
-  "generated_at": "2026-08-05T23:47:22.732148+00:00",
+  "version_id": "20260823T223323Z",
+  "generated_at": "2026-08-23T22:33:23.621931+00:00",
   "regime": {
     "schema_version": 1,
-    "assessed_at": "2026-08-05T23:47:22.726248+00:00",
-    "version_id": "20260805T234722Z",
-    "method": "multi-axis keyword+domain-prior (impact×confidence)",
+    "assessed_at": "2026-08-18T15:03:00+00:00",
+    "version_id": "20260823T223323Z",
+    "method": "Meridian product judgment 2026-08-18 public-source regime refresh on fixture-scaffold nodes (not live FRED; official FCI missing; not invented FCI/DXY/PCE/curve)",
     "primary": {
       "id": "geopolitical_risk_premium",
       "label": "Geopolitical risk-premium",
-      "probability": 0.3819,
-      "summary": "Great-power competition and export controls dominate risk premia and industrial policy."
+      "probability": 0.42,
+      "summary": "Great-power competition and export controls remain the structural axis; post-MoU Hormuz standoff adds an active Middle East premium (Reuters 2026-08-18 11:03 ET)."
     },
     "secondary": {
       "id": "stagflation_or_supply_shock",
       "label": "Stagflation / supply shock",
-      "probability": 0.2446,
-      "summary": "Energy/supply/wage shocks keep inflation sticky while growth softens."
+      "probability": 0.26,
+      "summary": "Energy/supply shock (Hormuz + energy CPI +14.7% y/y) with a labor stall (July NFP −23k) keep inflation sticky while growth softens."
     },
     "probabilities": {
-      "restrictive_soft_landing": {
-        "label": "Restrictive / soft landing",
-        "probability": 0.2339
-      },
-      "higher_for_longer_slowdown": {
-        "label": "Higher-for-longer + slowdown",
-        "probability": 0.0737
-      },
-      "easing_reacceleration": {
-        "label": "Easing + reacceleration",
-        "probability": 0.0659
+      "geopolitical_risk_premium": {
+        "label": "Geopolitical risk-premium",
+        "probability": 0.42
       },
       "stagflation_or_supply_shock": {
         "label": "Stagflation / supply shock",
-        "probability": 0.2446
+        "probability": 0.26
       },
-      "geopolitical_risk_premium": {
-        "label": "Geopolitical risk-premium",
-        "probability": 0.3819
+      "restrictive_soft_landing": {
+        "label": "Restrictive / soft landing",
+        "probability": 0.17
+      },
+      "higher_for_longer_slowdown": {
+        "label": "Higher-for-longer + slowdown",
+        "probability": 0.12
+      },
+      "easing_reacceleration": {
+        "label": "Easing + reacceleration",
+        "probability": 0.03
       }
     },
     "axes": [
@@ -47,23 +47,24 @@
         "label": "Monetary policy",
         "dominant": "higher_for_longer",
         "dominant_label": "Higher for longer",
-        "probability": 0.6544,
-        "confidence": 0.55,
+        "probability": 0.7,
+        "confidence": 0.62,
+        "note": "Hold + hawk tail (not an easing call). Labor stall is a cut tail, not the base.",
         "states": [
           {
             "id": "higher_for_longer",
             "label": "Higher for longer",
-            "probability": 0.6544
+            "probability": 0.7
           },
           {
             "id": "easing",
             "label": "Easing bias",
-            "probability": 0.2956
+            "probability": 0.2
           },
           {
             "id": "neutral",
             "label": "Neutral",
-            "probability": 0.0
+            "probability": 0.05
           },
           {
             "id": "unknown",
@@ -77,28 +78,29 @@
         "label": "Growth / activity",
         "dominant": "stagflation_risk",
         "dominant_label": "Stagflation risk",
-        "probability": 0.3294,
-        "confidence": 0.55,
+        "probability": 0.38,
+        "confidence": 0.62,
+        "note": "stagflation_risk > soft landing after July labor stall + energy CPI.",
         "states": [
           {
             "id": "soft_landing",
             "label": "Soft landing",
-            "probability": 0.325
+            "probability": 0.24
           },
           {
             "id": "slowdown",
             "label": "Slowdown",
-            "probability": 0.0758
+            "probability": 0.18
           },
           {
             "id": "reacceleration",
             "label": "Reacceleration",
-            "probability": 0.2198
+            "probability": 0.15
           },
           {
             "id": "stagflation_risk",
             "label": "Stagflation risk",
-            "probability": 0.3294
+            "probability": 0.38
           },
           {
             "id": "unknown",
@@ -112,28 +114,29 @@
         "label": "Liquidity / credit",
         "dominant": "loose",
         "dominant_label": "Loose",
-        "probability": 0.461,
-        "confidence": 0.55,
+        "probability": 0.36,
+        "confidence": 0.5,
+        "note": "Mixed qualitative: credit loose, duration/oil tight. Official FCI missing — not a live FRED print.",
         "states": [
           {
             "id": "tight",
             "label": "Tight",
-            "probability": 0.2521
+            "probability": 0.34
           },
           {
             "id": "neutral",
             "label": "Neutral",
-            "probability": 0.2369
+            "probability": 0.15
           },
           {
             "id": "loose",
             "label": "Loose",
-            "probability": 0.461
+            "probability": 0.36
           },
           {
             "id": "unknown",
             "label": "Unknown",
-            "probability": 0.05
+            "probability": 0.15
           }
         ]
       },
@@ -142,23 +145,24 @@
         "label": "Risk appetite",
         "dominant": "mixed",
         "dominant_label": "Mixed",
-        "probability": 0.4691,
+        "probability": 0.48,
         "confidence": 0.55,
+        "note": "Mixed; Hormuz/labor raise risk-off tail without a risk-off call.",
         "states": [
           {
             "id": "risk_on",
             "label": "Risk-on",
-            "probability": 0.1829
+            "probability": 0.15
           },
           {
             "id": "mixed",
             "label": "Mixed",
-            "probability": 0.4691
+            "probability": 0.48
           },
           {
             "id": "risk_off",
             "label": "Risk-off",
-            "probability": 0.298
+            "probability": 0.32
           },
           {
             "id": "unknown",
@@ -172,18 +176,19 @@
         "label": "Geopolitics",
         "dominant": "elevated_competition",
         "dominant_label": "Elevated competition",
-        "probability": 0.5061,
-        "confidence": 0.55,
+        "probability": 0.55,
+        "confidence": 0.62,
+        "note": "elevated_competition + active Middle East premium (Hormuz post-MoU).",
         "states": [
           {
             "id": "elevated_competition",
             "label": "Elevated competition",
-            "probability": 0.5061
+            "probability": 0.55
           },
           {
             "id": "multipolar_fragmentation",
             "label": "Multipolar fragmentation",
-            "probability": 0.4439
+            "probability": 0.4
           },
           {
             "id": "deescalation",
@@ -202,18 +207,19 @@
         "label": "Energy / tech constraint",
         "dominant": "power_constrained_ai",
         "dominant_label": "Power-constrained AI",
-        "probability": 0.8444,
-        "confidence": 0.55,
+        "probability": 0.85,
+        "confidence": 0.62,
+        "note": "power_constrained_ai ~85%; commodity_shock tail from Hormuz/energy CPI.",
         "states": [
           {
             "id": "power_constrained_ai",
             "label": "Power-constrained AI",
-            "probability": 0.8444
+            "probability": 0.85
           },
           {
             "id": "commodity_shock",
             "label": "Commodity shock risk",
-            "probability": 0.1056
+            "probability": 0.1
           },
           {
             "id": "transition_smooth",
@@ -232,42 +238,93 @@
       {
         "id": "geopolitical_risk_premium",
         "label": "Geopolitical risk-premium",
-        "description": "Great-power competition and export controls dominate risk premia and industrial policy.",
-        "probability": 0.3819
+        "description": "Great-power competition and export controls remain the structural axis; post-MoU Hormuz standoff adds an active Middle East premium (Reuters 2026-08-18 11:03 ET).",
+        "probability": 0.42
       },
       {
         "id": "stagflation_or_supply_shock",
         "label": "Stagflation / supply shock",
-        "description": "Energy/supply/wage shocks keep inflation sticky while growth softens.",
-        "probability": 0.2446
+        "description": "Energy/supply shock (Hormuz + energy CPI +14.7% y/y) with a labor stall (July NFP −23k) keep inflation sticky while growth softens.",
+        "probability": 0.26
       },
       {
         "id": "restrictive_soft_landing",
         "label": "Restrictive / soft landing",
         "description": "Policy stays restrictive vs 2010s baseline while growth avoids deep contraction.",
-        "probability": 0.2339
+        "probability": 0.17
       },
       {
         "id": "higher_for_longer_slowdown",
         "label": "Higher-for-longer + slowdown",
-        "description": "Elevated real rates and/or tight credit slow activity; easing delayed.",
-        "probability": 0.0737
+        "description": "Elevated real rates and/or tight credit slow activity; easing delayed. Labor stall raises this tail.",
+        "probability": 0.12
       },
       {
         "id": "easing_reacceleration",
         "label": "Easing + reacceleration",
-        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up.",
-        "probability": 0.0659
+        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up. Down-weighted on hold + hawk tail.",
+        "probability": 0.03
       }
     ],
     "active_forces": [
       {
+        "node_id": "energy-oil-buffer",
+        "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.2,
+        "force": "Post-MoU Hormuz standoff (60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 as of Reuters 2026-08-18 11:03 ET)",
+        "sign": "risk_premium",
+        "sourced": true,
+        "source": "Reuters 2026-08-18 11:03 ET"
+      },
+      {
+        "node_id": "macro-labor-cooling-not-collapse",
+        "title": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.15,
+        "force": "US labor stall (July NFP −23k; May+Jun revised −103k; LFPR 61.4%; BLS 2026-08-07)",
+        "sign": "growth_soft",
+        "sourced": true,
+        "source": "BLS CES 2026-08-07"
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.1,
+        "force": "CPI Jul +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12)",
+        "sign": "sticky_inflation",
+        "sourced": true,
+        "source": "BLS CPI 2026-08-12"
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.55,
+        "weight": 0.9,
+        "force": "Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B) — note only, no new node, no trade",
+        "sign": "attention",
+        "sourced": true,
+        "source": "WIRED / Poolside reports"
+      },
+      {
         "node_id": "geo-great-power-competition",
         "title": "US–China strategic competition remains the primary geopolitical axis",
         "domain": "geopolitics",
         "impact": "high",
         "confidence": 0.85,
-        "weight": 1.275
+        "weight": 1.275,
+        "force": "US–China strategic competition remains the primary geopolitical axis",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "supply-chip-geography",
@@ -275,7 +332,10 @@
         "domain": "supply_chains",
         "impact": "high",
         "confidence": 0.85,
-        "weight": 1.275
+        "weight": 1.275,
+        "force": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "geo-industrial-policy-race",
@@ -283,23 +343,10 @@
         "domain": "geopolitics",
         "impact": "high",
         "confidence": 0.8,
-        "weight": 1.2
-      },
-      {
-        "node_id": "macro-rates-regime",
-        "title": "Global policy rates remain elevated vs 2010s baseline",
-        "domain": "macroeconomics",
-        "impact": "high",
-        "confidence": 0.8,
-        "weight": 1.2
-      },
-      {
-        "node_id": "tech-ai-compute-race",
-        "title": "Frontier AI remains compute- and energy-constrained",
-        "domain": "technology_ai",
-        "impact": "high",
-        "confidence": 0.8,
-        "weight": 1.2
+        "weight": 1.2,
+        "force": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "tech-export-controls-ai",
@@ -307,7 +354,10 @@
         "domain": "technology_ai",
         "impact": "high",
         "confidence": 0.8,
-        "weight": 1.2
+        "weight": 1.2,
+        "force": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "macro-fiscal-impulse-us",
@@ -315,7 +365,10 @@
         "domain": "macroeconomics",
         "impact": "high",
         "confidence": 0.75,
-        "weight": 1.125
+        "weight": 1.125,
+        "force": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "energy-nuclear-renaissance",
@@ -323,17 +376,71 @@
         "domain": "energy",
         "impact": "high",
         "confidence": 0.75,
-        "weight": 1.125
+        "weight": 1.125,
+        "force": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "sign": "structural",
+        "sourced": false
       }
     ],
     "drivers": [
       {
+        "node_id": "energy-oil-buffer",
+        "title": "Oil balances hinge on OPEC+ discipline and non-OPEC supply growth",
+        "domain": "energy",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.2,
+        "force": "Post-MoU Hormuz standoff (60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 as of Reuters 2026-08-18 11:03 ET)",
+        "sign": "risk_premium",
+        "sourced": true,
+        "source": "Reuters 2026-08-18 11:03 ET"
+      },
+      {
+        "node_id": "macro-labor-cooling-not-collapse",
+        "title": "US labor market cooling without a collapse remains the soft-landing fulcrum",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.15,
+        "force": "US labor stall (July NFP −23k; May+Jun revised −103k; LFPR 61.4%; BLS 2026-08-07)",
+        "sign": "growth_soft",
+        "sourced": true,
+        "source": "BLS CES 2026-08-07"
+      },
+      {
+        "node_id": "macro-rates-regime",
+        "title": "Global policy rates remain elevated vs 2010s baseline",
+        "domain": "macroeconomics",
+        "impact": "high",
+        "confidence": 0.62,
+        "weight": 1.1,
+        "force": "CPI Jul +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12)",
+        "sign": "sticky_inflation",
+        "sourced": true,
+        "source": "BLS CPI 2026-08-12"
+      },
+      {
+        "node_id": "tech-ai-compute-race",
+        "title": "Frontier AI remains compute- and energy-constrained",
+        "domain": "technology_ai",
+        "impact": "high",
+        "confidence": 0.55,
+        "weight": 0.9,
+        "force": "Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B) — note only, no new node, no trade",
+        "sign": "attention",
+        "sourced": true,
+        "source": "WIRED / Poolside reports"
+      },
+      {
         "node_id": "geo-great-power-competition",
         "title": "US–China strategic competition remains the primary geopolitical axis",
         "domain": "geopolitics",
         "impact": "high",
         "confidence": 0.85,
-        "weight": 1.275
+        "weight": 1.275,
+        "force": "US–China strategic competition remains the primary geopolitical axis",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "supply-chip-geography",
@@ -341,7 +448,10 @@
         "domain": "supply_chains",
         "impact": "high",
         "confidence": 0.85,
-        "weight": 1.275
+        "weight": 1.275,
+        "force": "Advanced semiconductor manufacturing remains geographically concentrated",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "geo-industrial-policy-race",
@@ -349,23 +459,10 @@
         "domain": "geopolitics",
         "impact": "high",
         "confidence": 0.8,
-        "weight": 1.2
-      },
-      {
-        "node_id": "macro-rates-regime",
-        "title": "Global policy rates remain elevated vs 2010s baseline",
-        "domain": "macroeconomics",
-        "impact": "high",
-        "confidence": 0.8,
-        "weight": 1.2
-      },
-      {
-        "node_id": "tech-ai-compute-race",
-        "title": "Frontier AI remains compute- and energy-constrained",
-        "domain": "technology_ai",
-        "impact": "high",
-        "confidence": 0.8,
-        "weight": 1.2
+        "weight": 1.2,
+        "force": "Industrial policy and tariff tools are now standing instruments, not emergency exceptions",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "tech-export-controls-ai",
@@ -373,7 +470,10 @@
         "domain": "technology_ai",
         "impact": "high",
         "confidence": 0.8,
-        "weight": 1.2
+        "weight": 1.2,
+        "force": "Advanced AI compute remains gated by export controls and packaging capacity",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "macro-fiscal-impulse-us",
@@ -381,7 +481,10 @@
         "domain": "macroeconomics",
         "impact": "high",
         "confidence": 0.75,
-        "weight": 1.125
+        "weight": 1.125,
+        "force": "US fiscal stance remains expansionary relative to pre-2020 norms",
+        "sign": "structural",
+        "sourced": false
       },
       {
         "node_id": "energy-nuclear-renaissance",
@@ -389,91 +492,121 @@
         "domain": "energy",
         "impact": "high",
         "confidence": 0.75,
-        "weight": 1.125
+        "weight": 1.125,
+        "force": "AI data-center load and grid constraints lift nuclear and firm power narratives",
+        "sign": "structural",
+        "sourced": false
       }
     ],
     "inflection_watch": [
+      "Post-MoU Hormuz traffic / oil premium — ME risk can reprice inflation and risk premia (Reuters 2026-08-18).",
+      "July labor stall (NFP −23k; revisions −103k) vs sticky energy CPI — branch between slowdown and stagflation (BLS).",
       "Labor/services inflation path — branch between soft landing and slowdown.",
       "Export-control / Indo-Pacific escalation could reprice risk premia abruptly.",
       "Grid/power delivery vs AI capex plans — binding constraint on reacceleration.",
+      "Official FCI not in this SoT — liquidity is a mixed qualitative judgment (credit loose, duration/oil tight), not a live FRED FCI print.",
       "Credit/funding stress can force growth scare without rate cuts."
     ],
-    "confidence": 0.5,
-    "confidence_overall": 0.5,
+    "confidence": 0.62,
+    "confidence_overall": 0.62,
     "coverage": {
       "node_total": 17,
       "evidence_weight": 17.1,
       "source_modes": [
-        "fixture"
+        "fixture",
+        "meridian_public_source_2026-08-18"
       ]
     },
     "data_vintage": {
       "node_count": 17,
       "source_modes": [
-        "fixture"
+        "fixture",
+        "meridian_public_source_2026-08-18"
       ],
       "fixture_scaffold_dominant": true,
-      "as_of": "2026-08-05T23:47:22.724315+00:00"
+      "hybrid": true,
+      "as_of": "2026-08-18",
+      "fixture_nodes_as_of": "2026-08-05T23:47:22.724315+00:00",
+      "refresh_as_of": "2026-08-18",
+      "refresh_confidence": 0.62,
+      "official_fci": "missing",
+      "live_fred": false,
+      "pi_parked": true,
+      "sot": "nest_offline",
+      "note": "hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT."
     },
     "notes": [
-      "Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.",
-      "Fixture-only source mode on this run."
+      "hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT.",
+      "Confidence 0.62 is Meridian public-source refresh judgment (schema ceiling 0.75). Node graph remains fixture-scaffold vintage 20260805T234722Z — not a live high-confidence market SoT.",
+      "Official FCI missing. Do not treat liquidity axis as a FRED FCI print. DXY, Treasury.gov curve, and July PCE were not sourced for this stamp.",
+      "Post-MoU Hormuz standoff: 60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 (Reuters 2026-08-18 11:03 ET).",
+      "US labor stall: July NFP −23k; May+Jun revised −103k; LFPR 61.4% (BLS 2026-08-07).",
+      "CPI Jul: +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12).",
+      "Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only — no new GFS/L0 node, no trade, no capital may_change.",
+      "Capital implications for watchlist names stay empty (may_change=none while FCC red / book_channel kill rules). No invented residual or FCC marks.",
+      "No new node ids. Existing 17 fixture nodes kept. No --from-fixtures overwrite."
     ],
     "dimensions": {
       "monetary": {
         "label": "higher_for_longer",
         "probabilities": {
-          "higher_for_longer": 0.6544,
-          "easing": 0.2956,
-          "neutral": 0.0,
+          "higher_for_longer": 0.7,
+          "easing": 0.2,
+          "neutral": 0.05,
           "unknown": 0.05
-        }
+        },
+        "note": "Hold + hawk tail (not an easing call). Labor stall is a cut tail, not the base."
       },
       "growth": {
         "label": "stagflation_risk",
         "probabilities": {
-          "soft_landing": 0.325,
-          "slowdown": 0.0758,
-          "reacceleration": 0.2198,
-          "stagflation_risk": 0.3294,
+          "soft_landing": 0.24,
+          "slowdown": 0.18,
+          "reacceleration": 0.15,
+          "stagflation_risk": 0.38,
           "unknown": 0.05
-        }
+        },
+        "note": "stagflation_risk > soft landing after July labor stall + energy CPI."
       },
       "liquidity": {
         "label": "loose",
         "probabilities": {
-          "tight": 0.2521,
-          "neutral": 0.2369,
-          "loose": 0.461,
-          "unknown": 0.05
-        }
+          "tight": 0.34,
+          "neutral": 0.15,
+          "loose": 0.36,
+          "unknown": 0.15
+        },
+        "note": "Mixed qualitative: credit loose, duration/oil tight. Official FCI missing — not a live FRED print."
       },
       "risk_appetite": {
         "label": "mixed",
         "probabilities": {
-          "risk_on": 0.1829,
-          "mixed": 0.4691,
-          "risk_off": 0.298,
+          "risk_on": 0.15,
+          "mixed": 0.48,
+          "risk_off": 0.32,
           "unknown": 0.05
-        }
+        },
+        "note": "Mixed; Hormuz/labor raise risk-off tail without a risk-off call."
       },
       "geopolitics": {
         "label": "elevated_competition",
         "probabilities": {
-          "elevated_competition": 0.5061,
-          "multipolar_fragmentation": 0.4439,
+          "elevated_competition": 0.55,
+          "multipolar_fragmentation": 0.4,
           "deescalation": 0.0,
           "unknown": 0.05
-        }
+        },
+        "note": "elevated_competition + active Middle East premium (Hormuz post-MoU)."
       },
       "energy_tech": {
         "label": "power_constrained_ai",
         "probabilities": {
-          "power_constrained_ai": 0.8444,
-          "commodity_shock": 0.1056,
+          "power_constrained_ai": 0.85,
+          "commodity_shock": 0.1,
           "transition_smooth": 0.0,
           "unknown": 0.05
-        }
+        },
+        "note": "power_constrained_ai ~85%; commodity_shock tail from Hormuz/energy CPI."
       }
     }
   },
@@ -482,14 +615,14 @@
     "primary": {
       "id": "geopolitical_risk_premium",
       "label": "Geopolitical risk-premium",
-      "probability": 0.3819,
-      "summary": "Great-power competition and export controls dominate risk premia and industrial policy."
+      "probability": 0.42,
+      "summary": "Great-power competition and export controls remain the structural axis; post-MoU Hormuz standoff adds an active Middle East premium (Reuters 2026-08-18 11:03 ET)."
     },
     "secondary": {
       "id": "stagflation_or_supply_shock",
       "label": "Stagflation / supply shock",
-      "probability": 0.2446,
-      "summary": "Energy/supply/wage shocks keep inflation sticky while growth softens."
+      "probability": 0.26,
+      "summary": "Energy/supply shock (Hormuz + energy CPI +14.7% y/y) with a labor stall (July NFP −23k) keep inflation sticky while growth softens."
     },
     "axes": [
       {
@@ -497,23 +630,24 @@
         "label": "Monetary policy",
         "dominant": "higher_for_longer",
         "dominant_label": "Higher for longer",
-        "probability": 0.6544,
-        "confidence": 0.55,
+        "probability": 0.7,
+        "confidence": 0.62,
+        "note": "Hold + hawk tail (not an easing call). Labor stall is a cut tail, not the base.",
         "states": [
           {
             "id": "higher_for_longer",
             "label": "Higher for longer",
-            "probability": 0.6544
+            "probability": 0.7
           },
           {
             "id": "easing",
             "label": "Easing bias",
-            "probability": 0.2956
+            "probability": 0.2
           },
           {
             "id": "neutral",
             "label": "Neutral",
-            "probability": 0.0
+            "probability": 0.05
           },
           {
             "id": "unknown",
@@ -527,28 +661,29 @@
         "label": "Growth / activity",
         "dominant": "stagflation_risk",
         "dominant_label": "Stagflation risk",
-        "probability": 0.3294,
-        "confidence": 0.55,
+        "probability": 0.38,
+        "confidence": 0.62,
+        "note": "stagflation_risk > soft landing after July labor stall + energy CPI.",
         "states": [
           {
             "id": "soft_landing",
             "label": "Soft landing",
-            "probability": 0.325
+            "probability": 0.24
           },
           {
             "id": "slowdown",
             "label": "Slowdown",
-            "probability": 0.0758
+            "probability": 0.18
           },
           {
             "id": "reacceleration",
             "label": "Reacceleration",
-            "probability": 0.2198
+            "probability": 0.15
           },
           {
             "id": "stagflation_risk",
             "label": "Stagflation risk",
-            "probability": 0.3294
+            "probability": 0.38
           },
           {
             "id": "unknown",
@@ -562,28 +697,29 @@
         "label": "Liquidity / credit",
         "dominant": "loose",
         "dominant_label": "Loose",
-        "probability": 0.461,
-        "confidence": 0.55,
+        "probability": 0.36,
+        "confidence": 0.5,
+        "note": "Mixed qualitative: credit loose, duration/oil tight. Official FCI missing — not a live FRED print.",
         "states": [
           {
             "id": "tight",
             "label": "Tight",
-            "probability": 0.2521
+            "probability": 0.34
           },
           {
             "id": "neutral",
             "label": "Neutral",
-            "probability": 0.2369
+            "probability": 0.15
           },
           {
             "id": "loose",
             "label": "Loose",
-            "probability": 0.461
+            "probability": 0.36
           },
           {
             "id": "unknown",
             "label": "Unknown",
-            "probability": 0.05
+            "probability": 0.15
           }
         ]
       },
@@ -592,23 +728,24 @@
         "label": "Risk appetite",
         "dominant": "mixed",
         "dominant_label": "Mixed",
-        "probability": 0.4691,
+        "probability": 0.48,
         "confidence": 0.55,
+        "note": "Mixed; Hormuz/labor raise risk-off tail without a risk-off call.",
         "states": [
           {
             "id": "risk_on",
             "label": "Risk-on",
-            "probability": 0.1829
+            "probability": 0.15
           },
           {
             "id": "mixed",
             "label": "Mixed",
-            "probability": 0.4691
+            "probability": 0.48
           },
           {
             "id": "risk_off",
             "label": "Risk-off",
-            "probability": 0.298
+            "probability": 0.32
           },
           {
             "id": "unknown",
@@ -622,18 +759,19 @@
         "label": "Geopolitics",
         "dominant": "elevated_competition",
         "dominant_label": "Elevated competition",
-        "probability": 0.5061,
-        "confidence": 0.55,
+        "probability": 0.55,
+        "confidence": 0.62,
+        "note": "elevated_competition + active Middle East premium (Hormuz post-MoU).",
         "states": [
           {
             "id": "elevated_competition",
             "label": "Elevated competition",
-            "probability": 0.5061
+            "probability": 0.55
           },
           {
             "id": "multipolar_fragmentation",
             "label": "Multipolar fragmentation",
-            "probability": 0.4439
+            "probability": 0.4
           },
           {
             "id": "deescalation",
@@ -652,18 +790,19 @@
         "label": "Energy / tech constraint",
         "dominant": "power_constrained_ai",
         "dominant_label": "Power-constrained AI",
-        "probability": 0.8444,
-        "confidence": 0.55,
+        "probability": 0.85,
+        "confidence": 0.62,
+        "note": "power_constrained_ai ~85%; commodity_shock tail from Hormuz/energy CPI.",
         "states": [
           {
             "id": "power_constrained_ai",
             "label": "Power-constrained AI",
-            "probability": 0.8444
+            "probability": 0.85
           },
           {
             "id": "commodity_shock",
             "label": "Commodity shock risk",
-            "probability": 0.1056
+            "probability": 0.1
           },
           {
             "id": "transition_smooth",
@@ -682,58 +821,78 @@
       {
         "id": "geopolitical_risk_premium",
         "label": "Geopolitical risk-premium",
-        "description": "Great-power competition and export controls dominate risk premia and industrial policy.",
-        "probability": 0.3819
+        "description": "Great-power competition and export controls remain the structural axis; post-MoU Hormuz standoff adds an active Middle East premium (Reuters 2026-08-18 11:03 ET).",
+        "probability": 0.42
       },
       {
         "id": "stagflation_or_supply_shock",
         "label": "Stagflation / supply shock",
-        "description": "Energy/supply/wage shocks keep inflation sticky while growth softens.",
-        "probability": 0.2446
+        "description": "Energy/supply shock (Hormuz + energy CPI +14.7% y/y) with a labor stall (July NFP −23k) keep inflation sticky while growth softens.",
+        "probability": 0.26
       },
       {
         "id": "restrictive_soft_landing",
         "label": "Restrictive / soft landing",
         "description": "Policy stays restrictive vs 2010s baseline while growth avoids deep contraction.",
-        "probability": 0.2339
+        "probability": 0.17
       },
       {
         "id": "higher_for_longer_slowdown",
         "label": "Higher-for-longer + slowdown",
-        "description": "Elevated real rates and/or tight credit slow activity; easing delayed.",
-        "probability": 0.0737
+        "description": "Elevated real rates and/or tight credit slow activity; easing delayed. Labor stall raises this tail.",
+        "probability": 0.12
       },
       {
         "id": "easing_reacceleration",
         "label": "Easing + reacceleration",
-        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up.",
-        "probability": 0.0659
+        "description": "Policy accommodates and growth reaccelerates; risk assets reprice up. Down-weighted on hold + hawk tail.",
+        "probability": 0.03
       }
     ],
     "inflection_watch": [
+      "Post-MoU Hormuz traffic / oil premium — ME risk can reprice inflation and risk premia (Reuters 2026-08-18).",
+      "July labor stall (NFP −23k; revisions −103k) vs sticky energy CPI — branch between slowdown and stagflation (BLS).",
       "Labor/services inflation path — branch between soft landing and slowdown.",
       "Export-control / Indo-Pacific escalation could reprice risk premia abruptly.",
       "Grid/power delivery vs AI capex plans — binding constraint on reacceleration.",
+      "Official FCI not in this SoT — liquidity is a mixed qualitative judgment (credit loose, duration/oil tight), not a live FRED FCI print.",
       "Credit/funding stress can force growth scare without rate cuts."
     ],
-    "confidence_overall": 0.5,
+    "confidence_overall": 0.62,
     "data_vintage": {
       "node_count": 17,
       "source_modes": [
-        "fixture"
+        "fixture",
+        "meridian_public_source_2026-08-18"
       ],
       "fixture_scaffold_dominant": true,
-      "as_of": "2026-08-05T23:47:22.724315+00:00"
+      "hybrid": true,
+      "as_of": "2026-08-18",
+      "fixture_nodes_as_of": "2026-08-05T23:47:22.724315+00:00",
+      "refresh_as_of": "2026-08-18",
+      "refresh_confidence": 0.62,
+      "official_fci": "missing",
+      "live_fred": false,
+      "pi_parked": true,
+      "sot": "nest_offline",
+      "note": "hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT."
     },
     "notes": [
-      "Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.",
-      "Fixture-only source mode on this run."
+      "hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT.",
+      "Confidence 0.62 is Meridian public-source refresh judgment (schema ceiling 0.75). Node graph remains fixture-scaffold vintage 20260805T234722Z — not a live high-confidence market SoT.",
+      "Official FCI missing. Do not treat liquidity axis as a FRED FCI print. DXY, Treasury.gov curve, and July PCE were not sourced for this stamp.",
+      "Post-MoU Hormuz standoff: 60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 (Reuters 2026-08-18 11:03 ET).",
+      "US labor stall: July NFP −23k; May+Jun revised −103k; LFPR 61.4% (BLS 2026-08-07).",
+      "CPI Jul: +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12).",
+      "Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only — no new GFS/L0 node, no trade, no capital may_change.",
+      "Capital implications for watchlist names stay empty (may_change=none while FCC red / book_channel kill rules). No invented residual or FCC marks.",
+      "No new node ids. Existing 17 fixture nodes kept. No --from-fixtures overwrite."
     ]
   },
   "executive_brief": {
     "title": "Executive Brief",
-    "generated_at": "2026-08-05T23:47:22.731910+00:00",
-    "version_id": "20260805T234722Z",
+    "generated_at": "2026-08-23T22:33:23.621737+00:00",
+    "version_id": "20260823T223323Z",
     "items": [
       {
         "rank": 1,
@@ -824,8 +983,8 @@
               "compute",
               "gpu",
               "model",
-              "nvidia",
-              "semiconductor"
+              "nvda",
+              "nvidia"
             ]
           },
           {
@@ -859,7 +1018,7 @@
         "fact": "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
         "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
         "confidence": 0.8,
-        "priority_rationale": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute.",
+        "priority_rationale": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, Energy, AI / Compute.",
         "strategy_links": [
           {
             "priority_id": "treasury_liquidity",
@@ -885,6 +1044,14 @@
             ]
           },
           {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.249,
+            "matched_keywords": [
+              "energy"
+            ]
+          },
+          {
             "priority_id": "ai",
             "priority_label": "AI / Compute",
             "affinity": 0.1765,
@@ -896,6 +1063,7 @@
         "strategy_priorities": [
           "Treasury / Liquidity",
           "Bitcoin",
+          "Energy",
           "AI / Compute"
         ]
       },
@@ -1025,8 +1193,8 @@
   },
   "current_world_state": {
     "title": "Current World State",
-    "version_id": "20260805T234722Z",
-    "updated_at": "2026-08-05T23:47:22.724315+00:00",
+    "version_id": "20260823T223323Z",
+    "updated_at": "2026-08-23T22:33:23.617262+00:00",
     "domains": {
       "geopolitics": {
         "label": "Geopolitics",
@@ -1306,22 +1474,36 @@
     "edges_count": 18,
     "meta": {
       "source_modes": [
-        "fixture"
+        "fixture",
+        "meridian_public_source_2026-08-18"
       ],
       "event_count": 17,
-      "run_id": "20260805T234722Z",
+      "run_id": "20260823T223323Z",
       "node_total": 17,
       "regime_primary": "geopolitical_risk_premium",
-      "regime_confidence": 0.5
+      "regime_confidence": 0.62,
+      "regime_secondary": "stagflation_or_supply_shock",
+      "hybrid_vintage": "hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT.",
+      "refresh": {
+        "kind": "meridian_public_source_regime",
+        "as_of": "2026-08-18",
+        "confidence": 0.62,
+        "invented": false,
+        "from_fixtures": false
+      },
+      "prior_version_id": "20260805T234722Z",
+      "publish_path": "nest_gh_offline",
+      "held": false,
+      "prior_committed_version_id": "20260805T234722Z"
     }
   },
   "implications_for_my_strategy": {
     "title": "Implications for My Strategy",
     "strategy_paths": {
-      "bets": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/bets.md",
-      "intent": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/intent.json",
-      "today": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/strategy/today.md",
-      "positions": "/Users/cvolkernick/personal-workspace-worktrees/horizon-20/investment/positions.md"
+      "bets": "/workspace/strategy/bets.md",
+      "intent": "/workspace/strategy/intent.json",
+      "today": "/workspace/strategy/today.md",
+      "positions": "/workspace/investment/positions.md"
     },
     "paths_exist": {
       "bets": true,
@@ -1391,7 +1573,8 @@
             "affinity": 0.4825,
             "facts": [
               "Leading labs continue multi-billion-dollar training and inference buildouts.",
-              "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+              "Advanced GPU/accelerator supply and packaging remain bottlenecks.",
+              "[Sourced note — WIRED / Poolside reports] Attention weight up on NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only; no new node; no trade."
             ],
             "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
             "confidence": 0.8,
@@ -1408,7 +1591,8 @@
             "affinity": 0.3949,
             "facts": [
               "OPEC+ continues to use coordinated output management as a price-support tool.",
-              "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+              "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions.",
+              "[Sourced 2026-08-18 Reuters 11:03 ET] Post-MoU Hormuz standoff: 60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85. Not a trade mark."
             ],
             "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
             "confidence": 0.7,
@@ -1470,7 +1654,8 @@
             "affinity": 0.8197,
             "facts": [
               "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-              "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+              "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain.",
+              "[Sourced 2026-08-12 BLS] CPI Jul +0.1% m/m / +3.4% y/y; core +0.2% / +2.5%; energy +14.7% y/y. Official FCI, DXY, Treasury.gov curve, and July PCE are not in this SoT."
             ],
             "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
             "confidence": 0.8,
@@ -1549,16 +1734,18 @@
             "affinity": 1.0,
             "facts": [
               "Leading labs continue multi-billion-dollar training and inference buildouts.",
-              "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+              "Advanced GPU/accelerator supply and packaging remain bottlenecks.",
+              "[Sourced note — WIRED / Poolside reports] Attention weight up on NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only; no new node; no trade."
             ],
             "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
             "confidence": 0.8,
-            "rationale": "Affinity 1.00 with AI / Compute via ai, compute, gpu, model, nvidia, semiconductor; node impact=high, confidence=0.8.",
+            "rationale": "Affinity 1.00 with AI / Compute via ai, compute, gpu, model, nvda, nvidia, semiconductor; node impact=high, confidence=0.8.",
             "matched_keywords": [
               "ai",
               "compute",
               "gpu",
               "model",
+              "nvda",
               "nvidia",
               "semiconductor"
             ]
@@ -1636,7 +1823,8 @@
             "affinity": 1.0,
             "facts": [
               "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-              "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+              "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain.",
+              "[Sourced 2026-08-12 BLS] CPI Jul +0.1% m/m / +3.4% y/y; core +0.2% / +2.5%; energy +14.7% y/y. Official FCI, DXY, Treasury.gov curve, and July PCE are not in this SoT."
             ],
             "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
             "confidence": 0.8,
@@ -1786,7 +1974,7 @@
         ]
       }
     ],
-    "linkage_count": 42
+    "linkage_count": 43
   },
   "watchlist": {
     "title": "Watchlist / Radar",
@@ -1895,7 +2083,8 @@
         "why_watch": "Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: AI / Compute, Energy, Treasury / Liquidity. Watch because it touches: AI / Compute, Energy, Treasury / Liquidity.",
         "facts": [
           "Leading labs continue multi-billion-dollar training and inference buildouts.",
-          "Advanced GPU/accelerator supply and packaging remain bottlenecks."
+          "Advanced GPU/accelerator supply and packaging remain bottlenecks.",
+          "[Sourced note — WIRED / Poolside reports] Attention weight up on NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only; no new node; no trade."
         ],
         "interpretation": "Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.",
         "confidence": 0.8,
@@ -1912,8 +2101,8 @@
               "compute",
               "gpu",
               "model",
-              "nvidia",
-              "semiconductor"
+              "nvda",
+              "nvidia"
             ]
           },
           {
@@ -1951,10 +2140,11 @@
         "rank": 4,
         "variable_or_event": "Global policy rates remain elevated vs 2010s baseline",
         "domain": "macroeconomics",
-        "why_watch": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, AI / Compute.",
+        "why_watch": "Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, Energy, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, Energy, AI / Compute.",
         "facts": [
           "Major advanced-economy policy rates are still well above the post-GFC low decade averages.",
-          "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain."
+          "Inflation has cooled from peaks in many economies but services inflation and fiscal deficits keep policy uncertain.",
+          "[Sourced 2026-08-12 BLS] CPI Jul +0.1% m/m / +3.4% y/y; core +0.2% / +2.5%; energy +14.7% y/y. Official FCI, DXY, Treasury.gov curve, and July PCE are not in this SoT."
         ],
         "interpretation": "Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.",
         "confidence": 0.8,
@@ -1986,6 +2176,14 @@
             ]
           },
           {
+            "priority_id": "energy",
+            "priority_label": "Energy",
+            "affinity": 0.249,
+            "matched_keywords": [
+              "energy"
+            ]
+          },
+          {
             "priority_id": "ai",
             "priority_label": "AI / Compute",
             "affinity": 0.1765,
@@ -1997,6 +2195,7 @@
         "strategy_priorities": [
           "Treasury / Liquidity",
           "Bitcoin",
+          "Energy",
           "AI / Compute"
         ],
         "tags": [
@@ -2350,7 +2549,8 @@
         "why_watch": "Ranked #11 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.059). Linked strategy: Energy, Treasury / Liquidity, AI / Compute. Watch because it touches: Energy, Treasury / Liquidity, AI / Compute.",
         "facts": [
           "OPEC+ continues to use coordinated output management as a price-support tool.",
-          "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions."
+          "US shale and other non-OPEC producers remain the swing growth sources outside cartel decisions.",
+          "[Sourced 2026-08-18 Reuters 11:03 ET] Post-MoU Hormuz standoff: 60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85. Not a trade mark."
         ],
         "interpretation": "Energy is a regime swing factor: a supply shock reweights inflation/higher-for-longer; a demand shock reweights growth-scare.",
         "confidence": 0.7,
@@ -2403,7 +2603,8 @@
         "why_watch": "Ranked #12 by priority_score=2.45 (impact=high, confidence=0.7, strategy_boost=0.032). Linked strategy: Treasury / Liquidity, Geopolitical Risk Management, AI / Compute. Watch because it touches: Treasury / Liquidity, Geopolitical Risk Management, AI / Compute.",
         "facts": [
           "Job openings and quits have retreated from peaks while unemployment has only gradually risen in most recent cycles.",
-          "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series."
+          "Wage growth has decelerated from peaks but remains above long-run pre-pandemic averages in many series.",
+          "[Sourced 2026-08-07 BLS] July NFP −23k; May+Jun revised −103k; LFPR 61.4%."
         ],
         "interpretation": "A soft landing needs labor rebalancing without demand destruction; a sharp unemployment jump would reweight toward growth-scare.",
         "confidence": 0.7,
