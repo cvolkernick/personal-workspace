@@ -66,7 +66,7 @@ def hidrate_credentials_present() -> bool:
 
 
 class HidrateClient:
-    """Minimal Parse REST client for Day totals + Bottle.batteryLevel charge."""
+    """Minimal Parse REST client for Day totals, Sip times, Bottle charge."""
 
     def __init__(
         self,

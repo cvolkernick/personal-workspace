@@ -12,6 +12,7 @@ from rt_dashboard.hydration_bars import (
     hydration_pacing,
     hydration_target_ml_from_lbs,
     latest_weight_lbs,
+    timed_sip_samples,
     water_ml_for_day,
     water_ml_for_window,
 )
@@ -104,7 +105,19 @@ class TestHydrationBars(unittest.TestCase):
         # 200 lb → ~3175; paced ~1588; consumed 1600 → on pace
         self.assertEqual(pac["status"], "on_pace")
         self.assertEqual(pac["intake_source"], "hidrate")
+        self.assertTrue(pac["sip_aware"])
+        self.assertEqual(pac["sip_count"], 1)
         self.assertIn(pac.get("band"), ("green", "yellow", "red", "muted"))
+
+    def test_pacing_without_sips_is_unknown_not_on_pace(self):
+        pac = hydration_pacing(
+            consumed_ml=0, target_ml=3000, window_fraction=0.03, sip_aware=False
+        )
+        self.assertEqual(pac["status"], "unknown")
+        self.assertIsNone(pac["consumed"])
+        self.assertIsNone(pac["delta_vs_pace"])
+        self.assertFalse(pac["sip_aware"])
+        self.assertNotEqual(pac["status"], "on_pace")
 
     def test_default_target_without_weight(self):
         now = datetime(2026, 8, 10, 12, 0, 0, tzinfo=timezone.utc)
@@ -117,7 +130,9 @@ class TestHydrationBars(unittest.TestCase):
         )
         self.assertEqual(payload["target_source"], "default")
         self.assertEqual(payload["target_ml"], DEFAULT_HYDRATION_GOAL_ML)
-        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertIsNone(payload["pacing"]["consumed_ml"])
+        self.assertEqual(payload["pacing"]["status"], "unknown")
+        self.assertFalse(payload["pacing"]["sip_aware"])
 
     def test_civil_day_row_alone_is_not_wake_actual(self):
         wake = datetime(2026, 8, 10, 7, 0, 0, tzinfo=timezone.utc)
@@ -136,8 +151,12 @@ class TestHydrationBars(unittest.TestCase):
             now=now,
         )
         self.assertEqual(payload["day"]["water_ml"], 1600.0)
-        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertIsNone(payload["pacing"]["consumed_ml"])
         self.assertEqual(payload["pacing"]["intake_source"], "none")
+        self.assertEqual(payload["pacing"]["status"], "unknown")
+        self.assertFalse(payload["pacing"]["sip_aware"])
+        self.assertNotEqual(payload["pacing"]["status"], "on_pace")
+        self.assertNotEqual(payload["pacing"].get("band"), "green")
 
     def test_civil_only_series_does_not_fake_midnight_split(self):
         """Date-only Day totals must not be split or summed across midnight."""
@@ -158,15 +177,13 @@ class TestHydrationBars(unittest.TestCase):
             now=now,
             tz_name="America/New_York",
         )
-        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertIsNone(payload["pacing"]["consumed_ml"])
         self.assertNotEqual(payload["pacing"]["consumed_ml"], 850.0)
         self.assertNotEqual(payload["pacing"]["consumed_ml"], 150.0)
         self.assertEqual(payload["day"]["water_ml"], 150.0)
-        self.assertAlmostEqual(
-            payload["pacing"]["paced_budget_ml"],
-            payload["target_ml"] * payload["pacing"]["window_fraction"],
-            places=1,
-        )
+        self.assertEqual(payload["pacing"]["status"], "unknown")
+        self.assertIsNone(payload["pacing"]["paced_budget_ml"])
+        self.assertNotEqual(payload["pacing"]["status"], "on_pace")
 
     def test_cross_midnight_retains_prior_evening_ml(self):
         wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
@@ -207,6 +224,9 @@ class TestHydrationBars(unittest.TestCase):
         pac = payload["pacing"]
         self.assertEqual(pac["window"]["source"], "sleep_battery")
         self.assertEqual(pac["consumed_ml"], 550.0)
+        self.assertTrue(pac["sip_aware"])
+        self.assertEqual(pac["sip_count"], 2)
+        self.assertIn(pac["status"], ("on_pace", "ahead", "behind", "start"))
         self.assertEqual(payload["day"]["water_ml"], 150.0)
         self.assertEqual(payload["day"]["date"], "2026-08-23")
         self.assertNotEqual(pac["consumed_ml"], payload["day"]["water_ml"])
@@ -296,8 +316,10 @@ class TestHydrationBars(unittest.TestCase):
             now=now,
             tz_name="America/New_York",
         )
-        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertIsNone(payload["pacing"]["consumed_ml"])
         self.assertEqual(payload["pacing"]["intake_source"], "none")
+        self.assertEqual(payload["pacing"]["status"], "unknown")
+        self.assertFalse(payload["pacing"]["sip_aware"])
         self.assertEqual(payload["day"]["water_ml"], 900.0)
 
     def test_window_helper_skips_date_only_and_missing_amount(self):
@@ -319,6 +341,61 @@ class TestHydrationBars(unittest.TestCase):
         )
         self.assertEqual(got["water_ml"], 120.0)
         self.assertEqual(got["sample_count"], 1)
+
+    def test_early_window_civil_only_is_not_green_on_pace(self):
+        """Civil midnight total + just-awake must not call pace green."""
+        wake = datetime(2026, 8, 10, 7, 0, 0, tzinfo=ET)
+        now = wake + timedelta(minutes=20)
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-10", water_ml=1800, source="hidrate")
+            ],
+            samples=[],
+            weight=[WeightSample(date="2026-08-09", weight_lbs=200)],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-10",
+            now=now,
+            tz_name="America/New_York",
+        )
+        pac = payload["pacing"]
+        self.assertEqual(pac["status"], "unknown")
+        self.assertFalse(pac["sip_aware"])
+        self.assertIsNone(pac["consumed_ml"])
+        self.assertNotEqual(pac["status"], "on_pace")
+        self.assertNotEqual(pac.get("band"), "green")
+        self.assertEqual(payload["day"]["water_ml"], 1800.0)
+        self.assertEqual(len(timed_sip_samples([], payload.get("hydration"))), 0)
+
+    def test_sips_outside_window_still_sip_aware(self):
+        """Timestamps exist but none in this wake → paced 0, not unknown."""
+        wake = datetime(2026, 8, 23, 7, 0, 0, tzinfo=ET)
+        now = datetime(2026, 8, 23, 8, 0, 0, tzinfo=ET)
+        payload = build_hydration_bars_payload(
+            samples=[
+                {
+                    "logged_at": datetime(2026, 8, 22, 22, 30, tzinfo=ET).isoformat(),
+                    "water_ml": 400,
+                    "source": "hidrate",
+                }
+            ],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-23",
+            now=now,
+            tz_name="America/New_York",
+        )
+        pac = payload["pacing"]
+        self.assertTrue(pac["sip_aware"])
+        self.assertEqual(pac["consumed_ml"], 0.0)
+        self.assertEqual(pac["sip_count"], 0)
+        self.assertIn(pac["status"], ("on_pace", "ahead", "behind", "start"))
 
 
 if __name__ == "__main__":

@@ -2,10 +2,11 @@
 
 Window = sleep-battery last_wake_at → empty_at (may cross a civil day).
 Day target = 35 ml/kg from latest weight (2500 fallback). Wake-bar actual =
-sum of timestamped samples in [wake_start, wake_end] (cutoff min(now, end)).
-Pace = actual vs target × window fraction. Civil-day totals
-(``water_ml_for_day``) stay for Trends — never split across midnight.
-Date-only rows are skipped. No wake / no timed sips → honest 0.
+sum of timestamped Sip samples in [wake_start, wake_end] (cutoff min(now, end)).
+Pace = actual vs target × window fraction — only when sip times exist.
+Civil-day totals (``water_ml_for_day``) stay for Trends — never split across
+midnight, and never enough to call pace green / on-pace.
+Date-only rows are skipped. No wake / no timed sips → honest unknown.
 """
 
 from __future__ import annotations
@@ -289,17 +290,66 @@ def water_ml_for_window(
     }
 
 
+def timed_sip_samples(
+    samples: Optional[Sequence[Any]] = None,
+    extra: Optional[Sequence[Any]] = None,
+) -> List[Any]:
+    """Rows with a real event time and ml. Date-only civil totals are skipped."""
+    out: List[Any] = []
+    for src in (samples, extra):
+        for sample in src or []:
+            if water_sample_event_time(sample) is None:
+                continue
+            if _sample_ml(sample) is None:
+                continue
+            out.append(sample)
+    return out
+
+
+def _unknown_hydration_pacing(
+    *,
+    target_ml: float,
+    window_fraction: float,
+) -> Dict[str, Any]:
+    """Honest empty pace when Hidrate has no sip timestamps."""
+    target = max(0.0, float(target_ml or 0))
+    frac = max(0.0, min(1.0, float(window_fraction or 0)))
+    return {
+        "consumed_ml": None,
+        "consumed": None,
+        "target_ml": round(target, 1),
+        "target": round(target, 1),
+        "window_fraction": round(frac, 4),
+        "paced_budget_ml": None,
+        "paced_budget": None,
+        "delta_vs_pace": None,
+        "fill_pct": None,
+        "expected_pct": round(frac * 100.0, 1),
+        "status": "unknown",
+        "summary": "No sip timestamps — wake-window pace unknown.",
+        "sip_aware": False,
+        "sip_count": 0,
+    }
+
+
 def hydration_pacing(
     *,
     consumed_ml: float,
     target_ml: float,
     window_fraction: float,
+    sip_aware: bool = True,
 ) -> Dict[str, Any]:
     """Paced budget vs actual water for the wake-window progress bar.
 
     paced_budget = target_ml * clamp(window_fraction, 0, 1)
     on_pace band: |delta| ≤ max(100 ml, 5% of day target)
+    Without timed sips (``sip_aware=False``) status is unknown — never on-pace.
     """
+    if not sip_aware:
+        return _unknown_hydration_pacing(
+            target_ml=target_ml, window_fraction=window_fraction
+        )
+
     consumed = max(0.0, float(consumed_ml or 0))
     target = max(0.0, float(target_ml or 0))
     frac = max(0.0, min(1.0, float(window_fraction or 0)))
@@ -315,6 +365,7 @@ def hydration_pacing(
             "expected_pct": round(frac * 100.0, 1),
             "status": "no_target",
             "summary": "Need weight for a dynamic water target (35 ml/kg).",
+            "sip_aware": True,
         }
 
     paced = target * frac
@@ -359,6 +410,7 @@ def hydration_pacing(
         "expected_pct": round(expected_pct, 1),
         "status": status,
         "summary": summary,
+        "sip_aware": True,
     }
 
 
@@ -380,10 +432,11 @@ def build_hydration_bars_payload(
       2. 35 ml/kg from latest weight on/before as_of
       3. DEFAULT_HYDRATION_GOAL_ML (2500)
 
-    Wake-bar ``consumed`` = sum of timestamped samples in
+    Wake-bar ``consumed`` = sum of timestamped Sip samples in
     ``[last_wake_at, empty_at]`` (may cross a civil day). Civil-day
     ``hydration`` is only used for ``day`` / Trends — never split or summed
-    across midnight to fake a wake actual. No wake or no timed sips → 0.
+    across midnight to fake a wake actual. No wake or no timed sips →
+    status ``unknown`` (not on-pace).
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -411,7 +464,9 @@ def build_hydration_bars_payload(
     frac = float(window["fraction"])
 
     day = water_ml_for_day(hydration, as_of=as_of)
-    combined: List[Any] = list(samples or []) + list(hydration or [])
+    # Only timestamped sips count. Civil-day Day.totalAmount is Trends-only.
+    timed = timed_sip_samples(samples, hydration)
+    sip_aware = bool(timed)
     # Actual follows sleep-battery wake→empty, not eating_window civil fallback.
     wake_start = bat.get("last_wake_at")
     wake_end = bat.get("empty_at")
@@ -422,13 +477,14 @@ def build_hydration_bars_payload(
             wake_end = (wake_dt + timedelta(hours=budget)).isoformat(
                 timespec="seconds"
             )
-    if not wake_start:
-        win_intake = {"water_ml": 0.0, "sample_count": 0, "source": "none"}
-        consumed = 0.0
+    if not wake_start or not sip_aware:
+        win_intake = {"water_ml": None, "sample_count": 0, "source": "none"}
+        consumed = None
         intake_source = "none"
+        sip_aware = False
     else:
         win_intake = water_ml_for_window(
-            combined,
+            timed,
             window_start=wake_start,
             window_end=wake_end,
             now=now,
@@ -459,9 +515,10 @@ def build_hydration_bars_payload(
         target_source = "default"
 
     pacing = hydration_pacing(
-        consumed_ml=consumed,
+        consumed_ml=consumed if consumed is not None else 0.0,
         target_ml=target,
         window_fraction=frac,
+        sip_aware=sip_aware,
     )
     pacing["window"] = window
     pacing["intake_source"] = intake_source
@@ -472,17 +529,24 @@ def build_hydration_bars_payload(
     pacing["weight_lbs"] = weight_lbs
     pacing["weight_date"] = weight_date
     pacing["ml_per_kg"] = ML_PER_KG
+    pacing["sip_aware"] = sip_aware
+    pacing["sip_count"] = int(win_intake.get("sample_count") or 0)
 
-    # Severity band (same relative ladder as calories)
-    band = pace_vs_expected(
-        consumed=consumed,
-        target=target,
-        window_fraction=frac,
-        kind="hydration",
-    )
-    pacing["band"] = band.get("band")
-    pacing["color"] = band.get("color")
-    pacing["rel_error"] = band.get("rel_error")
+    # Severity band only when sip times exist. Civil midnight must not go green.
+    if sip_aware and consumed is not None:
+        band = pace_vs_expected(
+            consumed=consumed,
+            target=target,
+            window_fraction=frac,
+            kind="hydration",
+        )
+        pacing["band"] = band.get("band")
+        pacing["color"] = band.get("color")
+        pacing["rel_error"] = band.get("rel_error")
+    else:
+        pacing["band"] = "muted"
+        pacing["color"] = None
+        pacing["rel_error"] = None
 
     return {
         "pacing": pacing,

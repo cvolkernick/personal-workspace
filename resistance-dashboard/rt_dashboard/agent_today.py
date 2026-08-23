@@ -105,6 +105,8 @@ def _empty_hydration_wake() -> Dict[str, Any]:
         "window_fraction": None,
         "status": None,
         "civil_day_ml": None,
+        "sip_aware": False,
+        "sip_count": 0,
     }
 
 
@@ -181,12 +183,59 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     }
 
 
+def _sip_count(pacing: Dict[str, Any]) -> Optional[int]:
+    raw = pacing.get("sip_count")
+    if raw is None:
+        win = pacing.get("window_intake")
+        if isinstance(win, dict):
+            raw = win.get("sample_count")
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sip_aware_pacing(pacing: Dict[str, Any]) -> bool:
+    """True only when wake-window pace used real sip times — not civil midnight."""
+    flag = pacing.get("sip_aware")
+    if flag is True:
+        return True
+    if flag is False:
+        return False
+    status = pacing.get("status")
+    if status in (None, "unknown"):
+        return False
+    intake = pacing.get("intake_source")
+    return intake not in (None, "", "none") and status in (
+        "on_pace",
+        "ahead",
+        "behind",
+        "start",
+        "no_target",
+    )
+
+
 def _hydration_wake(payload: Dict[str, Any]) -> Dict[str, Any]:
     bars = _as_dict(payload.get("hydration_bars"))
     pacing = bars.get("pacing")
     if not isinstance(pacing, dict):
         return _empty_hydration_wake()
+    sip_count = _sip_count(pacing)
     # Wake-window actual only. Civil-day ml is informational — never the pace source.
+    if not _sip_aware_pacing(pacing):
+        return {
+            "consumed": None,
+            "target": pacing.get("target"),
+            "pace": None,
+            "intake_source": pacing.get("intake_source") or "none",
+            "window_fraction": pacing.get("window_fraction"),
+            "status": "unknown",
+            "civil_day_ml": pacing.get("civil_day_ml"),
+            "sip_aware": False,
+            "sip_count": sip_count if sip_count is not None else 0,
+        }
     return {
         "consumed": pacing.get("consumed"),
         "target": pacing.get("target"),
@@ -202,6 +251,8 @@ def _hydration_wake(payload: Dict[str, Any]) -> Dict[str, Any]:
         "window_fraction": pacing.get("window_fraction"),
         "status": pacing.get("status"),
         "civil_day_ml": pacing.get("civil_day_ml"),
+        "sip_aware": True,
+        "sip_count": sip_count,
     }
 
 

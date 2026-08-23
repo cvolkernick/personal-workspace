@@ -2789,11 +2789,28 @@
     const paceSum = $("hydration-pacing-summary");
     const paceMeta = $("hydration-pacing-meta");
     if (fill && pacing) {
-      const pct = Math.max(0, Math.min(100, Number(pacing.fill_pct) || 0));
+      const pacedStatuses = {
+        on_pace: true,
+        ahead: true,
+        behind: true,
+        start: true,
+      };
+      const sipAware =
+        pacing.sip_aware === true ||
+        (pacing.sip_aware !== false &&
+          pacing.intake_source &&
+          pacing.intake_source !== "none" &&
+          pacedStatuses[pacing.status]);
+      const rawStatus = pacing.status || "unknown";
+      const status =
+        sipAware && rawStatus !== "unknown" ? rawStatus : "unknown";
+      const pct =
+        status === "unknown"
+          ? 0
+          : Math.max(0, Math.min(100, Number(pacing.fill_pct) || 0));
       const exp = Math.max(0, Math.min(100, Number(pacing.expected_pct) || 0));
       fill.style.width = `${pct}%`;
-      const band = pacing.band || "";
-      const status = pacing.status || "on_pace";
+      const band = status === "unknown" ? "muted" : pacing.band || "";
       fill.className = band
         ? `pace-fill band-${band} ${status}`
         : `pace-fill ${status}`;
@@ -2808,7 +2825,11 @@
           pacing.paced_budget_ml != null
             ? pacing.paced_budget_ml
             : pacing.paced_budget;
-        if (pacing.status && pacing.status !== "no_target" && target != null) {
+        if (status === "unknown") {
+          sum =
+            pacing.summary ||
+            "No sip timestamps — wake-window pace unknown.";
+        } else if (pacedStatuses[status] && target != null) {
           // Prefer concise pace-now line for the athlete glance
           const delta = Number(pacing.delta_vs_pace);
           let paceLine = `pace now ${fmtNum(paced)} ml`;

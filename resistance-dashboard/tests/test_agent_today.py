@@ -70,6 +70,8 @@ POPULATED = {
             "window_fraction": 0.4,
             "intake_source": "hidrate",
             "civil_day_ml": 200.0,
+            "sip_aware": True,
+            "sip_count": 3,
         },
         "bottle": {"available": True, "percent": 81.0, "status": "ok"},
     },
@@ -131,6 +133,8 @@ class ExportFixtures(unittest.TestCase):
         self.assertIsNone(today["hydration_wake"]["consumed"])
         self.assertIsNone(today["hydration_wake"]["target"])
         self.assertIsNone(today["hydration_wake"]["pace"])
+        self.assertFalse(today["hydration_wake"]["sip_aware"])
+        self.assertEqual(today["hydration_wake"]["sip_count"], 0)
         self.assertFalse(today["bottle"]["available"])
         self.assertIsNone(today["bottle"]["percent"])
         self.assertIsNone(today["wake_window"]["last_wake_at"])
@@ -156,6 +160,9 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(hyd["status"], "behind")
         self.assertEqual(hyd["civil_day_ml"], 200.0)
         self.assertNotEqual(hyd["consumed"], hyd["civil_day_ml"])
+        self.assertTrue(hyd["sip_aware"])
+        self.assertEqual(hyd["sip_count"], 3)
+        self.assertEqual(hyd["pace"]["status"], "behind")
         self.assertEqual(today["bottle"]["percent"], 81.0)
         self.assertEqual(today["wake_window"]["last_wake_at"], "2026-08-23T07:00:00-04:00")
         self.assertEqual(today["wake_window"]["empty_at"], "2026-08-23T23:00:00-04:00")
@@ -261,6 +268,77 @@ class ExportFixtures(unittest.TestCase):
             }
         )
         self.assertEqual(body["today"]["active_zone_minutes"], [])
+
+    def test_civil_only_hydration_is_unknown_not_on_pace(self):
+        body = export_agent_today(
+            {
+                "hydration_bars": {
+                    "pacing": {
+                        "consumed": 0.0,
+                        "target": 3175.0,
+                        "status": "on_pace",
+                        "band": "green",
+                        "delta_vs_pace": -40.0,
+                        "intake_source": "none",
+                        "civil_day_ml": 1800.0,
+                        "sip_aware": False,
+                        "sip_count": 0,
+                    }
+                },
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        hyd = body["today"]["hydration_wake"]
+        self.assertIsNone(hyd["consumed"])
+        self.assertIsNone(hyd["pace"])
+        self.assertEqual(hyd["status"], "unknown")
+        self.assertFalse(hyd["sip_aware"])
+        self.assertEqual(hyd["sip_count"], 0)
+        self.assertEqual(hyd["civil_day_ml"], 1800.0)
+        self.assertNotEqual(hyd["status"], "on_pace")
+
+    def test_sip_payload_exports_paced_wake(self):
+        from datetime import datetime, timedelta
+        from zoneinfo import ZoneInfo
+
+        from rt_dashboard.hydration_bars import build_hydration_bars_payload
+        from rt_dashboard.models import HydrationDay, WeightSample
+
+        et = ZoneInfo("America/New_York")
+        wake = datetime(2026, 8, 10, 7, 0, tzinfo=et)
+        now = wake + timedelta(hours=8)
+        bars = build_hydration_bars_payload(
+            hydration=[HydrationDay(date="2026-08-10", water_ml=400, source="hidrate")],
+            samples=[
+                {
+                    "logged_at": (wake + timedelta(hours=1)).isoformat(),
+                    "water_ml": 1600,
+                    "source": "hidrate",
+                }
+            ],
+            weight=[WeightSample(date="2026-08-09", weight_lbs=200)],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-10",
+            now=now,
+            tz_name="America/New_York",
+        )
+        body = export_agent_today(
+            {
+                "hydration_bars": bars,
+                "coach": {"today": {"date": "2026-08-10"}},
+            }
+        )
+        hyd = body["today"]["hydration_wake"]
+        self.assertTrue(hyd["sip_aware"])
+        self.assertEqual(hyd["consumed"], 1600.0)
+        self.assertEqual(hyd["status"], "on_pace")
+        self.assertIsNotNone(hyd["pace"])
+        self.assertEqual(hyd["pace"]["status"], "on_pace")
+        self.assertNotEqual(hyd["consumed"], hyd["civil_day_ml"])
 
 
 class VercelAgentTodayAuth(unittest.TestCase):
@@ -412,11 +490,13 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
         self.assertFalse(body["today"]["bottle"]["available"])
         self.assertIsNone(body["today"]["bottle"]["percent"])
-        # No wake → hydration consumed is 0 from the Sip helper, not civil-day fake green
+        # No wake / no sips → honest empty, not civil-day fake green / on-pace
         hyd = body["today"]["hydration_wake"]
-        self.assertIn(hyd["consumed"], (0, 0.0, None))
-        if hyd["consumed"] in (0, 0.0):
-            self.assertEqual(hyd.get("intake_source"), "none")
+        self.assertIsNone(hyd["consumed"])
+        self.assertIsNone(hyd["pace"])
+        self.assertEqual(hyd.get("status"), "unknown")
+        self.assertFalse(hyd.get("sip_aware"))
+        self.assertNotEqual(hyd.get("status"), "on_pace")
         self.assertIsNone(body["today"]["wake_window"]["last_wake_at"])
         self.assertEqual(body["today"]["active_zone_minutes"], [])
         self._assert_no_secrets(body)
