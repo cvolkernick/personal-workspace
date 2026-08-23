@@ -244,11 +244,31 @@ python3 research/horizon/run_horizon.py --link-only --offline
 - New sources: implement `SourceAdapter.fetch`.
 - Smarter linkage: swap keyword scorer for embeddings later without changing artifact schema.
 - Dashboards / agents: consume `data/world_state_latest.json` and `data/briefs/brief_latest.json`.
+- Offline nest publish while Pi is parked: [docs/OFFLINE_PUBLISH.md](./docs/OFFLINE_PUBLISH.md) (#301).
 
 ---
 
-## 9. Enhancement log
+## 9. Offline publish while Pi is parked (#301)
+
+Approved write path: **nest / GitHub**, not the live Horizon host.
+
+Meridian stamps a new `version_id` (`YYYYMMDDTHHMMSSZ`) onto
+`data/world_state_latest.json` and `data/briefs/brief_latest.*` via PR.
+Grok eng-gates. Consumers read those nest pointers.
+
+Helper: `run_horizon.py --publish-offline` (restamp existing latest; optional
+`--from-fixtures` wraps the shipped offline pipeline). Does not invent facts,
+rates, or regime. Honest empty / held if there is no real update.
+
+When Pi returns: live write resumes on Pi; nest becomes archive / read-cache
+only. **No dual SoT.** No public Vercel SoT. Full recipe:
+[docs/OFFLINE_PUBLISH.md](./docs/OFFLINE_PUBLISH.md).
+
+---
+
+## 10. Enhancement log
 
 | When | Change |
 |------|--------|
 | 2026-08-05 (#20) | Strategy-aware ranking on executive brief + watchlist (`synthesis.py`): mild affinity boost + `strategy_priorities` / `strategy_links` on items. Assessment: `ASSESSMENT_ISSUE_20.md`. |
+| 2026-08-23 (#301) | Nest/GH offline publish path while Pi is parked: `docs/OFFLINE_PUBLISH.md` + `run_horizon.py --publish-offline`. |

@@ -4,6 +4,10 @@ Global Macro & Geopolitical Intelligence System — world-state model + daily sy
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for design.
 
+**Pi parked (write path):** nest / GitHub offline publish — stamp `world_state` /
+brief `version_id` via PR. Recipe: [docs/OFFLINE_PUBLISH.md](./docs/OFFLINE_PUBLISH.md)
+(#301). Do not freestyle live Horizon host writes while Pi is parked.
+
 ## Visual dashboard (primary UX)
 
 ```bash
@@ -52,7 +56,13 @@ python3 research/horizon/run_horizon.py
 
 # Re-link strategy only
 python3 research/horizon/run_horizon.py --link-only --offline
+
+# Nest/GH offline publish while Pi is parked (#301) — restamp existing latest
+python3 research/horizon/run_horizon.py --publish-offline
 ```
+
+See [docs/OFFLINE_PUBLISH.md](./docs/OFFLINE_PUBLISH.md) for the Meridian PR
+recipe, honest empty / held, and Pi cutover (no dual SoT).
 
 ## Test
 
