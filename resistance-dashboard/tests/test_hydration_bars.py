@@ -241,13 +241,13 @@ class TestHydrationBars(unittest.TestCase):
         )
         self.assertEqual(payload["pacing"]["consumed_ml"], 180.0)
         self.assertNotEqual(payload["pacing"]["consumed_ml"], 580.0)
-        old_window = water_ml_for_window(
+        still_in_old = water_ml_for_window(
             samples,
             window_start=old_wake,
             window_end=old_wake + timedelta(hours=16),
-            now=now,
+            now=datetime(2026, 8, 23, 6, 50, tzinfo=ET),
         )
-        self.assertEqual(old_window["water_ml"], 400.0)
+        self.assertEqual(still_in_old["water_ml"], 400.0)
 
     def test_no_wake_is_honest_empty(self):
         now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)
