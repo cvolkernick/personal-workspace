@@ -101,7 +101,7 @@ function makeBtn(attrs) {
     removeAttribute: (k) => {
       delete attributes[k];
     },
-    closest: (sel) => (sel === ".quest-group" ? { querySelector: () => null, querySelectorAll: () => [], classList: { add: () => {} }, appendChild: () => {} } : sel === ".quest-card" ? btn : null),
+    closest: (sel) => (sel === ".quest-group" ? { getAttribute: (k) => (k === "data-group" ? "training" : ""), querySelector: () => null, querySelectorAll: () => [], classList: { add: () => {} }, appendChild: () => {} } : sel === ".quest-card" ? btn : null),
     remove: () => {
       btn.removed = true;
     },
@@ -127,6 +127,7 @@ async function click(btn) {
   assert(fetches[0].method === "POST", "method is POST");
   const body = JSON.parse(fetches[0].body);
   assert(body.task_id === "t1" && body.list_id === "L1", "body carries leaf ids");
+  assert(body.group === "training", "body carries quest group for lift auto-log");
 
   fetches.length = 0;
   let alerted = "";

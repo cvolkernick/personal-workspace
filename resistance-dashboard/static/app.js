@@ -3874,7 +3874,7 @@
     const groupEl = btn.closest && btn.closest(".quest-group");
     const questGroup = (
       btn.getAttribute("data-group")
-      || (groupEl && groupEl.getAttribute("data-group"))
+      || (groupEl && groupEl.getAttribute && groupEl.getAttribute("data-group"))
       || ""
     ).trim();
     const questTitle = (btn.getAttribute("data-title") || "").trim();
