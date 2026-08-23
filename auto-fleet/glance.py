@@ -213,7 +213,7 @@ def _ymd(value: Any):
 
 
 def human_when(start: Any, end: Any) -> str:
-    """Human date span for Schedule rows, e.g. Aug 28–30. No invented times."""
+    """Compact start → end in America/New_York calendar dates."""
     a = _ymd(start)
     b = _ymd(end)
     if a is None and b is None:
@@ -225,8 +225,41 @@ def human_when(start: Any, end: Any) -> str:
     if a == b:
         return f"{_MONTHS[a.month - 1]} {a.day}"
     if a.month == b.month and a.year == b.year:
-        return f"{_MONTHS[a.month - 1]} {a.day}–{b.day}"
-    return f"{_MONTHS[a.month - 1]} {a.day}–{_MONTHS[b.month - 1]} {b.day}"
+        return f"{_MONTHS[a.month - 1]} {a.day} → {b.day}"
+    return f"{_MONTHS[a.month - 1]} {a.day} → {_MONTHS[b.month - 1]} {b.day}"
+
+
+def pickup_label(booking: Mapping[str, Any]) -> str:
+    """FBO name from mail, else coordinate / driveway. Does not invent trips."""
+    raw = str(booking.get("pickup") or "").strip()
+    blob = raw.lower()
+    if raw and ("fbo" in blob or "airport" in blob):
+        return raw
+    return "coordinate / driveway"
+
+
+def trip_flags(
+    booking: Mapping[str, Any],
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+) -> list[str]:
+    flags: list[str] = []
+    if any(
+        isinstance(d, dict) and d.get("name")
+        for d in (booking.get("extra_drivers") or [])
+    ):
+        flags.append("extra driver")
+    if booking.get("pay_window"):
+        flags.append("pay window")
+    if booking.get("guest_asks"):
+        flags.append("needs phone tap")
+    tid = str(booking.get("trip_id") or "")
+    if tid and any(
+        tid in f"{(it or {}).get('title') or ''} {(it or {}).get('notes') or ''}"
+        for it in (invoice_items or [])
+        if isinstance(it, dict)
+    ):
+        flags.append("invoice-ready")
+    return flags
 
 
 def trip_phase(booking: Mapping[str, Any]) -> str:
@@ -258,17 +291,25 @@ def queue_bookings(
     return live, canceled
 
 
-def booking_row_html(booking: Mapping[str, Any], *, next_trip: bool = False) -> str:
-    """Structured Schedule row — not a joined prose line."""
+def booking_row_html(
+    booking: Mapping[str, Any],
+    *,
+    next_trip: bool = False,
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+    car: str = "",
+) -> str:
+    """Structured Schedule row — table columns, not a joined prose line."""
     phase = trip_phase(booking)
+    status = "cancelled" if phase == "canceled" else phase
     when = human_when(booking.get("start"), booking.get("end"))
     chip_kind = "ok" if phase == "active" else ("mute" if phase == "canceled" else "")
     next_badge = _chip("NEXT", "next") if next_trip else ""
-    who = (
-        f'<div class="booking-who">{_esc(booking.get("guest"))}</div>'
-        if booking.get("guest")
-        else ""
-    )
+    who_inner = ""
+    if car:
+        who_inner += f'<span class="booking-car">{_esc(car)}</span>'
+    if booking.get("guest"):
+        who_inner += _esc(booking.get("guest"))
+    who = f'<div class="booking-who">{who_inner}</div>'
     res = ""
     if booking.get("trip_id"):
         tid = _esc(booking["trip_id"])
@@ -276,35 +317,61 @@ def booking_row_html(booking: Mapping[str, Any], *, next_trip: bool = False) -> 
             f'<button type="button" class="booking-res" data-copy="{tid}" '
             f'title="Copy reservation">#{tid}</button>'
         )
-    pickup = (
-        f'<span class="booking-pickup">{_esc(booking.get("pickup"))}</span>'
-        if booking.get("pickup")
-        else ""
-    )
+    pickup = f'<div class="booking-pickup">{_esc(pickup_label(booking))}</div>'
     when_html = (
         f'<div class="booking-when">{_esc(when)} <span class="tz">ET</span></div>'
         if when
-        else ""
+        else '<div class="booking-when"></div>'
     )
+    flag_html = "".join(
+        _chip(flag, "warn") for flag in trip_flags(booking, invoice_items)
+    )
+    phone = ""
+    if booking.get("phone"):
+        tel = "".join(ch for ch in str(booking["phone"]) if ch.isdigit() or ch == "+")
+        phone = (
+            f'<a class="booking-phone" href="tel:{_esc(tel)}">'
+            f'{_esc(booking["phone"])}</a>'
+        )
+    extra = f'<div class="booking-extra">{flag_html}{phone}</div>' if (flag_html or phone) else ""
     cls = f"booking {phase}" + (" next" if next_trip else "")
     return (
         f'<article class="{cls}" data-phase="{_esc(phase)}">'
         f'<span class="booking-dot" aria-hidden="true"></span>'
-        f'<div class="booking-main">'
-        f'<div class="booking-top">{when_html}'
-        f'<div class="booking-flags">{next_badge}{_chip(phase, chip_kind)}</div></div>'
-        f'{who}<div class="booking-meta">{res}{pickup}</div>'
-        f"</div></article>"
+        f"{when_html}"
+        f'<div class="booking-status">{next_badge}{_chip(status, chip_kind)}</div>'
+        f"{who}{pickup}<div>{res}</div>{extra}</article>"
     )
 
 
-def schedule_queue_html(schedule: Sequence[Mapping[str, Any]] | None) -> str:
+def schedule_queue_html(
+    schedule: Sequence[Mapping[str, Any]] | None,
+    invoice_items: Sequence[Mapping[str, Any]] | None = None,
+) -> str:
     live, canceled = queue_bookings(schedule)
-    rows = [booking_row_html(b, next_trip=(i == 0)) for i, b in enumerate(live)]
-    rows.extend(booking_row_html(b) for b in canceled)
-    if not rows:
-        return '<div class="empty">No upcoming trips</div>'
-    return f'<div class="queue">{"".join(rows)}</div>'
+    head = (
+        '<div class="queue-cols" aria-hidden="true"><span></span><span>When</span>'
+        "<span>Status</span><span>Guest</span><span>Pickup</span><span>Res</span></div>"
+    )
+    live_rows = [
+        booking_row_html(b, next_trip=(i == 0), invoice_items=invoice_items)
+        for i, b in enumerate(live)
+    ]
+    live_body = (
+        f'<div class="queue">{head}{"".join(live_rows)}</div>'
+        if live_rows
+        else '<div class="empty">No upcoming trips</div>'
+    )
+    canceled_body = ""
+    if canceled:
+        c_rows = "".join(
+            booking_row_html(b, invoice_items=invoice_items) for b in canceled
+        )
+        canceled_body = (
+            f'<details class="queue-canceled"><summary>Cancelled ({len(canceled)})</summary>'
+            f'<div class="queue">{c_rows}</div></details>'
+        )
+    return live_body + canceled_body
 
 
 def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
@@ -474,7 +541,8 @@ def render_unit_card_html(
     if schedule is None:
         schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
     schedule = [b for b in schedule if isinstance(b, dict)]
-    schedule_html = schedule_queue_html(schedule)
+    invoice_items = turo.get("invoice_ready") or finance.get("invoice_ready") or []
+    schedule_html = schedule_queue_html(schedule, invoice_items)
 
     portal = _portal(finance)
     due = due_from_finance(finance)
@@ -504,7 +572,6 @@ def render_unit_card_html(
         cost_bits.append(
             f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
         )
-    invoice_items = turo.get("invoice_ready") or finance.get("invoice_ready") or []
     for item in invoice_items:
         if not isinstance(item, dict):
             continue

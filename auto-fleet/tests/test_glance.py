@@ -112,7 +112,7 @@ class FormatTests(unittest.TestCase):
         html = glance.render_unit_card_html(unit, now=NOW)
         sched = html[html.find("<h3>Schedule</h3>") : html.find("<h3>Money</h3>")]
         self.assertIn('class="booking-who">MEGAN</div>', sched)
-        self.assertIn("Aug 22–24", sched)
+        self.assertIn("Aug 22 → 24", sched)
         self.assertIn("#60615645", sched)
         self.assertIn("Punta Gorda Airport FBO", sched)
         self.assertIn('class="queue"', sched)

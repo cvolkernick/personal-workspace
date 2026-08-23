@@ -289,9 +289,15 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("booking-who", booking_fn)
         self.assertIn("booking-res", booking_fn)
         self.assertIn("booking-pickup", booking_fn)
+        self.assertIn("function pickupLabel", index)
+        self.assertIn("coordinate / driveway", index)
         self.assertIn('class="queue"', index)
+        self.assertIn("queue-cols", index)
         self.assertIn("No upcoming trips", index)
         self.assertIn(".booking.canceled", index)
+        self.assertIn("queue-canceled", index)
+        self.assertIn("function next30Strip", index)
+        self.assertIn('id="next30"', index)
         self.assertNotIn("CIC", index)
         self.assertNotIn(":8796", index)
 
@@ -313,15 +319,25 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("Jeffrey", sched22)
         self.assertLess(sched22.find("Marie"), sched22.find("Nayive"))
         self.assertLess(sched22.find("Nayive"), sched22.find("Jeffrey"))
-        self.assertIn("Aug 23–25", sched22)
-        self.assertIn("Aug 26–27", sched22)
-        self.assertIn("Aug 29–31", sched22)
+        self.assertIn("Aug 23 → 25", sched22)
+        self.assertIn("Aug 26 → 27", sched22)
+        self.assertIn("Aug 29 → 31", sched22)
+        self.assertIn(">ET<", sched22)
         self.assertIn("NEXT", sched22)
         self.assertIn('data-phase="active"', sched22)
+        self.assertIn("upcoming", sched22)
         self.assertIn("#60110022", sched22)
-        self.assertNotIn(" · ", sched22)
+        self.assertIn("coordinate / driveway", sched22)
+        self.assertIn(">When<", sched22)
+        self.assertIn(">Status<", sched22)
+        self.assertIn(">Guest<", sched22)
+        self.assertIn(">Pickup<", sched22)
+        self.assertIn(">Res<", sched22)
         self.assertNotIn("drop-off", sched22)
         self.assertNotIn("phone", sched22.lower())
+        self.assertNotIn("extra driver", sched22)
+        self.assertNotIn("pay window", sched22)
+        self.assertNotIn("invoice-ready", sched22)
 
         c24 = glance.render_unit_card_html(by_id["corolla-2024"], now=NOW)
         sched24 = c24[c24.find("<h3>Schedule</h3>") : c24.find("<h3>Money</h3>")]
@@ -330,15 +346,18 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("MEGAN", sched24)
         self.assertLess(sched24.find("Myles"), sched24.find("Matthew"))
         self.assertLess(sched24.find("Matthew"), sched24.find("MEGAN"))
-        self.assertIn("Aug 25–27", sched24)
-        self.assertIn("Aug 28–30", sched24)
+        self.assertIn("Aug 25 → 27", sched24)
+        self.assertIn("Aug 28 → 30", sched24)
         self.assertIn("#60463692", sched24)
-        self.assertIn("driveway", sched24)
+        self.assertIn("coordinate / driveway", sched24)
+        self.assertIn("queue-canceled", sched24)
+        self.assertIn("Cancelled (", sched24)
         self.assertIn("booking canceled", sched24)
         self.assertIn('data-phase="canceled"', sched24)
-        self.assertNotIn(" · ", sched24)
+        self.assertIn("cancelled", sched24)
         self.assertNotIn("$", sched24)
         self.assertNotIn("APR", sched24)
+        self.assertNotIn("principal", sched24)
 
         wells = glance.render_unit_card_html(by_id["m3-2020"], now=NOW)
         sched_wells = wells[wells.find("<h3>Schedule</h3>") : wells.find("<h3>Money</h3>")]
@@ -347,9 +366,34 @@ class CardHtmlTests(unittest.TestCase):
         self.assertNotIn("Kia", wells)
         self.assertNotIn("class=\"booking ", sched_wells)
 
-        self.assertEqual(glance.human_when("2026-08-28", "2026-08-30"), "Aug 28–30")
-        self.assertEqual(glance.human_when("2026-08-28", "2026-09-02"), "Aug 28–Sep 2")
+        self.assertEqual(glance.human_when("2026-08-28", "2026-08-30"), "Aug 28 → 30")
+        self.assertEqual(glance.human_when("2026-08-28", "2026-09-02"), "Aug 28 → Sep 2")
         self.assertEqual(glance.human_when("2026-08-28", "2026-08-28"), "Aug 28")
+        self.assertEqual(
+            glance.pickup_label({"pickup": "Punta Gorda Airport FBO"}),
+            "Punta Gorda Airport FBO",
+        )
+        self.assertEqual(glance.pickup_label({"pickup": "driveway"}), "coordinate / driveway")
+        self.assertEqual(glance.pickup_label({}), "coordinate / driveway")
+        flagged = glance.booking_row_html(
+            {
+                "guest": "Pat",
+                "start": "2026-08-28",
+                "end": "2026-08-29",
+                "trip_id": "60615645",
+                "pickup": "Punta Gorda Airport FBO",
+                "phone": "941-555-0142",
+                "extra_drivers": [{"name": "Jane Doe"}],
+                "guest_asks": ["confirm FBO gate code"],
+                "phase": "upcoming",
+            },
+            invoice_items=[{"title": "Rebill #60615645", "notes": ""}],
+        )
+        self.assertIn("extra driver", flagged)
+        self.assertIn("needs phone tap", flagged)
+        self.assertIn("invoice-ready", flagged)
+        self.assertIn("941-555-0142", flagged)
+        self.assertNotIn("pay window", flagged)
 
     def test_index_is_car_first_no_invent_no_cic(self) -> None:
         html = (PKG / "index.html").read_text(encoding="utf-8")
