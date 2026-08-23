@@ -32,6 +32,7 @@ _ROUTES = (
     "refresh",
     "daily_tasks",
     "daily_tasks_complete",
+    "agent_today",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
 _EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
@@ -101,6 +102,8 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "daily_tasks_complete"
     if "/api/daily-tasks" in blob:
         return "daily_tasks"
+    if "/api/agent/today" in blob:
+        return "agent_today"
     return ""
 
 
@@ -511,7 +514,119 @@ available_read = available_body
 workouts_read = workouts_body
 
 
-def dispatch_client_route(headers, query: str, method: str, payload=None, path: str = ""):
+def agent_today_body(headers, query: str = "", client_host=None):
+    """Read-only Today brief. Service token / loopback or a signed-in session."""
+    from api.auth.session_util import session_from_headers
+    from rt_dashboard.agent_today import export_agent_today
+    from rt_dashboard.service_auth import service_auth_denied, service_auth_ok
+
+    user = session_from_headers(headers)
+    if not user and not service_auth_ok(headers, client_host):
+        return 401, service_auth_denied("agents")
+    if user:
+        from api.dashboard import dashboard_body
+
+        status, payload = dashboard_body(headers, query)
+        if status != 200:
+            return status, payload
+        return 200, export_agent_today(payload)
+    return _agent_today_from_stores(headers, query)
+
+
+def _agent_today_from_stores(headers, query: str = ""):
+    """Cookie-less service path: Turso + Hidrate + optional Health. No invented ml."""
+    import os
+
+    from api.dashboard import _load_health, _load_sessions, request_tz_name
+    from rt_dashboard.agent_today import assemble_dashboard_slice, export_agent_today
+    from rt_dashboard.google_health import GoogleHealthClient
+    from rt_dashboard.grok_planner import dashboard_plan_slots
+    from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
+    from rt_dashboard.hydration_bars import build_hydration_bars_payload
+    from rt_dashboard.models import HealthSnapshot
+    from rt_dashboard.sleep_battery import sleep_battery_from_fitdash_sleep
+    from rt_dashboard.timeutil import local_now, local_today_iso
+    from rt_dashboard.workout_store import load_workspace_goals
+
+    uid = (os.environ.get("FITDASH_USER_ID") or "default").strip() or "default"
+    tz_name = request_tz_name(headers, query)
+    now = local_now(tz_name)
+    today = local_today_iso(tz_name, now=now)
+    errors: list[str] = []
+
+    sessions, sess_err, _source = _load_sessions(uid)
+    errors.extend(sess_err)
+
+    health = HealthSnapshot()
+    try:
+        if GoogleHealthClient().credentials_present():
+            health, health_err = _load_health()
+            errors.extend(health_err)
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"health_pull: {type(exc).__name__}")
+
+    sleep_battery = None
+    try:
+        real_sleep = [
+            s
+            for s in (health.sleep or [])
+            if float(getattr(s, "sleep_hours", 0) or 0) > 0
+            and str(getattr(s, "source", "") or "") != "implied_zero"
+        ]
+        if real_sleep or list(getattr(health, "sleep_intervals", None) or []):
+            sleep_battery = sleep_battery_from_fitdash_sleep(
+                real_sleep,
+                now=now,
+                tz_name=tz_name,
+                sleep_target_hours=8.0,
+                sleep_intervals=list(getattr(health, "sleep_intervals", None) or []),
+            )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"sleep_battery: {type(exc).__name__}")
+        sleep_battery = None
+
+    hydration_bars: dict = {"pacing": None}
+    try:
+        hydration_bars = build_hydration_bars_payload(
+            hydration=health.hydration or [],
+            samples=hidrate_hydration_samples(),
+            weight=health.weight or [],
+            sleep_battery=sleep_battery,
+            as_of=today,
+            now=now,
+            tz_name=tz_name,
+        )
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"hydration_bars: {type(exc).__name__}")
+
+    bottle = hidrate_bottle_charge()
+    if isinstance(hydration_bars, dict):
+        hydration_bars["bottle"] = bottle
+
+    goals, _src = load_workspace_goals()
+    _meal, workout = dashboard_plan_slots(
+        uid,
+        sessions=sessions,
+        goals=goals,
+        recovery=None,
+        as_of=today,
+    )
+    slice_payload = assemble_dashboard_slice(
+        date=today,
+        sessions=sessions,
+        workout=workout,
+        workout_plan=workout,
+        hydration_bars=hydration_bars,
+        hidrate_bottle=bottle,
+        sleep_battery=sleep_battery,
+        meta_error="; ".join(errors) if errors else None,
+    )
+    return 200, export_agent_today(slice_payload)
+
+
+def dispatch_client_route(
+    headers, query: str, method: str, payload=None, path: str = "", client_host=None
+):
     """Existing dashboard/ask functions serve client paths via rewrite."""
     route = client_route_name(headers, query, path)
     method = (method or "GET").upper()
@@ -543,6 +658,10 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return equipment_write(headers, route, payload or {})
+    if route == "agent_today":
+        if method != "GET":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return agent_today_body(headers, query, client_host=client_host)
     return None
 
 
@@ -552,6 +671,7 @@ __all__ = [
     "available_body",
     "available_read",
     "available_write",
+    "agent_today_body",
     "client_route_name",
     "dispatch_client_route",
     "generate_body",

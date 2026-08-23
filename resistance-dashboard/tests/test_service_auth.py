@@ -1,8 +1,8 @@
 """Service-token / loopback auth for FitDash machine reads.
 
-Covers ``_service_auth_ok`` and HTTP ``GET /api/day_constraints`` so the
-Orchestra 15m poke does not need a Google browser session. Other personal
-APIs stay session-gated.
+Covers ``_service_auth_ok`` and HTTP ``GET /api/day_constraints`` /
+``GET /api/agent/today`` so Orchestra / agents do not need a Google
+browser session. Other personal APIs stay session-gated.
 """
 
 from __future__ import annotations
@@ -275,6 +275,105 @@ class WarmHttpTests(unittest.TestCase):
         _, body = self._get("/api/warm")
         self.assertNotEqual(body.get("force_refresh"), True)
         fitdash_server.load_dashboard_data.assert_not_called()
+
+
+class AgentTodayHttpTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._saved = {
+            k: os.environ.get(k)
+            for k in (
+                "FITDASH_REQUIRE_AUTH",
+                "FITDASH_SERVICE_TOKEN",
+                "FITDASH_SERVICE_LOOPBACK",
+            )
+        }
+        os.environ["FITDASH_REQUIRE_AUTH"] = "1"
+        os.environ.pop("FITDASH_SERVICE_TOKEN", None)
+        os.environ["FITDASH_SERVICE_LOOPBACK"] = "1"
+        self._load_patch = mock.patch.object(
+            fitdash_server,
+            "load_dashboard_data",
+            return_value={
+                "day_constraints": FAKE_PACKET,
+                "sleep_battery": FAKE_BATTERY,
+                "coach": {"today": {"date": "2026-08-23"}},
+                "meta": {"local_today": "2026-08-23"},
+                "workout": {
+                    "session_type": "pull",
+                    "is_rest_day": False,
+                    "exercises": [],
+                },
+                "sessions": [],
+            },
+        )
+        self._load_patch.start()
+        self.httpd = ThreadingHTTPServer(
+            ("127.0.0.1", 0), fitdash_server.DashboardHandler
+        )
+        self.port = int(self.httpd.server_address[1])
+        self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self) -> None:
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        self._load_patch.stop()
+        for key, val in self._saved.items():
+            if val is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = val
+
+    def _url(self, path: str) -> str:
+        return f"http://127.0.0.1:{self.port}{path}"
+
+    def _get(self, path: str, headers: Optional[Dict[str, str]] = None) -> tuple[int, dict]:
+        req = Request(self._url(path), headers=headers or {})
+        try:
+            with urlopen(req, timeout=5) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                return int(resp.status), body
+        except HTTPError as exc:
+            raw = exc.read().decode("utf-8")
+            try:
+                body = json.loads(raw) if raw else {}
+            except json.JSONDecodeError:
+                body = {"raw": raw}
+            return int(exc.code), body
+
+    def test_loopback_agent_today_ok_without_session(self) -> None:
+        status, body = self._get("/api/agent/today")
+        self.assertEqual(status, 200)
+        self.assertTrue(body.get("ok"))
+        self.assertEqual(body["today"]["date"], "2026-08-23")
+        self.assertEqual(body["today"]["workout"]["session_type"], "pull")
+        self.assertFalse(body["today"]["workout"]["is_rest_day"])
+
+    def test_dashboard_stays_session_gated_on_loopback(self) -> None:
+        status, body = self._get("/api/dashboard")
+        self.assertEqual(status, 401)
+        self.assertEqual(body.get("error"), "auth_required")
+
+    def test_loopback_disabled_requires_token(self) -> None:
+        os.environ["FITDASH_SERVICE_LOOPBACK"] = "0"
+        os.environ["FITDASH_SERVICE_TOKEN"] = "house-secret"
+        denied_status, denied = self._get("/api/agent/today")
+        self.assertEqual(denied_status, 401)
+        self.assertEqual(denied.get("error"), "auth_required")
+        self.assertNotIn("today", denied)
+        ok_status, ok_body = self._get(
+            "/api/agent/today",
+            headers={"X-FitDash-Service-Token": "house-secret"},
+        )
+        self.assertEqual(ok_status, 200)
+        self.assertTrue(ok_body.get("ok"))
+        self.assertEqual(ok_body["today"]["workout"]["session_type"], "pull")
+        bearer_status, bearer_body = self._get(
+            "/api/agent/today",
+            headers={"Authorization": "Bearer house-secret"},
+        )
+        self.assertEqual(bearer_status, 200)
+        self.assertTrue(bearer_body.get("ok"))
 
 
 if __name__ == "__main__":

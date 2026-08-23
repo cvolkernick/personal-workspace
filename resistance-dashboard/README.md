@@ -111,6 +111,7 @@ Without Google credentials the UI still loads lift charts and recovery from trai
 - `GET /api/dashboard` — sessions, analytics, health, recovery
 - `GET /api/dashboard?refresh=1` — force 90-day Google Health pull (Refresh data)
 - `GET /api/warm` — incremental 14-day Health + Hidrate cache warm (loopback / service token; no page load)
+- `GET /api/agent/today` — read-only Today brief for agents (workout, hydration wake pace, bottle, wake window). Same loopback / `FITDASH_SERVICE_TOKEN` gate as `/api/sleep_battery`. Cookie-less without token is 401. Does not invent ml / loads / sessions.
 - `POST /api/workouts` — log a session  
   ```json
   {

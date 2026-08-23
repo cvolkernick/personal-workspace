@@ -93,8 +93,14 @@ from rt_dashboard.dashboard_cache import (  # noqa: E402
 )
 from rt_dashboard.coach import build_coach_payload  # noqa: E402
 from rt_dashboard.coach_actions import format_action_reply, try_parse_coach_action  # noqa: E402
+from rt_dashboard.agent_today import export_agent_today  # noqa: E402
 from rt_dashboard.day_constraints import (  # noqa: E402
     export_day_constraints_from_dashboard,
+)
+from rt_dashboard.service_auth import (  # noqa: E402
+    service_auth_denied,
+    service_auth_ok as _service_auth_ok,
+    service_token_from_headers as _service_token_from_headers,
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
 from rt_dashboard.workout_log import parse_log_body  # noqa: E402
@@ -189,38 +195,6 @@ def _auth_required() -> bool:
         "no",
         "off",
     )
-
-
-def _service_token_from_headers(headers) -> str:
-    """Bearer or X-FitDash-Service-Token for machine clients (e.g. IoT worker)."""
-    auth = (headers.get("Authorization") or "").strip()
-    if auth.lower().startswith("bearer "):
-        return auth[7:].strip()
-    return (headers.get("X-FitDash-Service-Token") or "").strip()
-
-
-def _service_auth_ok(headers, client_host: Optional[str] = None) -> bool:
-    """Allow service clients via shared token, or loopback if enabled.
-
-    Env:
-      FITDASH_SERVICE_TOKEN — required for non-loopback machine access
-      FITDASH_SERVICE_LOOPBACK — when 1 (default), 127.0.0.1/::1 may call
-        /api/sleep_battery, /api/day_constraints, and /api/warm without a
-        browser session (same-host IoT worker / Orchestra poke / Pi warmer).
-    """
-    expected = (os.environ.get("FITDASH_SERVICE_TOKEN") or "").strip()
-    provided = _service_token_from_headers(headers)
-    if expected and provided and provided == expected:
-        return True
-    loopback_ok = (os.environ.get("FITDASH_SERVICE_LOOPBACK") or "1").strip().lower() not in (
-        "0",
-        "false",
-        "no",
-        "off",
-    )
-    if loopback_ok and client_host in ("127.0.0.1", "::1", "localhost"):
-        return True
-    return False
 
 
 def _resolve_warm_user_and_token(
@@ -1351,17 +1325,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if _auth_required() and not user and not _service_auth_ok(
                 self.headers, client_host
             ):
-                self._send_json(
-                    {
-                        "ok": False,
-                        "error": "auth_required",
-                        "message": (
-                            "Sign in, or call from loopback / with "
-                            "FITDASH_SERVICE_TOKEN to warm the cache."
-                        ),
-                    },
-                    status=401,
-                )
+                self._send_json(service_auth_denied("warm the cache"), status=401)
                 return
             try:
                 uid = user.get("user_id") if user else None
@@ -1397,17 +1361,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if _auth_required() and not user and not _service_auth_ok(
                 self.headers, client_host
             ):
-                self._send_json(
-                    {
-                        "ok": False,
-                        "error": "auth_required",
-                        "message": (
-                            "Sign in, or call from loopback / with "
-                            "FITDASH_SERVICE_TOKEN for IoT."
-                        ),
-                    },
-                    status=401,
-                )
+                self._send_json(service_auth_denied("IoT"), status=401)
                 return
             try:
                 data = load_dashboard_data(force_refresh=False)
@@ -1436,17 +1390,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             if _auth_required() and not user and not _service_auth_ok(
                 self.headers, client_host
             ):
-                self._send_json(
-                    {
-                        "ok": False,
-                        "error": "auth_required",
-                        "message": (
-                            "Sign in, or call from loopback / with "
-                            "FITDASH_SERVICE_TOKEN for Orchestra."
-                        ),
-                    },
-                    status=401,
-                )
+                self._send_json(service_auth_denied("Orchestra"), status=401)
                 return
             try:
                 uid = user.get("user_id") if user else None
@@ -1462,6 +1406,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     )
                     pkt = {k: v for k, v in pkt.items() if not str(k).startswith("_")}
                 self._send_json({"ok": True, "day_constraints": pkt})
+            except Exception as e:  # noqa: BLE001
+                self._send_json({"ok": False, "error": str(e)}, status=500)
+            return
+        if parsed.path == "/api/agent/today":
+            # Machine-friendly Today brief. Same loopback / service-token
+            # path as /api/sleep_battery (see _service_auth_ok). Read-only
+            # slice of the cached dashboard — no invented ml / loads / sessions.
+            client_host = (self.client_address or ("", 0))[0]
+            user = _session_user_from_headers(self.headers)
+            if _auth_required() and not user and not _service_auth_ok(
+                self.headers, client_host
+            ):
+                self._send_json(service_auth_denied("agents"), status=401)
+                return
+            try:
+                uid = user.get("user_id") if user else None
+                data = load_dashboard_data(force_refresh=False, user_id=uid)
+                self._send_json(export_agent_today(data))
             except Exception as e:  # noqa: BLE001
                 self._send_json({"ok": False, "error": str(e)}, status=500)
             return

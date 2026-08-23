@@ -5,6 +5,10 @@
   "outputDirectory": "static",
   "rewrites": [
     {
+      "source": "/api/agent/today",
+      "destination": "/api/dashboard?_r=agent_today"
+    },
+    {
       "source": "/api/meal-plan/generate",
       "destination": "/api/dashboard?_r=meal_generate"
     },
