@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .crypto_box import open_str
 from .turso_http import connect, turso_enabled
@@ -36,20 +36,28 @@ CREATE TABLE IF NOT EXISTS workout_sessions (
 )
 """
 
-UPSERT_SQL = """
+# Core columns already used by list_sessions_detailed (live Turso reads).
+UPDATE_SQL = """
+UPDATE workout_sessions
+SET notes = ?, source_file = ?, exercises_json = ?
+WHERE user_id = ? AND date = ? AND session_type = ?
+"""
+
+INSERT_SQL = """
 INSERT INTO workout_sessions(
   user_id, date, session_type, notes, source_file,
   exercises_json, created_at, updated_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(user_id, date, session_type) DO UPDATE SET
-  notes = excluded.notes,
-  source_file = excluded.source_file,
-  exercises_json = excluded.exercises_json,
-  updated_at = excluded.updated_at
+"""
+
+INSERT_MIN_SQL = """
+INSERT INTO workout_sessions(
+  user_id, date, session_type, notes, source_file, exercises_json
+) VALUES (?, ?, ?, ?, ?, ?)
 """
 
 GET_SQL = """
-SELECT id, date, session_type, notes, source_file, exercises_json
+SELECT date, session_type, notes, source_file, exercises_json
 FROM workout_sessions
 WHERE user_id = ? AND date = ? AND session_type = ?
 """
@@ -97,8 +105,33 @@ def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
     return sessions, notes
 
 
+def _get_row(conn, uid: str, date: str, session_type: str):
+    return conn.execute(GET_SQL, (uid, date, session_type)).fetchone()
+
+
+def _insert_row(conn, uid: str, session: Session, payload: str, now: str) -> None:
+    args_full = (
+        uid,
+        session.date,
+        session.session_type,
+        session.notes or "",
+        session.source_file or "",
+        payload,
+        now,
+        now,
+    )
+    try:
+        conn.execute(INSERT_SQL, args_full)
+    except RuntimeError:
+        conn.execute(INSERT_MIN_SQL, args_full[:6])
+
+
 def upsert_session(user_id: str, session: Session) -> Dict[str, Any]:
-    """Insert or replace by (user_id, date, session_type). Same shape as SQLite."""
+    """Insert or replace by (user_id, date, session_type). Same key as SQLite.
+
+    UPDATE-then-INSERT so a live Turso table without UNIQUE still replaces
+    instead of inserting junk rows. Seals exercises like WorkoutRepo.
+    """
     if not turso_enabled():
         raise RuntimeError("turso env missing")
     if not isinstance(session, Session):
@@ -109,40 +142,48 @@ def upsert_session(user_id: str, session: Session) -> Dict[str, Any]:
     with connect() as conn:
         conn.execute(ENSURE_SQL)
         conn.execute(
-            UPSERT_SQL,
+            UPDATE_SQL,
             (
-                uid,
-                session.date,
-                session.session_type,
                 session.notes or "",
                 session.source_file or "",
                 payload,
-                now,
-                now,
+                uid,
+                session.date,
+                session.session_type,
             ),
         )
-        row = conn.execute(
-            GET_SQL,
-            (uid, session.date, session.session_type),
-        ).fetchone()
+        row = _get_row(conn, uid, session.date, session.session_type)
+        if not row:
+            _insert_row(conn, uid, session, payload, now)
+            row = _get_row(conn, uid, session.date, session.session_type)
     if not row:
         raise RuntimeError("turso write not visible on readback")
     read = _row_to_session(row, uid)
     if not read.exercises and session.exercises:
         raise RuntimeError("turso write not visible on readback")
-    row_id = None
-    try:
-        raw_id = row["id"] if isinstance(row, dict) else None
-        row_id = int(raw_id) if raw_id is not None else None
-    except (TypeError, ValueError, KeyError):
-        row_id = None
     return {
         "ok": True,
         "backend": "turso",
+        "source": "turso",
         "user_id": uid,
-        "id": row_id,
         "path": "turso",
         "date": session.date,
         "session_type": session.session_type,
         "verified_on_readback": True,
     }
+
+
+def save_preview_session(user_id: str, session: Session) -> Dict[str, Any]:
+    """Persist a logged session to Turso. Fail honest if the write cannot land."""
+    if not turso_enabled():
+        raise RuntimeError("turso env missing")
+    result = upsert_session(user_id, session)
+    sessions, _notes = list_sessions_detailed(user_id)
+    found: Optional[Session] = None
+    for sess in sessions:
+        if sess.date == session.date and sess.session_type == session.session_type:
+            found = sess
+            break
+    if found is None or (session.exercises and not found.exercises):
+        raise RuntimeError("turso write not visible on readback")
+    return result

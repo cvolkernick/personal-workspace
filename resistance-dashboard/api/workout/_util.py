@@ -191,44 +191,30 @@ def available_write(headers):
 
 
 def workouts_write(headers, payload=None):
-    """POST /api/workouts — Turso upsert for the signed-in user.
+    """POST /api/workouts — Turso upsert. Same shape as inventory_write.
 
-    Same body as Pi ``parse_log_body`` / ``submitWorkout``. Not preview_read_only
-    when Turso is configured. Missing Turso env is a clear error, not a fake ok.
+    Cookie-less 401. Failed persist is 5xx. Missing Turso env is a clear
+    error (not preview_read_only, not a fake ok).
     """
     user, err = require_user(headers)
     if err:
         return err
-    from rt_dashboard.turso_http import turso_enabled
-
-    if not turso_enabled():
-        return 503, {
-            "ok": False,
-            "error": "turso_env_missing",
-            "message": (
-                "Workout log needs TURSO_DATABASE_URL and TURSO_AUTH_TOKEN."
-            ),
-        }
     payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "default")
     try:
+        from api.dashboard import _load_sessions
+        from rt_dashboard.pr_detect import apply_auto_prs
+        from rt_dashboard.turso_repo import save_preview_session
         from rt_dashboard.workout_log import parse_log_body
 
         session = parse_log_body(payload)
+        history, _hist_err, _hist_src = _load_sessions(uid)
+        apply_auto_prs(session, history)
+        result = save_preview_session(uid, session)
+        sessions, errors, source = _load_sessions(uid)
     except ValueError as exc:
         return 400, {"ok": False, "error": str(exc)}
-
-    uid = str(user.get("id") or "default")
-    from api.dashboard import _load_sessions
-    from rt_dashboard.pr_detect import apply_auto_prs
-
-    history, _hist_err, _hist_src = _load_sessions(uid)
-    apply_auto_prs(session, history)
-    pr_names = [e.name for e in session.exercises if e.is_pr]
-    try:
-        from rt_dashboard.turso_repo import upsert_session
-
-        result = upsert_session(uid, session)
-    except RuntimeError as exc:
+    except Exception as exc:  # noqa: BLE001
         msg = str(exc) or type(exc).__name__
         if "turso env missing" in msg:
             return 503, {
@@ -243,40 +229,7 @@ def workouts_write(headers, payload=None):
             "error": msg,
             "write": {"ok": False, "source": "turso"},
         }
-    except Exception as exc:  # noqa: BLE001
-        return 500, {
-            "ok": False,
-            "error": str(exc) or type(exc).__name__,
-            "write": {"ok": False, "source": "turso"},
-        }
-
-    sessions, errors, source = _load_sessions(uid)
-    found = None
-    for s in sessions or []:
-        date = s.date if hasattr(s, "date") else (s or {}).get("date")
-        st = (
-            s.session_type
-            if hasattr(s, "session_type")
-            else (s or {}).get("session_type")
-        )
-        if date == session.date and st == session.session_type:
-            found = s
-            break
-    exercises = (
-        found.exercises
-        if found is not None and hasattr(found, "exercises")
-        else (found or {}).get("exercises") if found is not None else None
-    )
-    if found is None or (session.exercises and not exercises):
-        return 500, {
-            "ok": False,
-            "error": "turso write not visible on readback",
-            "write": {
-                "ok": False,
-                "source": "turso",
-                "verified_on_readback": False,
-            },
-        }
+    pr_names = [e.name for e in session.exercises if e.is_pr]
     head = []
     for s in (sessions or [])[:5]:
         if hasattr(s, "to_dict"):

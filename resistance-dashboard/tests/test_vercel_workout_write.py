@@ -52,8 +52,21 @@ class MemoryTurso:
         norm = " ".join((sql or "").split()).upper()
         if norm.startswith("CREATE TABLE"):
             return TursoCursor([], [])
+        if norm.startswith("UPDATE WORKOUT_SESSIONS"):
+            notes, source, payload, uid, date, st = params
+            key = (uid, date, st)
+            existing = self.rows.get(key)
+            if existing:
+                existing["notes"] = notes
+                existing["source_file"] = source
+                existing["exercises_json"] = payload
+            return TursoCursor([], [])
         if "INSERT INTO WORKOUT_SESSIONS" in norm:
-            uid, date, st, notes, source, payload, created, updated = params
+            if len(params) >= 8:
+                uid, date, st, notes, source, payload, created, updated = params[:8]
+            else:
+                uid, date, st, notes, source, payload = params[:6]
+                created = updated = ""
             key = (uid, date, st)
             existing = self.rows.get(key)
             self.rows[key] = TursoRow(
@@ -74,7 +87,7 @@ class MemoryTurso:
             uid, date, st = params
             row = self.rows.get((uid, date, st))
             return TursoCursor(
-                ["id", "date", "session_type", "notes", "source_file", "exercises_json"],
+                ["date", "session_type", "notes", "source_file", "exercises_json"],
                 [row] if row else [],
             )
         if "FROM WORKOUT_SESSIONS" in norm:
@@ -282,7 +295,7 @@ class WorkoutsWriteRoute(unittest.TestCase):
     def test_util_workouts_write_is_not_a_denied_stub(self):
         write_fn = UTIL.split("def workouts_write", 1)[1].split("def generate_body", 1)[0]
         self.assertNotIn("return _write_denied", write_fn)
-        self.assertIn("upsert_session", write_fn)
+        self.assertIn("save_preview_session", write_fn)
         self.assertIn("turso_env_missing", write_fn)
 
     def test_ui_prefers_message_on_log_failure(self):
