@@ -1,8 +1,8 @@
 /**
- * FitDash Trends #254/#258: Avg intake / Avg burned / Avg deficit on the same
+ * FitDash Trends #254/#258/#268: Avg intake / Avg burned / Avg deficit on the same
  * 60d paired-days window as the Σ chips in app.js (days with both nutrition +
  * calories_burned). Overlay only — does not rewrite app.js or add food rows.
- * Sign: positive = deficit (burned − intake), negative = surplus.
+ * Sign: positive = surplus (intake − burned), negative = deficit.
  */
 (function (root) {
   "use strict";
@@ -30,7 +30,7 @@
   /**
    * Same pair set as the Σ chips: 60d civil labels, include a day only when
    * both intake and burned are present and numeric. Avgs = Σ / pairDays.
-   * Per-day delta_i = burned_i − intake_i; avgDelta = mean(delta_i).
+   * Per-day delta_i = intake_i − burned_i; avgDelta = mean(delta_i).
    */
   function pairedCalorieWindow(nutrition, caloriesBurned, spanDays, now) {
     var days = spanDays == null ? SPAN_DAYS : spanDays;
@@ -62,7 +62,7 @@
       }
       sumIn += vin;
       sumOut += vout;
-      sumDelta += vout - vin;
+      sumDelta += vin - vout;
       pairDays += 1;
     });
     return {
@@ -82,7 +82,7 @@
     return Math.round(sum / pairDays).toLocaleString();
   }
 
-  /** Signed mean(burned − intake). +deficit, −surplus. pairDays=0 → em dash. */
+  /** Signed mean(intake − burned). +surplus, −deficit. pairDays=0 → em dash. */
   function formatAvgDelta(pairDays, sumDelta) {
     if (!pairDays) return "—";
     var n = Math.round(sumDelta / pairDays);
@@ -95,8 +95,8 @@
   function deltaChipKind(pairDays, avgDelta) {
     if (!pairDays || avgDelta == null) return "chip-balance";
     var rounded = Math.round(avgDelta);
-    if (rounded > 0) return "chip-deficit";
-    if (rounded < 0) return "chip-surplus";
+    if (rounded > 0) return "chip-surplus";
+    if (rounded < 0) return "chip-deficit";
     return "chip-balance";
   }
 
@@ -167,7 +167,7 @@
         : "Need paired intake + burned days";
     var deltaSub =
       stats.pairDays > 0
-        ? "kcal/day · +deficit · −surplus"
+        ? "kcal/day · −deficit · +surplus"
         : "Need paired intake + burned days";
     var row = document.createElement("div");
     row.className = "chart-summary-row";
