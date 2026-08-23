@@ -109,6 +109,7 @@ from rt_dashboard.health_metrics_store import resolve_health_snapshot  # noqa: E
 from rt_dashboard.hidrate_client import (  # noqa: E402
     hidrate_bottle_charge,
     hidrate_credentials_present,
+    hidrate_hydration_samples,
     overlay_hidrate_hydration,
 )
 from rt_dashboard.models import HealthSnapshot, Session  # noqa: E402
@@ -834,6 +835,7 @@ def load_dashboard_data(
 
         payload["hydration_bars"] = build_hydration_bars_payload(
             hydration=health.hydration or [],
+            samples=hidrate_hydration_samples(),
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=local_today,

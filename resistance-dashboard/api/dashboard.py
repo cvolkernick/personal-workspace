@@ -222,7 +222,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     from rt_dashboard.coach import build_coach_payload
     from rt_dashboard.daily_plan_tasks import plan_preview
     from rt_dashboard.day_constraints import export_day_constraints_from_dashboard
-    from rt_dashboard.hidrate_client import hidrate_bottle_charge
+    from rt_dashboard.hidrate_client import hidrate_bottle_charge, hidrate_hydration_samples
     from rt_dashboard.hydration_bars import build_hydration_bars_payload
     from rt_dashboard.equipment_store import load_preview_equipment
     from rt_dashboard.inventory_store import load_preview_inventory
@@ -380,6 +380,7 @@ def dashboard_body(headers, query: str = "") -> tuple[int, dict]:
     try:
         payload["hydration_bars"] = build_hydration_bars_payload(
             hydration=health.hydration or [],
+            samples=hidrate_hydration_samples(),
             weight=health.weight or [],
             sleep_battery=sleep_battery,
             as_of=today,

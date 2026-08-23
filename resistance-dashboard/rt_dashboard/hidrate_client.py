@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from .models import HealthSnapshot, HydrationDay
@@ -39,6 +39,8 @@ _SERIES_CACHE: Dict[str, Any] = {}  # {days, fetched_at, series}
 _SERIES_TTL_SEC = 300.0
 _BOTTLE_CACHE: Dict[str, Any] = {}  # {fetched_at, charge}
 _BOTTLE_TTL_SEC = 300.0
+_SIP_CACHE: Dict[str, Any] = {}  # {hours, fetched_at, samples}
+_SIP_TTL_SEC = 300.0
 
 # Parse Bottle charge keys verified from community clients / unofficial server schema:
 # - batteryLevel: hidrateapp-server Bottle model + hidratespark-mcp
@@ -291,6 +293,71 @@ class HidrateClient:
         _BOTTLE_CACHE = {"fetched_at": time.time(), "charge": dict(charge)}
         return charge
 
+    def fetch_sip_rows(
+        self,
+        *,
+        start: datetime,
+        end: Optional[datetime] = None,
+        limit: int = 500,
+    ) -> List[Dict[str, Any]]:
+        """Return raw Parse ``Sip`` objects filtered on ``time`` (not createdAt)."""
+        self.ensure_session()
+
+        def _parse_iso(dt: datetime) -> str:
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        where: Dict[str, Any] = {
+            "time": {"$gte": {"__type": "Date", "iso": _parse_iso(start)}}
+        }
+        if end is not None:
+            where["time"]["$lte"] = {"__type": "Date", "iso": _parse_iso(end)}
+        params = {
+            "where": json.dumps(where, separators=(",", ":")),
+            "limit": str(max(1, min(int(limit), 500))),
+            "order": "time",
+        }
+        data = self._request("GET", "/classes/Sip", params=params, session=True)
+        results = data.get("results") if isinstance(data, dict) else None
+        return list(results or [])
+
+    def fetch_hydration_samples(
+        self, *, hours: int = 48, use_cache: bool = True
+    ) -> List[Dict[str, Any]]:
+        """Timestamped Hidrate sips for the recent window. Empty if none."""
+        hours = max(1, min(int(hours), 72))
+        global _SIP_CACHE
+        if use_cache:
+            cached = _SIP_CACHE
+            if (
+                cached.get("hours") == hours
+                and cached.get("samples") is not None
+                and (time.time() - float(cached.get("fetched_at") or 0))
+                < _SIP_TTL_SEC
+            ):
+                return list(cached["samples"])
+
+        now = datetime.now(timezone.utc)
+        start = now - timedelta(hours=hours)
+        try:
+            rows = self.fetch_sip_rows(start=start, end=now, limit=500)
+        except HidrateError as e:
+            if e.status in (401, 403) or "invalid" in str(e).lower():
+                global _SESSION_TOKEN
+                self._session_token = None
+                _SESSION_TOKEN = None
+                rows = self.fetch_sip_rows(start=start, end=now, limit=500)
+            else:
+                raise
+        samples = parse_sip_samples(rows)
+        _SIP_CACHE = {
+            "hours": hours,
+            "fetched_at": time.time(),
+            "samples": list(samples),
+        }
+        return samples
+
 
 def _day_total_ml(row: Dict[str, Any]) -> Optional[float]:
     for key in ("totalAmount", "totalBottleAmount", "totalVolumeAmount"):
@@ -386,6 +453,73 @@ def summarize_bottle_charge(rows: Optional[List[Dict[str, Any]]]) -> Dict[str, A
         "status": "ok",
         "error": None,
     }
+
+
+def _sip_event_iso(row: Dict[str, Any]) -> str:
+    """Authoritative sip time. ``createdAt`` is sync time — do not use."""
+    raw = row.get("time")
+    if isinstance(raw, dict):
+        iso = str(raw.get("iso") or "").strip()
+        if iso:
+            return iso
+    if isinstance(raw, str) and raw.strip():
+        return raw.strip()
+    return ""
+
+
+def _sip_amount_ml(row: Dict[str, Any]) -> Optional[float]:
+    v = row.get("amount")
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    if n != n or n < 0:
+        return None
+    return n
+
+
+def parse_sip_samples(rows: Optional[List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
+    """Map Parse Sip rows to timestamped samples. Skip rows missing time/amount."""
+    out: List[Dict[str, Any]] = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        iso = _sip_event_iso(row)
+        ml = _sip_amount_ml(row)
+        if not iso or ml is None:
+            continue
+        out.append(
+            {
+                "logged_at": iso,
+                "water_ml": round(float(ml), 1),
+                "source": "hidrate",
+            }
+        )
+    return out
+
+
+def hidrate_hydration_samples(
+    *,
+    client: Optional[HidrateClient] = None,
+    hours: int = 48,
+    use_cache: bool = True,
+) -> List[Dict[str, Any]]:
+    """Timestamped Hidrate sips, or []. Never invents water."""
+    if not hidrate_credentials_present():
+        return []
+    hc = client or HidrateClient()
+    if not hc.credentials_present():
+        return []
+    try:
+        return hc.fetch_hydration_samples(hours=hours, use_cache=use_cache)
+    except HidrateError as e:
+        log.warning("Hidrate sip pull failed: %s", e)
+        return []
+    except Exception as e:  # noqa: BLE001
+        log.warning("Hidrate sip pull failed: %s", e)
+        return []
 
 
 def hidrate_bottle_charge(

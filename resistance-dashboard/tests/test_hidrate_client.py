@@ -16,7 +16,9 @@ from rt_dashboard.hidrate_client import (  # noqa: E402
     _bottle_battery_percent,
     _day_total_ml,
     hidrate_bottle_charge,
+    hidrate_hydration_samples,
     overlay_hidrate_hydration,
+    parse_sip_samples,
     summarize_bottle_charge,
 )
 from rt_dashboard.models import HealthSnapshot, HydrationDay  # noqa: E402
@@ -258,6 +260,51 @@ class TestHidrateBottleChargeHelper(unittest.TestCase):
                 got = hidrate_bottle_charge(client=client)
         self.assertEqual(got["status"], "unavailable")
         self.assertIsNone(got["percent"])
+
+
+class TestParseSipSamples(unittest.TestCase):
+    def test_uses_time_not_created_at(self):
+        rows = [
+            {
+                "time": {"__type": "Date", "iso": "2026-08-22T22:30:00.000Z"},
+                "createdAt": "2026-08-23T08:00:00.000Z",
+                "amount": 250,
+            },
+            {
+                "createdAt": "2026-08-22T22:30:00.000Z",
+                "amount": 999,
+            },
+            {
+                "time": {"iso": "2026-08-22T23:00:00.000Z"},
+            },
+        ]
+        got = parse_sip_samples(rows)
+        self.assertEqual(len(got), 1)
+        self.assertEqual(got[0]["logged_at"], "2026-08-22T22:30:00.000Z")
+        self.assertEqual(got[0]["water_ml"], 250.0)
+        self.assertEqual(got[0]["source"], "hidrate")
+
+    def test_hidrate_hydration_samples_no_creds_is_empty(self):
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present",
+            return_value=False,
+        ):
+            self.assertEqual(hidrate_hydration_samples(), [])
+
+    def test_sip_fetch_auth_fail_is_empty(self):
+        class FakeClient:
+            def credentials_present(self) -> bool:
+                return True
+
+            def fetch_hydration_samples(self, hours: int = 48, use_cache: bool = True):
+                raise HidrateError("invalid session", status=401)
+
+        with patch(
+            "rt_dashboard.hidrate_client.hidrate_credentials_present",
+            return_value=True,
+        ):
+            got = hidrate_hydration_samples(client=FakeClient())  # type: ignore[arg-type]
+        self.assertEqual(got, [])
 
 
 class TestDashboardBottlePayload(unittest.TestCase):
