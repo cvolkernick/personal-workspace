@@ -1,7 +1,8 @@
 /**
- * FitDash Trends #254: Avg intake / Avg burned on the same 60d paired-days
- * window as the Σ chips in app.js (days with both nutrition + calories_burned).
- * Overlay only — does not rewrite app.js or add synthetic food rows.
+ * FitDash Trends #254/#258: Avg intake / Avg burned / Avg deficit on the same
+ * 60d paired-days window as the Σ chips in app.js (days with both nutrition +
+ * calories_burned). Overlay only — does not rewrite app.js or add food rows.
+ * Sign: positive = deficit (burned − intake), negative = surplus.
  */
 (function (root) {
   "use strict";
@@ -28,7 +29,8 @@
 
   /**
    * Same pair set as the Σ chips: 60d civil labels, include a day only when
-   * both intake and burned are present and numeric. Avg = Σ / pairDays.
+   * both intake and burned are present and numeric. Avgs = Σ / pairDays.
+   * Per-day delta_i = burned_i − intake_i; avgDelta = mean(delta_i).
    */
   function pairedCalorieWindow(nutrition, caloriesBurned, spanDays, now) {
     var days = spanDays == null ? SPAN_DAYS : spanDays;
@@ -46,6 +48,7 @@
     var pairDays = 0;
     var sumIn = 0;
     var sumOut = 0;
+    var sumDelta = 0;
     labels.forEach(function (day) {
       var vin = intakeBy[day];
       var vout = burnedBy[day];
@@ -59,6 +62,7 @@
       }
       sumIn += vin;
       sumOut += vout;
+      sumDelta += vout - vin;
       pairDays += 1;
     });
     return {
@@ -66,14 +70,34 @@
       pairDays: pairDays,
       sumIn: sumIn,
       sumOut: sumOut,
+      sumDelta: sumDelta,
       avgIn: pairDays > 0 ? sumIn / pairDays : null,
       avgOut: pairDays > 0 ? sumOut / pairDays : null,
+      avgDelta: pairDays > 0 ? sumDelta / pairDays : null,
     };
   }
 
   function formatAvgKcal(pairDays, sum) {
     if (!pairDays) return "—";
     return Math.round(sum / pairDays).toLocaleString();
+  }
+
+  /** Signed mean(burned − intake). +deficit, −surplus. pairDays=0 → em dash. */
+  function formatAvgDelta(pairDays, sumDelta) {
+    if (!pairDays) return "—";
+    var n = Math.round(sumDelta / pairDays);
+    var abs = Math.abs(n).toLocaleString();
+    if (n > 0) return "+" + abs;
+    if (n < 0) return "−" + abs;
+    return "0";
+  }
+
+  function deltaChipKind(pairDays, avgDelta) {
+    if (!pairDays || avgDelta == null) return "chip-balance";
+    var rounded = Math.round(avgDelta);
+    if (rounded > 0) return "chip-deficit";
+    if (rounded < 0) return "chip-surplus";
+    return "chip-balance";
   }
 
   function chipHtml(id, kind, label, value, sub) {
@@ -125,7 +149,14 @@
       SPAN_DAYS,
       now
     );
-    var key = stats.pairDays + ":" + stats.sumIn + ":" + stats.sumOut;
+    var key =
+      stats.pairDays +
+      ":" +
+      stats.sumIn +
+      ":" +
+      stats.sumOut +
+      ":" +
+      stats.sumDelta;
     if (existing && note.contains(existing) && paintedKey === key) {
       return stats;
     }
@@ -133,6 +164,10 @@
     var pairedSub =
       stats.pairDays > 0
         ? "kcal/day · " + stats.pairDays + " paired days"
+        : "Need paired intake + burned days";
+    var deltaSub =
+      stats.pairDays > 0
+        ? "kcal/day · +deficit · −surplus"
         : "Need paired intake + burned days";
     var row = document.createElement("div");
     row.className = "chart-summary-row";
@@ -151,6 +186,13 @@
         "Avg burned",
         formatAvgKcal(stats.pairDays, stats.sumOut),
         pairedSub
+      ) +
+      chipHtml(
+        "trends-avg-delta",
+        deltaChipKind(stats.pairDays, stats.avgDelta),
+        "Avg deficit",
+        formatAvgDelta(stats.pairDays, stats.sumDelta),
+        deltaSub
       );
     var firstRow = note.querySelector(".chart-summary-row");
     if (firstRow && firstRow.parentNode) {
@@ -210,6 +252,8 @@
     windowLabels: windowLabels,
     pairedCalorieWindow: pairedCalorieWindow,
     formatAvgKcal: formatAvgKcal,
+    formatAvgDelta: formatAvgDelta,
+    deltaChipKind: deltaChipKind,
     paintAvgChips: paintAvgChips,
   };
 
