@@ -75,8 +75,14 @@ def is_exercise_pr(
 
 
 def apply_auto_prs(session: Session, history: Sequence[Session]) -> Session:
-    """Return session with ``is_pr`` set from history (prior dates only)."""
+    """Return session with ``is_pr`` set from history (prior dates only).
+
+    Quest-seeded rows stay untagged until Chris confirms or edits the log.
+    """
     bests = historical_bests(history, before_date=session.date)
     for ex in session.exercises:
+        if getattr(ex, "quest_seeded", False):
+            ex.is_pr = False
+            continue
         ex.is_pr = is_exercise_pr(ex, bests)
     return session

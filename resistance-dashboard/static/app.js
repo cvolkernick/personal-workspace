@@ -3660,6 +3660,8 @@
           // disabled buttons drop clicks so document delegation cannot bind them).
           return `<button type="button" class="quest-card${ready ? "" : " quest-card-pending"}"
             data-task-id="${escQuest(tid)}" data-list-id="${escQuest(lid)}" data-parent-id="${escQuest(pid)}"
+            data-group="${escQuest(g.group || "")}" data-title="${escQuest(it.title || "")}"
+            data-slug="${escQuest(it.slug || "")}"
             ${ready ? "" : 'aria-disabled="true"'} aria-label="Complete: ${escQuest(label)}">
             <span class="quest-card-mark" aria-hidden="true"></span>
             <span class="quest-card-text">${escQuest(label)}</span>
@@ -3869,6 +3871,16 @@
     const taskId = (btn.getAttribute("data-task-id") || "").trim();
     const listId = (btn.getAttribute("data-list-id") || "").trim();
     const parentId = (btn.getAttribute("data-parent-id") || "").trim();
+    const groupEl = btn.closest && btn.closest(".quest-group");
+    const questGroup = (
+      btn.getAttribute("data-group")
+      || (groupEl && groupEl.getAttribute && groupEl.getAttribute("data-group"))
+      || ""
+    ).trim();
+    const questTitle = (btn.getAttribute("data-title") || "").trim();
+    const questSlug = (btn.getAttribute("data-slug") || "").trim();
+    const todayWo =
+      (state && state.coach && state.coach.today && state.coach.today.workout) || {};
     // Leaf with both ids is a real control even if a stale pending/disabled paint remains.
     if (!taskId || !listId) {
       if (btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("quest-card-pending")) {
@@ -3882,7 +3894,6 @@
     btn.disabled = true;
     btn.classList.add("is-completing");
     btn.setAttribute("aria-busy", "true");
-    const groupEl = btn.closest(".quest-group");
     const remaining = groupEl
       ? Array.from(groupEl.querySelectorAll(".quest-card:not(.is-completing):not(.is-done)"))
       : [];
@@ -3898,6 +3909,10 @@
           completed: true,
           parent_id: parentId || null,
           sibling_all_done: siblingAllDone,
+          group: questGroup || null,
+          title: questTitle || null,
+          slug: questSlug || null,
+          session_type: todayWo.session_type || null,
         }),
       });
       const data = await res.json().catch(() => ({}));

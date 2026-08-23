@@ -1851,6 +1851,20 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     if sibling_all_done is None
                     else bool(sibling_all_done),
                 )
+                if result.get("ok"):
+                    from rt_dashboard.quest_workout_log import attach_lift_quest_log
+
+                    uid = (
+                        (getattr(self, "_request_user", None) or {}).get("user_id")
+                        or (getattr(self, "_request_user", None) or {}).get("id")
+                        or "default"
+                    )
+                    result = attach_lift_quest_log(
+                        result,
+                        body,
+                        bool(completed),
+                        user_id=str(uid),
+                    )
                 status = 200 if result.get("ok") else 400
                 self._send_json(result, status=status)
             except Exception as e:  # noqa: BLE001

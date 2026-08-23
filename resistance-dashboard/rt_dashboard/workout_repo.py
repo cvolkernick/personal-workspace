@@ -100,6 +100,7 @@ def _exercises_from_json(raw: str) -> List[ExerciseEntry]:
                 sets=sets,
                 is_pr=bool(item.get("is_pr")),
                 raw=str(item.get("raw") or ""),
+                quest_seeded=bool(item.get("quest_seeded")),
             )
         )
     return out

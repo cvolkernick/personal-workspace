@@ -34,6 +34,7 @@ class ExerciseEntry:
     sets: List[SetEntry] = field(default_factory=list)
     is_pr: bool = False
     raw: str = ""
+    quest_seeded: bool = False
 
     @property
     def volume(self) -> float:
@@ -57,6 +58,7 @@ class ExerciseEntry:
             "sets": [s.to_dict() for s in self.sets],
             "is_pr": self.is_pr,
             "raw": self.raw,
+            "quest_seeded": self.quest_seeded,
             "volume": self.volume,
             "best_e1rm": self.best_e1rm,
             "best_working_weight": self.best_working_weight,
