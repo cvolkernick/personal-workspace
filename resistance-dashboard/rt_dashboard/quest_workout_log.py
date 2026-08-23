@@ -132,11 +132,19 @@ def looks_like_lift_quest(
     return planned is not None
 
 
+def ppl_session_type(*candidates: Any) -> str:
+    """First push/pull/legs among values. Ignores rest / empty / junk."""
+    for raw in candidates:
+        st = str(raw or "").lower().strip()
+        if st in SESSION_TYPES:
+            return st
+    return ""
+
+
 def _planned_exercises(today_workout: Optional[dict]) -> List[dict]:
     if not isinstance(today_workout, dict):
         return []
-    if today_workout.get("is_rest_day"):
-        return []
+    # Rest-gated Today still keeps the prescription list — match it.
     out = []
     for ex in today_workout.get("exercises") or []:
         if isinstance(ex, dict) and str(ex.get("name") or "").strip():
@@ -205,14 +213,19 @@ def resolve_session_type(
     today_workout: Optional[dict] = None,
     sessions: Sequence[Session] = (),
     today: str = "",
+    next_session_type: str = "",
 ) -> str:
-    st = str(payload_st or "").lower().strip()
-    if st in SESSION_TYPES:
+    tw = today_workout if isinstance(today_workout, dict) else {}
+    ctx = tw.get("context") if isinstance(tw.get("context"), dict) else {}
+    st = ppl_session_type(
+        payload_st,
+        next_session_type,
+        tw.get("session_type"),
+        tw.get("next_session_type"),
+        ctx.get("next_session_type"),
+    )
+    if st:
         return st
-    if isinstance(today_workout, dict):
-        st = str(today_workout.get("session_type") or "").lower().strip()
-        if st in SESSION_TYPES:
-            return st
     found = [
         s
         for s in sessions
@@ -261,9 +274,8 @@ def apply_quest_to_session(
         "action": "ignore",
         "reason": "",
     }
-    if isinstance(today_workout, dict) and today_workout.get("is_rest_day"):
-        info["reason"] = "rest_day"
-        return None, info
+    # A checked lift leaf is work done — write even when Today is rest-gated
+    # (session_type=rest). Rest / session-level titles are already not_lift.
     if not looks_like_lift_quest(
         group=group, title=title, slug=slug, today_workout=today_workout
     ):
@@ -298,6 +310,8 @@ def apply_quest_to_session(
             info["action"] = "dedupe"
             info["reason"] = "already_logged"
             info["name"] = found.name
+            info["session_type"] = st
+            info["exercise"] = found.to_dict()
             return None, info
         seeded = seed_exercise(name, planned=planned, title_rx=parsed)
         if existing:
@@ -315,8 +329,10 @@ def apply_quest_to_session(
         info["action"] = "upsert"
         info["wrote"] = True
         info["name"] = seeded.name
+        info["session_type"] = st
         info["quest_seeded"] = True
         info["movement_only"] = not bool(seeded.sets)
+        info["exercise"] = seeded.to_dict()
         return session, info
 
     # Uncheck: drop only an unedited seed.
@@ -336,6 +352,7 @@ def apply_quest_to_session(
     info["action"] = "uncheck_remove"
     info["wrote"] = True
     info["name"] = found.name
+    info["session_type"] = st
     return session, info
 
 
@@ -372,6 +389,58 @@ def _default_load_sessions(user_id: str) -> List[Session]:
     return []
 
 
+def quest_log_context(
+    user_id: str,
+    payload: Optional[dict] = None,
+    *,
+    headers: Optional[dict] = None,
+    load_sessions: Optional[Callable[[str], Sequence[Session]]] = None,
+) -> Tuple[str, List[Session], Dict[str, Any]]:
+    """Civil day + sessions + PPL slot for a quest log write.
+
+    Viewer date from payload.date, else request TZ (not Vercel UTC).
+    session_type prefers an explicit PPL value, then next_session_type —
+    never ``rest``.
+    """
+    payload = payload if isinstance(payload, dict) else {}
+    day = str(payload.get("date") or "")[:10]
+    if not day:
+        tz_name = None
+        try:
+            from api.dashboard import request_tz_name
+
+            tz_name = request_tz_name(headers or {}, "")
+        except Exception:  # noqa: BLE001
+            tz_name = None
+        day = local_today_iso(tz_name)
+    loader = load_sessions or _default_load_sessions
+    try:
+        sessions = list(loader(user_id) or [])
+    except Exception:  # noqa: BLE001
+        sessions = []
+    next_st = ""
+    try:
+        from .workout_store import load_workspace_goals, next_session_brief
+
+        goals, _src = load_workspace_goals()
+        next_st = str(next_session_brief(sessions, goals).get("next_session_type") or "")
+    except Exception:  # noqa: BLE001
+        next_st = ""
+    today_workout = {
+        "session_type": ppl_session_type(
+            payload.get("session_type"),
+            payload.get("next_session_type"),
+            next_st,
+        ),
+        "next_session_type": ppl_session_type(
+            payload.get("next_session_type"),
+            next_st,
+        ),
+        "exercises": [],
+    }
+    return day, sessions, today_workout
+
+
 def attach_lift_quest_log(
     result: dict,
     payload: Optional[dict],
@@ -393,7 +462,10 @@ def attach_lift_quest_log(
     group = str(payload.get("group") or "").strip()
     title = str(payload.get("title") or "").strip()
     slug = str(payload.get("slug") or "").strip()
-    session_type = str(payload.get("session_type") or "").strip()
+    session_type = ppl_session_type(
+        payload.get("session_type"),
+        payload.get("next_session_type"),
+    )
     tw = today_workout
     if not looks_like_lift_quest(
         group=group, title=title, slug=slug, today_workout=tw
@@ -423,8 +495,14 @@ def attach_lift_quest_log(
         )
         if session is not None:
             writer = persist or persist_quest_session
-            info["write"] = writer(user_id, session)
-            info["wrote"] = True
+            write = writer(user_id, session)
+            info["write"] = write
+            if isinstance(write, dict) and write.get("ok") is False:
+                info["ok"] = False
+                info["wrote"] = False
+                info["error"] = write.get("error") or "write_failed"
+            else:
+                info["wrote"] = True
         result["workout_log"] = info
     except Exception as exc:  # noqa: BLE001
         result["workout_log"] = {

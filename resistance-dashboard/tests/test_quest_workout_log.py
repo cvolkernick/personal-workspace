@@ -11,12 +11,14 @@ from api.auth.session_util import SESSION_COOKIE, make_session
 from api.workout._util import daily_tasks_complete_body
 from rt_dashboard.models import ExerciseEntry, Session, SetEntry
 from rt_dashboard.pr_detect import apply_auto_prs
+from rt_dashboard.agent_today import export_agent_today
 from rt_dashboard.quest_workout_log import (
     apply_quest_to_session,
     attach_lift_quest_log,
     is_unedited_seed,
     looks_like_lift_quest,
     parse_quest_title,
+    ppl_session_type,
     seed_exercise,
     seed_fingerprint,
 )
@@ -304,19 +306,29 @@ class ApplyQuestToSession(unittest.TestCase):
         self.assertIsNone(session)
         self.assertEqual(info["action"], "uncheck_keep")
 
-    def test_rest_day_does_not_write(self):
+    def test_rest_day_lift_leaf_still_writes(self):
         session, info = apply_quest_to_session(
             completed=True,
             group="training",
             title="DB Flat Press (50 lb 3×10)",
             slug="ex-db-flat-press",
-            session_type="push",
-            today_workout={"session_type": "push", "is_rest_day": True, "exercises": []},
+            session_type="rest",
+            today_workout={
+                "session_type": "rest",
+                "is_rest_day": True,
+                "next_session_type": "push",
+                "exercises": [
+                    {"name": "DB Flat Press", "weight_lbs": 50, "sets": 3, "reps": 10}
+                ],
+            },
             sessions=[],
             today="2026-08-23",
         )
-        self.assertIsNone(session)
-        self.assertEqual(info["reason"], "rest_day")
+        self.assertEqual(info["action"], "upsert")
+        self.assertTrue(info["wrote"])
+        self.assertEqual(session.session_type, "push")
+        self.assertEqual(session.exercises[0].name, "DB Flat Press")
+        self.assertEqual(info["session_type"], "push")
 
     def test_appends_to_existing_today_session(self):
         prior = Session(
@@ -574,6 +586,195 @@ class AttachAndRoute(unittest.TestCase):
         self.assertTrue(body["ok"])
         persist.assert_not_called()
 
+    def test_complete_route_rest_session_type_still_writes(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        persist = mock.Mock(return_value={"ok": True, "path": "turso"})
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.daily_plan_tasks.complete_leaf",
+                return_value={"ok": True, "task": {"id": "t1"}},
+            ), mock.patch(
+                "rt_dashboard.quest_workout_log.persist_quest_session",
+                persist,
+            ), mock.patch(
+                "rt_dashboard.quest_workout_log._default_load_sessions",
+                return_value=[],
+            ):
+                status, body = daily_tasks_complete_body(
+                    _headers(),
+                    {
+                        "list_id": "L1",
+                        "task_id": "t1",
+                        "completed": True,
+                        "group": "training",
+                        "title": "DB Flat Press (50 lb 3×10)",
+                        "slug": "ex-db-flat-press",
+                        "date": "2026-08-23",
+                        "session_type": "rest",
+                        "next_session_type": "push",
+                    },
+                )
+        self.assertEqual(status, 200, body)
+        self.assertTrue(body["workout_log"]["wrote"])
+        self.assertEqual(body["workout_log"]["action"], "upsert")
+        self.assertEqual(body["workout_log"]["session_type"], "push")
+        persist.assert_called_once()
+        session = persist.call_args[0][1]
+        self.assertEqual(session.date, "2026-08-23")
+        self.assertEqual(session.session_type, "push")
+        self.assertEqual(session.exercises[0].name, "DB Flat Press")
+
+
+class LoggedExercisesPaint(unittest.TestCase):
+    def test_ppl_session_type_skips_rest(self):
+        self.assertEqual(ppl_session_type("rest", "push"), "push")
+        self.assertEqual(ppl_session_type("REST", None, "pull"), "pull")
+        self.assertEqual(ppl_session_type("rest", ""), "")
+
+    def test_lift_complete_lands_in_logged_exercises(self):
+        persist = mock.Mock(return_value={"ok": True, "path": "turso"})
+        written = []
+
+        def _persist(uid, session):
+            written.append(session)
+            persist(uid, session)
+            return {"ok": True, "path": "turso"}
+
+        result = attach_lift_quest_log(
+            {"ok": True},
+            {
+                "group": "training",
+                "title": "DB Flat Press (50 lb 3×10)",
+                "slug": "ex-db-flat-press",
+                "session_type": "push",
+                "date": "2026-08-23",
+            },
+            True,
+            user_id="sub-1",
+            sessions=[],
+            today="2026-08-23",
+            today_workout=PUSH_PLAN,
+            persist=_persist,
+        )
+        self.assertTrue(result["workout_log"]["wrote"])
+        session = written[0]
+        food = {
+            "date": "2026-08-23",
+            "name": "Oats",
+            "calories": 300,
+            "protein_g": 12,
+        }
+        body = export_agent_today(
+            {
+                "sessions": [session],
+                "workout": {"session_type": "push", "is_rest_day": False},
+                "nutrition_store": {"food_logs_today": [food]},
+                "health": {"food_logs": [food]},
+                "coach": {"today": {"date": "2026-08-23"}},
+                "meta": {"local_today": "2026-08-23"},
+            }
+        )
+        logged = body["today"]["workout"]["logged_exercises"]
+        self.assertEqual(len(logged), 1)
+        self.assertEqual(logged[0]["name"], "DB Flat Press")
+        self.assertEqual(logged[0]["weight_lbs"], 50)
+        self.assertEqual(body["today"]["workout"]["session_type"], "push")
+
+    def test_uncheck_removes_unedited_seed_from_logged_exercises(self):
+        seeded = _seeded()
+        existing = Session(
+            date="2026-08-23", session_type="push", exercises=[seeded]
+        )
+        persist = mock.Mock(return_value={"ok": True, "path": "turso"})
+        result = attach_lift_quest_log(
+            {"ok": True},
+            {
+                "group": "training",
+                "title": "DB Flat Press (50 lb 3×10)",
+                "slug": "ex-db-flat-press",
+                "session_type": "push",
+            },
+            False,
+            user_id="sub-1",
+            sessions=[existing],
+            today="2026-08-23",
+            today_workout=PUSH_PLAN,
+            persist=persist,
+        )
+        self.assertEqual(result["workout_log"]["action"], "uncheck_remove")
+        emptied = persist.call_args[0][1]
+        body = export_agent_today(
+            {
+                "sessions": [emptied],
+                "coach": {"today": {"date": "2026-08-23"}},
+                "meta": {"local_today": "2026-08-23"},
+            }
+        )
+        self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
+
+    def test_food_logs_unaffected_by_lift_write(self):
+        persist = mock.Mock(return_value={"ok": True, "path": "turso"})
+        food = {"date": "2026-08-23", "name": "Eggs", "calories": 180}
+        payload = {
+            "sessions": [],
+            "nutrition_store": {"food_logs_today": [food]},
+            "health": {"food_logs": [food]},
+            "coach": {"today": {"date": "2026-08-23"}},
+            "meta": {"local_today": "2026-08-23"},
+        }
+        before = export_agent_today(payload)
+        attach_lift_quest_log(
+            {"ok": True},
+            {
+                "group": "training",
+                "title": "Lateral Raises (20 lb 3×12)",
+                "slug": "ex-lateral-raises",
+                "session_type": "push",
+            },
+            True,
+            user_id="sub-1",
+            sessions=[],
+            today="2026-08-23",
+            today_workout=PUSH_PLAN,
+            persist=persist,
+        )
+        after = export_agent_today(payload)
+        self.assertEqual(
+            (before.get("today") or {}),
+            (after.get("today") or {}),
+        )
+        self.assertEqual(
+            payload["nutrition_store"]["food_logs_today"][0]["name"], "Eggs"
+        )
+        persist.assert_called_once()
+
+    def test_non_lift_does_not_write_or_change_logged_exercises(self):
+        persist = mock.Mock()
+        result = attach_lift_quest_log(
+            {"ok": True},
+            {
+                "group": "nutrition",
+                "title": "Next meal: Chicken · 210g",
+                "slug": "meal-0-chicken-0",
+                "session_type": "push",
+            },
+            True,
+            user_id="sub-1",
+            sessions=[],
+            today="2026-08-23",
+            persist=persist,
+        )
+        persist.assert_not_called()
+        self.assertEqual(result["workout_log"]["reason"], "not_lift")
+        body = export_agent_today(
+            {
+                "sessions": [],
+                "workout": {"session_type": "push", "is_rest_day": False},
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
+
 
 class Wiring(unittest.TestCase):
     def test_complete_path_calls_attach(self):
@@ -590,11 +791,17 @@ class Wiring(unittest.TestCase):
         )[0]
         self.assertIn("group: questGroup", handler)
         self.assertIn("title: questTitle", handler)
-        self.assertIn("session_type: todayWo.session_type", handler)
+        self.assertIn("todayWo.session_type", handler)
+        self.assertIn("pplType", handler)
+        self.assertIn("next_session_type:", handler)
+        self.assertIn("date: localToday", handler)
         self.assertIn("completed: wantCompleted", handler)
         self.assertIn("looksLikeLiftQuest", handler)
         self.assertIn("applyWorkoutLogToLocalState", handler)
         self.assertIn("uncheck_remove", JS)
+        self.assertIn("today-logged-lifts", JS)
+        html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+        self.assertIn("today-logged-lifts", html)
         render = JS.split("const renderCard = (it, g) =>", 1)[1].split(
             "Object.keys(byMeal)", 1
         )[0]

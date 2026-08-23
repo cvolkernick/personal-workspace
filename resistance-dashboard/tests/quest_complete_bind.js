@@ -60,12 +60,35 @@ assert(pending.ready === false, "preview leaf without ids is not ready");
 const fetches = [];
 global.fetch = async (url, opts) => {
   fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
-  return { ok: true, status: 200, json: async () => ({ ok: true }) };
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({
+      ok: true,
+      workout_log: {
+        action: "upsert",
+        wrote: true,
+        name: "DB Flat Press",
+        session_type: "push",
+        exercise: {
+          name: "DB Flat Press",
+          quest_seeded: true,
+          sets: [{ weight_lbs: 50, sets: 3, reps: 10 }],
+          raw: "quest-seeded:50/3/10",
+        },
+      },
+    }),
+  };
 };
 global.showAlert = () => {
   throw new Error("showAlert should not fire on success");
 };
-global.state = { daily_tasks: { summary: { done: 0, total: 2 } } };
+global.state = {
+  daily_tasks: { summary: { done: 0, total: 2 } },
+  meta: { local_today: "2026-08-23" },
+  coach: { today: { date: "2026-08-23", workout: { session_type: "rest", next_session_type: "push" } } },
+  sessions: [],
+};
 global.lastSyncedDailyTasks = null;
 global.setTimeout = () => {};
 global.document = {
@@ -77,15 +100,21 @@ global.document = {
 
 global.looksLikeLiftQuest = loadFn("looksLikeLiftQuest");
 global.applyQuestUncheckToSessions = loadFn("applyQuestUncheckToSessions");
+global.applyQuestUpsertToSessions = loadFn("applyQuestUpsertToSessions");
+global.pplSessionTypeFromState = loadFn("pplSessionTypeFromState");
+global.loggedExercisesForDay = loadFn("loggedExercisesForDay");
 global.patchLocalQuestCompleted = loadFn("patchLocalQuestCompleted");
 global.paintQuestMeter = loadFn("paintQuestMeter");
-global.applyWorkoutLogToLocalState = loadFn("applyWorkoutLogToLocalState");
 global.renderHistory = () => {};
+global.renderTodayLoggedLifts = () => {};
+global.applyWorkoutLogToLocalState = loadFn("applyWorkoutLogToLocalState");
 global.unlockQuestCard = loadFn("unlockQuestCard");
 global.onDailyQuestClick = loadFn("onDailyQuestClick");
 const onDailyQuestClick = global.onDailyQuestClick;
 const looksLikeLiftQuest = global.looksLikeLiftQuest;
 const applyQuestUncheckToSessions = global.applyQuestUncheckToSessions;
+const applyQuestUpsertToSessions = global.applyQuestUpsertToSessions;
+const loggedExercisesForDay = global.loggedExercisesForDay;
 
 function makeBtn(attrs) {
   const classes = new Set(["quest-card"]);
@@ -158,8 +187,26 @@ async function click(btn) {
   assert(body.title === "DB Flat Press (50 lb 3×10)", "body carries title");
   assert(body.slug === "ex-db-flat-press", "body carries slug");
   assert(body.completed === true, "first click completes");
+  assert(body.date === "2026-08-23", "body carries viewer civil day");
+  assert(body.session_type === "push", "rest-gated Today still sends PPL session_type");
+  assert(body.next_session_type === "push", "body carries next_session_type");
   assert(ready.classList.contains("is-done"), "lift card stays visible as done");
   assert(ready.disabled === false, "done lift stays clickable for uncheck");
+  assert(
+    global.state.sessions.length === 1 &&
+      global.state.sessions[0].exercises[0].name === "DB Flat Press",
+    "complete upserts the lift into today's local sessions"
+  );
+  const painted = loggedExercisesForDay(global.state.sessions, "2026-08-23");
+  assert(painted.length === 1 && painted[0].name === "DB Flat Press", "logged today includes the lift");
+  assert(
+    applyQuestUpsertToSessions(
+      [{ date: "2026-08-23", session_type: "push", exercises: [{ name: "DB Flat Press", quest_seeded: true }] }],
+      { action: "upsert", name: "DB Flat Press", session_type: "push", exercise: { name: "DB Flat Press" } },
+      "2026-08-23"
+    )[0].exercises.length === 1,
+    "duplicate complete does not invent a second row"
+  );
 
   fetches.length = 0;
   global.fetch = async (url, opts) => {

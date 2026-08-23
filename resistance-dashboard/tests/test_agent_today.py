@@ -223,6 +223,31 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(logged[0]["name"], "Goblet squat")
         self.assertEqual(logged[0]["weight_lbs"], 40)
 
+    def test_quest_seeded_row_is_logged_exercise(self):
+        session = Session(
+            date="2026-08-23",
+            session_type="push",
+            exercises=[
+                ExerciseEntry(
+                    name="Lateral Raises",
+                    sets=[SetEntry(weight_lbs=20, sets=3, reps=12)],
+                    quest_seeded=True,
+                    raw="quest-seeded:20/3/12",
+                )
+            ],
+        )
+        body = export_agent_today(
+            {
+                "sessions": [session],
+                "coach": {"today": {"date": "2026-08-23"}},
+                "meta": {"local_today": "2026-08-23"},
+            }
+        )
+        logged = body["today"]["workout"]["logged_exercises"]
+        self.assertEqual(len(logged), 1)
+        self.assertEqual(logged[0]["name"], "Lateral Raises")
+        self.assertEqual(logged[0]["weight_lbs"], 20)
+
     def test_azm_missing_health_is_honest_empty(self):
         body = export_agent_today({"coach": {"today": {"date": "2026-08-23"}}})
         self.assertEqual(body["today"]["active_zone_minutes"], [])

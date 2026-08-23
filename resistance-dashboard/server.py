@@ -1817,18 +1817,28 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                     else bool(sibling_all_done),
                 )
                 if result.get("ok"):
-                    from rt_dashboard.quest_workout_log import attach_lift_quest_log
+                    from rt_dashboard.quest_workout_log import (
+                        attach_lift_quest_log,
+                        quest_log_context,
+                    )
 
                     uid = (
                         (getattr(self, "_request_user", None) or {}).get("user_id")
                         or (getattr(self, "_request_user", None) or {}).get("id")
                         or "default"
                     )
+                    headers = {k: v for k, v in self.headers.items()}
+                    day, sessions, today_workout = quest_log_context(
+                        str(uid), body, headers=headers
+                    )
                     result = attach_lift_quest_log(
                         result,
                         body,
                         bool(completed),
                         user_id=str(uid),
+                        sessions=sessions,
+                        today=day,
+                        today_workout=today_workout,
                     )
                 status = 200 if result.get("ok") else 400
                 self._send_json(result, status=status)

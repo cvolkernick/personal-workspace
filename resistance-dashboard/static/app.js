@@ -4180,16 +4180,132 @@
     });
   }
 
+  function pplSessionTypeFromState(data) {
+    const src = data || state || {};
+    const slots = [
+      src.coach && src.coach.today && src.coach.today.workout,
+      src.workout_store && src.workout_store.plan,
+      src.workout,
+      src.workout_store,
+    ];
+    const pick = (key) => {
+      for (let i = 0; i < slots.length; i++) {
+        const w = slots[i];
+        if (!w) continue;
+        const st = String(w[key] || (w.context && w.context[key]) || "")
+          .trim()
+          .toLowerCase();
+        if (st === "push" || st === "pull" || st === "legs") return st;
+      }
+      return "";
+    };
+    return pick("session_type") || pick("next_session_type");
+  }
+
+  function loggedExercisesForDay(sessions, day) {
+    const d = String(day || "").slice(0, 10);
+    const out = [];
+    (sessions || []).forEach((sess) => {
+      if (!sess) return;
+      const sDay = String(sess.date || "").slice(0, 10);
+      if (d && sDay && sDay !== d) return;
+      (sess.exercises || []).forEach((ex) => {
+        if (ex && String(ex.name || "").trim()) {
+          out.push(ex);
+        }
+      });
+    });
+    return out;
+  }
+
+  function applyQuestUpsertToSessions(sessions, log, today) {
+    const list = Array.isArray(sessions) ? sessions : [];
+    if (!log || (log.action !== "upsert" && log.action !== "dedupe")) return list;
+    const exercise = log.exercise && typeof log.exercise === "object" ? log.exercise : null;
+    const name = String((exercise && exercise.name) || log.name || "").trim();
+    if (!name) return list;
+    const day = String(today || "").slice(0, 10);
+    const st = String(log.session_type || "").trim().toLowerCase();
+    const row = exercise || {
+      name,
+      quest_seeded: true,
+      sets: [],
+      raw: "quest-seeded:movement",
+    };
+    let foundDay = false;
+    const next = list.map((sess) => {
+      const sDay = String((sess && sess.date) || "").slice(0, 10);
+      const sType = String((sess && sess.session_type) || "").trim().toLowerCase();
+      if (day && sDay && sDay !== day) return sess;
+      if (st && sType && sType !== st) return sess;
+      foundDay = true;
+      const exercises = (sess && sess.exercises) || [];
+      if (exercises.some((ex) => String((ex && ex.name) || "").trim().toLowerCase() === name.toLowerCase())) {
+        return sess;
+      }
+      return { ...sess, exercises: exercises.concat([row]) };
+    });
+    if (foundDay) return next;
+    if (!day) return list;
+    return [
+      {
+        date: day,
+        session_type: st || "push",
+        exercises: [row],
+        notes: "",
+      },
+    ].concat(list);
+  }
+
+  function renderTodayLoggedLifts(data) {
+    const box = typeof $ === "function" ? $("today-logged-lifts") : null;
+    if (!box) return;
+    const src = data || state || {};
+    const today = String(
+      (src.meta && src.meta.local_today) ||
+        (src.coach && src.coach.today && src.coach.today.date) ||
+        ""
+    ).slice(0, 10);
+    const lifts = loggedExercisesForDay(src.sessions || [], today);
+    if (!lifts.length) {
+      box.innerHTML =
+        `<p class="muted" style="margin:0.15rem 0 0;font-size:0.82rem">No lifts logged today yet. Complete a training quest to auto-log.</p>`;
+      return;
+    }
+    const rows = lifts
+      .map((ex) => {
+        const sets = Array.isArray(ex.sets) ? ex.sets[0] : null;
+        const w = sets && sets.weight_lbs != null ? `${sets.weight_lbs} lb` : "";
+        const sr =
+          sets && sets.sets != null && sets.reps != null
+            ? `${sets.sets}×${sets.reps}`
+            : "";
+        const detail = [w, sr].filter(Boolean).join(" · ") || "movement logged";
+        return `<li><div class="title">${ex.name}</div><div class="meta muted">${detail}</div></li>`;
+      })
+      .join("");
+    box.innerHTML =
+      `<div class="today-subh" style="font-size:0.8rem;margin-bottom:0.3rem">Logged today</div>` +
+      `<ul class="session-list" style="margin:0">${rows}</ul>`;
+  }
+
   function applyWorkoutLogToLocalState(log) {
-    if (!log || log.action !== "uncheck_remove") return;
-    if (!state) return;
+    if (!log || !state) return;
+    if (log.action !== "uncheck_remove" && log.action !== "upsert" && log.action !== "dedupe") {
+      return;
+    }
     const today = String(
       (state.meta && state.meta.local_today) ||
         (state.coach && state.coach.today && state.coach.today.date) ||
         ""
     ).slice(0, 10);
-    state.sessions = applyQuestUncheckToSessions(state.sessions || [], log, today);
+    if (log.action === "uncheck_remove") {
+      state.sessions = applyQuestUncheckToSessions(state.sessions || [], log, today);
+    } else {
+      state.sessions = applyQuestUpsertToSessions(state.sessions || [], log, today);
+    }
     if (typeof renderHistory === "function") renderHistory(state.sessions);
+    if (typeof renderTodayLoggedLifts === "function") renderTodayLoggedLifts(state);
   }
 
   async function onDailyQuestClick(ev) {
@@ -4211,6 +4327,12 @@
     if (!wantCompleted && !isLift) return;
     const todayWo =
       (state && state.coach && state.coach.today && state.coach.today.workout) || {};
+    const pplType = pplSessionTypeFromState(state);
+    const localToday = String(
+      (state && state.meta && state.meta.local_today) ||
+        (state && state.coach && state.coach.today && state.coach.today.date) ||
+        ""
+    ).slice(0, 10);
     // Leaf with both ids is a real control even if a stale pending/disabled paint remains.
     if (!taskId || !listId) {
       if (btn.getAttribute("aria-disabled") === "true" || btn.classList.contains("quest-card-pending")) {
@@ -4242,7 +4364,13 @@
           group: questGroup || null,
           title: questTitle || null,
           slug: questSlug || null,
-          session_type: todayWo.session_type || null,
+          date: localToday || null,
+          session_type: pplType || todayWo.session_type || null,
+          next_session_type:
+            pplType ||
+            todayWo.next_session_type ||
+            (todayWo.context && todayWo.context.next_session_type) ||
+            null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -4267,6 +4395,19 @@
           btn.setAttribute("aria-label", `Uncheck: ${label}`);
           unlockQuestCard(btn);
           paintQuestMeter(groupEl);
+          applyWorkoutLogToLocalState(log);
+          if (
+            log.ok === false ||
+            (log.reason &&
+              !log.wrote &&
+              log.action !== "dedupe" &&
+              log.action !== "ignore")
+          ) {
+            showAlert(
+              log.error || log.reason || "Quest checked, but today's log was not written",
+              "warn"
+            );
+          }
         } else {
           btn.removeAttribute("aria-busy");
           setTimeout(() => {
@@ -4686,6 +4827,7 @@
         `;
       }
     }
+    if (typeof renderTodayLoggedLifts === "function") renderTodayLoggedLifts(data);
     const loggedFoods = renderTodayLoggedFoods(data);
     if ($("today-macros")) {
       const n = today.nutrition || {};
