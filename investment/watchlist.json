@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-22",
+  "as_of": "2026-08-23",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -121,8 +121,8 @@
       "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
-      "next_catalyst": "Earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
-      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. Ready for consider set; not auto-buy."
+      "next_catalyst": "Open-weight / model-factory follow-through + earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
+      "notes": "Deep-dive 2026-08-04. Owner jot 2026-08-23 via Grok/Meridian: open-weight / model-factory vertical integration strengthens GPU+software ecosystem demand thesis (WIRED ~$26B over five years for open-weight models; Poolside model-factory license reports ~$6B, WSJ/press ~2026-08-22 \u2014 reported, not Meridian book marks). Concentration/valuation/export gates unchanged. Still ready for consider set; not auto-buy."
     },
     {
       "symbol": "PLTR",
