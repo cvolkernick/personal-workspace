@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from rt_dashboard.hydration_bars import (
     DEFAULT_HYDRATION_GOAL_ML,
@@ -12,8 +13,11 @@ from rt_dashboard.hydration_bars import (
     hydration_target_ml_from_lbs,
     latest_weight_lbs,
     water_ml_for_day,
+    water_ml_for_window,
 )
 from rt_dashboard.models import HydrationDay, WeightSample
+
+ET = ZoneInfo("America/New_York")
 
 
 class TestHydrationBars(unittest.TestCase):
@@ -76,6 +80,13 @@ class TestHydrationBars(unittest.TestCase):
             hydration=[
                 HydrationDay(date="2026-08-10", water_ml=1600, source="hidrate")
             ],
+            samples=[
+                {
+                    "logged_at": (wake + timedelta(hours=1)).isoformat(),
+                    "water_ml": 1600,
+                    "source": "hidrate",
+                }
+            ],
             weight=[WeightSample(date="2026-08-09", weight_lbs=200)],
             sleep_battery={
                 "last_wake_at": wake.isoformat(),
@@ -107,6 +118,178 @@ class TestHydrationBars(unittest.TestCase):
         self.assertEqual(payload["target_source"], "default")
         self.assertEqual(payload["target_ml"], DEFAULT_HYDRATION_GOAL_ML)
         self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+
+    def test_civil_day_row_alone_is_not_wake_actual(self):
+        wake = datetime(2026, 8, 10, 7, 0, 0, tzinfo=timezone.utc)
+        now = wake + timedelta(hours=8)
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-10", water_ml=1600, source="hidrate")
+            ],
+            weight=[WeightSample(date="2026-08-09", weight_lbs=200)],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-10",
+            now=now,
+        )
+        self.assertEqual(payload["day"]["water_ml"], 1600.0)
+        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertEqual(payload["pacing"]["intake_source"], "none")
+
+    def test_cross_midnight_retains_prior_evening_ml(self):
+        wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
+        now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)
+        samples = [
+            {
+                "logged_at": datetime(2026, 8, 22, 21, 0, tzinfo=ET).isoformat(),
+                "water_ml": 300,
+                "source": "hidrate",
+            },
+            {
+                "logged_at": datetime(2026, 8, 22, 22, 30, tzinfo=ET).isoformat(),
+                "water_ml": 400,
+                "source": "hidrate",
+            },
+            {
+                "logged_at": datetime(2026, 8, 23, 0, 15, tzinfo=ET).isoformat(),
+                "water_ml": 150,
+                "source": "hidrate",
+            },
+        ]
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-22", water_ml=700, source="hidrate"),
+                HydrationDay(date="2026-08-23", water_ml=150, source="hidrate"),
+            ],
+            samples=samples,
+            weight=[WeightSample(date="2026-08-20", weight_lbs=200)],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-23",
+            now=now,
+            tz_name="America/New_York",
+        )
+        pac = payload["pacing"]
+        self.assertEqual(pac["window"]["source"], "sleep_battery")
+        self.assertEqual(pac["consumed_ml"], 550.0)
+        self.assertEqual(payload["day"]["water_ml"], 150.0)
+        self.assertEqual(payload["day"]["date"], "2026-08-23")
+        self.assertNotEqual(pac["consumed_ml"], payload["day"]["water_ml"])
+
+    def test_civil_day_flip_alone_does_not_zero_wake_actual(self):
+        wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
+        just_after_midnight = datetime(2026, 8, 23, 0, 5, 0, tzinfo=ET)
+        samples = [
+            {
+                "logged_at": datetime(2026, 8, 22, 23, 10, tzinfo=ET).isoformat(),
+                "water_ml": 500,
+                "source": "hidrate",
+            }
+        ]
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-22", water_ml=500, source="hidrate"),
+            ],
+            samples=samples,
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-23",
+            now=just_after_midnight,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(payload["pacing"]["consumed_ml"], 500.0)
+        self.assertEqual(payload["day"]["water_ml"], 0.0)
+
+    def test_new_wake_excludes_prior_window_ml(self):
+        old_wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
+        new_wake = datetime(2026, 8, 23, 7, 0, 0, tzinfo=ET)
+        now = datetime(2026, 8, 23, 8, 0, 0, tzinfo=ET)
+        samples = [
+            {
+                "logged_at": datetime(2026, 8, 22, 22, 30, tzinfo=ET).isoformat(),
+                "water_ml": 400,
+                "source": "hidrate",
+            },
+            {
+                "logged_at": datetime(2026, 8, 23, 7, 20, tzinfo=ET).isoformat(),
+                "water_ml": 180,
+                "source": "hidrate",
+            },
+        ]
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-23", water_ml=180, source="hidrate"),
+            ],
+            samples=samples,
+            sleep_battery={
+                "last_wake_at": new_wake.isoformat(),
+                "empty_at": (new_wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-23",
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(payload["pacing"]["consumed_ml"], 180.0)
+        self.assertNotEqual(payload["pacing"]["consumed_ml"], 580.0)
+        old_window = water_ml_for_window(
+            samples,
+            window_start=old_wake,
+            window_end=old_wake + timedelta(hours=16),
+            now=now,
+        )
+        self.assertEqual(old_window["water_ml"], 400.0)
+
+    def test_no_wake_is_honest_empty(self):
+        now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-23", water_ml=900, source="hidrate"),
+            ],
+            samples=[
+                {
+                    "logged_at": datetime(2026, 8, 22, 23, 0, tzinfo=ET).isoformat(),
+                    "water_ml": 400,
+                    "source": "hidrate",
+                }
+            ],
+            sleep_battery={},
+            as_of="2026-08-23",
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertEqual(payload["pacing"]["intake_source"], "none")
+        self.assertEqual(payload["day"]["water_ml"], 900.0)
+
+    def test_window_helper_skips_date_only_and_missing_amount(self):
+        wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
+        now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)
+        got = water_ml_for_window(
+            [
+                HydrationDay(date="2026-08-22", water_ml=700, source="hidrate"),
+                {"logged_at": (wake + timedelta(minutes=10)).isoformat()},
+                {
+                    "logged_at": (wake + timedelta(minutes=20)).isoformat(),
+                    "water_ml": 120,
+                    "source": "hidrate",
+                },
+            ],
+            window_start=wake,
+            window_end=wake + timedelta(hours=16),
+            now=now,
+        )
+        self.assertEqual(got["water_ml"], 120.0)
+        self.assertEqual(got["sample_count"], 1)
 
 
 if __name__ == "__main__":

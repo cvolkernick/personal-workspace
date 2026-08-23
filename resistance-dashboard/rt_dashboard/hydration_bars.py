@@ -1,16 +1,18 @@
 """Hydration pacing over the same wake window as calorie eating-window pacing.
 
 Window = sleep-battery wake → empty (awake budget). Day target = 35 ml/kg from
-latest weight (forward-filled as of as_of). Actual = civil-day water total
-(Hidrate Day / Google Health) — sip timestamps not available in v1.
+latest weight (forward-filled as of as_of). Wake-bar actual = sum of timestamped
+water samples in [last_wake_at, min(now, window end)]. Civil-day totals
+(``water_ml_for_day``) stay for Trends — they are not the live wake actual.
+Date-only rows are skipped (no invented sip time). No wake / no samples → 0.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
-from .calorie_bars import eating_window_fraction, pace_vs_expected
+from .calorie_bars import _parse_dt, eating_window_fraction, pace_vs_expected
 
 # Common athletic baseline ≈ 0.5 oz/lb. Not heat/sweat individualized.
 ML_PER_KG = 35.0
@@ -110,6 +112,181 @@ def water_ml_for_day(
     return {"date": as_of, "water_ml": 0.0, "source": "none"}
 
 
+def _sample_as_dict(sample: Any) -> Optional[Dict[str, Any]]:
+    if sample is None:
+        return None
+    if isinstance(sample, dict):
+        return sample
+    if hasattr(sample, "to_dict"):
+        try:
+            d = sample.to_dict()
+            if isinstance(d, dict):
+                return d
+        except Exception:
+            pass
+    out: Dict[str, Any] = {}
+    for key in (
+        "logged_at",
+        "timestamp",
+        "startTime",
+        "start_time",
+        "time",
+        "date",
+        "water_ml",
+        "amount",
+        "milliliters",
+        "ml",
+        "source",
+    ):
+        if hasattr(sample, key):
+            out[key] = getattr(sample, key)
+    return out or None
+
+
+def _parse_time_value(value: Any) -> Optional[datetime]:
+    """Parse a full datetime. Clock-only strings (HH:MM) are not enough."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, dict):
+        return _parse_dt(value.get("iso") or value.get("iso8601"))
+    s = str(value).strip()
+    if not s:
+        return None
+    # HH:MM / HH:MM:SS without a date is not a sip timestamp — do not invent a day.
+    if "T" not in s and "-" not in s and ":" in s and len(s) <= 8:
+        return None
+    return _parse_dt(s)
+
+
+def water_sample_event_time(
+    sample: Any, *, default_tz: Any = None
+) -> Optional[datetime]:
+    """Event time for a water sample. Date-only rows return None (honest skip)."""
+    d = _sample_as_dict(sample)
+    if not d:
+        return None
+    for key in ("logged_at", "timestamp", "startTime", "start_time", "time"):
+        if key not in d or d.get(key) in (None, ""):
+            continue
+        dt = _parse_time_value(d.get(key))
+        if dt is None:
+            continue
+        if default_tz is not None:
+            dt = dt.astimezone(default_tz)
+        return dt
+
+    # date + clock (HH:MM) when both are present — not invented.
+    day = str(d.get("date") or "")[:10]
+    clock = d.get("time")
+    if len(day) == 10 and clock not in (None, ""):
+        clock_s = str(clock).strip()
+        if "T" not in clock_s and len(clock_s) <= 8 and ":" in clock_s:
+            parts = clock_s.replace(".", ":").split(":")
+            try:
+                hh, mm = int(parts[0]), int(parts[1])
+            except (TypeError, ValueError, IndexError):
+                return None
+            composed = _parse_dt(f"{day}T{hh:02d}:{mm:02d}:00")
+            if composed is None:
+                return None
+            if default_tz is not None:
+                if composed.tzinfo is None:
+                    composed = composed.replace(tzinfo=default_tz)
+                else:
+                    composed = composed.astimezone(default_tz)
+            return composed
+    return None
+
+
+def _sample_ml(sample: Any) -> Optional[float]:
+    d = _sample_as_dict(sample)
+    if not d:
+        return None
+    for key in ("water_ml", "amount", "milliliters", "ml"):
+        raw = d.get(key)
+        if raw is None or raw == "":
+            continue
+        try:
+            ml = float(raw)
+        except (TypeError, ValueError):
+            continue
+        if ml != ml or ml < 0:
+            continue
+        return ml
+    return None
+
+
+def water_ml_for_window(
+    samples: Optional[Sequence[Any]],
+    *,
+    window_start: Any,
+    window_end: Any = None,
+    now: Optional[datetime] = None,
+    tz_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Sum water samples with timestamps in [window_start, min(now, window_end)].
+
+    Date-only civil-day rows are skipped — no invented sip time. Missing wake
+    (no window_start) or no in-window samples → honest 0.
+    """
+    if now is None or tz_name:
+        from .timeutil import local_now
+
+        now = local_now(tz_name, now=now)
+    elif now.tzinfo is None:
+        from .timeutil import local_tz
+
+        now = now.replace(tzinfo=timezone.utc).astimezone(local_tz(tz_name))
+
+    start = _parse_dt(window_start)
+    if start is None:
+        return {"water_ml": 0.0, "sample_count": 0, "source": "none"}
+    start = start.astimezone(now.tzinfo)
+    end = _parse_dt(window_end)
+    if end is not None:
+        end = end.astimezone(now.tzinfo)
+        cutoff = min(now, end)
+    else:
+        cutoff = now
+
+    total = 0.0
+    count = 0
+    sources: List[str] = []
+    for sample in samples or []:
+        dt = water_sample_event_time(sample, default_tz=now.tzinfo)
+        if dt is None:
+            continue
+        dt = dt.astimezone(now.tzinfo)
+        if dt < start or dt > cutoff:
+            continue
+        ml = _sample_ml(sample)
+        if ml is None:
+            continue
+        total += ml
+        count += 1
+        d = _sample_as_dict(sample) or {}
+        src = str(d.get("source") or "").strip()
+        if src:
+            sources.append(src)
+
+    source = "none"
+    if count:
+        uniq: List[str] = []
+        for src in sources:
+            if src not in uniq:
+                uniq.append(src)
+        source = uniq[0] if len(uniq) == 1 else "wake_window"
+
+    return {
+        "water_ml": round(total, 1),
+        "sample_count": count,
+        "source": source,
+        "window_start": start.isoformat(timespec="seconds"),
+        "window_end": (end or cutoff).isoformat(timespec="seconds"),
+        "cutoff": cutoff.isoformat(timespec="seconds"),
+    }
+
+
 def hydration_pacing(
     *,
     consumed_ml: float,
@@ -186,6 +363,7 @@ def hydration_pacing(
 def build_hydration_bars_payload(
     *,
     hydration: Optional[Sequence[Any]] = None,
+    samples: Optional[Sequence[Any]] = None,
     weight: Optional[Sequence[Any]] = None,
     sleep_battery: Optional[dict] = None,
     as_of: Optional[str] = None,
@@ -199,6 +377,10 @@ def build_hydration_bars_payload(
       1. target_ml_override (explicit)
       2. 35 ml/kg from latest weight on/before as_of
       3. DEFAULT_HYDRATION_GOAL_ML (2500)
+
+    Wake-bar ``consumed`` is window-summed from timestamped ``samples`` (and any
+    timestamped rows mixed into ``hydration``). Civil-day ``hydration`` is only
+    used for ``day`` / Trends. No active wake or no in-window samples → 0.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -226,7 +408,22 @@ def build_hydration_bars_payload(
     frac = float(window["fraction"])
 
     day = water_ml_for_day(hydration, as_of=as_of)
-    consumed = float(day.get("water_ml") or 0)
+    combined: List[Any] = list(samples or []) + list(hydration or [])
+    if window.get("source") != "sleep_battery":
+        # No active wake (missing last_wake_at, or window already empty).
+        win_intake = {"water_ml": 0.0, "sample_count": 0, "source": "none"}
+        consumed = 0.0
+        intake_source = "none"
+    else:
+        win_intake = water_ml_for_window(
+            combined,
+            window_start=window.get("window_start"),
+            window_end=window.get("window_end"),
+            now=now,
+            tz_name=tz_name,
+        )
+        consumed = float(win_intake.get("water_ml") or 0)
+        intake_source = str(win_intake.get("source") or "none")
 
     wt = latest_weight_lbs(weight, as_of=as_of)
     target_source = "default"
@@ -255,7 +452,9 @@ def build_hydration_bars_payload(
         window_fraction=frac,
     )
     pacing["window"] = window
-    pacing["intake_source"] = day.get("source") or "none"
+    pacing["intake_source"] = intake_source
+    pacing["window_intake"] = win_intake
+    pacing["civil_day_ml"] = float(day.get("water_ml") or 0)
     pacing["as_of"] = as_of
     pacing["target_source"] = target_source
     pacing["weight_lbs"] = weight_lbs

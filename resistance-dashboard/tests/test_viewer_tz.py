@@ -191,6 +191,7 @@ class ViewerTzSleepAndEating(unittest.TestCase):
         self.assertIn("sleep_battery_from_fitdash_sleep", text)
         self.assertIn("build_calorie_bars_payload", text)
         self.assertIn("build_hydration_bars_payload", text)
+        self.assertIn("samples=hidrate_hydration_samples()", text)
 
     def test_dashboard_wake_and_eating_windows_are_et_not_utc(self):
         """Assay: ?tz=America/New_York → wake/eating are ET, one clock, not Vercel UTC."""
