@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -110,6 +111,67 @@ class TestFundPolicy(unittest.TestCase):
         p = load_fund_policy()
         core = ((p.get("allowlist") or {}).get("core") or [])
         self.assertNotIn("NVDA", [str(s).upper() for s in core])
+
+    def test_book_channel_map_v0_enums_and_anchors(self):
+        """Meridian nest: load fixture, lock enums, assert NVDA/MSTR may_change."""
+        path = ROOT / "investment" / "book_channel_map.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(data.get("schema"), "fcc_book_channel_map_v0")
+        self.assertEqual(data.get("owner"), "nakatoshi")
+        self.assertEqual(data.get("consumer"), "meridian")
+        self.assertFalse(data.get("stale"))
+        self.assertLessEqual(float(data.get("confidence")), 0.50)
+        self.assertTrue(data.get("as_of"))
+        notes = str(data.get("notes") or "")
+        self.assertIn("may_change=none", notes)
+        self.assertIn("as_of missing", notes)
+        self.assertIn("empty capital list", notes.lower())
+        self.assertIn("No FCC marks on Horizon", notes)
+
+        kinds = {"global", "held", "watch"}
+        may_change = {
+            "ltv_manage",
+            "card_refi",
+            "residual_freeze",
+            "sleeve_watch",
+            "none",
+        }
+        book_channels = {
+            "btc_morpho_ltv",
+            "usdc_cash",
+            "rh_sleeve",
+            "strc_jr",
+            "none",
+        }
+        urgencies = {"watch", "this_week", "immediate", "structural"}
+
+        items = data.get("items") or []
+        self.assertIsInstance(items, list)
+        by_kind = {"global": 0, "held": 0, "watch": 0}
+        by_id = {}
+        for item in items:
+            self.assertIsInstance(item, dict)
+            self.assertTrue(item.get("id"))
+            self.assertIn(item.get("kind"), kinds)
+            self.assertIn(item.get("may_change"), may_change)
+            self.assertIn(item.get("book_channel"), book_channels)
+            self.assertIsInstance(item.get("does_not"), str)
+            self.assertNotIsInstance(item.get("does_not"), list)
+            self.assertTrue(item.get("as_of"))
+            self.assertIsInstance(item.get("stale"), bool)
+            self.assertLessEqual(float(item.get("confidence")), 0.50)
+            if "urgency" in item:
+                self.assertIn(item.get("urgency"), urgencies)
+            by_kind[item["kind"]] += 1
+            by_id[item["id"]] = item
+
+        self.assertEqual(by_kind["global"], 6)
+        self.assertEqual(by_kind["held"], 7)
+        self.assertEqual(by_kind["watch"], 7)
+        self.assertEqual(by_id["NVDA"]["may_change"], "none")
+        self.assertEqual(by_id["NVDA"]["kind"], "watch")
+        self.assertEqual(by_id["MSTR"]["may_change"], "sleeve_watch")
+        self.assertEqual(by_id["MSTR"]["kind"], "held")
 
 
 class TestDecisionLog(unittest.TestCase):

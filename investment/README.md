@@ -67,6 +67,8 @@ Weights are **targets for the investable equity book** (not cash buffers, CB Mor
 
 **Watchlist:** thematic monitor/consider list in [`watchlist.json`](./watchlist.json) (not the same as core allowlist). Deep-dives via workflow `position-deep-dive` → reports in [`research/`](./research/).
 
+**Book channel map:** typed nest for Meridian capital join in [`book_channel_map.json`](./book_channel_map.json) (`fcc_book_channel_map_v0`). Kill rules live in the file `notes` field (drop capital row if `may_change=none` or `as_of` missing; empty capital list is honest; no FCC marks on Horizon).
+
 **Private companies watchlist:** pre-IPO / unlisted names in [`private_watchlist.json`](./private_watchlist.json) for future public allocation if/when they list. **Not** investable on the agentic book today; **not** in the deploy consider set; short briefs under [`research/private/`](./research/private/). On listing → promote to public `watchlist.json` + deep-dive before any size.
 
 ## Data source
