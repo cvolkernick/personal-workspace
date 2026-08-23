@@ -19,11 +19,69 @@ from api.healthz import healthz_body
 
 
 class VercelPreviewHealthz(unittest.TestCase):
-    def test_ok_preview_role(self):
-        body = healthz_body()
+    def test_production_role_and_sha(self):
+        env = {
+            "VERCEL_ENV": "production",
+            "VERCEL_GIT_COMMIT_SHA": "0123456789abcdef0123456789abcdef01234567",
+            "GOOGLE_CLIENT_SECRET": "should-not-leak",
+            "DATABASE_URL": "postgres://user:pass@host/db",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            body = healthz_body()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["service"], "fitdash")
+        self.assertEqual(body["role"], "production")
+        self.assertEqual(body["gitSha"], env["VERCEL_GIT_COMMIT_SHA"])
+        self.assertEqual(set(body), {"ok", "service", "role", "gitSha"})
+        dumped = str(body)
+        self.assertNotIn("should-not-leak", dumped)
+        self.assertNotIn("postgres://", dumped)
+
+    def test_preview_role_and_sha(self):
+        env = {
+            "VERCEL_ENV": "preview",
+            "VERCEL_GIT_COMMIT_SHA": "abc123def4567890abcdef1234567890abcdef12",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            body = healthz_body()
         self.assertTrue(body["ok"])
         self.assertEqual(body["service"], "fitdash")
         self.assertEqual(body["role"], "vercel-preview")
+        self.assertEqual(body["gitSha"], env["VERCEL_GIT_COMMIT_SHA"])
+
+    def test_development_role(self):
+        env = {
+            "VERCEL_ENV": "development",
+            "VERCEL_GIT_COMMIT_SHA": "devsha1",
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            body = healthz_body()
+        self.assertEqual(body["role"], "development")
+        self.assertEqual(body["gitSha"], "devsha1")
+
+    def test_missing_sha_is_honest_null(self):
+        env = {"VERCEL_ENV": "production"}
+        with mock.patch.dict(os.environ, env, clear=True):
+            body = healthz_body()
+        self.assertEqual(body["role"], "production")
+        self.assertIsNone(body["gitSha"])
+
+    def test_blank_sha_is_honest_null(self):
+        env = {"VERCEL_ENV": "preview", "VERCEL_GIT_COMMIT_SHA": "   "}
+        with mock.patch.dict(os.environ, env, clear=True):
+            body = healthz_body()
+        self.assertEqual(body["role"], "vercel-preview")
+        self.assertIsNone(body["gitSha"])
+
+    def test_missing_vercel_env_is_not_production(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            body = healthz_body()
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["service"], "fitdash")
+        self.assertNotEqual(body["role"], "production")
+        self.assertEqual(body["role"], "unknown")
+        self.assertIsNone(body["gitSha"])
+        self.assertEqual(set(body), {"ok", "service", "role", "gitSha"})
 
 
 class VercelPreviewAuthStatus(unittest.TestCase):
