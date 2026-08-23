@@ -258,6 +258,20 @@
       white-space: pre-wrap;
       margin: 0.15rem 0 0;
     }
+    details.trip {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.15rem 0.65rem 0.35rem;
+      margin: 0.35rem 0;
+    }
+    details.trip summary {
+      cursor: pointer;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-weight: 650;
+    }
+    .ops-flag { color: var(--yellow); }
     @media (max-width: 720px) {
       .glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       .grid { grid-template-columns: 1fr; }
@@ -309,7 +323,7 @@
     }
 
     function vinShort(vin) {
-      if (!vin) return "VIN unknown";
+      if (!vin) return null;
       return "…" + String(vin).slice(-6);
     }
 
@@ -474,59 +488,181 @@
       return `<div class="row">${esc(bits.join(" · "))}</div>`;
     }
 
-    function turoStrip(t, g) {
-      const bookings = (t && t.bookings) || [];
-      const line = (g && g.turo_line) || turoOneLine(t || {}, 900);
-      const rows = bookings.length
-        ? bookings.map(bookingRow).join("")
-        : `<div class="row">${esc(line)}</div>`;
-      return `<div class="strip"><h3>Turo</h3>${rows}</div>`;
+    function tripIdFromText(text) {
+      const blob = String(text || "");
+      let m = blob.match(/(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})/i);
+      if (m) return m[1];
+      m = blob.match(/(?:^|[\s(])#\s*(\d{6,8})\b/);
+      return m ? m[1] : null;
     }
 
-    function costsStrip(f) {
-      const stale = f.stale ? chip("stale", "warn") : chip("sheet", "ok");
+    function matchTaskUnit(it, units) {
+      if (it && it.unit_id) return it.unit_id;
+      const blob = `${(it && it.title) || ""}\n${(it && it.notes) || ""}`;
+      const trip = tripIdFromText(blob);
+      if (trip) {
+        const hits = (units || []).filter((u) =>
+          (((u.turo || {}).bookings) || []).some((b) => String(b.trip_id || "") === trip)
+        );
+        if (hits.length === 1) return hits[0].id;
+        if (hits.length > 1) return null;
+      }
+      const hay = blob.toLowerCase();
+      const hits = [];
+      for (const u of units || []) {
+        const idn = u.identity || {};
+        const year = String(idn.year || "");
+        const make = String(idn.make || "").toLowerCase();
+        const model = String(idn.model || "").toLowerCase();
+        if (!year || !make || !model) continue;
+        const name = `${make} ${model}`;
+        if (hay.includes(`${year} ${name}`) || hay.includes(`${name} ${year}`)) hits.push(u.id);
+        else if (hay.includes(year) && hay.includes(model)) hits.push(u.id);
+      }
+      return hits.length === 1 ? hits[0] : null;
+    }
+
+    function assignInvoiceItems(items, units) {
+      const by = {};
+      const unmatched = [];
+      for (const it of items || []) {
+        if (!it || !(it.title || it.notes)) continue;
+        const uid = matchTaskUnit(it, units);
+        if (uid) {
+          (by[uid] = by[uid] || []).push(it);
+        } else {
+          unmatched.push(it);
+        }
+      }
+      return { by, unmatched };
+    }
+
+    function invoiceItemRow(it, listId) {
+      const tid = esc(it.id || "");
+      const lid = esc(it.list_id || listId || "");
+      const notes = (it.notes || "").trim();
+      return `<label class="host-ops-item">
+        <input type="checkbox" data-task-id="${tid}" data-list-id="${lid}" />
+        <span class="host-ops-copy">
+          <span class="title">${esc(it.title || "")}</span>
+          ${notes ? `<p class="notes">${esc(notes)}</p>` : ""}
+        </span>
+      </label>`;
+    }
+
+    function scheduleOf(t, nowMs) {
+      if (t && Array.isArray(t.schedule)) return t.schedule;
+      return (t && t.bookings) || [];
+    }
+
+    function vehicleStrip(u, g) {
+      const idn = u.identity || {};
+      const f = u.finance || {};
+      const locked = f.locked || {};
+      const meta = [];
+      if (idn.host_label) meta.push(`<div class="row">${esc(idn.host_label)}</div>`);
+      if (idn.plate) meta.push(`<div class="row">Plate ${esc(idn.plate)}</div>`);
+      const bits = [];
+      if (locked.lender) bits.push(locked.lender);
+      if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);
+      if (locked.monthly != null) bits.push(`${money(locked.monthly)}/mo`);
+      if (bits.length) meta.push(`<div class="row muted">${esc(bits.join(" · "))}</div>`);
+      return `<div class="strip"><h3>Vehicle</h3>${meta.join("")}${dimoStrip(u.dimo || {}, g)}</div>`;
+    }
+
+    function scheduleStrip(t, g) {
+      const trips = scheduleOf(t);
+      const live = trips.filter((b) => (b.phase || "upcoming") !== "canceled");
+      const canceled = trips.filter((b) => b.phase === "canceled" || b.status === "canceled");
+      const rows = [];
+      live.forEach((b) => rows.push(bookingRow(b)));
+      canceled.forEach((b) => rows.push(bookingRow({ ...b, status: "canceled" })));
+      if (!rows.length) {
+        const line = (g && g.turo_line) || turoOneLine(t || {}, 900);
+        rows.push(`<div class="row">${esc(line)}</div>`);
+      }
+      return `<div class="strip"><h3>Schedule</h3>${rows.join("")}</div>`;
+    }
+
+    function moneyStrip(f, invoiceItems, listId) {
+      const locked = (f && f.locked) || {};
+      const showBalances = locked.show_balances !== false;
       const portal = portalOf(f);
-      const ptp = portal && (portal.promise_to_pay || portal.ptp);
-      const lines = (f.sheet_lines || []).map((l) =>
+      const ptp = showBalances && portal && (portal.promise_to_pay || portal.ptp);
+      const lines = showBalances ? ((f && f.sheet_lines) || []) : [];
+      let body = "";
+      const bits = [];
+      if (locked.lender) bits.push(locked.lender);
+      if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);
+      if (locked.monthly != null) bits.push(`${money(locked.monthly)}/mo`);
+      if (bits.length) body += `<div class="row muted">${esc(bits.join(" · "))}</div>`;
+      if (invoiceItems && invoiceItems.length) {
+        body += `<div class="row">Invoice-ready</div>`;
+        body += invoiceItems.map((it) => invoiceItemRow(it, listId)).join("");
+      }
+      if (ptp) {
+        body += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+      }
+      if (showBalances && portal && portal.amount_due != null) {
+        body += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
+      }
+      if (showBalances && portal && portal.past_due != null) {
+        body += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
+      }
+      body += lines.map((l) =>
         `<div class="row">${esc(l.item)} · ${money(l.monthly)}` +
         `${l.from ? ` <span class="muted">from ${esc(l.from)}</span>` : ""}` +
         `${l.date ? ` <span class="muted">due ${esc(l.date)}</span>` : ""}</div>`
       ).join("");
-      let lead = "";
-      if (ptp) {
-        lead += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
+      if (showBalances && f && f.sheet_monthly != null) {
+        body += `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>`;
       }
-      if (portal && portal.amount_due != null) {
-        lead += `<div class="row">Amount due ${money(portal.amount_due)}</div>`;
-      }
-      if (portal && portal.past_due != null) {
-        lead += `<div class="row err">Past due ${money(portal.past_due)}</div>`;
-      }
-      let portalHtml = "";
-      if (portal) {
-        const bits = [];
-        if (portal.contractual_monthly != null) bits.push(`${money(portal.contractual_monthly)}/mo`);
-        if (portal.apr_pct != null) bits.push(`${portal.apr_pct}% APR`);
-        if (portal.principal_balance != null) bits.push(`principal ${money(portal.principal_balance)} (not payoff)`);
+      if (showBalances && portal) {
+        const extra = [];
+        if (portal.contractual_monthly != null) extra.push(`${money(portal.contractual_monthly)}/mo`);
+        if (portal.principal_balance != null) extra.push(`principal ${money(portal.principal_balance)} (not payoff)`);
         if (portal.payoff_quote && portal.payoff_quote.amount != null) {
-          bits.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
+          extra.push(`portal payoff quote ${money(portal.payoff_quote.amount)} as of ${esc(portal.payoff_quote.as_of || portal.as_of)} — not live`);
         }
-        if (bits.length) {
-          portalHtml = `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(bits.join(" · "))} ${chip("stale", "warn")}</div>`;
+        if (extra.length) {
+          body += `<div class="row muted">Portal ${esc(portal.as_of || "")} · ${esc(extra.join(" · "))} ${chip("stale", "warn")}</div>`;
         }
       }
-      const emptyNote = (!lines && !portal)
-        ? `<div class="empty">${esc(f.note || "No Fleet-tab lines for this unit.")}</div>`
-        : "";
-      return `
-        <div class="strip">
-          <h3>Notes & costs ${stale}</h3>
-          ${lead}
-          ${lines}
-          ${f.sheet_monthly != null ? `<div class="row">Sheet monthly ${money(f.sheet_monthly)}</div>` : ""}
-          ${portalHtml}
-          ${emptyNote}
-        </div>`;
+      if (!body) {
+        body = `<div class="empty">${esc((f && f.note) || "No money items for this unit.")}</div>`;
+      }
+      return `<div class="strip"><h3>Money</h3>${body}</div>`;
+    }
+
+    function tripDetailStrip(t) {
+      const trips = scheduleOf(t);
+      const blocks = trips.map((b) => {
+        const flags = [];
+        (b.extra_drivers || []).forEach((d) => {
+          if (d && d.name) {
+            flags.push(`extra driver ${d.name}${d.turo_verified ? " · Turo-verified" : ""}`);
+          }
+        });
+        if (b.drop_off) flags.push(`drop-off ${b.drop_off}`);
+        if (b.phone) flags.push(`phone ${b.phone}`);
+        (b.guest_asks || []).forEach((ask) => flags.push(`phone tap ${ask}`));
+        const summaryBits = [b.status || "booked"];
+        if (b.guest) summaryBits.push(b.guest);
+        if (b.trip_id) summaryBits.push(`#${b.trip_id}`);
+        if (b.start || b.end) summaryBits.push(`${b.start || "?"} → ${b.end || "?"}`);
+        const extra = flags.map((f) => `<div class="row ops-flag">${esc(f)}</div>`).join("");
+        return `<details class="trip"><summary>${esc(summaryBits.join(" · "))}</summary>${extra}</details>`;
+      }).join("");
+      if (!blocks) return "";
+      return `<div class="strip"><h3>Trip detail</h3>${blocks}</div>`;
+    }
+
+    function turoStrip(t, g) {
+      return scheduleStrip(t, g);
+    }
+
+    function costsStrip(f) {
+      return moneyStrip(f, [], "");
     }
 
     function glanceStrip(units, nowMs, pollS) {
@@ -557,13 +693,17 @@
       const title = g.title || [idn.year, idn.make, idn.model].filter(Boolean).join(" ") || u.id;
       const photo = g.photo || unitPhoto(u.id);
       const fresh = g.freshness || "unknown";
+      const vinChip = g.vin_short || vinShort(idn.vin);
       const chips = [
         chip(idn.role || "unknown"),
-        chip(g.vin_short || vinShort(idn.vin)),
+        idn.host_label ? chip(idn.host_label) : "",
+        idn.plate ? chip(idn.plate) : "",
+        vinChip ? chip(vinChip) : "",
         idn.lender ? chip(idn.lender) : "",
         fresh === "dead" ? chip("dead", "err") : (fresh === "stale" ? chip("stale", "warn") : ""),
         g.due ? chip("due", "err") : "",
       ].join("");
+      const invoiceItems = (u.invoice_ready || []);
       return `
         <article class="card ${esc(fresh)}" id="unit-${esc(u.id)}" data-unit="${esc(u.id)}" data-freshness="${esc(fresh)}">
           <div class="hero">
@@ -574,9 +714,10 @@
             </div>
           </div>
           <div class="body">
-            ${dimoStrip(u.dimo || {}, g)}
-            ${turoStrip(u.turo || {}, g)}
-            ${costsStrip(u.finance || {})}
+            ${vehicleStrip(u, g)}
+            ${scheduleStrip(u.turo || {}, g)}
+            ${moneyStrip(u.finance || {}, invoiceItems, u.invoice_list_id || "")}
+            ${tripDetailStrip(u.turo || {})}
           </div>
         </article>`;
     }
@@ -600,7 +741,7 @@
         html += `</ul></div>`;
       }
       if (unmatched.length) {
-        html += `<div class="strip"><h3>Turo events not matched to a VIN/unit</h3><ul>`;
+        html += `<div class="strip"><h3>Unassigned Mike Turo</h3><ul>`;
         html += unmatched.map((b) =>
           `<li>${esc(b.status)} · ${esc(b.vehicle || "vehicle ?")} · ${esc(b.subject || "")}</li>`
         ).join("");
@@ -622,33 +763,19 @@
         }
         box.hidden = false;
         box.innerHTML =
-          `<h2>Invoice-ready</h2><p class="err">${esc(err)}</p>`;
+          `<h2>Unassigned invoice-ready</h2><p class="err">${esc(err)}</p>`;
         return;
       }
-      const items = (data.items || []).filter((it) => it && (it.title || it.notes));
+      const items = (data.unmatched || []).filter((it) => it && (it.title || it.notes));
       if (!items.length) {
         box.hidden = true;
         box.innerHTML = "";
         return;
       }
       const listId = data.list_id || "";
-      const rows = items.map((it) => {
-        const tid = esc(it.id || "");
-        const lid = esc(it.list_id || listId);
-        const notes = (it.notes || "").trim();
-        return `<label class="host-ops-item">
-          <input type="checkbox" data-task-id="${tid}" data-list-id="${lid}" />
-          <span class="host-ops-copy">
-            <span class="title">${esc(it.title || "")}</span>
-            ${notes ? `<p class="notes">${esc(notes)}</p>` : ""}
-          </span>
-        </label>`;
-      }).join("");
+      const rows = items.map((it) => invoiceItemRow(it, listId)).join("");
       box.hidden = false;
-      box.innerHTML = `<h2>Invoice-ready</h2>${rows}`;
-      box.querySelectorAll('input[type="checkbox"]').forEach((el) => {
-        el.addEventListener("change", onHostOpsComplete);
-      });
+      box.innerHTML = `<h2>Unassigned invoice-ready</h2>${rows}`;
     }
 
     async function onHostOpsComplete(ev) {
@@ -667,21 +794,21 @@
         if (!data || !data.ok) {
           el.checked = false;
           el.disabled = false;
-          const box = $("host-ops");
+          const box = el.closest(".strip") || $("host-ops");
           const err = (data && data.error) || "Could not complete Google Task";
-          let note = box.querySelector(".host-ops-err");
-          if (!note) {
+          let note = box && box.querySelector(".host-ops-err");
+          if (box && !note) {
             note = document.createElement("p");
             note.className = "err host-ops-err";
             box.appendChild(note);
           }
-          note.textContent = err;
+          if (note) note.textContent = err;
           return;
         }
         const row = el.closest(".host-ops-item");
         if (row) row.remove();
-        const left = $("host-ops").querySelectorAll(".host-ops-item");
-        if (!left.length) {
+        const leftover = $("host-ops") && $("host-ops").querySelectorAll(".host-ops-item");
+        if (leftover && !leftover.length) {
           $("host-ops").hidden = true;
           $("host-ops").innerHTML = "";
         }
@@ -736,7 +863,13 @@
           ` · Turo ${turoAt}` +
           (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
         const list = fleet.units || [];
-        renderHostOps(tasks);
+        const assigned = assignInvoiceItems((tasks && tasks.items) || [], list);
+        const leftover = Object.assign({}, tasks || {}, { unmatched: assigned.unmatched });
+        list.forEach((u) => {
+          u.invoice_ready = assigned.by[u.id] || [];
+          u.invoice_list_id = (tasks && tasks.list_id) || "";
+        });
+        renderHostOps(leftover);
         $("glance").innerHTML = list.map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");
         $("cards").innerHTML = list.map((u) => renderUnit(u, nowMs, pollS)).join("");
         renderShared(fleet);
@@ -747,6 +880,12 @@
     }
 
     $("btn-refresh").addEventListener("click", load);
+    document.addEventListener("change", (ev) => {
+      const el = ev.target;
+      if (el && el.matches && el.matches('input[type="checkbox"][data-task-id]')) {
+        onHostOpsComplete(ev);
+      }
+    });
     load();
     setInterval(load, 15 * 60 * 1000);
   </script>

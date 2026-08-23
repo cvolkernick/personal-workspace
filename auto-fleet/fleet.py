@@ -9,8 +9,9 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 try:
-    from . import dimo_client, glance, turo_inbox
+    from . import car_cards, dimo_client, glance, turo_inbox
 except ImportError:  # script / unittest path
+    import car_cards  # type: ignore
     import dimo_client  # type: ignore
     import glance  # type: ignore
     import turo_inbox  # type: ignore
@@ -168,11 +169,16 @@ def identity_for(unit: Mapping[str, Any]) -> dict[str, Any]:
     role = unit.get("role") or "unknown"
     if role not in VALID_ROLES:
         role = "unknown"
+    plate = unit.get("plate")
+    if plate is not None:
+        plate = str(plate).strip() or None
     return {
         "year": unit.get("year"),
         "make": unit.get("make"),
         "model": unit.get("model"),
         "vin": unit.get("vin"),
+        "plate": plate,
+        "host_label": car_cards.host_label_for(unit),
         "role": role,
         "lender": unit.get("lender"),
         "account": unit.get("account"),
@@ -216,11 +222,13 @@ def finance_for_unit(
     has_sheet = bool(assigned)
     has_tab = tab is not None
     monthly = sum(float(i.get("monthly") or 0) for i in assigned) if has_sheet else None
+    locked = car_cards.locked_finance_for(uid)
     return {
         "stale": not has_tab,
         "source": "expenses_sync.tabs.Fleet" if has_tab else "roster_notes",
         "snapshot_as_of": (expenses or {}).get("as_of") if has_tab else notes.get("as_of"),
         "role": "fleet_ops",
+        "locked": locked,
         "sheet_lines": assigned,
         "sheet_monthly": round(monthly, 2) if monthly is not None else None,
         "note": (
@@ -288,6 +296,10 @@ def build_fleet(
 
     assembled = []
     for unit in units:
+        turo_unit = turo_inbox.turo_for_unit(str(unit["id"]), turo)
+        turo_unit["schedule"] = car_cards.schedule_for_bookings(
+            turo_unit.get("bookings") or [], now_s
+        )
         row = {
             "id": unit["id"],
             "identity": identity_for(unit),
@@ -295,7 +307,7 @@ def build_fleet(
                 unit, tab=tab, expenses=expenses, notes=notes, units=units
             ),
             "dimo": dimo_client.dimo_for_unit(unit, env),
-            "turo": turo_inbox.turo_for_unit(str(unit["id"]), turo),
+            "turo": turo_unit,
         }
         row["glance"] = glance.glance_for_unit(
             row, now=now_s, poll_interval_s=poll_s

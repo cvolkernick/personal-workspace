@@ -101,6 +101,25 @@ _VIN = re.compile(r"\b([A-HJ-NPR-Z0-9]{17})\b")
 _PICKUP = re.compile(r"(?:pickup(?: location)?|pick-up|handoff)\s*[:\-]\s*(.+)", re.I)
 _VEHICLE = re.compile(r"vehicle\s*[:\-]\s*(.+)", re.I)
 _YOUR_VEHICLE = re.compile(r"your\s+((?:19|20)\d{2}\s+)?([A-Za-z]+(?:\s+[A-Za-z0-9]+){0,3})", re.I)
+_HOST_LABEL = re.compile(r"\(([^)]+['\u2019]s)\s+vehicle\)", re.I)
+_DROP_OFF = re.compile(
+    r"(?:drop[-\s]?off(?: location)?|return location)\s*[:\-]\s*(.+)",
+    re.I,
+)
+_PHONE = re.compile(
+    r"(?:phone|mobile|cell|tel)\s*[:\-]\s*([+\d().\-\s]{7,22})",
+    re.I,
+)
+_EXTRA_DRIVER = re.compile(
+    r"(?:extra|additional)\s+drivers?\s*[:\-]?\s*"
+    r"([A-Z][A-Za-z.'\-]+(?:[ \t]+[A-Z][A-Za-z.'\-]+){0,3})"
+    r"(?:\s*\(([^)]*verified[^)]*)\))?",
+    re.I,
+)
+_GUEST_ASK = re.compile(
+    r"(?:guest\s+ask|please\s+call|call\s+the\s+guest|phone\s+tap)\s*[:\-]?\s*(.+)",
+    re.I,
+)
 
 
 def _now() -> str:
@@ -372,6 +391,40 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     if pm:
         pickup = pm.group(1).strip().splitlines()[0][:160]
 
+    drop_off = None
+    dm = _DROP_OFF.search(blob)
+    if dm:
+        drop_off = dm.group(1).strip().splitlines()[0][:160]
+
+    phone = None
+    ph = _PHONE.search(blob)
+    if ph:
+        phone = re.sub(r"\s+", " ", ph.group(1)).strip()
+
+    extra_drivers: list[dict[str, Any]] = []
+    for em in _EXTRA_DRIVER.finditer(blob):
+        name = (em.group(1) or "").strip()
+        if not name:
+            continue
+        verified_bit = (em.group(2) or "").strip().lower()
+        extra_drivers.append(
+            {
+                "name": name,
+                "turo_verified": bool(verified_bit and "verified" in verified_bit),
+            }
+        )
+
+    guest_asks: list[str] = []
+    for am in _GUEST_ASK.finditer(blob):
+        ask = (am.group(1) or "").strip().splitlines()[0][:200]
+        if ask:
+            guest_asks.append(ask)
+
+    host_label = None
+    hm_host = _HOST_LABEL.search(subject)
+    if hm_host:
+        host_label = hm_host.group(1).replace("\u2019", "'").strip()
+
     payout = None
     if status == "payout":
         money = _MONEY.search(blob)
@@ -427,6 +480,16 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         "payout": payout,
         "body": body,
     }
+    if drop_off:
+        rec["drop_off"] = drop_off
+    if phone:
+        rec["phone"] = phone
+    if extra_drivers:
+        rec["extra_drivers"] = extra_drivers
+    if guest_asks:
+        rec["guest_asks"] = guest_asks
+    if host_label:
+        rec["host_label"] = host_label
     return rec
 
 
@@ -468,7 +531,7 @@ def _unconfigured() -> dict[str, Any]:
             "no host inbox file; drop a Gmail dump at "
             f"{CONFIG_INBOX} or set AUTO_FLEET_TURO_INBOX. "
             f"Watching {GMAIL_INBOX_ADDR} every 15m since {FORWARD_SINCE.date().isoformat()}, "
-            "not the :8796 process."
+            "not the Auto Fleet dashboard process."
         ),
         "message_count": 0,
         "inbox_kind": "missing",

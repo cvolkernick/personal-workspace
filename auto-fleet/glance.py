@@ -9,6 +9,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence
 
+try:
+    from . import car_cards
+except ImportError:  # script / unittest path
+    import car_cards  # type: ignore
+
 KM_PER_MILE = 1.609344
 STALE_AFTER_S = 24 * 3600
 DEAD_AFTER_S = 7 * 24 * 3600
@@ -145,6 +150,9 @@ def _portal(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
 
 
 def due_from_finance(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
+    locked = (finance or {}).get("locked") if isinstance(finance, Mapping) else {}
+    if isinstance(locked, dict) and locked.get("show_balances") is False:
+        return {"due": False, "ptp": None, "amount_due": None, "past_due": None}
     portal = _portal(finance)
     ptp = portal.get("ptp") or portal.get("promise_to_pay")
     if not isinstance(ptp, dict):
@@ -163,18 +171,29 @@ def due_from_finance(finance: Optional[Mapping[str, Any]]) -> dict[str, Any]:
 def turo_line(
     turo: Optional[Mapping[str, Any]],
     poll_interval_s: int | None = DEFAULT_POLL_S,
+    now: Any = None,
 ) -> str:
-    bookings = list((turo or {}).get("bookings") or [])
     mins = int((poll_interval_s or DEFAULT_POLL_S) / 60)
-    if not bookings:
-        return f"0 trips · watching {mins}m"
-    bookings = sorted(bookings, key=lambda b: str((b or {}).get("start") or ""))
-    first = bookings[0] if isinstance(bookings[0], dict) else {}
-    status = first.get("status") or "booked"
-    guest = first.get("guest") or "guest"
-    start = first.get("start") or "?"
-    end = first.get("end") or "?"
-    return f"{status} · {guest} · {start} → {end}"
+    raw = turo or {}
+    schedule = raw.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(raw.get("bookings") or [], now)
+    live = car_cards.live_trips(schedule)
+    if live:
+        first = live[0] if isinstance(live[0], dict) else {}
+        status = first.get("status") or "booked"
+        guest = first.get("guest") or "guest"
+        start = first.get("start") or "?"
+        end = first.get("end") or "?"
+        return f"{status} · {guest} · {start} → {end}"
+    canceled = [s for s in schedule if (s or {}).get("phase") == "canceled"]
+    if canceled:
+        first = canceled[0]
+        guest = first.get("guest") or "guest"
+        start = first.get("start") or "?"
+        end = first.get("end") or "?"
+        return f"canceled · {guest} · {start} → {end}"
+    return f"0 trips · watching {mins}m"
 
 
 def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
@@ -230,7 +249,10 @@ def glance_for_unit(
     last_seen = dimo.get("last_seen")
     fresh = freshness(last_seen, now)
     due = due_from_finance(finance)
-    bookings = list(turo.get("bookings") or [])
+    schedule = turo.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
+    live = car_cards.live_trips(schedule)
     hero = f"{soc}%" if soc is not None else (f"{odo:,} mi" if odo is not None else "—")
     return {
         "id": unit.get("id"),
@@ -250,8 +272,8 @@ def glance_for_unit(
         "range_mi": rng,
         "odo_mi": odo,
         "hero": hero,
-        "available": len(bookings) == 0,
-        "turo_line": turo_line(turo, poll_interval_s),
+        "available": len(live) == 0,
+        "turo_line": turo_line(turo, poll_interval_s, now),
         "due": due["due"],
         "ptp": due["ptp"],
         "amount_due": due["amount_due"],
@@ -281,6 +303,10 @@ def render_unit_card_html(
     ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
     fresh = g.get("freshness") or "unknown"
     chips = [_chip(str(g.get("role") or "unknown"))]
+    if ident.get("host_label"):
+        chips.append(_chip(str(ident["host_label"])))
+    if ident.get("plate"):
+        chips.append(_chip(str(ident["plate"])))
     if g.get("vin_short"):
         chips.append(_chip(str(g["vin_short"])))
     if ident.get("lender"):
@@ -318,11 +344,28 @@ def render_unit_card_html(
             rows.append(f'<div class="row"><a class="maps" href="{_esc(g["maps_url"])}">Map</a></div>')
         dimo_body = "".join(rows) or '<div class="empty">No vehicle signals</div>'
 
+    locked = finance.get("locked") if isinstance(finance.get("locked"), dict) else {}
+    locked_bits = []
+    if locked.get("lender"):
+        locked_bits.append(str(locked["lender"]))
+    if locked.get("apr_pct") is not None:
+        locked_bits.append(f'{locked["apr_pct"]}% APR')
+    if locked.get("monthly") is not None:
+        locked_bits.append(f'{money(locked["monthly"])}/mo')
+    locked_html = (
+        f'<div class="row muted">{_esc(" · ".join(locked_bits))}</div>'
+        if locked_bits
+        else ""
+    )
+
     turo = unit.get("turo") if isinstance(unit.get("turo"), dict) else {}
-    bookings = [b for b in (turo.get("bookings") or []) if isinstance(b, dict)]
-    if bookings:
+    schedule = turo.get("schedule")
+    if schedule is None:
+        schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
+    schedule = [b for b in schedule if isinstance(b, dict)]
+    if schedule:
         rows = []
-        for b in bookings:
+        for b in schedule:
             bits = [str(b.get("status") or "booked")]
             if b.get("guest"):
                 bits.append(str(b["guest"]))
@@ -333,9 +376,9 @@ def render_unit_card_html(
             if b.get("pickup"):
                 bits.append(str(b["pickup"]))
             rows.append(f'<div class="row">{_esc(" · ".join(bits))}</div>')
-        turo_html = "".join(rows)
+        schedule_html = "".join(rows)
     else:
-        turo_html = f'<div class="row">{_esc(g.get("turo_line") or "0 trips")}</div>'
+        schedule_html = f'<div class="row">{_esc(g.get("turo_line") or "0 trips")}</div>'
 
     portal = _portal(finance)
     due = due_from_finance(finance)
@@ -351,16 +394,26 @@ def render_unit_card_html(
     if due["past_due"] not in (None, ""):
         cost_bits.append(f'<div class="row">Past due {money(due["past_due"])}</div>')
     extra = []
-    if portal.get("contractual_monthly") is not None:
+    show_balances = locked.get("show_balances", True)
+    if show_balances and portal.get("contractual_monthly") is not None:
         extra.append(f'{money(portal["contractual_monthly"])}/mo')
-    if portal.get("apr_pct") is not None:
+    if locked.get("apr_pct") is not None:
+        extra.append(f'{locked["apr_pct"]}% APR')
+    elif portal.get("apr_pct") is not None:
         extra.append(f'{portal["apr_pct"]}% APR')
-    if portal.get("principal_balance") is not None:
+    if show_balances and portal.get("principal_balance") is not None:
         extra.append(f'principal {money(portal["principal_balance"])}')
     if extra:
         stale = "stale" if portal.get("stale", True) else "sheet"
         cost_bits.append(
             f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
+        )
+    invoice_items = turo.get("invoice_ready") or finance.get("invoice_ready") or []
+    for item in invoice_items:
+        if not isinstance(item, dict):
+            continue
+        cost_bits.append(
+            f'<div class="row invoice-ready">{_esc(item.get("title") or "")}</div>'
         )
     lines = finance.get("sheet_lines") or []
     for line in lines:
@@ -369,15 +422,47 @@ def render_unit_card_html(
         cost_bits.append(
             f'<div class="row">{_esc(line.get("item"))} · {money(line.get("monthly")) or "—"}</div>'
         )
-    if not lines and not portal:
+    if not cost_bits and not locked_bits:
         cost_bits.append(
             f'<div class="empty">{_esc(finance.get("note") or "No Fleet-tab lines for this unit.")}</div>'
+        )
+
+    trip_bits = []
+    for b in schedule:
+        flags = []
+        for drv in b.get("extra_drivers") or []:
+            if isinstance(drv, dict) and drv.get("name"):
+                ver = " · Turo-verified" if drv.get("turo_verified") else ""
+                flags.append(f'extra driver {drv["name"]}{ver}')
+        if b.get("drop_off"):
+            flags.append(f'drop-off {b["drop_off"]}')
+        if b.get("phone"):
+            flags.append(f'phone {b["phone"]}')
+        for ask in b.get("guest_asks") or []:
+            flags.append(f'phone tap {ask}')
+        if not flags and not b.get("guest"):
+            continue
+        summary = " · ".join(
+            str(p)
+            for p in (b.get("status"), b.get("guest"), b.get("trip_id") and f"#{b['trip_id']}")
+            if p
+        )
+        extra_html = "".join(f'<div class="row">{_esc(f)}</div>' for f in flags)
+        trip_bits.append(
+            f'<details class="trip"><summary>{_esc(summary)}</summary>{extra_html}</details>'
         )
 
     photo = g.get("photo")
     img = (
         f'<img src="{_esc(photo)}" alt="{_esc(g.get("title"))}" />' if photo else ""
     )
+    trip_html = ""
+    if trip_bits:
+        trip_html = (
+            '<div class="strip"><h3>Trip detail</h3>'
+            + "".join(trip_bits)
+            + "</div>"
+        )
     return (
         f'<article class="card {fresh}" data-unit="{_esc(unit.get("id"))}" '
         f'data-freshness="{_esc(fresh)}">'
@@ -385,10 +470,12 @@ def render_unit_card_html(
         f'<h2>{_esc(g.get("title"))}</h2>'
         f'<div class="chips">{"".join(chips)}</div>'
         f"</div></div>"
-        f'<div class="strip"><h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
+        f'<div class="strip"><h3>Vehicle</h3>{locked_html}'
+        f'<h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
         f"{dimo_body}</div>"
-        f'<div class="strip"><h3>Turo</h3>{turo_html}</div>'
-        f'<div class="strip"><h3>Notes &amp; costs</h3>{"".join(cost_bits)}</div>'
+        f'<div class="strip"><h3>Schedule</h3>{schedule_html}</div>'
+        f'<div class="strip"><h3>Money</h3>{"".join(cost_bits)}</div>'
+        f"{trip_html}"
         f"</article>"
     )
 

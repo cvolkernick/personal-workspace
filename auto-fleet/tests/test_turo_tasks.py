@@ -249,7 +249,7 @@ class TuroTasksHttpTests(unittest.TestCase):
         )
         self.list_patch = mock.patch(
             "server.list_open_tasks",
-            side_effect=lambda: turo_tasks.list_open_tasks(gt=self.gt),
+            side_effect=lambda **kwargs: turo_tasks.list_open_tasks(gt=self.gt, **kwargs),
         )
         self.complete_patch = mock.patch(
             "server.complete_task",

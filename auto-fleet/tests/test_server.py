@@ -180,7 +180,9 @@ class AutoFleetServerTests(unittest.TestCase):
                 self.assertIn("/api/turo-tasks", page)
                 self.assertIn('id="host-ops"', page)
                 self.assertIn("🚗", page)
-                self.assertIn("Notes & costs", page)
+                self.assertIn("<h3>Vehicle", page)
+                self.assertIn("<h3>Schedule", page)
+                self.assertIn("<h3>Money", page)
                 self.assertNotIn("<h3>Finance", page)
                 self.assertNotIn("combined_monthly", page)
                 self.assertNotIn("FCC", page)
@@ -193,20 +195,26 @@ class AutoFleetServerTests(unittest.TestCase):
                 except subprocess.TimeoutExpired:
                     proc.kill()
 
-    def test_index_html_ops_first_strip_order(self) -> None:
-        """Slice D: identity → DIMO → Turo → Costs. String-order is enough."""
+    def test_index_html_car_centric_strip_order(self) -> None:
+        """#265: Vehicle → Schedule → Money → Trip detail. Bookings nest under the car."""
         html = (PKG / "index.html").read_text(encoding="utf-8")
-        dimo_fn = html.find("function dimoStrip")
-        turo_fn = html.find("function turoStrip")
-        costs_fn = html.find("function costsStrip")
-        self.assertGreater(dimo_fn, 0)
-        self.assertGreater(turo_fn, dimo_fn)
-        self.assertGreater(costs_fn, turo_fn)
+        vehicle_fn = html.find("function vehicleStrip")
+        schedule_fn = html.find("function scheduleStrip")
+        money_fn = html.find("function moneyStrip")
+        trip_fn = html.find("function tripDetailStrip")
+        self.assertGreater(vehicle_fn, 0)
+        self.assertGreater(schedule_fn, vehicle_fn)
+        self.assertGreater(money_fn, schedule_fn)
+        self.assertGreater(trip_fn, money_fn)
         render = html[html.find("function renderUnit") :]
-        self.assertLess(render.find("dimoStrip("), render.find("turoStrip("))
-        self.assertLess(render.find("turoStrip("), render.find("costsStrip("))
+        self.assertLess(render.find("vehicleStrip("), render.find("scheduleStrip("))
+        self.assertLess(render.find("scheduleStrip("), render.find("moneyStrip("))
+        self.assertLess(render.find("moneyStrip("), render.find("tripDetailStrip("))
         self.assertNotIn("<h3>Finance", html)
-        self.assertIn("<h3>Notes & costs", html)
+        self.assertIn("<h3>Vehicle", html)
+        self.assertIn("<h3>Schedule", html)
+        self.assertIn("<h3>Money", html)
+        self.assertIn("<h3>Trip detail", html)
         self.assertNotIn("combined_monthly", html)
         self.assertNotIn("FCC", html)
         self.assertNotIn("Mercury", html)
@@ -221,11 +229,10 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("after:2026/08/18", readme)
         self.assertIn("financial-command/", readme)
         self.assertIn("setInterval(load, 15 * 60 * 1000)", html)
-        # Slice G — glance-first. inbox_status lives once in the footer, not in turoStrip.
-        turo_fn_src = html[turo_fn:costs_fn]
-        self.assertNotIn("inbox_status", turo_fn_src)
+        sched_src = html[schedule_fn:money_fn]
+        self.assertNotIn("inbox_status", sched_src)
         self.assertIn("function bookingRow", html)
-        self.assertIn("bookings.map(bookingRow)", turo_fn_src)
+        self.assertIn("bookingRow(", sched_src)
         self.assertIn('class="glance"', html)
         self.assertIn("function renderGlanceCell", html)
         self.assertIn('id="turo-inbox"', html)
@@ -243,6 +250,8 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn('id="host-ops"', html)
         self.assertIn("🚗", html)
         self.assertNotIn("nothing to do", html.lower())
+        self.assertNotIn(":8796", html)
+        self.assertNotIn("8796", html)
 
     def test_financial_command_has_no_fleet_surface(self) -> None:
         fcc = ROOT / "financial-command" / "index.html"

@@ -6,11 +6,12 @@ amounts, VINs, or trips. No Auto Fleet-local task JSON.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 try:
-    from . import gtasks as gtb
+    from . import car_cards, gtasks as gtb
 except ImportError:  # script / unittest path
+    import car_cards  # type: ignore
     import gtasks as gtb  # type: ignore
 
 LIST_TITLE = "Turo"
@@ -67,7 +68,30 @@ def find_or_create_turo_list(gt: Any | None = None) -> dict[str, Any]:
     }
 
 
-def list_open_tasks(*, gt: Any | None = None) -> dict[str, Any]:
+def annotate_unit_ids(
+    items: Sequence[Mapping[str, Any]],
+    units: Sequence[Mapping[str, Any]] | None,
+    bookings_by_unit: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> list[dict[str, Any]]:
+    """Add unit_id when the GT title/notes (or trip #) maps to one car."""
+    out: list[dict[str, Any]] = []
+    roster = list(units or [])
+    for raw in items:
+        rec = dict(raw)
+        if roster:
+            rec["unit_id"] = car_cards.match_invoice_unit(
+                rec, roster, bookings_by_unit
+            )
+        out.append(rec)
+    return out
+
+
+def list_open_tasks(
+    *,
+    gt: Any | None = None,
+    units: Sequence[Mapping[str, Any]] | None = None,
+    bookings_by_unit: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
+) -> dict[str, Any]:
     """Open (needsAction) items on the Turo list. Empty is honest, not fake rows."""
     cred = gtb.credentials_status() if gt is None else {"ok": True}
     if not cred.get("ok"):
@@ -113,6 +137,8 @@ def list_open_tasks(*, gt: Any | None = None) -> dict[str, Any]:
             for t in (payload.get("tasks") or [])
             if isinstance(t, dict) and (t.get("status") or "needsAction") == "needsAction"
         ]
+        if units:
+            items = annotate_unit_ids(items, units, bookings_by_unit)
         return {
             "ok": True,
             "source": "google_tasks",
