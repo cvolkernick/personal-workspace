@@ -139,6 +139,35 @@ class TestHydrationBars(unittest.TestCase):
         self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
         self.assertEqual(payload["pacing"]["intake_source"], "none")
 
+    def test_civil_only_series_does_not_fake_midnight_split(self):
+        """Date-only Day totals must not be split or summed across midnight."""
+        wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
+        now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-22", water_ml=700, source="hidrate"),
+                HydrationDay(date="2026-08-23", water_ml=150, source="hidrate"),
+            ],
+            samples=[],
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": (wake + timedelta(hours=16)).isoformat(),
+                "awake_budget_hours": 16,
+            },
+            as_of="2026-08-23",
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertEqual(payload["pacing"]["consumed_ml"], 0.0)
+        self.assertNotEqual(payload["pacing"]["consumed_ml"], 850.0)
+        self.assertNotEqual(payload["pacing"]["consumed_ml"], 150.0)
+        self.assertEqual(payload["day"]["water_ml"], 150.0)
+        self.assertAlmostEqual(
+            payload["pacing"]["paced_budget_ml"],
+            payload["target_ml"] * payload["pacing"]["window_fraction"],
+            places=1,
+        )
+
     def test_cross_midnight_retains_prior_evening_ml(self):
         wake = datetime(2026, 8, 22, 22, 0, 0, tzinfo=ET)
         now = datetime(2026, 8, 23, 0, 30, 0, tzinfo=ET)

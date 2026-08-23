@@ -1,15 +1,16 @@
 """Hydration pacing over the same wake window as calorie eating-window pacing.
 
-Window = sleep-battery wake → empty (awake budget). Day target = 35 ml/kg from
-latest weight (forward-filled as of as_of). Wake-bar actual = sum of timestamped
-water samples in [last_wake_at, min(now, window end)]. Civil-day totals
-(``water_ml_for_day``) stay for Trends — they are not the live wake actual.
-Date-only rows are skipped (no invented sip time). No wake / no samples → 0.
+Window = sleep-battery last_wake_at → empty_at (may cross a civil day).
+Day target = 35 ml/kg from latest weight (2500 fallback). Wake-bar actual =
+sum of timestamped samples in [wake_start, wake_end] (cutoff min(now, end)).
+Pace = actual vs target × window fraction. Civil-day totals
+(``water_ml_for_day``) stay for Trends — never split across midnight.
+Date-only rows are skipped. No wake / no timed sips → honest 0.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 from .calorie_bars import _parse_dt, eating_window_fraction, pace_vs_expected
@@ -224,10 +225,11 @@ def water_ml_for_window(
     now: Optional[datetime] = None,
     tz_name: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Sum water samples with timestamps in [window_start, min(now, window_end)].
+    """Sum water samples with timestamps in [wake_start, wake_end].
 
-    Date-only civil-day rows are skipped — no invented sip time. Missing wake
-    (no window_start) or no in-window samples → honest 0.
+    cutoff = min(now, wake_end) so future-dated sips are not counted. Date-only
+    civil-day rows are skipped — no invented sip time or cross-midnight split.
+    Missing wake (no window_start) or no in-window samples → honest 0.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -378,9 +380,10 @@ def build_hydration_bars_payload(
       2. 35 ml/kg from latest weight on/before as_of
       3. DEFAULT_HYDRATION_GOAL_ML (2500)
 
-    Wake-bar ``consumed`` is window-summed from timestamped ``samples`` (and any
-    timestamped rows mixed into ``hydration``). Civil-day ``hydration`` is only
-    used for ``day`` / Trends. No active wake or no in-window samples → 0.
+    Wake-bar ``consumed`` = sum of timestamped samples in
+    ``[last_wake_at, empty_at]`` (may cross a civil day). Civil-day
+    ``hydration`` is only used for ``day`` / Trends — never split or summed
+    across midnight to fake a wake actual. No wake or no timed sips → 0.
     """
     if now is None or tz_name:
         from .timeutil import local_now
@@ -409,16 +412,25 @@ def build_hydration_bars_payload(
 
     day = water_ml_for_day(hydration, as_of=as_of)
     combined: List[Any] = list(samples or []) + list(hydration or [])
-    if window.get("source") != "sleep_battery":
-        # No active wake (missing last_wake_at, or window already empty).
+    # Actual follows sleep-battery wake→empty, not eating_window civil fallback.
+    wake_start = bat.get("last_wake_at")
+    wake_end = bat.get("empty_at")
+    if wake_end is None and wake_start:
+        wake_dt = _parse_dt(wake_start)
+        if wake_dt is not None:
+            budget = max(1.0, float(bat.get("awake_budget_hours") or 15.0))
+            wake_end = (wake_dt + timedelta(hours=budget)).isoformat(
+                timespec="seconds"
+            )
+    if not wake_start:
         win_intake = {"water_ml": 0.0, "sample_count": 0, "source": "none"}
         consumed = 0.0
         intake_source = "none"
     else:
         win_intake = water_ml_for_window(
             combined,
-            window_start=window.get("window_start"),
-            window_end=window.get("window_end"),
+            window_start=wake_start,
+            window_end=wake_end,
             now=now,
             tz_name=tz_name,
         )
