@@ -2841,6 +2841,12 @@ body.m-shell .quest-card {
   background: linear-gradient(90deg, rgba(92, 225, 168, 0.55), rgba(92, 225, 168, 0.9));
 }
 
+.pace-fill.unknown,
+.pace-fill.no_target,
+.pace-fill.band-muted {
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.25), rgba(148, 163, 184, 0.5));
+}
+
 .pace-marker {
   position: absolute;
   top: -2px;

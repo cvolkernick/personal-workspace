@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -306,6 +307,27 @@ class TestParseSipSamples(unittest.TestCase):
             got = hidrate_hydration_samples(client=FakeClient())  # type: ignore[arg-type]
         self.assertEqual(got, [])
 
+    def test_fetch_sip_rows_filters_on_time_not_created_at(self):
+        client = HidrateClient(email="x@y.z", password="secret")
+        captured = {}
+
+        def fake_request(method, path, *, params=None, session=False):
+            captured["path"] = path
+            captured["params"] = params
+            return {"results": []}
+
+        start = __import__("datetime").datetime(2026, 8, 22, 12, 0, tzinfo=__import__("datetime").timezone.utc)
+        with patch.object(client, "ensure_session"), patch.object(
+            client, "_request", side_effect=fake_request
+        ):
+            client.fetch_sip_rows(start=start, limit=50)
+        self.assertEqual(captured["path"], "/classes/Sip")
+        where = json.loads(captured["params"]["where"])
+        self.assertIn("time", where)
+        self.assertNotIn("createdAt", where)
+        self.assertNotIn("date", where)
+        self.assertEqual(where["time"]["$gte"]["__type"], "Date")
+
 
 class TestDashboardBottlePayload(unittest.TestCase):
     def test_dashboard_surfaces_bottle_charge(self):
@@ -381,7 +403,7 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
         self.assertIn("hidrate-bottle.js?v=bottle-charge-4", html)
-        self.assertIn("styles.css?v=bottle-charge-5", html)
+        self.assertIn("styles.css?v=sip-honesty-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hidrate_bottle", js)
         self.assertIn("unavailable", js)
