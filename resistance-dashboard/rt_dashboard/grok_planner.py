@@ -73,21 +73,51 @@ def honest_empty_workout(message: str = HONEST_EMPTY_MSG, *, source: str = "none
         "message": message,
         "empty": True,
         "source": source,
+        "next_session_type": None,
+        "training_continuity": None,
     }
 
 
-def dashboard_plan_slots(user_id: str) -> Tuple[dict, dict]:
-    """GET /api/dashboard: never call Grok. Never canned."""
+def dashboard_plan_slots(
+    user_id: str,
+    *,
+    sessions=None,
+    goals=None,
+    recovery=None,
+    as_of: Optional[str] = None,
+) -> Tuple[dict, dict]:
+    """GET /api/dashboard Today slots: never call Grok. Never canned.
+
+    Hybrid fill: stamp session_type + training_continuity from Turso+goals
+    even when exercises stay []. SuperGrok still owns the exercise list
+    on Generate.
+    """
     from .grok_ask import resolve_xai_credentials
+    from .workout_store import load_workspace_goals, stamp_today_session
 
     creds = resolve_xai_credentials(user_id=user_id)
     if creds.get("token") and not creds.get("expired"):
         src = str(creds.get("source") or "supergrok_session")
-        return (
-            honest_empty_meal(READY_MSG, source=src),
-            honest_empty_workout(READY_MSG, source=src),
-        )
-    return honest_empty_meal(), honest_empty_workout()
+        meal = honest_empty_meal(READY_MSG, source=src)
+        workout = honest_empty_workout(READY_MSG, source=src)
+    else:
+        meal = honest_empty_meal()
+        workout = honest_empty_workout()
+
+    if goals is None:
+        goals, _ = load_workspace_goals()
+    if sessions is None:
+        sessions = []
+        try:
+            from .turso_repo import list_sessions_detailed
+
+            sessions, _notes = list_sessions_detailed(user_id)
+        except Exception:  # noqa: BLE001
+            sessions = []
+    workout = stamp_today_session(
+        workout, sessions, goals, recovery, as_of=as_of, fill_rest=True
+    )
+    return meal, workout
 
 
 def _safe_json(text: str) -> Optional[dict]:
@@ -128,15 +158,27 @@ def generate_grok_plans(
 ) -> Dict[str, Any]:
     """Call grok_ask with resolved creds. In-stock pantry only. No canned fallback."""
     from .grok_ask import GrokAskError, chat_completions, resolve_xai_credentials
-    from .workout_store import apply_rest_gate, rest_gate
+    from .workout_store import load_workspace_goals, rest_gate, stamp_today_session
+
+    if not isinstance(goals, dict) or not (goals.get("rotation") or []):
+        file_goals, _ = load_workspace_goals()
+        goals = {**file_goals, **(goals if isinstance(goals, dict) else {})}
 
     creds = resolve_xai_credentials(user_id=user_id)
     if not creds.get("token") or creds.get("expired"):
+        empty = honest_empty_workout()
         return {
             "ok": False,
             "error": creds.get("error") or HONEST_EMPTY_MSG,
             "meal": honest_empty_meal(),
-            "workout": apply_rest_gate(honest_empty_workout(), goals or {}, recovery or {}),
+            "workout": stamp_today_session(
+                empty,
+                sessions_brief or [],
+                goals or {},
+                recovery or {},
+                fill_rest=True,
+                next_st_override=next_session_type,
+            ),
         }
 
 
@@ -264,7 +306,14 @@ def generate_grok_plans(
             "ok": False,
             "error": msg,
             "meal": honest_empty_meal(msg, source="error"),
-            "workout": apply_rest_gate(honest_empty_workout(msg, source="error"), goals or {}, recovery or {}),
+            "workout": stamp_today_session(
+                honest_empty_workout(msg, source="error"),
+                sessions_brief or [],
+                goals or {},
+                recovery or {},
+                fill_rest=True,
+                next_st_override=next_session_type,
+            ),
         }
 
     parsed = _safe_json(str(result.get("answer") or ""))
@@ -274,7 +323,14 @@ def generate_grok_plans(
             "ok": False,
             "error": msg,
             "meal": honest_empty_meal(msg, source="error"),
-            "workout": apply_rest_gate(honest_empty_workout(msg, source="error"), goals or {}, recovery or {}),
+            "workout": stamp_today_session(
+                honest_empty_workout(msg, source="error"),
+                sessions_brief or [],
+                goals or {},
+                recovery or {},
+                fill_rest=True,
+                next_st_override=next_session_type,
+            ),
         }
 
     meal = parsed.get("meal") if isinstance(parsed.get("meal"), dict) else {}
@@ -296,15 +352,30 @@ def generate_grok_plans(
     }
     if inventory is not None:
         meal_out = clamp_meal_to_stock(meal_out, inventory)
+    hard = max(1, int((goals or {}).get("default_hard_sets") or 2))
+    capped = []
+    for ex in exercises:
+        item = dict(ex)
+        if item.get("default_sets") == 3:
+            item["default_sets"] = hard
+            item["volume_from"] = "goals"
+        capped.append(item)
     workout_out = {
         "session_type": workout.get("session_type"),
         "is_rest_day": bool(workout.get("is_rest_day")),
-        "exercises": exercises,
+        "exercises": capped,
         "message": str(workout.get("message") or "Generated by SuperGrok."),
-        "empty": not exercises and not workout.get("is_rest_day"),
+        "empty": not capped and not workout.get("is_rest_day"),
         "source": "grok",
     }
-    workout_out = apply_rest_gate(workout_out, goals or {}, recovery or {})
+    workout_out = stamp_today_session(
+        workout_out,
+        sessions_brief or [],
+        goals or {},
+        recovery or {},
+        fill_rest=not capped,
+        next_st_override=next_session_type,
+    )
     return {
         "ok": True,
         "meal": meal_out,

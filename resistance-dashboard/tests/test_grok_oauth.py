@@ -180,6 +180,13 @@ class PlannerHonestEmpty(unittest.TestCase):
         self.assertTrue(workout["empty"])
         self.assertIn("Connect SuperGrok", workout["message"])
         self.assertIsNone(meal.get("inventory"))
+        # Hybrid fill: session_type + continuity even when SuperGrok is down.
+        self.assertEqual(workout["session_type"], "push")
+        self.assertEqual(workout["next_session_type"], "push")
+        cont = workout.get("training_continuity") or {}
+        self.assertEqual(cont.get("phase"), "restart")
+        self.assertIsNone(cont.get("days_since"))
+        self.assertTrue(cont.get("summary"))
 
     def test_generate_does_not_invent_canned_plan(self):
         with mock.patch(
@@ -191,6 +198,8 @@ class PlannerHonestEmpty(unittest.TestCase):
         self.assertEqual(out["meal"]["items"], [])
         self.assertEqual(out["workout"]["exercises"], [])
         self.assertIn("Connect SuperGrok", out["error"])
+        self.assertEqual(out["workout"]["session_type"], "push")
+        self.assertEqual((out["workout"].get("training_continuity") or {}).get("phase"), "restart")
 
     def test_low_recovery_still_passes_next_ppl_into_plan_context(self):
         captured = {}
@@ -239,6 +248,7 @@ class PlannerHonestEmpty(unittest.TestCase):
         self.assertTrue(out["workout"]["is_rest_day"])
         self.assertEqual(out["workout"]["session_type"], "rest")
         self.assertEqual((out["workout"].get("rest_gate") or {}).get("force_rest"), True)
+        self.assertEqual(out["workout"].get("next_session_type"), "pull")
         self.assertNotIn("user-token-must-not-leak", json.dumps(out))
 
     def test_honest_empty_helpers_have_no_canned_food(self):

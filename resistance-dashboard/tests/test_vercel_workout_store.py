@@ -96,7 +96,8 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertIn("load_workspace_catalog", text)
         self.assertIn("apply_goals_volume_caps", text)
         self.assertIn("preview_workout_plan", text)
-        self.assertNotIn("dashboard_plan_slots", text)
+        self.assertIn("dashboard_plan_slots", text)
+        self.assertIn("stamp_today_session", text)
         self.assertIn("Workout plan failed", text)
 
     def test_include_files_lists_goals_and_catalog(self):
@@ -170,6 +171,9 @@ class VercelDashboardWorkoutStore(unittest.TestCase):
         self.assertEqual(wo["goals"]["default_hard_sets"], 2)
         self.assertEqual(wo["goals"]["session_working_set_cap"], 14)
         self.assertEqual(wo["next_session_type"], "pull")
+        self.assertEqual((wo.get("training_continuity") or {}).get("phase"), (body.get("workout") or {}).get("training_continuity", {}).get("phase"))
+        self.assertEqual((body.get("workout") or {}).get("session_type"), "pull")
+        self.assertEqual((body.get("workout") or {}).get("exercises") or [], [])
         self.assertEqual(wo["plan"].get("session_type"), "pull")
         self.assertFalse(wo["plan"].get("is_rest_day"))
         self.assertGreater(len(wo["plan"].get("exercises") or []), 0)
