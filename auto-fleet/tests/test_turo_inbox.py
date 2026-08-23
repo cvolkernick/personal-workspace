@@ -179,8 +179,8 @@ class TuroInboxTests(unittest.TestCase):
         self.assertEqual(rec["unit_id"], "corolla-2022")
         self.assertEqual(rec["guest"], "Alex Rivera")
         self.assertEqual(rec["trip_id"], "88421001")
-        self.assertEqual(rec["start"], "2026-09-01")
-        self.assertEqual(rec["end"], "2026-09-04")
+        self.assertEqual(rec["start"], "2026-09-01T18:00:00-04:00")
+        self.assertEqual(rec["end"], "2026-09-04T18:00:00-04:00")
 
     def test_old_fleet_kia_stays_unmatched_guest_chat_skipped(self) -> None:
         payload = turo_inbox.turo_payload(
@@ -439,6 +439,8 @@ class TuroInboxTests(unittest.TestCase):
         self.assertEqual(by_guest["Matthew"]["unit_id"], "corolla-2024")
         self.assertEqual(by_guest["Matthew"]["status"], "modified")
         self.assertEqual(by_guest["Marie"]["unit_id"], "corolla-2022")
+        self.assertEqual(by_guest["Marie"]["start"], "2026-08-23T13:00:00-04:00")
+        self.assertEqual(by_guest["Marie"]["end"], "2026-08-25T13:00:00-04:00")
         self.assertEqual(by_guest["Nayive"]["unit_id"], "corolla-2022")
         self.assertEqual(by_guest["Nayive"]["trip_id"], "60220022")
         self.assertEqual(by_guest["Jeffrey"]["unit_id"], "corolla-2022")
@@ -455,6 +457,53 @@ class TuroInboxTests(unittest.TestCase):
         self.assertNotIn("body", unmatched[0])
         megan_trips = [b for b in c24["bookings"] if b["trip_id"] == "60615645"]
         self.assertEqual({b["status"] for b in megan_trips}, {"booked", "canceled"})
+
+    def test_trip_start_end_keep_clock_in_et(self) -> None:
+        parsed = turo_inbox.parse_message(
+            {
+                "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+                "from": "Turo <noreply@mail.turo.com>",
+                "date": "Sun, 23 Aug 2026 11:45:00 +0000",
+                "body": (
+                    "Toyota Corolla 2024\nbooked by Pat Kim\nReservation ID #60619999\n"
+                    "Trip start: 8/23/26 3:00 pm\nTrip end: 8/25/26 3:00 pm\n"
+                ),
+            }
+        )
+        self.assertEqual(parsed["start"], "2026-08-23T15:00:00-04:00")
+        self.assertEqual(parsed["end"], "2026-08-25T15:00:00-04:00")
+
+    def test_long_range_keeps_clock_not_date_only(self) -> None:
+        parsed = turo_inbox.parse_message(
+            {
+                "subject": "Alex’s trip with your 2022 Toyota Corolla is booked!",
+                "from": "Turo <noreply@mail.turo.com>",
+                "date": "Mon, 17 Aug 2026 13:26:19 +0000",
+                "body": (
+                    "Alex’s trip with your 2022 Toyota Corolla is booked from "
+                    "Monday, September 1, 2026 6:00 PM to Thursday, September 4, "
+                    "2026 6:00 PM.\n2022 Toyota Corolla\nbooked by Alex Rivera\n"
+                    "Reservation ID #88421001\n"
+                ),
+            }
+        )
+        self.assertEqual(parsed["start"], "2026-09-01T18:00:00-04:00")
+        self.assertEqual(parsed["end"], "2026-09-04T18:00:00-04:00")
+
+    def test_date_only_mail_stays_date_only(self) -> None:
+        parsed = turo_inbox.parse_message(
+            {
+                "subject": "New trip booked",
+                "from": "noreply@transactional.turo.com",
+                "date": "2026-08-10T14:00:00+00:00",
+                "body": (
+                    "Guest: Alex Rivera\nTrip ID: TR-88421\n"
+                    "2022 Toyota Corolla\n2026-09-01 to 2026-09-04\n"
+                ),
+            }
+        )
+        self.assertEqual(parsed["start"], "2026-09-01")
+        self.assertEqual(parsed["end"], "2026-09-04")
 
     def test_yearless_corolla_stays_unmatched(self) -> None:
         rec = {

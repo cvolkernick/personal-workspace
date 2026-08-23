@@ -202,31 +202,55 @@ _MONTHS = (
 )
 
 
-def _ymd(value: Any):
+def _clock_label(dt: datetime) -> str:
+    hour = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return f"{hour}:{dt.minute:02d} {ampm}"
+
+
+def _when_parts(value: Any) -> tuple[Optional[datetime], bool]:
+    """(ET datetime, has_clock). Date-only values do not show a time."""
     if value is None or value == "":
-        return None
-    text = str(value).strip()[:10]
-    try:
-        return datetime.strptime(text, "%Y-%m-%d").date()
-    except ValueError:
-        return None
+        return None, False
+    clock = car_cards.has_clock(value)
+    dt = car_cards.parse_trip_instant(value, end=False)
+    return dt, clock and dt is not None
+
+
+def _day_label(dt: datetime) -> str:
+    return f"{_MONTHS[dt.month - 1]} {dt.day}"
 
 
 def human_when(start: Any, end: Any) -> str:
-    """Compact start → end in America/New_York calendar dates."""
-    a = _ymd(start)
-    b = _ymd(end)
+    """Compact start → end in America/New_York. Clock shown when mail had one.
+
+    Date-only: ``Aug 23 → 25``. Timed: ``Aug 23 3:00 PM → Aug 25 3:00 PM``.
+    Same-day timed range collapses the end date: ``Aug 23 3:00 PM → 6:00 PM``.
+    ET label is rendered by the When cell, not this string.
+    """
+    a, a_clock = _when_parts(start)
+    b, b_clock = _when_parts(end)
     if a is None and b is None:
         return ""
     if a is not None and b is None:
-        return f"{_MONTHS[a.month - 1]} {a.day}"
+        return f"{_day_label(a)} {_clock_label(a)}" if a_clock else _day_label(a)
     if a is None and b is not None:
-        return f"{_MONTHS[b.month - 1]} {b.day}"
-    if a == b:
-        return f"{_MONTHS[a.month - 1]} {a.day}"
-    if a.month == b.month and a.year == b.year:
-        return f"{_MONTHS[a.month - 1]} {a.day} → {b.day}"
-    return f"{_MONTHS[a.month - 1]} {a.day} → {_MONTHS[b.month - 1]} {b.day}"
+        return f"{_day_label(b)} {_clock_label(b)}" if b_clock else _day_label(b)
+    same_day = a.date() == b.date()
+    same_month = a.month == b.month and a.year == b.year
+    if not a_clock and not b_clock:
+        if same_day:
+            return _day_label(a)
+        if same_month:
+            return f"{_day_label(a)} → {b.day}"
+        return f"{_day_label(a)} → {_day_label(b)}"
+    left = f"{_day_label(a)} {_clock_label(a)}" if a_clock else _day_label(a)
+    if not b_clock:
+        right = str(b.day) if same_month else _day_label(b)
+        return f"{left} → {right}"
+    if same_day:
+        return f"{left} → {_clock_label(b)}"
+    return f"{left} → {_day_label(b)} {_clock_label(b)}"
 
 
 def pickup_label(booking: Mapping[str, Any]) -> str:

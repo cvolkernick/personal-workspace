@@ -123,7 +123,7 @@ class ScheduleCollapseTests(unittest.TestCase):
         self.assertEqual({t["trip_id"] for t in canceled24}, {"60615645"})
         self.assertTrue(all(t["guest"] != "MEGAN" or t["phase"] == "canceled" for t in c24["turo"]["schedule"]))
         live22 = {t["trip_id"] for t in c22["turo"]["schedule"]}
-        self.assertIn("60110022", live22)  # Marie active 8/23–8/25
+        self.assertIn("60110022", live22)  # Marie upcoming at 8:00 AM ET (1:00 PM start)
         self.assertIn("60220022", live22)  # Nayive upcoming in fixture
         self.assertIn("60330022", live22)  # Jeffrey
         self.assertEqual(by_id["m3-2020"]["turo"]["schedule"], [])
@@ -160,6 +160,95 @@ class ScheduleCollapseTests(unittest.TestCase):
         raw_ids = {b["trip_id"] for b in c24["turo"]["bookings"]}
         self.assertIn("60615645", raw_ids)
         self.assertIn("60463692", raw_ids)
+
+
+class SchedulePhaseTests(unittest.TestCase):
+    """Clock-aware phase: morning ≠ active when start is this afternoon."""
+
+    def test_same_day_afternoon_start_is_upcoming_in_the_morning(self) -> None:
+        trip = {
+            "trip_id": "phase-pm",
+            "status": "booked",
+            "guest": "Pat",
+            "start": "2026-08-23T15:00:00-04:00",
+            "end": "2026-08-23T18:00:00-04:00",
+        }
+        morning = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-23T07:45:00-04:00"
+        )
+        self.assertEqual(len(morning), 1)
+        self.assertEqual(morning[0]["phase"], "upcoming")
+
+    def test_same_day_after_start_is_active(self) -> None:
+        trip = {
+            "trip_id": "phase-pm",
+            "status": "booked",
+            "guest": "Pat",
+            "start": "2026-08-23T15:00:00-04:00",
+            "end": "2026-08-23T18:00:00-04:00",
+        }
+        afternoon = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-23T15:30:00-04:00"
+        )
+        self.assertEqual(afternoon[0]["phase"], "active")
+
+    def test_multi_day_middle_is_active(self) -> None:
+        trip = {
+            "trip_id": "phase-mid",
+            "status": "booked",
+            "guest": "Marie",
+            "start": "2026-08-23T13:00:00-04:00",
+            "end": "2026-08-25T13:00:00-04:00",
+        }
+        mid = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-24T07:45:00-04:00"
+        )
+        self.assertEqual(mid[0]["phase"], "active")
+
+    def test_canceled_phase_unchanged(self) -> None:
+        trip = {
+            "trip_id": "phase-cx",
+            "status": "canceled",
+            "guest": "MEGAN",
+            "start": "2026-08-23T15:00:00-04:00",
+            "end": "2026-08-25T15:00:00-04:00",
+        }
+        rows = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-23T07:45:00-04:00"
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["phase"], "canceled")
+
+    def test_date_only_same_day_upcoming_until_noon_then_active(self) -> None:
+        trip = {
+            "trip_id": "phase-date",
+            "status": "booked",
+            "guest": "Alex",
+            "start": "2026-08-23",
+            "end": "2026-08-23",
+        }
+        morning = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-23T07:45:00-04:00"
+        )
+        self.assertEqual(morning[0]["phase"], "upcoming")
+        noon = car_cards.schedule_for_bookings(
+            [trip], now="2026-08-23T12:00:00-04:00"
+        )
+        self.assertEqual(noon[0]["phase"], "active")
+
+    def test_marie_fixture_active_after_one_pm_et(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=BODY_YEAR,
+            dimo_env={},
+            now="2026-08-23T15:30:00-04:00",
+        )
+        c22 = next(u for u in payload["units"] if u["id"] == "corolla-2022")
+        marie = next(t for t in c22["turo"]["schedule"] if t["trip_id"] == "60110022")
+        self.assertEqual(marie["phase"], "active")
+        self.assertEqual(marie["start"], "2026-08-23T13:00:00-04:00")
 
 
 class OpsFieldTests(unittest.TestCase):
@@ -290,6 +379,10 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("booking-res", booking_fn)
         self.assertIn("booking-pickup", booking_fn)
         self.assertIn("function pickupLabel", index)
+        self.assertIn("function parseWhen", index)
+        self.assertIn("function clockLabel", index)
+        self.assertIn("function humanWhen", index)
+        self.assertIn('timeZone: "America/New_York"', index)
         self.assertIn("coordinate / driveway", index)
         self.assertIn('class="queue"', index)
         self.assertIn("queue-cols", index)
@@ -319,12 +412,13 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("Jeffrey", sched22)
         self.assertLess(sched22.find("Marie"), sched22.find("Nayive"))
         self.assertLess(sched22.find("Nayive"), sched22.find("Jeffrey"))
-        self.assertIn("Aug 23 → 25", sched22)
-        self.assertIn("Aug 26 → 27", sched22)
-        self.assertIn("Aug 29 → 31", sched22)
+        self.assertIn("Aug 23 1:00 PM → Aug 25 1:00 PM", sched22)
+        self.assertIn("Aug 26 11:00 AM → Aug 27 11:00 AM", sched22)
+        self.assertIn("Aug 29 4:00 PM → Aug 31 4:00 PM", sched22)
         self.assertIn(">ET<", sched22)
         self.assertIn("NEXT", sched22)
-        self.assertIn('data-phase="active"', sched22)
+        self.assertIn('data-phase="upcoming"', sched22)
+        self.assertNotIn('data-phase="active"', sched22)
         self.assertIn("upcoming", sched22)
         self.assertIn("#60110022", sched22)
         self.assertIn("coordinate / driveway", sched22)
@@ -346,8 +440,8 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("MEGAN", sched24)
         self.assertLess(sched24.find("Myles"), sched24.find("Matthew"))
         self.assertLess(sched24.find("Matthew"), sched24.find("MEGAN"))
-        self.assertIn("Aug 25 → 27", sched24)
-        self.assertIn("Aug 28 → 30", sched24)
+        self.assertIn("Aug 25 9:00 AM → Aug 27 5:00 PM", sched24)
+        self.assertIn("Aug 28 2:00 PM → Aug 30 2:00 PM", sched24)
         self.assertIn("#60463692", sched24)
         self.assertIn("coordinate / driveway", sched24)
         self.assertIn("queue-canceled", sched24)
@@ -369,6 +463,14 @@ class CardHtmlTests(unittest.TestCase):
         self.assertEqual(glance.human_when("2026-08-28", "2026-08-30"), "Aug 28 → 30")
         self.assertEqual(glance.human_when("2026-08-28", "2026-09-02"), "Aug 28 → Sep 2")
         self.assertEqual(glance.human_when("2026-08-28", "2026-08-28"), "Aug 28")
+        self.assertEqual(
+            glance.human_when("2026-08-23T15:00:00-04:00", "2026-08-25T15:00:00-04:00"),
+            "Aug 23 3:00 PM → Aug 25 3:00 PM",
+        )
+        self.assertEqual(
+            glance.human_when("2026-08-23T15:00:00-04:00", "2026-08-23T18:00:00-04:00"),
+            "Aug 23 3:00 PM → 6:00 PM",
+        )
         self.assertEqual(
             glance.pickup_label({"pickup": "Punta Gorda Airport FBO"}),
             "Punta Gorda Airport FBO",
