@@ -1,7 +1,7 @@
-"""FitDash #254: Trends Avg intake / Avg burned on the Σ 60d paired window.
+"""FitDash #254/#258: Trends avgs on the Σ 60d paired window.
 
 Overlay only — same pairDays set as the Σ chips (days with both series).
-No invented food. No extra Vercel function. Ignore-build stays put.
+Avg deficit = mean(burned_i − intake_i). No invented food. No extra function.
 """
 
 from __future__ import annotations
@@ -22,13 +22,18 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
     def test_overlay_wired_under_trends_card(self):
         self.assertIn("Calories intake vs burned · 60d", HTML)
         self.assertIn('id="nutrition-note"', HTML)
-        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-2", HTML)
+        self.assertIn("/trends-paired-avgs.js?v=paired-avgs-3", HTML)
+        self.assertNotIn("/trends-paired-avgs.js?v=paired-avgs-2", HTML)
         self.assertIn("Avg intake", OVERLAY)
         self.assertIn("Avg burned", OVERLAY)
+        self.assertIn("Avg deficit", OVERLAY)
         self.assertIn("kcal/day", OVERLAY)
+        self.assertIn("+deficit", OVERLAY)
+        self.assertIn("−surplus", OVERLAY)
         self.assertIn('row.id = "trends-avg-row"', OVERLAY)
         self.assertIn("trends-avg-intake", OVERLAY)
         self.assertIn("trends-avg-burned", OVERLAY)
+        self.assertIn("trends-avg-delta", OVERLAY)
 
     def test_same_60d_paired_window_as_sigma_chips(self):
         self.assertIn("const CAL_IN_OUT_SPAN_DAYS = 60;", APP_JS)
@@ -50,10 +55,17 @@ class TrendsPairedAvgMarkup(unittest.TestCase):
         self.assertIn("health.calories_burned", OVERLAY)
         self.assertIn("avgIn: pairDays > 0 ? sumIn / pairDays : null", OVERLAY)
         self.assertIn("avgOut: pairDays > 0 ? sumOut / pairDays : null", OVERLAY)
+        self.assertIn("sumDelta += vout - vin;", OVERLAY)
+        self.assertIn(
+            "avgDelta: pairDays > 0 ? sumDelta / pairDays : null", OVERLAY
+        )
+        self.assertIn("chip-deficit", OVERLAY)
+        self.assertIn("chip-surplus", OVERLAY)
 
     def test_empty_pair_days_is_em_dash(self):
         self.assertIn('if (!pairDays) return "—";', OVERLAY)
         self.assertIn("Need paired intake + burned days", OVERLAY)
+        self.assertIn("function formatAvgDelta", OVERLAY)
 
     def test_does_not_invent_nutrition_rows(self):
         lowered = OVERLAY.lower()
