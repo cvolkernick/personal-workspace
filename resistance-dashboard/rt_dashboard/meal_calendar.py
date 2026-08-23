@@ -26,7 +26,7 @@ CAL_NOTE_RE = re.compile(r"\[fitdash-cal:([^\]]+)\]")
 QUEST_MARK_RE = re.compile(r"\[fitdash-quest:(\d{4}-\d{2}-\d{2})\]")
 
 DEFAULT_DURATION = timedelta(minutes=20)
-NEXT_SLOT_CAP = timedelta(minutes=45)
+POPUP_REMINDER_MINUTES = 10
 
 
 @dataclass
@@ -56,14 +56,17 @@ def parse_eat_at(raw: str) -> Optional[datetime]:
 
 
 def event_end_iso(start: datetime, next_start: Optional[datetime] = None) -> str:
+    """15–30m default (20m). Shorten if the block would overlap the next slot."""
     end = start + DEFAULT_DURATION
-    if next_start is not None and start < next_start <= start + NEXT_SLOT_CAP:
+    if next_start is not None and start < next_start < end:
         end = next_start
+    if end <= start:
+        end = start + timedelta(minutes=1)
     return end.isoformat(timespec="seconds")
 
 
-def should_create_missing(eat_at: str, *, now: Optional[datetime] = None) -> bool:
-    """Create only when eat_at is still in the future (no uncomplete resurrect)."""
+def eat_at_is_future(eat_at: str, *, now: Optional[datetime] = None) -> bool:
+    """True when eat_at is still ahead of now. Past slots get zero events."""
     start = parse_eat_at(eat_at)
     if start is None:
         return False
@@ -71,6 +74,40 @@ def should_create_missing(eat_at: str, *, now: Optional[datetime] = None) -> boo
     if clock.tzinfo is None:
         clock = clock.replace(tzinfo=timezone.utc)
     return start > clock.astimezone(start.tzinfo)
+
+
+def should_create_missing(eat_at: str, *, now: Optional[datetime] = None) -> bool:
+    """Create only when eat_at is still in the future (no uncomplete resurrect)."""
+    return eat_at_is_future(eat_at, now=now)
+
+
+def _grams_cue(portion_g: Any) -> str:
+    """Only real portion_g. Do not invent grams from serving_label."""
+    if portion_g is None or str(portion_g).strip() == "":
+        return ""
+    try:
+        grams = float(portion_g)
+    except (TypeError, ValueError):
+        return ""
+    if grams <= 0:
+        return ""
+    return f"{int(round(grams))}g"
+
+
+def calendar_event_title(
+    label: str, name: str, portion_g: Any = None
+) -> str:
+    """Meal label + primary item + portion_g. No invented food or grams."""
+    label = str(label or "").strip()
+    name = str(name or "").strip()
+    grams = _grams_cue(portion_g)
+    if name and grams:
+        food = f"{name} {grams}"
+    else:
+        food = name
+    if label and food:
+        return f"{label} · {food}"
+    return food or label
 
 
 def meal_desc_tag(day: str, slot: str) -> str:
@@ -105,11 +142,20 @@ def event_body(slot: MealSlotReminder) -> dict[str, Any]:
     if slot.task_ids:
         private[PROP_TASK] = slot.task_ids[0]
         private[PROP_TASKS] = ",".join(slot.task_ids)
+    title = (slot.title or "").strip()
+    if not title:
+        raise ValueError("calendar title required (no invented food)")
     return {
-        "summary": (slot.title or "Meal")[:200],
+        "summary": title[:200],
         "description": desc,
         "start": {"dateTime": start.isoformat(timespec="seconds")},
         "end": {"dateTime": event_end_iso(start, next_start)},
+        "reminders": {
+            "useDefault": False,
+            "overrides": [
+                {"method": "popup", "minutes": POPUP_REMINDER_MINUTES},
+            ],
+        },
         "extendedProperties": {"private": private},
         "status": "confirmed",
     }
@@ -232,7 +278,8 @@ def sync_meal_reminders(
         wanted = {s.slot: s for s in slots if s.slot and s.eat_at}
         for key, ev in list(by_slot.items()):
             slot = wanted.get(key)
-            if slot is None or slot.all_completed:
+            past = bool(slot and not eat_at_is_future(slot.eat_at, now=now))
+            if slot is None or slot.all_completed or past:
                 if ev.get("id") and _delete_quiet(cal_id, str(ev["id"])):
                     deleted += 1
                 by_slot.pop(key, None)
@@ -242,12 +289,16 @@ def sync_meal_reminders(
         for slot in slots:
             if not slot.eat_at or not slot.slot or slot.all_completed:
                 continue
+            if not eat_at_is_future(slot.eat_at, now=now):
+                continue
+            if not (slot.title or "").strip():
+                continue
             body = event_body(slot)
             current = by_slot.get(slot.slot)
             if current and current.get("id"):
                 gcal.update_event(cal_id, str(current["id"]), body)
                 updated += 1
-            elif should_create_missing(slot.eat_at, now=now):
+            else:
                 gcal.create_event(cal_id, body)
                 created += 1
         return {

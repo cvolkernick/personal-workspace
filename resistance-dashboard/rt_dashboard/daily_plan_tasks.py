@@ -315,9 +315,12 @@ class PlannedItem:
     slug: str
     title: str
     notes_extra: str = ""
-    meal_label: str = ""  # e.g. Next meal
+    meal_label: str = ""  # e.g. Next meal · 3:30 PM (UI / quest grouping)
     eat_at: str = ""  # ISO from meal bucket; empty → no Calendar event
     meal_slot: str = ""  # e.g. meal-0; one Calendar reminder per slot
+    cal_label: str = ""  # bucket label without clock (Calendar title)
+    item_name: str = ""
+    portion_g: Optional[float] = None
 
 
 @dataclass
@@ -394,7 +397,8 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         for mi, bucket in enumerate(meals):
             if not isinstance(bucket, dict):
                 continue
-            label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            bucket_label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            label = bucket_label
             clock = str(bucket.get("eat_at_label") or "").strip()
             if not clock and bucket.get("eat_at"):
                 try:
@@ -422,6 +426,15 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 title = f"{label}: {name}"
                 if portion:
                     title = f"{label}: {name} · {portion}"
+                portion_g = None
+                raw_pg = it.get("portion_g")
+                if raw_pg is not None and str(raw_pg).strip() != "":
+                    try:
+                        pg = float(raw_pg)
+                        if pg > 0:
+                            portion_g = pg
+                    except (TypeError, ValueError):
+                        portion_g = None
                 _g("nutrition").items.append(
                     PlannedItem(
                         group="nutrition",
@@ -430,6 +443,9 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                         meal_label=label,
                         eat_at=str(bucket.get("eat_at") or "").strip(),
                         meal_slot=f"meal-{mi}",
+                        cal_label=bucket_label,
+                        item_name=name,
+                        portion_g=portion_g,
                     )
                 )
     else:
@@ -1154,7 +1170,7 @@ def _meal_slots_from_plan(
     day: str,
 ) -> list:
     """One reminder per meal bucket that has eat_at. No invented times."""
-    from .meal_calendar import MealSlotReminder
+    from .meal_calendar import MealSlotReminder, calendar_event_title
 
     buckets: Dict[str, dict] = {}
     order: List[str] = []
@@ -1169,7 +1185,9 @@ def _meal_slots_from_plan(
             if slot not in buckets:
                 buckets[slot] = {
                     "slot": slot,
-                    "title": it.title,
+                    "title": calendar_event_title(
+                        it.cal_label, it.item_name, it.portion_g
+                    ),
                     "eat_at": eat,
                     "task_ids": [],
                     "completed": [],

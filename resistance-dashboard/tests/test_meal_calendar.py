@@ -32,6 +32,7 @@ from rt_dashboard.gcal_session import (
 from rt_dashboard.gtasks_session import bound_session_google
 from rt_dashboard.meal_calendar import (
     MealSlotReminder,
+    calendar_event_title,
     cancel_reminder_for_task,
     event_body,
     event_end_iso,
@@ -46,13 +47,13 @@ def _board_with_meals(*, eat_at=True):
         {
             "label": "Next meal",
             "items": [
-                {"name": "Chicken", "serving_label": "170g"},
-                {"name": "Rice", "serving_label": "195g"},
+                {"name": "Chicken", "portion_g": 185, "serving_label": "170g"},
+                {"name": "Rice", "portion_g": 195, "serving_label": "195g"},
             ],
         },
         {
             "label": "Later meal",
-            "items": [{"name": "Yogurt", "serving_label": "200g"}],
+            "items": [{"name": "Yogurt", "portion_g": 200, "serving_label": "200g"}],
         },
     ]
     if eat_at:
@@ -73,7 +74,7 @@ def _slot(**kwargs):
     data = {
         "day": "2026-08-23",
         "slot": "meal-0",
-        "title": "Next meal · 3:30 PM: Chicken · 170g",
+        "title": "Next meal · Chicken 185g",
         "eat_at": "2026-08-23T15:30:00-04:00",
         "task_ids": ["gt-1", "gt-2"],
         "all_completed": False,
@@ -136,6 +137,9 @@ class PlanCapturesEatAt(unittest.TestCase):
                         title="Next meal · 3:30 PM: Chicken · 170g",
                         eat_at="2026-08-23T15:30:00-04:00",
                         meal_slot="meal-0",
+                        cal_label="Next meal",
+                        item_name="Chicken",
+                        portion_g=185,
                     ),
                     PlannedItem(
                         group="nutrition",
@@ -143,6 +147,9 @@ class PlanCapturesEatAt(unittest.TestCase):
                         title="Next meal · 3:30 PM: Rice · 195g",
                         eat_at="2026-08-23T15:30:00-04:00",
                         meal_slot="meal-0",
+                        cal_label="Next meal",
+                        item_name="Rice",
+                        portion_g=195,
                     ),
                 ],
             )
@@ -160,17 +167,49 @@ class PlanCapturesEatAt(unittest.TestCase):
         self.assertEqual(slots[0].slot, "meal-0")
         self.assertEqual(slots[0].task_ids, ["gt-1", "gt-2"])
         self.assertFalse(slots[0].all_completed)
-        self.assertIn("Chicken", slots[0].title)
+        self.assertEqual(slots[0].title, "Next meal · Chicken 185g")
+
+
+class EventTitle(unittest.TestCase):
+    def test_label_primary_item_portion_g(self):
+        self.assertEqual(
+            calendar_event_title("Next meal", "Chicken", 185),
+            "Next meal · Chicken 185g",
+        )
+
+    def test_no_portion_g_omits_grams(self):
+        self.assertEqual(
+            calendar_event_title("Next meal", "Chicken", None),
+            "Next meal · Chicken",
+        )
+
+    def test_no_invented_food_or_grams(self):
+        self.assertEqual(calendar_event_title("Next meal", "", 185), "Next meal")
+        self.assertEqual(calendar_event_title("", "", None), "")
+        self.assertEqual(calendar_event_title("", "Chicken", 0), "Chicken")
+
+    def test_plan_slot_title_uses_label_and_portion_g(self):
+        groups = plan_from_today_board(_board_with_meals(), day="2026-08-23")
+        slots = _meal_slots_from_plan(groups, {}, {}, "2026-08-23")
+        by = {s.slot: s for s in slots}
+        self.assertEqual(by["meal-0"].title, "Next meal · Chicken 185g")
+        self.assertEqual(by["meal-1"].title, "Later meal · Yogurt 200g")
+        self.assertNotIn("3:30 PM", by["meal-0"].title)
 
 
 class EventShape(unittest.TestCase):
     def test_body_links_quest_and_uses_eat_at(self):
         body = event_body(_slot())
-        self.assertEqual(body["summary"], "Next meal · 3:30 PM: Chicken · 170g")
+        self.assertEqual(body["summary"], "Next meal · Chicken 185g")
         self.assertEqual(body["start"]["dateTime"], "2026-08-23T15:30:00-04:00")
         self.assertIn("[fitdash-meal:2026-08-23:meal-0]", body["description"])
         self.assertIn("[fitdash-tasks:gt-1,gt-2]", body["description"])
         self.assertIn("checklist stays in Google Tasks", body["description"])
+        self.assertEqual(body["reminders"]["useDefault"], False)
+        self.assertEqual(
+            body["reminders"]["overrides"],
+            [{"method": "popup", "minutes": 10}],
+        )
         private = body["extendedProperties"]["private"]
         self.assertEqual(private["fitdashMeal"], "1")
         self.assertEqual(private["fitdashDay"], "2026-08-23")
@@ -184,11 +223,11 @@ class EventShape(unittest.TestCase):
         end = event_end_iso(start, nxt)
         self.assertTrue(end.endswith("15:50:00-04:00"))
 
-    def test_next_slot_used_when_close(self):
+    def test_shorten_when_default_would_overlap_next_slot(self):
         start = datetime(2026, 8, 23, 15, 30, tzinfo=ZoneInfo("America/New_York"))
-        nxt = datetime(2026, 8, 23, 15, 50, tzinfo=ZoneInfo("America/New_York"))
+        nxt = datetime(2026, 8, 23, 15, 40, tzinfo=ZoneInfo("America/New_York"))
         end = event_end_iso(start, nxt)
-        self.assertTrue(end.endswith("15:50:00-04:00"))
+        self.assertTrue(end.endswith("15:40:00-04:00"))
 
     def test_event_body_requires_real_eat_at(self):
         with self.assertRaises(ValueError):
@@ -264,7 +303,7 @@ class SyncReminders(unittest.TestCase):
         now = datetime(2026, 8, 23, 12, 0, tzinfo=ZoneInfo("America/New_York"))
         later = _slot(
             slot="meal-1",
-            title="Later meal · 7:00 PM: Yogurt · 200g",
+            title="Later meal · Yogurt 200g",
             eat_at="2026-08-23T19:00:00-04:00",
             task_ids=["gt-3"],
             next_eat_at="",
@@ -393,6 +432,53 @@ class SyncReminders(unittest.TestCase):
                 now=datetime(2026, 8, 23, 16, 0, tzinfo=ZoneInfo("America/New_York")),
             )
         self.assertEqual(created, [])
+
+    def test_publish_regen_skips_past_eat_at_and_deletes_leftover(self):
+        created = []
+        updated = []
+        deleted = []
+        existing = [
+            {
+                "id": "ev-past",
+                "extendedProperties": {
+                    "private": {
+                        "fitdashMeal": "1",
+                        "fitdashDay": "2026-08-23",
+                        "fitdashSlot": "meal-0",
+                    }
+                },
+            }
+        ]
+        with mock.patch(
+            "rt_dashboard.meal_calendar.gcal.credentials_status",
+            return_value={"ok": True},
+        ), mock.patch(
+            "rt_dashboard.meal_calendar.gcal.resolve_calendar_id",
+            return_value="primary",
+        ), mock.patch(
+            "rt_dashboard.meal_calendar.gcal.list_events",
+            return_value=existing,
+        ), mock.patch(
+            "rt_dashboard.meal_calendar.gcal.create_event",
+            side_effect=lambda *a, **k: created.append(1),
+        ), mock.patch(
+            "rt_dashboard.meal_calendar.gcal.update_event",
+            side_effect=lambda *a, **k: updated.append(1),
+        ), mock.patch(
+            "rt_dashboard.meal_calendar.gcal.delete_event",
+            side_effect=lambda cid, eid: deleted.append(eid) or {"ok": True},
+        ):
+            result = sync_meal_reminders(
+                [_slot()],
+                day="2026-08-23",
+                now=datetime(2026, 8, 23, 16, 0, tzinfo=ZoneInfo("America/New_York")),
+            )
+        self.assertTrue(result["ok"])
+        self.assertEqual(created, [])
+        self.assertEqual(updated, [])
+        self.assertEqual(deleted, ["ev-past"])
+        self.assertEqual(result["created"], 0)
+        self.assertEqual(result["updated"], 0)
 
 
 class CancelOnComplete(unittest.TestCase):
