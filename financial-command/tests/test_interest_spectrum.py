@@ -64,6 +64,18 @@ def _free_port() -> int:
 
 
 class TestInterestSpectrumBuilder(unittest.TestCase):
+    def test_morpho_hy_settings_paths_precede_live_books(self) -> None:
+        spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == "morpho_hy")
+        self.assertAlmostEqual(spec["rate_pct"], 7.0)
+        settings = list(spec["settings_paths"])
+        live = list(spec["paths"])
+        self.assertEqual(settings[0], ("config", "coinbase_manual", "vault_apy"))
+        self.assertIn(("config", "coinbase_manual", "morpho_hy_apy_est"), settings)
+        self.assertNotIn(("config", "coinbase_manual", "vault_apy"), live)
+        self.assertIn(("evaluation", "inputs", "vault_apy"), live)
+        self.assertIn("settings", spec["notes"])
+        self.assertIn("seed", spec["notes"])
+
     def test_two_lane_axis_and_locked_seeds(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -272,6 +284,93 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("cancel", usdg["notes"].lower())
         self.assertIn("do not invent a post-Gold rate", usdg["notes"])
 
+    def test_morpho_hy_settings_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {}}},
+            config={"coinbase_manual": {"vault_apy": 0.055}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 5.5)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("config.coinbase_manual.vault_apy", chip["notes"])
+        self.assertIn("settings", chip["notes"].lower())
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_hy_live_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"vault_apy": 0.0291}}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 2.91)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("evaluation.inputs.vault_apy", chip["notes"])
+        self.assertIn("live", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_hy_settings_beats_live_when_set(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {"vault_apy": 0.0291, "hy_vault_apy": 0.031}},
+                "snapshot": {
+                    "morpho_hy": {"apy_est": 0.028},
+                    "coinbase_manual": {"vault_apy": 0.0291},
+                },
+            },
+            config={"coinbase_manual": {"vault_apy": 0.08}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 8.0)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("config.coinbase_manual.vault_apy", chip["notes"])
+        self.assertNotIn("evaluation.inputs.vault_apy", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_hy_dedicated_settings_key_beats_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"vault_apy": 0.029}}},
+            config={"coinbase_manual": {"morpho_hy_apy_est": 0.061}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 6.1)
+        self.assertIn("config.coinbase_manual.morpho_hy_apy_est", chip["notes"])
+
+    def test_morpho_hy_blank_settings_does_not_beat_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"vault_apy": 0.0291}}},
+            config={"coinbase_manual": {"vault_apy": None, "morpho_hy_apy_est": ""}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 2.91)
+        self.assertIn("evaluation.inputs.vault_apy", chip["notes"])
+
+    def test_morpho_hy_seed_always_visible_when_no_books(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertTrue(chip["approx"])
+        self.assertIn("seed", chip["notes"].lower())
+        self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
+        self.assertTrue(rates_are_honest(payload))
+
     def test_coach_is_not_wired_even_if_stub_has_a_number(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -298,6 +397,8 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn('id="nav-fcc"', html)
         self.assertIn("width: 7.4rem", html)
         self.assertIn("Locked yield seeds always show", html)
+        self.assertIn("FCC settings manual", html)
+        self.assertIn("seed 7%", html)
         self.assertNotIn("Yield venues appear only when", html)
         self.assertNotIn("Coach threshold", html)
         self.assertNotIn("coach X", html)

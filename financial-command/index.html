@@ -2257,6 +2257,8 @@
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
             <label>CB High Yield vault USDC (LTV buffer)</label>
             <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
+            <label>Morpho HY APY override (0–1 · blank = live or seed 7%)</label>
+            <input id="m-vault-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed 7%" />
             <label>Morpho variable APR (0–1, e.g. 0.0487)</label>
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="e.g. 0.0487" />
             <label>Morpho liquidation price (BTC USD)</label>
@@ -4299,6 +4301,7 @@
       set("m-collateral", man.collateral_btc_usd);
       set("m-ltv", man.ltv);
       set("m-vault", man.vault_usdc);
+      set("m-vault-apy", man.vault_apy ?? man.morpho_hy_apy_est);
       set("m-var-apr", man.variable_apr);
       set("m-liq-price", man.liquidation_price_btc_usd);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
@@ -4617,6 +4620,7 @@
         collateral_btc_usd: num("m-collateral"),
         ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
+        vault_apy: num("m-vault-apy"),
         variable_apr: num("m-var-apr"),
         liquidation_price_btc_usd: num("m-liq-price"),
         card_balance: num("m-card-bal"),

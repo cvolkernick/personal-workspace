@@ -385,6 +385,19 @@ def evaluate_treasury(
     vault_raw = man.get("vault_usdc")
     vault_known = not _is_missing(vault_raw)
     vault_usdc = _f(vault_raw) if vault_known else 0.0
+    # Live Morpho HY APY from GraphQL poller (snapshot.morpho_hy). Settings
+    # override stays on config.coinbase_manual and is not copied here so
+    # spectrum can keep settings > live > seed distinct.
+    mh = snapshot.get("morpho_hy") if isinstance(snapshot.get("morpho_hy"), dict) else {}
+    vault_apy = None
+    for key in ("apy_est", "apy", "avg_net_apy"):
+        if not _is_missing(mh.get(key)):
+            try:
+                vault_apy = float(mh.get(key))
+            except (TypeError, ValueError):
+                vault_apy = None
+            else:
+                break
     count_vault = bool(p.get("count_vault_toward_buffers", True))
     # Working USDC = idle Advanced Trade USDC + High Yield vault (when known & enabled)
     working_usdc = liquid_usdc + (vault_usdc if count_vault and vault_known else 0.0)
@@ -803,6 +816,7 @@ def evaluate_treasury(
             "loan_principal_usdc": principal if principal else None,
             "collateral_btc_usd": coll_usd if coll_usd else None,
             "vault_usdc": vault_usdc if vault_known else None,
+            "vault_apy": vault_apy,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
             "card_security_deposit_usdc": card_deposit,

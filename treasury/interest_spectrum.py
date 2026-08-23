@@ -2,10 +2,26 @@
 
 One shared 0% → ~30% axis. Debt chips above; yield chips below.
 Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
-and APR/APY already on books. Books override seeds when a real apy_est /
-vault_apy exists. Never invent yields. Equity/BTC assumed-return stays
-off-axis. Wells/20 Tesla stays off FCC. JR-strcUSX is a spectrum chip only
-(not HY/LTV). Coach threshold X is not wired.
+and APR/APY already on books. Never invent yields. Equity/BTC
+assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
+JR-strcUSX is a spectrum chip only (not HY/LTV). Coach threshold X
+is not wired.
+
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho HY USDC:
+  Preferred: live apy_est when a trustworthy source exists
+  Fallback: seed 7% (Coinbase One Morpho HY)
+  Override: FCC settings manual beats seed and beats live when set
+  Do not invent rates.
+
+Morpho HY precedence (settings > live books > seed):
+  1. FCC settings manual ``config.coinbase_manual.vault_apy``
+     (or dedicated ``morpho_hy_apy_est``) when set — human override
+  2. Live books ``evaluation.inputs.vault_apy`` / ``hy_vault_apy`` /
+     ``morpho_hy_apy_est`` (and snapshot paths already listed) from a
+     trusted feed (Morpho GraphQL vaultV2 ``avgNetApy``)
+  3. Seed 7%
+
+Soft-fail live poller never writes a seed. No Coinbase HTML scrape.
 """
 
 from __future__ import annotations
@@ -22,6 +38,7 @@ TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
 TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
 XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
+MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -141,8 +158,18 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "approx": True,
         "rate_kind": "APY",
         "unit": "fraction",
-        "notes": "locked seed 7% APY · Coinbase One · variable · books override when vault_apy / morpho_hy apy_est present",
+        "notes": (
+            "locked seed 7% APY · Coinbase One Morpho HY · variable · "
+            "precedence: FCC settings vault_apy / morpho_hy_apy_est > "
+            "live books (Morpho GraphQL vaultV2 avgNetApy) > seed · "
+            "do not invent rates"
+        ),
         "deep_link": "index.html#hy",
+        # settings_paths are checked first so a human override beats live books.
+        "settings_paths": (
+            ("config", "coinbase_manual", "vault_apy"),
+            ("config", "coinbase_manual", "morpho_hy_apy_est"),
+        ),
         "paths": (
             ("evaluation", "inputs", "vault_apy"),
             ("evaluation", "inputs", "hy_vault_apy"),
@@ -150,7 +177,9 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
             ("snapshot", "coinbase_manual", "vault_apy"),
             ("snapshot", "coinbase_manual", "morpho_hy_apy_est"),
             ("snapshot", "morpho_hy", "apy_est"),
-            ("config", "coinbase_manual", "vault_apy"),
+            ("snapshot", "morpho_hy", "apy"),
+            ("morpho_hy", "apy_est"),
+            ("morpho_hy", "apy"),
         ),
         "notional_paths": (
             ("evaluation", "inputs", "vault_usdc"),
@@ -305,17 +334,25 @@ def _books_ctx(
     config: Dict[str, Any],
     x_money: Dict[str, Any],
     solana: Optional[Dict[str, Any]] = None,
+    morpho_hy: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    snap = dict(snap)
     sol = solana if isinstance(solana, dict) else {}
     if not sol and isinstance(snap.get("solana"), dict):
         sol = snap["solana"]
+    mh = morpho_hy if isinstance(morpho_hy, dict) else {}
+    if not mh and isinstance(snap.get("morpho_hy"), dict):
+        mh = snap["morpho_hy"]
+    if mh and not isinstance(snap.get("morpho_hy"), dict):
+        snap["morpho_hy"] = mh
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
         "snapshot": snap,
         "config": config if isinstance(config, dict) else {},
         "x_money": x_money if isinstance(x_money, dict) else {},
         "solana": sol,
+        "morpho_hy": mh,
     }
 
 
@@ -458,7 +495,11 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """X Money / Morpho HY / USDG always appear (locked seeds); books override APY."""
+    """X Money / Morpho HY / USDG always appear (locked seeds); books override APY.
+
+    Morpho HY walks ``settings_paths`` before live ``paths`` so FCC settings
+    beat live books when Chris sets a manual vault_apy / morpho_hy_apy_est.
+    """
     chips: List[Dict[str, Any]] = []
     for spec in LOCKED_YIELD_SEEDS:
         chip: Dict[str, Any] = {
@@ -476,12 +517,21 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "placed": True,
             "rate_pct": float(spec["rate_pct"]),
         }
-        rate, hit = _first_apy_hit(ctx, spec.get("paths") or (), unit=str(spec.get("unit") or "fraction"))
+        unit = str(spec.get("unit") or "fraction")
+        rate, hit = _first_apy_hit(ctx, spec.get("settings_paths") or (), unit=unit)
+        from_settings = rate is not None
+        if rate is None:
+            rate, hit = _first_apy_hit(ctx, spec.get("paths") or (), unit=unit)
         if rate is not None:
             chip["rate_pct"] = rate
             chip["approx"] = False
             chip["source"] = "books"
             notes = f"from {hit}" if hit else None
+            if spec["id"] == "morpho_hy" and notes:
+                if from_settings:
+                    notes = f"{notes} · FCC settings override"
+                else:
+                    notes = f"{notes} · live books"
             if spec["id"] == "usdg_earn":
                 notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
             chip["notes"] = notes
@@ -526,10 +576,12 @@ def build_interest_spectrum(
         snap_sol = (treasury.get("snapshot") or {}).get("solana")
         if isinstance(snap_sol, dict):
             solana = snap_sol
+    snap_mh = (treasury.get("snapshot") or {}).get("morpho_hy")
+    morpho_hy = snap_mh if isinstance(snap_mh, dict) else {}
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
-    ctx = _books_ctx(treasury, config, x_money, solana)
+    ctx = _books_ctx(treasury, config, x_money, solana, morpho_hy)
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
