@@ -251,6 +251,75 @@ class PlannerHonestEmpty(unittest.TestCase):
         self.assertEqual(out["workout"].get("next_session_type"), "pull")
         self.assertNotIn("user-token-must-not-leak", json.dumps(out))
 
+    def test_generate_prompt_asks_continuous_gram_portions(self):
+        captured = {}
+
+        def fake_chat(messages, **kwargs):
+            captured["messages"] = messages
+            return {
+                "answer": json.dumps(
+                    {
+                        "meal": {
+                            "message": "ok",
+                            "items": [
+                                {
+                                    "name": "Chicken",
+                                    "portion_g": 250,
+                                    "calories": 999,
+                                    "protein_g": 1,
+                                }
+                            ],
+                            "meals": [],
+                        },
+                        "workout": {
+                            "session_type": "push",
+                            "is_rest_day": False,
+                            "message": "ok",
+                            "exercises": [],
+                        },
+                    }
+                ),
+                "model": "grok-test",
+                "auth_source": "supergrok_session",
+            }
+
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "serving_g": 100,
+                    "calories": 110,
+                    "protein_g": 23,
+                    "carbs_g": 0,
+                    "fat_g": 1.2,
+                    "in_stock": True,
+                }
+            ]
+        }
+        with mock.patch(
+            "rt_dashboard.grok_ask.resolve_xai_credentials",
+            return_value={
+                "token": "user-token-must-not-leak",
+                "source": "supergrok_session",
+                "expired": False,
+            },
+        ), mock.patch(
+            "rt_dashboard.grok_ask.chat_completions",
+            side_effect=fake_chat,
+        ):
+            out = generate_grok_plans("user-1", inventory=inv)
+        system = captured["messages"][0]["content"]
+        user = captured["messages"][1]["content"]
+        self.assertIn("portion_g", system)
+        self.assertIn("continuous", system.lower())
+        self.assertIn("whole servings", system.lower())
+        self.assertIn("serving_g", user)
+        row = out["meal"]["items"][0]
+        self.assertEqual(row["portion_g"], 250)
+        self.assertEqual(row["calories"], 275.0)
+        self.assertEqual(row["protein_g"], 57.5)
+
     def test_honest_empty_helpers_have_no_canned_food(self):
         meal = honest_empty_meal()
         workout = honest_empty_workout()

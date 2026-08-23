@@ -304,6 +304,7 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             "name": i.get("name"),
             "category": i.get("category"),
             "serving_label": i.get("serving_label"),
+            "serving_g": i.get("serving_g"),
             "calories": i.get("calories"),
             "protein_g": i.get("protein_g"),
             "carbs_g": i.get("carbs_g"),

@@ -17,7 +17,7 @@ READY_MSG = "SuperGrok connected. Generate today's meal/workout plan."
 
 def clamp_meal_to_stock(meal: dict, inventory: dict) -> dict:
     """Drop invented / out-of-stock items. Meal plan is in-stock pantry only."""
-    from .nutrition_planner import stocked_ingredients
+    from .nutrition_planner import scale_plan_item_to_inventory, stocked_ingredients
 
     meal = dict(meal or {})
     stocked = stocked_ingredients(inventory or {})
@@ -35,12 +35,30 @@ def clamp_meal_to_stock(meal: dict, inventory: dict) -> dict:
             return True
         return False
 
-    items = [i for i in (meal.get("items") or []) if ok(i)]
+    def _scale(item: dict) -> dict:
+        iid = str(item.get("id") or "").strip().lower()
+        name = str(item.get("name") or "").strip().lower()
+        ing = None
+        if iid:
+            for s in stocked:
+                if str(s.get("id") or "").strip().lower() == iid:
+                    ing = s
+                    break
+        if ing is None and name:
+            for s in stocked:
+                if str(s.get("name") or "").strip().lower() == name:
+                    ing = s
+                    break
+        if ing is None:
+            return item
+        return scale_plan_item_to_inventory(item, ing)
+
+    items = [_scale(i) for i in (meal.get("items") or []) if ok(i)]
     meals = []
     for block in meal.get("meals") or []:
         if not isinstance(block, dict):
             continue
-        keep = [i for i in (block.get("items") or []) if ok(i)]
+        keep = [_scale(i) for i in (block.get("items") or []) if ok(i)]
         meals.append({**block, "items": keep})
     meal["items"] = items
     meal["meals"] = meals
@@ -273,6 +291,11 @@ def generate_grok_plans(
         user_block["notes"] = (
             "Meal plan is IN-STOCK ONLY. Use only inventory items listed "
             "(in_stock=true). Do not invent pantry items or off-stock staples. "
+            "When serving_g is known, pick continuous portion_g (25g, 250g, 500g) "
+            "— do not lock to whole inventory servings. Macros = "
+            "(portion_g / serving_g) × per-serving macros. Round grams ~5g, "
+            "min ~25g. If serving_g is missing, do not invent grams; use "
+            "serving_label only. "
             "Workout must use goals (PPL split / DeanT volume) + catalog names + "
             "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
             "generate a rest day as today's plan (that still fills the slot). "
@@ -285,12 +308,18 @@ def generate_grok_plans(
     system = (
         "You generate today's FitDash meal sketch and workout plan.\n"
         "Return ONLY JSON with keys meal and workout.\n"
-        "meal: {message, items:[{name, calories, protein_g, carbs_g, fat_g}], meals:[]}\n"
+        "meal: {message, items:[{name, portion_g, servings, serving_label, "
+        "calories, protein_g, carbs_g, fat_g}], meals:[]}\n"
         "workout: {session_type, is_rest_day, message, "
         "exercises:[{name, prescription:{sets, reps, weight_lbs}, primary_muscles, rationale}]}\n"
         "Rules:\n"
         "- Meal items must come from provided in-stock inventory only.\n"
         "- Do not invent pantry items or use out-of-stock ingredients.\n"
+        "- When inventory serving_g is known, choose continuous portion_g "
+        "(partial grams OK: 25g, 250g, 500g). Do not lock to whole servings.\n"
+        "- Macros MUST be (portion_g / serving_g) × per-serving macros. "
+        "Round grams to ~5g, minimum ~25g.\n"
+        "- If serving_g is missing, do not invent grams; use serving_label only.\n"
         "- If inventory is null, do not assume a pantry or invent owned staples.\n"
         "- If inventory is empty, return an empty meal and say why.\n"
         "- Workout uses goals.split / rotation, catalog names (already filtered "

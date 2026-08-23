@@ -139,6 +139,13 @@ def _coerce_serving_g(raw: dict) -> Optional[float]:
     return None
 
 
+# Continuous meal portions (issue #267). Not locked to whole inventory servings.
+MIN_PORTION_G = 25.0
+PORTION_STEP_G = 5.0
+MAX_PORTION_G = 1200.0
+_MACRO_KEYS = ("calories", "protein_g", "carbs_g", "fat_g")
+
+
 def format_portion_label(
     serving_g: Optional[float] = None,
     servings: float = 1.0,
@@ -157,6 +164,138 @@ def format_portion_label(
     if n == int(n):
         return f"{int(n)} × {label}"
     return f"{n:g} × {label}"
+
+
+def format_plan_portion(it: Optional[dict]) -> str:
+    """Primary portion cue for plan / UI / quests: grams when known."""
+    if not isinstance(it, dict):
+        return "1 serving"
+    pg = it.get("portion_g")
+    if pg is not None and str(pg).strip() != "":
+        try:
+            g = float(pg)
+            if g > 0:
+                return f"{int(round(g))}g"
+        except (TypeError, ValueError):
+            pass
+    sg = it.get("serving_g")
+    try:
+        n = float(it.get("servings") or 1)
+    except (TypeError, ValueError):
+        n = 1.0
+    if sg is not None and str(sg).strip() != "":
+        try:
+            base = float(sg)
+            if base > 0:
+                g = base * n
+                if g > 0:
+                    return f"{int(round(g))}g"
+        except (TypeError, ValueError):
+            pass
+    return format_portion_label(
+        serving_g=None,
+        servings=n,
+        serving_label=str(it.get("serving_label") or "1 serving"),
+    )
+
+
+def _ingredient_serving_g(ing: dict) -> Optional[float]:
+    raw = ing.get("serving_g") if isinstance(ing, dict) else None
+    if raw is not None and str(raw).strip() != "":
+        try:
+            v = float(raw)
+            return v if v > 0 else None
+        except (TypeError, ValueError):
+            pass
+    return _coerce_serving_g(ing) if isinstance(ing, dict) else None
+
+
+def _round_portion_g(grams: float, serving_g: Optional[float] = None) -> float:
+    """Nourish AC: prefer ~5g steps, min ~25g.
+
+    Tiny inventory servings (oil, etc. ``serving_g`` < 25) keep a smaller min
+    so we do not invent a 25g pour when the default serving is 14g.
+    """
+    try:
+        g = float(grams)
+    except (TypeError, ValueError):
+        return 0.0
+    if g <= 0:
+        return 0.0
+    step = PORTION_STEP_G
+    min_g = MIN_PORTION_G
+    if serving_g is not None and 0 < float(serving_g) < MIN_PORTION_G:
+        min_g = max(1.0, float(serving_g))
+        step = 1.0 if float(serving_g) < 10 else PORTION_STEP_G
+    rounded = round(g / step) * step
+    if rounded < min_g:
+        return float(min_g) if g >= min_g * 0.5 else 0.0
+    if abs(rounded - round(rounded)) < 1e-9:
+        return float(int(round(rounded)))
+    return float(rounded)
+
+
+def _macros_for_portion(ing: dict, *, servings: float = 1.0, portion_g: Optional[float] = None) -> dict:
+    """Scale per-serving macros. ``portion_g / serving_g`` when mass is known."""
+    base_g = _ingredient_serving_g(ing)
+    if portion_g is not None and base_g is not None and float(base_g) > 0:
+        n = float(portion_g) / float(base_g)
+    else:
+        n = float(servings or 1)
+    return {k: round(float(ing.get(k) or 0) * n, 1) for k in _MACRO_KEYS}
+
+
+def _pick_continuous_portion(
+    ing: dict,
+    rem: dict,
+    cal_ceiling: float,
+    totals: dict,
+) -> Optional[tuple]:
+    """Choose a continuous (servings, portion_g|None) that fills remaining macros.
+
+    When ``serving_g`` is known, portion is not locked to 1.0 serving steps.
+    When mass is unknown, keep a whole free-text serving (never invent grams).
+    """
+    sg = _ingredient_serving_g(ing)
+    cal = float(ing.get("calories") or 0)
+    prot = float(ing.get("protein_g") or 0)
+    cal_room = max(0.0, float(cal_ceiling) - float(totals.get("calories") or 0))
+
+    if sg is not None and float(sg) > 0:
+        cal_pg = cal / float(sg)
+        prot_pg = prot / float(sg)
+        g_from_cal = (cal_room / cal_pg) if cal_pg > 0 else 1e12
+        g_from_prot = (float(rem.get("protein_g") or 0) / prot_pg) if prot_pg > 0 else 1e12
+        rem_p = float(rem.get("protein_g") or 0)
+        # Protein foods fill leftover protein (including partial servings).
+        # Once protein is done, fill leftover calories without dumping the
+        # rest of the day onto one staple (leave room for other stocked foods).
+        if rem_p >= 5 and prot_pg > 0:
+            target_g = min(g_from_prot, g_from_cal)
+        else:
+            target_g = min(g_from_cal, float(sg) * 3.0)
+        max_g = min(MAX_PORTION_G, float(sg) * 8.0)
+        target_g = min(max(0.0, target_g), max_g)
+        portion = _round_portion_g(target_g, serving_g=sg)
+        if portion <= 0:
+            return None
+        macros = _macros_for_portion(ing, portion_g=portion)
+        # Soft ceiling: a min bite that still blows calories with protein done → skip.
+        if (
+            float(totals.get("calories") or 0) + macros["calories"] > cal_ceiling + 40
+            and rem_p < 12
+        ):
+            return None
+        return (portion / float(sg), portion)
+
+    # No usable mass: one free-text serving if it still fits.
+    if cal > 0 and float(totals.get("calories") or 0) + cal > cal_ceiling + 40:
+        if float(rem.get("protein_g") or 0) < 20:
+            return None
+    if cal > rem.get("calories", 0) + 120 and rem.get("protein_g", 0) < 20:
+        if float(totals.get("calories") or 0) > 0:
+            return None
+    return (1.0, None)
 
 
 def normalize_ingredient(raw: dict) -> dict:
@@ -351,12 +490,13 @@ def generate_meal_plan(
     """
     Greedy remaining-day plan from stocked ingredients.
 
-    Adds whole inventory servings that best fill remaining protein/calories
-    without massively overshooting calories (allow ~15% soft overshoot on
-    protein only). Portions prefer **grams** (``serving_g`` / food scale) when
-    the inventory row has mass; otherwise free-text ``serving_label``.
-    When food_logs_today is provided, the message and scoring bias away from
-    foods already eaten heavily today.
+    When ``serving_g`` is known, fills remaining protein/calories with
+    **continuous ``portion_g``** (partial grams OK — 25g, 250g, 500g). Macros
+    are ``(portion_g / serving_g) × per-serving macros``. Not locked to whole
+    inventory serving steps. Foods without usable mass keep free-text
+    ``serving_label`` honesty — never invent grams. Soft calorie ceiling
+    (~+10% / +80 kcal). When food_logs_today is provided, scoring biases away
+    from foods already eaten heavily today.
 
     Meal buckets get America/New_York (or viewer) ``eat_at`` clocks. Times use
     the FitDash eating window (wake→end) when known; optional ``eat_slots``
@@ -402,25 +542,32 @@ def generate_meal_plan(
     pick_counts: Dict[str, int] = {}
 
     for _ in range(max_items):
-        # Close enough to targets
-        if rem["calories"] < 80 and rem["protein_g"] < 15:
-            break
-        if rem["protein_g"] < 12 and rem["calories"] < 200:
+        # Close enough — leftover protein/cals too small for a useful bite
+        if rem["calories"] < 25 and rem["protein_g"] < 5:
             break
         candidates = []
         for ing in stocked:
             iid = str(ing["id"])
             if pick_counts.get(iid, 0) >= 3:
                 continue
-            # Don't add another huge protein hit if protein is nearly done
-            if rem["protein_g"] < 20 and float(ing["protein_g"]) > rem["protein_g"] + 25:
+            pick = _pick_continuous_portion(ing, rem, cal_ceiling, totals)
+            if pick is None:
                 continue
-            # skip if adding would blow calorie budget badly
-            if totals["calories"] + ing["calories"] > cal_ceiling and rem["protein_g"] < 20:
+            _servings_n, _portion_g = pick
+            min_macros = (
+                _macros_for_portion(ing, portion_g=_portion_g)
+                if _portion_g is not None
+                else _macros_for_portion(ing, servings=_servings_n)
+            )
+            # Don't add another huge protein hit if protein is nearly done
+            if rem["protein_g"] < 20 and min_macros["protein_g"] > rem["protein_g"] + 25:
+                continue
+            # skip if this pick would blow calorie budget badly
+            if totals["calories"] + min_macros["calories"] > cal_ceiling and rem["protein_g"] < 20:
                 continue
             if (
-                totals["calories"] + ing["calories"] > cal_ceiling + 100
-                and ing["protein_g"] < 25
+                totals["calories"] + min_macros["calories"] > cal_ceiling + 100
+                and min_macros["protein_g"] < 25
             ):
                 continue
             # Once protein is filled, prefer carbs/veg to finish calories
@@ -437,23 +584,18 @@ def generate_meal_plan(
             if already >= 1:
                 sc *= 0.55 ** already
             if sc > 0:
-                candidates.append((sc, ing))
+                candidates.append((sc, ing, pick))
         if not candidates:
             break
         candidates.sort(key=lambda x: -x[0])
         best = candidates[0][1]
-        # If this single serving overshoots calories a lot and protein is already ok, stop
-        if (
-            best["calories"] > rem["calories"] + 120
-            and rem["protein_g"] < 20
-            and totals["calories"] > 0
-        ):
-            break
-        plan_items.append(_plan_item_from_ingredient(best, servings=1))
+        servings_n, portion_g = candidates[0][2]
+        row = _plan_item_from_ingredient(best, servings=servings_n, portion_g=portion_g)
+        plan_items.append(row)
         pick_counts[str(best["id"])] = pick_counts.get(str(best["id"]), 0) + 1
-        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
-            totals[k] += float(best[k])
-            rem[k] = round(max(0.0, rem[k] - float(best[k])), 1)
+        for k in _MACRO_KEYS:
+            totals[k] += float(row.get(k) or 0)
+            rem[k] = round(max(0.0, rem[k] - float(row.get(k) or 0)), 1)
 
     # Safety net: never surface an item that is not currently stocked
     plan_items = [
@@ -525,15 +667,34 @@ def generate_meal_plan(
     }
 
 
-def _plan_item_from_ingredient(ing: dict, servings: float = 1.0) -> dict:
-    """One meal-plan line: macros × servings, portion label biased to grams."""
-    n = float(servings or 1)
-    base_g = ing.get("serving_g")
-    if base_g is None:
-        base_g = _coerce_serving_g(ing)
-    portion_g = None
-    if base_g is not None and float(base_g) > 0:
-        portion_g = round(float(base_g) * n)
+def _plan_item_from_ingredient(
+    ing: dict,
+    servings: float = 1.0,
+    portion_g: Optional[float] = None,
+) -> dict:
+    """One meal-plan line: macros scale with servings or portion_g / serving_g."""
+    base_g = _ingredient_serving_g(ing)
+    display_g = None
+    if portion_g is not None and base_g is not None and float(base_g) > 0:
+        try:
+            pg = float(portion_g)
+        except (TypeError, ValueError):
+            pg = 0.0
+        if pg > 0:
+            display_g = float(int(round(pg)))
+            n = display_g / float(base_g)
+        else:
+            n = float(servings or 1)
+            display_g = round(float(base_g) * n)
+    else:
+        n = float(servings or 1)
+        if base_g is not None and float(base_g) > 0:
+            display_g = round(float(base_g) * n)
+    macros = _macros_for_portion(
+        ing,
+        servings=n,
+        portion_g=display_g if display_g is not None and base_g else None,
+    )
     label = format_portion_label(
         serving_g=float(base_g) if base_g is not None else None,
         servings=n,
@@ -544,16 +705,70 @@ def _plan_item_from_ingredient(ing: dict, servings: float = 1.0) -> dict:
         "name": ing.get("name"),
         "servings": int(n) if abs(n - int(n)) < 1e-9 else round(n, 2),
         "serving_label": label,
-        "calories": round(float(ing.get("calories") or 0) * n, 1),
-        "protein_g": round(float(ing.get("protein_g") or 0) * n, 1),
-        "carbs_g": round(float(ing.get("carbs_g") or 0) * n, 1),
-        "fat_g": round(float(ing.get("fat_g") or 0) * n, 1),
+        "calories": macros["calories"],
+        "protein_g": macros["protein_g"],
+        "carbs_g": macros["carbs_g"],
+        "fat_g": macros["fat_g"],
         "in_stock": True,
     }
     if base_g is not None and float(base_g) > 0:
         row["serving_g"] = float(base_g)
-    if portion_g is not None:
-        row["portion_g"] = float(portion_g)
+    if display_g is not None:
+        row["portion_g"] = float(display_g)
+    return row
+
+
+def scale_plan_item_to_inventory(item: dict, ing: dict) -> dict:
+    """Rescale a plan/Grok line from inventory serving macros. No invented grams."""
+    if not isinstance(item, dict) or not isinstance(ing, dict):
+        return item if isinstance(item, dict) else {}
+    sg = _ingredient_serving_g(ing)
+    n = None
+    pg_in = item.get("portion_g")
+    serv_in = item.get("servings")
+    if sg is not None and float(sg) > 0:
+        if pg_in is not None and str(pg_in).strip() != "":
+            try:
+                pg = float(pg_in)
+                if pg > 0:
+                    n = pg / float(sg)
+            except (TypeError, ValueError):
+                n = None
+        if n is None and serv_in is not None and str(serv_in).strip() != "":
+            try:
+                n = float(serv_in)
+            except (TypeError, ValueError):
+                n = None
+        if n is None:
+            try:
+                cal = float(item.get("calories") or 0)
+                base = float(ing.get("calories") or 0)
+                if cal > 0 and base > 0:
+                    inferred = cal / base
+                    if 0.15 <= inferred <= 8:
+                        n = inferred
+            except (TypeError, ValueError):
+                n = None
+        if n is None or n <= 0:
+            n = 1.0
+        return _plan_item_from_ingredient(ing, servings=n)
+    # No usable mass: free-text honesty — never mint portion_g / serving_g.
+    if serv_in is not None and str(serv_in).strip() != "":
+        try:
+            n = float(serv_in) or 1.0
+        except (TypeError, ValueError):
+            n = 1.0
+    else:
+        n = 1.0
+    row = _plan_item_from_ingredient(ing, servings=n)
+    row.pop("portion_g", None)
+    row.pop("serving_g", None)
+    label = str(item.get("serving_label") or ing.get("serving_label") or "1 serving").strip()
+    if label:
+        if abs(n - 1.0) >= 1e-9:
+            row["serving_label"] = format_portion_label(servings=n, serving_label=label)
+        else:
+            row["serving_label"] = label
     return row
 
 
@@ -867,6 +1082,17 @@ def _resolve_eat_times(
 def _serving_unit_count(items: Sequence[dict]) -> int:
     total = 0
     for it in items:
+        pg = it.get("portion_g")
+        sg = it.get("serving_g")
+        if pg is not None and sg is not None:
+            try:
+                portion = float(pg)
+                base = float(sg)
+            except (TypeError, ValueError):
+                portion, base = 0.0, 0.0
+            if portion > 0 and base > 0:
+                total += max(1, int(portion / base))
+                continue
         n = float(it.get("servings") or 1)
         if n <= 0:
             total += 1
@@ -876,6 +1102,31 @@ def _serving_unit_count(items: Sequence[dict]) -> int:
         else:
             total += 1
     return total
+
+
+def _split_grams(total_g: float, n: int) -> List[float]:
+    """Split a continuous portion into n gram chunks that sum to total_g.
+
+    Prefer ~5g-aligned chunks when the parent portion is 5g-aligned.
+    """
+    total = max(1, int(round(float(total_g))))
+    n = max(1, int(n))
+    if n == 1:
+        return [float(total)]
+    step = 5 if total >= MIN_PORTION_G and total % 5 == 0 else 1
+    base = total // n
+    if step > 1:
+        base = (base // step) * step
+    leftover = total - base * n
+    chunks = [float(base) for _ in range(n)]
+    i = 0
+    while leftover >= step:
+        chunks[i % n] += step
+        leftover -= step
+        i += 1
+    if leftover:
+        chunks[-1] += leftover
+    return [c if c > 0 else 1.0 for c in chunks]
 
 
 def _desired_slot_count(items: Sequence[dict], remaining: Optional[dict]) -> int:
@@ -897,9 +1148,41 @@ def _desired_slot_count(items: Sequence[dict], remaining: Optional[dict]) -> int
 
 
 def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
-    """Split whole multi-servings so one in-stock food can land in several slots."""
+    """Split large portions so one in-stock food can land in several slots.
+
+    Continuous grams split into ~serving_g chunks (equal grams, not whole-serving
+    only). Foods without mass keep the whole-serving split.
+    """
     units: List[dict] = []
     for it in items:
+        pg = it.get("portion_g")
+        sg = it.get("serving_g")
+        try:
+            portion = float(pg) if pg is not None else 0.0
+            base_g = float(sg) if sg is not None else 0.0
+        except (TypeError, ValueError):
+            portion, base_g = 0.0, 0.0
+        if portion > 0 and base_g > 0:
+            count = max(1, int(portion / base_g))
+            if count <= 1:
+                units.append(deepcopy(it))
+                continue
+            chunks = _split_grams(portion, count)
+            total = float(portion) or 1.0
+            for cg in chunks:
+                unit = deepcopy(it)
+                scale = cg / total
+                for k in _MACRO_KEYS:
+                    unit[k] = round(float(it.get(k) or 0) * scale, 1)
+                unit["portion_g"] = float(int(round(cg)))
+                unit["servings"] = round(cg / base_g, 2)
+                unit["serving_label"] = format_portion_label(
+                    serving_g=base_g,
+                    servings=cg / base_g,
+                    serving_label=str(it.get("serving_label") or ""),
+                )
+                units.append(unit)
+            continue
         n = float(it.get("servings") or 1)
         whole = n >= 1 and abs(n - round(n)) < 1e-9
         count = int(round(n)) if whole else 1
@@ -907,7 +1190,7 @@ def _expand_serving_units(items: Sequence[dict]) -> List[dict]:
             units.append(deepcopy(it))
             continue
         base = deepcopy(it)
-        for k in ("calories", "protein_g", "carbs_g", "fat_g"):
+        for k in _MACRO_KEYS:
             base[k] = round(float(it.get(k) or 0) / count, 1)
         if it.get("portion_g") is not None:
             try:
