@@ -396,14 +396,20 @@ def daily_tasks_complete_body(headers, payload=None, method="POST"):
         return 500, {"ok": False, "error": "complete_failed"}
     if not result.get("ok"):
         return 400, result
-    from rt_dashboard.quest_workout_log import attach_lift_quest_log
+    from rt_dashboard.quest_workout_log import attach_lift_quest_log, quest_log_context
 
     uid = str(user.get("id") or "default")
+    day, sessions, today_workout = quest_log_context(
+        uid, payload, headers=headers
+    )
     result = attach_lift_quest_log(
         result,
         payload,
         bool(completed),
         user_id=uid,
+        sessions=sessions,
+        today=day,
+        today_workout=today_workout,
     )
     return 200, result
 
