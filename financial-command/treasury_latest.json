@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-23T09:57:49.016775+00:00",
+    "as_of": "2026-08-23T19:09:31.417544+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-21T19:51:04.225116+00:00",
@@ -3258,7 +3258,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-23T09:57:44.124780+00:00",
+      "as_of": "2026-08-23T19:09:26.134663+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3272,7 +3272,7 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-23T09:57:44.124776+00:00",
+        "as_of": "2026-08-23T19:09:26.134659+00:00",
         "total_value": 205.0222556542,
         "equity_value": 204.9322556542,
         "cash": 0.09,
@@ -3670,7 +3670,7 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-21T19:51:04.225116+00:00",
-        "robinhood_as_of": "2026-08-23T09:57:44.124780+00:00",
+        "robinhood_as_of": "2026-08-23T19:09:26.134663+00:00",
         "one_card_as_of": "2026-08-20T19:24:18.290371+00:00",
         "rh_checking_as_of": "2026-08-20T19:24:18.659197+00:00",
         "x_money_as_of": "2026-08-20T19:24:19.153184+00:00",
@@ -3678,20 +3678,20 @@
         "expenses_as_of": "2026-08-21T19:51:12.022299+00:00"
       },
       "stale": [
-        "coinbase data 38.1h old (>6.0h)",
-        "one_card data 62.6h old (>6.0h)",
-        "rh_checking data 62.6h old (>6.0h)",
-        "x_money data 62.6h old (>6.0h)",
-        "solana data 38.1h old (>6.0h)",
-        "expenses data 38.1h old (>6.0h)"
+        "coinbase data 47.3h old (>6.0h)",
+        "one_card data 71.8h old (>6.0h)",
+        "rh_checking data 71.8h old (>6.0h)",
+        "x_money data 71.8h old (>6.0h)",
+        "solana data 47.3h old (>6.0h)",
+        "expenses data 47.3h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 38.1h old (>6.0h)",
-        "one_card data 62.6h old (>6.0h)",
-        "rh_checking data 62.6h old (>6.0h)",
-        "x_money data 62.6h old (>6.0h)",
-        "solana data 38.1h old (>6.0h)",
-        "expenses data 38.1h old (>6.0h)"
+        "coinbase data 47.3h old (>6.0h)",
+        "one_card data 71.8h old (>6.0h)",
+        "rh_checking data 71.8h old (>6.0h)",
+        "x_money data 71.8h old (>6.0h)",
+        "solana data 47.3h old (>6.0h)",
+        "expenses data 47.3h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -4016,12 +4016,12 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-23T09:57:49.021552+00:00",
+      "as_of": "2026-08-23T19:09:31.422398+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-23T09:57:49.018646+00:00",
+        "as_of": "2026-08-23T19:09:31.419411+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
@@ -4123,14 +4123,15 @@
           "path": "investment/watchlist.json",
           "auto_buy": false,
           "deep_dive_workflow": "position-deep-dive",
-          "count": 6,
+          "count": 7,
           "symbols": [
             "BE",
             "GOOGL",
             "AAPL",
             "NVDA",
             "PLTR",
-            "EVGO"
+            "EVGO",
+            "AMZN"
           ],
           "entries": [
             {
@@ -4204,6 +4205,18 @@
               "last_deep_dive": "2026-08-06",
               "held": false,
               "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative."
+            },
+            {
+              "symbol": "AMZN",
+              "name": "Amazon.com",
+              "theme": "ai_stack",
+              "status": "monitor",
+              "priority": "medium",
+              "sleeve_if_owned": "stocks_growth",
+              "deep_dive_required_before_buy": true,
+              "last_deep_dive": null,
+              "held": false,
+              "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist."
             }
           ],
           "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -4290,7 +4303,7 @@
         },
         "manager_hints": [
           "Deployed mix within target bands \u2014 discretionary alpha only.",
-          "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO \u2014 deep-dive via /position-deep-dive before first buy when required.",
+          "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO, AMZN \u2014 deep-dive via /position-deep-dive before first buy when required.",
           "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
         ],
         "fair_game": true,
@@ -5948,12 +5961,12 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-23T09:57:49.021552+00:00",
+    "as_of": "2026-08-23T19:09:31.422398+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-23T09:57:49.018646+00:00",
+      "as_of": "2026-08-23T19:09:31.419411+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
@@ -6055,14 +6068,15 @@
         "path": "investment/watchlist.json",
         "auto_buy": false,
         "deep_dive_workflow": "position-deep-dive",
-        "count": 6,
+        "count": 7,
         "symbols": [
           "BE",
           "GOOGL",
           "AAPL",
           "NVDA",
           "PLTR",
-          "EVGO"
+          "EVGO",
+          "AMZN"
         ],
         "entries": [
           {
@@ -6136,6 +6150,18 @@
             "last_deep_dive": "2026-08-06",
             "held": false,
             "thesis_fit": "Public DCFC / EV charging infrastructure; moderate Energy/electrification fit. Owner catalyst 2026-08-06: white-label Tesla V4 Superchargers (EVgo-owned/branded) may improve utilization and Tesla-driver discovery. Weaker Energy expression than BE (AI power equipment); adjacent to held TSLA. Show-me story \u2014 chart multi-year weak; charging growth real, Adj. EBITDA still negative."
+          },
+          {
+            "symbol": "AMZN",
+            "name": "Amazon.com",
+            "theme": "ai_stack",
+            "status": "monitor",
+            "priority": "medium",
+            "sleeve_if_owned": "stocks_growth",
+            "deep_dive_required_before_buy": true,
+            "last_deep_dive": null,
+            "held": false,
+            "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist."
           }
         ],
         "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -6222,7 +6248,7 @@
       },
       "manager_hints": [
         "Deployed mix within target bands \u2014 discretionary alpha only.",
-        "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO \u2014 deep-dive via /position-deep-dive before first buy when required.",
+        "Watchlist candidates (not auto-buy): BE, GOOGL, AAPL, NVDA, PLTR, EVGO, AMZN \u2014 deep-dive via /position-deep-dive before first buy when required.",
         "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
       ],
       "fair_game": true,
