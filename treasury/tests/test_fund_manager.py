@@ -123,10 +123,11 @@ class TestFundPolicy(unittest.TestCase):
         self.assertLessEqual(float(data.get("confidence")), 0.50)
         self.assertTrue(data.get("as_of"))
         notes = str(data.get("notes") or "")
+        notes_lc = notes.lower()
         self.assertIn("may_change=none", notes)
         self.assertIn("as_of missing", notes)
-        self.assertIn("empty capital list", notes.lower())
-        self.assertIn("No FCC marks on Horizon", notes)
+        self.assertIn("empty capital list", notes_lc)
+        self.assertIn("no fcc marks on horizon", notes_lc)
 
         kinds = {"global", "held", "watch"}
         may_change = {
