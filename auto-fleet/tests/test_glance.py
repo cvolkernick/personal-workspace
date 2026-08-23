@@ -264,8 +264,10 @@ class FormatTests(unittest.TestCase):
         html = (PKG / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="glance"', html)
         self.assertIn("function renderGlanceCell", html)
-        turo_fn = html[html.find("function turoStrip") : html.find("function costsStrip")]
-        self.assertGreater(html.find("function turoStrip"), 0)
+        turo_fn = html[html.find("function scheduleStrip") : html.find("function moneyStrip")]
+        self.assertGreater(html.find("function scheduleStrip"), 0)
+        self.assertGreater(html.find("function vehicleStrip"), 0)
+        self.assertGreater(html.find("function moneyStrip"), 0)
         self.assertNotIn("inbox_status", turo_fn)
         self.assertIn("<details", html)
         self.assertIn("static/fleet/tesla-model-3-2020.jpg", html)

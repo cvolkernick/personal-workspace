@@ -30,7 +30,7 @@ if str(ROOT) not in sys.path:
 if str(PKG_DIR) not in sys.path:
     sys.path.insert(0, str(PKG_DIR))
 
-from fleet import build_fleet  # noqa: E402
+from fleet import build_fleet, load_roster  # noqa: E402
 from turo_tasks import complete_task, list_open_tasks  # noqa: E402
 
 DEFAULT_PORT = 8796
@@ -109,7 +109,31 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/turo-tasks":
             try:
-                self._json(200, list_open_tasks())
+                roster = load_roster(_ROSTER_PATH)
+                units = [
+                    u for u in (roster.get("units") or [])
+                    if isinstance(u, dict) and u.get("id")
+                ]
+                bookings_by_unit = None
+                try:
+                    fleet = build_fleet(
+                        roster_path=_ROSTER_PATH,
+                        notes_path=_NOTES_PATH,
+                        expenses_path=_EXPENSES_PATH,
+                        inbox_path=_INBOX_PATH,
+                        env_path=_ENV_PATH,
+                    )
+                    bookings_by_unit = {
+                        str(u["id"]): (u.get("turo") or {}).get("bookings") or []
+                        for u in (fleet.get("units") or [])
+                        if isinstance(u, dict) and u.get("id")
+                    }
+                except Exception:  # noqa: BLE001
+                    bookings_by_unit = None
+                self._json(
+                    200,
+                    list_open_tasks(units=units, bookings_by_unit=bookings_by_unit),
+                )
             except Exception as exc:  # noqa: BLE001
                 self._json(
                     200,

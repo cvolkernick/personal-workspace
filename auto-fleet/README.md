@@ -1,7 +1,9 @@
 # Auto Fleet
 
-Internal **fleet management** dashboard for five owned units: vehicle / DIMO
-state, Turo bookings, then notes & costs. Not a financial interface. Not FCC.
+Internal **fleet management** dashboard for five owned units. Everything is
+organized **by car**: each card holds vehicle details, schedule (rentals +
+ops dates), money (invoice-ready GT + locked lender/APR), and expandable
+trip detail. Not a financial interface. Not FCC. Not a global bookings inbox.
 
 **Not TREAD.** Do not fold this into `safewheels-website`, the host-platform
 tree, or `financial-command/`.
@@ -40,8 +42,9 @@ python3 -m unittest discover -s auto-fleet/tests -v
 
 | Path | Purpose |
 |------|---------|
-| `server.py` / `index.html` | Dashboard + JSON API (glance-first UI) |
+| `server.py` / `index.html` | Dashboard + JSON API (car-centric cards) |
 | `fleet.py` | Assemble `/api/fleet` |
+| `car_cards.py` | Locked lender/APR, trip schedule, GT→car match |
 | `glance.py` | Miles / SoC / stale / PTP presentation helpers |
 | `static/fleet/` | Per-unit stills (`m3-2020`, `m3-2022`, `r1s-2023`, both Corollas). Not TREAD chrome |
 | `dimo_client.py` | DIMO stub + optional live path |
@@ -87,12 +90,14 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 
 ## Invoice-ready (Google Tasks)
 
-A thin host-ops strip lists open items from the Google Tasks list named
-**Turo** (find-or-create that list only — no extra lists, no Fleet-local
-task JSON). Title and notes come from the GT item Helm files; this page
-does not invent amounts, VINs, or trips. Checkbox completes the item in
-Google Tasks. No open items → strip omitted (no empty-state theater).
-Missing creds → honest error, not fake rows.
+Open items from the Google Tasks list named **Turo** nest under the matching
+car card (year/make/model or reservation # — never guess which Corolla).
+Find-or-create that list only — no extra lists, no Fleet-local task JSON.
+Title and notes come from the GT item Helm files; this page does not invent
+amounts, VINs, or trips. Checkbox completes the item in Google Tasks.
+Unmatched items stay in a leftover **Unassigned invoice-ready** strip.
+No open items → strip omitted (no empty-state theater). Missing creds →
+honest error, not fake rows.
 
 Auto Fleet is the standing surface for invoice-ready Turo items. Orchestra
 may later show the same Google Task only when it is NOW/NEXT in that
