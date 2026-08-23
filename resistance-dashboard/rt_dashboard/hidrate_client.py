@@ -37,6 +37,13 @@ HIDRATE_ANDROID_PACKAGE = "hidratenow.com.hidrate.hidrateandroid"
 _SESSION_TOKEN: Optional[str] = None
 _SERIES_CACHE: Dict[str, Any] = {}  # {days, fetched_at, series}
 _SERIES_TTL_SEC = 300.0
+_BOTTLE_CACHE: Dict[str, Any] = {}  # {fetched_at, charge}
+_BOTTLE_TTL_SEC = 300.0
+
+# Parse Bottle charge keys verified from community clients / unofficial server schema:
+# - batteryLevel: hidrateapp-server Bottle model + hidratespark-mcp
+# - battery: alias some community clients report
+_BOTTLE_BATTERY_KEYS = ("batteryLevel", "battery")
 
 
 class HidrateError(RuntimeError):
@@ -57,7 +64,7 @@ def hidrate_credentials_present() -> bool:
 
 
 class HidrateClient:
-    """Minimal Parse REST client for Day totals (+ optional bottles)."""
+    """Minimal Parse REST client for Day totals + Bottle.batteryLevel charge."""
 
     def __init__(
         self,
@@ -246,6 +253,44 @@ class HidrateClient:
         }
         return series
 
+    def fetch_bottle_rows(self, *, limit: int = 20) -> List[Dict[str, Any]]:
+        """Return raw Parse ``Bottle`` objects for the signed-in user."""
+        self.ensure_session()
+        params = {
+            "limit": str(max(1, min(int(limit), 100))),
+            "order": "-updatedAt",
+        }
+        data = self._request("GET", "/classes/Bottle", params=params, session=True)
+        results = data.get("results") if isinstance(data, dict) else None
+        return list(results or [])
+
+    def fetch_bottle_charge(self, *, use_cache: bool = True) -> Dict[str, Any]:
+        """Read bottle charge from Parse ``Bottle`` — no invented percent."""
+        global _BOTTLE_CACHE
+        if use_cache:
+            cached = _BOTTLE_CACHE
+            if (
+                cached.get("charge") is not None
+                and (time.time() - float(cached.get("fetched_at") or 0))
+                < _BOTTLE_TTL_SEC
+            ):
+                return dict(cached["charge"])
+
+        try:
+            rows = self.fetch_bottle_rows()
+        except HidrateError as e:
+            if e.status in (401, 403) or "invalid" in str(e).lower():
+                global _SESSION_TOKEN
+                self._session_token = None
+                _SESSION_TOKEN = None
+                rows = self.fetch_bottle_rows()
+            else:
+                raise
+
+        charge = summarize_bottle_charge(rows)
+        _BOTTLE_CACHE = {"fetched_at": time.time(), "charge": dict(charge)}
+        return charge
+
 
 def _day_total_ml(row: Dict[str, Any]) -> Optional[float]:
     for key in ("totalAmount", "totalBottleAmount", "totalVolumeAmount"):
@@ -257,6 +302,109 @@ def _day_total_ml(row: Dict[str, Any]) -> Optional[float]:
         except (TypeError, ValueError):
             continue
     return None
+
+
+def _empty_bottle_charge(
+    status: str, *, error: Optional[str] = None
+) -> Dict[str, Any]:
+    """Honest empty — never invent a battery percent."""
+    return {
+        "available": False,
+        "percent": None,
+        "field": None,
+        "name": None,
+        "serial": None,
+        "status": status,
+        "error": error,
+    }
+
+
+def _bottle_sync_iso(row: Dict[str, Any]) -> str:
+    for key in ("lastSynced", "updatedAt"):
+        v = row.get(key)
+        if isinstance(v, dict):
+            iso = str(v.get("iso") or "").strip()
+            if iso:
+                return iso
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
+
+
+def _bottle_battery_percent(row: Dict[str, Any]) -> Optional[Tuple[float, str]]:
+    """Return (percent, field) from a Parse Bottle row, or None if absent.
+
+    Field names are community-verified (``batteryLevel`` on the unofficial
+    Bottle schema / hidratespark-mcp; ``battery`` as a reported alias).
+    Values are surfaced as reported when they parse as 0–100. Out-of-range
+    or unparseable values are treated as missing — no invented scale.
+    """
+    if not isinstance(row, dict):
+        return None
+    for key in _BOTTLE_BATTERY_KEYS:
+        if key not in row:
+            continue
+        v = row.get(key)
+        if v is None or v == "":
+            continue
+        try:
+            n = float(v)
+        except (TypeError, ValueError):
+            continue
+        if n != n or n < 0 or n > 100:
+            continue
+        return n, key
+    return None
+
+
+def summarize_bottle_charge(rows: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """Pick charge from Bottle rows. Honest empty when field/list is missing."""
+    bottles = [r for r in (rows or []) if isinstance(r, dict)]
+    if not bottles:
+        return _empty_bottle_charge("empty")
+
+    scored: List[Tuple[str, Dict[str, Any], float, str]] = []
+    for row in bottles:
+        parsed = _bottle_battery_percent(row)
+        if parsed is None:
+            continue
+        percent, field = parsed
+        scored.append((_bottle_sync_iso(row), row, percent, field))
+    if not scored:
+        return _empty_bottle_charge("missing_field")
+
+    scored.sort(key=lambda item: item[0], reverse=True)
+    _iso, row, percent, field = scored[0]
+    name = str(row.get("name") or "").strip() or None
+    serial = str(row.get("serialNumber") or "").strip() or None
+    return {
+        "available": True,
+        "percent": percent,
+        "field": field,
+        "name": name,
+        "serial": serial,
+        "status": "ok",
+        "error": None,
+    }
+
+
+def hidrate_bottle_charge(
+    *, client: Optional[HidrateClient] = None, use_cache: bool = True
+) -> Dict[str, Any]:
+    """Dashboard helper: Bottle charge or honest empty / unavailable."""
+    if not hidrate_credentials_present():
+        return _empty_bottle_charge("not_configured")
+    hc = client or HidrateClient()
+    if not hc.credentials_present():
+        return _empty_bottle_charge("not_configured")
+    try:
+        return hc.fetch_bottle_charge(use_cache=use_cache)
+    except HidrateError as e:
+        log.warning("Hidrate Bottle charge pull failed: %s", e)
+        return _empty_bottle_charge("unavailable", error=str(e))
+    except Exception as e:  # noqa: BLE001
+        log.warning("Hidrate Bottle charge pull failed: %s", e)
+        return _empty_bottle_charge("unavailable", error=str(e))
 
 
 def overlay_hidrate_hydration(

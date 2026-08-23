@@ -2717,6 +2717,11 @@ body.m-shell .quest-card {
   font-size: 0.8rem;
 }
 
+.hidrate-bottle-charge {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+}
+
 /* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
 .pace-track {
   position: relative;
