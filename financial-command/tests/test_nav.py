@@ -15,7 +15,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 FCC = ROOT / "financial-command"
-SURFACES = ("index.html", "capital-flows.html", "watchlist.html")
+SURFACES = ("index.html", "capital-flows.html", "watchlist.html", "interest-spectrum.html")
 HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
 
 
@@ -109,6 +109,7 @@ class TestFccNavFleet(unittest.TestCase):
         index = _parse_anchors((FCC / "index.html").read_text(encoding="utf-8"))
         flows = _parse_anchors((FCC / "capital-flows.html").read_text(encoding="utf-8"))
         watch = _parse_anchors((FCC / "watchlist.html").read_text(encoding="utf-8"))
+        spectrum = _parse_anchors((FCC / "interest-spectrum.html").read_text(encoding="utf-8"))
 
         cf = _by_id(index, "nav-capital-flows")
         self.assertEqual(cf["text"], "Capital Flows")
@@ -118,11 +119,16 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(wl["text"], "Watchlist")
         self.assertEqual(wl["href"], "watchlist.html")
 
+        spec = _by_id(index, "nav-interest-spectrum")
+        self.assertEqual(spec["text"], "Interest Spectrum")
+        self.assertEqual(spec["href"], "interest-spectrum.html")
+
         fcc_from_flows = _by_id(flows, "nav-fcc")
         self.assertIn("FCC", fcc_from_flows["text"])
         self.assertEqual(fcc_from_flows["href"], "index.html")
         self.assertEqual(_by_id(flows, "nav-watchlist")["href"], "watchlist.html")
         self.assertEqual(_by_id(flows, "nav-watchlist")["text"], "Watchlist")
+        self.assertEqual(_by_id(flows, "nav-interest-spectrum")["href"], "interest-spectrum.html")
 
         fcc_from_watch = _by_id(watch, "nav-fcc")
         self.assertIn("FCC", fcc_from_watch["text"])
@@ -130,6 +136,13 @@ class TestFccNavFleet(unittest.TestCase):
         cf_from_watch = _by_id(watch, "nav-capital-flows")
         self.assertEqual(cf_from_watch["href"], "capital-flows.html")
         self.assertEqual(cf_from_watch["text"], "Capital Flows")
+        self.assertEqual(_by_id(watch, "nav-interest-spectrum")["href"], "interest-spectrum.html")
+
+        fcc_from_spec = _by_id(spectrum, "nav-fcc")
+        self.assertIn("FCC", fcc_from_spec["text"])
+        self.assertEqual(fcc_from_spec["href"], "index.html")
+        self.assertEqual(_by_id(spectrum, "nav-capital-flows")["href"], "capital-flows.html")
+        self.assertEqual(_by_id(spectrum, "nav-watchlist")["href"], "watchlist.html")
 
         index_html = (FCC / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="nav-orchestra"', index_html)

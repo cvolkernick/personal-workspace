@@ -1,0 +1,6 @@
+{
+  "title": "Interest Spectrum",
+  "brand": "FCC",
+  "coach_threshold_pct": null,
+  "notes": "Coach band threshold X is blank until Chris locks the number. Do not default to 5."
+}

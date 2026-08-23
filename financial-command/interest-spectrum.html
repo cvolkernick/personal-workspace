@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="favicon.ico?v=btc2" sizes="any" />
+  <link rel="icon" href="favicon-32.png?v=btc2" type="image/png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=btc2" />
+  <link rel="icon" href="favicon.svg?v=btc2" type="image/svg+xml" />
+  <title>Interest Spectrum · FCC</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #121a22;
+      --border: #1e2a36;
+      --text: #e7eef5;
+      --muted: #8aa0b5;
+      --green: #3dd68c;
+      --yellow: #f5c542;
+      --red: #ff6b6b;
+      --accent: #5b9fd4;
+      --debt: #f0a06a;
+      --yield: #3dd68c;
+      --meta: #c9a0ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1000px 500px at 8% -8%, #152033 0%, var(--bg) 50%);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.4;
+      font-size: 15px;
+    }
+    .sticky-top {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(11, 15, 20, 0.94);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1.25rem;
+    }
+    .sticky-top .row {
+      max-width: 1100px; margin: 0 auto;
+      display: flex; flex-wrap: wrap; gap: 0.6rem 1rem;
+      align-items: center; justify-content: space-between;
+    }
+    h1 { margin: 0; font-size: 1.15rem; font-weight: 650; letter-spacing: -0.02em; }
+    .sub { color: var(--muted); font-size: 0.8rem; }
+    button, .btn, a.btn {
+      cursor: pointer; border: 1px solid var(--border); background: #1a2836;
+      color: var(--text); border-radius: 8px; padding: 0.4rem 0.75rem;
+      font-weight: 600; font-size: 0.85rem; text-decoration: none;
+      display: inline-flex; align-items: center;
+    }
+    button.primary { background: #1e4d7a; border-color: #2a6aa3; }
+    button:hover, a.btn:hover { filter: brightness(1.08); text-decoration: none; }
+    .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    main {
+      max-width: 1100px; margin: 0 auto;
+      padding: 1rem 1.25rem 2.5rem;
+      display: grid; gap: 0.85rem;
+    }
+    .card {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 12px; padding: 0.9rem 1rem;
+    }
+    .card h2 { margin: 0 0 0.45rem; font-size: 0.95rem; font-weight: 650; }
+    .hint { color: var(--muted); font-size: 0.8rem; margin: 0 0 0.6rem; }
+    .pill {
+      display: inline-flex; align-items: center; padding: 0.18rem 0.5rem;
+      border-radius: 999px; font-weight: 650; font-size: 0.68rem;
+      border: 1px solid var(--border); text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .pill.debt { color: var(--debt); border-color: #6b4a2e; }
+    .pill.yield { color: var(--yield); border-color: #245c42; }
+    .pill.unknown { color: var(--muted); }
+    .pill.metadata { color: var(--meta); border-color: #5a3a7a; }
+    .error {
+      background: #1a1010; border: 1px solid #5a2a2a; color: var(--red);
+      border-radius: 10px; padding: 0.75rem 0.9rem;
+    }
+    .hidden { display: none !important; }
+    .axis-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: #0d141c;
+      padding: 0.75rem 0.5rem 0.5rem;
+    }
+    .spectrum {
+      position: relative;
+      min-width: 720px;
+      height: 280px;
+      margin: 0 12px;
+    }
+    .spectrum-svg { display: block; width: 100%; height: 280px; }
+    .chip {
+      position: absolute;
+      transform: translate(-50%, -100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.12rem;
+      min-width: 7.2rem;
+      max-width: 9.5rem;
+      padding: 0.32rem 0.45rem 0.38rem;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #15202c;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 0.72rem;
+      line-height: 1.2;
+      text-align: center;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+    }
+    .chip:hover { filter: brightness(1.08); text-decoration: none; }
+    .chip.debt { border-color: #8a5a38; }
+    .chip.yield { border-color: #2a6a4a; }
+    .chip.metadata { border-color: #5a3a7a; }
+    .chip .who { font-weight: 700; font-size: 0.74rem; }
+    .chip .inst { color: var(--muted); font-size: 0.66rem; }
+    .chip .rate { font-weight: 750; letter-spacing: -0.02em; }
+    .chip.debt .rate { color: var(--debt); }
+    .chip.yield .rate { color: var(--yield); }
+    .chip.metadata .rate { color: var(--meta); }
+    .unknown-row {
+      display: flex; flex-wrap: wrap; gap: 0.45rem;
+    }
+    .ghost {
+      display: inline-flex; flex-direction: column; gap: 0.1rem;
+      padding: 0.4rem 0.6rem;
+      border-radius: 10px;
+      border: 1px dashed #3a4a5a;
+      background: #101820;
+      min-width: 8rem;
+    }
+    .ghost strong { font-size: 0.82rem; }
+    .ghost span { color: var(--muted); font-size: 0.72rem; }
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 0.55rem 1rem;
+      margin-top: 0.7rem; font-size: 0.78rem; color: var(--muted);
+    }
+    .swatch {
+      width: 12px; height: 12px; border-radius: 3px;
+      display: inline-block; margin-right: 0.35rem;
+      vertical-align: -1px;
+    }
+    .swatch.debt { background: var(--debt); }
+    .swatch.yield { background: var(--yield); }
+    .swatch.meta { background: var(--meta); }
+    .chip-list { margin: 0; padding-left: 1.15rem; font-size: 0.86rem; }
+    .chip-list li { margin: 0.35rem 0; }
+    footer {
+      max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
+      color: var(--muted); font-size: 0.78rem;
+    }
+    a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="sticky-top">
+    <div class="row">
+      <div>
+        <h1>Interest Spectrum</h1>
+        <div class="sub" id="subtitle">APR / APY · FCC</div>
+      </div>
+      <div class="controls">
+        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="index.html" id="nav-fcc">← FCC</a>
+        <a class="btn" href="capital-flows.html" id="nav-capital-flows">Capital Flows</a>
+        <a class="btn" href="watchlist.html" id="nav-watchlist">Watchlist</a>
+        <a class="btn" href="http://127.0.0.1:8796/" id="nav-fleet" title="Auto Fleet">Fleet</a>
+        <button type="button" class="primary" id="btn-refresh">Refresh</button>
+      </div>
+    </div>
+  </div>
+
+  <main>
+    <div id="load-error" class="error hidden"></div>
+
+    <section class="card">
+      <h2>Spectrum</h2>
+      <p class="hint">
+        Left = cost of debt (loan APR). Right = yield (cash / known fixed APY).
+        Chips sit at their real rate. Assumed equity or BTC returns stay off this axis.
+      </p>
+      <div class="axis-wrap">
+        <div class="spectrum" id="spectrum">
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 280" role="img" aria-label="Interest spectrum axis from debt APR to yield APY"></svg>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch debt"></i>Debt APR</span>
+        <span><i class="swatch yield"></i>Yield APY</span>
+        <span><i class="swatch meta"></i>Metadata chip (not a FCC liability)</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Rate unknown</h2>
+      <p class="hint">Venues that exist in FCC books but have no locked APR/APY. Honest empty — no invented yields.</p>
+      <div class="unknown-row" id="unknown-row"></div>
+    </section>
+
+    <section class="card">
+      <h2>Coach threshold X</h2>
+      <p class="hint" id="coach-hint">Optional config stub. Blank until Chris locks the number.</p>
+      <div id="coach-body"></div>
+    </section>
+
+    <section class="card">
+      <h2>Chips (detail)</h2>
+      <ul class="chip-list" id="chip-list"></ul>
+    </section>
+  </main>
+
+  <footer>
+    Interest Spectrum · FCC · APR/APY only · locked fleet financing + books when present
+  </footer>
+
+  <script src="nav-orchestra.js"></script>
+  <script src="nav-fleet.js"></script>
+  <script>
+    function esc(s) {
+      return String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function fmtRate(chip) {
+      if (chip.rate_pct == null || !Number.isFinite(Number(chip.rate_pct))) return "rate unknown";
+      const n = Number(chip.rate_pct);
+      const kind = chip.rate_kind || (chip.kind === "yield" ? "APY" : "APR");
+      return n.toFixed(2).replace(/\.00$/, "") + "% " + kind;
+    }
+
+    function chipClass(chip) {
+      if (chip.role === "metadata" || chip.fcc_liability === false) return "metadata";
+      return chip.kind === "yield" ? "yield" : "debt";
+    }
+
+    async function load() {
+      const err = document.getElementById("load-error");
+      err.classList.add("hidden");
+      try {
+        const res = await fetch("/api/interest-spectrum?ts=" + Date.now());
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error || "bad payload");
+        render(data);
+      } catch (e) {
+        err.classList.remove("hidden");
+        err.textContent =
+          "Could not load Interest Spectrum (" + e.message + "). Start FCC: python3 financial-command/server.py";
+      }
+    }
+
+    function xFor(chip, maxPct) {
+      const mag = Math.abs(Number(chip.rate_pct) || 0);
+      const px = (mag / Math.max(maxPct, 1)) * 420;
+      if (chip.kind === "yield") return 500 + px;
+      return 500 - px;
+    }
+
+    function lanesFor(placed, maxPct) {
+      const sorted = placed.slice().sort((a, b) => {
+        return xFor(a, maxPct) - xFor(b, maxPct);
+      });
+      const lanes = [];
+      sorted.forEach((chip) => {
+        const x = xFor(chip, maxPct);
+        let lane = 0;
+        while (lanes.some((p) => p.lane === lane && Math.abs(p.x - x) < 88)) lane++;
+        chip._x = x;
+        chip._lane = lane;
+        lanes.push({ x, lane });
+      });
+      return sorted;
+    }
+
+    function drawAxis(data) {
+      const svg = document.getElementById("spectrum-svg");
+      const stage = document.getElementById("spectrum");
+      stage.querySelectorAll(".chip").forEach((n) => n.remove());
+      const maxPct = Number((data.axis && data.axis.max_pct) || 20);
+      const ticks = [];
+      for (let t = 0; t <= maxPct; t += 5) ticks.push(t);
+
+      let html = `
+        <defs>
+          <linearGradient id="axis-grad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color="#f0a06a"/>
+            <stop offset="50%" stop-color="#8aa0b5"/>
+            <stop offset="100%" stop-color="#3dd68c"/>
+          </linearGradient>
+        </defs>
+        <text x="40" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em">COST OF DEBT (APR)</text>
+        <text x="960" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">YIELD (APY)</text>
+        <line x1="80" y1="170" x2="920" y2="170" stroke="url(#axis-grad)" stroke-width="3" stroke-linecap="round"/>
+        <circle cx="500" cy="170" r="5" fill="#e7eef5"/>
+      `;
+      ticks.forEach((t) => {
+        const off = (t / maxPct) * 420;
+        [
+          [500 - off, t === 0 ? "0%" : t + "%"],
+          [500 + off, t === 0 ? "" : t + "%"],
+        ].forEach(([x, label]) => {
+          if (!label) return;
+          html += `<line x1="${x}" y1="164" x2="${x}" y2="176" stroke="#8aa0b5" stroke-width="1.4"/>`;
+          html += `<text x="${x}" y="196" fill="#8aa0b5" font-size="11" text-anchor="middle">${label}</text>`;
+        });
+      });
+
+      const threshold = data.coach_threshold_pct;
+      if (threshold != null && Number.isFinite(Number(threshold))) {
+        const x = 500 + (Math.abs(Number(threshold)) / maxPct) * 420;
+        html += `<line x1="${x}" y1="70" x2="${x}" y2="210" stroke="#f5c542" stroke-dasharray="5 5" stroke-width="1.5"/>`;
+        html += `<text x="${x}" y="62" fill="#f5c542" font-size="11" text-anchor="middle">coach X ${esc(String(threshold))}%</text>`;
+      }
+
+      svg.innerHTML = html;
+
+      const placed = lanesFor(data.placed || [], maxPct);
+      placed.forEach((chip) => {
+        const leftPct = (chip._x / 1000) * 100;
+        const top = 148 - chip._lane * 58;
+        const cls = chipClass(chip);
+        const href = chip.deep_link === "fleet" ? "http://127.0.0.1:8796/" : "";
+        const tag = href ? "a" : "div";
+        const extra = href ? ` href="${href}" data-nav-fleet` : "";
+        const el = document.createElement("div");
+        el.innerHTML = `<${tag} class="chip ${esc(cls)}"${extra} style="left:${leftPct}%;top:${top}px">
+          <span class="who">${esc(chip.label)}</span>
+          <span class="inst">${esc(chip.instrument || "")}</span>
+          <span class="rate">${esc(fmtRate(chip))}</span>
+        </${tag}>`;
+        stage.appendChild(el.firstElementChild);
+      });
+      if (window.fccFleetHref && window.location) {
+        const fleet = window.fccFleetHref(window.location.hostname);
+        stage.querySelectorAll("[data-nav-fleet]").forEach((a) => a.setAttribute("href", fleet));
+      }
+    }
+
+    function render(data) {
+      document.getElementById("subtitle").textContent =
+        "APR / APY · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
+
+      drawAxis(data);
+
+      const unknown = data.unknown || [];
+      const uroot = document.getElementById("unknown-row");
+      if (!unknown.length) {
+        uroot.innerHTML = `<p class="hint" style="margin:0">No book venues waiting on a rate.</p>`;
+      } else {
+        uroot.innerHTML = unknown
+          .map(
+            (c) => `<div class="ghost">
+              <strong>${esc(c.label)}</strong>
+              <span>${esc(c.instrument || "")} · ${esc(c.rate_kind || "")} · rate unknown</span>
+            </div>`
+          )
+          .join("");
+      }
+
+      const locked = data.coach_threshold_locked;
+      const th = data.coach_threshold_pct;
+      document.getElementById("coach-body").innerHTML = locked
+        ? `<span class="pill">${esc(String(th))}%</span> <span class="hint" style="margin:0 0 0 0.4rem">locked coach band</span>`
+        : `<span class="pill unknown">blank</span> <span class="hint" style="margin:0 0 0 0.4rem">not locked — no coach band on the axis</span>`;
+
+      const list = document.getElementById("chip-list");
+      list.innerHTML = (data.chips || [])
+        .map((c) => {
+          const meta = c.role === "metadata" || c.fcc_liability === false;
+          const pill = meta
+            ? `<span class="pill metadata">metadata</span>`
+            : `<span class="pill ${esc(c.kind)}">${esc(c.kind)} ${esc(c.rate_kind || "")}</span>`;
+          const rate = c.rate_pct == null ? "rate unknown" : fmtRate(c);
+          return `<li>${pill} <strong>${esc(c.label)}</strong> · ${esc(c.instrument || "")} · ${esc(rate)}
+            ${c.notes ? `<div class="hint" style="margin:0.12rem 0 0">${esc(c.notes)}</div>` : ""}
+          </li>`;
+        })
+        .join("");
+    }
+
+    document.getElementById("btn-refresh").addEventListener("click", load);
+    load();
+  </script>
+</body>
+</html>
