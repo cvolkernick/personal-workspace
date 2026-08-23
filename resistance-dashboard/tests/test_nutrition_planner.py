@@ -13,14 +13,18 @@ sys.path.insert(0, str(ROOT))
 
 from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
+    SERVING_GRAMS_REQUIRED_MSG,
     add_ingredient,
     format_plan_portion,
     format_portion_label,
     generate_meal_plan,
+    needs_serving_grams,
     normalize_ingredient,
     remaining_macros,
     remove_ingredient,
     scale_plan_item_to_inventory,
+    serving_grams_nudge_text,
+    serving_grams_required,
     update_ingredient,
     suggest_inventory_removals,
     suggest_inventory_staples,
@@ -928,6 +932,170 @@ class TestNutritionPlanner(unittest.TestCase):
         for meal in plan["meals"]:
             self.assertTrue(meal["items"])
             self.assertTrue(meal.get("eat_at"))
+
+    def test_logged_serving_needs_and_requires_grams(self):
+        logged = {
+            "name": "Chicken breast",
+            "serving_label": "1 logged serving (avg)",
+            "calories": 389.2,
+            "protein_g": 72.8,
+            "carbs_g": 0,
+            "fat_g": 7.3,
+        }
+        self.assertTrue(needs_serving_grams(logged))
+        self.assertTrue(serving_grams_required(logged))
+        self.assertFalse(
+            serving_grams_required({**logged, "serving_g": 170})
+        )
+        self.assertFalse(
+            needs_serving_grams({**logged, "serving_label": "170g"})
+        )
+        self.assertFalse(
+            serving_grams_required(
+                {
+                    "name": "Whole eggs",
+                    "serving_label": "3 eggs",
+                    "calories": 210,
+                    "protein_g": 18,
+                    "carbs_g": 2,
+                    "fat_g": 15,
+                }
+            )
+        )
+
+    def test_logged_serving_add_blocked_without_grams(self):
+        with self.assertRaises(ValueError) as ctx:
+            add_ingredient(
+                {"ingredients": []},
+                {
+                    "name": "Chicken breast",
+                    "serving_label": "1 logged serving (avg)",
+                    "calories": 389.2,
+                    "protein_g": 72.8,
+                    "carbs_g": 0,
+                    "fat_g": 7.3,
+                },
+            )
+        self.assertIn("serving grams required", str(ctx.exception).lower())
+        self.assertIn("logged serving", str(ctx.exception).lower())
+        self.assertEqual(str(ctx.exception), SERVING_GRAMS_REQUIRED_MSG)
+
+    def test_logged_serving_update_blocked_without_grams(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken-breast",
+                    "name": "Chicken breast",
+                    "serving_label": "1 logged serving (avg)",
+                    "calories": 389.2,
+                    "protein_g": 72.8,
+                    "carbs_g": 0,
+                    "fat_g": 7.3,
+                    "in_stock": True,
+                }
+            ]
+        }
+        with self.assertRaises(ValueError) as ctx:
+            update_ingredient(
+                inv,
+                {
+                    "id": "chicken-breast",
+                    "name": "Chicken breast",
+                    "serving_label": "1 logged serving (avg)",
+                    "calories": 389.2,
+                    "protein_g": 72.8,
+                },
+            )
+        self.assertIn("serving grams required", str(ctx.exception).lower())
+
+    def test_logged_serving_add_with_user_grams_biases_label(self):
+        inv = add_ingredient(
+            {"ingredients": []},
+            {
+                "id": "chicken-breast",
+                "name": "Chicken breast",
+                "serving_label": "1 logged serving (avg)",
+                "serving_g": 100,
+                "calories": 110,
+                "protein_g": 23,
+                "carbs_g": 0,
+                "fat_g": 1.2,
+                "in_stock": True,
+            },
+        )
+        row = inv["ingredients"][0]
+        self.assertEqual(row["serving_g"], 100.0)
+        self.assertTrue(str(row["serving_label"]).startswith("100g"))
+        # User-supplied mass only — no invented pantry grams.
+        self.assertNotIn("170", str(row["serving_label"]))
+
+    def test_logged_serving_with_grams_plan_emits_250g(self):
+        inv = add_ingredient(
+            {"ingredients": []},
+            {
+                "id": "chicken-breast",
+                "name": "Chicken breast",
+                "serving_label": "1 logged serving (avg)",
+                "serving_g": 100,
+                "calories": 110,
+                "protein_g": 23,
+                "carbs_g": 0,
+                "fat_g": 1.2,
+                "in_stock": True,
+            },
+        )
+        plan = generate_meal_plan(
+            inv,
+            FULL_TARGETS,
+            {
+                "calories": 2100 - 275,
+                "protein_g": 210 - 57.5,
+                "carbs_g": 180,
+                "fat_g": 55,
+            },
+            now=datetime(2026, 8, 23, 11, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        row = plan["items"][0]
+        self.assertEqual(row["id"], "chicken-breast")
+        self.assertEqual(row["portion_g"], 250)
+        self.assertEqual(row["serving_label"], "250g")
+        self.assertEqual(format_plan_portion(row), "250g")
+        self.assertEqual(plan["serving_grams_nudge"], "")
+
+    def test_plan_nudge_when_stocked_logged_serving_lacks_grams(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "serving_label": "1 logged serving (avg)",
+                    "calories": 110,
+                    "protein_g": 23,
+                    "carbs_g": 0,
+                    "fat_g": 1.2,
+                    "in_stock": True,
+                }
+            ]
+        }
+        plan = generate_meal_plan(
+            inv,
+            FULL_TARGETS,
+            {"calories": 1800, "protein_g": 160, "carbs_g": 160, "fat_g": 40},
+            now=datetime(2026, 8, 23, 11, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        self.assertNotIn("portion_g", plan["items"][0])
+        self.assertNotIn("250g", str(plan["items"][0].get("serving_label") or ""))
+        self.assertIn("logged serving", plan["items"][0]["serving_label"].lower())
+        self.assertIn("Set serving grams on Chicken", plan["serving_grams_nudge"])
+        self.assertIn("weighable portions", plan["serving_grams_nudge"])
+        self.assertEqual(
+            serving_grams_nudge_text(plan["items"]),
+            plan["serving_grams_nudge"],
+        )
 
 
 if __name__ == "__main__":

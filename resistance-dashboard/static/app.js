@@ -1907,6 +1907,57 @@
     return String(ing.serving_label || "1 serving").trim() || "1 serving";
   }
 
+  /** Parse N g / N oz from a Health or inventory label. Never invents mass. */
+  function parseGramsFromLabel(label) {
+    const text = String(label || "");
+    const g = text.match(/([\d.]+)\s*g\b/i);
+    if (g) {
+      const v = Number(g[1]);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    }
+    const oz = text.match(/([\d.]+)\s*oz\b/i);
+    if (oz) {
+      const v = Number(oz[1]) * 28.3495;
+      return Number.isFinite(v) && v > 0 ? Math.round(v) : null;
+    }
+    return null;
+  }
+
+  function usableServingGrams(it) {
+    if (!it) return null;
+    const sg = Number(it.serving_g);
+    if (Number.isFinite(sg) && sg > 0) return sg;
+    return parseGramsFromLabel(it.serving_label);
+  }
+
+  function itemHasMacros(it) {
+    if (!it) return false;
+    return ["calories", "protein_g", "carbs_g", "fat_g"].some((k) => Number(it[k]) > 0);
+  }
+
+  /** Macros present, no usable serving_g / parseable N g or N oz. */
+  function itemNeedsServingGrams(it) {
+    return !!(it && itemHasMacros(it) && usableServingGrams(it) == null);
+  }
+
+  /** Health logged-serving / generic “1 serving” must not save without user grams. */
+  function servingGramsRequired(it) {
+    if (!itemNeedsServingGrams(it)) return false;
+    const label = String((it && it.serving_label) || "").trim();
+    if (!label) return false;
+    if (/logged\s+serving/i.test(label)) return true;
+    return /^(?:\d+(?:\.\d+)?\s+)?(?:logged\s+)?servings?\s*(?:\([^)]*\))?$/i.test(label);
+  }
+
+  function servingGramsPrompt(it) {
+    const name = String((it && it.name) || "this food").trim() || "this food";
+    const label = String((it && it.serving_label) || "").trim();
+    if (/logged\s+serving/i.test(label)) {
+      return `Set serving grams for ${name} — Health “logged serving” has no weighable mass.`;
+    }
+    return `Set serving grams on ${name} to get weighable portions.`;
+  }
+
   function invEscapeAttr(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -1958,6 +2009,11 @@
     return body;
   }
 
+  function assertServingGramsOrExplain(body) {
+    if (!itemNeedsServingGrams(body)) return "";
+    return servingGramsPrompt(body);
+  }
+
   function inventoryEditFormHtml(ing) {
     const iid = invEscapeAttr(ing.id || "");
     const cat = String(ing.category || "other");
@@ -1979,8 +2035,13 @@
           <label>Category <select data-edit-field="category">${opts}</select></label>
           <label>Portion (g) <input type="number" data-edit-field="serving_g" min="1" step="1" value="${invEscapeAttr(
             gVal
-          )}" /></label>
+          )}"${itemNeedsServingGrams(ing) ? " required" : ""} /></label>
         </div>
+        ${
+          itemNeedsServingGrams(ing)
+            ? `<p class="inv-grams-prompt">${invEscapeAttr(servingGramsPrompt(ing))}</p>`
+            : ""
+        }
         <label class="inv-edit-note">Note <input type="text" data-edit-field="serving_label" value="${invEscapeAttr(
           inventoryEditNote(ing)
         )}" placeholder="e.g. cooked" /></label>
@@ -2084,6 +2145,7 @@
           name: s.name,
           category: s.category,
           serving_label: s.serving_label,
+          serving_g: s.serving_g,
           calories: s.calories,
           protein_g: s.protein_g,
           carbs_g: s.carbs_g,
@@ -2097,7 +2159,14 @@
         <div class="inv-card-name">${s.name || "Staple"}
           <span class="inv-action-badge inv-action-${action}">${action}</span>
         </div>
-        <div class="inv-card-meta muted">${s.category || "other"} · ${s.serving_label || "1 serving"}</div>
+        <div class="inv-card-meta muted">${s.category || "other"} · ${
+        formatInventoryPortion(s)
+      }</div>
+        ${
+          itemNeedsServingGrams(s)
+            ? `<p class="inv-grams-prompt compact">${invEscapeAttr(servingGramsPrompt(s))}</p>`
+            : ""
+        }
         ${reason ? `<div class="inv-reason compact" title="${String(s.reason || "").replace(/"/g, "&quot;")}">${reason}${String(s.reason || "").length > 90 ? "…" : ""}</div>` : ""}
         ${invMacroStrip(s, true)}
         <div class="actions inv-card-actions compact">
@@ -2168,6 +2237,98 @@
     </div>`;
   }
 
+  function dropAppliedSuggestion(idx) {
+    if (state && state.nutrition_store && state.nutrition_store.inventory_suggestions) {
+      const sug = state.nutrition_store.inventory_suggestions;
+      if (Array.isArray(sug.suggestions) && !Number.isNaN(idx)) {
+        sug.suggestions = sug.suggestions.filter((_, i) => i !== idx);
+        sug.count = sug.suggestions.length;
+      }
+      renderInventorySuggestions(state.nutrition_store);
+    }
+  }
+
+  function showSuggestionGramsPrompt(slide, body, suggestAction, idx) {
+    if (!slide) return false;
+    const host = slide.querySelector(".inv-card-actions");
+    if (!host) return false;
+    const payload = encodeURIComponent(JSON.stringify(body));
+    const action = suggestAction === "restock" ? "restock" : "add";
+    const wrap = document.createElement("div");
+    wrap.innerHTML = `<form class="inv-grams-form">
+        <p class="inv-grams-prompt">${invEscapeAttr(servingGramsPrompt(body))}</p>
+        <label>Portion (g)
+          <input type="number" data-grams-field="serving_g" min="1" step="1" required placeholder="e.g. 170" />
+        </label>
+        <div class="actions inv-card-actions compact">
+          <button type="submit" class="primary" data-action="suggest-grams-save"
+            data-suggest-action="${action}" data-idx="${idx}" data-payload="${payload}">Save</button>
+          <button type="button" data-action="suggest-grams-cancel">Cancel</button>
+        </div>
+      </form>`;
+    host.replaceWith(wrap.firstElementChild);
+    const input = slide.querySelector("[data-grams-field=serving_g]");
+    if (input) input.focus();
+    return true;
+  }
+
+  async function persistInventorySuggestion(body, suggestAction, setGrams) {
+    const name = (body && body.name) || "";
+    if (setGrams && suggestAction === "restock" && body.id) {
+      const res = await fetch("/api/inventory/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, in_stock: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        const res2 = await fetch("/api/inventory/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || !data2.ok) throw new Error(data2.error || data.error || res.status);
+        applyInventoryUpdate(data2.inventory);
+      } else {
+        applyInventoryUpdate(data.inventory);
+      }
+      showAlert(`Restocked ${name || body.id}`, "ok");
+      return;
+    }
+    if (suggestAction === "restock" && body.id) {
+      const res = await fetch("/api/inventory/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: body.id, in_stock: true }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) {
+        const res2 = await fetch("/api/inventory/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data2 = await res2.json().catch(() => ({}));
+        if (!res2.ok || !data2.ok) throw new Error(data2.error || data.error || res.status);
+        applyInventoryUpdate(data2.inventory);
+      } else {
+        applyInventoryUpdate(data.inventory);
+      }
+      showAlert(`Restocked ${name || body.id}`, "ok");
+      return;
+    }
+    const res = await fetch("/api/inventory/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    applyInventoryUpdate(data.inventory);
+    showAlert(`Added ${name || body.id} to inventory`, "ok");
+  }
+
   /** One delegated listener — survives re-renders and avoids dead buttons. */
   function bindInventoryListOnce() {
     // Cover inventory + meal plan so shared carousel arrows work in both columns
@@ -2181,6 +2342,13 @@
       cancelInventoryEdit();
     });
     root.addEventListener("submit", (ev) => {
+      const gramsForm = ev.target.closest && ev.target.closest(".inv-grams-form");
+      if (gramsForm && root.contains(gramsForm)) {
+        ev.preventDefault();
+        const saveBtn = gramsForm.querySelector('[data-action="suggest-grams-save"]');
+        if (saveBtn) saveBtn.click();
+        return;
+      }
       const form = ev.target.closest && ev.target.closest(".inv-edit-form");
       if (!form || !root.contains(form)) return;
       ev.preventDefault();
@@ -2271,6 +2439,37 @@
           }
           return;
         }
+        if (action === "suggest-grams-cancel") {
+          btn.disabled = false;
+          if (state) renderInventorySuggestions(state.nutrition_store);
+          return;
+        }
+        if (action === "suggest-grams-save") {
+          const form = btn.closest(".inv-grams-form");
+          const gramsEl = form && form.querySelector("[data-grams-field=serving_g]");
+          const grams = gramsEl ? Number(String(gramsEl.value || "").trim()) : NaN;
+          const payloadRaw = btn.getAttribute("data-payload") || "{}";
+          let body;
+          try {
+            body = JSON.parse(decodeURIComponent(payloadRaw));
+          } catch (_) {
+            throw new Error("bad suggestion payload");
+          }
+          if (!Number.isFinite(grams) || grams <= 0) {
+            if (gramsEl) gramsEl.focus();
+            throw new Error(servingGramsPrompt(body));
+          }
+          body.serving_g = grams;
+          const suggestAction = btn.getAttribute("data-suggest-action") || "add";
+          await persistInventorySuggestion(body, suggestAction, true);
+          dropAppliedSuggestion(Number(btn.getAttribute("data-idx")));
+          try {
+            await generatePlan();
+          } catch (_) {
+            /* optional */
+          }
+          return;
+        }
         if (action === "suggest-apply") {
           const payloadRaw = btn.getAttribute("data-payload") || "{}";
           let body;
@@ -2280,48 +2479,20 @@
             throw new Error("bad suggestion payload");
           }
           const suggestAction = btn.getAttribute("data-suggest-action") || "add";
-          if (suggestAction === "restock" && body.id) {
-            const res = await fetch("/api/inventory/stock", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ id: body.id, in_stock: true }),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.ok) {
-              // Fall back to add if id missing from inventory
-              const res2 = await fetch("/api/inventory/add", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-              });
-              const data2 = await res2.json().catch(() => ({}));
-              if (!res2.ok || !data2.ok) throw new Error(data2.error || data.error || res.status);
-              applyInventoryUpdate(data2.inventory);
-            } else {
-              applyInventoryUpdate(data.inventory);
-            }
-            showAlert(`Restocked ${body.name || id}`, "ok");
-          } else {
-            const res = await fetch("/api/inventory/add", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(body),
-            });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
-            applyInventoryUpdate(data.inventory);
-            showAlert(`Added ${body.name || id} to inventory`, "ok");
+          if (itemNeedsServingGrams(body)) {
+            btn.disabled = false;
+            const slide = btn.closest(".inv-slide") || btn.closest(".inv-card");
+            showSuggestionGramsPrompt(
+              slide,
+              body,
+              suggestAction,
+              Number(btn.getAttribute("data-idx"))
+            );
+            showAlert(servingGramsPrompt(body), "warn");
+            return;
           }
-          // Soft-remove applied suggestion from UI
-          if (state && state.nutrition_store && state.nutrition_store.inventory_suggestions) {
-            const sug = state.nutrition_store.inventory_suggestions;
-            const idx = Number(btn.getAttribute("data-idx"));
-            if (Array.isArray(sug.suggestions) && !Number.isNaN(idx)) {
-              sug.suggestions = sug.suggestions.filter((_, i) => i !== idx);
-              sug.count = sug.suggestions.length;
-            }
-            renderInventorySuggestions(state.nutrition_store);
-          }
+          await persistInventorySuggestion(body, suggestAction, false);
+          dropAppliedSuggestion(Number(btn.getAttribute("data-idx")));
           try {
             await generatePlan();
           } catch (_) {
@@ -2337,6 +2508,12 @@
           }
           if (!body.name) {
             throw new Error("ingredient name required");
+          }
+          const gramsErr = assertServingGramsOrExplain(body);
+          if (gramsErr) {
+            const gramsInput = card && card.querySelector('[data-edit-field="serving_g"]');
+            if (gramsInput) gramsInput.focus();
+            throw new Error(gramsErr);
           }
           const res = await fetch("/api/inventory/update", {
             method: "POST",
@@ -3152,6 +3329,9 @@
     const ra = plan.remaining_after_plan || {};
     let html = `<div class="meal-plan-panel">`;
     html += `<p class="muted" style="margin:0 0 0.5rem;font-size:0.85rem">${plan.message || ""}</p>`;
+    if (plan.serving_grams_nudge) {
+      html += `<p class="meal-grams-nudge">${plan.serving_grams_nudge}</p>`;
+    }
     html += `<div class="meal-plan-totals-row">
       <div class="meal-plan-totals compact">
         <div class="meal-plan-totals-label">Planned add</div>
@@ -4870,12 +5050,20 @@
       fat_g: Number($("ing-f").value),
       in_stock: true,
     };
-    // Prefer weighable grams; macros apply to this mass.
+    // Prefer weighable grams; macros apply to this mass. Never invent grams.
     if (Number.isFinite(servingG) && servingG > 0) {
       body.serving_g = servingG;
       if (!body.serving_label) body.serving_label = `${Math.round(servingG)}g`;
     } else if (!body.serving_label) {
       body.serving_label = "1 serving";
+    }
+    const gramsErr = assertServingGramsOrExplain(body);
+    if (gramsErr) {
+      if (status) status.textContent = "";
+      const gramsInput = $("ing-serving-g");
+      if (gramsInput) gramsInput.focus();
+      showAlert(gramsErr, "err");
+      return;
     }
     try {
       const res = await fetch("/api/inventory/add", {

@@ -379,6 +379,94 @@ class KitchenWrites(unittest.TestCase):
         self.assertEqual(status, 401)
         self.assertEqual(body["error"], "auth_required")
 
+    def test_logged_serving_add_without_grams_is_400(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        store = {"sub-1": self._seeded_store()}
+        puts = []
+
+        def get(uid):
+            return store.get(uid)
+
+        def put(uid, inv):
+            puts.append((uid, inv))
+            store[uid] = inv
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_get_inventory",
+                side_effect=get,
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_put_inventory",
+                side_effect=put,
+            ):
+                status, body = inventory_write(
+                    self._headers(),
+                    "inv_add",
+                    {
+                        "name": "Chicken breast",
+                        "serving_label": "1 logged serving (avg)",
+                        "calories": 389.2,
+                        "protein_g": 72.8,
+                        "carbs_g": 0,
+                        "fat_g": 7.3,
+                        "in_stock": True,
+                    },
+                )
+        self.assertEqual(status, 400)
+        self.assertFalse(body["ok"])
+        self.assertIn("serving grams required", str(body.get("error") or "").lower())
+        self.assertNotIn("inventory", body)
+        self.assertEqual(puts, [])
+        names = [i["name"] for i in store["sub-1"]["ingredients"]]
+        self.assertNotIn("Chicken breast", names)
+
+    def test_logged_serving_add_with_user_grams_persists(self):
+        env = {"GOOGLE_CLIENT_SECRET": "test-secret"}
+        store = {"sub-1": self._seeded_store()}
+        puts = []
+
+        def get(uid):
+            return store.get(uid)
+
+        def put(uid, inv):
+            puts.append((uid, inv))
+            store[uid] = inv
+
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.turso_http.turso_enabled", return_value=True
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_get_inventory",
+                side_effect=get,
+            ), mock.patch(
+                "rt_dashboard.inventory_store._turso_put_inventory",
+                side_effect=put,
+            ):
+                status, body = inventory_write(
+                    self._headers(),
+                    "inv_add",
+                    {
+                        "name": "Chicken breast",
+                        "serving_label": "1 logged serving (avg)",
+                        "serving_g": 100,
+                        "calories": 110,
+                        "protein_g": 23,
+                        "carbs_g": 0,
+                        "fat_g": 1.2,
+                        "in_stock": True,
+                    },
+                )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        row = next(
+            i for i in body["inventory"]["ingredients"] if i["name"] == "Chicken breast"
+        )
+        self.assertEqual(row["serving_g"], 100.0)
+        self.assertTrue(str(row["serving_label"]).startswith("100g"))
+        self.assertTrue(puts)
+
 
 class InventoryEditUi(unittest.TestCase):
     def test_row_has_edit_and_cancel_does_not_write(self):
@@ -402,6 +490,19 @@ class InventoryEditUi(unittest.TestCase):
         self.assertIn("Ingredient Inventory", html)
         self.assertIn(".inv-edit-form", css)
         self.assertIn(".btn-edit", css)
+        self.assertIn("function servingGramsRequired", js)
+        self.assertIn("function itemNeedsServingGrams", js)
+        self.assertIn("function showSuggestionGramsPrompt", js)
+        self.assertIn("suggest-grams-save", js)
+        self.assertIn("logged serving", js)
+        self.assertIn("serving_grams_nudge", js)
+        self.assertIn("ing-serving-g", html)
+        self.assertIn('id="ing-serving-g"', html)
+        self.assertIn("required", html.split('id="ing-serving-g"', 1)[1].split(">", 1)[0])
+        self.assertIn(".inv-grams-prompt", css)
+        self.assertIn(".meal-grams-nudge", css)
+        self.assertNotIn("CIC", js)
+        self.assertNotIn("CIC", html)
 
 
 class DashboardInventoryPayload(unittest.TestCase):
