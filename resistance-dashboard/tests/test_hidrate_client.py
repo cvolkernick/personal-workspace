@@ -344,6 +344,8 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         self.assertIn("critical", js)
         self.assertIn("full", js)
         self.assertIn(".hidrate-bottle-charge .sb-shell", css)
+        self.assertIn(".hidrate-bottle-charge .hbb-shell", css)
+        self.assertIn(".hidrate-bottle-charge .hbb-fill-wrap", css)
         self.assertIn(".sb-fill.critical", css)
         self.assertIn(".sb-fill.low", css)
         self.assertIn(".sb-fill.ok", css)
