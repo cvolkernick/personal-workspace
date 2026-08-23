@@ -26,7 +26,9 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     suggest_inventory_staples,
     today_consumed_from_nutrition,
     _macros_for_portion,
+    _pick_continuous_portion,
     _plan_item_from_ingredient,
+    _round_portion_g,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -752,8 +754,6 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertLess(row["portion_g"], 100)
 
     def test_fill_is_not_whole_serving_only_when_serving_g_present(self):
-        from rt_dashboard.nutrition_planner import _pick_continuous_portion
-
         ing = {
             "id": "chicken",
             "name": "Chicken",
@@ -823,6 +823,84 @@ class TestNutritionPlanner(unittest.TestCase):
             format_plan_portion({"serving_label": "3 eggs"}),
             "3 eggs",
         )
+
+    def test_nourish_round_5g_min_25g(self):
+        """Nourish AC: continuous portion_g rounds ~5g, min ~25g."""
+        self.assertEqual(_round_portion_g(27, serving_g=100), 25)
+        self.assertEqual(_round_portion_g(28, serving_g=100), 30)
+        self.assertEqual(_round_portion_g(12, serving_g=100), 0)
+        self.assertEqual(_round_portion_g(23, serving_g=100), 25)
+        self.assertEqual(_round_portion_g(250.4, serving_g=100), 250)
+        self.assertEqual(_round_portion_g(252.6, serving_g=100), 255)
+        # Far below min is not a pick. Near-min snaps up to 25g, not 10/15/20.
+        self.assertEqual(_round_portion_g(10, serving_g=100), 0)
+        self.assertEqual(_round_portion_g(15, serving_g=100), 25)
+        self.assertEqual(_round_portion_g(20, serving_g=100), 25)
+
+    def test_nourish_per_gram_scale_and_soft_ceiling(self):
+        ing = {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 100,
+            "calories": 110,
+            "protein_g": 23,
+            "carbs_g": 0,
+            "fat_g": 1.2,
+        }
+        # Protein leftover wants ~348g; calorie room is only ~170 kcal → ~155g.
+        rem = {"calories": 90, "protein_g": 80, "carbs_g": 0, "fat_g": 0}
+        pick = _pick_continuous_portion(
+            ing, rem, cal_ceiling=170, totals={"calories": 0}
+        )
+        self.assertIsNotNone(pick)
+        _servings, portion_g = pick
+        self.assertGreaterEqual(portion_g, 25)
+        self.assertEqual(portion_g % 5, 0)
+        self.assertLess(portion_g, 200)
+        macros = _macros_for_portion(ing, portion_g=portion_g)
+        self.assertLessEqual(macros["calories"], 170 + 40)
+        self.assertAlmostEqual(macros["calories"], 110 * (portion_g / 100), places=1)
+        self.assertAlmostEqual(macros["protein_g"], 23 * (portion_g / 100), places=1)
+
+    def test_nourish_plan_portions_are_5g_min_25_in_stock(self):
+        now = datetime(2026, 8, 23, 10, 0, tzinfo=ET)
+        plan = generate_meal_plan(
+            STOCKED_CUTTING,
+            FULL_TARGETS,
+            EMPTY_CONSUMED,
+            now=now,
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        stocked = {"Chicken", "Rice", "Greek yogurt", "Broccoli"}
+        for it in plan["items"]:
+            self.assertIn(it["name"], stocked)
+            self.assertNotEqual(it["name"], "Candy")
+            self.assertIn("portion_g", it)
+            self.assertGreaterEqual(it["portion_g"], 25)
+            self.assertEqual(it["portion_g"] % 5, 0)
+            sg = float(it["serving_g"])
+            scale = it["portion_g"] / sg
+            base = next(
+                x for x in STOCKED_CUTTING["ingredients"] if x["id"] == it["id"]
+            )
+            self.assertAlmostEqual(it["calories"], float(base["calories"]) * scale, places=1)
+            self.assertAlmostEqual(it["protein_g"], float(base["protein_g"]) * scale, places=1)
+        for meal in plan["meals"]:
+            for it in meal["items"]:
+                self.assertIn(it["name"], stocked)
+                self.assertGreaterEqual(it["portion_g"], 25)
+
+    def test_ui_keeps_portion_g_primary(self):
+        js = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+        start = js.find("function formatPlanPortion")
+        self.assertGreater(start, 0)
+        fn = js[start : start + 450]
+        pg_at = fn.find("portion_g")
+        label_at = fn.find("serving_label")
+        self.assertGreater(pg_at, 0)
+        self.assertGreater(label_at, pg_at)
+        self.assertIn("Math.round(pg)", fn)
 
     def test_low_remaining_does_not_force_four_slots(self):
         inv = {

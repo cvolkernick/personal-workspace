@@ -211,7 +211,11 @@ def _ingredient_serving_g(ing: dict) -> Optional[float]:
 
 
 def _round_portion_g(grams: float, serving_g: Optional[float] = None) -> float:
-    """Round weighable grams (~5g). Min ~25g unless the inventory serving is smaller."""
+    """Nourish AC: prefer ~5g steps, min ~25g.
+
+    Tiny inventory servings (oil, etc. ``serving_g`` < 25) keep a smaller min
+    so we do not invent a 25g pour when the default serving is 14g.
+    """
     try:
         g = float(grams)
     except (TypeError, ValueError):
@@ -1101,14 +1105,27 @@ def _serving_unit_count(items: Sequence[dict]) -> int:
 
 
 def _split_grams(total_g: float, n: int) -> List[float]:
-    """Split a continuous portion into n integer-gram chunks that sum to total_g."""
+    """Split a continuous portion into n gram chunks that sum to total_g.
+
+    Prefer ~5g-aligned chunks when the parent portion is 5g-aligned.
+    """
     total = max(1, int(round(float(total_g))))
     n = max(1, int(n))
     if n == 1:
         return [float(total)]
+    step = 5 if total >= MIN_PORTION_G and total % 5 == 0 else 1
     base = total // n
-    extra = total - base * n
-    chunks = [float(base + (1 if i < extra else 0)) for i in range(n)]
+    if step > 1:
+        base = (base // step) * step
+    leftover = total - base * n
+    chunks = [float(base) for _ in range(n)]
+    i = 0
+    while leftover >= step:
+        chunks[i % n] += step
+        leftover -= step
+        i += 1
+    if leftover:
+        chunks[-1] += leftover
     return [c if c > 0 else 1.0 for c in chunks]
 
 
