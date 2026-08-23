@@ -330,15 +330,41 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         html = (root / "static" / "index.html").read_text(encoding="utf-8")
         js = (root / "static" / "hidrate-bottle.js").read_text(encoding="utf-8")
+        css = (root / "static" / "styles.css").read_text(encoding="utf-8")
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
-        self.assertIn("hidrate-bottle.js", html)
+        self.assertIn("hidrate-bottle.js?v=bottle-charge-2", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hidrate_bottle", js)
-        self.assertIn("Bottle —", js)
         self.assertIn("unavailable", js)
+        self.assertIn("sb-shell", js)
+        self.assertIn("sb-fill-wrap", js)
+        self.assertIn("sb-fill", js)
+        self.assertIn("sb-label", js)
+        self.assertIn("critical", js)
+        self.assertIn("full", js)
+        self.assertIn(".hidrate-bottle-charge .sb-shell", css)
+        self.assertIn(".sb-fill.critical", css)
+        self.assertIn(".sb-fill.low", css)
+        self.assertIn(".sb-fill.ok", css)
+        self.assertIn(".sb-fill.full", css)
         self.assertNotIn("battery: 100", js)
         self.assertNotIn('"percent": 100', js)
+        self.assertNotIn("linear-gradient(90deg, #ff00", css)
+
+    def test_node_mini_battery_structure(self):
+        import subprocess
+
+        script = Path(__file__).resolve().parents[1] / "tests" / "hidrate_bottle_mini.js"
+        proc = subprocess.run(
+            ["node", str(script)],
+            cwd=str(Path(__file__).resolve().parents[1]),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        self.assertIn("ok hidrate-bottle-mini", proc.stdout)
 
 
 if __name__ == "__main__":

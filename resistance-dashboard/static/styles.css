@@ -2722,6 +2722,43 @@ body.m-shell .quest-card {
   font-size: 0.78rem;
 }
 
+/* Mini sleep-style battery under hydration — same .sb-fill bands, smaller shell. */
+.hbb-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.hbb-name {
+  color: inherit;
+}
+
+.hidrate-bottle-charge .sb-shell {
+  width: 72px;
+  padding: 3px;
+  border-radius: 8px;
+  flex: 0 0 auto;
+  display: block;
+  margin-right: 8px;
+}
+
+.hidrate-bottle-charge .sb-shell::after {
+  right: -6px;
+  width: 4px;
+  height: 10px;
+  border-radius: 0 2px 2px 0;
+}
+
+.hidrate-bottle-charge .sb-fill-wrap {
+  height: 16px;
+  border-radius: 5px;
+}
+
+.hidrate-bottle-charge .sb-big {
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
 /* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
 .pace-track {
   position: relative;
