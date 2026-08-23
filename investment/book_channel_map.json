@@ -1,0 +1,211 @@
+{
+  "schema": "fcc_book_channel_map_v0",
+  "as_of": "2026-08-23T22:29:51Z",
+  "owner": "nakatoshi",
+  "consumer": "meridian",
+  "stale": false,
+  "confidence": 0.50,
+  "notes": "Eng-gated 2026-08-23 fixture/book-read nest for Meridian capital join. Kill rules: drop capital row if may_change=none OR as_of missing; empty capital list is honest; no FCC marks on Horizon.",
+  "items": [
+    {
+      "id": "household_free_dollar",
+      "kind": "global",
+      "may_change": "residual_freeze",
+      "book_channel": "none",
+      "does_not": "L0 cannot lift residual freeze; no invent cash; no trade",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "morpho_loan",
+      "kind": "global",
+      "may_change": "ltv_manage",
+      "book_channel": "btc_morpho_ltv",
+      "does_not": "no auto repay/borrow; no invent LTV",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "morpho_hy_usdc",
+      "kind": "global",
+      "may_change": "none",
+      "book_channel": "usdc_cash",
+      "does_not": "do not treat seed as live APY",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "x_money",
+      "kind": "global",
+      "may_change": "none",
+      "book_channel": "usdc_cash",
+      "does_not": "no invent balance",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "one_card",
+      "kind": "global",
+      "may_change": "card_refi",
+      "book_channel": "none",
+      "does_not": "no invent balance",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "jr_strcusx",
+      "kind": "global",
+      "may_change": "none",
+      "book_channel": "strc_jr",
+      "does_not": "does not count toward HY/LTV; no mint; no invent notional",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "MSTR",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "MARA",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "BITA",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "IREN",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "CLSK",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "TSLA",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "SPCX",
+      "kind": "held",
+      "may_change": "sleeve_watch",
+      "book_channel": "rh_sleeve",
+      "does_not": "no size/buy while red; no invent weight",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "BE",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "GOOGL",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "AAPL",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "NVDA",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order; do not treat Horizon attention weight as a trade signal",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "PLTR",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "AMZN",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    },
+    {
+      "id": "EVGO",
+      "kind": "watch",
+      "may_change": "none",
+      "book_channel": "rh_sleeve",
+      "does_not": "consider-set only; no size/buy; no invent weight; Horizon weight is not an order",
+      "as_of": "2026-08-23T22:29:51Z",
+      "stale": false,
+      "confidence": 0.50
+    }
+  ]
+}
