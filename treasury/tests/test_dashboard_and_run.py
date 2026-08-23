@@ -30,6 +30,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Actual spend", html)
         self.assertIn("Capital targets", html)
         self.assertIn("Settings", html)
+        self.assertIn("m-vault-apy", html)
+        self.assertIn("Morpho HY APY override", html)
         self.assertIn("Interest Spectrum", html)
         self.assertIn("interest-spectrum.html", html)
         self.assertIn("/api/refresh", html)

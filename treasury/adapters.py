@@ -314,6 +314,9 @@ def build_snapshot(
 
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
+    from treasury.morpho_hy_sync import fetch_morpho_hy
+
+    morpho_hy = fetch_morpho_hy(prefer_live=prefer_live_coinbase)
     rh_cfg = cfg.get("robinhood") or {}
     ynab_cfg = cfg.get("ynab") or {}
     exp_cfg = cfg.get("expenses_sheet") or {}
@@ -321,6 +324,7 @@ def build_snapshot(
         "as_of": _now(),
         "coinbase": cb,
         "coinbase_manual": manual,
+        "morpho_hy": morpho_hy,
         "one_card": one_card,
         "rh_checking": rh_checking,
         "expenses": expenses,
@@ -333,6 +337,7 @@ def build_snapshot(
             "one_card_source": one_card.get("source"),
             "rh_checking_source": rh_checking.get("source"),
             "expenses_source": expenses.get("source"),
+            "morpho_hy_source": morpho_hy.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
@@ -350,7 +355,10 @@ def build_snapshot(
             },
             "api_limits": {
                 "morpho_loan": "app-only",
-                "high_yield_vault": "app-only",
+                "high_yield_vault": (
+                    "balance app-only; APY Morpho GraphQL vaultV2 avgNetApy "
+                    "(Steakhouse HY USDC / Base; soft-fail; no scrape)"
+                ),
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",

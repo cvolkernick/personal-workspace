@@ -168,9 +168,10 @@
         Shared APR/APY axis: <strong>0%</strong> left → <strong>~30%</strong> right
         (cap at One Card / highest contractual rate). Debt cost above the axis;
         asset yield below. Locked yield seeds always show (X Money 6%, Morpho HY 7%,
-        USDG 7%); books override when a live APY exists. JR-strcUSX is a spectrum
-        chip only (~20% target unless a live Solstice quote is already on the
-        snapshot). Chip size is not a balance. Equity / BTC appreciation
+        USDG 7%). Morpho HY precedence: FCC settings manual &gt; live Morpho
+        GraphQL avgNetApy &gt; seed 7% — do not invent rates. JR-strcUSX is a
+        spectrum chip only (~20% target unless a live Solstice quote is already
+        on the snapshot). Chip size is not a balance. Equity / BTC appreciation
         stays off this page. Wells / 20 Tesla stays off FCC.
       </p>
       <div class="axis-wrap">
@@ -187,7 +188,7 @@
 
     <section class="card" id="unknown-card">
       <h2>Rate unknown</h2>
-      <p class="hint">Locked yield seeds always show. Live books APY overrides the seed. Honest empty only when a venue is still unknown.</p>
+      <p class="hint">Locked yield seeds always show. Settings override beats live books; live books beat the seed. Honest empty only when a venue is still unknown.</p>
       <div id="unknown-row"></div>
     </section>
 
