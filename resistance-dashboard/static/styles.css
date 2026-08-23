@@ -2733,8 +2733,9 @@ body.m-shell .quest-card {
   color: inherit;
 }
 
+/* #283: obvious taller/narrower vs #264/#274. Base sizes — sleep .sb-shell unchanged. */
 .hidrate-bottle-charge .sb-shell {
-  width: 72px;
+  width: 50px;
   padding: 3px;
   border-radius: 8px;
   flex: 0 0 auto;
@@ -2745,12 +2746,12 @@ body.m-shell .quest-card {
 .hidrate-bottle-charge .sb-shell::after {
   right: -6px;
   width: 4px;
-  height: 10px;
+  height: 14px;
   border-radius: 0 2px 2px 0;
 }
 
 .hidrate-bottle-charge .sb-fill-wrap {
-  height: 16px;
+  height: 28px;
   border-radius: 5px;
 }
 
@@ -2758,20 +2759,6 @@ body.m-shell .quest-card {
   font-size: 0.62rem;
   line-height: 1;
   color: var(--text);
-}
-
-/* Chris 2026-08-23: less flat/wide. .hbb-* only — sleep .sb-shell unchanged.
-   Deltas vs #264: width 72px→64px (−8px), fill 16px→20px (+4px), nub 10px→12px (+2px). */
-.hidrate-bottle-charge .hbb-shell {
-  width: 64px;
-}
-
-.hidrate-bottle-charge .hbb-fill-wrap {
-  height: 20px;
-}
-
-.hidrate-bottle-charge .hbb-shell::after {
-  height: 12px;
 }
 
 /* Pacing: fill = % of daily target eaten; marker = expected at this window fraction */
