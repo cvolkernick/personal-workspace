@@ -1413,7 +1413,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/agent/today":
             # Machine-friendly Today brief. Same loopback / service-token
             # path as /api/sleep_battery (see _service_auth_ok). Read-only
-            # slice of the cached dashboard — no invented ml / loads / sessions.
+            # slice of the cached dashboard — no invented ml / loads / sessions / AZM.
             client_host = (self.client_address or ("", 0))[0]
             user = _session_user_from_headers(self.headers)
             if _auth_required() and not user and not _service_auth_ok(

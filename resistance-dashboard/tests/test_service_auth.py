@@ -304,6 +304,18 @@ class AgentTodayHttpTests(unittest.TestCase):
                     "exercises": [],
                 },
                 "sessions": [],
+                "health": {
+                    "active_zone_minutes": [
+                        {
+                            "date": "2026-08-16",
+                            "fat_burn_minutes": 12,
+                            "cardio_minutes": 8,
+                            "peak_minutes": 2,
+                            "total_minutes": 22,
+                            "source": "google_health",
+                        }
+                    ]
+                },
             },
         )
         self._load_patch.start()
@@ -348,6 +360,11 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(body["today"]["date"], "2026-08-23")
         self.assertEqual(body["today"]["workout"]["session_type"], "pull")
         self.assertFalse(body["today"]["workout"]["is_rest_day"])
+        self.assertIn("active_zone_minutes", body["today"])
+        self.assertEqual(len(body["today"]["active_zone_minutes"]), 1)
+        self.assertEqual(body["today"]["active_zone_minutes"][0]["date"], "2026-08-16")
+        self.assertEqual(body["today"]["active_zone_minutes"][0]["total_minutes"], 22)
+        self.assertNotIn("house-secret", json.dumps(body))
 
     def test_dashboard_stays_session_gated_on_loopback(self) -> None:
         status, body = self._get("/api/dashboard")
@@ -361,6 +378,8 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(denied_status, 401)
         self.assertEqual(denied.get("error"), "auth_required")
         self.assertNotIn("today", denied)
+        self.assertNotIn("active_zone_minutes", denied)
+        self.assertNotIn("house-secret", json.dumps(denied))
         ok_status, ok_body = self._get(
             "/api/agent/today",
             headers={"X-FitDash-Service-Token": "house-secret"},
@@ -368,12 +387,16 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(ok_status, 200)
         self.assertTrue(ok_body.get("ok"))
         self.assertEqual(ok_body["today"]["workout"]["session_type"], "pull")
+        self.assertEqual(ok_body["today"]["active_zone_minutes"][0]["total_minutes"], 22)
+        self.assertNotIn("house-secret", json.dumps(ok_body))
         bearer_status, bearer_body = self._get(
             "/api/agent/today",
             headers={"Authorization": "Bearer house-secret"},
         )
         self.assertEqual(bearer_status, 200)
         self.assertTrue(bearer_body.get("ok"))
+        self.assertEqual(len(bearer_body["today"]["active_zone_minutes"]), 1)
+        self.assertNotIn("house-secret", json.dumps(bearer_body))
 
 
 if __name__ == "__main__":
