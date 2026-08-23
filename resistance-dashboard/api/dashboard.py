@@ -559,7 +559,11 @@ class handler(BaseHTTPRequestHandler):
         from api.workout._util import dispatch_client_route
 
         routed = dispatch_client_route(
-            self.headers, parsed.query, "GET", path=parsed.path
+            self.headers,
+            parsed.query,
+            "GET",
+            path=parsed.path,
+            client_host=(self.client_address or ("", 0))[0],
         )
         if routed is not None:
             status, body = routed
