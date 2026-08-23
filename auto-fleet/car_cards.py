@@ -7,7 +7,8 @@ balances, trips, or guest fields. Invoice-ready stays Google Tasks.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Mapping, Optional, Sequence
 
 try:
@@ -49,6 +50,9 @@ LOCKED_FINANCE: dict[str, dict[str, Any]] = {
 CANCEL_STATUSES = {"canceled", "cancelled"}
 PAYOUT_STATUSES = {"payout"}
 LIVE_PHASES = {"upcoming", "active"}
+FLEET_TZ = ZoneInfo("America/New_York")
+# Date-only start on its calendar day stays upcoming until local noon ET.
+DATE_ONLY_SAME_DAY_ACTIVE_AFTER = time(12, 0, 0)
 
 _TRIP_IN_TEXT = re.compile(
     r"(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})",
@@ -76,17 +80,7 @@ def locked_finance_for(unit_id: str) -> dict[str, Any]:
     return dict(locked)
 
 
-def _date_only(value: Any) -> Optional[Any]:
-    if value is None or value == "":
-        return None
-    text = str(value).strip()[:10]
-    try:
-        return datetime.strptime(text, "%Y-%m-%d").date()
-    except ValueError:
-        return None
-
-
-def _as_dt(now: Any) -> datetime:
+def _as_et(now: Any) -> datetime:
     if isinstance(now, datetime):
         dt = now
     elif now:
@@ -98,7 +92,49 @@ def _as_dt(now: Any) -> datetime:
         dt = datetime.now(timezone.utc)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(FLEET_TZ)
+
+
+def has_clock(value: Any) -> bool:
+    """True when a stored start/end includes a clock, not just YYYY-MM-DD."""
+    if isinstance(value, datetime):
+        return value.hour or value.minute or value.second or value.microsecond
+    text = str(value or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return False
+    return bool(re.match(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}", text))
+
+
+def parse_trip_instant(value: Any, *, end: bool = False) -> Optional[datetime]:
+    """Parse stored start/end into America/New_York.
+
+    Date-only values become 00:00 ET (start) or 23:59:59 ET (end). Timed
+    values keep their clock. Naive stamps are interpreted as ET.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, datetime):
+        dt = value
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=FLEET_TZ)
+        return dt.astimezone(FLEET_TZ)
+    text = str(value).strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        day = datetime.strptime(text, "%Y-%m-%d").date()
+        clock = time(23, 59, 59) if end else time(0, 0, 0)
+        return datetime.combine(day, clock, tzinfo=FLEET_TZ)
+    try:
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00").replace(" ", "T"))
+    except ValueError:
+        try:
+            day = datetime.strptime(text[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+        clock = time(23, 59, 59) if end else time(0, 0, 0)
+        return datetime.combine(day, clock, tzinfo=FLEET_TZ)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=FLEET_TZ)
+    return dt.astimezone(FLEET_TZ)
 
 
 def _merge_trip(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
@@ -145,19 +181,38 @@ def _merge_trip(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     return merged
 
 
-def _phase(trip: Mapping[str, Any], today) -> str:
+def _phase(trip: Mapping[str, Any], now: datetime) -> str:
+    """Trip phase vs America/New_York now.
+
+    Timed bounds: upcoming if now < start; active if start <= now <= end
+    (inclusive end — Turo's stated end clock is still the trip); past if
+    now > end. Date-only start/end become 00:00 / 23:59:59 ET, except a
+    date-only start on *today* stays upcoming until local noon so a
+    same-day morning is not marked active.
+    """
     if str(trip.get("status") or "").lower() in CANCEL_STATUSES:
         return "canceled"
-    start = _date_only(trip.get("start"))
-    end = _date_only(trip.get("end"))
-    if end and end < today:
-        return "past"
-    if start and end and start <= today <= end:
-        return "active"
-    if start and start <= today and not end:
-        return "active"
-    if start and start > today:
+    start_raw = trip.get("start")
+    end_raw = trip.get("end")
+    start = parse_trip_instant(start_raw, end=False)
+    end = parse_trip_instant(end_raw, end=True)
+    if (
+        start is not None
+        and not has_clock(start_raw)
+        and start.date() == now.date()
+        and now.time() < DATE_ONLY_SAME_DAY_ACTIVE_AFTER
+    ):
+        if end and now > end:
+            return "past"
         return "upcoming"
+    if end and now > end:
+        return "past"
+    if start and now < start:
+        return "upcoming"
+    if start and end and start <= now <= end:
+        return "active"
+    if start and start <= now and not end:
+        return "active"
     return "upcoming"
 
 
@@ -168,9 +223,10 @@ def schedule_for_bookings(
     """Upcoming/active trips + cancel for still-open reservations.
 
     Past/closed trips drop off the card. Payouts are not bookings.
-    Same trip_id with a later cancel collapses to canceled.
+    Same trip_id with a later cancel collapses to canceled. Phase uses
+    clock time in America/New_York, not the start calendar day alone.
     """
-    today = _as_dt(now).date()
+    now_et = _as_et(now)
     groups: dict[str, list[Mapping[str, Any]]] = {}
     untitled = 0
     for raw in bookings or []:
@@ -188,16 +244,16 @@ def schedule_for_bookings(
     out: list[dict[str, Any]] = []
     for evs in groups.values():
         trip = _merge_trip(evs)
-        phase = _phase(trip, today)
+        phase = _phase(trip, now_et)
         trip["phase"] = phase
-        end = _date_only(trip.get("end"))
-        start = _date_only(trip.get("start"))
         if phase in LIVE_PHASES:
             out.append(trip)
             continue
         if phase == "canceled":
-            last = end or start
-            if last is None or last >= today:
+            last = parse_trip_instant(trip.get("end"), end=True) or parse_trip_instant(
+                trip.get("start"), end=True
+            )
+            if last is None or now_et <= last:
                 out.append(trip)
     out.sort(key=lambda t: (str(t.get("start") or ""), str(t.get("trip_id") or "")))
     return out

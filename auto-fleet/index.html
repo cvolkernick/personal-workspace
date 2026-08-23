@@ -639,19 +639,71 @@
       return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
     }
 
+    function parseWhen(value) {
+      if (!value) return null;
+      const text = String(value).trim();
+      const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text);
+      if (dateOnly) {
+        return { y: Number(dateOnly[1]), m: Number(dateOnly[2]) - 1, d: Number(dateOnly[3]), hasClock: false };
+      }
+      const hasClock = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(text);
+      if (!hasClock) {
+        const day = parseDay(text);
+        if (!day) return null;
+        return { y: day.getFullYear(), m: day.getMonth(), d: day.getDate(), hasClock: false };
+      }
+      const dt = new Date(text);
+      if (Number.isNaN(dt.getTime())) {
+        const day = parseDay(text);
+        if (!day) return null;
+        return { y: day.getFullYear(), m: day.getMonth(), d: day.getDate(), hasClock: false };
+      }
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      }).formatToParts(dt);
+      const get = (type) => (parts.find((p) => p.type === type) || {}).value;
+      const period = String(get("dayPeriod") || "AM").toUpperCase().replace(/\./g, "");
+      return {
+        y: Number(get("year")),
+        m: Number(get("month")) - 1,
+        d: Number(get("day")),
+        hour12: Number(get("hour")),
+        minute: get("minute"),
+        dayPeriod: period.indexOf("P") >= 0 ? "PM" : "AM",
+        hasClock: true,
+      };
+    }
+
+    function clockLabel(p) {
+      return `${p.hour12}:${p.minute} ${p.dayPeriod}`;
+    }
+
     function humanWhen(start, end) {
       const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-      const a = parseDay(start);
-      const b = parseDay(end);
-      const fmt = (d) => `${months[d.getMonth()]} ${d.getDate()}`;
+      const a = parseWhen(start);
+      const b = parseWhen(end);
+      const day = (p) => `${months[p.m]} ${p.d}`;
+      const dayTime = (p) => (p.hasClock ? `${day(p)} ${clockLabel(p)}` : day(p));
       if (!a && !b) return "";
-      if (a && !b) return fmt(a);
-      if (!a && b) return fmt(b);
-      if (a.getTime() === b.getTime()) return fmt(a);
-      if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
-        return `${months[a.getMonth()]} ${a.getDate()} → ${b.getDate()}`;
+      if (a && !b) return dayTime(a);
+      if (!a && b) return dayTime(b);
+      const sameDay = a.y === b.y && a.m === b.m && a.d === b.d;
+      const sameMonth = a.y === b.y && a.m === b.m;
+      if (!a.hasClock && !b.hasClock) {
+        if (sameDay) return day(a);
+        if (sameMonth) return `${day(a)} → ${b.d}`;
+        return `${day(a)} → ${day(b)}`;
       }
-      return `${fmt(a)} → ${fmt(b)}`;
+      const left = dayTime(a);
+      if (!b.hasClock) return `${left} → ${sameMonth ? b.d : day(b)}`;
+      if (sameDay) return `${left} → ${clockLabel(b)}`;
+      return `${left} → ${dayTime(b)}`;
     }
 
     function tripPhase(b) {

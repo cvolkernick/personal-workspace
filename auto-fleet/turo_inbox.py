@@ -20,6 +20,7 @@ import mailbox
 import os
 import re
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from email import message_from_bytes, policy
 from email.header import decode_header, make_header
 from email.message import Message
@@ -38,6 +39,9 @@ GMAIL_QUERY = (
 FORWARD_SINCE = datetime(2026, 8, 18, 2, 0, tzinfo=timezone.utc)
 FORWARD_SINCE_ISO = "2026-08-18T02:00:00+00:00"
 POLL_INTERVAL_S = 900
+FLEET_TZ = ZoneInfo("America/New_York")
+# Clock fragment in Turo bodies: "3:00 pm", "6:00 PM", "6:00pm".
+_CLOCK = r"\d{1,2}:\d{2}\s*[AaPp][Mm]"
 CURRENT_HOST_MARK = "mike's vehicle"
 _HISTORICAL_HOST_MARKS = ("jessica's vehicle",)
 
@@ -70,21 +74,22 @@ _ISO_RANGE = re.compile(
     re.I,
 )
 _US_RANGE = re.compile(
-    r"(\d{1,2}/\d{1,2}/\d{2,4})\s*(?:to|–|-|through)\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    rf"(\d{{1,2}}/\d{{1,2}}/\d{{2,4}}(?:\s+{_CLOCK})?)\s*(?:to|–|-|through)\s*"
+    rf"(\d{{1,2}}/\d{{1,2}}/\d{{2,4}}(?:\s+{_CLOCK})?)",
     re.I,
 )
 _LONG_RANGE = re.compile(
-    r"from\s+[A-Za-z]+,\s+([A-Za-z]+ \d{1,2}, \d{4})\s+"
-    r"\d{1,2}:\d{2}\s*[AP]M\s+to\s+[A-Za-z]+,\s+"
-    r"([A-Za-z]+ \d{1,2}, \d{4})",
+    rf"from\s+[A-Za-z]+,\s+([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:\s+{_CLOCK})?)\s+"
+    rf"to\s+[A-Za-z]+,\s+"
+    rf"([A-Za-z]+ \d{{1,2}}, \d{{4}}(?:\s+{_CLOCK})?)",
     re.I,
 )
 _TRIP_START = re.compile(
-    r"trip start\s*:?\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    rf"trip start\s*:?\s*(\d{{1,2}}/\d{{1,2}}/\d{{2,4}}(?:\s+{_CLOCK})?)",
     re.I,
 )
 _TRIP_END = re.compile(
-    r"trip end\s*:?\s*(\d{1,2}/\d{1,2}/\d{2,4})",
+    rf"trip end\s*:?\s*(\d{{1,2}}/\d{{1,2}}/\d{{2,4}}(?:\s+{_CLOCK})?)",
     re.I,
 )
 _MONEY = re.compile(r"\$\s*([0-9][0-9,]*(?:\.\d{2})?)")
@@ -296,21 +301,81 @@ def classify_subject(subject: str) -> Optional[str]:
     return None
 
 
-def _us_to_iso(raw: str) -> str:
-    text = (raw or "").strip()
-    for fmt in ("%m/%d/%Y", "%m/%d/%y"):
+def _norm_clock_text(raw: str) -> str:
+    text = re.sub(r"\s+", " ", (raw or "").strip())
+    return re.sub(r"\b([AaPp])[Mm]\b", lambda m: m.group(1).upper() + "M", text)
+
+
+def _iso_out(dt: datetime, *, has_time: bool) -> str:
+    """Date-only YYYY-MM-DD, or timezone-aware America/New_York ISO when timed."""
+    if not has_time:
+        return dt.date().isoformat()
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=FLEET_TZ)
+    else:
+        dt = dt.astimezone(FLEET_TZ)
+    return dt.isoformat()
+
+
+def _try_strptime(text: str, formats: tuple[str, ...]) -> Optional[tuple[datetime, bool]]:
+    for fmt in formats:
         try:
-            return datetime.strptime(text, fmt).date().isoformat()
+            dt = datetime.strptime(text, fmt)
         except ValueError:
             continue
+        has_time = "%I" in fmt or "%H" in fmt
+        return dt, has_time
+    return None
+
+
+def _us_to_iso(raw: str) -> str:
+    text = _norm_clock_text(raw)
+    parsed = _try_strptime(
+        text,
+        (
+            "%m/%d/%Y %I:%M %p",
+            "%m/%d/%y %I:%M %p",
+            "%m/%d/%Y %I:%M%p",
+            "%m/%d/%y %I:%M%p",
+            "%m/%d/%Y",
+            "%m/%d/%y",
+        ),
+    )
+    if parsed:
+        dt, has_time = parsed
+        return _iso_out(dt, has_time=has_time)
     return text
 
 
 def _long_to_iso(raw: str) -> str:
+    text = _norm_clock_text(raw)
+    parsed = _try_strptime(
+        text,
+        (
+            "%B %d, %Y %I:%M %p",
+            "%B %d, %Y %I:%M%p",
+            "%B %d, %Y",
+        ),
+    )
+    if parsed:
+        dt, has_time = parsed
+        return _iso_out(dt, has_time=has_time)
+    return text
+
+
+def _iso_piece_to_stored(raw: str) -> str:
+    """Keep date-only ISO; attach ET when the mail fragment has a clock."""
+    text = (raw or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        return text
     try:
-        return datetime.strptime(raw.strip(), "%B %d, %Y").date().isoformat()
+        dt = datetime.fromisoformat(text.replace("Z", "+00:00").replace(" ", "T"))
     except ValueError:
-        return raw
+        return text
+    has_time = "T" in text.replace(" ", "T")[10:] or " " in text
+    if not has_time:
+        return dt.date().isoformat()
+    return _iso_out(dt, has_time=True)
 
 
 def _vehicle_from_blob(blob: str) -> Optional[str]:
@@ -354,7 +419,9 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     start = end = None
     rng = _ISO_RANGE.search(blob)
     if rng:
-        start, end = rng.group(1), rng.group(2)
+        start, end = _iso_piece_to_stored(rng.group(1)), _iso_piece_to_stored(
+            rng.group(2)
+        )
     else:
         long_rng = _LONG_RANGE.search(blob)
         if long_rng:
