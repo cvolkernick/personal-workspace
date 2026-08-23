@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from . import gtasks_bridge as gtb
+from .nutrition_planner import format_plan_portion
 from .timeutil import local_today_iso
 
 DEFAULT_LIST_TITLE = "Fitness"
@@ -270,9 +271,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 name = str(it.get("name") or "").strip()
                 if not name:
                     continue
-                portion = it.get("serving_label") or (
-                    f"{it.get('portion_g')}g" if it.get("portion_g") else ""
-                )
+                portion = format_plan_portion(it)
                 title = f"{label}: {name}"
                 if portion:
                     title = f"{label}: {name} · {portion}"
@@ -292,7 +291,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
             name = str(it.get("name") or "").strip()
             if not name:
                 continue
-            portion = it.get("serving_label") or ""
+            portion = format_plan_portion(it)
             title = f"Eat: {name}" + (f" · {portion}" if portion else "")
             _g("nutrition").items.append(
                 PlannedItem(

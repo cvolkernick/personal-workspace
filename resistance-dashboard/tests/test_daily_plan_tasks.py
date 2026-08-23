@@ -129,6 +129,33 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("3:30 PM", nutrition.items[0].title)
         self.assertIn("170g", nutrition.items[0].title)
 
+    def test_quest_title_uses_portion_g_as_primary_cue(self):
+        board = {
+            "date": "2026-08-23",
+            "actions": [],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {
+                "meals": [
+                    {
+                        "label": "Next meal",
+                        "eat_at_label": "12:00 PM",
+                        "items": [
+                            {
+                                "name": "Chicken",
+                                "portion_g": 250,
+                                "serving_label": "1 serving",
+                            }
+                        ],
+                    }
+                ],
+            },
+        }
+        groups = plan_from_today_board(board, day="2026-08-23")
+        nutrition = next(g for g in groups if g.group == "nutrition")
+        self.assertTrue(nutrition.items)
+        self.assertIn("250g", nutrition.items[0].title)
+        self.assertNotIn("1 serving", nutrition.items[0].title)
+
     def test_rest_day_skips_exercises(self):
         board = {
             "date": "2026-08-08",

@@ -473,6 +473,76 @@ class MealPlanInStockOnly(unittest.TestCase):
         dinner = out["meals"][0]["items"]
         self.assertEqual([i["name"] for i in dinner], ["Egg whites"])
 
+    def test_clamp_scales_continuous_grams_from_inventory(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "chicken",
+                    "name": "Chicken",
+                    "serving_g": 100,
+                    "serving_label": "100g",
+                    "calories": 110,
+                    "protein_g": 23,
+                    "carbs_g": 0,
+                    "fat_g": 1.2,
+                    "in_stock": True,
+                }
+            ]
+        }
+        meal = {
+            "items": [
+                {
+                    "name": "Chicken",
+                    "portion_g": 250,
+                    "calories": 999,
+                    "protein_g": 1,
+                }
+            ],
+            "meals": [
+                {
+                    "label": "Next meal",
+                    "items": [{"name": "Chicken", "portion_g": 250, "calories": 999}],
+                }
+            ],
+        }
+        out = clamp_meal_to_stock(meal, inv)
+        row = out["items"][0]
+        self.assertEqual(row["portion_g"], 250)
+        self.assertEqual(row["servings"], 2.5)
+        self.assertEqual(row["calories"], 275.0)
+        self.assertEqual(row["protein_g"], 57.5)
+        self.assertEqual(row["serving_label"], "250g")
+        slot = out["meals"][0]["items"][0]
+        self.assertEqual(slot["portion_g"], 250)
+        self.assertEqual(slot["calories"], 275.0)
+
+    def test_clamp_does_not_invent_grams_without_serving_g(self):
+        inv = {
+            "ingredients": [
+                {
+                    "id": "eggs",
+                    "name": "Whole eggs",
+                    "serving_label": "3 eggs",
+                    "calories": 210,
+                    "protein_g": 18,
+                    "carbs_g": 2,
+                    "fat_g": 15,
+                    "in_stock": True,
+                }
+            ]
+        }
+        out = clamp_meal_to_stock(
+            {
+                "items": [{"name": "Whole eggs", "portion_g": 250, "calories": 400}],
+                "meals": [],
+            },
+            inv,
+        )
+        row = out["items"][0]
+        self.assertNotIn("portion_g", row)
+        self.assertNotIn("serving_g", row)
+        self.assertIn("egg", str(row.get("serving_label") or "").lower())
+
     def test_grok_generate_clamps_off_stock(self):
         inv, _ = load_workspace_inventory()
 

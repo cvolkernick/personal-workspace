@@ -14,15 +14,19 @@ sys.path.insert(0, str(ROOT))
 from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
+    format_plan_portion,
     format_portion_label,
     generate_meal_plan,
     normalize_ingredient,
     remaining_macros,
     remove_ingredient,
+    scale_plan_item_to_inventory,
     update_ingredient,
     suggest_inventory_removals,
     suggest_inventory_staples,
     today_consumed_from_nutrition,
+    _macros_for_portion,
+    _plan_item_from_ingredient,
 )
 
 ET = ZoneInfo("America/New_York")
@@ -669,6 +673,156 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertTrue(plan.get("pantry_dark"))
         self.assertEqual(plan["message"], "Pantry unavailable")
         self.assertFalse(any((m or {}).get("eat_at") for m in plan.get("meals") or []))
+
+    def test_continuous_portion_scale_250g_from_100g_serving(self):
+        """100g serving → 250g line is 2.5× macros (not 2× or 3× whole servings)."""
+        chicken = {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 100,
+            "serving_label": "100g",
+            "calories": 110,
+            "protein_g": 23,
+            "carbs_g": 0,
+            "fat_g": 1.2,
+            "in_stock": True,
+        }
+        inv = {"ingredients": [chicken]}
+        # Remaining exactly 2.5 servings: 275 kcal / 57.5g protein.
+        consumed = {
+            "calories": 2100 - 275,
+            "protein_g": 210 - 57.5,
+            "carbs_g": 180,
+            "fat_g": 55,
+        }
+        plan = generate_meal_plan(
+            inv,
+            FULL_TARGETS,
+            consumed,
+            now=datetime(2026, 8, 23, 11, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        row = plan["items"][0]
+        self.assertEqual(row["id"], "chicken")
+        self.assertEqual(row["portion_g"], 250)
+        self.assertEqual(row["servings"], 2.5)
+        self.assertEqual(row["serving_label"], "250g")
+        self.assertEqual(row["calories"], 275.0)
+        self.assertEqual(row["protein_g"], 57.5)
+        self.assertEqual(row["carbs_g"], 0.0)
+        self.assertEqual(row["fat_g"], 3.0)
+        # Whole-serving-only fill would be 2× (220/46) or 3× (330/69).
+        self.assertNotEqual(row["servings"], 2)
+        self.assertNotEqual(row["servings"], 3)
+        self.assertNotEqual(row["portion_g"], 200)
+        self.assertNotEqual(row["portion_g"], 300)
+
+    def test_partial_25g_fits_better_than_whole_serving(self):
+        chicken = {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 100,
+            "serving_label": "100g",
+            "calories": 110,
+            "protein_g": 23,
+            "carbs_g": 0,
+            "fat_g": 1.2,
+            "in_stock": True,
+        }
+        # ~0.25 serving leftover protein; calories still open so we don't early-exit.
+        plan = generate_meal_plan(
+            {"ingredients": [chicken]},
+            FULL_TARGETS,
+            {
+                "calories": 1600,
+                "protein_g": 210 - 5.75,
+                "carbs_g": 160,
+                "fat_g": 50,
+            },
+            now=datetime(2026, 8, 23, 11, 0, tzinfo=ET),
+            tz_name="America/New_York",
+        )
+        self.assertTrue(plan["items"])
+        row = plan["items"][0]
+        self.assertEqual(row["portion_g"], 25)
+        self.assertEqual(row["servings"], 0.25)
+        self.assertEqual(row["calories"], 27.5)
+        self.assertEqual(row["protein_g"], 5.8)
+        self.assertLess(row["portion_g"], 100)
+
+    def test_fill_is_not_whole_serving_only_when_serving_g_present(self):
+        from rt_dashboard.nutrition_planner import _pick_continuous_portion
+
+        ing = {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 100,
+            "calories": 110,
+            "protein_g": 23,
+            "carbs_g": 0,
+            "fat_g": 1.2,
+        }
+        rem = {"calories": 275, "protein_g": 57.5, "carbs_g": 0, "fat_g": 0}
+        pick = _pick_continuous_portion(
+            ing, rem, cal_ceiling=275 + 80, totals={"calories": 0}
+        )
+        self.assertIsNotNone(pick)
+        servings, portion_g = pick
+        self.assertEqual(portion_g, 250)
+        self.assertAlmostEqual(servings, 2.5)
+        self.assertNotEqual(servings, 1.0)
+        self.assertNotEqual(servings, 2.0)
+        self.assertNotEqual(servings, 3.0)
+        scaled = _macros_for_portion(ing, portion_g=250)
+        self.assertEqual(scaled["calories"], 275.0)
+        self.assertEqual(scaled["protein_g"], 57.5)
+
+    def test_plan_item_fractional_portion_macros(self):
+        ing = {
+            "id": "chicken",
+            "name": "Chicken",
+            "serving_g": 100,
+            "serving_label": "100g",
+            "calories": 110,
+            "protein_g": 23,
+            "carbs_g": 0,
+            "fat_g": 1.2,
+        }
+        row = _plan_item_from_ingredient(ing, portion_g=250)
+        self.assertEqual(row["portion_g"], 250)
+        self.assertEqual(row["servings"], 2.5)
+        self.assertEqual(row["calories"], 275.0)
+        self.assertEqual(row["protein_g"], 57.5)
+        self.assertEqual(format_plan_portion(row), "250g")
+
+    def test_scale_plan_item_does_not_invent_grams(self):
+        ing = {
+            "id": "eggs",
+            "name": "Whole eggs",
+            "serving_label": "3 eggs",
+            "calories": 210,
+            "protein_g": 18,
+            "carbs_g": 2,
+            "fat_g": 15,
+        }
+        row = scale_plan_item_to_inventory(
+            {"name": "Whole eggs", "portion_g": 250, "calories": 400},
+            ing,
+        )
+        self.assertNotIn("portion_g", row)
+        self.assertNotIn("serving_g", row)
+        self.assertIn("egg", str(row["serving_label"]).lower())
+
+    def test_format_plan_portion_prefers_grams(self):
+        self.assertEqual(
+            format_plan_portion({"portion_g": 250, "serving_label": "1 serving"}),
+            "250g",
+        )
+        self.assertEqual(
+            format_plan_portion({"serving_label": "3 eggs"}),
+            "3 eggs",
+        )
 
     def test_low_remaining_does_not_force_four_slots(self):
         inv = {
