@@ -30,6 +30,7 @@
   }
 
   function clampPct(n) {
+    if (n == null || n === "") return null;
     const num = Number(n);
     if (!Number.isFinite(num)) return null;
     return Math.min(100, Math.max(0, num));
