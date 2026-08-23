@@ -43,7 +43,7 @@
     }
   }
   /** Intake vs burned chart + cumulative summary window (days). */
-  const CAL_IN_OUT_SPAN_DAYS = 45;
+  const CAL_IN_OUT_SPAN_DAYS = 60;
 
   function todayISO() {
     // Browser local civil date (matches host TZ when you open dashboard on this Mac).
@@ -1013,7 +1013,7 @@
     ].sort((a, b) => String(a.date).localeCompare(String(b.date)));
     const hydrationFilled = fillHydrationCalendarDays(hydrationRaw, 90);
     const hydration = downsamplePoints(hydrationFilled, 90);
-    // Intake vs burned: 45d rolling window (demo: hide pre-window inflated/corrupt burned).
+    // Intake vs burned: 60d rolling window (demo: hide pre-window inflated/corrupt burned).
     // Macro split reuses its own 90d axis below.
     const calSpanDays = CAL_IN_OUT_SPAN_DAYS;
     const calEnd = new Date();

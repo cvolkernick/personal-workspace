@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * #239: Avg intake / Avg burned share the Σ 45d paired-days window.
- * No invented nutrition rows.
+ * #254: Avg intake / Avg burned share the Σ 60d paired-days window.
+ * Same pair-day honesty as #243. No invented nutrition rows.
  */
 "use strict";
 
@@ -19,39 +19,54 @@ function almostEqual(a, b, msg) {
   assert(Math.abs(a - b) < 1e-9, msg + " got " + a + " expected " + b);
 }
 
-assert(avgs.SPAN_DAYS === 45, "span must be the same 45d window as Σ chips");
+assert(avgs.SPAN_DAYS === 60, "span must be the same 60d window as Σ chips");
 
 const now = new Date(2026, 7, 22, 12, 0, 0);
-const labels = avgs.windowLabels(45, now);
-assert(labels.length === 45, "45 civil labels");
+const labels = avgs.windowLabels(avgs.SPAN_DAYS, now);
+assert(labels.length === 60, "60 civil labels");
 assert(labels[labels.length - 1] === "2026-08-22", "window ends today");
-assert(labels[0] === "2026-07-09", "window starts 44 days earlier");
+assert(labels[0] === "2026-06-24", "window starts 59 days earlier");
 
-const nutrition = [
+const recentPaired = [
   { date: "2026-08-20", calories: 2000 },
   { date: "2026-08-21", calories: 2200 },
   { date: "2026-08-22", calories: 1800 },
-  { date: "2026-08-19", calories: 9999 },
-  { date: "2026-07-01", calories: 1111 },
 ];
-const burned = [
+const recentBurned = [
   { date: "2026-08-20", calories: 2500 },
   { date: "2026-08-21", calories: 2300 },
   { date: "2026-08-22", calories: 2400 },
+];
+
+const nutrition = [
+  ...recentPaired,
+  { date: "2026-08-19", calories: 9999 },
+  { date: "2026-07-01", calories: 1111 },
+  { date: "2026-06-20", calories: 3333 },
+];
+const burned = [
+  ...recentBurned,
   { date: "2026-08-18", calories: 8888 },
   { date: "2026-07-01", calories: 2222 },
+  { date: "2026-06-20", calories: 4444 },
 ];
 const nutritionCopy = JSON.parse(JSON.stringify(nutrition));
 const burnedCopy = JSON.parse(JSON.stringify(burned));
 
-const stats = avgs.pairedCalorieWindow(nutrition, burned, 45, now);
-assert(stats.pairDays === 3, "only days with both series inside 45d");
-assert(stats.sumIn === 2000 + 2200 + 1800, "Σ intake is the paired sum");
-assert(stats.sumOut === 2500 + 2300 + 2400, "Σ burned is the paired sum");
-almostEqual(stats.avgIn, stats.sumIn / 3, "avg intake = Σ intake / N");
-almostEqual(stats.avgOut, stats.sumOut / 3, "avg burned = Σ burned / N");
-almostEqual(stats.avgIn, 2000, "avg intake 2000");
-almostEqual(stats.avgOut, 2400, "avg burned 2400");
+const stats = avgs.pairedCalorieWindow(nutrition, burned, 60, now);
+assert(stats.pairDays === 4, "only days with both series inside 60d");
+assert(
+  stats.sumIn === 2000 + 2200 + 1800 + 1111,
+  "Σ intake is the paired sum (includes 2026-07-01, now inside 60d)"
+);
+assert(
+  stats.sumOut === 2500 + 2300 + 2400 + 2222,
+  "Σ burned is the paired sum (includes 2026-07-01, now inside 60d)"
+);
+almostEqual(stats.avgIn, stats.sumIn / 4, "avg intake = Σ intake / N");
+almostEqual(stats.avgOut, stats.sumOut / 4, "avg burned = Σ burned / N");
+almostEqual(stats.avgIn, 1777.75, "avg intake 1777.75");
+almostEqual(stats.avgOut, 2355.5, "avg burned 2355.5");
 assert(
   JSON.stringify(nutrition) === JSON.stringify(nutritionCopy),
   "must not invent or mutate nutrition rows"
@@ -61,7 +76,13 @@ assert(
   "must not invent or mutate burned rows"
 );
 
-const empty = avgs.pairedCalorieWindow([], [], 45, now);
+const still45 = avgs.pairedCalorieWindow(nutrition, burned, 45, now);
+assert(
+  still45.pairDays === 3,
+  "explicit 45d still excludes 2026-07-01 (pairing is window-honest, not invented)"
+);
+
+const empty = avgs.pairedCalorieWindow([], [], 60, now);
 assert(empty.pairDays === 0, "empty pairDays=0");
 assert(empty.avgIn === null && empty.avgOut === null, "no avgs when unpaired");
 assert(avgs.formatAvgKcal(0, 0) === "—", "pairDays=0 displays em dash");
@@ -70,7 +91,7 @@ assert(avgs.formatAvgKcal(empty.pairDays, empty.sumIn) === "—", "empty → —
 const unpairedOnly = avgs.pairedCalorieWindow(
   [{ date: "2026-08-22", calories: 1800 }],
   [{ date: "2026-08-21", calories: 2400 }],
-  45,
+  60,
   now
 );
 assert(unpairedOnly.pairDays === 0, "intake-only + burned-only is not a pair");
@@ -85,7 +106,7 @@ const nanSkip = avgs.pairedCalorieWindow(
     { date: "2026-08-22", calories: 2400 },
     { date: "2026-08-21", calories: 2100 },
   ],
-  45,
+  60,
   now
 );
 assert(nanSkip.pairDays === 1, "NaN intake is skipped like Σ chips");
@@ -164,7 +185,7 @@ global.document = {
 
 els["nutrition-note"] = makeNote(true);
 const painted = avgs.paintAvgChips(
-  { health: { nutrition: nutrition, calories_burned: burned } },
+  { health: { nutrition: recentPaired, calories_burned: recentBurned } },
   now
 );
 assert(painted && painted.pairDays === 3, "paint uses the same pair set");
