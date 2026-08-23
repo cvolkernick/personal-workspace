@@ -24,6 +24,9 @@ _ROUTES = (
     "inv_remove",
     "inv_stock",
     "inv_update",
+    "eq_add",
+    "eq_remove",
+    "eq_update",
     "meal_plan",
     "meal_generate",
     "refresh",
@@ -31,6 +34,7 @@ _ROUTES = (
     "daily_tasks_complete",
 )
 _INV_ROUTES = ("inv_add", "inv_remove", "inv_stock", "inv_update")
+_EQ_ROUTES = ("eq_add", "eq_remove", "eq_update")
 _MEAL_ROUTES = ("meal_plan", "meal_generate")
 
 
@@ -81,6 +85,12 @@ def client_route_name(headers, query: str = "", path: str = "") -> str:
         return "inv_remove"
     if "/api/inventory/stock" in blob:
         return "inv_stock"
+    if "/api/equipment/update" in blob:
+        return "eq_update"
+    if "/api/equipment/add" in blob:
+        return "eq_add"
+    if "/api/equipment/remove" in blob:
+        return "eq_remove"
     if "/api/meal-plan/generate" in blob:
         return "meal_generate"
     if "/api/meal-plan" in blob:
@@ -384,6 +394,52 @@ def inventory_write(headers, route: str, payload=None):
     }
 
 
+def equipment_write(headers, route: str, payload=None):
+    """Add/update/remove owned gear + max load. Cookie-less 401. Failed persist is 5xx."""
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    from rt_dashboard.equipment_store import (
+        add_equipment_item,
+        load_preview_equipment,
+        remove_equipment_item,
+        save_preview_equipment,
+        update_equipment_item,
+    )
+
+    uid = str(user.get("id") or "")
+    try:
+        current, _src = load_preview_equipment(uid)
+        if route == "eq_add":
+            updated = add_equipment_item(current, payload)
+        elif route == "eq_remove":
+            updated = remove_equipment_item(
+                current,
+                equipment_id=str(payload.get("id") or ""),
+                tag=str(payload.get("tag") or ""),
+                name=str(payload.get("name") or ""),
+            )
+        elif route == "eq_update":
+            updated = update_equipment_item(current, payload)
+        else:
+            return 400, {"ok": False, "error": "unknown_equipment_route"}
+        saved = save_preview_equipment(updated, uid)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        return 500, {
+            "ok": False,
+            "error": str(exc) or type(exc).__name__,
+            "write": {"ok": False, "source": "turso"},
+        }
+    return 200, {
+        "ok": True,
+        "equipment": saved,
+        "write": {"ok": True, "source": "turso", "verified_on_readback": True},
+    }
+
+
 route_name = client_route_name
 goals_read = goals_body
 available_read = available_body
@@ -414,6 +470,10 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
         if method != "POST":
             return 405, {"ok": False, "error": "method_not_allowed"}
         return inventory_write(headers, route, payload or {})
+    if route in _EQ_ROUTES:
+        if method != "POST":
+            return 405, {"ok": False, "error": "method_not_allowed"}
+        return equipment_write(headers, route, payload or {})
     return None
 
 
@@ -427,6 +487,7 @@ __all__ = [
     "dispatch_client_route",
     "generate_body",
     "goals_body",
+    "equipment_write",
     "inventory_write",
     "daily_tasks_body",
     "daily_tasks_complete_body",

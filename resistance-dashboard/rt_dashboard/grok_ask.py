@@ -462,6 +462,16 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
                 ),
             },
             "catalog_count": len(((wo.get("catalog") or {}).get("exercises") or [])),
+            "equipment": [
+                {
+                    "id": i.get("id"),
+                    "name": i.get("name"),
+                    "tag": i.get("tag"),
+                    "max_weight_lbs": i.get("max_weight_lbs"),
+                }
+                for i in ((wo.get("equipment") or {}).get("items") or [])
+                if isinstance(i, dict) and i.get("tag")
+            ][:20],
         },
         "coach": {
             "today": (dashboard.get("coach") or {}).get("today"),

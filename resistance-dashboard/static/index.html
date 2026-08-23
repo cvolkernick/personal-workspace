@@ -591,53 +591,63 @@
         </form>
       </section>
 
+      <section class="card" style="margin-top: 1rem" id="equipment-inventory-section" data-m-panel="more">
+        <article class="card-fill" id="equipment-inventory-card">
+          <h2>Equipment inventory</h2>
+          <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
+            What you own and the max load you can put on it (DB max/hand, plate
+            stack). The movement catalog stays a library — add gear here, not
+            exercises. Planner only prescribes lifts every required tag can load.
+          </p>
+          <p class="muted mobile-help" hidden>
+            Add owned gear + max weight. Planner will not invent missing machines.
+          </p>
+          <form class="log-form" id="equipment-form">
+            <div class="row cols-3">
+              <label>
+                Gear
+                <input type="text" id="eq-name" required placeholder="e.g. Dumbbells" />
+              </label>
+              <label>
+                Catalog tag
+                <select id="eq-tag">
+                  <option value="dumbbells">dumbbells</option>
+                  <option value="barbell">barbell / plates</option>
+                  <option value="bench">bench (flat)</option>
+                  <option value="incline_bench">incline bench</option>
+                  <option value="cable">cable</option>
+                  <option value="lat_pulldown">lat pulldown</option>
+                  <option value="assisted_pullup">assisted pullup</option>
+                  <option value="machine">machine</option>
+                  <option value="smith_machine">smith machine</option>
+                  <option value="leg_press">leg press</option>
+                </select>
+              </label>
+              <label>
+                Max weight (lb)
+                <input type="number" id="eq-max" min="0" step="0.5" placeholder="e.g. 50" />
+              </label>
+            </div>
+            <div class="actions">
+              <button type="submit" class="primary">Add / update gear</button>
+            </div>
+            <p class="muted" id="eq-status" style="margin: 0"></p>
+          </form>
+          <div id="equipment-list" class="inv-list" style="margin-top: 0.75rem"></div>
+        </article>
+      </section>
+
       <section class="card" style="margin-top: 1rem" id="exercise-catalog-section" data-m-panel="more">
         <article class="card-fill" id="exercise-catalog-card">
           <h2>Exercise catalog</h2>
           <p class="muted desktop-help" style="margin-top: 0; font-size: 0.85rem">
-            Library in <code>fitness/exercises/catalog.json</code> — muscles,
-            session type (push/pull/legs), equipment. Toggle availability to
-            control what the planner can pick. Today’s prescription lives on
-            the <strong>Today</strong> tab (Training).
+            Read-only movement library in <code>fitness/exercises/catalog.json</code>
+            — muscles, session type, required equipment tags. Feasible lifts come
+            from Equipment inventory, not from adding exercises here.
           </p>
           <p class="muted mobile-help" hidden>
-            Enable/disable lifts the planner can pick. Today’s workout is on the Today tab.
+            Library only. Add gear above to unlock lifts on Today.
           </p>
-          <form class="log-form" id="exercise-form">
-            <div class="row cols-3">
-              <label>
-                Name
-                <input type="text" id="excat-name" required placeholder="e.g. DB Flat Press" />
-              </label>
-              <label>
-                Session
-                <select id="excat-session">
-                  <option value="push">Push</option>
-                  <option value="pull">Pull</option>
-                  <option value="legs">Legs</option>
-                </select>
-              </label>
-              <label>
-                Primary muscle
-                <input type="text" id="excat-muscle" placeholder="e.g. chest" />
-              </label>
-            </div>
-            <div class="row cols-3">
-              <label>
-                Movement
-                <select id="excat-movement">
-                  <option value="compound">Compound</option>
-                  <option value="isolation">Isolation</option>
-                </select>
-              </label>
-              <label>Default sets<input type="number" id="excat-sets" min="1" value="3" /></label>
-              <label>Default reps<input type="number" id="excat-reps" min="1" value="10" /></label>
-            </div>
-            <div class="actions">
-              <button type="submit" class="primary">Add / update exercise</button>
-            </div>
-            <p class="muted" id="excat-status" style="margin: 0"></p>
-          </form>
           <ul class="session-list exercise-catalog-scroll" id="exercise-catalog-list" style="margin-top: 0.75rem"></ul>
         </article>
       </section>

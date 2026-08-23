@@ -23,6 +23,21 @@ from .models import Session
 
 CATALOG_PATH = "fitness/exercises/catalog.json"
 GOALS_PATH = "fitness/exercises/goals.json"
+EQUIPMENT_PATH = "fitness/exercises/equipment.json"
+
+# Implements that carry a load (DB max/hand, bar + plates, cable/machine stack).
+LOAD_EQUIPMENT_TAGS = frozenset(
+    {
+        "dumbbells",
+        "barbell",
+        "cable",
+        "machine",
+        "smith_machine",
+        "leg_press",
+        "lat_pulldown",
+        "assisted_pullup",
+    }
+)
 
 # Canonical major groups (DeanT list; aliases map into these).
 MAJOR_MUSCLES: Tuple[str, ...] = (
@@ -678,7 +693,8 @@ def normalize_exercise(raw: dict) -> dict:
         "primary_muscles": [str(m).lower() for m in primary],
         "secondary_muscles": [str(m).lower() for m in secondary],
         "movement": str(raw.get("movement") or "compound").lower(),
-        "equipment": list(raw.get("equipment") or []),
+        "equipment": [str(t).lower() for t in (raw.get("equipment") or [])],
+        "equipment_any": [str(t).lower() for t in (raw.get("equipment_any") or [])],
         "default_sets": int(raw.get("default_sets") or 3),
         "default_reps": int(raw.get("default_reps") or 10),
         "rep_range": [int(rep_range[0]), int(rep_range[1])],
@@ -700,6 +716,156 @@ def available_exercises(catalog: dict) -> List[dict]:
         if ex["available"]:
             out.append(ex)
     return out
+
+
+def _norm_equipment_tag(tag: str) -> str:
+    from .equipment_store import normalize_equipment_tag
+
+    return normalize_equipment_tag(tag)
+
+
+def movement_required_tags(ex: dict) -> List[str]:
+    return [_norm_equipment_tag(t) for t in (ex.get("equipment") or []) if t]
+
+
+def movement_any_tags(ex: dict) -> List[str]:
+    return [_norm_equipment_tag(t) for t in (ex.get("equipment_any") or []) if t]
+
+
+def movement_feasible(ex: dict, equipment: Optional[dict]) -> bool:
+    """Allow a catalog movement only when every required tag is owned.
+
+    ``equipment_any`` is OR (barbell *or* dumbbells). Missing gear → skip;
+    never invent cable/smith/assisted-pullup.
+    """
+    required = movement_required_tags(ex)
+    any_tags = movement_any_tags(ex)
+    if not required and not any_tags:
+        return True
+    from .equipment_store import owned_equipment_tags
+
+    owned = owned_equipment_tags(equipment)
+    if any(t not in owned for t in required):
+        return False
+    if any_tags and not any(t in owned for t in any_tags):
+        return False
+    return True
+
+
+def available_load_lbs(ex: dict, equipment: Optional[dict]) -> Optional[float]:
+    """Max load this movement can actually load from owned implements."""
+    from .equipment_store import owned_equipment_items
+
+    by_tag = {i["tag"]: i for i in owned_equipment_items(equipment)}
+    required = [t for t in movement_required_tags(ex) if t in LOAD_EQUIPMENT_TAGS]
+    any_tags = [t for t in movement_any_tags(ex) if t in LOAD_EQUIPMENT_TAGS]
+    required_caps: List[float] = []
+    for t in required:
+        item = by_tag.get(t)
+        if item and item.get("max_weight_lbs") is not None:
+            required_caps.append(float(item["max_weight_lbs"]))
+    cap: Optional[float] = min(required_caps) if required_caps else None
+    any_caps = [
+        float(by_tag[t]["max_weight_lbs"])
+        for t in any_tags
+        if t in by_tag and by_tag[t].get("max_weight_lbs") is not None
+    ]
+    if any_caps:
+        any_cap = max(any_caps)
+        cap = min(cap, any_cap) if cap is not None else any_cap
+    return cap
+
+
+def filter_catalog_by_equipment(catalog: dict, equipment: Optional[dict]) -> dict:
+    """Catalog minus movements the owned gear cannot load. Does not invent lifts."""
+    out = deepcopy(catalog) if isinstance(catalog, dict) else {"exercises": []}
+    kept = []
+    for raw in out.get("exercises") or []:
+        if not isinstance(raw, dict):
+            continue
+        try:
+            ex = normalize_exercise(raw)
+        except ValueError:
+            continue
+        if ex["available"] and movement_feasible(ex, equipment):
+            kept.append(raw)
+    out["exercises"] = kept
+    return out
+
+
+def cap_weight_to_inventory(
+    weight: Optional[float],
+    catalog_ex: dict,
+    equipment: Optional[dict],
+) -> Tuple[Optional[float], Optional[float], bool]:
+    """Hold double-progression at the load he can actually load."""
+    cap = available_load_lbs(catalog_ex, equipment)
+    if weight is None or cap is None:
+        return weight, cap, False
+    if float(weight) > float(cap):
+        return float(cap), cap, True
+    return float(weight), cap, False
+
+
+def clamp_workout_to_equipment(
+    workout: dict,
+    catalog: dict,
+    equipment: Optional[dict],
+) -> dict:
+    """Drop invented / unequipped SuperGrok lifts; cap prescribed loads."""
+    workout = dict(workout or {})
+    available = available_exercises(filter_catalog_by_equipment(catalog, equipment))
+    by_id = {ex["id"]: ex for ex in available}
+    by_name = {_norm_name(ex["name"]): ex for ex in available}
+    kept: List[dict] = []
+    for raw in workout.get("exercises") or []:
+        if not isinstance(raw, dict):
+            continue
+        name = str(raw.get("name") or "")
+        cid = match_catalog_id(name, by_id) if name else None
+        cat = by_id.get(cid) if cid else None
+        if not cat:
+            cat = by_name.get(_norm_name(name))
+        if not cat:
+            continue
+        if not movement_feasible(cat, equipment):
+            continue
+        row = dict(raw)
+        row["name"] = cat["name"]
+        row["id"] = cat.get("id") or row.get("id")
+        row["equipment"] = cat.get("equipment") or []
+        rx = dict(row.get("prescription") or {})
+        w = rx.get("weight_lbs")
+        try:
+            w_f = float(w) if w is not None and w != "" else None
+        except (TypeError, ValueError):
+            w_f = None
+        capped, _cap, was_capped = cap_weight_to_inventory(w_f, cat, equipment)
+        if was_capped:
+            rx["weight_lbs"] = capped
+            note = f"Load capped at {capped:g} lb (owned max)."
+            rationale = str(row.get("rationale") or "")
+            row["rationale"] = f"{rationale} {note}".strip()
+        elif capped is not None:
+            rx["weight_lbs"] = capped
+        row["prescription"] = rx
+        kept.append(row)
+    workout["exercises"] = kept
+    if (
+        not kept
+        and not workout.get("is_rest_day")
+        and isinstance(equipment, dict)
+    ):
+        st = str(workout.get("session_type") or "").upper() or "this"
+        workout["empty"] = True
+        msg = str(workout.get("message") or "")
+        if "invent" not in msg.lower() and "owned equipment" not in msg.lower():
+            workout["message"] = (
+                f"No owned equipment can load a {st} lift. "
+                "Add gear and max weight — the planner will not invent "
+                "cable, smith, or assisted-pullup."
+            )
+    return workout
 
 
 def _norm_name(name: str) -> str:
@@ -998,6 +1164,7 @@ def generate_workout_plan(
     recovery_sparse: bool = False,
     session_type: Optional[str] = None,
     as_of: Optional[str] = None,
+    equipment: Optional[dict] = None,
 ) -> dict:
     """
     Build today's workout from catalog + history + recovery.
@@ -1019,7 +1186,10 @@ def generate_workout_plan(
     from .test_noise import filter_sessions
 
     sessions = filter_sessions(list(sessions))
+    equipment_on = isinstance(equipment, dict)
     available = available_exercises(catalog)
+    if equipment_on:
+        available = [ex for ex in available if movement_feasible(ex, equipment)]
     by_id = {ex["id"]: ex for ex in available}
 
     rest_threshold = int(goals.get("rest_if_recovery_below") or 40)
@@ -1105,7 +1275,8 @@ def generate_workout_plan(
 
     st = (session_type or next_session_type(sessions, goals)).lower()
     pool = [ex for ex in available if st in ex["session_types"]]
-    if not pool:
+    # Do not steal lifts from another PPL slot or invent unequipped gear.
+    if not pool and not equipment_on:
         pool = list(available)
 
     bands = scale_muscle_targets_for_continuity(muscle_targets(goals), continuity)
@@ -1179,6 +1350,17 @@ def generate_workout_plan(
             continuity=continuity,
             default_hard_sets=default_hard,
         )
+        capped_w, load_cap, was_capped = cap_weight_to_inventory(
+            rx.get("weight_lbs"), ex, equipment if equipment_on else None
+        )
+        if was_capped:
+            rx["weight_lbs"] = capped_w
+            rx["rationale"] = (
+                f"{rx['rationale']} Load capped at {capped_w:g} lb "
+                f"(owned max {load_cap:g} lb)."
+            )
+        elif capped_w is not None:
+            rx["weight_lbs"] = capped_w
         hard = int(rx["sets"] or default_hard)
         hard = _cap_sets_for_muscles(
             hard,
@@ -1259,9 +1441,16 @@ def generate_workout_plan(
     }
 
     last_st = last_session_type(sessions)
-    msg_parts = [
-        f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
-    ]
+    if not plan_ex and equipment_on:
+        msg_parts = [
+            f"No owned equipment can load a {st.upper()} lift. "
+            "Add gear and max weight in Equipment inventory — "
+            "the planner will not invent cable, smith, or assisted-pullup."
+        ]
+    else:
+        msg_parts = [
+            f"Suggested {st.upper()} session ({len(plan_ex)} exercises, {session_sets} hard sets)."
+        ]
     if continuity.get("phase") != "normal":
         msg_parts.insert(0, continuity.get("summary") or continuity.get("label") or "Return phase")
     if last_st:
@@ -1311,6 +1500,18 @@ def generate_workout_plan(
             "training_continuity": continuity,
             "catalog_available": len(available),
             "pool_for_session": len(pool),
+            "equipment_filtered": equipment_on,
+            "equipment_owned": (
+                sorted(
+                    {
+                        str(i.get("tag"))
+                        for i in ((equipment or {}).get("items") or [])
+                        if isinstance(i, dict) and i.get("tag")
+                    }
+                )
+                if equipment_on
+                else []
+            ),
             "session_hard_sets": session_sets,
             "session_working_set_cap": session_cap,
             "volume_framework": VOLUME_FRAMEWORK,

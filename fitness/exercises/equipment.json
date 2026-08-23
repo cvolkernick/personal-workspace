@@ -1,0 +1,22 @@
+{
+  "updated_at": "2026-08-22",
+  "notes": "Owned gear + available loads. Not an exercise dump. Seed: DBs Chris already trains with (max/hand from logged work) + flat bench. Add Marketplace buys in the UI.",
+  "items": [
+    {
+      "id": "dumbbells",
+      "name": "Dumbbells",
+      "tag": "dumbbells",
+      "max_weight_lbs": 50,
+      "notes": "Owned pairs; max per hand",
+      "source": "owned"
+    },
+    {
+      "id": "bench",
+      "name": "Flat bench",
+      "tag": "bench",
+      "max_weight_lbs": null,
+      "notes": "Flat only — no incline",
+      "source": "owned"
+    }
+  ]
+}

@@ -94,6 +94,7 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         self.assertNotIn('"goals": "unset"', text)
         self.assertIn("load_workspace_goals", text)
         self.assertIn("load_workspace_catalog", text)
+        self.assertIn("load_preview_equipment", text)
         self.assertIn("apply_goals_volume_caps", text)
         self.assertIn("preview_workout_plan", text)
         self.assertIn("dashboard_plan_slots", text)
@@ -104,6 +105,7 @@ class VercelGoalsCatalogFromFile(unittest.TestCase):
         raw = VERCEL_JSON.read_text(encoding="utf-8")
         self.assertIn("fitness/exercises/goals.json", raw)
         self.assertIn("fitness/exercises/catalog.json", raw)
+        self.assertIn("fitness/exercises/equipment.json", raw)
         self.assertIn("fitness/nutrition/targets.json", raw)
 
 

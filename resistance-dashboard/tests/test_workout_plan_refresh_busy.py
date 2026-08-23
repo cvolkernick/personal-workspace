@@ -21,7 +21,7 @@ VERCEL = (ROOT / "vercel.json").read_text(encoding="utf-8")
 
 def _generate_fn() -> str:
     return JS.split("async function generateWorkoutPlan", 1)[1].split(
-        "async function submitExerciseCatalog", 1
+        "async function submitEquipmentInventory", 1
     )[0]
 
 

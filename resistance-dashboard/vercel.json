@@ -55,16 +55,28 @@
     {
       "source": "/api/inventory/stock",
       "destination": "/api/dashboard?_r=inv_stock"
+    },
+    {
+      "source": "/api/equipment/add",
+      "destination": "/api/dashboard?_r=eq_add"
+    },
+    {
+      "source": "/api/equipment/update",
+      "destination": "/api/dashboard?_r=eq_update"
+    },
+    {
+      "source": "/api/equipment/remove",
+      "destination": "/api/dashboard?_r=eq_remove"
     }
   ],
   "functions": {
     "api/ask.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json}"
     },
     "api/ask/plan.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json}"
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json}"
     },
     "api/ask/grok/start.py": {
       "maxDuration": 15
@@ -74,7 +86,7 @@
     },
     "api/dashboard.py": {
       "maxDuration": 60,
-      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,projects-dashboard/google_tasks.py}"
+      "includeFiles": "{fitness/nutrition/targets.json,fitness/nutrition/inventory.json,fitness/exercises/goals.json,fitness/exercises/catalog.json,fitness/exercises/equipment.json,projects-dashboard/google_tasks.py}"
     }
   }
 }

@@ -119,7 +119,7 @@ class InventoryMealOnly(unittest.TestCase):
 
 class RefreshPlanWorkoutOnly(unittest.TestCase):
     def test_generate_workout_does_not_call_meal(self):
-        gen = _fn("async function generateWorkoutPlan", "async function submitExerciseCatalog")
+        gen = _fn("async function generateWorkoutPlan", "async function submitEquipmentInventory")
         self.assertIn('fetch("/api/workout-plan/generate"', gen)
         self.assertIn("setWorkoutPlanBusy(true)", gen)
         self.assertIn("setWorkoutPlanBusy(false)", gen)
@@ -153,7 +153,7 @@ class RefreshDataHealthOnly(unittest.TestCase):
 
 class QuestRolloverNotOnRefreshButtons(unittest.TestCase):
     def test_refresh_plan_does_not_sync_quests(self):
-        gen = _fn("async function generateWorkoutPlan", "async function submitExerciseCatalog")
+        gen = _fn("async function generateWorkoutPlan", "async function submitEquipmentInventory")
         self.assertNotIn("syncDailyTasksFromServer", gen)
         self.assertNotIn("/api/daily-tasks", gen)
 
