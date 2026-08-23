@@ -14,6 +14,7 @@ booking record.
 
 from __future__ import annotations
 
+import html as html_lib
 import json
 import mailbox
 import os
@@ -50,6 +51,17 @@ SinceSpec = Union[datetime, bool, None]
 
 _TRIP_ID = re.compile(
     r"(?:trip|reservation|booking)\s+(?:id|number|#)\s*[:#]?\s*([A-Z0-9-]{4,})",
+    re.I,
+)
+# Bare reservation hash in Turo bodies, e.g. "#60615645".
+_TRIP_HASH = re.compile(r"(?:^|[\s(])#\s*(\d{6,8})\b")
+_HTML_TAG = re.compile(r"<[^>]+>")
+_YEAR_MAKE_MODEL = re.compile(
+    r"\b((?:19|20)\d{2})\s+(toyota\s+corolla|tesla\s+model\s+3|rivian\s+r1s)\b",
+    re.I,
+)
+_MAKE_MODEL_YEAR = re.compile(
+    r"\b(toyota\s+corolla|tesla\s+model\s+3|rivian\s+r1s)\s+((?:19|20)\d{2})\b",
     re.I,
 )
 _ISO_RANGE = re.compile(
@@ -103,6 +115,21 @@ def _norm_text(value: str) -> str:
         .replace("\u2018", "'")
         .replace("\u02bc", "'")
     )
+
+
+def flatten_mail_text(value: str) -> str:
+    """Turn HTML-ish Gmail bodies into matchable text. Leaves plain text alone."""
+    text = value or ""
+    if "<" in text and ">" in text:
+        text = html_lib.unescape(_HTML_TAG.sub(" ", text))
+    return re.sub(r"[ \t]+", " ", text.replace("\xa0", " ")).strip()
+
+
+def _message_blob(raw: Mapping[str, Any]) -> str:
+    subject = str(raw.get("subject") or "")
+    body = flatten_mail_text(str(raw.get("body") or ""))
+    snippet = flatten_mail_text(str(raw.get("snippet") or ""))
+    return "\n".join(part for part in (subject, body, snippet) if part)
 
 
 def is_current_host_subject(subject: str) -> bool:
@@ -218,7 +245,17 @@ def classify_subject(subject: str) -> Optional[str]:
         return None
     if any(w in s for w in ("cancel", "cancelled", "canceled")):
         return "canceled"
-    if any(w in s for w in ("modified", "changed", "updated trip", "trip updated")):
+    if any(
+        w in s
+        for w in (
+            "modified",
+            "changed",
+            "updated trip",
+            "trip updated",
+            "was updated",
+            "dates changed",
+        )
+    ):
         return "modified"
     if any(
         w in s
@@ -257,12 +294,23 @@ def _long_to_iso(raw: str) -> str:
         return raw
 
 
+def _vehicle_from_blob(blob: str) -> Optional[str]:
+    """Year + make/model, either order. Yearless make/model is not enough."""
+    ym = _YEAR_MAKE_MODEL.search(blob)
+    if ym:
+        return f"{ym.group(1)} {ym.group(2)}".strip()
+    my = _MAKE_MODEL_YEAR.search(blob)
+    if my:
+        return f"{my.group(2)} {my.group(1)}".strip()
+    return None
+
+
 def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     """Turn one JSON/maildir message into a booking record, or None if not Turo-ops."""
     subject = str(raw.get("subject") or "")
-    body = str(raw.get("body") or "")
+    body = flatten_mail_text(str(raw.get("body") or raw.get("snippet") or ""))
     sender = str(raw.get("from") or "")
-    blob = f"{subject}\n{body}"
+    blob = _message_blob(raw) or f"{subject}\n{body}"
     status = classify_subject(subject)
     sender_l = sender.lower()
     is_turo = (
@@ -279,6 +327,10 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
     m = _TRIP_ID.search(blob)
     if m:
         trip = m.group(1)
+    if not trip:
+        hm = _TRIP_HASH.search(blob)
+        if hm:
+            trip = hm.group(1)
 
     start = end = None
     rng = _ISO_RANGE.search(blob)
@@ -334,6 +386,11 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         vm2 = _VEHICLE.search(blob)
         if vm2:
             vehicle = vm2.group(1).strip().splitlines()[0]
+    # Prefer a year+name pair from the body ("Toyota Corolla 2024" or
+    # "2024 Toyota Corolla"). Yearless "Toyota Corolla" is not a unit match.
+    year_vehicle = _vehicle_from_blob(blob)
+    if year_vehicle:
+        vehicle = year_vehicle
     if not vehicle:
         for label in (
             "2022 Tesla Model 3",
@@ -368,6 +425,7 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         "end": end,
         "pickup": pickup,
         "payout": payout,
+        "body": body,
     }
     return rec
 
@@ -611,23 +669,65 @@ def load_inbox(
     )
 
 
+def _booking_match_blob(booking: Mapping[str, Any]) -> str:
+    return _norm_text(
+        " ".join(
+            str(booking.get(k) or "")
+            for k in ("vehicle", "subject", "body", "snippet")
+        )
+    )
+
+
+def _mike_host_candidates(
+    booking: Mapping[str, Any], units: list[Mapping[str, Any]]
+) -> list[Mapping[str, Any]]:
+    """(Mike's vehicle) mail only attaches to Turo-role units, never personal."""
+    if not is_current_host_subject(str(booking.get("subject") or "")):
+        return list(units)
+    turo = [u for u in units if (u.get("role") or "").lower() == "turo"]
+    if turo:
+        return turo
+    if any((u.get("role") or "").strip() for u in units):
+        return []
+    return list(units)
+
+
 def match_unit(booking: Mapping[str, Any], units: list[Mapping[str, Any]]) -> Optional[str]:
+    """Map a parsed trip event to a roster unit. None = unmatched, never invented.
+
+    Primary: year next to make/model in the mail body (`Toyota Corolla 2024`
+    or `2024 Toyota Corolla`). VIN is an exact override. Yearless Corolla
+    text stays unmatched when both 2022 and 2024 exist.
+    """
+    candidates = _mike_host_candidates(booking, units)
+    if not candidates:
+        return None
     vin = (booking.get("vin") or "").strip().upper()
     if vin:
-        for u in units:
+        for u in candidates:
             if (u.get("vin") or "").upper() == vin:
                 return str(u["id"])
+    blob = _booking_match_blob(booking)
     vehicle = (booking.get("vehicle") or "").lower()
-    if not vehicle:
+    if not blob and not vehicle:
         return None
     hits: list[str] = []
-    for u in units:
-        label = f"{u.get('year')} {u.get('make')} {u.get('model')}".lower()
-        short = f"{u.get('make')} {u.get('model')}".lower()
+    for u in candidates:
         year = str(u.get("year") or "")
-        if label and label in vehicle:
+        make = str(u.get("make") or "").lower()
+        model = str(u.get("model") or "").lower()
+        if not make or not model:
+            continue
+        name = f"{make} {model}"
+        label = f"{year} {name}".strip()
+        hay = blob or vehicle
+        if year and (label in hay or f"{name} {year}" in hay):
             hits.append(str(u["id"]))
-        elif short in vehicle and year and year in vehicle:
+            continue
+        if vehicle and label and label in vehicle:
+            hits.append(str(u["id"]))
+            continue
+        if vehicle and name in vehicle and year and year in vehicle:
             hits.append(str(u["id"]))
     if len(hits) == 1:
         return hits[0]
@@ -659,6 +759,7 @@ def turo_payload(
     for parsed in loaded.get("bookings") or []:
         uid = match_unit(parsed, units)
         rec = dict(parsed)
+        rec.pop("body", None)
         rec["unit_id"] = uid
         if uid:
             bookings.append(rec)

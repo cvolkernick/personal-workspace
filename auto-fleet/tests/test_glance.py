@@ -85,6 +85,35 @@ class FormatTests(unittest.TestCase):
             "booked · Alex Rivera · 2026-09-01 → 2026-09-04",
         )
 
+    def test_card_html_lists_unit_bookings(self) -> None:
+        unit = {
+            "id": "corolla-2024",
+            "identity": {
+                "year": 2024,
+                "make": "Toyota",
+                "model": "Corolla",
+                "role": "turo",
+            },
+            "dimo": {"status": "unconfigured"},
+            "turo": {
+                "bookings": [
+                    {
+                        "status": "booked",
+                        "guest": "MEGAN",
+                        "start": "2026-08-22",
+                        "end": "2026-08-24",
+                        "trip_id": "60615645",
+                        "pickup": "Punta Gorda Airport FBO",
+                    }
+                ]
+            },
+            "finance": {},
+        }
+        html = glance.render_unit_card_html(unit, now=NOW)
+        self.assertIn("booked · MEGAN · 2026-08-22 → 2026-08-24 · #60615645", html)
+        self.assertIn("Punta Gorda Airport FBO", html)
+        self.assertNotIn("0 trips · watching", html)
+
     def test_due_from_2024_corolla_portal(self) -> None:
         payload = fleet.build_fleet(
             roster_path=ROSTER,

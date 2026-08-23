@@ -230,14 +230,17 @@ def _headers_map(payload: Mapping[str, Any]) -> dict[str, str]:
 def gmail_message_to_record(raw: Mapping[str, Any]) -> dict[str, Any]:
     payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
     headers = _headers_map(payload if isinstance(payload, dict) else {})
-    body = _payload_text(payload if isinstance(payload, dict) else {})
-    snippet = str(raw.get("snippet") or "")
+    body = turo_inbox.flatten_mail_text(
+        _payload_text(payload if isinstance(payload, dict) else {})
+    )
+    snippet = turo_inbox.flatten_mail_text(str(raw.get("snippet") or ""))
     return {
         "id": raw.get("id") or raw.get("threadId"),
         "from": headers.get("from", ""),
         "subject": headers.get("subject", ""),
         "date": headers.get("date", ""),
         "body": body or snippet,
+        "snippet": snippet,
     }
 
 
