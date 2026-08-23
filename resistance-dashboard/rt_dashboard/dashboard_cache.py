@@ -469,6 +469,7 @@ def sessions_from_dicts(items: Any) -> List[Session]:
                         sets=sets,
                         is_pr=bool(ex.get("is_pr")),
                         raw=str(ex.get("raw") or ""),
+                        quest_seeded=bool(ex.get("quest_seeded")),
                     )
                 )
             out.append(

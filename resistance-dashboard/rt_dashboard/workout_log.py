@@ -62,13 +62,19 @@ def parse_log_body(data: dict) -> Session:
             if sn < 1 or r < 1:
                 raise ValueError(f"sets and reps must be >= 1 for {name}")
             set_entries.append(SetEntry(weight_lbs=w, sets=sn, reps=r))
+        quest_seeded = bool(ex.get("quest_seeded") or ex.get("movement_only"))
         if not set_entries:
-            raise ValueError(f"no sets for exercise {name}")
+            # Honest empty log: quest seed / movement-only. Manual log still
+            # requires sets so we never invent a placeholder load.
+            if not quest_seeded:
+                raise ValueError(f"no sets for exercise {name}")
         exercises.append(
             ExerciseEntry(
                 name=name,
                 sets=set_entries,
                 is_pr=False,  # set by apply_auto_prs after history is loaded
+                quest_seeded=quest_seeded,
+                raw=str(ex.get("raw") or ""),
             )
         )
     notes = str(payload.get("notes") or "")

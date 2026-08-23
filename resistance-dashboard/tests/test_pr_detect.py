@@ -53,6 +53,18 @@ class TestPrDetect(unittest.TestCase):
         entry = _ex("Skeptic Press", 999)
         self.assertFalse(is_exercise_pr(entry, {}))
 
+    def test_quest_seeded_is_not_auto_pr(self):
+        history = [_sess("2026-05-01", "push", _ex("DB Flat Press", 40))]
+        seeded = ExerciseEntry(
+            name="DB Flat Press",
+            sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+            quest_seeded=True,
+        )
+        new = _sess("2026-08-23", "push", seeded)
+        apply_auto_prs(new, history)
+        self.assertFalse(new.exercises[0].is_pr)
+        self.assertTrue(new.exercises[0].quest_seeded)
+
 
 if __name__ == "__main__":
     unittest.main()
