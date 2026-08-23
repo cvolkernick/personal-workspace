@@ -1,34 +1,41 @@
-# Horizon Daily Brief — 20260805T234722Z
+# Horizon Daily Brief — 20260823T223323Z
 
-_Generated: 2026-08-05T23:47:22.732148+00:00_
+_Generated: 2026-08-23T22:33:23.621931+00:00_
 
 ## 0. Regime Assessment
 
-**Geopolitical risk-premium** (38% · conf 0.5)
+**Geopolitical risk-premium** (42% · conf 0.62)
 
-- **Base case:** Great-power competition and export controls dominate risk premia and industrial policy.
+- **Base case:** Great-power competition and export controls remain the structural axis; post-MoU Hormuz standoff adds an active Middle East premium (Reuters 2026-08-18 11:03 ET).
 - **Axes (dominant):**
-  - Monetary policy: **Higher for longer** 65% (axis conf 0.55)
-  - Growth / activity: **Stagflation risk** 33% (axis conf 0.55)
-  - Liquidity / credit: **Loose** 46% (axis conf 0.55)
-  - Risk appetite: **Mixed** 47% (axis conf 0.55)
-  - Geopolitics: **Elevated competition** 51% (axis conf 0.55)
-  - Energy / tech constraint: **Power-constrained AI** 84% (axis conf 0.55)
+  - Monetary policy: **Higher for longer** 70% (axis conf 0.62)
+  - Growth / activity: **Stagflation risk** 38% (axis conf 0.62)
+  - Liquidity / credit: **Loose** 36% (axis conf 0.5)
+  - Risk appetite: **Mixed** 48% (axis conf 0.55)
+  - Geopolitics: **Elevated competition** 55% (axis conf 0.62)
+  - Energy / tech constraint: **Power-constrained AI** 85% (axis conf 0.62)
 - **Active forces:**
-  - None (None)
-  - None (None)
-  - None (None)
-  - None (None)
-  - None (None)
+  - Post-MoU Hormuz standoff (60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 as of Reuters 2026-08-18 11:03 ET) (risk_premium)
+  - US labor stall (July NFP −23k; May+Jun revised −103k; LFPR 61.4%; BLS 2026-08-07) (growth_soft)
+  - CPI Jul +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12) (sticky_inflation)
+  - Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B) — note only, no new node, no trade (attention)
+  - US–China strategic competition remains the primary geopolitical axis (structural)
 - **Scenario tree:**
-  - 38% — Geopolitical risk-premium
-  - 24% — Stagflation / supply shock
-  - 23% — Restrictive / soft landing
-  - 7% — Higher-for-longer + slowdown
-  - 7% — Easing + reacceleration
-- **Method:** multi-axis keyword+domain-prior (impact×confidence) · nodes=17
-- _Note:_ Scaffold-level node density — regime is a structural hypothesis, not a live high-confidence call.
-- _Note:_ Fixture-only source mode on this run.
+  - 42% — Geopolitical risk-premium
+  - 26% — Stagflation / supply shock
+  - 17% — Restrictive / soft landing
+  - 12% — Higher-for-longer + slowdown
+  - 3% — Easing + reacceleration
+- **Method:** Meridian product judgment 2026-08-18 public-source regime refresh on fixture-scaffold nodes (not live FRED; official FCI missing; not invented FCI/DXY/PCE/curve) · nodes=17
+- _Note:_ hybrid — fixture nodes + Meridian 2026-08-18 public-source regime refresh; not live FRED; Pi parked; nest offline SoT.
+- _Note:_ Confidence 0.62 is Meridian public-source refresh judgment (schema ceiling 0.75). Node graph remains fixture-scaffold vintage 20260805T234722Z — not a live high-confidence market SoT.
+- _Note:_ Official FCI missing. Do not treat liquidity axis as a FRED FCI print. DXY, Treasury.gov curve, and July PCE were not sourced for this stamp.
+- _Note:_ Post-MoU Hormuz standoff: 60-day US–Iran MoU expired ~2026-08-16; Hormuz traffic single-digit; Brent ~$91 / WTI ~$85 (Reuters 2026-08-18 11:03 ET).
+- _Note:_ US labor stall: July NFP −23k; May+Jun revised −103k; LFPR 61.4% (BLS 2026-08-07).
+- _Note:_ CPI Jul: +0.1%/+3.4%, core +0.2%/+2.5%, energy +14.7% y/y (BLS 2026-08-12).
+- _Note:_ Attention weight up on tech-ai-compute-race / NVDA open-weight vertical integration (WIRED ~$26B/5y; Poolside license reports ~$6B). Note only — no new GFS/L0 node, no trade, no capital may_change.
+- _Note:_ Capital implications for watchlist names stay empty (may_change=none while FCC red / book_channel kill rules). No invented residual or FCC marks.
+- _Note:_ No new node ids. Existing 17 fixture nodes kept. No --from-fixtures overwrite.
 
 ## 1. Executive Brief
 
@@ -57,8 +64,8 @@ _Generated: 2026-08-05T23:47:22.732148+00:00_
 - **Fact:** Major advanced-economy policy rates are still well above the post-GFC low decade averages.
 - **Interpretation:** Higher-for-longer or staggered cuts both reprice duration, risk assets, and the USD — critical for treasury liquidity and BTC beta.
 - **Confidence:** 0.8
-- **Why ranked:** Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute.
-- **Strategy:** Treasury / Liquidity, Bitcoin, AI / Compute
+- **Why ranked:** Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, Energy, AI / Compute.
+- **Strategy:** Treasury / Liquidity, Bitcoin, Energy, AI / Compute
 
 ### 5. [technology_ai] Advanced AI compute remains gated by export controls and packaging capacity
 - **Fact:** Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.
@@ -214,7 +221,7 @@ _Generated: 2026-08-05T23:47:22.732148+00:00_
 - **Frontier AI remains compute- and energy-constrained** (affinity=1.0, conf=0.8)
   - Fact: Leading labs continue multi-billion-dollar training and inference buildouts.
   - Interpretation: Personal leverage from AI tooling scales with model capability, but investable exposure is concentrated in semis, power, and platforms.
-  - Rationale: Affinity 1.00 with AI / Compute via ai, compute, gpu, model, nvidia, semiconductor; node impact=high, confidence=0.8.
+  - Rationale: Affinity 1.00 with AI / Compute via ai, compute, gpu, model, nvda, nvidia, semiconductor; node impact=high, confidence=0.8.
 - **Advanced AI compute remains gated by export controls and packaging capacity** (affinity=0.9559, conf=0.8)
   - Fact: Export controls on high-end accelerators and manufacturing equipment remain a binding constraint on some jurisdictions.
   - Interpretation: AI buildout is both a reacceleration (capex/power) and fragmentation (control regimes) force — dual-regime driver.
@@ -280,8 +287,8 @@ _Ranking: priority_score+strategy_affinity_
    - Why: Ranked #3 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: AI / Compute, Energy, Treasury / Liquidity. Watch because it touches: AI / Compute, Energy, Treasury / Liquidity.
    - Strategy: AI / Compute, Energy, Treasury / Liquidity
 4. **Global policy rates remain elevated vs 2010s baseline** [macroeconomics] — score=2.8, conf=0.8
-   - Why: Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, AI / Compute.
-   - Strategy: Treasury / Liquidity, Bitcoin, AI / Compute
+   - Why: Ranked #4 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.15). Linked strategy: Treasury / Liquidity, Bitcoin, Energy, AI / Compute. Watch because it touches: Treasury / Liquidity, Bitcoin, Energy, AI / Compute.
+   - Strategy: Treasury / Liquidity, Bitcoin, Energy, AI / Compute
 5. **Advanced AI compute remains gated by export controls and packaging capacity** [technology_ai] — score=2.8, conf=0.8
    - Why: Ranked #5 by priority_score=2.8 (impact=high, confidence=0.8, strategy_boost=0.143). Linked strategy: AI / Compute, Geopolitical Risk Management, Energy. Watch because it touches: AI / Compute, Geopolitical Risk Management, Energy.
    - Strategy: AI / Compute, Geopolitical Risk Management, Energy
