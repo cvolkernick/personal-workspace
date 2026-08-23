@@ -167,7 +167,10 @@
       <p class="hint">
         Shared APR/APY axis: <strong>0%</strong> left → <strong>~30%</strong> right
         (cap at One Card / highest contractual rate). Debt cost above the axis;
-        asset yield below. Chip size is not a balance. Equity / BTC appreciation
+        asset yield below. Locked yield seeds always show (X Money 6%, Morpho HY 7%,
+        USDG 7%); books override when a live APY exists. JR-strcUSX is a spectrum
+        chip only (~20% target unless a live Solstice quote is already on the
+        snapshot). Chip size is not a balance. Equity / BTC appreciation
         stays off this page. Wells / 20 Tesla stays off FCC.
       </p>
       <div class="axis-wrap">
@@ -184,7 +187,7 @@
 
     <section class="card" id="unknown-card">
       <h2>Rate unknown</h2>
-      <p class="hint">Yield venues appear only when FCC already has an APY. Honest empty otherwise.</p>
+      <p class="hint">Locked yield seeds always show. Live books APY overrides the seed. Honest empty only when a venue is still unknown.</p>
       <div id="unknown-row"></div>
     </section>
 
@@ -210,6 +213,7 @@
     }
 
     function fmtRate(chip) {
+      if (chip.rate_label) return String(chip.rate_label);
       if (chip.rate_pct == null || !Number.isFinite(Number(chip.rate_pct))) return "rate unknown";
       const n = Number(chip.rate_pct);
       const kind = chip.rate_kind || (chip.kind === "yield" ? "APY" : "APR");
@@ -329,7 +333,7 @@
       const uroot = document.getElementById("unknown-row");
       const ucard = document.getElementById("unknown-card");
       if (!unknown.length) {
-        uroot.innerHTML = `<p class="hint" style="margin:0">No yield APY on books yet — axis shows locked debt seeds only.</p>`;
+        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. JR-strcUSX uses a ~20% target unless a live Solstice quote is already on the snapshot.</p>`;
         if (ucard) ucard.classList.remove("hidden");
       } else {
         uroot.innerHTML = unknown
