@@ -4818,11 +4818,12 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${res.status}`);
+        throw new Error(data.message || data.error || `HTTP ${res.status}`);
       }
       const prs = data.auto_prs || [];
       const prBit = prs.length ? ` · PRs: ${prs.join(", ")}` : "";
-      status.textContent = `Saved to ${data.write.path} · verified=${data.write.verified_on_readback}${prBit}`;
+      const write = data.write || {};
+      status.textContent = `Saved to ${write.path || "turso"} · verified=${write.verified_on_readback}${prBit}`;
       showAlert(
         prs.length
           ? `Workout saved. Auto-PR: ${prs.join(", ")}`

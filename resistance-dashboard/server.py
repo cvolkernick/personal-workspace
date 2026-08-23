@@ -97,6 +97,7 @@ from rt_dashboard.day_constraints import (  # noqa: E402
     export_day_constraints_from_dashboard,
 )
 from rt_dashboard.pr_detect import apply_auto_prs  # noqa: E402
+from rt_dashboard.workout_log import parse_log_body  # noqa: E402
 from rt_dashboard.timeutil import local_now, local_today_iso, local_tz_name  # noqa: E402
 from rt_dashboard.github_client import GitHubError, GitHubLiftClient  # noqa: E402
 from rt_dashboard.google_auth import (  # noqa: E402
@@ -110,7 +111,7 @@ from rt_dashboard.hidrate_client import (  # noqa: E402
     hidrate_credentials_present,
     overlay_hidrate_hydration,
 )
-from rt_dashboard.models import ExerciseEntry, HealthSnapshot, Session, SetEntry  # noqa: E402
+from rt_dashboard.models import HealthSnapshot, Session  # noqa: E402
 from rt_dashboard.labs_store import load_labs  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     add_ingredient,
@@ -1173,69 +1174,6 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
         return {"ok": False, "action": kind, "error": f"unknown action {kind}"}
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "action": kind, "error": str(e)}
-
-
-def parse_log_body(data: dict) -> Session:
-    st = str(data.get("session_type", "")).lower().strip()
-    date = str(data.get("date", "")).strip()
-    if st not in ("push", "pull", "legs"):
-        raise ValueError("session_type must be push, pull, or legs")
-    if not date:
-        date = local_today_iso()
-    # validate date
-    datetime.strptime(date, "%Y-%m-%d")
-    exercises_in = data.get("exercises") or []
-    if not exercises_in:
-        raise ValueError("exercises required")
-    exercises = []
-    for ex in exercises_in:
-        name = str(ex.get("name", "")).strip()
-        if not name:
-            raise ValueError("exercise name required")
-        # Flat form: {name, weight_lbs, sets, reps}
-        # Nested form: {name, sets: [{weight_lbs, sets, reps}, ...]}
-        raw_sets = ex.get("sets")
-        if isinstance(raw_sets, list):
-            sets_in = raw_sets
-        elif all(k in ex for k in ("weight_lbs", "reps")):
-            sets_in = [
-                {
-                    "weight_lbs": ex["weight_lbs"],
-                    "sets": int(ex.get("sets") or 1),
-                    "reps": ex["reps"],
-                }
-            ]
-        else:
-            sets_in = []
-        set_entries = []
-        for s in sets_in:
-            if not isinstance(s, dict):
-                continue
-            try:
-                w = float(s.get("weight_lbs"))
-                sn = int(s.get("sets") if s.get("sets") is not None else 1)
-                r = int(s.get("reps"))
-            except (TypeError, ValueError) as e:
-                raise ValueError(f"invalid set for {name}: {e}") from e
-            if sn < 1 or r < 1:
-                raise ValueError(f"sets and reps must be >= 1 for {name}")
-            set_entries.append(SetEntry(weight_lbs=w, sets=sn, reps=r))
-        if not set_entries:
-            raise ValueError(f"no sets for exercise {name}")
-        exercises.append(
-            ExerciseEntry(
-                name=name,
-                sets=set_entries,
-                is_pr=False,  # set by apply_auto_prs after history is loaded
-            )
-        )
-    notes = str(data.get("notes") or "")
-    return Session(
-        date=date,
-        session_type=st,
-        exercises=exercises,
-        notes=notes,
-    )
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):

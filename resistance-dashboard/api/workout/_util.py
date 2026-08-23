@@ -149,6 +149,7 @@ def workouts_body(headers):
     if err:
         return err
     from api.dashboard import _load_sessions
+    from rt_dashboard.turso_http import turso_enabled
 
     sessions, errors, source = _load_sessions(str(user.get("id") or "default"))
     out = []
@@ -157,17 +158,18 @@ def workouts_body(headers):
             out.append(s.to_dict())
         elif isinstance(s, dict):
             out.append(s)
+    writable = turso_enabled()
     return 200, {
         "ok": True,
-        "readonly": True,
+        "readonly": not writable,
         "sessions": out,
         "session_count": len(out),
         "source": source,
         "error": "; ".join(errors) if errors else None,
         "write": {
             "ok": False,
-            "readonly": True,
-            "path": None,
+            "readonly": not writable,
+            "path": "turso" if writable else None,
             "verified_on_readback": False,
         },
     }
@@ -188,8 +190,62 @@ def available_write(headers):
     return _write_denied(headers)
 
 
-def workouts_write(headers):
-    return _write_denied(headers)
+def workouts_write(headers, payload=None):
+    """POST /api/workouts — Turso upsert. Same shape as inventory_write.
+
+    Cookie-less 401. Failed persist is 5xx. Missing Turso env is a clear
+    error (not preview_read_only, not a fake ok).
+    """
+    user, err = require_user(headers)
+    if err:
+        return err
+    payload = payload if isinstance(payload, dict) else {}
+    uid = str(user.get("id") or "default")
+    try:
+        from api.dashboard import _load_sessions
+        from rt_dashboard.pr_detect import apply_auto_prs
+        from rt_dashboard.turso_repo import save_preview_session
+        from rt_dashboard.workout_log import parse_log_body
+
+        session = parse_log_body(payload)
+        history, _hist_err, _hist_src = _load_sessions(uid)
+        apply_auto_prs(session, history)
+        result = save_preview_session(uid, session)
+        sessions, errors, source = _load_sessions(uid)
+    except ValueError as exc:
+        return 400, {"ok": False, "error": str(exc)}
+    except Exception as exc:  # noqa: BLE001
+        msg = str(exc) or type(exc).__name__
+        if "turso env missing" in msg:
+            return 503, {
+                "ok": False,
+                "error": "turso_env_missing",
+                "message": (
+                    "Workout log needs TURSO_DATABASE_URL and TURSO_AUTH_TOKEN."
+                ),
+            }
+        return 500, {
+            "ok": False,
+            "error": msg,
+            "write": {"ok": False, "source": "turso"},
+        }
+    pr_names = [e.name for e in session.exercises if e.is_pr]
+    head = []
+    for s in (sessions or [])[:5]:
+        if hasattr(s, "to_dict"):
+            head.append(s.to_dict())
+        elif isinstance(s, dict):
+            head.append(s)
+    return 200, {
+        "ok": True,
+        "write": result,
+        "source": source,
+        "session_count": len(sessions or []),
+        "sessions_head": head,
+        "auto_prs": pr_names,
+        "session": session.to_dict(),
+        "error": "; ".join(errors) if errors else None,
+    }
 
 
 def generate_body(headers, payload=None):
@@ -455,7 +511,11 @@ def dispatch_client_route(headers, query: str, method: str, payload=None, path: 
     if route == "available":
         return available_write(headers) if method == "POST" else available_body(headers)
     if route == "workouts":
-        return workouts_write(headers) if method == "POST" else workouts_body(headers)
+        return (
+            workouts_write(headers, payload)
+            if method == "POST"
+            else workouts_body(headers)
+        )
     if route == "generate":
         return generate_body(headers, payload)
     if route in _MEAL_ROUTES:
