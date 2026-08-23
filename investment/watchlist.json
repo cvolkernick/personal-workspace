@@ -114,7 +114,7 @@
       "sleeve_if_owned": "stocks_growth",
       "status": "ready",
       "priority": "high",
-      "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default.",
+      "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default. 2026-08-23: own open-source/open-weight models may reinforce that GPU franchise via vertical integration / industry lock-in (note only; not a price target or position).",
       "added": "2026-07-26",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
@@ -122,7 +122,7 @@
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Open-weight / model-factory follow-through + earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
-      "notes": "Deep-dive 2026-08-04. Owner jot 2026-08-23 via Grok/Meridian: open-weight / model-factory vertical integration strengthens GPU+software ecosystem demand thesis (WIRED ~$26B over five years for open-weight models; Poolside model-factory license reports ~$6B, WSJ/press ~2026-08-22 \u2014 reported, not Meridian book marks). Concentration/valuation/export gates unchanged. Still ready for consider set; not auto-buy."
+      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models — thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held."
     },
     {
       "symbol": "PLTR",
