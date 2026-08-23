@@ -1,4 +1,9 @@
-# Keep latest pointers in git for demos; ignore intermediate versioned runs
+# Nest/GH offline publish SoT (#301) — keep latest pointers committable:
+#   world_state_latest.json
+#   briefs/brief_latest.json
+#   briefs/brief_latest.md
+# Ignore intermediate versioned runs. Force-add at most one history snapshot
+# for a published version_id; do not un-ignore the whole history/ tree.
 history/*
 !history/.gitkeep
 briefs/brief_20*
