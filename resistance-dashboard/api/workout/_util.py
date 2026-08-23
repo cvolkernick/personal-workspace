@@ -619,6 +619,7 @@ def _agent_today_from_stores(headers, query: str = ""):
         hydration_bars=hydration_bars,
         hidrate_bottle=bottle,
         sleep_battery=sleep_battery,
+        health=health,
         meta_error="; ".join(errors) if errors else None,
     )
     return 200, export_agent_today(slice_payload)

@@ -1,7 +1,8 @@
 """Read-only Today brief for machine agents (Frankenfit / Restore / Pulse / Nourish).
 
 Slices an existing dashboard payload (Pi cache or Vercel Turso/Hidrate load).
-Never invents ml, loads, sessions, or sip timestamps. Missing → honest empty.
+Never invents ml, loads, sessions, sip timestamps, or Active Zone Minutes.
+Missing → honest empty (``today.active_zone_minutes`` is ``[]``).
 """
 
 from __future__ import annotations
@@ -237,6 +238,54 @@ def _wake_window(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _azm_day(item: Any) -> Optional[Dict[str, Any]]:
+    """Copy one HealthSnapshot AZM day. No invented minutes from other series."""
+    if hasattr(item, "to_dict"):
+        try:
+            item = item.to_dict()
+        except Exception:  # noqa: BLE001
+            return None
+    if not isinstance(item, dict):
+        return None
+    date = _civil_day(item.get("date"))
+    if not date:
+        return None
+    row: Dict[str, Any] = {"date": date}
+    for key in (
+        "fat_burn_minutes",
+        "cardio_minutes",
+        "peak_minutes",
+        "total_minutes",
+        "source",
+    ):
+        if key in item:
+            row[key] = item[key]
+    return row
+
+
+def _active_zone_minutes(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Reuse HealthSnapshot.active_zone_minutes. Missing → honest ``[]``."""
+    health = payload.get("health")
+    if hasattr(health, "to_dict"):
+        try:
+            health = health.to_dict()
+        except Exception:  # noqa: BLE001
+            health = None
+    raw = None
+    if isinstance(health, dict):
+        raw = health.get("active_zone_minutes")
+    if raw is None:
+        raw = payload.get("active_zone_minutes")
+    if not isinstance(raw, list):
+        return []
+    out: List[Dict[str, Any]] = []
+    for item in raw:
+        row = _azm_day(item)
+        if row:
+            out.append(row)
+    return out
+
+
 def export_agent_today(
     payload: Optional[Dict[str, Any]] = None,
     *,
@@ -255,6 +304,7 @@ def export_agent_today(
         "hydration_wake": _hydration_wake(data),
         "bottle": _bottle(data),
         "wake_window": _wake_window(data),
+        "active_zone_minutes": _active_zone_minutes(data),
     }
     out: Dict[str, Any] = {"ok": True, "today": today}
     err = error if error is not None else meta.get("error")
@@ -272,6 +322,7 @@ def assemble_dashboard_slice(
     hydration_bars: Optional[dict] = None,
     hidrate_bottle: Optional[dict] = None,
     sleep_battery: Optional[dict] = None,
+    health: Optional[Any] = None,
     meta_error: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Minimal dashboard-shaped dict so export_agent_today has one code path."""
@@ -285,6 +336,14 @@ def assemble_dashboard_slice(
                 continue
         if isinstance(s, dict):
             sess_out.append(s)
+    health_out: Any = health
+    if hasattr(health, "to_dict"):
+        try:
+            health_out = health.to_dict()
+        except Exception:  # noqa: BLE001
+            health_out = {}
+    elif health is None:
+        health_out = {}
     return {
         "sessions": sess_out,
         "workout": workout if isinstance(workout, dict) else {},
@@ -292,6 +351,7 @@ def assemble_dashboard_slice(
         "hydration_bars": hydration_bars if isinstance(hydration_bars, dict) else {"pacing": None},
         "hidrate_bottle": hidrate_bottle,
         "sleep_battery": sleep_battery,
+        "health": health_out if isinstance(health_out, dict) else {},
         "coach": {"today": {"date": date}},
         "meta": {"local_today": date, "error": meta_error},
     }
