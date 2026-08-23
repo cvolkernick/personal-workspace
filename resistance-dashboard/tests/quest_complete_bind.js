@@ -66,6 +66,7 @@ global.showAlert = () => {
   throw new Error("showAlert should not fire on success");
 };
 global.state = { daily_tasks: { summary: { done: 0, total: 2 } } };
+global.lastSyncedDailyTasks = null;
 global.setTimeout = () => {};
 global.document = {
   documentElement: { dataset: {} },
@@ -74,21 +75,35 @@ global.document = {
   addEventListener() {},
 };
 
+global.looksLikeLiftQuest = loadFn("looksLikeLiftQuest");
+global.applyQuestUncheckToSessions = loadFn("applyQuestUncheckToSessions");
+global.patchLocalQuestCompleted = loadFn("patchLocalQuestCompleted");
+global.paintQuestMeter = loadFn("paintQuestMeter");
+global.applyWorkoutLogToLocalState = loadFn("applyWorkoutLogToLocalState");
+global.renderHistory = () => {};
 global.unlockQuestCard = loadFn("unlockQuestCard");
 global.onDailyQuestClick = loadFn("onDailyQuestClick");
 const onDailyQuestClick = global.onDailyQuestClick;
+const looksLikeLiftQuest = global.looksLikeLiftQuest;
+const applyQuestUncheckToSessions = global.applyQuestUncheckToSessions;
 
 function makeBtn(attrs) {
   const classes = new Set(["quest-card"]);
   if (attrs.pending) classes.add("quest-card-pending");
+  if (attrs.done) classes.add("is-done");
   const attributes = {
     "data-task-id": attrs.taskId || "",
     "data-list-id": attrs.listId || "",
     "data-parent-id": attrs.parentId || "",
+    "data-group": attrs.group || "",
+    "data-title": attrs.title || "",
+    "data-slug": attrs.slug || "",
   };
+  const groupName = attrs.group || "training";
   const btn = {
     disabled: !!attrs.disabled,
     removed: false,
+    textContent: attrs.title || "",
     classList: {
       contains: (c) => classes.has(c),
       add: (c) => classes.add(c),
@@ -101,7 +116,7 @@ function makeBtn(attrs) {
     removeAttribute: (k) => {
       delete attributes[k];
     },
-    closest: (sel) => (sel === ".quest-group" ? { getAttribute: (k) => (k === "data-group" ? "training" : ""), querySelector: () => null, querySelectorAll: () => [], classList: { add: () => {} }, appendChild: () => {} } : sel === ".quest-card" ? btn : null),
+    closest: (sel) => (sel === ".quest-group" ? { getAttribute: (k) => (k === "data-group" ? groupName : ""), querySelector: () => null, querySelectorAll: () => [], classList: { add: () => {}, remove: () => {} }, appendChild: () => {} } : sel === ".quest-card" ? btn : null),
     remove: () => {
       btn.removed = true;
     },
@@ -120,7 +135,19 @@ async function click(btn) {
 }
 
 (async () => {
-  const ready = makeBtn({ taskId: "t1", listId: "L1", parentId: "p1" });
+  assert(looksLikeLiftQuest("training", "DB Flat Press (50 lb 3×10)", "ex-db-flat-press") === true, "ex-* training leaf is a lift");
+  assert(looksLikeLiftQuest("nutrition", "Next meal: Chicken · 210g", "meal-0-chicken-0") === false, "meal is not a lift");
+  assert(looksLikeLiftQuest("other", "Drink 3L water", "action-hydration-0") === false, "hydration is not a lift");
+  assert(looksLikeLiftQuest("training", "Complete today's PUSH session", "train-session") === false, "session title is not a lift");
+
+  const ready = makeBtn({
+    taskId: "t1",
+    listId: "L1",
+    parentId: "p1",
+    group: "training",
+    title: "DB Flat Press (50 lb 3×10)",
+    slug: "ex-db-flat-press",
+  });
   await click(ready);
   assert(fetches.length === 1, "ready leaf should POST once");
   assert(fetches[0].url === "/api/daily-tasks/complete", "POST path is /api/daily-tasks/complete");
@@ -128,6 +155,90 @@ async function click(btn) {
   const body = JSON.parse(fetches[0].body);
   assert(body.task_id === "t1" && body.list_id === "L1", "body carries leaf ids");
   assert(body.group === "training", "body carries quest group for lift auto-log");
+  assert(body.title === "DB Flat Press (50 lb 3×10)", "body carries title");
+  assert(body.slug === "ex-db-flat-press", "body carries slug");
+  assert(body.completed === true, "first click completes");
+  assert(ready.classList.contains("is-done"), "lift card stays visible as done");
+  assert(ready.disabled === false, "done lift stays clickable for uncheck");
+
+  fetches.length = 0;
+  global.fetch = async (url, opts) => {
+    fetches.push({ url, method: (opts && opts.method) || "GET", body: opts && opts.body });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true, workout_log: { action: "uncheck_remove", name: "DB Flat Press" } }),
+    };
+  };
+  global.state = {
+    daily_tasks: { summary: { done: 1, total: 2 } },
+    meta: { local_today: "2026-08-23" },
+    sessions: [
+      {
+        date: "2026-08-23",
+        session_type: "push",
+        exercises: [
+          { name: "DB Flat Press", quest_seeded: true, raw: "quest-seeded:50/3/10" },
+          { name: "Cable Fly", quest_seeded: false },
+        ],
+      },
+    ],
+  };
+  let historySessions = null;
+  global.renderHistory = (sessions) => {
+    historySessions = sessions;
+  };
+  const doneLift = makeBtn({
+    taskId: "t1",
+    listId: "L1",
+    parentId: "p1",
+    done: true,
+    group: "training",
+    title: "DB Flat Press (50 lb 3×10)",
+    slug: "ex-db-flat-press",
+  });
+  await click(doneLift);
+  assert(fetches.length === 1, "done lift should POST uncheck");
+  const uncheckBody = JSON.parse(fetches[0].body);
+  assert(uncheckBody.completed === false, "second click sends completed:false");
+  assert(uncheckBody.list_id === "L1" && uncheckBody.task_id === "t1", "uncheck keeps leaf ids");
+  assert(uncheckBody.parent_id === "p1", "uncheck keeps parent_id");
+  assert(uncheckBody.group === "training", "uncheck keeps group");
+  assert(uncheckBody.title === "DB Flat Press (50 lb 3×10)", "uncheck keeps title");
+  assert(uncheckBody.slug === "ex-db-flat-press", "uncheck keeps slug");
+  assert(!doneLift.classList.contains("is-done"), "uncheck clears done state");
+  assert(
+    historySessions &&
+      historySessions[0].exercises.length === 1 &&
+      historySessions[0].exercises[0].name === "Cable Fly",
+    "uncheck_remove drops the seeded lift from today's log"
+  );
+
+  const kept = applyQuestUncheckToSessions(
+    [
+      {
+        date: "2026-08-23",
+        exercises: [
+          { name: "DB Flat Press", quest_seeded: false, sets: [{ weight_lbs: 55 }] },
+        ],
+      },
+    ],
+    { action: "uncheck_remove", name: "DB Flat Press" },
+    "2026-08-23"
+  );
+  assert(kept[0].exercises.length === 1, "edited row survives local uncheck patch");
+
+  fetches.length = 0;
+  const doneMeal = makeBtn({
+    taskId: "t2",
+    listId: "L1",
+    done: true,
+    group: "nutrition",
+    title: "Next meal: Chicken · 210g",
+    slug: "meal-0-chicken-0",
+  });
+  await click(doneMeal);
+  assert(fetches.length === 0, "done meal card does not POST uncheck");
 
   fetches.length = 0;
   let alerted = "";

@@ -3792,6 +3792,28 @@
     );
   }
 
+  /** Match server looks_like_lift_quest: training/ex-* leaves, not meals or session titles. */
+  function looksLikeLiftQuest(group, title, slug) {
+    const g = String(group || "").trim().toLowerCase();
+    const slugL = String(slug || "").trim().toLowerCase();
+    const titleS = String(title || "").trim();
+    if (
+      g === "nutrition" ||
+      g === "shopping" ||
+      g === "sleep" ||
+      g === "recovery" ||
+      g === "other"
+    ) {
+      return false;
+    }
+    if (/^(complete today|rest day|protect |cover remaining|eat through|eat:)/i.test(titleS)) {
+      return false;
+    }
+    if (slugL.startsWith("ex-")) return true;
+    if ((g === "training" || g === "train") && titleS) return true;
+    return false;
+  }
+
   /** Build quest body HTML (sync note + groups) — never includes the collapsible shell. */
   function buildDailyQuestBodyHtml(groups, { syncing, err, src, listId, failed }) {
     let html = "";
@@ -3810,7 +3832,12 @@
     groups.forEach((g) => {
       const gDone = g.done || 0;
       const gTot = g.total || 0;
-      const open = (g.open_items || g.items || []).filter((x) => !x.completed);
+      const allItems = g.items || g.open_items || [];
+      const open = allItems.filter((x) => !x.completed);
+      const visible = allItems.filter((x) => {
+        if (!x.completed) return true;
+        return looksLikeLiftQuest(g.group || x.group, x.title, x.slug);
+      });
       const emoji = g.emoji || "✓";
       html += `<div class="quest-group${g.completed || !open.length ? " is-done" : ""}" data-group="${escQuest(g.group || "")}">
         <div class="quest-group-head">
@@ -3818,31 +3845,35 @@
           <span class="quest-group-title">${escQuest(g.title || g.group || "Group")}</span>
           <span class="quest-group-prog">${gDone}/${gTot}</span>
         </div>`;
-      if (!open.length) {
+      if (!visible.length) {
         html += `<div class="quest-group-done">Cleared ✓</div>`;
       } else {
         // Bucket by meal_label for nutrition
         const byMeal = {};
         const noMeal = [];
-        open.forEach((it) => {
+        visible.forEach((it) => {
           if (it.meal_label) {
             (byMeal[it.meal_label] = byMeal[it.meal_label] || []).push(it);
           } else noMeal.push(it);
         });
         const renderCard = (it, g) => {
           const { tid, lid, pid, ready } = questLeafIds(it, g, listId);
+          const done = !!it.completed;
+          const liftDone = done && looksLikeLiftQuest(g.group || it.group, it.title, it.slug);
           // Strip redundant "Next meal: " prefix if already under meal header
           let label = it.title || "";
           if (it.meal_label && label.startsWith(it.meal_label + ":")) {
             label = label.slice(it.meal_label.length + 1).trim();
           }
+          const verb = liftDone ? "Uncheck" : "Complete";
           // Leaf with task_id + list_id is a real control (never native disabled —
           // disabled buttons drop clicks so document delegation cannot bind them).
-          return `<button type="button" class="quest-card${ready ? "" : " quest-card-pending"}"
+          return `<button type="button" class="quest-card${ready ? "" : " quest-card-pending"}${done ? " is-done" : ""}"
             data-task-id="${escQuest(tid)}" data-list-id="${escQuest(lid)}" data-parent-id="${escQuest(pid)}"
             data-group="${escQuest(g.group || "")}" data-title="${escQuest(it.title || "")}"
             data-slug="${escQuest(it.slug || "")}"
-            ${ready ? "" : 'aria-disabled="true"'} aria-label="Complete: ${escQuest(label)}">
+            ${ready ? "" : 'aria-disabled="true"'} aria-pressed="${done ? "true" : "false"}"
+            aria-label="${verb}: ${escQuest(label)}">
             <span class="quest-card-mark" aria-hidden="true"></span>
             <span class="quest-card-text">${escQuest(label)}</span>
           </button>`;
@@ -4045,9 +4076,104 @@
     btn.classList.remove("is-completing");
   }
 
+  function patchLocalQuestCompleted(taskId, completed) {
+    const tid = String(taskId || "").trim();
+    if (!tid) return;
+    const seen = new Set();
+    const synced =
+      typeof lastSyncedDailyTasks !== "undefined" ? lastSyncedDailyTasks : null;
+    for (const daily of [state && state.daily_tasks, synced]) {
+      if (!daily || seen.has(daily)) continue;
+      seen.add(daily);
+      for (const g of daily.groups || []) {
+        let found = false;
+        for (const key of ["items", "open_items"]) {
+          for (const it of g[key] || []) {
+            if (String(it.task_id || it.id || "").trim() === tid) {
+              it.completed = !!completed;
+              found = true;
+            }
+          }
+        }
+        if (g.items) {
+          g.open_items = g.items.filter((x) => !x.completed);
+          g.done = g.items.filter((x) => x.completed).length;
+          g.total = g.items.length;
+          g.completed = g.total > 0 && g.done === g.total;
+        } else if (found) {
+          g.done = Math.max(0, (g.done || 0) + (completed ? 1 : -1));
+          if (g.total) g.done = Math.min(g.done, g.total);
+          g.completed = g.total > 0 && g.done === g.total;
+          g.open_items = (g.open_items || []).filter((x) => !x.completed);
+        }
+      }
+      if (daily.summary) {
+        let done = 0;
+        let total = 0;
+        for (const g of daily.groups || []) {
+          done += g.done || 0;
+          total += g.total || 0;
+        }
+        daily.summary.done = done;
+        daily.summary.total = total;
+      }
+    }
+  }
+
+  function paintQuestMeter(groupEl) {
+    const daily =
+      (state && state.daily_tasks) ||
+      (typeof lastSyncedDailyTasks !== "undefined" ? lastSyncedDailyTasks : null);
+    const s = daily && daily.summary;
+    if (s) {
+      const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
+      const count = document.querySelector(".daily-quests-count");
+      if (count) count.textContent = `${s.done}/${s.total}`;
+      const fill = document.querySelector(".daily-quests-meter-fill");
+      if (fill) fill.style.width = `${pct}%`;
+    }
+    const prog = groupEl && groupEl.querySelector(".quest-group-prog");
+    if (prog && groupEl) {
+      const gName = (groupEl.getAttribute && groupEl.getAttribute("data-group")) || "";
+      const g = ((daily && daily.groups) || []).find((x) => (x.group || "") === gName);
+      if (g) prog.textContent = `${g.done || 0}/${g.total || 0}`;
+    }
+  }
+
+  function applyQuestUncheckToSessions(sessions, log, today) {
+    const list = Array.isArray(sessions) ? sessions : [];
+    if (!log || log.action !== "uncheck_remove") return list;
+    const name = String(log.name || "").trim().toLowerCase();
+    if (!name) return list;
+    const day = String(today || "").slice(0, 10);
+    return list.map((sess) => {
+      const sDay = String((sess && sess.date) || "").slice(0, 10);
+      if (day && sDay && sDay !== day) return sess;
+      const exercises = (sess && sess.exercises) || [];
+      const idx = exercises.findIndex((ex) => {
+        if (String((ex && ex.name) || "").trim().toLowerCase() !== name) return false;
+        return !!(ex && (ex.quest_seeded || String(ex.raw || "").startsWith("quest-seeded:")));
+      });
+      if (idx < 0) return sess;
+      return { ...sess, exercises: exercises.filter((_, i) => i !== idx) };
+    });
+  }
+
+  function applyWorkoutLogToLocalState(log) {
+    if (!log || log.action !== "uncheck_remove") return;
+    if (!state) return;
+    const today = String(
+      (state.meta && state.meta.local_today) ||
+        (state.coach && state.coach.today && state.coach.today.date) ||
+        ""
+    ).slice(0, 10);
+    state.sessions = applyQuestUncheckToSessions(state.sessions || [], log, today);
+    if (typeof renderHistory === "function") renderHistory(state.sessions);
+  }
+
   async function onDailyQuestClick(ev) {
     const btn = ev.target.closest && ev.target.closest(".quest-card");
-    if (!btn || btn.classList.contains("is-completing") || btn.classList.contains("is-done")) return;
+    if (!btn || btn.classList.contains("is-completing")) return;
     const taskId = (btn.getAttribute("data-task-id") || "").trim();
     const listId = (btn.getAttribute("data-list-id") || "").trim();
     const parentId = (btn.getAttribute("data-parent-id") || "").trim();
@@ -4059,6 +4185,9 @@
     ).trim();
     const questTitle = (btn.getAttribute("data-title") || "").trim();
     const questSlug = (btn.getAttribute("data-slug") || "").trim();
+    const isLift = looksLikeLiftQuest(questGroup, questTitle, questSlug);
+    const wantCompleted = !btn.classList.contains("is-done");
+    if (!wantCompleted && !isLift) return;
     const todayWo =
       (state && state.coach && state.coach.today && state.coach.today.workout) || {};
     // Leaf with both ids is a real control even if a stale pending/disabled paint remains.
@@ -4077,7 +4206,7 @@
     const remaining = groupEl
       ? Array.from(groupEl.querySelectorAll(".quest-card:not(.is-completing):not(.is-done)"))
       : [];
-    const siblingAllDone = remaining.length === 0;
+    const siblingAllDone = wantCompleted && remaining.length === 0;
     try {
       const res = await fetch("/api/daily-tasks/complete", {
         method: "POST",
@@ -4086,7 +4215,7 @@
         body: JSON.stringify({
           list_id: listId,
           task_id: taskId,
-          completed: true,
+          completed: wantCompleted,
           parent_id: parentId || null,
           sibling_all_done: siblingAllDone,
           group: questGroup || null,
@@ -4103,38 +4232,45 @@
             ? "method_not_allowed"
             : res.status === 404
               ? "complete_not_found"
-              : data.error || "Could not complete quest";
+              : data.error || (wantCompleted ? "Could not complete quest" : "Could not uncheck quest");
         showAlert(hint, "err");
         return;
       }
-      btn.classList.add("is-done");
-      btn.removeAttribute("aria-busy");
-      setTimeout(() => {
-        btn.remove();
-        if (groupEl && !groupEl.querySelector(".quest-card")) {
-          groupEl.classList.add("is-done");
-          const doneEl = document.createElement("div");
-          doneEl.className = "quest-group-done";
-          doneEl.textContent = "Cleared ✓";
-          groupEl.appendChild(doneEl);
+      const log = data.workout_log || {};
+      patchLocalQuestCompleted(taskId, wantCompleted);
+      if (wantCompleted) {
+        btn.classList.add("is-done");
+        btn.setAttribute("aria-pressed", "true");
+        if (isLift) {
+          const label = questTitle || btn.textContent || "";
+          btn.setAttribute("aria-label", `Uncheck: ${label}`);
+          unlockQuestCard(btn);
+          paintQuestMeter(groupEl);
+        } else {
+          btn.removeAttribute("aria-busy");
+          setTimeout(() => {
+            btn.remove();
+            if (groupEl && !groupEl.querySelector(".quest-card")) {
+              groupEl.classList.add("is-done");
+              const doneEl = document.createElement("div");
+              doneEl.className = "quest-group-done";
+              doneEl.textContent = "Cleared ✓";
+              groupEl.appendChild(doneEl);
+            }
+            paintQuestMeter(groupEl);
+          }, 280);
         }
-        if (state && state.daily_tasks && state.daily_tasks.summary) {
-          const s = state.daily_tasks.summary;
-          s.done = Math.min((s.done || 0) + 1, s.total || 0);
-          const pct = s.total ? Math.round((s.done / s.total) * 100) : 0;
-          const count = document.querySelector(".daily-quests-count");
-          if (count) count.textContent = `${s.done}/${s.total}`;
-          const fill = document.querySelector(".daily-quests-meter-fill");
-          if (fill) fill.style.width = `${pct}%`;
-          const prog = groupEl && groupEl.querySelector(".quest-group-prog");
-          if (prog) {
-            const parts = String(prog.textContent || "").split("/");
-            const tot = Number(parts[1]) || 0;
-            const left = groupEl.querySelectorAll(".quest-card").length;
-            prog.textContent = `${tot - left}/${tot}`;
-          }
-        }
-      }, 280);
+      } else {
+        btn.classList.remove("is-done");
+        btn.setAttribute("aria-pressed", "false");
+        btn.setAttribute("aria-label", `Complete: ${questTitle || btn.textContent || ""}`);
+        unlockQuestCard(btn);
+        if (groupEl) groupEl.classList.remove("is-done");
+        const doneNote = groupEl && groupEl.querySelector(".quest-group-done");
+        if (doneNote) doneNote.remove();
+        paintQuestMeter(groupEl);
+        applyWorkoutLogToLocalState(log);
+      }
     } catch (e) {
       unlockQuestCard(btn);
       showAlert(String(e.message || e), "err");

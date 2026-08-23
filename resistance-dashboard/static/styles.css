@@ -2534,7 +2534,12 @@ body.m-shell .quest-card {
 }
 
 .quest-card.is-done {
-  opacity: 0.45;
+  opacity: 0.62;
+  cursor: pointer;
+}
+
+.quest-card.is-done .quest-card-text {
+  text-decoration: line-through;
 }
 
 .quest-card-pending {

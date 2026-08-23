@@ -591,12 +591,26 @@ class Wiring(unittest.TestCase):
         self.assertIn("group: questGroup", handler)
         self.assertIn("title: questTitle", handler)
         self.assertIn("session_type: todayWo.session_type", handler)
+        self.assertIn("completed: wantCompleted", handler)
+        self.assertIn("looksLikeLiftQuest", handler)
+        self.assertIn("applyWorkoutLogToLocalState", handler)
+        self.assertIn("uncheck_remove", JS)
         render = JS.split("const renderCard = (it, g) =>", 1)[1].split(
             "Object.keys(byMeal)", 1
         )[0]
         self.assertIn("data-group=", render)
         self.assertIn("data-title=", render)
         self.assertIn("data-slug=", render)
+        self.assertIn('done ? " is-done"', render)
+        self.assertIn("Uncheck", render)
+        self.assertIn("function looksLikeLiftQuest", JS)
+        body = JS.split("function buildDailyQuestBodyHtml", 1)[1].split(
+            "function applyQuestsCollapseDom", 1
+        )[0]
+        self.assertIn("looksLikeLiftQuest(g.group || x.group, x.title, x.slug)", body)
+        css = (ROOT / "static" / "styles.css").read_text(encoding="utf-8")
+        self.assertIn(".quest-card.is-done .quest-card-text", css)
+        self.assertIn("text-decoration: line-through", css)
 
 
 if __name__ == "__main__":
