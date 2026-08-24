@@ -59,6 +59,16 @@ Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
   Soft-fail: leave snapshot APY None; chip stays docs_target.
   Do not invent a live print. No wallet notional. No HTML scrape.
 
+Chris lock (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
+  Two locked yield seeds only. Estimated CAGR used as APY — not a
+  fixed cash rate. Do not open a general equity expected-return axis.
+  Do not invent other equity / BTC assumed-return lines.
+  1. Bitcoin — seed 30% APY (est. CAGR as APY)
+  2. Agentic Fund — seed 15% APY (est. CAGR as APY)
+  Precedence: FCC settings manual > dedicated live books field > seed.
+  Generic ``btc_expected_return`` / ``equity_expected_return`` /
+  ``assumed_return`` / ``appreciation_pct`` stay off these chips.
+
 Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 """
 
@@ -187,10 +197,17 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
     },
 )
 
+# Bitcoin / Agentic Fund (#336) — estimated CAGR plotted as APY, not cash yield.
+BITCOIN_ID = "bitcoin"
+AGENTIC_FUND_ID = "agentic_fund"
+CAGR_AS_APY_LABEL = "est. CAGR as APY"
+CAGR_AS_APY_NOTE = "est. CAGR used as APY · not a fixed cash rate"
+
 # Chris 2026-08-23 locked yield seeds. Always show; books override when an
 # honest product APY is already present. Morpho HY vault GraphQL is
 # reference only — it must not paint the product chip. Pattern matches
-# Morpho borrow ~5% / One Card ~29%.
+# Morpho borrow ~5% / One Card ~29%. Bitcoin / Agentic Fund (#336) are
+# est. CAGR as APY seeds — not a general equity axis.
 LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
     {
         "id": "x_money",
@@ -296,6 +313,66 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "notional_paths": (
             ("evaluation", "inputs", "rh_usdg_earn_usdg"),
             ("snapshot", "robinhood", "usdg_earn_usdg"),
+        ),
+    },
+    {
+        "id": "bitcoin",
+        "venue": "Bitcoin",
+        "label": "Bitcoin",
+        "detail": "est. CAGR as APY",
+        "kind": "yield",
+        "rate_pct": 30.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "cagr_as_apy": True,
+        "notes": (
+            f"locked seed 30% APY · {CAGR_AS_APY_NOTE} · "
+            "these two lines only · "
+            "precedence: FCC settings bitcoin_cagr_apy_est / "
+            "btc_cagr_apy_est > dedicated live books > seed · "
+            "do not invent a live BTC print"
+        ),
+        "deep_link": "index.html#bitcoin",
+        "settings_paths": (
+            ("config", "coinbase_manual", "bitcoin_cagr_apy_est"),
+            ("config", "coinbase_manual", "btc_cagr_apy_est"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "bitcoin_cagr_apy_est"),
+            ("evaluation", "inputs", "btc_cagr_apy_est"),
+            ("snapshot", "bitcoin", "cagr_apy_est"),
+            ("snapshot", "coinbase_manual", "bitcoin_cagr_apy_est"),
+        ),
+    },
+    {
+        "id": "agentic_fund",
+        "venue": "Agentic Fund",
+        "label": "Agentic Fund",
+        "detail": "est. CAGR as APY",
+        "kind": "yield",
+        "rate_pct": 15.0,
+        "approx": True,
+        "rate_kind": "APY",
+        "unit": "fraction",
+        "cagr_as_apy": True,
+        "notes": (
+            f"locked seed 15% APY · {CAGR_AS_APY_NOTE} · "
+            "these two lines only · "
+            "precedence: FCC settings agentic_fund_cagr_apy_est / "
+            "agentic_cagr_apy_est > dedicated live books > seed · "
+            "do not invent a live equity print"
+        ),
+        "deep_link": "index.html#agentic-fund",
+        "settings_paths": (
+            ("config", "robinhood", "agentic_fund_cagr_apy_est"),
+            ("config", "robinhood", "agentic_cagr_apy_est"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "agentic_fund_cagr_apy_est"),
+            ("evaluation", "inputs", "agentic_cagr_apy_est"),
+            ("snapshot", "agentic_fund", "cagr_apy_est"),
+            ("snapshot", "robinhood", "agentic_fund_cagr_apy_est"),
         ),
     },
 )
@@ -656,11 +733,13 @@ def _attach_morpho_hy_vault_ref(chip: Dict[str, Any], ctx: Dict[str, Any], spec:
 
 
 def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """X Money / Morpho HY / USDG always appear (locked seeds); books override APY.
+    """X Money / Morpho HY / USDG / Bitcoin / Agentic Fund always appear.
 
     Morpho HY product chip: settings > product_apy > seed 7%. Naked vault
     GraphQL ``vault_apy`` is reference only and must not paint the chip.
     USDG HY still walks ``settings_paths`` before live ``paths``.
+    Bitcoin / Agentic Fund: settings > dedicated CAGR field > seed.
+    Generic equity / BTC expected-return fields stay off those chips.
     """
     chips: List[Dict[str, Any]] = []
     for spec in LOCKED_YIELD_SEEDS:
@@ -679,6 +758,11 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "placed": True,
             "rate_pct": float(spec["rate_pct"]),
         }
+        if spec.get("detail"):
+            chip["detail"] = spec["detail"]
+        if spec.get("cagr_as_apy"):
+            chip["cagr_as_apy"] = True
+            chip["rate_basis"] = CAGR_AS_APY_LABEL
         unit = str(spec.get("unit") or "fraction")
         rate, hit = _first_apy_hit(ctx, spec.get("settings_paths") or (), unit=unit)
         from_settings = rate is not None
@@ -694,7 +778,7 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
                     notes = f"{notes} · FCC settings override"
                 else:
                     notes = f"{notes} · product_apy"
-            elif spec["id"] == "usdg_earn" and notes:
+            elif spec["id"] in ("usdg_earn", BITCOIN_ID, AGENTIC_FUND_ID) and notes:
                 if from_settings:
                     notes = f"{notes} · FCC settings override"
                 else:
@@ -702,6 +786,10 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             if spec["id"] == "usdg_earn":
                 notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
             chip["notes"] = notes
+        if spec.get("cagr_as_apy"):
+            notes = chip.get("notes")
+            if CAGR_AS_APY_NOTE not in str(notes or ""):
+                chip["notes"] = f"{notes} · {CAGR_AS_APY_NOTE}" if notes else CAGR_AS_APY_NOTE
         if spec["id"] == "morpho_hy":
             _attach_morpho_hy_vault_ref(chip, ctx, spec)
         notional = _first_number(ctx, spec.get("notional_paths") or ())

@@ -168,7 +168,10 @@
         Shared APR/APY axis: <strong>0%</strong> left → <strong>~30%</strong> right
         (cap at One Card / highest contractual rate). Debt cost above the axis;
         asset yield below. Locked yield seeds always show (X Money 6%, Morpho HY 7%,
-        USDG 7%). Morpho borrow precedence: FCC settings manual &gt; live Morpho
+        USDG 7%, Bitcoin 30%, Agentic Fund 15%). Bitcoin and Agentic Fund are
+        <strong>est. CAGR used as APY</strong> — not fixed cash rates. Settings
+        override beats seed when set. These two CAGR lines only; a general equity
+        axis stays off this page. Morpho borrow precedence: FCC settings manual &gt; live Morpho
         GraphQL marketById avgBorrowApy (cbBTC/USDC / Base) &gt; seed ~5%.
         Morpho HY product chip: FCC settings manual &gt; product_apy
         (Coinbase One / in-app when honest) &gt; seed 7%. Morpho GraphQL
@@ -178,8 +181,8 @@
         manual &gt; live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
         Chain) &gt; seed 7% + Gold-cancel caveat — do not invent rates.
         JR-strcUSX is a spectrum chip only (~20% target unless a live Solstice
-        quote is already on the snapshot). Chip size is not a balance. Equity / BTC appreciation
-        stays off this page. Wells / 20 Tesla stays off FCC.
+        quote is already on the snapshot). Chip size is not a balance.
+        Wells / 20 Tesla stays off FCC.
       </p>
       <div class="axis-wrap">
         <div class="spectrum" id="spectrum" data-layout="two_lane">
@@ -321,10 +324,12 @@
           ? ` href="${esc(href)}"${chip.deep_link === "fleet" ? " data-nav-fleet" : ""}`
           : "";
         const sub = fmtNotional(chip);
+        const basis = chip.rate_basis || "";
         const el = document.createElement("div");
         el.innerHTML = `<${tag} class="chip ${esc(chip.kind)} ${chip.kind === "yield" ? "below" : "above"}"${extra} style="left:${leftPct}%;top:${top}px">
           <span class="who">${esc(chip.venue || chip.label)}</span>
           <span class="rate">${esc(fmtRate(chip))}</span>
+          ${basis ? `<span class="subn">${esc(basis)}</span>` : ""}
           ${sub ? `<span class="subn">${esc(sub)}</span>` : ""}
         </${tag}>`;
         stage.appendChild(el.firstElementChild);
@@ -341,7 +346,7 @@
       const uroot = document.getElementById("unknown-row");
       const ucard = document.getElementById("unknown-card");
       if (!unknown.length) {
-        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. JR-strcUSX uses a ~20% target unless a live Solstice quote is already on the snapshot.</p>`;
+        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. Bitcoin and Agentic Fund stay est. CAGR as APY (not fixed cash rates). JR-strcUSX uses a ~20% target unless a live Solstice quote is already on the snapshot.</p>`;
         if (ucard) ucard.classList.remove("hidden");
       } else {
         uroot.innerHTML = unknown
