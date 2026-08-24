@@ -132,8 +132,12 @@ from rt_dashboard.nutrition_planner import (  # noqa: E402
     update_ingredient,
     update_targets,
 )
+from rt_dashboard.inventory_store import (  # noqa: E402
+    load_preview_inventory,
+    persist_inventory,
+    inventory_source_fields,
+)
 from rt_dashboard.nutrition_store import (  # noqa: E402
-    INVENTORY_PATH,
     TARGETS_PATH,
     load_inventory_and_targets,
     write_nutrition_file,
@@ -488,6 +492,12 @@ def load_dashboard_data(
             "sources": {"inventory": "error", "targets": "error"},
         }
         errors.append(f"nutrition_store: {e}")
+    # Named pantry SoT (same contract as public FitDash). Targets stay file/GH.
+    inv, inv_src = load_preview_inventory(str(uid or ""))
+    nut["inventory"] = inv
+    sources = dict(nut.get("sources") or {})
+    sources.update(inventory_source_fields(inv_src))
+    nut["sources"] = sources
 
     # --- Cached remote layers ---
     health_client = GoogleHealthClient()
@@ -991,9 +1001,9 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
     uid = user_id
     try:
         if kind == "set_stock":
-            store = load_inventory_and_targets(client)
+            inv, _src = load_preview_inventory(str(uid or ""))
             ident = str(action.get("id_or_name") or "").strip()
-            inv = store["inventory"] or {"ingredients": []}
+            inv = inv or {"ingredients": []}
             match_id = ""
             match_name = ""
             for ing in inv.get("ingredients") or []:
@@ -1012,10 +1022,10 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
             updated = set_in_stock(
                 inv, ingredient_id=match_id, in_stock=bool(action.get("in_stock"))
             )
-            write = write_nutrition_file(
-                client,
-                INVENTORY_PATH,
+            write = persist_inventory(
                 updated,
+                str(uid or ""),
+                file_client=client,
                 message=f"nutrition: stock via coach {match_id}",
             )
             return {
@@ -1647,16 +1657,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/inventory/add":
             try:
                 body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=True)
-                store = load_inventory_and_targets(client)
-                updated = add_ingredient(store["inventory"], body)
-                write = write_nutrition_file(
-                    client,
-                    INVENTORY_PATH,
+                current, _src = load_preview_inventory(str(uid))
+                updated = add_ingredient(current, body)
+                write = persist_inventory(
                     updated,
+                    str(uid),
+                    file_client=client,
                     message=f"nutrition: add/update ingredient {body.get('name', '')}",
                 )
-                self._send_json({"ok": True, "inventory": updated, "write": write})
+                self._send_json(
+                    {"ok": True, "inventory": write.get("inventory") or updated, "write": write}
+                )
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
@@ -1665,16 +1678,19 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/inventory/update":
             try:
                 body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=True)
-                store = load_inventory_and_targets(client)
-                updated = update_ingredient(store["inventory"], body)
-                write = write_nutrition_file(
-                    client,
-                    INVENTORY_PATH,
+                current, _src = load_preview_inventory(str(uid))
+                updated = update_ingredient(current, body)
+                write = persist_inventory(
                     updated,
+                    str(uid),
+                    file_client=client,
                     message=f"nutrition: edit ingredient {body.get('id') or body.get('name', '')}",
                 )
-                self._send_json({"ok": True, "inventory": updated, "write": write})
+                self._send_json(
+                    {"ok": True, "inventory": write.get("inventory") or updated, "write": write}
+                )
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
@@ -1683,20 +1699,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/inventory/remove":
             try:
                 body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=True)
-                store = load_inventory_and_targets(client)
+                current, _src = load_preview_inventory(str(uid))
                 updated = remove_ingredient(
-                    store["inventory"],
+                    current,
                     ingredient_id=str(body.get("id") or ""),
                     name=str(body.get("name") or ""),
                 )
-                write = write_nutrition_file(
-                    client,
-                    INVENTORY_PATH,
+                write = persist_inventory(
                     updated,
+                    str(uid),
+                    file_client=client,
                     message=f"nutrition: remove ingredient {body.get('id') or body.get('name')}",
                 )
-                self._send_json({"ok": True, "inventory": updated, "write": write})
+                self._send_json(
+                    {"ok": True, "inventory": write.get("inventory") or updated, "write": write}
+                )
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:
@@ -1705,20 +1724,23 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/inventory/stock":
             try:
                 body = self._read_json()
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id") or ""
                 client = build_github_client(for_write=True)
-                store = load_inventory_and_targets(client)
+                current, _src = load_preview_inventory(str(uid))
                 updated = set_in_stock(
-                    store["inventory"],
+                    current,
                     ingredient_id=str(body.get("id") or ""),
                     in_stock=bool(body.get("in_stock", True)),
                 )
-                write = write_nutrition_file(
-                    client,
-                    INVENTORY_PATH,
+                write = persist_inventory(
                     updated,
+                    str(uid),
+                    file_client=client,
                     message=f"nutrition: stock {'on' if body.get('in_stock') else 'off'} {body.get('id')}",
                 )
-                self._send_json({"ok": True, "inventory": updated, "write": write})
+                self._send_json(
+                    {"ok": True, "inventory": write.get("inventory") or updated, "write": write}
+                )
             except (ValueError, json.JSONDecodeError) as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
             except Exception as e:

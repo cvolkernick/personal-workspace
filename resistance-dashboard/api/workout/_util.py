@@ -282,8 +282,19 @@ def meal_plan_body(headers, payload=None):
     status, dashboard = dashboard_body(headers)
     if status != 200:
         return status, dashboard
-    plan = (dashboard.get("nutrition_store") or {}).get("meal_plan") or {}
-    return 200, {"ok": True, "plan": plan, "action": "refresh_meal_plan"}
+    nut = dashboard.get("nutrition_store") or {}
+    plan = nut.get("meal_plan") or {}
+    src = nut.get("sources") or {}
+    return 200, {
+        "ok": True,
+        "plan": plan,
+        "action": "refresh_meal_plan",
+        "sources": {
+            "inventory": src.get("inventory"),
+            "inventory_sot": src.get("inventory_sot"),
+            "inventory_fallback": src.get("inventory_fallback"),
+        },
+    }
 
 
 def refresh_body(headers, payload=None):

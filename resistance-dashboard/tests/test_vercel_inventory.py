@@ -139,6 +139,22 @@ class EmptyTursoSeedsFromFile(unittest.TestCase):
         self.assertFalse(inv["ingredients"][0]["in_stock"])
         self.assertEqual(puts, [])
 
+    def test_stored_empty_row_is_sot_not_reseeded(self):
+        puts = []
+        with mock.patch(
+            "rt_dashboard.turso_http.turso_enabled", return_value=True
+        ), mock.patch(
+            "rt_dashboard.inventory_store._turso_get_inventory",
+            return_value={"ingredients": []},
+        ), mock.patch(
+            "rt_dashboard.inventory_store._turso_put_inventory",
+            side_effect=lambda uid, inv: puts.append((uid, inv)),
+        ):
+            inv, src = load_preview_inventory("sub-1")
+        self.assertEqual(src, "turso")
+        self.assertEqual(inv["ingredients"], [])
+        self.assertEqual(puts, [])
+
 
 class KitchenWrites(unittest.TestCase):
     def _headers(self):
@@ -526,6 +542,8 @@ class DashboardInventoryPayload(unittest.TestCase):
         self.assertEqual(status, 200)
         nut = body["nutrition_store"]
         self.assertEqual(nut["sources"]["inventory"], INVENTORY_PATH)
+        self.assertEqual(nut["sources"]["inventory_sot"], INVENTORY_PATH)
+        self.assertEqual(nut["sources"]["inventory_fallback"], "turso_dark")
         self.assertNotEqual(nut["sources"]["inventory"], "unset")
         self.assertEqual(len(nut["inventory"]["ingredients"]), 15)
 

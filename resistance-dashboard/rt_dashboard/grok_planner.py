@@ -245,8 +245,8 @@ def generate_grok_plans(
             "ignore_catalog_default_sets": True,
         },
         "notes": (
-            "Inventory is unset (Pi pantry is dark). Do not invent staples "
-            "the user owns. Meal ideas may use remaining macros + logged foods only. "
+            "PANTRY IS EMPTY OR MISSING. Return meal items=[] meals=[]. "
+            "Do not invent food, meals, or ingredients. "
             "Workout must use goals (PPL split / DeanT volume) + catalog names + "
             "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
             "generate a rest day as today's plan (that still fills the slot). "
@@ -269,7 +269,24 @@ def generate_grok_plans(
             }
             for i in owned_equipment_items(equipment)
         ]
-    if inventory is not None:
+    from .meal_plan_store import pantry_is_dark
+
+    inv_for_meal = inventory if isinstance(inventory, dict) else None
+    if pantry_is_dark(inv_for_meal):
+        user_block["inventory"] = []
+        user_block["notes"] = (
+            "PANTRY IS EMPTY OR MISSING. Return meal items=[] meals=[]. "
+            "Do not invent food, meals, or ingredients. "
+            "Workout must use goals (PPL split / DeanT volume) + catalog names + "
+            "recent_sessions + recovery. rest_if_recovery_below is INPUT: you MAY "
+            "generate a rest day as today's plan (that still fills the slot). "
+            "Do not omit next_session_type. No canned plan. No fake inventory. "
+            "Do NOT use catalog default_sets=3. Volume from goals: "
+            "default_hard_sets, DeanT 4-8, session_working_set_cap. "
+            "Workout catalog names are already filtered to owned equipment. "
+            "Do not invent cable/smith/assisted-pullup or loads above max_weight_lbs."
+        )
+    elif inventory is not None:
         from .nutrition_planner import stocked_ingredients
 
         stocked = stocked_ingredients(inventory)
@@ -320,8 +337,9 @@ def generate_grok_plans(
         "- Macros MUST be (portion_g / serving_g) × per-serving macros. "
         "Round grams to ~5g, minimum ~25g.\n"
         "- If serving_g is missing, do not invent grams; use serving_label only.\n"
-        "- If inventory is null, do not assume a pantry or invent owned staples.\n"
-        "- If inventory is empty, return an empty meal and say why.\n"
+        "- If inventory is null or empty, return meal items=[] meals=[]. "
+        "Do not invent food.\n"
+        "- Never use logged foods or remaining macros to invent a pantry.\n"
         "- Workout uses goals.split / rotation, catalog names (already filtered "
         "to owned equipment), recovery, and recent lifts.\n"
         "- Every catalog.equipment tag must be owned. weight_lbs must be "
@@ -410,8 +428,30 @@ def generate_grok_plans(
         "inventory": None,
         "remaining_before_plan": rem,
     }
-    if inventory is not None:
+    from .meal_plan_store import (
+        MSG_NO_IN_STOCK,
+        MSG_PANTRY_UNAVAILABLE,
+        pantry_is_dark,
+    )
+
+    if pantry_is_dark(inventory if isinstance(inventory, dict) else None):
+        meal_out = honest_empty_meal(MSG_PANTRY_UNAVAILABLE, source="pantry")
+        meal_out["pantry_dark"] = True
+        meal_out["in_stock_only"] = True
+        meal_out["stocked_count"] = 0
+        meal_out["remaining_before_plan"] = rem
+    elif inventory is not None:
         meal_out = clamp_meal_to_stock(meal_out, inventory)
+        if meal_out.get("empty") or (
+            not meal_out.get("items")
+            and not any((m.get("items") or []) for m in meal_out.get("meals") or [])
+        ):
+            if (meal_out.get("stocked_count") or 0) == 0:
+                meal_out["items"] = []
+                meal_out["meals"] = []
+                meal_out["message"] = MSG_NO_IN_STOCK
+                meal_out["pantry_dark"] = False
+                meal_out["empty"] = True
     hard = max(1, int((goals or {}).get("default_hard_sets") or 2))
     capped = []
     for ex in exercises:
