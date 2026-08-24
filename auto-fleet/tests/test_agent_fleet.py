@@ -179,6 +179,16 @@ class AgentFleetExportTests(unittest.TestCase):
         self.assertIn("secret_marker", agent_fleet.secret_leaks(dirty))
         with self.assertRaises(RuntimeError):
             agent_fleet.assert_no_secrets(dirty)
+        cookie = {
+            "ok": True,
+            "read_only": True,
+            "cookie": "SID=abc",
+            "units": [],
+        }
+        leaks = agent_fleet.secret_leaks(cookie)
+        self.assertTrue(leaks)
+        with self.assertRaises(RuntimeError):
+            agent_fleet.assert_no_secrets(cookie)
 
     def test_shipped_snapshot_is_stale_empty(self) -> None:
         data = json.loads(SHIPPED_SNAPSHOT.read_text(encoding="utf-8"))
@@ -212,12 +222,43 @@ class SnapshotAllowDenyTests(unittest.TestCase):
             self.assertTrue(loaded["ok"])
             self.assertTrue(loaded["read_only"])
             self.assertEqual(loaded["source"], "snapshot")
+            self.assertTrue(loaded["stale"])
             by_id = {u["id"]: u for u in loaded["units"]}
             self.assertEqual(by_id["m3-2022"]["bookings"][0]["trip_id"], "99112233")
             self.assertEqual(agent_fleet.secret_leaks(loaded), [])
             with mock.patch("sys.stdout"):
                 rc = agent_fleet.main(["--read", "--out", str(dest)])
             self.assertEqual(rc, 0)
+
+    def test_snapshot_read_does_not_fake_freshness(self) -> None:
+        """Cadence AC: snapshot consume is stale — never look live when writer is dark."""
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "agent_fleet.json"
+            fake_fresh = {
+                "ok": True,
+                "read_only": True,
+                "as_of": "2026-08-24T02:00:00+00:00",
+                "stale": False,
+                "stale_reason": None,
+                "source": "inbox",
+                "unit_count": 0,
+                "units": [],
+                "unmatched": [],
+                "inbox": {
+                    "state": "parsed",
+                    "status": "fixture",
+                    "poll_interval_s": 900,
+                    "payout_destination": "X Money",
+                },
+            }
+            dest.write_text(json.dumps(fake_fresh), encoding="utf-8")
+            loaded = agent_fleet.load_snapshot(dest, env={})
+            self.assertIsNotNone(loaded)
+            assert loaded is not None
+            self.assertTrue(loaded["stale"])
+            self.assertEqual(loaded["source"], "snapshot")
+            self.assertIn("not a live writer", str(loaded.get("stale_reason") or ""))
+            self.assertEqual(loaded["units"], [])
 
     def test_inline_snapshot_json_env(self) -> None:
         packet = agent_fleet.export_agent_fleet(inbox_path=MIKES)

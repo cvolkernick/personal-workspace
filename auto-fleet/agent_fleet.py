@@ -77,6 +77,10 @@ SECRET_FIELD_MARKERS = (
     "auto_fleet_service_token",
     "private_key",
     "client_secret",
+    "cookie",
+    "set-cookie",
+    "set_cookie",
+    "session_cookie",
 )
 # Absolute dump paths and env files must not leak in the export.
 _ABS_HOME_RE = re.compile(r"(?:/home/|/Users/)[^\s\"']+/\.config/auto-fleet/")
@@ -94,6 +98,8 @@ _SECRET_LEAK_RE = re.compile(
     r"|GMAIL_CLIENT_SECRET"
     r"|GOOGLE_TASKS_"
     r"|AUTO_FLEET_SERVICE_TOKEN"
+    r"|Set-Cookie:"
+    r"|SID=|HSID=|SSID="
     r")",
     re.MULTILINE,
 )
@@ -446,6 +452,26 @@ def write_snapshot(packet: Mapping[str, Any], dest: Path) -> Path:
     return dest
 
 
+def mark_snapshot_honest(packet: Mapping[str, Any]) -> dict[str, Any]:
+    """Snapshot is never a live writer read. Do not fake freshness."""
+    out = dict(packet)
+    source = str(out.get("source") or "snapshot")
+    if source in ("empty", "empty_fixture"):
+        out["stale"] = True
+        out.setdefault(
+            "stale_reason",
+            "prism/writer dark — shipped empty fixture, no invented trips",
+        )
+        return out
+    out["source"] = "snapshot"
+    if not out.get("stale"):
+        out["stale"] = True
+        out["stale_reason"] = (
+            "published snapshot — not a live writer read; do not treat as fresh"
+        )
+    return out
+
+
 def _load_snapshot_json(raw: str) -> Optional[dict[str, Any]]:
     try:
         data = json.loads(raw)
@@ -458,7 +484,7 @@ def _load_snapshot_json(raw: str) -> Optional[dict[str, Any]]:
     leaks = secret_leaks(data)
     if leaks:
         return None
-    return data
+    return mark_snapshot_honest(data)
 
 
 def load_snapshot(
