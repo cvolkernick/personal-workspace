@@ -2,6 +2,12 @@
 
 Never requests a private key. JR-strcUSX is DC-credit parlay — not HY / LTV
 defense and not working USDC.
+
+JR APY (#309): snapshot fields ``jr_strcusx_apy`` / ``solstice_apy`` /
+``strcusx_apy`` are populated only from a verified public/docs JSON
+source. None exists today (partner Bearer API + HTML attestation) — see
+``treasury/solstice_jr_sync.py``. Soft-fail leaves those fields None.
+Never persist the ~20% docs_target. Wallet balances are not an APY.
 """
 
 from __future__ import annotations
@@ -15,6 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from treasury.adapters import SNAPSHOTS_DIR, load_config, load_json, save_json
+from treasury.solstice_jr_sync import attach_solstice_jr_apy, empty_solstice_jr_fields
 
 TOKEN_PROGRAM = "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
 TOKEN_2022_PROGRAM = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
@@ -162,6 +169,7 @@ def _empty_result(cfg: Dict[str, Any], *, err: str, source: str = "empty") -> Di
         "jr_strcusx": 0.0,
         "jr_strcusx_usd_price": None,
         "jr_strcusx_usd": 0.0,
+        **empty_solstice_jr_fields(),
         "book_usd": 0.0,
         "counts_toward_hy": False,
         "counts_toward_ltv_defense": False,
@@ -249,6 +257,7 @@ def normalize_solana_book(
         "jr_strcusx": jr_amt,
         "jr_strcusx_usd_price": jr_px,
         "jr_strcusx_usd": (jr_amt * jr_px) if jr_px is not None else 0.0,
+        **empty_solstice_jr_fields(),
         "book_usd": book_usd,
         "counts_toward_hy": False,
         "counts_toward_ltv_defense": False,
@@ -327,12 +336,16 @@ def fetch_solana(
     cfg = solana_config(config)
     snap = snapshot_path or (SNAPSHOTS_DIR / SNAPSHOT_NAME)
     err = None
+    prior = load_json(snap) if snap.is_file() else None
     if prefer_live:
         live, err = fetch_solana_live(config=config)
         if live is not None:
             live["counts_toward_hy"] = False
             live["counts_toward_ltv_defense"] = False
             live["counts_toward_working_usdc"] = bool(cfg["counts_toward_working_usdc"])
+            # Wallet RPC is not an APY source. Preserve a prior verified quote;
+            # otherwise leave jr_strcusx_apy / solstice_apy None (docs_target).
+            live = attach_solstice_jr_apy(live, prior=prior if isinstance(prior, dict) else None)
             write_solana_snapshot(live, snap)
             return live
     file_data = load_json(snap)
@@ -345,8 +358,10 @@ def fetch_solana(
         out["counts_toward_ltv_defense"] = False
         if err:
             out["live_error"] = err
+        out = attach_solstice_jr_apy(out, prior=out)
         return out
-    return _empty_result(cfg, err=err or "no solana snapshot — run treasury/solana_sync.py")
+    empty = _empty_result(cfg, err=err or "no solana snapshot — run treasury/solana_sync.py")
+    return attach_solstice_jr_apy(empty, prior=prior if isinstance(prior, dict) else None)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -368,6 +383,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                 "sol": book.get("sol"),
                 "usdc": book.get("usdc"),
                 "jr_strcusx": book.get("jr_strcusx"),
+                "jr_strcusx_apy": book.get("jr_strcusx_apy"),
+                "solstice_apy": book.get("solstice_apy"),
+                "jr_strcusx_apy_error": book.get("jr_strcusx_apy_error"),
                 "out": str(path),
                 "live_error": book.get("live_error"),
             },

@@ -391,6 +391,14 @@ def build_snapshot(
                     "0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836; "
                     "soft-fail; no scrape). Principal/LTV app-only. Do not invent rates."
                 ),
+                "solstice_jr": (
+                    "JR-strcUSX APY on solana snapshot (jr_strcusx_apy / "
+                    "solstice_apy / strcusx_apy). Public/docs JSON field "
+                    "blocked 2026-08-24 — api.solstice.finance/v1 is partner "
+                    "Bearer + instruction endpoints only; attestation is HTML "
+                    "(scrape rejected). Soft-fail leaves fields None; spectrum "
+                    "stays ~20% docs_target. Do not invent a live print."
+                ),
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
                 "expenses": "google sheet: Personal=upcoming estimates; Discretionary=capital targets",

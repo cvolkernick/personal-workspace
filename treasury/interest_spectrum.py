@@ -50,6 +50,15 @@ Morpho borrow precedence (settings > live books > seed):
      ``0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836``)
   3. Seed ~5%
 
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
+  Not a locked seed. Live Solstice quote only if already on the
+  FCC/solana snapshot (``jr_strcusx_apy`` / ``solstice_apy`` /
+  ``strcusx_apy``). Else ~20% docs_target.
+  Populate only from a verified public/docs JSON field. None found:
+  partner Bearer API (instruction endpoints only) + HTML attestation.
+  Soft-fail: leave snapshot APY None; chip stays docs_target.
+  Do not invent a live print. No wallet notional. No HTML scrape.
+
 Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 """
 
@@ -285,7 +294,9 @@ YIELD_VENUES = LOCKED_YIELD_SEEDS
 USDG_GOLD_CAVEAT = "may end when RH Gold cancels — do not invent a post-Gold rate"
 
 # JR-strcUSX is not a locked seed. Live Solstice quote only if already on the
-# FCC/solana snapshot — no scrape. Else ~20% target (docs), spectrum chip only.
+# FCC/solana snapshot — no scrape, no partner-key invent. Else ~20% target
+# (docs), spectrum chip only. Populate path: treasury/solstice_jr_sync.py
+# (source blocked 2026-08-24 — see SOURCE_BLOCKER there).
 JR_STRCUSX_ID = "jr_strcusx"
 JR_TARGET_PCT = 20.0
 JR_TARGET_LABEL = "~20% target"
