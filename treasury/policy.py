@@ -412,6 +412,19 @@ def evaluate_treasury(
                 rh_usdg_earn_apy_est = None
             else:
                 break
+    # Live Morpho borrow APR from GraphQL poller (snapshot.morpho_borrow).
+    # Settings override stays on config.coinbase_manual and is not copied
+    # here so spectrum can keep settings > live > seed distinct.
+    mb = snapshot.get("morpho_borrow") if isinstance(snapshot.get("morpho_borrow"), dict) else {}
+    variable_apr = None
+    for key in ("apr", "variable_apr", "avg_borrow_apy", "apy_est", "apy"):
+        if not _is_missing(mb.get(key)):
+            try:
+                variable_apr = float(mb.get(key))
+            except (TypeError, ValueError):
+                variable_apr = None
+            else:
+                break
     rh_usdg_earn_usdg = None
     if not _is_missing(rh.get("usdg_earn_usdg")):
         rh_usdg_earn_usdg = _f(rh.get("usdg_earn_usdg"))
@@ -834,6 +847,7 @@ def evaluate_treasury(
             "collateral_btc_usd": coll_usd if coll_usd else None,
             "vault_usdc": vault_usdc if vault_known else None,
             "vault_apy": vault_apy,
+            "variable_apr": variable_apr,
             "rh_usdg_earn_apy_est": rh_usdg_earn_apy_est,
             "rh_usdg_earn_usdg": rh_usdg_earn_usdg,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
