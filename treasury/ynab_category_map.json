@@ -1,15 +1,28 @@
 {
   "schema_version": 0,
-  "budget_id": "",
+  "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
+  "as_of": "2026-08-24T06:33:00+00:00",
   "allow_approve": true,
   "allow_categorize": true,
-  "forbid": [
-    "transfer",
-    "payment",
-    "move_money"
+  "forbid": ["move_money", "payment", "transfer"],
+  "categories": [
+    {"id": "673dd47d-f51f-4eae-9f92-c99d26371e0a", "name": "Inflow: Ready to Assign", "group_id": "2cca7b90-66a6-40ec-ba3c-a7939a67b25a", "group_name": "Internal Master Category", "hidden": false, "enabled": false},
+    {"id": "dec5f65e-bcf4-4d6f-be1d-f4407b1cc2ea", "name": "Uncategorized", "group_id": "2cca7b90-66a6-40ec-ba3c-a7939a67b25a", "group_name": "Internal Master Category", "hidden": false, "enabled": false},
+    {"id": "81749817-8a3e-4082-a395-eb940c1bc9f0", "name": "Coinbase One Card – 5361", "group_id": "e2678bbb-5154-4ba2-ae29-0b0bf4551adc", "group_name": "Credit Card Payments", "hidden": false, "enabled": false},
+    {"id": "c6a38db3-9d35-4b23-b816-ac2736398014", "name": "🏠 Rent/Mortgage", "group_id": "fe310cf5-ffb7-47d1-8b41-1e551d80fa98", "group_name": "Bills", "hidden": false, "enabled": true},
+    {"id": "f729a02b-6bb4-4377-9769-ca7bd9903e2b", "name": "📱 Phone & Internet", "group_id": "fe310cf5-ffb7-47d1-8b41-1e551d80fa98", "group_name": "Bills", "hidden": false, "enabled": true},
+    {"id": "07502e63-1dbf-4bf6-b197-5c3ca4644d94", "name": "⚡️ Utilities", "group_id": "fe310cf5-ffb7-47d1-8b41-1e551d80fa98", "group_name": "Bills", "hidden": false, "enabled": true},
+    {"id": "84dca455-47c7-4f29-8118-7f8991e5438a", "name": "🛒 Groceries", "group_id": "dc9c7ff7-3e4f-4619-bb0a-3540bd18346e", "group_name": "Needs", "hidden": false, "enabled": true},
+    {"id": "ca2736c0-5573-44e5-af62-8625b4534ace", "name": "🚙 Transportation", "group_id": "dc9c7ff7-3e4f-4619-bb0a-3540bd18346e", "group_name": "Needs", "hidden": false, "enabled": true},
+    {"id": "e47259cb-34c7-485b-bffd-b92b6461c825", "name": "🩺 Medical expenses", "group_id": "dc9c7ff7-3e4f-4619-bb0a-3540bd18346e", "group_name": "Needs", "hidden": false, "enabled": true},
+    {"id": "4a304235-8422-4019-873c-6e4efc994c72", "name": "😌 Emergency fund", "group_id": "dc9c7ff7-3e4f-4619-bb0a-3540bd18346e", "group_name": "Needs", "hidden": false, "enabled": true},
+    {"id": "174d5f7b-232b-402a-9911-0d75d9ee8994", "name": "🍽️ Dining out", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
+    {"id": "d5ba566f-8c1b-47af-a313-683187226904", "name": "🍿 Entertainment", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
+    {"id": "346c7801-13a1-4ce3-ac90-ce625ead9539", "name": "🏝️ Vacation", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
+    {"id": "6dedac49-c925-4528-93f6-f27cdef48233", "name": "❗️ Stuff I forgot to plan for", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true},
+    {"id": "bf7c5065-838f-43bf-b227-419b97298a1c", "name": "🌳 YNAB subscription", "group_id": "ce080a4f-8b00-463a-a190-2f0a18d4e0f2", "group_name": "Wants", "hidden": false, "enabled": true}
   ],
-  "categories": [],
   "payee_rules": [],
-  "notes": "v0 SoT (#340). budget_id is left blank until treasury/ynab_category_map_bootstrap.py fills it via GET /budgets (draft only: treasury/ynab_category_map.draft.json). Bootstrap does not overwrite this file without --overwrite-sot. categories[].id must come from YNAB GET /budgets/{id}/categories — never invent ids. Write helpers may PATCH category + approve only for enabled ids. Hard no transfer/payment/move_money without an explicit later order."
+  "notes": "SoT pinned 2026-08-24 (Chris via Grok; Nakatoshi judgement). budget_id set. Enable 12 Bills/Needs/Wants; keep off Internal RTA, Uncategorized, CC Payment (hard-no payments). Ids from YNAB GET only — no invent. payee_rules empty until v1. Live categorize only after eng-gate + dry-run smoke."
 }
