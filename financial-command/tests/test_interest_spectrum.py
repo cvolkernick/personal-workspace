@@ -19,6 +19,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.interest_spectrum import (  # noqa: E402
+    AGENTIC_FUND_ID,
+    BITCOIN_ID,
+    EST_CAGR_IDS,
+    EST_CAGR_KIND,
+    EST_CAGR_LABEL,
+    EST_CAGR_NOTE,
     JR_STRCUSX_ID,
     JR_TARGET_LABEL,
     JR_TARGET_PCT,
@@ -118,6 +124,45 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("Gold", spec["notes"])
         self.assertIn(USDG_GOLD_CAVEAT, spec["notes"])
 
+    def test_bitcoin_settings_paths_precede_generic_expected_return(self) -> None:
+        spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == BITCOIN_ID)
+        self.assertAlmostEqual(spec["rate_pct"], 30.0)
+        self.assertTrue(spec["est_cagr"])
+        self.assertEqual(spec["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(spec["detail"], EST_CAGR_NOTE)
+        settings = list(spec["settings_paths"])
+        live = list(spec.get("paths") or ())
+        self.assertEqual(settings[0], ("config", "coinbase_manual", "bitcoin_cagr_est"))
+        self.assertIn(("config", "coinbase_manual", "btc_cagr_est"), settings)
+        self.assertEqual(live, [])
+        self.assertNotIn(("evaluation", "inputs", "btc_expected_return"), live)
+        self.assertNotIn(("evaluation", "inputs", "assumed_return"), live)
+        self.assertNotIn(("snapshot", "coinbase_manual", "btc_assumed_return"), live)
+        self.assertNotIn(("evaluation", "inputs", "bitcoin_cagr_apy_est"), settings)
+        self.assertIn(EST_CAGR_NOTE, spec["notes"])
+        self.assertIn("not cash APR/APY", spec["notes"])
+        self.assertIn("settings", spec["notes"])
+        self.assertIn("seed", spec["notes"])
+
+    def test_agentic_fund_settings_paths_precede_generic_expected_return(self) -> None:
+        spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == AGENTIC_FUND_ID)
+        self.assertAlmostEqual(spec["rate_pct"], 15.0)
+        self.assertTrue(spec["est_cagr"])
+        self.assertEqual(spec["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(spec["detail"], EST_CAGR_NOTE)
+        settings = list(spec["settings_paths"])
+        live = list(spec.get("paths") or ())
+        self.assertEqual(settings[0], ("config", "robinhood", "agentic_fund_cagr_est"))
+        self.assertIn(("config", "robinhood", "agentic_cagr_est"), settings)
+        self.assertEqual(live, [])
+        self.assertNotIn(("evaluation", "inputs", "equity_expected_return"), live)
+        self.assertNotIn(("evaluation", "inputs", "assumed_return"), live)
+        self.assertNotIn(("snapshot", "robinhood", "expected_return"), live)
+        self.assertIn(EST_CAGR_NOTE, spec["notes"])
+        self.assertIn("not cash APR/APY", spec["notes"])
+        self.assertIn("settings", spec["notes"])
+        self.assertIn("seed", spec["notes"])
+
     def test_two_lane_axis_and_locked_seeds(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -136,6 +181,8 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertGreaterEqual(payload["axis"]["max_pct"], 29)
         self.assertEqual(payload["axis"]["ticks"], list(SEED_TICKS_PCT))
         self.assertTrue(payload["policy"]["apr_apy_only"])
+        self.assertTrue(payload["policy"]["est_cagr_exception"])
+        self.assertEqual(payload["policy"]["est_cagr_ids"], [BITCOIN_ID, AGENTIC_FUND_ID])
         self.assertFalse(payload["policy"]["equity_btc_assumed_return"])
         self.assertFalse(payload["policy"]["invented_rates"])
         self.assertFalse(payload["policy"]["wells_is_fcc_liability"])
@@ -187,6 +234,32 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("Gold", by_id["usdg_earn"]["notes"])
         self.assertIn("cancel", by_id["usdg_earn"]["notes"].lower())
         self.assertIn(USDG_GOLD_CAVEAT, by_id["usdg_earn"]["notes"])
+
+        btc = by_id[BITCOIN_ID]
+        self.assertAlmostEqual(btc["rate_pct"], 30.0)
+        self.assertTrue(btc["est_cagr"])
+        self.assertEqual(btc["rate_kind"], EST_CAGR_KIND)
+        self.assertNotEqual(btc["rate_kind"], "APY")
+        self.assertEqual(btc["rate_basis"], EST_CAGR_LABEL)
+        self.assertEqual(btc["detail"], EST_CAGR_NOTE)
+        self.assertIn(EST_CAGR_NOTE, btc["notes"])
+        self.assertEqual(btc["deep_link"], "index.html#bitcoin")
+        self.assertNotIn("notional", btc)
+
+        agentic = by_id[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(agentic["rate_pct"], 15.0)
+        self.assertTrue(agentic["est_cagr"])
+        self.assertEqual(agentic["rate_kind"], EST_CAGR_KIND)
+        self.assertNotEqual(agentic["rate_kind"], "APY")
+        self.assertEqual(agentic["rate_basis"], EST_CAGR_LABEL)
+        self.assertEqual(agentic["detail"], EST_CAGR_NOTE)
+        self.assertIn(EST_CAGR_NOTE, agentic["notes"])
+        self.assertEqual(agentic["deep_link"], "index.html#agentic-fund")
+        self.assertNotIn("notional", agentic)
+        self.assertNotIn("nvda", {c["id"] for c in payload["chips"]})
+        self.assertNotIn("aapl", {c["id"] for c in payload["chips"]})
+        self.assertNotIn("googl", {c["id"] for c in payload["chips"]})
+        self.assertNotIn("be", {c["id"] for c in payload["chips"]})
 
         jr = by_id[JR_STRCUSX_ID]
         self.assertEqual(jr["kind"], "yield")
@@ -267,9 +340,18 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
         self.assertEqual(by_id["usdg_earn"]["source"], "locked_seed")
         self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 7.0)
+        self.assertEqual(by_id[BITCOIN_ID]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id[BITCOIN_ID]["rate_pct"], 30.0)
+        self.assertEqual(by_id[AGENTIC_FUND_ID]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id[AGENTIC_FUND_ID]["rate_pct"], 15.0)
         for chip in payload["chips"]:
             self.assertIn(chip["kind"], ("debt", "yield"))
-            self.assertIn(chip["rate_kind"], ("APR", "APY"))
+            if chip["id"] in EST_CAGR_IDS:
+                self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+                self.assertTrue(chip.get("est_cagr"))
+            else:
+                self.assertIn(chip["rate_kind"], ("APR", "APY"))
+                self.assertFalse(chip.get("est_cagr"))
             self.assertIn(chip["source"], ("locked_financing", "locked_seed", "books", "docs_target"))
         rates = [c["rate_pct"] for c in payload["placed"]]
         self.assertNotIn(25.0, rates)
@@ -711,6 +793,220 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
         self.assertTrue(rates_are_honest(payload))
 
+    def test_bitcoin_seed_always_shows_with_cagr_label(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 30.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["lane"], "below")
+        self.assertTrue(chip["approx"])
+        self.assertTrue(chip["est_cagr"])
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(chip["rate_basis"], EST_CAGR_LABEL)
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertIn("seed", chip["notes"].lower())
+        self.assertTrue(payload["policy"]["est_cagr_exception"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_agentic_fund_seed_always_shows_with_cagr_label(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 15.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["lane"], "below")
+        self.assertTrue(chip["approx"])
+        self.assertTrue(chip["est_cagr"])
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(chip["rate_basis"], EST_CAGR_LABEL)
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertIn("seed", chip["notes"].lower())
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_bitcoin_settings_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {}}},
+            config={"coinbase_manual": {"bitcoin_cagr_est": 0.22}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 22.0)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertTrue(chip["est_cagr"])
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(chip["rate_basis"], EST_CAGR_LABEL)
+        self.assertIn("config.coinbase_manual.bitcoin_cagr_est", chip["notes"])
+        self.assertIn("settings", chip["notes"].lower())
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_agentic_fund_settings_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {}}},
+            config={"robinhood": {"agentic_fund_cagr_est": 0.18}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 18.0)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertTrue(chip["est_cagr"])
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(chip["rate_basis"], EST_CAGR_LABEL)
+        self.assertIn("config.robinhood.agentic_fund_cagr_est", chip["notes"])
+        self.assertIn("settings", chip["notes"].lower())
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_bitcoin_does_not_invent_live_return(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {"bitcoin_cagr_apy_est": 0.275, "btc_expected_return": 0.25}},
+                "snapshot": {"bitcoin": {"cagr_apy_est": 0.28}, "coinbase_manual": {"btc_assumed_return": 0.33}},
+            },
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 30.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertTrue(chip["est_cagr"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_agentic_fund_does_not_invent_live_return(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {
+                    "inputs": {"agentic_fund_cagr_apy_est": 0.165, "equity_expected_return": 0.10}
+                },
+                "snapshot": {"agentic_fund": {"cagr_apy_est": 0.19}, "robinhood": {"expected_return": 0.11}},
+            },
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 15.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertTrue(chip["est_cagr"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_bitcoin_legacy_settings_key_still_overrides_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"bitcoin_cagr_apy_est": 0.275}}},
+            config={"coinbase_manual": {"bitcoin_cagr_apy_est": 0.31}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 31.0)
+        self.assertEqual(chip["source"], "books")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertIn("config.coinbase_manual.bitcoin_cagr_apy_est", chip["notes"])
+        self.assertNotIn("evaluation.inputs.bitcoin_cagr_apy_est", chip["notes"])
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_agentic_fund_legacy_settings_key_still_overrides_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"agentic_fund_cagr_apy_est": 0.165}}},
+            config={"robinhood": {"agentic_fund_cagr_apy_est": 0.12}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 12.0)
+        self.assertEqual(chip["source"], "books")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertIn("config.robinhood.agentic_fund_cagr_apy_est", chip["notes"])
+        self.assertNotIn("evaluation.inputs.agentic_fund_cagr_apy_est", chip["notes"])
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_bitcoin_blank_settings_stays_on_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"bitcoin_cagr_apy_est": 0.275}}},
+            config={"coinbase_manual": {"bitcoin_cagr_est": None, "btc_cagr_est": ""}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 30.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+
+    def test_agentic_fund_blank_settings_stays_on_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"agentic_fund_cagr_apy_est": 0.165}}},
+            config={"robinhood": {"agentic_fund_cagr_est": None, "agentic_cagr_est": ""}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 15.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
+        self.assertIn(EST_CAGR_NOTE, chip["notes"])
+
+    def test_honesty_rejects_est_cagr_chip_presented_as_cash_apy(self) -> None:
+        payload = build_interest_spectrum(treasury={}, config={}, x_money={}, solana={})
+        by_id = {c["id"]: c for c in payload["chips"]}
+        by_id[BITCOIN_ID]["rate_kind"] = "APY"
+        self.assertFalse(rates_are_honest(payload))
+        by_id[BITCOIN_ID]["rate_kind"] = EST_CAGR_KIND
+        by_id[BITCOIN_ID]["est_cagr"] = False
+        payload["policy"]["est_cagr_exception"] = False
+        self.assertFalse(rates_are_honest(payload))
+
+    def test_cagr_chips_ignore_generic_expected_return_fields(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {
+                    "inputs": {
+                        "btc_expected_return": 0.25,
+                        "equity_expected_return": 0.10,
+                        "assumed_return": 0.12,
+                        "appreciation_pct": 8,
+                    }
+                },
+                "snapshot": {
+                    "robinhood": {"expected_return": 0.11},
+                    "coinbase_manual": {"btc_assumed_return": 0.3},
+                },
+            },
+            config={},
+            x_money={},
+            solana={},
+        )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertEqual(by_id[BITCOIN_ID]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id[BITCOIN_ID]["rate_pct"], 30.0)
+        self.assertEqual(by_id[AGENTIC_FUND_ID]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id[AGENTIC_FUND_ID]["rate_pct"], 15.0)
+        self.assertTrue(by_id[BITCOIN_ID]["est_cagr"])
+        self.assertTrue(by_id[AGENTIC_FUND_ID]["est_cagr"])
+        self.assertEqual(by_id[BITCOIN_ID]["rate_kind"], EST_CAGR_KIND)
+        self.assertEqual(by_id[AGENTIC_FUND_ID]["rate_kind"], EST_CAGR_KIND)
+        self.assertFalse(payload["policy"]["equity_btc_assumed_return"])
+        self.assertTrue(payload["policy"]["est_cagr_exception"])
+        self.assertTrue(rates_are_honest(payload))
+
     def test_coach_is_not_wired_even_if_stub_has_a_number(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -747,6 +1043,14 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn("avgBorrowApy", html)
         self.assertIn("seed ~5%", html)
         self.assertIn("Gold-cancel", html)
+        self.assertIn("Bitcoin 30%", html)
+        self.assertIn("Agentic Fund 15%", html)
+        self.assertIn("est. CAGR", html)
+        self.assertIn("not cash APR/APY", html)
+        self.assertIn("est_cagr", html)
+        self.assertIn("rate_basis", html)
+        self.assertNotIn("est. CAGR used as APY", html)
+        self.assertNotIn("est. CAGR as APY", html)
         self.assertNotIn("Yield venues appear only when", html)
         self.assertNotIn("Coach threshold", html)
         self.assertNotIn("coach X", html)
@@ -775,7 +1079,13 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn('id="morpho"', html)
         self.assertIn('id="hy"', html)
         self.assertIn('id="x-money"', html)
+        self.assertIn('id="bitcoin"', html)
+        self.assertIn('id="agentic-fund"', html)
         self.assertIn('id="panel-solana"', html)
+        self.assertIn('id="m-btc-cagr"', html)
+        self.assertIn('id="m-agentic-cagr"', html)
+        self.assertIn("bitcoin_cagr_est", html)
+        self.assertIn("agentic_fund_cagr_est", html)
         self.assertIn("openFccDeepLink", html)
         self.assertIn("interest-spectrum.html", html)
 
@@ -815,6 +1125,8 @@ class TestInterestSpectrumApi(unittest.TestCase):
         self.assertTrue(set(LOCKED_RATE_BY_ID).issubset(ids))
         self.assertTrue(set(LOCKED_SEED_RATE_BY_ID).issubset(ids))
         self.assertIn(JR_STRCUSX_ID, ids)
+        self.assertIn(BITCOIN_ID, ids)
+        self.assertIn(AGENTIC_FUND_ID, ids)
         self.assertNotIn(WELLS_OFF_FCC_ID, ids)
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("debt", "yield"))
