@@ -144,17 +144,33 @@ def _ynab_categories_payload():
 
 
 class TestSoTSchema(unittest.TestCase):
-    def test_checked_in_map_is_v0_placeholder(self):
+    def test_checked_in_map_is_pinned_sot(self):
         data = load_category_map(MAP_PATH)
         self.assertEqual(data["schema_version"], SCHEMA_VERSION)
         self.assertEqual(data["budget_name"], DEFAULT_BUDGET_NAME)
-        self.assertEqual(data.get("budget_id") or "", "")
+        self.assertEqual(data["budget_id"], "37502ae1-2484-4e3d-90a1-8985d775e86b")
         self.assertTrue(data["allow_approve"])
         self.assertTrue(data["allow_categorize"])
         self.assertTrue(HARD_FORBID.issubset(set(data["forbid"])))
-        self.assertEqual(data["categories"], [])
         self.assertEqual(data["payee_rules"], [])
-        self.assertEqual(enabled_category_ids(data), set())
+        cats = data["categories"]
+        self.assertEqual(len(cats), 15)
+        enabled = [c for c in cats if c.get("enabled") is True]
+        disabled = [c for c in cats if c.get("enabled") is not True]
+        self.assertEqual(len(enabled), 12)
+        self.assertEqual(len(disabled), 3)
+        self.assertEqual(len(enabled_category_ids(data)), 12)
+        self.assertEqual(
+            {c["name"] for c in disabled},
+            {
+                "Inflow: Ready to Assign",
+                "Uncategorized",
+                "Coinbase One Card – 5361",
+            },
+        )
+        for row in cats:
+            cid = str(row.get("id") or "")
+            self.assertRegex(cid, r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
     def test_empty_map_does_not_invent_ids(self):
         m = empty_map()
