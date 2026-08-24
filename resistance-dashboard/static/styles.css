@@ -3151,6 +3151,29 @@ body.m-shell .quest-card {
   line-height: 1.35;
 }
 
+/* #299 Trends weekly AZM — compact 7d trailing sum + optional sparkline */
+.azm-week-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+.azm-week-row .chart-summary-chip {
+  flex: 0 0 auto;
+  min-width: 8.5rem;
+}
+.azm-spark {
+  flex: 1 1 auto;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+}
+.azm-spark-svg {
+  width: 100%;
+  height: 36px;
+  display: block;
+}
+
 @media (max-width: 520px) {
   /* Keep 3 metric chips on one row even on narrow cards */
   .chart-summary-row {
@@ -3854,6 +3877,7 @@ body.m-shell #alerts {
   #volume-trend-note,
   #strength-trend-note,
   #sleep-trend-note,
+  #azm-trend-note,
   #weight-trend-note,
   #hydration-trend-note {
     overflow-wrap: anywhere;

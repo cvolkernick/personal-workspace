@@ -403,7 +403,7 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
         self.assertIn("hidrate-bottle.js?v=bottle-charge-4", html)
-        self.assertIn("styles.css?v=sip-honesty-1", html)
+        self.assertIn("styles.css?v=azm-week-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hidrate_bottle", js)
         self.assertIn("unavailable", js)
