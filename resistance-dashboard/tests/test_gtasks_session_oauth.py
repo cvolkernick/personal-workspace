@@ -619,6 +619,40 @@ class HydrateExistingTasks(unittest.TestCase):
         self.assertEqual(ids["training|group"], "p1")
         self.assertEqual(ids["training|train-today"], "c1")
 
+    def test_hydrate_remaining_protein_by_prefix_not_grams(self):
+        planned = [
+            PlannedGroup(
+                group="nutrition",
+                title="Nutrition",
+                items=[
+                    PlannedItem(
+                        group="nutrition",
+                        slug="remaining-protein",
+                        title="Cover remaining protein (~210 g) from the meal plan",
+                    )
+                ],
+            )
+        ]
+        listed = {
+            "ok": True,
+            "tasks": [
+                {
+                    "id": "nh",
+                    "title": "Nutrition",
+                    "due": "2026-08-24T00:00:00.000Z",
+                },
+                {
+                    "id": "p189",
+                    "title": "Cover remaining protein (~189 g) from the meal plan",
+                    "parent": "nh",
+                    "due": "2026-08-24T00:00:00.000Z",
+                },
+            ],
+        }
+        ids = _hydrate_ids_from_listed({}, planned, listed, "2026-08-24")
+        self.assertEqual(ids["nutrition|group"], "nh")
+        self.assertEqual(ids["nutrition|remaining-protein"], "p189")
+
 
 class NoNewFunction(unittest.TestCase):
     def test_hobby_function_count_stays_at_12(self):

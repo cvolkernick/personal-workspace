@@ -568,6 +568,7 @@ def build_today_board(
     if rem.get("protein_g", 0) > 20:
         actions.append(
             {
+                "id": "remaining-protein",
                 "kind": "nutrition",
                 "priority": 2,
                 "text": (

@@ -279,6 +279,23 @@ class TestCoach(unittest.TestCase):
         self.assertEqual(board["meal"].get("message"), "No in-stock items")
         self.assertEqual(board["meal"].get("empty_reason"), "no_in_stock")
 
+    def test_remaining_protein_action_has_stable_id(self):
+        rec = RecoveryStatus(label="Ready", score=80.0, reasons=[])
+        board = build_today_board(
+            as_of="2026-08-24",
+            recovery=rec,
+            workout_plan={"is_rest_day": False, "session_type": "push", "exercises": []},
+            meal_plan={},
+            consumed={"calories": 0, "protein_g": 0},
+            targets={"calories": 2100, "protein_g": 210},
+            adherence={},
+        )
+        protein = next(
+            a for a in board["actions"] if str(a.get("id") or "") == "remaining-protein"
+        )
+        self.assertEqual(protein["kind"], "nutrition")
+        self.assertTrue(protein["text"].startswith("Cover remaining protein (~210 g)"))
+
     def test_food_commentary_protein_gap(self):
         logs = [
             FoodLogEntry(

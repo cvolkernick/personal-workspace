@@ -41,6 +41,10 @@ MEAL_TITLE_RE = re.compile(
     r"(?:\s·\s[^:]+)?:\s",
     re.I,
 )
+# Nutrition action — title embeds remaining grams, so identity is the prefix
+# plus a stable slug (issue #345). Not a meal-plan leaf.
+REMAINING_PROTEIN_TITLE_RE = re.compile(r"^Cover remaining protein\b", re.I)
+REMAINING_PROTEIN_SLUG = "remaining-protein"
 
 GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
@@ -167,6 +171,57 @@ def is_meal_plan_item(item: PlannedItem) -> bool:
 
 def looks_like_meal_plan_title(title: str) -> bool:
     return bool(MEAL_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_remaining_protein_title(title: str) -> bool:
+    return bool(REMAINING_PROTEIN_TITLE_RE.match((title or "").strip()))
+
+
+def is_remaining_protein_item(item: PlannedItem) -> bool:
+    slug = str(getattr(item, "slug", "") or "")
+    if slug == REMAINING_PROTEIN_SLUG or slug.startswith("remaining-protein"):
+        return True
+    return looks_like_remaining_protein_title(getattr(item, "title", "") or "")
+
+
+def is_remaining_protein_task(task: dict, *, day: str = "") -> bool:
+    """True for FitDash remaining-protein actions — never meal leaves or jots.
+
+    Identity is the title prefix (grams in the title change) plus the quest
+    marker or same-day due. Unmarked hand jots with this exact prefix are
+    treated as FitDash leftovers only when due matches the civil day.
+    """
+    if not isinstance(task, dict):
+        return False
+    if not looks_like_remaining_protein_title(task.get("title") or ""):
+        return False
+    notes = task.get("notes") or ""
+    qday = quest_mark_day(notes)
+    want = str(day or "")[:10]
+    if qday:
+        return (not want) or qday == want
+    due = _task_due_day(task)
+    if due and _is_day_key(due):
+        return (not want) or due == want
+    return False
+
+
+def collect_remaining_protein_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    out: List[dict] = []
+    for task in tasks or []:
+        if not isinstance(task, dict):
+            continue
+        if not is_remaining_protein_task(task, day=day):
+            continue
+        if incomplete_only and not _is_incomplete(task):
+            continue
+        out.append(task)
+    return out
 
 
 def is_meal_plan_owned_task(task: dict, *, day: str = "") -> bool:
@@ -357,6 +412,8 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         if kind == "nutrition" and "planned meal" in text.lower():
             continue
         slug = str(act.get("id") or f"action-{kind}-{i}")
+        if kind == "nutrition" and looks_like_remaining_protein_title(text):
+            slug = REMAINING_PROTEIN_SLUG
         _g(kind).items.append(
             PlannedItem(
                 group=("sleep" if kind == "recovery" else kind),
@@ -517,13 +574,22 @@ def _hydrate_ids_from_listed(
     unused = list(tasks)
     used_ids = {str(v) for v in (ids or {}).values() if v}
 
-    def take(title: str, parent_id: Optional[str] = None) -> Optional[dict]:
+    def take(
+        title: str,
+        parent_id: Optional[str] = None,
+        *,
+        title_prefix: bool = False,
+    ) -> Optional[dict]:
         want = (title or "").strip()
         for i, t in enumerate(unused):
             tid = str(t.get("id") or "")
             if tid and tid in used_ids:
                 continue
-            if (t.get("title") or "").strip() != want:
+            have = (t.get("title") or "").strip()
+            if title_prefix:
+                if not looks_like_remaining_protein_title(have):
+                    continue
+            elif have != want:
                 continue
             due = _task_due_day(t)
             if due and due != day:
@@ -548,7 +614,11 @@ def _hydrate_ids_from_listed(
             ck = cache_key(g.group, it.slug)
             if out.get(ck):
                 continue
-            found = take(it.title, parent_id=parent_id)
+            found = take(
+                it.title,
+                parent_id=parent_id,
+                title_prefix=is_remaining_protein_item(it),
+            )
             if found and found.get("id"):
                 out[ck] = str(found["id"])
                 used_ids.add(str(found["id"]))
@@ -807,6 +877,132 @@ def purge_meal_plan_tasks(
     }
 
 
+def upsert_remaining_protein_tasks(
+    *,
+    list_id: str,
+    day: str,
+    title: str,
+    notes: str = "",
+    listed_tasks: Optional[Sequence[dict]] = None,
+    cache_ids: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
+    """Keep at most one incomplete remaining-protein quest for ``day``.
+
+    Matches the title prefix (grams may change) plus quest marker / due.
+    Updates the keeper title when remaining grams shift. Deletes extra
+    incomplete copies. Completed protein quests are left as history.
+    """
+    day = str(day or "")[:10]
+    title = (title or "").strip()
+    empty = {
+        "ok": True,
+        "keeper_id": None,
+        "purged": [],
+        "updated": False,
+        "failed": 0,
+        "errors": [],
+    }
+    if not list_id or not day or not _is_day_key(day) or not title:
+        return {
+            **empty,
+            "ok": False,
+            "errors": ["missing list_id, day, or title"],
+            "error": "missing list_id, day, or title",
+        }
+    incompletes = collect_remaining_protein_tasks(
+        listed_tasks or [], day=day, incomplete_only=True
+    )
+    if not incompletes:
+        return empty
+
+    cached = {
+        str(tid)
+        for ck, tid in (cache_ids or {}).items()
+        if tid
+        and (
+            str(ck).endswith(f"|{REMAINING_PROTEIN_SLUG}")
+            or str(ck).startswith("nutrition|remaining-protein")
+        )
+    }
+    incompletes.sort(key=lambda t: str(t.get("id") or ""))
+    keeper = None
+    for task in incompletes:
+        tid = str(task.get("id") or "")
+        if tid and tid in cached:
+            keeper = task
+            break
+    if keeper is None:
+        keeper = incompletes[0]
+    keeper_id = str(keeper.get("id") or "")
+    extras = [
+        t for t in incompletes if str(t.get("id") or "") and str(t.get("id")) != keeper_id
+    ]
+
+    errors: List[str] = []
+    failed = 0
+    updated = False
+    want_notes = (notes or "").strip()
+    have_title = str(keeper.get("title") or "").strip()
+    have_notes = str(keeper.get("notes") or "").strip()
+    if keeper_id and (have_title != title or (want_notes and have_notes != want_notes)):
+        try:
+            result = gtb.update_task(
+                list_id,
+                keeper_id,
+                title=title,
+                notes=want_notes or None,
+            )
+            if result.get("ok"):
+                updated = True
+                keeper["title"] = title
+                if want_notes:
+                    keeper["notes"] = want_notes
+            else:
+                failed += 1
+                errors.append(
+                    f"{keeper_id}: {result.get('error') or 'update failed'}"
+                )
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            errors.append(f"{keeper_id}: {exc}")
+
+    purged: List[str] = []
+    for extra in extras:
+        tid = str(extra.get("id") or "")
+        if not tid:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            if result.get("ok"):
+                purged.append(tid)
+            else:
+                failed += 1
+                errors.append(f"{tid}: {result.get('error') or 'delete failed'}")
+        except Exception as exc:  # noqa: BLE001
+            failed += 1
+            errors.append(f"{tid}: {exc}")
+
+    return {
+        "ok": True,
+        "keeper_id": keeper_id or None,
+        "purged": purged,
+        "updated": updated,
+        "failed": failed,
+        "errors": errors[:20],
+        "error": None,
+    }
+
+
+def _planned_remaining_protein_item(
+    planned: Sequence[PlannedGroup],
+) -> Optional[PlannedItem]:
+    for group in planned:
+        for item in group.items:
+            if is_remaining_protein_item(item):
+                return item
+    return None
+
+
 def ensure_daily_tasks(
     today_board: dict,
     *,
@@ -942,6 +1138,42 @@ def ensure_daily_tasks(
                 silent=not purged_ids,
                 error=meal_purge.get("error"),
             )
+
+        protein_item = _planned_remaining_protein_item(planned)
+        protein_upsert = {
+            "keeper_id": None,
+            "purged": [],
+            "updated": False,
+        }
+        if protein_item:
+            protein_upsert = upsert_remaining_protein_tasks(
+                list_id=list_id,
+                day=day,
+                title=protein_item.title,
+                notes=quest_notes(protein_item.notes_extra or "", day),
+                listed_tasks=listed_tasks,
+                cache_ids=ids,
+            )
+            keeper = protein_upsert.get("keeper_id")
+            protein_dropped = set(protein_upsert.get("purged") or [])
+            if keeper:
+                ids[cache_key(protein_item.group, protein_item.slug)] = str(keeper)
+            if protein_dropped:
+                for ck, cached in list(ids.items()):
+                    if cached in protein_dropped:
+                        ids.pop(ck, None)
+                listed_tasks = [
+                    t
+                    for t in listed_tasks
+                    if str(t.get("id") or "") not in protein_dropped
+                ]
+            if keeper:
+                for task in listed_tasks:
+                    if str(task.get("id") or "") == str(keeper):
+                        task["title"] = protein_item.title
+                        break
+            if listed:
+                listed = {"ok": True, "tasks": listed_tasks}
 
         if listed and listed.get("ok"):
             ids = _hydrate_ids_from_listed(ids, planned, listed, day)
@@ -1092,6 +1324,7 @@ def ensure_daily_tasks(
             "summary": {"done": done, "total": total},
             "purge": purge_stats,
             "meal_regen": meal_stats,
+            "protein_upsert": protein_upsert,
             "calendar": calendar,
             "error": None,
         }

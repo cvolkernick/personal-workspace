@@ -412,6 +412,48 @@ def create_task(
     return {"ok": True, "task": _normalize_task(raw, list_id)}
 
 
+def update_task(
+    list_id: str,
+    task_id: str,
+    *,
+    title: Optional[str] = None,
+    notes: Optional[str] = None,
+    due: Optional[str] = None,
+    status: Optional[str] = None,
+    clear_due: bool = False,
+) -> dict[str, Any]:
+    """GET-then-PUT patch (Tasks API update needs the full resource)."""
+    if not list_id or not task_id:
+        return {"ok": False, "error": "missing list_id or task_id"}
+    google = _require_session()
+    lid = urllib.parse.quote(list_id, safe="")
+    tid = urllib.parse.quote(task_id, safe="")
+    raw = _request(google, "GET", f"{TASKS_API}/lists/{lid}/tasks/{tid}")
+    if title is not None:
+        raw["title"] = title.strip()
+    if notes is not None:
+        raw["notes"] = notes
+    if clear_due:
+        raw.pop("due", None)
+    elif due is not None:
+        if due == "" or due is False:
+            raw.pop("due", None)
+        else:
+            raw["due"] = _normalize_due(str(due))
+    if status is not None:
+        if status not in ("needsAction", "completed"):
+            return {"ok": False, "error": "status must be needsAction or completed"}
+        raw["status"] = status
+        if status == "needsAction":
+            raw.pop("completed", None)
+        elif status == "completed":
+            raw["completed"] = _now_iso()
+    updated = _request(
+        google, "PUT", f"{TASKS_API}/lists/{lid}/tasks/{tid}", body=raw
+    )
+    return {"ok": True, "task": _normalize_task(updated, list_id)}
+
+
 def complete_task(
     list_id: str, task_id: str, *, completed: bool = True
 ) -> dict[str, Any]:
