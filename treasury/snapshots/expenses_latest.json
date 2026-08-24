@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-24T14:31:52.691342+00:00",
+  "as_of": "2026-08-24T16:30:12.221996+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -625,9 +625,9 @@
       },
       "items": [
         {
-          "date": "5/21/2026",
+          "date": "6/21/2026",
           "from": "X Money",
-          "item": "Santander (May / June / July)",
+          "item": "Santander (June / July / August)",
           "daily": 36.08,
           "weekly": 252.59,
           "biweekly": 505.18,
@@ -700,19 +700,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "9/20/2026",
-          "from": "X Money",
-          "item": "Sud Stop Car Wash",
-          "daily": 1.31,
-          "weekly": 9.18,
-          "biweekly": 18.35,
-          "monthly": 39.87,
-          "annually": 478.44,
-          "budget_allocation": null,
-          "quarterly": 119.61,
-          "tab": "Fleet"
-        },
-        {
           "date": "9/21/2026",
           "from": "X Money",
           "item": "Fleet Insurance",
@@ -723,6 +710,19 @@
           "annually": 7598.4,
           "budget_allocation": null,
           "quarterly": 1899.6,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/22/2026",
+          "from": "X Money",
+          "item": "Sud Stop Car Wash",
+          "daily": 1.31,
+          "weekly": 9.18,
+          "biweekly": 18.35,
+          "monthly": 39.87,
+          "annually": 478.44,
+          "budget_allocation": null,
+          "quarterly": 119.61,
           "tab": "Fleet"
         },
         {
@@ -770,10 +770,10 @@
           "tab": "Fleet"
         },
         {
-          "item": "Santander (May / June / July)",
+          "item": "Santander (June / July / August)",
           "monthly": 1082.52,
           "from": "X Money",
-          "date": "5/21/2026",
+          "date": "6/21/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -789,7 +789,7 @@
           "item": "Sud Stop Car Wash",
           "monthly": 39.87,
           "from": "X Money",
-          "date": "9/20/2026",
+          "date": "9/22/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
@@ -820,19 +820,19 @@
       ],
       "upcoming_by_date": [
         {
-          "date": "5/21/2026",
-          "item": "Santander (May / June / July)",
-          "from": "X Money",
-          "monthly": 1082.52,
-          "weekly": 252.59,
-          "tab": "Fleet"
-        },
-        {
           "date": "6/21/2026",
           "item": "Capital One (June / July / August)",
           "from": "X Money",
           "monthly": 1121.55,
           "weekly": 261.7,
+          "tab": "Fleet"
+        },
+        {
+          "date": "6/21/2026",
+          "item": "Santander (June / July / August)",
+          "from": "X Money",
+          "monthly": 1082.52,
+          "weekly": 252.59,
           "tab": "Fleet"
         },
         {
@@ -868,19 +868,19 @@
           "tab": "Fleet"
         },
         {
-          "date": "9/20/2026",
-          "item": "Sud Stop Car Wash",
-          "from": "X Money",
-          "monthly": 39.87,
-          "weekly": 9.18,
-          "tab": "Fleet"
-        },
-        {
           "date": "9/21/2026",
           "item": "Fleet Insurance",
           "from": "X Money",
           "monthly": 633.2,
           "weekly": 145.72,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/22/2026",
+          "item": "Sud Stop Car Wash",
+          "from": "X Money",
+          "monthly": 39.87,
+          "weekly": 9.18,
           "tab": "Fleet"
         },
         {
