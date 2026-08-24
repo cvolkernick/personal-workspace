@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-24T05:34:06.176936+00:00",
+  "as_of": "2026-08-24T13:41:50.113983+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -39,8 +39,8 @@
       "amount_display": -26.68,
       "memo": null,
       "cleared": "cleared",
-      "approved": false,
-      "category_name": "Uncategorized"
+      "approved": true,
+      "category_name": "\ud83d\uded2 Groceries"
     },
     {
       "id": "10740f70-0c74-4b92-b670-0d9d1e6d6136",
@@ -230,7 +230,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
+      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -241,7 +241,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
+      "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
       "date": "2026-07-19",
       "payee": "McDonald's",
       "amount": -1.05,
@@ -483,7 +483,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -494,7 +494,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,

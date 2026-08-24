@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-21T19:51:12.022299+00:00",
+  "as_of": "2026-08-24T13:41:55.293289+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,14 +22,14 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 23,
+      "item_count": 24,
       "totals": {
-        "daily": 485.59,
-        "weekly": 3399.13,
-        "biweekly": 6798.25,
-        "monthly": 14769.59,
-        "annually": 50414.04,
-        "quarterly": 16161.76
+        "daily": 486.08,
+        "weekly": 3402.58,
+        "biweekly": 6805.15,
+        "monthly": 14784.58,
+        "annually": 50593.92,
+        "quarterly": 16206.73
       },
       "items": [
         {
@@ -43,19 +43,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Membership",
-          "daily": 0.99,
-          "weekly": 6.9,
-          "biweekly": 13.8,
-          "monthly": 29.99,
-          "annually": 359.88,
-          "budget_allocation": null,
-          "quarterly": 89.97,
           "tab": "Essential"
         },
         {
@@ -241,6 +228,32 @@
           "tab": "Essential"
         },
         {
+          "date": "9/23/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Membership",
+          "daily": 0.99,
+          "weekly": 6.9,
+          "biweekly": 13.8,
+          "monthly": 29.99,
+          "annually": 359.88,
+          "budget_allocation": null,
+          "quarterly": 89.97,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/23/2026",
+          "from": "X Money",
+          "item": "YNAB",
+          "daily": 0.49,
+          "weekly": 3.45,
+          "biweekly": 6.9,
+          "monthly": 14.99,
+          "annually": 179.88,
+          "budget_allocation": null,
+          "quarterly": 44.97,
+          "tab": "Essential"
+        },
+        {
           "date": "10/11/2026",
           "from": "X Money",
           "item": "FilterEasy",
@@ -334,7 +347,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1217.68
+        "X Money": 1232.67
       },
       "top_monthly": [
         {
@@ -441,14 +454,6 @@
           "from": "Coinbase",
           "monthly": 11275.0,
           "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "Coinbase One Membership",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9,
           "tab": "Essential"
         },
         {
@@ -564,6 +569,22 @@
           "tab": "Essential"
         },
         {
+          "date": "9/23/2026",
+          "item": "Coinbase One Membership",
+          "from": "Coinbase",
+          "monthly": 29.99,
+          "weekly": 6.9,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/23/2026",
+          "item": "YNAB",
+          "from": "X Money",
+          "monthly": 14.99,
+          "weekly": 3.45,
+          "tab": "Essential"
+        },
+        {
           "date": "10/11/2026",
           "item": "FilterEasy",
           "from": "X Money",
@@ -586,14 +607,6 @@
           "monthly": 11.67,
           "weekly": 2.68,
           "tab": "Essential"
-        },
-        {
-          "date": "2/14/2027",
-          "item": "Google One",
-          "from": "X Money",
-          "monthly": 19.99,
-          "weekly": 4.61,
-          "tab": "Essential"
         }
       ],
       "label": "Essential",
@@ -603,12 +616,12 @@
       "role": "fleet_ops",
       "item_count": 9,
       "totals": {
-        "daily": 185.09,
-        "weekly": 1295.61,
-        "biweekly": 2591.23,
-        "monthly": 5561.76,
-        "annually": 27958.09,
-        "quarterly": 6108.09
+        "daily": 185.52,
+        "weekly": 1298.67,
+        "biweekly": 2597.34,
+        "monthly": 5575.05,
+        "annually": 28117.57,
+        "quarterly": 6147.96
       },
       "items": [
         {
@@ -645,19 +658,6 @@
           "monthly": 1321.66,
           "annually": 1321.66,
           "budget_allocation": null,
-          "tab": "Fleet"
-        },
-        {
-          "date": "8/21/2026",
-          "from": "X Money",
-          "item": "Fleet Insurance",
-          "daily": 20.82,
-          "weekly": 145.72,
-          "biweekly": 291.45,
-          "monthly": 633.2,
-          "annually": 7598.4,
-          "budget_allocation": null,
-          "quarterly": 1899.6,
           "tab": "Fleet"
         },
         {
@@ -703,13 +703,26 @@
           "date": "9/20/2026",
           "from": "X Money",
           "item": "Sud Stop Car Wash",
-          "daily": 0.87,
-          "weekly": 6.12,
-          "biweekly": 12.23,
-          "monthly": 26.58,
-          "annually": 318.96,
+          "daily": 1.31,
+          "weekly": 9.18,
+          "biweekly": 18.35,
+          "monthly": 39.87,
+          "annually": 478.44,
           "budget_allocation": null,
-          "quarterly": 79.74,
+          "quarterly": 119.61,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/21/2026",
+          "from": "X Money",
+          "item": "Fleet Insurance",
+          "daily": 20.82,
+          "weekly": 145.72,
+          "biweekly": 291.45,
+          "monthly": 633.2,
+          "annually": 7598.4,
+          "budget_allocation": null,
+          "quarterly": 1899.6,
           "tab": "Fleet"
         },
         {
@@ -727,7 +740,7 @@
         }
       ],
       "by_source_monthly": {
-        "X Money": 4193.76,
+        "X Money": 4207.05,
         "Unspecified": 1350.0,
         "Coinbase": 18.0
       },
@@ -768,13 +781,13 @@
           "item": "Fleet Insurance",
           "monthly": 633.2,
           "from": "X Money",
-          "date": "8/21/2026",
+          "date": "9/21/2026",
           "budget_allocation": null,
           "tab": "Fleet"
         },
         {
           "item": "Sud Stop Car Wash",
-          "monthly": 26.58,
+          "monthly": 39.87,
           "from": "X Money",
           "date": "9/20/2026",
           "budget_allocation": null,
@@ -831,14 +844,6 @@
           "tab": "Fleet"
         },
         {
-          "date": "8/21/2026",
-          "item": "Fleet Insurance",
-          "from": "X Money",
-          "monthly": 633.2,
-          "weekly": 145.72,
-          "tab": "Fleet"
-        },
-        {
           "date": "9/1/2026",
           "item": "Rivian R1S",
           "from": null,
@@ -866,8 +871,16 @@
           "date": "9/20/2026",
           "item": "Sud Stop Car Wash",
           "from": "X Money",
-          "monthly": 26.58,
-          "weekly": 6.12,
+          "monthly": 39.87,
+          "weekly": 9.18,
+          "tab": "Fleet"
+        },
+        {
+          "date": "9/21/2026",
+          "item": "Fleet Insurance",
+          "from": "X Money",
+          "monthly": 633.2,
+          "weekly": 145.72,
           "tab": "Fleet"
         },
         {
@@ -1190,14 +1203,14 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 23,
+      "item_count": 24,
       "totals": {
-        "daily": 485.59,
-        "weekly": 3399.13,
-        "biweekly": 6798.25,
-        "monthly": 14769.59,
-        "annually": 50414.04,
-        "quarterly": 16161.76
+        "daily": 486.08,
+        "weekly": 3402.58,
+        "biweekly": 6805.15,
+        "monthly": 14784.58,
+        "annually": 50593.92,
+        "quarterly": 16206.73
       },
       "items": [
         {
@@ -1211,19 +1224,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Membership",
-          "daily": 0.99,
-          "weekly": 6.9,
-          "biweekly": 13.8,
-          "monthly": 29.99,
-          "annually": 359.88,
-          "budget_allocation": null,
-          "quarterly": 89.97,
           "tab": "Essential"
         },
         {
@@ -1409,6 +1409,32 @@
           "tab": "Essential"
         },
         {
+          "date": "9/23/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Membership",
+          "daily": 0.99,
+          "weekly": 6.9,
+          "biweekly": 13.8,
+          "monthly": 29.99,
+          "annually": 359.88,
+          "budget_allocation": null,
+          "quarterly": 89.97,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/23/2026",
+          "from": "X Money",
+          "item": "YNAB",
+          "daily": 0.49,
+          "weekly": 3.45,
+          "biweekly": 6.9,
+          "monthly": 14.99,
+          "annually": 179.88,
+          "budget_allocation": null,
+          "quarterly": 44.97,
+          "tab": "Essential"
+        },
+        {
           "date": "10/11/2026",
           "from": "X Money",
           "item": "FilterEasy",
@@ -1502,7 +1528,7 @@
       ],
       "by_source_monthly": {
         "Coinbase": 13551.91,
-        "X Money": 1217.68
+        "X Money": 1232.67
       },
       "top_monthly": [
         {
@@ -1609,14 +1635,6 @@
           "from": "Coinbase",
           "monthly": 11275.0,
           "weekly": 2594.79,
-          "tab": "Essential"
-        },
-        {
-          "date": "8/23/2026",
-          "item": "Coinbase One Membership",
-          "from": "Coinbase",
-          "monthly": 29.99,
-          "weekly": 6.9,
           "tab": "Essential"
         },
         {
@@ -1732,6 +1750,22 @@
           "tab": "Essential"
         },
         {
+          "date": "9/23/2026",
+          "item": "Coinbase One Membership",
+          "from": "Coinbase",
+          "monthly": 29.99,
+          "weekly": 6.9,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/23/2026",
+          "item": "YNAB",
+          "from": "X Money",
+          "monthly": 14.99,
+          "weekly": 3.45,
+          "tab": "Essential"
+        },
+        {
           "date": "10/11/2026",
           "item": "FilterEasy",
           "from": "X Money",
@@ -1753,14 +1787,6 @@
           "from": "X Money",
           "monthly": 11.67,
           "weekly": 2.68,
-          "tab": "Essential"
-        },
-        {
-          "date": "2/14/2027",
-          "item": "Google One",
-          "from": "X Money",
-          "monthly": 19.99,
-          "weekly": 4.61,
           "tab": "Essential"
         }
       ],
@@ -1947,16 +1973,16 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 18981.35,
-    "essential_monthly": 14769.59,
-    "personal_monthly": 14769.59,
-    "personal_daily": 485.59,
-    "essential_daily": 485.59,
-    "personal_weekly": 3399.13,
-    "personal_annually": 50414.04,
-    "fleet_monthly": 5561.76,
-    "fleet_daily": 185.09,
-    "fleet_annually": 27958.09,
+    "upcoming_expense_monthly": 19009.63,
+    "essential_monthly": 14784.58,
+    "personal_monthly": 14784.58,
+    "personal_daily": 486.08,
+    "essential_daily": 486.08,
+    "personal_weekly": 3402.58,
+    "personal_annually": 50593.92,
+    "fleet_monthly": 5575.05,
+    "fleet_daily": 185.52,
+    "fleet_annually": 28117.57,
     "collateral_investments_monthly": 545.53,
     "collateral_monthly": 545.53,
     "capital_targets_monthly": 3000.0,
@@ -1965,16 +1991,16 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 18981.35,
-    "combined_daily": 625.68,
+    "combined_monthly": 19009.63,
+    "combined_daily": 626.61,
     "by_source_monthly": {
       "Coinbase": 13569.91,
-      "X Money": 5411.44
+      "X Money": 5439.72
     },
     "coinbase_funded_monthly": 13569.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
-    "x_money_funded_monthly": 5411.44
+    "x_money_funded_monthly": 5439.72
   },
   "notes": "Essential = estimated essential bills by pay-from account (legacy tab: Personal). Fleet = auto fleet ops (role fleet_ops). Collateral = collateral/capital investments (not burn). Productive Discretionary = capital outlay growing productive assets (priority; margin-funded). Consumer Discretionary = wishlist / consumer goods (lower priority). Burn = Essential + funded unique Fleet (empty-From and name overlap out). Actual spend = YNAB."
 }

@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-24T13:29:10.089670+00:00",
+  "as_of": "2026-08-24T13:50:34.042283+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,12 +14,12 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-24T13:29:10.089665+00:00",
-    "total_value": 228.39351769,
-    "equity_value": 203.30351769,
-    "cash": 25.09,
-    "buying_power": 25.09,
-    "unleveraged_buying_power": 25.09,
+    "as_of": "2026-08-24T13:50:34.042273+00:00",
+    "total_value": 226.458558879,
+    "equity_value": 226.368558879,
+    "cash": 0.09,
+    "buying_power": 0.09,
+    "unleveraged_buying_power": 0.09,
     "margin_use": null,
     "currency": "USD",
     "account_number_last4": "1752",
@@ -117,6 +117,45 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long"
+      },
+      {
+        "symbol": "STRC",
+        "quantity": "0.062240",
+        "intraday_quantity": "0.062240",
+        "average_buy_price": "96.400000",
+        "shares_available_for_sells": "0.062240",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "long"
+      },
+      {
+        "symbol": "SATA",
+        "quantity": "0.050000",
+        "intraday_quantity": "0.050000",
+        "average_buy_price": "100.000000",
+        "shares_available_for_sells": "0.050000",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "long"
+      },
+      {
+        "symbol": "GOOGL",
+        "quantity": "0.040399",
+        "intraday_quantity": "0.040399",
+        "average_buy_price": "346.540000",
+        "shares_available_for_sells": "0.040399",
+        "shares_held_for_sells": "0.000000",
+        "shares_held_for_stock_grants": "0.000000",
+        "shares_held_for_options_events": "0.000000",
+        "shares_held_for_asset_transfer": "0.000000",
+        "shares_pending_from_options_events": "0.000000",
+        "type": "long"
       }
     ]
   },
@@ -161,5 +200,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Primary margin for DCA/BP policy; Agentic cash account for MCP order placement. Refresh via agent: get_accounts + get_portfolio \u00d72 \u2192 rh_sync / write snapshot."
+  "notes": "Post-deploy 2026-08-24 fund-manager review: STRC $6 + SATA $5 + GOOGL $14 filled on agentic."
 }

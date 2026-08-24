@@ -1796,3 +1796,35 @@
 - **critic:** ok — Hold preferred when bands ok — avoid churn
 - **executor:** hold — No MCP orders on pure rules HOLD
 
+
+## 2026-08-24T13:41:56 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.09 BP $25.09 (deployable $25.09 ≥ min_trade $1.00)
+**Book:** NAV $228.3935 · BP $25.09
+**Weights before (deployed):** BTC-complex 0.4008 · Stocks 0.5992
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $228.39 BP $25.09 cash $25.09
+- **thesis:** ok — deployed BTC 0.4008 stocks 0.5992
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-08-24T13:50:34 — deploy
+**Summary:** Mid-session team deploy of $25.09 idle agentic cash: STRC $6 + SATA $5 (first digital-credit seats) + GOOGL $14 (first AI mega-cap). All 3 filled. Residual BP $0.09.
+**Book:** NAV $226.4586 · BP $0.09
+**Weights before (deployed):** BTC-complex 0.3917 · Stocks 0.6083
+**Why now:** User-run mid-session-style review; agentic cash/BP $25.09 >= min $1; live_autopilot. Deployed mix already in band so capital goes to theme gaps (unheld STRC/SATA + uncovered AI).
+**Why not alternatives:** Rejected MSTR/TSLA/SPCX top-up as held-only inertia. STRC/SATA liquidity is tight (5c spreads, displayed size >> $6). Did not skip miners for 'overlap' — skipped because credit seat was the binding 40% gap. NVDA blocked into ~8/26 print. AMZN blocked without dive. BE deferred on val/beta vs scarce $14 stocks ticket.
+**Team:**
+- **scout:** ok — Agentic ••••1752 NAV~$227 equity~$202 cash/BP $25.09 before; held MSTR BITA MARA IREN CLSK TSLA SPCX; deployed ~39.2/60.8 in band; STRC/SATA/GOOGL fractional-tradable; RH MCP via stored OAuth (session tools disconnected).
+- **thesis:** ok — Best names now: STRC+SATA first digital-credit seats inside 40%; GOOGL first AI mega-cap under 60%. Not MSTR/TSLA habit. ~$11/~$14 split lands of-NAV near 40/60.
+- **risk:** ok — Agentic cash only; $25 within BP; min $1; STRC/SATA spreads 5c with displayed size; GOOGL mega-cap; no leverage; NVDA event risk avoided; GOOGL dive 2026-08-04 current.
+- **critic:** ok — Block held-only. Force STRC/SATA into BTC-complex deploy (prior illiquid/covered-by-MSTR+BITA rationales fail on live book). Miner skip is credit-gap allocation, not overlap. Block NVDA into print, AMZN without dive, BE on this ticket.
+- **executor:** execute — 3 market dollar buys agentic regular_hours; all filled. STRC $6 / SATA $5 / GOOGL $14. Residual $0.09.
+**Actions:**
+- BUY STRC $6.0 [filled] 6a8c4ba6-fc5c-4224-9043-8d65b55e4c02
+- BUY SATA $5.0 [filled] 6a8c4ba6-e4d3-435a-a8a2-46b1769be153
+- BUY GOOGL $14.0 [filled] 6a8c4ba7-ef49-4e48-93c3-f5ba122a68ff
+
