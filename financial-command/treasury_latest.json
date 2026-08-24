@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-24T01:15:40.452319+00:00",
+    "as_of": "2026-08-24T04:18:35.218526+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-21T19:51:04.225116+00:00",
@@ -3258,7 +3258,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-24T01:15:40.325741+00:00",
+      "as_of": "2026-08-24T04:18:30.684325+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3272,9 +3272,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-24T01:15:40.325736+00:00",
-        "total_value": 204.88753938,
-        "equity_value": 204.79753938,
+        "as_of": "2026-08-24T04:18:30.684320+00:00",
+        "total_value": 202.4280205,
+        "equity_value": 202.3380205,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3562,7 +3562,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 204.88753938,
+      "rh_agentic_total_value": 202.4280205,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -3670,7 +3670,7 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-21T19:51:04.225116+00:00",
-        "robinhood_as_of": "2026-08-24T01:15:40.325741+00:00",
+        "robinhood_as_of": "2026-08-24T04:18:30.684325+00:00",
         "one_card_as_of": "2026-08-20T19:24:18.290371+00:00",
         "rh_checking_as_of": "2026-08-20T19:24:18.659197+00:00",
         "x_money_as_of": "2026-08-20T19:24:19.153184+00:00",
@@ -3678,20 +3678,20 @@
         "expenses_as_of": "2026-08-21T19:51:12.022299+00:00"
       },
       "stale": [
-        "coinbase data 53.4h old (>6.0h)",
-        "one_card data 77.9h old (>6.0h)",
-        "rh_checking data 77.9h old (>6.0h)",
-        "x_money data 77.9h old (>6.0h)",
-        "solana data 53.4h old (>6.0h)",
-        "expenses data 53.4h old (>6.0h)"
+        "coinbase data 56.5h old (>6.0h)",
+        "one_card data 80.9h old (>6.0h)",
+        "rh_checking data 80.9h old (>6.0h)",
+        "x_money data 80.9h old (>6.0h)",
+        "solana data 56.5h old (>6.0h)",
+        "expenses data 56.5h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 53.4h old (>6.0h)",
-        "one_card data 77.9h old (>6.0h)",
-        "rh_checking data 77.9h old (>6.0h)",
-        "x_money data 77.9h old (>6.0h)",
-        "solana data 53.4h old (>6.0h)",
-        "expenses data 53.4h old (>6.0h)"
+        "coinbase data 56.5h old (>6.0h)",
+        "one_card data 80.9h old (>6.0h)",
+        "rh_checking data 80.9h old (>6.0h)",
+        "x_money data 80.9h old (>6.0h)",
+        "solana data 56.5h old (>6.0h)",
+        "expenses data 56.5h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -4016,25 +4016,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-24T01:15:40.457319+00:00",
+      "as_of": "2026-08-24T04:18:35.223306+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-24T01:15:40.454429+00:00",
+        "as_of": "2026-08-24T04:18:35.220364+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 204.8875,
+        "nav_usd": 202.428,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.7291,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3418,
-          "stocks_growth": 0.511,
+          "btc_digital_credit": 0.346,
+          "stocks_growth": 0.5172,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -4180,7 +4180,7 @@
               "deep_dive_required_before_buy": true,
               "last_deep_dive": "2026-08-04",
               "held": false,
-              "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default."
+              "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default. 2026-08-23: own open-source/open-weight models may reinforce that GPU franchise via vertical integration / industry lock-in (note only; not a price target or position)."
             },
             {
               "symbol": "PLTR",
@@ -5961,25 +5961,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-24T01:15:40.457319+00:00",
+    "as_of": "2026-08-24T04:18:35.223306+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-24T01:15:40.454429+00:00",
+      "as_of": "2026-08-24T04:18:35.220364+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 204.8875,
+      "nav_usd": 202.428,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.7291,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3418,
-        "stocks_growth": 0.511,
+        "btc_digital_credit": 0.346,
+        "stocks_growth": 0.5172,
         "other": 0.0,
         "cash": 0.0004
       },
@@ -6125,7 +6125,7 @@
             "deep_dive_required_before_buy": true,
             "last_deep_dive": "2026-08-04",
             "held": false,
-            "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default."
+            "thesis_fit": "Dominant AI accelerator / data-center GPU franchise; primary pure-play on AI training/inference infra under ~60% stocks/growth. High liquidity mega-cap; not on agentic core allowlist by default. 2026-08-23: own open-source/open-weight models may reinforce that GPU franchise via vertical integration / industry lock-in (note only; not a price target or position)."
           },
           {
             "symbol": "PLTR",
