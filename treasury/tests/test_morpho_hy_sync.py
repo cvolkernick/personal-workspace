@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.interest_spectrum import (  # noqa: E402
+    MORPHO_HY_VAULT_NE_PRODUCT_NOTE,
     WELLS_OFF_FCC_ID,
     build_interest_spectrum,
     rates_are_honest,
@@ -110,6 +111,9 @@ class TestFetchSoftFail(unittest.TestCase):
         self.assertEqual(row["source"], "morpho_graphql")
         self.assertAlmostEqual(row["apy"], LIVE_FRACTION)
         self.assertAlmostEqual(row["apy_est"], LIVE_FRACTION)
+        self.assertAlmostEqual(row["vault_apy"], LIVE_FRACTION)
+        self.assertIsNone(row.get("product_apy"))
+        self.assertEqual(row.get("role"), "vault_reference")
         self.assertNotAlmostEqual(row["apy"], SPECTRUM_SEED_APY)
         opener.assert_called_once()
 
@@ -131,6 +135,8 @@ class TestFetchSoftFail(unittest.TestCase):
             )
         self.assertAlmostEqual(row["apy"], 0.031)
         self.assertAlmostEqual(row["apy_est"], 0.031)
+        self.assertAlmostEqual(row["vault_apy"], 0.031)
+        self.assertIsNone(row.get("product_apy"))
         self.assertIn("live_error", row)
         self.assertNotAlmostEqual(row["apy"], SPECTRUM_SEED_APY)
         self.assertFalse(path.is_file())
@@ -147,6 +153,8 @@ class TestFetchSoftFail(unittest.TestCase):
             )
         self.assertIsNone(row.get("apy"))
         self.assertIsNone(row.get("apy_est"))
+        self.assertIsNone(row.get("vault_apy"))
+        self.assertIsNone(row.get("product_apy"))
         self.assertEqual(row.get("source"), "empty")
         self.assertIn("live_error", row)
         payload = build_interest_spectrum(
@@ -158,6 +166,7 @@ class TestFetchSoftFail(unittest.TestCase):
         chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
         self.assertAlmostEqual(chip["rate_pct"], 7.0)
         self.assertEqual(chip["source"], "locked_seed")
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertTrue(rates_are_honest(payload))
         self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
 
@@ -188,7 +197,7 @@ class TestFetchSoftFail(unittest.TestCase):
         self.assertAlmostEqual(row["apy"], 0.027)
         self.assertNotAlmostEqual(row["apy"], SPECTRUM_SEED_APY)
 
-    def test_live_writes_sidecar_used_as_spectrum_books(self) -> None:
+    def test_live_writes_vault_reference_not_product_chip_books(self) -> None:
         opener = mock.Mock(return_value=_FakeResp(_graphql_ok(0.0291)))
         with tempfile.TemporaryDirectory() as td:
             path = Path(td) / "mh.json"
@@ -201,6 +210,8 @@ class TestFetchSoftFail(unittest.TestCase):
             self.assertTrue(path.is_file())
             saved = json.loads(path.read_text(encoding="utf-8"))
         self.assertAlmostEqual(saved["apy_est"], 0.0291)
+        self.assertAlmostEqual(saved["vault_apy"], 0.0291)
+        self.assertIsNone(saved.get("product_apy"))
         ev = evaluate_treasury(
             {
                 "coinbase": {"liquid_usdc": 0, "source": "empty"},
@@ -210,6 +221,7 @@ class TestFetchSoftFail(unittest.TestCase):
             }
         )
         self.assertAlmostEqual(ev["inputs"]["vault_apy"], 0.0291)
+        self.assertIsNone(ev["inputs"].get("product_apy"))
         payload = build_interest_spectrum(
             treasury={"evaluation": ev, "snapshot": {"morpho_hy": row}},
             config={},
@@ -217,20 +229,89 @@ class TestFetchSoftFail(unittest.TestCase):
             solana={},
         )
         chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
-        self.assertAlmostEqual(chip["rate_pct"], 2.91)
-        self.assertEqual(chip["source"], "books")
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertNotAlmostEqual(chip["rate_pct"], 2.91)
+        self.assertAlmostEqual(chip["vault_apy_pct"], 2.91)
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertTrue(rates_are_honest(payload))
 
-    def test_evaluate_does_not_copy_settings_into_vault_apy(self) -> None:
+    def test_soft_fail_keeps_vault_reference_chip_stays_seed(self) -> None:
+        prior = {
+            "source": "morpho_graphql",
+            "vault_apy": 0.031,
+            "apy": 0.031,
+            "apy_est": 0.031,
+            "as_of": "2026-08-22T00:00:00+00:00",
+        }
+        opener = mock.Mock(side_effect=TimeoutError("timed out"))
+        with tempfile.TemporaryDirectory() as td:
+            row = fetch_morpho_hy(
+                prefer_live=True,
+                prior=prior,
+                snapshot=Path(td) / "mh.json",
+                opener=opener,
+            )
         ev = evaluate_treasury(
             {
                 "coinbase": {"liquid_usdc": 0, "source": "empty"},
-                "coinbase_manual": {"vault_apy": 0.08},
+                "coinbase_manual": {},
+                "morpho_hy": row,
+                "robinhood": {},
+            }
+        )
+        self.assertAlmostEqual(ev["inputs"]["vault_apy"], 0.031)
+        self.assertIsNone(ev["inputs"].get("product_apy"))
+        payload = build_interest_spectrum(
+            treasury={"evaluation": ev, "snapshot": {"morpho_hy": row}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertAlmostEqual(chip["vault_apy_pct"], 3.1)
+        self.assertIn("live_error", row)
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_evaluate_does_not_copy_settings_into_vault_or_product_apy(self) -> None:
+        ev = evaluate_treasury(
+            {
+                "coinbase": {"liquid_usdc": 0, "source": "empty"},
+                "coinbase_manual": {"vault_apy": 0.08, "product_apy": 0.075},
                 "morpho_hy": {},
                 "robinhood": {},
             }
         )
         self.assertIsNone(ev["inputs"].get("vault_apy"))
+        self.assertIsNone(ev["inputs"].get("product_apy"))
+
+    def test_evaluate_copies_honest_product_apy_not_vault_graphql(self) -> None:
+        ev = evaluate_treasury(
+            {
+                "coinbase": {"liquid_usdc": 0, "source": "empty"},
+                "coinbase_manual": {},
+                "morpho_hy": {
+                    "vault_apy": 0.0291,
+                    "apy_est": 0.0291,
+                    "product_apy": 0.071,
+                },
+                "robinhood": {},
+            }
+        )
+        self.assertAlmostEqual(ev["inputs"]["vault_apy"], 0.0291)
+        self.assertAlmostEqual(ev["inputs"]["product_apy"], 0.071)
+        payload = build_interest_spectrum(
+            treasury={"evaluation": ev, "snapshot": {"morpho_hy": {"product_apy": 0.071}}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 7.1)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("product_apy", chip["notes"])
 
 
 if __name__ == "__main__":

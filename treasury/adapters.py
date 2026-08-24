@@ -377,8 +377,10 @@ def build_snapshot(
             "api_limits": {
                 "morpho_loan": "app-only",
                 "high_yield_vault": (
-                    "balance app-only; APY Morpho GraphQL vaultV2 avgNetApy "
-                    "(Steakhouse HY USDC / Base; soft-fail; no scrape)"
+                    "balance app-only; vault_apy Morpho GraphQL vaultV2 "
+                    "avgNetApy (Steakhouse HY USDC / Base; vault reference "
+                    "only; ≠ Coinbase One product rate; soft-fail; no scrape; "
+                    "do not invent product_apy)"
                 ),
                 "usdg_hy": (
                     "APY Morpho GraphQL vaultV2 avgNetApy "

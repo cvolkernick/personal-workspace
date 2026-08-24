@@ -8,18 +8,18 @@ JR-strcUSX is a spectrum chip only (not HY/LTV). Coach threshold X
 is not wired.
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho HY USDC:
-  Preferred: live apy_est when a trustworthy source exists
-  Fallback: seed 7% (Coinbase One Morpho HY)
-  Override: FCC settings manual beats seed and beats live when set
-  Do not invent rates.
+  ``vault_apy`` = Morpho GraphQL vaultV2 ``avgNetApy`` — vault reference only
+  ``product_apy`` = Coinbase One / in-app rate when honest, else settings
+  Product chip: settings > product_apy > seed 7%
+  Naked ``vault_apy`` must NOT set chip ``source=books`` as product APY
+  Do not invent a Coinbase One %. Do not scrape Coinbase.
 
-Morpho HY precedence (settings > live books > seed):
-  1. FCC settings manual ``config.coinbase_manual.vault_apy``
-     (or dedicated ``morpho_hy_apy_est``) when set — human override
-  2. Live books ``evaluation.inputs.vault_apy`` / ``hy_vault_apy`` /
-     ``morpho_hy_apy_est`` (and snapshot paths already listed) from a
-     trusted feed (Morpho GraphQL vaultV2 ``avgNetApy``)
+Morpho HY product-chip precedence (settings > product_apy > seed):
+  1. FCC settings manual ``config.coinbase_manual.product_apy``
+     (legacy ``vault_apy`` / dedicated ``morpho_hy_apy_est``) when set
+  2. Honest books ``product_apy`` (Coinbase One / in-app) — never GraphQL
   3. Seed 7%
+  Vault GraphQL stays on books as ``vault_apy`` for reference only.
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum USDG HY:
   Preferred: live apy_est when a trustworthy source exists
@@ -187,8 +187,10 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
     },
 )
 
-# Chris 2026-08-23 locked yield seeds. Always show; books override when apy_est
-# / vault_apy is already present. Pattern matches Morpho borrow ~5% / One Card ~29%.
+# Chris 2026-08-23 locked yield seeds. Always show; books override when an
+# honest product APY is already present. Morpho HY vault GraphQL is
+# reference only — it must not paint the product chip. Pattern matches
+# Morpho borrow ~5% / One Card ~29%.
 LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
     {
         "id": "x_money",
@@ -223,24 +225,34 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "unit": "fraction",
         "notes": (
             "locked seed 7% APY · Coinbase One Morpho HY · variable · "
-            "precedence: FCC settings vault_apy / morpho_hy_apy_est > "
-            "live books (Morpho GraphQL vaultV2 avgNetApy) > seed · "
-            "do not invent rates"
+            "precedence: FCC settings product_apy / vault_apy / "
+            "morpho_hy_apy_est > product_apy (Coinbase One / in-app when "
+            "honest) > seed · vault GraphQL avgNetApy is vault reference "
+            "only · ≠ Coinbase One product rate · do not invent a One %"
         ),
         "deep_link": "index.html#hy",
-        # settings_paths are checked first so a human override beats live books.
+        # settings_paths are checked first so a human override beats product_apy.
         "settings_paths": (
+            ("config", "coinbase_manual", "product_apy"),
             ("config", "coinbase_manual", "vault_apy"),
             ("config", "coinbase_manual", "morpho_hy_apy_est"),
         ),
+        # Product-chip books only. Naked vault_apy / GraphQL apy_est stay off.
         "paths": (
+            ("evaluation", "inputs", "product_apy"),
+            ("evaluation", "inputs", "morpho_hy_product_apy"),
+            ("snapshot", "coinbase_manual", "product_apy"),
+            ("snapshot", "morpho_hy", "product_apy"),
+            ("morpho_hy", "product_apy"),
+        ),
+        "vault_ref_paths": (
             ("evaluation", "inputs", "vault_apy"),
             ("evaluation", "inputs", "hy_vault_apy"),
-            ("evaluation", "inputs", "morpho_hy_apy_est"),
-            ("snapshot", "coinbase_manual", "vault_apy"),
-            ("snapshot", "coinbase_manual", "morpho_hy_apy_est"),
+            ("snapshot", "morpho_hy", "vault_apy"),
             ("snapshot", "morpho_hy", "apy_est"),
             ("snapshot", "morpho_hy", "apy"),
+            ("snapshot", "morpho_hy", "avg_net_apy"),
+            ("morpho_hy", "vault_apy"),
             ("morpho_hy", "apy_est"),
             ("morpho_hy", "apy"),
         ),
@@ -292,6 +304,24 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
 YIELD_VENUES = LOCKED_YIELD_SEEDS
 
 USDG_GOLD_CAVEAT = "may end when RH Gold cancels — do not invent a post-Gold rate"
+
+# Honest Morpho HY framing: GraphQL avgNetApy is the vault rate, not One.
+MORPHO_HY_VAULT_NE_PRODUCT_NOTE = (
+    "vault GraphQL avgNetApy is vault reference only · ≠ Coinbase One product rate"
+)
+
+# Vault GraphQL / books vault_apy — reference only; never product-chip paths.
+MORPHO_HY_VAULT_REF_PATHS = (
+    ("evaluation", "inputs", "vault_apy"),
+    ("evaluation", "inputs", "hy_vault_apy"),
+    ("snapshot", "morpho_hy", "vault_apy"),
+    ("snapshot", "morpho_hy", "apy_est"),
+    ("snapshot", "morpho_hy", "apy"),
+    ("snapshot", "morpho_hy", "avg_net_apy"),
+    ("morpho_hy", "vault_apy"),
+    ("morpho_hy", "apy_est"),
+    ("morpho_hy", "apy"),
+)
 
 # JR-strcUSX is not a locked seed. Live Solstice quote only if already on the
 # FCC/solana snapshot — no scrape, no partner-key invent. Else ~20% target
@@ -604,11 +634,33 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
     return chip
 
 
+def _attach_morpho_hy_vault_ref(chip: Dict[str, Any], ctx: Dict[str, Any], spec: Dict[str, Any]) -> None:
+    """Keep GraphQL vault_apy on the chip as reference; never as product rate."""
+    unit = str(spec.get("unit") or "fraction")
+    vault_rate, vault_hit = _first_apy_hit(
+        ctx, spec.get("vault_ref_paths") or MORPHO_HY_VAULT_REF_PATHS, unit=unit
+    )
+    if vault_rate is not None:
+        chip["vault_apy_pct"] = vault_rate
+        chip["vault_apy_source"] = vault_hit
+        chip["vault_rate_kind"] = "vault_reference"
+    notes = chip.get("notes")
+    extra: List[str] = []
+    if vault_rate is not None:
+        extra.append(f"vault reference {vault_rate:.2f}% APY")
+    if MORPHO_HY_VAULT_NE_PRODUCT_NOTE not in str(notes or ""):
+        extra.append(MORPHO_HY_VAULT_NE_PRODUCT_NOTE)
+    if extra:
+        suffix = " · ".join(extra)
+        chip["notes"] = f"{notes} · {suffix}" if notes else suffix
+
+
 def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     """X Money / Morpho HY / USDG always appear (locked seeds); books override APY.
 
-    Morpho HY and USDG HY walk ``settings_paths`` before live ``paths`` so
-    FCC settings beat live books when Chris sets a manual override.
+    Morpho HY product chip: settings > product_apy > seed 7%. Naked vault
+    GraphQL ``vault_apy`` is reference only and must not paint the chip.
+    USDG HY still walks ``settings_paths`` before live ``paths``.
     """
     chips: List[Dict[str, Any]] = []
     for spec in LOCKED_YIELD_SEEDS:
@@ -637,7 +689,12 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             chip["approx"] = False
             chip["source"] = "books"
             notes = f"from {hit}" if hit else None
-            if spec["id"] in ("morpho_hy", "usdg_earn") and notes:
+            if spec["id"] == "morpho_hy" and notes:
+                if from_settings:
+                    notes = f"{notes} · FCC settings override"
+                else:
+                    notes = f"{notes} · product_apy"
+            elif spec["id"] == "usdg_earn" and notes:
                 if from_settings:
                     notes = f"{notes} · FCC settings override"
                 else:
@@ -645,6 +702,8 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             if spec["id"] == "usdg_earn":
                 notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
             chip["notes"] = notes
+        if spec["id"] == "morpho_hy":
+            _attach_morpho_hy_vault_ref(chip, ctx, spec)
         notional = _first_number(ctx, spec.get("notional_paths") or ())
         if notional is not None:
             chip["notional"] = notional
