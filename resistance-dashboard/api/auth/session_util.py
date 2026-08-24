@@ -18,8 +18,14 @@ STATE_MAX_AGE = 600
 # Browsers silently drop a cookie over 4096 bytes (name + value).
 COOKIE_SOFT_LIMIT = 3500
 
-# Same FitDash Google login also grants Tasks. User re-consents once.
+# Same FitDash Google login grants Tasks (checklist) + Calendar events
+# (timed meal reminders). User re-consents once after this scope lands.
+# Health-only connect (google_auth.py) stays Calendar-free; Health API
+# rejects access tokens that also carry Calendar (DISALLOWED_OAUTH_SCOPES).
+# Login refresh tokens may include Calendar; GoogleHealthClient already
+# subset-refreshes to Health-only scopes.
 TASKS_SCOPE = "https://www.googleapis.com/auth/tasks"
+CALENDAR_EVENTS_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 
 LOGIN_SCOPES = [
     "openid",
@@ -30,6 +36,7 @@ LOGIN_SCOPES = [
     "https://www.googleapis.com/auth/googlehealth.nutrition.readonly",
     "https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly",
     TASKS_SCOPE,
+    CALENDAR_EVENTS_SCOPE,
 ]
 
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
@@ -166,11 +173,14 @@ def granted_scope_from_tokens(scope: str) -> str:
 
 
 def compact_session_scope(scope: str) -> str:
-    """Store a short Tasks grant, not the full Health+Tasks scope string."""
+    """Store short Tasks/Calendar grants, not the full Health+Tasks string."""
     raw = granted_scope_from_tokens(scope)
+    parts: list[str] = []
     if session_has_tasks_scope({"scope": raw}):
-        return TASKS_SCOPE
-    return raw
+        parts.append(TASKS_SCOPE)
+    if session_has_calendar_scope({"scope": raw}):
+        parts.append(CALENDAR_EVENTS_SCOPE)
+    return " ".join(parts) if parts else raw
 
 
 def make_session(user: dict) -> str:
@@ -274,6 +284,19 @@ def session_has_tasks_scope(google: Optional[dict]) -> bool:
     if raw in ("1", "tasks", "true"):
         return True
     return TASKS_SCOPE in raw.split()
+
+
+def session_has_calendar_scope(google: Optional[dict]) -> bool:
+    """True when the session may write Calendar events (not readonly)."""
+    if not google:
+        return False
+    raw = normalize_scope_string(str(google.get("scope") or "")).strip()
+    if raw in ("cal", "calendar"):
+        return True
+    parts = raw.split()
+    if CALENDAR_EVENTS_SCOPE in parts:
+        return True
+    return "https://www.googleapis.com/auth/calendar" in parts
 
 
 def session_google_from_headers(headers) -> Optional[dict]:

@@ -315,7 +315,12 @@ class PlannedItem:
     slug: str
     title: str
     notes_extra: str = ""
-    meal_label: str = ""  # e.g. Next meal
+    meal_label: str = ""  # e.g. Next meal · 3:30 PM (UI / quest grouping)
+    eat_at: str = ""  # ISO from meal bucket; empty → no Calendar event
+    meal_slot: str = ""  # e.g. meal-0; one Calendar reminder per slot
+    cal_label: str = ""  # bucket label without clock (Calendar title)
+    item_name: str = ""
+    portion_g: Optional[float] = None
 
 
 @dataclass
@@ -392,7 +397,8 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         for mi, bucket in enumerate(meals):
             if not isinstance(bucket, dict):
                 continue
-            label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            bucket_label = str(bucket.get("label") or f"Meal {mi + 1}").strip()
+            label = bucket_label
             clock = str(bucket.get("eat_at_label") or "").strip()
             if not clock and bucket.get("eat_at"):
                 try:
@@ -420,12 +426,26 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 title = f"{label}: {name}"
                 if portion:
                     title = f"{label}: {name} · {portion}"
+                portion_g = None
+                raw_pg = it.get("portion_g")
+                if raw_pg is not None and str(raw_pg).strip() != "":
+                    try:
+                        pg = float(raw_pg)
+                        if pg > 0:
+                            portion_g = pg
+                    except (TypeError, ValueError):
+                        portion_g = None
                 _g("nutrition").items.append(
                     PlannedItem(
                         group="nutrition",
                         slug=f"meal-{mi}-{_slug(name)}-{j}",
                         title=title[:200],
                         meal_label=label,
+                        eat_at=str(bucket.get("eat_at") or "").strip(),
+                        meal_slot=f"meal-{mi}",
+                        cal_label=bucket_label,
+                        item_name=name,
+                        portion_g=portion_g,
                     )
                 )
     else:
@@ -1052,6 +1072,16 @@ def ensure_daily_tasks(
                 meal_stats["triggered"] = True
                 meal_stats["reason"] = meal_stats.get("reason") or "refresh_resync"
                 meal_stats["silent"] = False
+        completed_by_ck: Dict[str, bool] = {}
+        for grp in groups_out:
+            kind = str(grp.get("group") or "")
+            for row in grp.get("items") or []:
+                if not isinstance(row, dict):
+                    continue
+                slug = str(row.get("slug") or "")
+                if slug:
+                    completed_by_ck[cache_key(kind, slug)] = bool(row.get("completed"))
+        calendar = _sync_meal_calendar(planned, ids, completed_by_ck, day)
         return {
             "ok": True,
             "source": "google_tasks",
@@ -1062,6 +1092,7 @@ def ensure_daily_tasks(
             "summary": {"done": done, "total": total},
             "purge": purge_stats,
             "meal_regen": meal_stats,
+            "calendar": calendar,
             "error": None,
         }
     except Exception as e:
@@ -1132,6 +1163,85 @@ def _local_payload(
     }
 
 
+def _meal_slots_from_plan(
+    planned: List[PlannedGroup],
+    ids: Dict[str, str],
+    completed_by_ck: Dict[str, bool],
+    day: str,
+) -> list:
+    """One reminder per meal bucket that has eat_at. No invented times."""
+    from .meal_calendar import MealSlotReminder, calendar_event_title
+
+    buckets: Dict[str, dict] = {}
+    order: List[str] = []
+    for g in planned:
+        if g.group != "nutrition":
+            continue
+        for it in g.items:
+            eat = str(it.eat_at or "").strip()
+            slot = str(it.meal_slot or "").strip()
+            if not eat or not slot:
+                continue
+            if slot not in buckets:
+                buckets[slot] = {
+                    "slot": slot,
+                    "title": calendar_event_title(
+                        it.cal_label, it.item_name, it.portion_g
+                    ),
+                    "eat_at": eat,
+                    "task_ids": [],
+                    "completed": [],
+                }
+                order.append(slot)
+            ck = cache_key(g.group, it.slug)
+            tid = str(ids.get(ck) or "").strip()
+            if tid:
+                buckets[slot]["task_ids"].append(tid)
+            buckets[slot]["completed"].append(bool(completed_by_ck.get(ck)))
+    slots = []
+    for i, key in enumerate(order):
+        raw = buckets[key]
+        next_eat = ""
+        if i + 1 < len(order):
+            next_eat = str(buckets[order[i + 1]].get("eat_at") or "")
+        done_flags = raw["completed"]
+        slots.append(
+            MealSlotReminder(
+                day=day,
+                slot=raw["slot"],
+                title=str(raw["title"] or "")[:200],
+                eat_at=str(raw["eat_at"] or ""),
+                task_ids=list(raw["task_ids"]),
+                all_completed=bool(done_flags) and all(done_flags),
+                next_eat_at=next_eat,
+            )
+        )
+    return slots
+
+
+def _sync_meal_calendar(
+    planned: List[PlannedGroup],
+    ids: Dict[str, str],
+    completed_by_ck: Dict[str, bool],
+    day: str,
+) -> dict:
+    """Best-effort Calendar upsert beside GT publish. Never fails the checklist."""
+    try:
+        from .meal_calendar import sync_meal_reminders
+
+        slots = _meal_slots_from_plan(planned, ids, completed_by_ck, day)
+        return sync_meal_reminders(slots, day=day)
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "ok": False,
+            "skipped": True,
+            "error": str(exc),
+            "error_code": "calendar_error",
+            "upserted": 0,
+            "deleted": 0,
+        }
+
+
 def complete_leaf(
     list_id: str,
     task_id: str,
@@ -1148,6 +1258,31 @@ def complete_leaf(
             return result
         if parent_id and sibling_all_done is not None:
             gtb.complete_task(list_id, parent_id, completed=bool(sibling_all_done))
-        return {"ok": True, "task": result.get("task"), "parent_id": parent_id}
+        calendar = None
+        if completed:
+            task = result.get("task") or {}
+            notes = str(task.get("notes") or "")
+            if not notes:
+                fetched = _get_task_safe(list_id, task_id)
+                notes = str((fetched or {}).get("notes") or "")
+            try:
+                from .meal_calendar import cancel_reminder_for_task
+
+                calendar = cancel_reminder_for_task(
+                    task_id, day=quest_mark_day(notes), notes=notes
+                )
+            except Exception as exc:  # noqa: BLE001
+                calendar = {
+                    "ok": False,
+                    "skipped": True,
+                    "error": str(exc),
+                    "deleted": 0,
+                }
+        return {
+            "ok": True,
+            "task": result.get("task"),
+            "parent_id": parent_id,
+            "calendar": calendar,
+        }
     except Exception as e:
         return {"ok": False, "error": str(e)}

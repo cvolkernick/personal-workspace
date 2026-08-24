@@ -7,6 +7,7 @@ from unittest import mock
 
 from rt_dashboard.google_auth import (
     REDIRECT_URI,
+    SCOPES,
     build_auth_url,
     auth_flow_status,
 )
@@ -25,6 +26,11 @@ class TestGoogleAuth(unittest.TestCase):
             msg=f"redirect port missing in {url}",
         )
         self.assertIn("googlehealth.nutrition.readonly", url.replace("%2F", "/"))
+        self.assertNotIn("calendar", url.lower())
+        self.assertTrue(
+            all("calendar" not in s for s in SCOPES),
+            msg="Health-only connect must stay Calendar-free",
+        )
 
     def test_auth_status_without_tokens(self):
         with mock.patch.dict("os.environ", {}, clear=False):
