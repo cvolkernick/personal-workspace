@@ -32,7 +32,7 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Settings", html)
         self.assertIn("m-vault-apy", html)
         self.assertIn("Coinbase One Morpho HY product APY override", html)
-        self.assertIn("vault GraphQL avgNetApy is vault reference only", html)
+        self.assertIn("Vault GraphQL avgNetApy is vault reference only", html)
         self.assertIn("not the Coinbase One in-app product rate", html)
         self.assertIn("m-var-apr", html)
         self.assertIn("Morpho borrow APR override", html)
