@@ -236,7 +236,12 @@ def meal_regen_payload(
     silent: bool = True,
     error: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Assay hook: before/after GT ids for one food-log → regen cycle."""
+    """Assay hook: before/after GT ids for one meal-plan purge/recreate.
+
+    ``reason`` is ``food_logs`` when the foods fingerprint changed (or
+    legacy leaves had no fp), and ``refresh_resync`` when Refresh / silent
+    recreate rotated ids without an fp change.
+    """
     return {
         "triggered": bool(triggered),
         "reason": reason,
@@ -796,8 +801,11 @@ def ensure_daily_tasks(
     leaves. Completed prior-day quests are left completed.
 
     When today's food-log fingerprint no longer matches meal-plan-owned
-    Tasks, those leaves are purged and recreated from the new plan. Hand
-    jots and non-meal quests are left alone. Silent if none to purge.
+    Tasks, or Refresh / remaining-day resync leaves those titles stale
+    (same fingerprint, hydrate would miss and create new ids), meal-owned
+    leaves are purged and recreated. Hand jots and non-meal quests are
+    left alone. Silent if none to purge. ``meal_regen`` always reports
+    the deletes/creates that actually ran.
     """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
@@ -871,16 +879,14 @@ def ensure_daily_tasks(
             for t in listed_tasks
             if is_meal_plan_owned_task(t, day=day)
         }
-        # Food-log path only. No owned Tasks → silent. Same fp → hydrate.
-        # Legacy leaves (no foods fp) replace only when logs exist and titles
-        # no longer match the new plan.
+        # Recreate when owned meal GT would otherwise rotate under a silent
+        # hydrate-miss create: food-log fp change, legacy leaves (no foods
+        # fp) whose titles no longer match, or Refresh / remaining-day
+        # title shift with the same fp. No owned Tasks → silent create.
+        titles_diverged = planned_meal_titles != existing_meal_titles
         fp_changed = prior_fp is not None and prior_fp != foods_fp
-        legacy_stale = (
-            prior_fp is None
-            and log_n > 0
-            and planned_meal_titles != existing_meal_titles
-        )
-        if owned_meal and (fp_changed or legacy_stale):
+        legacy_stale = prior_fp is None and log_n > 0 and titles_diverged
+        if owned_meal and (fp_changed or titles_diverged):
             meal_purge = purge_meal_plan_tasks(
                 list_id=list_id,
                 day=day,
@@ -902,9 +908,14 @@ def ensure_daily_tasks(
                 if str(t.get("id") or "") not in set(purged_ids)
             ]
             listed = {"ok": True, "tasks": listed_tasks}
+            reason = (
+                "food_logs"
+                if (fp_changed or legacy_stale)
+                else "refresh_resync"
+            )
             meal_stats = meal_regen_payload(
                 triggered=True,
-                reason="food_logs",
+                reason=reason,
                 purged=purged_ids,
                 fingerprint=foods_fp,
                 prior_fingerprint=prior_fp,
@@ -1034,6 +1045,12 @@ def ensure_daily_tasks(
         if created_meal_ids:
             meal_stats["created"] = list(created_meal_ids)
             if meal_stats.get("triggered"):
+                meal_stats["silent"] = False
+            elif owned_meal:
+                # Hydrate-miss create while meal-owned GT already existed —
+                # never leave triggered=false / empty created while ids rotate.
+                meal_stats["triggered"] = True
+                meal_stats["reason"] = meal_stats.get("reason") or "refresh_resync"
                 meal_stats["silent"] = False
         return {
             "ok": True,
