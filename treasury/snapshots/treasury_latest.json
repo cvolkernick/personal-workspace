@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-24T04:18:35.218526+00:00",
+    "as_of": "2026-08-24T07:21:56.501076+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-21T19:51:04.225116+00:00",
@@ -21,7 +21,7 @@
       "collateral_btc_usd": "0",
       "ltv": "0",
       "vault_usdc": "0",
-      "card_balance": 458.71,
+      "card_balance": 470.36,
       "card_available_credit": null,
       "one_card_security_deposit_usdc": "500",
       "notes": "vault_usdc = HY LTV Buffer balance (generic high-yield leverage defense \u2014 not product-branded USDC/USDG, not One Card float). One Card paydown = Morpho new principal refinance. one_card_security_deposit_usdc = USDC securing the card; avail credit \u2248 deposit \u2212 balance. card_balance null so live YNAB wins.",
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-20T19:24:18.290371+00:00",
+      "as_of": "2026-08-24T05:34:06.176936+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -40,16 +40,16 @@
       "account_type": "creditCard",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -458.71,
-      "balance_owed": 458.71,
-      "card_balance": 458.71,
+      "balance_raw": -470.36,
+      "balance_owed": 470.36,
+      "card_balance": 470.36,
       "available_credit": null,
       "card_available_credit": null,
-      "cleared_balance": -458.71,
+      "cleared_balance": -470.36,
       "uncleared_balance": 0.0,
-      "spend_30d": 97.87,
+      "spend_30d": 58.72,
       "payments_30d": 117.59,
-      "transaction_count": 53,
+      "transaction_count": 55,
       "transactions": [
         {
           "id": "ede474b4-9851-48bd-a955-7fb5bdfae54e",
@@ -472,7 +472,7 @@
         {
           "id": "0087c406-f86a-4753-b563-64a36d00f1e7",
           "date": "2026-08-04",
-          "payee": "Transfer : Checking \u2013 2201",
+          "payee": "Transfer : Main \u2013 2201",
           "amount": 25.0,
           "amount_display": 25.0,
           "memo": null,
@@ -604,11 +604,11 @@
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-22"
+      "since": "2026-05-26"
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-20T19:24:18.659197+00:00",
+      "as_of": "2026-08-24T05:34:06.361102+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -651,27 +651,27 @@
       ],
       "notes": "Robinhood Checking via YNAB/Plaid \u2014 actual ACH/checking balance and txs. Prefer this over brokerage MCP cash for bill-pay float.",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-22"
+      "since": "2026-05-26"
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-20T19:24:19.153184+00:00",
+      "as_of": "2026-08-24T05:34:06.670121+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
       "account_id": "cc4aa802-28b5-47bd-b8e4-fae703c98a93",
-      "account_name": "Checking \u2013 2201",
+      "account_name": "Main \u2013 2201",
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": 509.21,
-      "cash": 509.21,
-      "available": 509.21,
-      "cleared_balance": 509.21,
+      "balance_raw": -433.71,
+      "cash": 0.0,
+      "available": 0.0,
+      "cleared_balance": -433.71,
       "uncleared_balance": 0.0,
-      "spend_30d": 2685.07,
-      "inflow_30d": 3194.28,
-      "transaction_count": 190,
+      "spend_30d": 4059.56,
+      "inflow_30d": 3574.22,
+      "transaction_count": 225,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -1092,7 +1092,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
+          "id": "e7632ab7-da11-406c-bb00-9033dc999914",
           "date": "2026-07-26",
           "payee": "McDonald's",
           "amount": -1.05,
@@ -1103,7 +1103,7 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "e7632ab7-da11-406c-bb00-9033dc999914",
+          "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
           "date": "2026-07-26",
           "payee": "McDonald's",
           "amount": -1.05,
@@ -1226,7 +1226,7 @@
       ],
       "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
       "token_source": "/Users/cvolkernick/.config/ynab/token",
-      "since": "2026-05-22",
+      "since": "2026-05-26",
       "apy_est": 0.06
     },
     "solana": {
@@ -3258,7 +3258,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-24T04:18:30.684325+00:00",
+      "as_of": "2026-08-24T07:21:51.798288+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3272,9 +3272,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-24T04:18:30.684320+00:00",
-        "total_value": 202.4280205,
-        "equity_value": 202.3380205,
+        "as_of": "2026-08-24T07:21:51.798284+00:00",
+        "total_value": 203.04355041,
+        "equity_value": 202.95355041,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3517,12 +3517,12 @@
       "loan_principal_usdc": null,
       "collateral_btc_usd": null,
       "vault_usdc": 0.0,
-      "card_balance": 458.71,
-      "card_available_credit": 41.29000000000002,
+      "card_balance": 470.36,
+      "card_available_credit": 29.639999999999986,
       "card_security_deposit_usdc": 500.0,
       "card_available_credit_source": "deposit_minus_balance",
       "card_source": "ynab",
-      "one_card_spend_30d": 97.87,
+      "one_card_spend_30d": 58.72,
       "one_card_account": "Coinbase One Card \u2013 5361",
       "expenses_upcoming_monthly": 18981.35,
       "expenses_personal_monthly": 14769.59,
@@ -3541,9 +3541,9 @@
       "rh_checking_cash": 0.0,
       "rh_checking_account": "RH Checking \u2013 3646",
       "rh_checking_spend_30d": 2.43,
-      "x_money_cash": 509.21,
-      "x_money_account": "Checking \u2013 2201",
-      "x_money_spend_30d": 2685.07,
+      "x_money_cash": 0.0,
+      "x_money_account": "Main \u2013 2201",
+      "x_money_spend_30d": 4059.56,
       "x_money_apy_est": 0.06,
       "solana_wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
       "solana_book_usd": 8.758741985960569,
@@ -3552,7 +3552,7 @@
       "solana_jr_strcusx": 3.317128,
       "solana_jr_strcusx_usd": 3.402957222474886,
       "solana_counts_toward_hy": false,
-      "bank_cash": 509.21,
+      "bank_cash": 0.0,
       "bill_pay_cash": 0.0,
       "rh_equity": 0.0,
       "rh_total_value": 0.094046,
@@ -3562,7 +3562,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 202.4280205,
+      "rh_agentic_total_value": 203.04355041,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 7,
@@ -3670,28 +3670,22 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-21T19:51:04.225116+00:00",
-        "robinhood_as_of": "2026-08-24T04:18:30.684325+00:00",
-        "one_card_as_of": "2026-08-20T19:24:18.290371+00:00",
-        "rh_checking_as_of": "2026-08-20T19:24:18.659197+00:00",
-        "x_money_as_of": "2026-08-20T19:24:19.153184+00:00",
+        "robinhood_as_of": "2026-08-24T07:21:51.798288+00:00",
+        "one_card_as_of": "2026-08-24T05:34:06.176936+00:00",
+        "rh_checking_as_of": "2026-08-24T05:34:06.361102+00:00",
+        "x_money_as_of": "2026-08-24T05:34:06.670121+00:00",
         "solana_as_of": "2026-08-21T19:51:17.166556+00:00",
         "expenses_as_of": "2026-08-21T19:51:12.022299+00:00"
       },
       "stale": [
-        "coinbase data 56.5h old (>6.0h)",
-        "one_card data 80.9h old (>6.0h)",
-        "rh_checking data 80.9h old (>6.0h)",
-        "x_money data 80.9h old (>6.0h)",
-        "solana data 56.5h old (>6.0h)",
-        "expenses data 56.5h old (>6.0h)"
+        "coinbase data 59.5h old (>6.0h)",
+        "solana data 59.5h old (>6.0h)",
+        "expenses data 59.5h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 56.5h old (>6.0h)",
-        "one_card data 80.9h old (>6.0h)",
-        "rh_checking data 80.9h old (>6.0h)",
-        "x_money data 80.9h old (>6.0h)",
-        "solana data 56.5h old (>6.0h)",
-        "expenses data 56.5h old (>6.0h)"
+        "coinbase data 59.5h old (>6.0h)",
+        "solana data 59.5h old (>6.0h)",
+        "expenses data 59.5h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -3710,7 +3704,7 @@
       {
         "priority": 1,
         "kind": "card_refinance",
-        "title": "Refinance One Card $459 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Refinance One Card $470 via Morpho principal (~5% vs ~29% APR)",
         "actor": "human",
         "detail": "Capital Flows: Morpho \u2192 One Card. Borrow additional BTC-backed USDC principal and pay the card in-app. Do not pull HY LTV Buffer for card. Watch LTV after principal increases.",
         "api_reachable": false
@@ -3755,7 +3749,7 @@
       {
         "n": 1,
         "actor": "human",
-        "title": "Refinance One Card $459 via Morpho principal (~5% vs ~29% APR)",
+        "title": "Refinance One Card $470 via Morpho principal (~5% vs ~29% APR)",
         "api_reachable": false
       },
       {
@@ -3777,7 +3771,7 @@
         "api_reachable": false
       }
     ],
-    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00192351 (~$148.33)\nOne Card owed: $458.71 (source=ynab) | 30d spend $97.87 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $18981.35/mo (personal $14769.59 | fleet tab $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5411.44 | Collateral investments (not burn) $545.53/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $509.21 (Checking \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $8.76 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $459 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
+    "agent_brief": "Overall stress: red\nLTV: 0.0\nHY LTV sleeve: $0.01 (spot $0.01 + HY vault $0.00 \u2014 leverage defense, not card float) | BTC liquid: 0.00192351 (~$148.33)\nOne Card owed: $470.36 (source=ynab) | 30d spend $58.72 | path=Morpho refinance (not HY pull)\nEngines: Morpho LTV=0.0 [cool] (tgt 38%/alert 45%/max 50%) | RH margin_use=n/a [unknown] (tgt 28%/alert 35%/max 40%) | joint=hy_parks_ok\nUpcoming expense estimates (Essential + funded unique Fleet; empty-From out): $18981.35/mo (personal $14769.59 | fleet tab $5561.76) | CB-funded est $13569.91 | RH-checking est $0.00 | X Money est $5411.44 | Collateral investments (not burn) $545.53/mo | Productive Discretionary (capital, not burn) $3000.00/mo | Consumer Discretionary $0.00/mo | Actual spend: YNAB\nRH Checking (YNAB): $0.0 | 30d spend $2.43 | X Money: $0.0 (Main \u2013 2201) | RH brokerage BP: $0.09 cash: $0.09 equity: $0.00\nSolana: $8.76 book (SOL 0.0589 \u00b7 USDC $0.00 \u00b7 JR-strcUSX 3.3171 ~$3.40) | NOT HY / not LTV defense / not working USDC | CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm\nDCA: ALLOW (normal) \u2014 buying power 0.09 above floor 0.00\nData quality: yellow score=1.0\nTop actions:\n  P1 [human|manual] Refinance One Card $470 via Morpho principal (~5% vs ~29% APR)\n  P2 [human|manual] Restore HY LTV Buffer \u00b7 HY LTV Buffer \u2212$1000\n  P3 [either|manual] LTV 0.0% cool (< target 38%) \u2014 prefer Morpho principal \u2192 HY LTV Buffer\n  P5 [either|manual] Bills ~$13570/mo vs USDC $0\nDo not auto-bridge USDC or touch Morpho/vault/card via Advanced Trade transfer.",
     "cashflow_allocation": {
       "version": 1,
       "priority_order": [
@@ -3787,10 +3781,10 @@
         "collateral_excess",
         "capex_from_margin"
       ],
-      "free_liquid_start": 509.22,
+      "free_liquid_start": 0.01,
       "free_liquid_residual": 0.0,
       "working_usdc": 0.01,
-      "bank_cash": 509.21,
+      "bank_cash": 0.0,
       "free_dollar_red": true,
       "active_step_id": "expenses",
       "next_free_dollar": "Pay Essential sheet obligations (overdue / due soon)",
@@ -3801,8 +3795,8 @@
           "title": "Expenses paid & current",
           "status": "partial",
           "need": 11453.99,
-          "allocated": 509.22,
-          "gap": 10944.77,
+          "allocated": 0.01,
+          "gap": 11453.98,
           "detail": "2 overdue \u00b7 2 due \u22647d \u00b7 critical $11,454",
           "fund_from": "venue_cash",
           "meta": {
@@ -3817,13 +3811,13 @@
           "id": "card_paydown",
           "title": "Coinbase One Card paydown",
           "status": "gap",
-          "need": 458.71,
+          "need": 470.36,
           "allocated": 0.0,
-          "gap": 458.71,
-          "detail": "Owed $458.71 \u2014 pay down before buffer residual risk",
+          "gap": 470.36,
+          "detail": "Owed $470.36 \u2014 pay down before buffer residual risk",
           "fund_from": "free_dollar",
           "meta": {
-            "card_balance": 458.71
+            "card_balance": 470.36
           }
         },
         {
@@ -3854,7 +3848,7 @@
           "status": "blocked",
           "need": 0.0,
           "allocated": 0.0,
-          "gap": 12403.48,
+          "gap": 12924.34,
           "detail": "Blocked until expenses, card, and buffers are clear",
           "fund_from": "free_dollar_excess",
           "meta": {
@@ -3941,8 +3935,8 @@
         "role": "ltv_buffer_sleeve"
       },
       "one_card": {
-        "balance": 458.71,
-        "available_credit": 41.29000000000002,
+        "balance": 470.36,
+        "available_credit": 29.639999999999986,
         "deposit": 500.0,
         "path": "morpho_refinance",
         "note": "Morpho new principal \u2192 pay card (~5% vs ~29%); raises LTV deliberately"
@@ -4016,25 +4010,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-24T04:18:35.223306+00:00",
+      "as_of": "2026-08-24T07:21:56.506223+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-24T04:18:35.220364+00:00",
+        "as_of": "2026-08-24T07:21:56.503342+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 202.428,
+        "nav_usd": 203.0436,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 174.7291,
         "weights_of_nav": {
-          "btc_digital_credit": 0.346,
-          "stocks_growth": 0.5172,
+          "btc_digital_credit": 0.3449,
+          "stocks_growth": 0.5156,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -5961,25 +5955,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-24T04:18:35.223306+00:00",
+    "as_of": "2026-08-24T07:21:56.506223+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-24T04:18:35.220364+00:00",
+      "as_of": "2026-08-24T07:21:56.503342+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 202.428,
+      "nav_usd": 203.0436,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 174.7291,
       "weights_of_nav": {
-        "btc_digital_credit": 0.346,
-        "stocks_growth": 0.5172,
+        "btc_digital_credit": 0.3449,
+        "stocks_growth": 0.5156,
         "other": 0.0,
         "cash": 0.0004
       },
