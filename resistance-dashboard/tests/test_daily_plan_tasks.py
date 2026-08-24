@@ -4,16 +4,25 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from unittest import mock
 
 from rt_dashboard.daily_plan_tasks import (
+    PROTEIN_REMAINING_CACHE_KEY,
+    PROTEIN_REMAINING_SLUG,
+    PlannedGroup,
+    PlannedItem,
     _delete_order,
+    _hydrate_ids_from_listed,
     cache_key,
     collect_fitdash_quest_ids,
     collect_meal_plan_task_ids,
+    collect_protein_remaining_tasks,
     ensure_daily_tasks,
     is_meal_plan_owned_task,
+    is_protein_remaining_owned_task,
+    looks_like_protein_remaining_title,
     meal_quest_notes,
     plan_from_today_board,
     plan_preview,
@@ -107,6 +116,11 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertIn("Next meal", meal_titles)
         self.assertIn("Later meal", meal_titles)
         self.assertTrue(any(i.meal_label == "Next meal" for i in by["nutrition"].items))
+        protein_items = [
+            i for i in by["nutrition"].items if i.slug == PROTEIN_REMAINING_SLUG
+        ]
+        self.assertEqual(len(protein_items), 1)
+        self.assertEqual(protein_items[0].title, "Cover remaining protein")
 
     def test_meal_bucket_clock_lands_on_quest_label(self):
         board = {
@@ -1261,6 +1275,362 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(regen.get("silent"))
         nut = next(g for g in result["groups"] if g["group"] == "nutrition")
         self.assertEqual(nut["items"][0]["task_id"], "keep-meal")
+
+    def test_protein_remaining_slug_stable_without_id(self):
+        board = {
+            "date": "2026-08-24",
+            "actions": [
+                {
+                    "kind": "nutrition",
+                    "text": (
+                        "Cover remaining protein (~210 g) from the meal plan "
+                        "or a high-protein stocked staple."
+                    ),
+                },
+                {
+                    "kind": "nutrition",
+                    "text": "Cover remaining protein (~180 g) from the meal plan",
+                },
+            ],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        groups = plan_from_today_board(board, day="2026-08-24")
+        nut = next(g for g in groups if g.group == "nutrition")
+        protein = [i for i in nut.items if looks_like_protein_remaining_title(i.title)]
+        self.assertEqual(len(protein), 1)
+        self.assertEqual(protein[0].slug, PROTEIN_REMAINING_SLUG)
+        self.assertIn("~210 g", protein[0].title)
+
+    def test_hydrate_protein_remaining_ignores_gram_in_title(self):
+        planned = [
+            PlannedGroup(
+                group="nutrition",
+                title="Nutrition",
+                items=[
+                    PlannedItem(
+                        group="nutrition",
+                        slug=PROTEIN_REMAINING_SLUG,
+                        title="Cover remaining protein (~180 g) from the meal plan",
+                    )
+                ],
+            )
+        ]
+        listed = {
+            "ok": True,
+            "tasks": [
+                {
+                    "id": "n1",
+                    "title": "Nutrition",
+                    "due": "2026-08-24T00:00:00.000Z",
+                    "notes": "[fitdash-quest:2026-08-24]",
+                },
+                {
+                    "id": "p-old",
+                    "title": "Cover remaining protein (~210 g) from the meal plan",
+                    "notes": "[fitdash-quest:2026-08-24]",
+                    "parent": "n1",
+                    "due": "2026-08-24T00:00:00.000Z",
+                    "status": "needsAction",
+                },
+            ],
+        }
+        ids = _hydrate_ids_from_listed({}, planned, listed, "2026-08-24")
+        self.assertEqual(ids[PROTEIN_REMAINING_CACHE_KEY], "p-old")
+
+    def test_protein_remaining_not_meal_owned(self):
+        day = "2026-08-24"
+        task = {
+            "id": "p1",
+            "title": "Cover remaining protein (~210 g) from the meal plan",
+            "notes": "[fitdash-quest:2026-08-24]",
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        self.assertTrue(looks_like_protein_remaining_title(task["title"]))
+        self.assertTrue(is_protein_remaining_owned_task(task, day=day))
+        self.assertFalse(is_meal_plan_owned_task(task, day=day))
+
+    def _protein_board(self, grams: int, extra_actions=None):
+        actions = list(extra_actions or [])
+        actions.append(
+            {
+                "kind": "nutrition",
+                "text": (
+                    f"Cover remaining protein (~{grams} g) from the meal plan "
+                    "or a high-protein stocked staple."
+                ),
+                "id": "protein-remaining",
+            }
+        )
+        return {
+            "date": "2026-08-24",
+            "actions": actions,
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+
+    def _patch_ensure(self, store, created, tmp, cache=None):
+        def fake_list(list_id, show_completed=True, show_hidden=True):
+            return {"ok": True, "tasks": list(store.values())}
+
+        def fake_delete(list_id, task_id):
+            store.pop(task_id, None)
+            return {"ok": True}
+
+        def fake_create(list_id, title, notes="", due=None, parent=None):
+            tid = f"new-{len(created) + 1}"
+            task = {
+                "id": tid,
+                "title": title,
+                "notes": notes,
+                "due": f"{due}T00:00:00.000Z" if due and len(str(due)) == 10 else due,
+                "status": "needsAction",
+                "parent": parent,
+            }
+            created.append(task)
+            store[tid] = task
+            return {"ok": True, "task": task}
+
+        def fake_get(list_id, task_id):
+            task = store.get(task_id)
+            if not task:
+                return {"ok": False, "error": "missing"}
+            return {"ok": True, "task": task}
+
+        def fake_update(list_id, task_id, title=None, notes=None, due=None, status=None, clear_due=False):
+            task = store.get(task_id)
+            if not task:
+                return {"ok": False, "error": "missing"}
+            if title is not None:
+                task["title"] = title
+            if notes is not None:
+                task["notes"] = notes
+            if status is not None:
+                task["status"] = status
+            store[task_id] = task
+            return {"ok": True, "task": task}
+
+        stack = ExitStack()
+        stack.enter_context(
+            mock.patch.dict("os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp})
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True, "source": "session"},
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks", side_effect=fake_list
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task", side_effect=fake_delete
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task", side_effect=fake_create
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task", side_effect=fake_get
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.update_task", side_effect=fake_update
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                return_value={"ok": True},
+            )
+        )
+        stack.enter_context(
+            mock.patch(
+                "rt_dashboard.daily_plan_tasks._load_cache",
+                return_value=cache if cache is not None else {},
+            )
+        )
+        stack.enter_context(mock.patch("rt_dashboard.daily_plan_tasks._save_cache"))
+        return stack
+
+    def test_double_seed_protein_remaining_stays_one(self):
+        store: dict = {}
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(self._protein_board(210), day="2026-08-24")
+                second = ensure_daily_tasks(self._protein_board(210), day="2026-08-24")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        incompletes = collect_protein_remaining_tasks(
+            list(store.values()), day="2026-08-24", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        protein_created = [
+            t
+            for t in created
+            if looks_like_protein_remaining_title(t.get("title") or "")
+        ]
+        self.assertEqual(len(protein_created), 1)
+        self.assertIn("~210 g", incompletes[0]["title"])
+
+    def test_protein_remaining_gram_change_upserts_same_id(self):
+        store: dict = {}
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(self._protein_board(210), day="2026-08-24")
+                first_id = (first.get("protein_remaining") or {}).get("kept")
+                second = ensure_daily_tasks(self._protein_board(180), day="2026-08-24")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        incompletes = collect_protein_remaining_tasks(
+            list(store.values()), day="2026-08-24", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        self.assertEqual(incompletes[0]["id"], first_id)
+        self.assertIn("~180 g", incompletes[0]["title"])
+        self.assertNotIn("~210 g", incompletes[0]["title"])
+        self.assertTrue((second.get("protein_remaining") or {}).get("upserted"))
+        protein_created = [
+            t
+            for t in created
+            if looks_like_protein_remaining_title(t.get("title") or "")
+        ]
+        self.assertEqual(len(protein_created), 1)
+
+    def test_refresh_collapses_protein_remaining_duplicates(self):
+        store = {
+            "nut-h": {
+                "id": "nut-h",
+                "title": "Nutrition",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "p-a": {
+                "id": "p-a",
+                "title": "Cover remaining protein (~210 g) from the meal plan",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "parent": "nut-h",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "p-b": {
+                "id": "p-b",
+                "title": "Cover remaining protein (~210 g) from the meal plan",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "parent": "nut-h",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "p-c": {
+                "id": "p-c",
+                "title": "Cover remaining protein (~210 g) from the meal plan",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "parent": "nut-h",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "lift": {
+                "id": "lift",
+                "title": "Complete today's PUSH session",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Text the vet",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(
+                    self._protein_board(
+                        210,
+                        extra_actions=[
+                            {
+                                "kind": "training",
+                                "text": "Complete today's PUSH session",
+                                "id": "train-session",
+                            }
+                        ],
+                    ),
+                    day="2026-08-24",
+                )
+        self.assertTrue(result.get("ok"), result)
+        incompletes = collect_protein_remaining_tasks(
+            list(store.values()), day="2026-08-24", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        self.assertIn("lift", store)
+        self.assertIn("jot", store)
+        self.assertEqual(store["jot"]["title"], "Text the vet")
+        purged = (result.get("protein_remaining") or {}).get("purged") or []
+        self.assertEqual(len(purged), 2)
+        self.assertFalse(
+            any(
+                looks_like_protein_remaining_title(t.get("title") or "")
+                for t in created
+            )
+        )
+
+    def test_completed_protein_remaining_not_resurrected(self):
+        store = {
+            "p-done": {
+                "id": "p-done",
+                "title": "Cover remaining protein (~210 g) from the meal plan",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "completed",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Call mom",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(self._protein_board(180), day="2026-08-24")
+        self.assertTrue(result.get("ok"), result)
+        self.assertIn("p-done", store)
+        self.assertEqual(store["p-done"]["status"], "completed")
+        self.assertIn("~210 g", store["p-done"]["title"])
+        incompletes = collect_protein_remaining_tasks(
+            list(store.values()), day="2026-08-24", incomplete_only=True
+        )
+        self.assertEqual(incompletes, [])
+        self.assertFalse(
+            any(
+                looks_like_protein_remaining_title(t.get("title") or "")
+                for t in created
+            )
+        )
+        self.assertIn("jot", store)
 
 
 if __name__ == "__main__":

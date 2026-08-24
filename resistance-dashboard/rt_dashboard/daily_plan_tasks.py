@@ -41,6 +41,21 @@ MEAL_TITLE_RE = re.compile(
     r"(?:\s·\s[^:]+)?:\s",
     re.I,
 )
+# Stable cache key / slug so gram-in-title updates upsert (issue #345).
+PROTEIN_REMAINING_SLUG = "protein-remaining"
+PROTEIN_REMAINING_CACHE_KEY = f"nutrition|{PROTEIN_REMAINING_SLUG}"
+PROTEIN_REMAINING_TITLE_RE = re.compile(
+    r"^cover(?: the)? remaining protein\b",
+    re.I,
+)
+PROTEIN_REMAINING_SLUG_RE = re.compile(
+    r"^(protein-remaining|protein-gap)$",
+    re.I,
+)
+PROTEIN_REMAINING_LEGACY_SLUG_RE = re.compile(
+    r"^action-nutrition-\d+$",
+    re.I,
+)
 
 GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
@@ -167,6 +182,217 @@ def is_meal_plan_item(item: PlannedItem) -> bool:
 
 def looks_like_meal_plan_title(title: str) -> bool:
     return bool(MEAL_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_protein_remaining_title(title: str) -> bool:
+    return bool(PROTEIN_REMAINING_TITLE_RE.match((title or "").strip()))
+
+
+def is_protein_remaining_cache_key(cache_key_s: str) -> bool:
+    ck = str(cache_key_s or "")
+    if ck == PROTEIN_REMAINING_CACHE_KEY:
+        return True
+    if not ck.startswith("nutrition|"):
+        return False
+    slug = ck.split("|", 1)[-1]
+    return bool(
+        PROTEIN_REMAINING_SLUG_RE.match(slug)
+        or PROTEIN_REMAINING_LEGACY_SLUG_RE.match(slug)
+    )
+
+
+def is_protein_remaining_item(item: PlannedItem) -> bool:
+    slug = str(item.slug or "")
+    if slug == PROTEIN_REMAINING_SLUG or PROTEIN_REMAINING_SLUG_RE.match(slug):
+        return True
+    return looks_like_protein_remaining_title(item.title)
+
+
+def protein_remaining_action_slug(act: dict) -> Optional[str]:
+    """Stable slug for protein-remaining actions even when grams/title shift."""
+    aid = str((act or {}).get("id") or "").strip().lower()
+    if aid == PROTEIN_REMAINING_SLUG or PROTEIN_REMAINING_SLUG_RE.match(aid):
+        return PROTEIN_REMAINING_SLUG
+    if looks_like_protein_remaining_title(str((act or {}).get("text") or "")):
+        return PROTEIN_REMAINING_SLUG
+    return None
+
+
+def is_protein_remaining_owned_task(task: dict, *, day: str = "") -> bool:
+    """True for FitDash protein-remaining leaves on this civil day.
+
+    Title shape plus ``[fitdash-quest:day]`` or due date. Never meal slots,
+    lifts, shopping, sleep, or unmarked jots.
+    """
+    if not isinstance(task, dict):
+        return False
+    if not looks_like_protein_remaining_title(task.get("title") or ""):
+        return False
+    if looks_like_meal_plan_title(task.get("title") or ""):
+        return False
+    notes = task.get("notes") or ""
+    marked = quest_mark_day(notes)
+    want = str(day or "")[:10]
+    if marked:
+        return (not want) or marked == want
+    due = _task_due_day(task)
+    if due and _is_day_key(due):
+        return (not want) or due == want
+    return False
+
+
+def collect_protein_remaining_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    out: List[dict] = []
+    for task in tasks or []:
+        if not isinstance(task, dict):
+            continue
+        if not is_protein_remaining_owned_task(task, day=day):
+            continue
+        if incomplete_only and not _is_incomplete(task):
+            continue
+        out.append(task)
+    return out
+
+
+def protein_remaining_payload(
+    *,
+    kept: Optional[str] = None,
+    purged: Optional[Sequence[str]] = None,
+    upserted: bool = False,
+    created: bool = False,
+) -> Dict[str, Any]:
+    return {
+        "kept": kept or None,
+        "purged": list(purged or []),
+        "upserted": bool(upserted),
+        "created": bool(created),
+    }
+
+
+def _protein_remaining_keeper(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    cache_ids: Optional[Dict[str, str]] = None,
+    prefer_title: str = "",
+) -> Optional[dict]:
+    incompletes = collect_protein_remaining_tasks(
+        tasks, day=day, incomplete_only=True
+    )
+    if not incompletes:
+        return None
+    stable_tid = str((cache_ids or {}).get(PROTEIN_REMAINING_CACHE_KEY) or "")
+    if stable_tid:
+        for task in incompletes:
+            if str(task.get("id") or "") == stable_tid:
+                return task
+    want = (prefer_title or "").strip()
+    if want:
+        exact = [
+            t for t in incompletes if (t.get("title") or "").strip() == want
+        ]
+        if exact:
+            return sorted(exact, key=lambda t: str(t.get("id") or ""))[0]
+    marked = [
+        t for t in incompletes if quest_mark_day(t.get("notes") or "")
+    ]
+    pool = marked or incompletes
+    return sorted(pool, key=lambda t: str(t.get("id") or ""))[0]
+
+
+def collapse_protein_remaining_tasks(
+    *,
+    list_id: str,
+    day: str,
+    cache: Optional[dict] = None,
+    save: bool = True,
+    listed_tasks: Optional[Sequence[dict]] = None,
+    prefer_title: str = "",
+) -> Dict[str, Any]:
+    """Keep ≤1 incomplete protein-remaining leaf for this civil day.
+
+    Extra incompletes are deleted. Completed / checked copies stay history.
+    Meal slots, lifts, shopping, sleep, and jots are never touched.
+    """
+    day = str(day or "")[:10]
+    empty = protein_remaining_payload()
+    if not list_id or not day or not _is_day_key(day):
+        return {**empty, "ok": False, "error": "missing list_id or day"}
+    if cache is None:
+        cache = _load_cache()
+    day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
+    ids = dict(day_cache.get("ids") or {})
+    tasks: List[dict] = list(listed_tasks or [])
+    errors: List[str] = []
+    if listed_tasks is None:
+        try:
+            listed = gtb.list_tasks(list_id, show_completed=True, show_hidden=True)
+            if listed.get("ok"):
+                tasks = [t for t in (listed.get("tasks") or []) if isinstance(t, dict)]
+            else:
+                return {
+                    **empty,
+                    "ok": True,
+                    "error": str(listed.get("error") or "list_tasks failed")[:160],
+                }
+        except Exception as exc:  # noqa: BLE001
+            return {**empty, "ok": True, "error": str(exc)[:160]}
+
+    keeper = _protein_remaining_keeper(
+        tasks, day=day, cache_ids=ids, prefer_title=prefer_title
+    )
+    incompletes = collect_protein_remaining_tasks(
+        tasks, day=day, incomplete_only=True
+    )
+    keep_id = str((keeper or {}).get("id") or "")
+    extras = [
+        t for t in incompletes if keep_id and str(t.get("id") or "") != keep_id
+    ]
+    purged: List[str] = []
+    for task in extras:
+        tid = str(task.get("id") or "")
+        if not tid:
+            continue
+        try:
+            result = gtb.delete_task(list_id, tid)
+            if result.get("ok"):
+                purged.append(tid)
+            else:
+                errors.append(f"{tid}: {result.get('error') or 'delete failed'}")
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{tid}: {exc}")
+
+    if keep_id:
+        ids[PROTEIN_REMAINING_CACHE_KEY] = keep_id
+    drop = set(purged)
+    for ck in list(ids.keys()):
+        if str(ids.get(ck) or "") in drop:
+            ids.pop(ck, None)
+        elif (
+            is_protein_remaining_cache_key(ck)
+            and ck != PROTEIN_REMAINING_CACHE_KEY
+            and str(ids.get(ck) or "") == keep_id
+        ):
+            ids.pop(ck, None)
+            ids[PROTEIN_REMAINING_CACHE_KEY] = keep_id
+    if isinstance(day_cache, dict) and (purged or keep_id):
+        day_cache = dict(day_cache)
+        day_cache["ids"] = ids
+        cache[day] = day_cache
+        if save:
+            _save_cache(cache)
+
+    return {
+        **protein_remaining_payload(kept=keep_id or None, purged=purged),
+        "ok": True,
+        "errors": errors[:20],
+        "error": errors[0] if errors else None,
+    }
 
 
 def is_meal_plan_owned_task(task: dict, *, day: str = "") -> bool:
@@ -346,6 +572,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         return groups[key]
 
     # High-level actions (skip pure nutrition "eat through plan" if we expand meals)
+    saw_protein_remaining = False
     for i, act in enumerate((today or {}).get("actions") or []):
         if not isinstance(act, dict):
             continue
@@ -356,7 +583,14 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         # Prefer meal-bucket leaves over generic "eat through planned meals"
         if kind == "nutrition" and "planned meal" in text.lower():
             continue
-        slug = str(act.get("id") or f"action-{kind}-{i}")
+        protein_slug = protein_remaining_action_slug(act)
+        if protein_slug:
+            if saw_protein_remaining:
+                continue
+            saw_protein_remaining = True
+            slug = protein_slug
+        else:
+            slug = str(act.get("id") or f"action-{kind}-{i}")
         _g(kind).items.append(
             PlannedItem(
                 group=("sleep" if kind == "recovery" else kind),
@@ -534,7 +768,43 @@ def _hydrate_ids_from_listed(
             return t
         return None
 
+    def take_protein_remaining(parent_id: Optional[str] = None) -> Optional[dict]:
+        """Reuse same-day protein remaining even when grams in the title shifted."""
+        candidates: List[Tuple[int, int, dict]] = []
+        for i, t in enumerate(unused):
+            tid = str(t.get("id") or "")
+            if tid and tid in used_ids:
+                continue
+            if not is_protein_remaining_owned_task(t, day=day):
+                continue
+            due = _task_due_day(t)
+            if due and due != day:
+                continue
+            if parent_id and str(t.get("parent") or "") not in ("", parent_id):
+                continue
+            incomplete = 0 if _is_incomplete(t) else 1
+            candidates.append((incomplete, i, t))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda row: (row[0], row[1]))
+        _inc, idx, found = candidates[0]
+        unused.pop(idx)
+        return found
+
     out = dict(ids)
+    by_id = {str(t.get("id") or ""): t for t in tasks if t.get("id")}
+    for ck, tid in list(out.items()):
+        if ck == PROTEIN_REMAINING_CACHE_KEY or not tid:
+            continue
+        slug = ck.split("|", 1)[-1] if ck.startswith("nutrition|") else ""
+        task = by_id.get(str(tid))
+        title_hit = bool(
+            task and looks_like_protein_remaining_title(task.get("title") or "")
+        )
+        if PROTEIN_REMAINING_SLUG_RE.match(slug) or (
+            PROTEIN_REMAINING_LEGACY_SLUG_RE.match(slug) and title_hit
+        ):
+            out.setdefault(PROTEIN_REMAINING_CACHE_KEY, tid)
     for g in planned:
         parent_ck = cache_key(g.group, "group")
         parent_id = out.get(parent_ck)
@@ -546,9 +816,15 @@ def _hydrate_ids_from_listed(
                 used_ids.add(parent_id)
         for it in g.items:
             ck = cache_key(g.group, it.slug)
+            if is_protein_remaining_item(it):
+                ck = PROTEIN_REMAINING_CACHE_KEY
             if out.get(ck):
                 continue
-            found = take(it.title, parent_id=parent_id)
+            found = (
+                take_protein_remaining(parent_id=parent_id)
+                if is_protein_remaining_item(it)
+                else take(it.title, parent_id=parent_id)
+            )
             if found and found.get("id"):
                 out[ck] = str(found["id"])
                 used_ids.add(str(found["id"]))
@@ -826,11 +1102,27 @@ def ensure_daily_tasks(
     leaves are purged and recreated. Hand jots and non-meal quests are
     left alone. Silent if none to purge. ``meal_regen`` always reports
     the deletes/creates that actually ran.
+
+    Protein-remaining leaves use a stable ``nutrition|protein-remaining``
+    cache key (issue #345). Incomplete duplicates for the civil day are
+    collapsed to one before seed; title grams upsert in place. Completed
+    protein quests stay history.
     """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
     foods_fp = board_food_logs_fingerprint(today_board or {}, day=day)
     meal_stats = meal_regen_payload(fingerprint=foods_fp, silent=True)
+    protein_title = next(
+        (
+            it.title
+            for g in planned
+            if g.group == "nutrition"
+            for it in g.items
+            if is_protein_remaining_item(it)
+        ),
+        "",
+    )
+    protein_stats = protein_remaining_payload()
 
     cred = gtb.credentials_status()
     if not cred.get("ok"):
@@ -943,6 +1235,32 @@ def ensure_daily_tasks(
                 error=meal_purge.get("error"),
             )
 
+        # Collapse same-day incomplete protein remaining before seed (#345).
+        protein_collapse = collapse_protein_remaining_tasks(
+            list_id=list_id,
+            day=day,
+            cache=cache,
+            save=True,
+            listed_tasks=listed_tasks,
+            prefer_title=protein_title,
+        )
+        protein_purged = list(protein_collapse.get("purged") or [])
+        if protein_collapse.get("kept") or protein_purged:
+            protein_stats = protein_remaining_payload(
+                kept=protein_collapse.get("kept"),
+                purged=protein_purged,
+            )
+        day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
+        if isinstance(day_cache, dict) and day_cache.get("ids"):
+            ids = dict(day_cache.get("ids") or ids)
+        if protein_purged:
+            listed_tasks = [
+                t
+                for t in listed_tasks
+                if str(t.get("id") or "") not in set(protein_purged)
+            ]
+            listed = {"ok": True, "tasks": listed_tasks}
+
         if listed and listed.get("ok"):
             ids = _hydrate_ids_from_listed(ids, planned, listed, day)
 
@@ -970,10 +1288,52 @@ def ensure_daily_tasks(
 
             items_out: List[dict] = []
             for it in g.items:
-                ck = cache_key(g.group, it.slug)
+                protein_item = is_protein_remaining_item(it)
+                ck = (
+                    PROTEIN_REMAINING_CACHE_KEY
+                    if protein_item
+                    else cache_key(g.group, it.slug)
+                )
                 tid = ids.get(ck)
                 task = _get_task_safe(list_id, tid) if tid else None
-                if not task and create_missing:
+                if protein_item and not task:
+                    existing_pr = collect_protein_remaining_tasks(
+                        listed_tasks, day=day
+                    )
+                    incompletes = [
+                        t for t in existing_pr if _is_incomplete(t)
+                    ]
+                    pick = incompletes[0] if incompletes else (
+                        existing_pr[0] if existing_pr else None
+                    )
+                    if pick and pick.get("id"):
+                        task = pick
+                        tid = str(pick["id"])
+                        ids[ck] = tid
+                if (
+                    protein_item
+                    and task
+                    and create_missing
+                    and _is_incomplete(task)
+                    and (task.get("title") or "").strip() != it.title.strip()
+                ):
+                    updated = gtb.update_task(
+                        list_id, str(task.get("id") or tid), title=it.title
+                    )
+                    if updated.get("ok") and updated.get("task"):
+                        task = updated["task"]
+                        listed_tasks = [
+                            updated["task"]
+                            if str(t.get("id") or "") == str(task.get("id") or "")
+                            else t
+                            for t in listed_tasks
+                        ]
+                    protein_stats["upserted"] = True
+                    protein_stats["kept"] = str(task.get("id") or tid)
+                if not task and create_missing and not (
+                    protein_item
+                    and collect_protein_remaining_tasks(listed_tasks, day=day)
+                ):
                     if is_meal_plan_item(it):
                         notes = meal_quest_notes(
                             it.notes_extra or "", day, foods_fp
@@ -992,8 +1352,12 @@ def ensure_daily_tasks(
                         tid = str(task.get("id") or "")
                         if tid:
                             ids[ck] = tid
+                            listed_tasks.append(task)
                             if is_meal_plan_item(it):
                                 created_meal_ids.append(tid)
+                            if protein_item:
+                                protein_stats["created"] = True
+                                protein_stats["kept"] = tid
                 if not task:
                     items_out.append(
                         {
@@ -1092,12 +1456,17 @@ def ensure_daily_tasks(
             "summary": {"done": done, "total": total},
             "purge": purge_stats,
             "meal_regen": meal_stats,
+            "protein_remaining": protein_stats,
             "calendar": calendar,
             "error": None,
         }
     except Exception as e:
         return _local_payload(
-            planned, day=day, error=str(e), meal_regen=meal_stats
+            planned,
+            day=day,
+            error=str(e),
+            meal_regen=meal_stats,
+            protein_remaining=protein_stats,
         )
 
 
@@ -1115,6 +1484,7 @@ def _local_payload(
     error: Optional[str] = None,
     source: str = "local_preview",
     meal_regen: Optional[dict] = None,
+    protein_remaining: Optional[dict] = None,
 ) -> dict:
     groups_out = []
     for g in planned:
@@ -1160,6 +1530,7 @@ def _local_payload(
             fingerprint=board_food_logs_fingerprint({"date": day}, day=day),
             silent=True,
         ),
+        "protein_remaining": protein_remaining or protein_remaining_payload(),
     }
 
 

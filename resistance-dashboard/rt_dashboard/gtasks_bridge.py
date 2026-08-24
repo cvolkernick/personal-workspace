@@ -166,6 +166,28 @@ def create_task(
     )
 
 
+def update_task(
+    list_id: str,
+    task_id: str,
+    *,
+    title: Optional[str] = None,
+    notes: Optional[str] = None,
+    due: Optional[str] = None,
+    status: Optional[str] = None,
+    clear_due: bool = False,
+) -> dict[str, Any]:
+    client = _session_client() or _pi_client_or_vercel_error()
+    return client.update_task(
+        list_id,
+        task_id,
+        title=title,
+        notes=notes,
+        due=due,
+        status=status,
+        clear_due=clear_due,
+    )
+
+
 def complete_task(
     list_id: str, task_id: str, *, completed: bool = True
 ) -> dict[str, Any]:
