@@ -233,6 +233,7 @@ def pick_x_money_account(
     """Pick X Money. Id pin first, then dash-normalized name, then leftover non-RH checking."""
     open_accts = _open_accounts(accounts)
     exclude_ids = exclude_ids or set()
+    pinned = bool(prefer_id or prefer_name)
     if prefer_id:
         for a in open_accts:
             if a.get("id") == prefer_id:
@@ -242,6 +243,9 @@ def pick_x_money_account(
         for a in open_accts:
             if fold_dashes(a.get("name")) == want:
                 return a
+    if pinned:
+        # Closed/renamed pin must miss — do not steal another leftover checking.
+        return None
     scored: List[Tuple[int, Dict[str, Any]]] = []
     for a in open_accts:
         if a.get("id") in exclude_ids:
@@ -636,6 +640,8 @@ def write_x_money_snapshot(data: Dict[str, Any], path: Optional[Path] = None) ->
 
 
 def _is_bad_payload(data: Dict[str, Any]) -> bool:
+    if not data:
+        return True
     return data.get("source") == "empty" or bool(data.get("live_error"))
 
 

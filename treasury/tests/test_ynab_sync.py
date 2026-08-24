@@ -186,6 +186,39 @@ class TestPickAccount(unittest.TestCase):
         reason = closed_pin_reason(accts, prefer_name="Checking – 2201")
         self.assertIn("closed", reason or "")
 
+    def test_closed_pin_does_not_steal_other_checking(self):
+        accts = [
+            {
+                "id": "other",
+                "name": "Other Checking",
+                "type": "checking",
+                "deleted": False,
+                "closed": False,
+            },
+            {
+                "id": XM_PIN,
+                "name": "Checking – 2201",
+                "type": "checking",
+                "deleted": False,
+                "closed": True,
+            },
+        ]
+        self.assertIsNone(
+            pick_x_money_account(
+                accts, prefer_id=XM_PIN, prefer_name="Checking – 2201"
+            )
+        )
+
+
+class TestConfigPin(unittest.TestCase):
+    def test_x_money_id_and_budget_pinned(self):
+        from treasury.adapters import load_config
+
+        ynab = load_config().get("ynab") or {}
+        self.assertEqual(ynab.get("x_money_account_id"), XM_PIN)
+        self.assertEqual(ynab.get("budget_name"), "Chris's Plan")
+        self.assertEqual(fold_dashes(ynab.get("x_money_account_name")), fold_dashes("Checking – 2201"))
+
 
 class TestNormalize(unittest.TestCase):
     def test_balance_owed_and_spend(self):
