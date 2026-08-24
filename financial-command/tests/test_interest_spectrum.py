@@ -35,6 +35,8 @@ from treasury.interest_spectrum import (  # noqa: E402
     LOCKED_YIELD_SEEDS,
     MORPHO_HY_VAULT_NE_PRODUCT_NOTE,
     MORPHO_HY_VAULT_REF_PATHS,
+    RH_MARGIN_BOOK_PATHS,
+    RH_MARGIN_ID,
     SEED_TICKS_PCT,
     USDG_GOLD_CAVEAT,
     WELLS_OFF_FCC_ID,
@@ -108,6 +110,34 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("settings", spec["notes"])
         self.assertIn("seed", spec["notes"])
         self.assertIn("avgBorrowApy", spec["notes"])
+        self.assertEqual(spec["label"], "Coinbase BTC-backed Morpho loan")
+        self.assertIn("margin/borrow", spec["detail"])
+        self.assertIn("Coinbase BTC-backed Morpho loan", spec["notes"])
+        self.assertIn("margin/borrow", spec["notes"])
+
+    def test_rh_margin_settings_paths_precede_live_books(self) -> None:
+        spec = next(row for row in LOCKED_SEEDS if row["id"] == RH_MARGIN_ID)
+        self.assertAlmostEqual(spec["rate_pct"], 5.0)
+        self.assertEqual(spec["kind"], "debt")
+        self.assertEqual(spec["label"], "RH margin interest")
+        self.assertIn("borrow cost", spec["detail"])
+        self.assertIn("$50k", spec["detail"])
+        settings = list(spec["settings_paths"])
+        live = list(spec["paths"])
+        self.assertEqual(settings[0], ("config", "robinhood", "rh_margin_apr"))
+        self.assertIn(("config", "robinhood", "margin_apr"), settings)
+        self.assertNotIn(("config", "robinhood", "rh_margin_apr"), live)
+        self.assertIn(("evaluation", "inputs", "rh_margin_apr"), live)
+        self.assertIn(("snapshot", "robinhood", "margin_apr"), live)
+        self.assertEqual(list(RH_MARGIN_BOOK_PATHS), live)
+        self.assertNotIn(("evaluation", "inputs", "rh_margin_use"), live)
+        self.assertNotIn(("evaluation", "inputs", "rh_margin_use_max"), live)
+        self.assertNotIn(("config", "policy", "rh_margin_use_max"), live)
+        self.assertIn("settings", spec["notes"])
+        self.assertIn("seed", spec["notes"])
+        self.assertIn("5% up to $50k", spec["notes"])
+        self.assertIn("do not invent", spec["notes"])
+        self.assertIn("scrape", spec["notes"])
 
     def test_usdg_hy_settings_paths_precede_live_books(self) -> None:
         spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == "usdg_earn")
@@ -207,6 +237,21 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertTrue(by_id["morpho_borrow"]["approx"])
         self.assertEqual(by_id["morpho_borrow"]["source"], "locked_seed")
         self.assertEqual(by_id["morpho_borrow"]["deep_link"], "index.html#morpho")
+        self.assertEqual(by_id["morpho_borrow"]["kind"], "debt")
+        self.assertEqual(by_id["morpho_borrow"]["lane"], "above")
+        self.assertEqual(by_id["morpho_borrow"]["label"], "Coinbase BTC-backed Morpho loan")
+        self.assertIn("margin/borrow", by_id["morpho_borrow"]["detail"])
+        self.assertEqual(by_id["morpho_borrow"]["rate_kind"], "APR")
+
+        self.assertAlmostEqual(by_id[RH_MARGIN_ID]["rate_pct"], 5.0)
+        self.assertTrue(by_id[RH_MARGIN_ID]["approx"])
+        self.assertEqual(by_id[RH_MARGIN_ID]["source"], "locked_seed")
+        self.assertEqual(by_id[RH_MARGIN_ID]["kind"], "debt")
+        self.assertEqual(by_id[RH_MARGIN_ID]["lane"], "above")
+        self.assertEqual(by_id[RH_MARGIN_ID]["label"], "RH margin interest")
+        self.assertEqual(by_id[RH_MARGIN_ID]["rate_kind"], "APR")
+        self.assertIn("5% up to $50k", by_id[RH_MARGIN_ID]["notes"])
+        self.assertEqual(by_id[RH_MARGIN_ID]["deep_link"], "index.html#rh-margin")
 
         self.assertAlmostEqual(by_id["one_card"]["rate_pct"], 29.0)
         self.assertTrue(by_id["one_card"]["approx"])
@@ -336,6 +381,8 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 6.0)
         self.assertEqual(by_id["morpho_borrow"]["source"], "locked_seed")
         self.assertAlmostEqual(by_id["morpho_borrow"]["rate_pct"], 5.0)
+        self.assertEqual(by_id[RH_MARGIN_ID]["source"], "locked_seed")
+        self.assertAlmostEqual(by_id[RH_MARGIN_ID]["rate_pct"], 5.0)
         self.assertEqual(by_id["morpho_hy"]["source"], "locked_seed")
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
         self.assertEqual(by_id["usdg_earn"]["source"], "locked_seed")
@@ -610,6 +657,38 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(chip["rate_pct"], 4.68)
         self.assertIn("evaluation.inputs.variable_apr", chip["notes"])
 
+    def test_morpho_borrow_zero_settings_does_not_paint_zero(self) -> None:
+        """Blank/0 manual override must not paint 0% as books (#343)."""
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"variable_apr": 0.0468}}},
+            config={"coinbase_manual": {"variable_apr": 0, "morpho_borrow_apr": 0.0}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_borrow"]
+        self.assertAlmostEqual(chip["rate_pct"], 4.68)
+        self.assertEqual(chip["source"], "books")
+        self.assertNotAlmostEqual(chip["rate_pct"], 0.0)
+        self.assertIn("evaluation.inputs.variable_apr", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_borrow_zero_settings_falls_to_seed_when_no_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {}},
+                "snapshot": {"coinbase_manual": {"variable_apr": 0}},
+            },
+            config={"coinbase_manual": {"variable_apr": 0, "morpho_borrow_apr": "0"}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_borrow"]
+        self.assertAlmostEqual(chip["rate_pct"], 5.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertTrue(chip["approx"])
+        self.assertNotAlmostEqual(chip["rate_pct"], 0.0)
+        self.assertTrue(rates_are_honest(payload))
+
     def test_morpho_borrow_seed_always_visible_when_no_books(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -623,6 +702,146 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertTrue(chip["approx"])
         self.assertIn("seed", chip["notes"].lower())
         self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_settings_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {}}},
+            config={"robinhood": {"rh_margin_apr": 0.062}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 6.2)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertEqual(chip["kind"], "debt")
+        self.assertEqual(chip["lane"], "above")
+        self.assertIn("config.robinhood.rh_margin_apr", chip["notes"])
+        self.assertIn("settings", chip["notes"].lower())
+        self.assertIn("5% up to $50k", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_live_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_margin_apr": 0.055}}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 5.5)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("evaluation.inputs.rh_margin_apr", chip["notes"])
+        self.assertIn("live", chip["notes"])
+        self.assertIn("5% up to $50k", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_settings_beats_live_when_set(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {"rh_margin_apr": 0.055}},
+                "snapshot": {"robinhood": {"margin_apr": 0.048}},
+            },
+            config={"robinhood": {"rh_margin_apr": 0.071}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 7.1)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("config.robinhood.rh_margin_apr", chip["notes"])
+        self.assertNotIn("evaluation.inputs.rh_margin_apr", chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_dedicated_settings_key_beats_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_margin_apr": 0.055}}},
+            config={"robinhood": {"margin_apr": 0.058}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 5.8)
+        self.assertIn("config.robinhood.margin_apr", chip["notes"])
+
+    def test_rh_margin_blank_settings_does_not_beat_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_margin_apr": 0.055}}},
+            config={"robinhood": {"rh_margin_apr": None, "margin_apr": ""}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 5.5)
+        self.assertIn("evaluation.inputs.rh_margin_apr", chip["notes"])
+
+    def test_rh_margin_zero_settings_does_not_paint_zero(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_margin_apr": 0.055}}},
+            config={"robinhood": {"rh_margin_apr": 0, "margin_apr": 0.0}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 5.5)
+        self.assertEqual(chip["source"], "books")
+        self.assertNotAlmostEqual(chip["rate_pct"], 0.0)
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_seed_always_visible_when_no_books(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertAlmostEqual(chip["rate_pct"], 5.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertTrue(chip["approx"])
+        self.assertEqual(chip["kind"], "debt")
+        self.assertEqual(chip["lane"], "above")
+        self.assertIn("seed", chip["notes"].lower())
+        self.assertIn("5% up to $50k", chip["notes"])
+        self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_rh_margin_does_not_invent_from_utilization_or_hy(self) -> None:
+        """Utilization, USDG yield, and generic rates must not invent RH margin APR."""
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {
+                    "inputs": {
+                        "rh_margin_use": 0.22,
+                        "rh_usdg_earn_apy_est": 0.032,
+                        "variable_apr": 0.0468,
+                    }
+                },
+                "snapshot": {
+                    "robinhood": {
+                        "margin_loan_usd": 12000,
+                        "rh_margin_use": 0.18,
+                    },
+                    "usdg_hy": {"apy_est": 0.031},
+                },
+            },
+            config={"policy": {"rh_margin_use_max": 0.4}, "robinhood": {}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}[RH_MARGIN_ID]
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertAlmostEqual(chip["rate_pct"], 5.0)
+        self.assertTrue(chip["approx"])
+        self.assertAlmostEqual(chip["notional"], 12000)
+        self.assertEqual(chip["notional_kind"], "principal")
+        rates = [c["rate_pct"] for c in payload["placed"] if c["id"] == RH_MARGIN_ID]
+        self.assertNotIn(22.0, rates)
+        self.assertNotIn(40.0, rates)
+        self.assertNotIn(18.0, rates)
+        self.assertNotIn(3.2, rates)
         self.assertTrue(rates_are_honest(payload))
 
     def test_morpho_hy_settings_beats_seed(self) -> None:
@@ -1039,7 +1258,10 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn("vault_apy reference only", html)
         self.assertIn("≠ Coinbase One product", html)
         self.assertIn("USDG HY precedence", html)
-        self.assertIn("Morpho borrow precedence", html)
+        self.assertIn("Coinbase BTC-backed Morpho loan", html)
+        self.assertIn("margin/borrow", html)
+        self.assertIn("RH margin interest", html)
+        self.assertIn("5% up to $50k", html)
         self.assertIn("avgBorrowApy", html)
         self.assertIn("seed ~5%", html)
         self.assertIn("Gold-cancel", html)
@@ -1084,6 +1306,11 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn('id="panel-solana"', html)
         self.assertIn('id="m-btc-cagr"', html)
         self.assertIn('id="m-agentic-cagr"', html)
+        self.assertIn('id="rh-margin"', html)
+        self.assertIn('id="m-rh-margin-apr"', html)
+        self.assertIn("rh_margin_apr", html)
+        self.assertIn("Coinbase BTC-backed Morpho loan APR override", html)
+        self.assertIn("RH margin interest APR override", html)
         self.assertIn("bitcoin_cagr_est", html)
         self.assertIn("agentic_fund_cagr_est", html)
         self.assertIn("openFccDeepLink", html)

@@ -329,12 +329,22 @@ def build_snapshot(
         "usdg_earn_usdg",
         "usdg_earn_apy_est",
         "usdg_hy_apy_est",
+        "rh_margin_apr",
+        "margin_apr",
         "margin_loan_usd",
         "equity_collateral_usd",
     ):
         val = rh_cfg.get(key)
-        if val is not None and val != "":
-            rh[key] = val
+        if val is None or val == "":
+            continue
+        # 0 APR overlay is an empty settings override — do not paint as books.
+        if key in ("rh_margin_apr", "margin_apr"):
+            try:
+                if float(val) == 0.0:
+                    continue
+            except (TypeError, ValueError):
+                continue
+        rh[key] = val
     ynab_cfg = cfg.get("ynab") or {}
     exp_cfg = cfg.get("expenses_sheet") or {}
     return {

@@ -41,14 +41,31 @@ Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho borrow:
   Override: FCC settings manual beats seed and beats live when set
   Do not invent rates.
 
+Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Morpho loan + RH margin (#343):
+  Debt-lane APR borrow/margin only — not Morpho HY / USDG yield, not est. CAGR.
+  Reuse ``morpho_borrow`` (do not duplicate). Label: Coinbase BTC-backed
+  Morpho loan (margin/borrow interest).
+  New debt chip ``rh_margin``: RH margin interest · seed 5%
+  (Chris: 5% up to $50k product framing; chip rate stays the APR %).
+  Empty / 0 settings override must not paint 0% as books.
+  Do not invent or scrape a RH margin rate. Wells stays off FCC.
+
 Morpho borrow precedence (settings > live books > seed):
   1. FCC settings manual ``config.coinbase_manual.variable_apr``
      (or dedicated ``morpho_borrow_apr``) when set — human override
+     (blank / 0 is unset — must not beat live or seed)
   2. Live books ``evaluation.inputs.variable_apr`` and snapshot
      ``morpho_borrow`` paths from a trusted feed (Morpho GraphQL
      ``marketById`` ``avgBorrowApy`` — cbBTC/USDC / Base
      ``0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836``)
   3. Seed ~5%
+
+RH margin interest precedence (settings > live books > seed):
+  1. FCC settings manual ``config.robinhood.rh_margin_apr``
+     (or ``margin_apr``) when set — human override
+     (blank / 0 is unset — must not beat live or seed)
+  2. Live books rate if already present (no invent, no scrape)
+  3. Seed 5%
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
   Not a locked seed. Live Solstice quote only if already on the
@@ -154,18 +171,21 @@ LOCKED_FLEET: tuple[dict[str, Any], ...] = (
 LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
     {
         "id": "morpho_borrow",
-        "venue": "Morpho borrow",
-        "label": "Morpho borrow",
+        "venue": "CB BTC Morpho loan",
+        "label": "Coinbase BTC-backed Morpho loan",
+        "detail": "margin/borrow interest",
         "kind": "debt",
         "rate_pct": 5.0,
         "approx": True,
         "rate_kind": "APR",
         "unit": "fraction",
         "notes": (
-            "locked seed ~5% APR · Coinbase Morpho borrow · variable · "
+            "locked seed ~5% APR · Coinbase BTC-backed Morpho loan · "
+            "margin/borrow interest · variable · "
             "precedence: FCC settings variable_apr / morpho_borrow_apr > "
             "live books (Morpho GraphQL marketById avgBorrowApy · "
-            "cbBTC/USDC / Base) > seed · do not invent rates"
+            "cbBTC/USDC / Base) > seed · blank/0 settings must not paint 0% · "
+            "do not invent rates"
         ),
         "deep_link": "index.html#morpho",
         "fcc_liability": True,
@@ -185,6 +205,38 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
             ("morpho_borrow", "apr"),
             ("morpho_borrow", "variable_apr"),
             ("morpho_borrow", "apy"),
+        ),
+    },
+    {
+        "id": "rh_margin",
+        "venue": "RH margin interest",
+        "label": "RH margin interest",
+        "detail": "borrow cost · 5% up to $50k",
+        "kind": "debt",
+        "rate_pct": 5.0,
+        "approx": True,
+        "rate_kind": "APR",
+        "unit": "fraction",
+        "notes": (
+            "locked seed 5% APR · RH margin interest · borrow cost · "
+            "5% up to $50k product framing · "
+            "precedence: FCC settings rh_margin_apr / margin_apr > "
+            "live books (when already present) > seed · "
+            "blank/0 settings must not paint 0% · "
+            "do not invent or scrape a RH margin rate"
+        ),
+        "deep_link": "index.html#rh-margin",
+        "fcc_liability": True,
+        "settings_paths": (
+            ("config", "robinhood", "rh_margin_apr"),
+            ("config", "robinhood", "margin_apr"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "rh_margin_apr"),
+            ("evaluation", "inputs", "rh_margin_interest_apr"),
+            ("snapshot", "robinhood", "margin_apr"),
+            ("snapshot", "robinhood", "rh_margin_apr"),
+            ("snapshot", "robinhood", "margin_interest_apr"),
         ),
     },
     {
@@ -450,12 +502,33 @@ MORPHO_NOTIONAL_PATHS = (
     ("snapshot", "coinbase_manual", "loan_principal_usdc"),
     ("config", "coinbase_manual", "loan_principal_usdc"),
 )
+# Live/books RH margin APR only — no invent/scrape. Settings stay on
+# LOCKED_SEEDS rh_margin.settings_paths. Do not read rh_margin_use /
+# rh_margin_use_max (utilization, not APR).
+RH_MARGIN_ID = "rh_margin"
+RH_MARGIN_BOOK_PATHS = (
+    ("evaluation", "inputs", "rh_margin_apr"),
+    ("evaluation", "inputs", "rh_margin_interest_apr"),
+    ("snapshot", "robinhood", "margin_apr"),
+    ("snapshot", "robinhood", "rh_margin_apr"),
+    ("snapshot", "robinhood", "margin_interest_apr"),
+)
+RH_MARGIN_NOTIONAL_PATHS = (
+    ("evaluation", "inputs", "rh_margin_loan_usd"),
+    ("snapshot", "robinhood", "margin_loan_usd"),
+    ("config", "robinhood", "margin_loan_usd"),
+)
 ONE_CARD_NOTIONAL_PATHS = (
     ("evaluation", "inputs", "card_balance"),
     ("snapshot", "one_card", "balance"),
     ("snapshot", "one_card", "cleared_balance"),
     ("config", "coinbase_manual", "card_balance"),
 )
+DEBT_SEED_NOTIONAL_PATHS = {
+    "morpho_borrow": MORPHO_NOTIONAL_PATHS,
+    RH_MARGIN_ID: RH_MARGIN_NOTIONAL_PATHS,
+    "one_card": ONE_CARD_NOTIONAL_PATHS,
+}
 
 # Wells / 20 Tesla — Auto Fleet metadata only; never a FCC spectrum chip.
 WELLS_OFF_FCC_ID = "m3-2020"
@@ -614,6 +687,14 @@ def _fleet_chips() -> List[Dict[str, Any]]:
     return chips
 
 
+def _is_empty_override(value: Any) -> bool:
+    """Blank / 0 settings must not paint as a books rate (#343)."""
+    if value is None or value == "":
+        return True
+    n = _as_float(value)
+    return n is not None and n == 0.0
+
+
 def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     chips: List[Dict[str, Any]] = []
     for row in LOCKED_SEEDS:
@@ -632,33 +713,45 @@ def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "placed": True,
             "rate_pct": float(row["rate_pct"]),
         }
-        if row["id"] == "morpho_borrow":
-            unit = str(row.get("unit") or "fraction")
-            rate, hit = _first_apy_hit(ctx, row.get("settings_paths") or (), unit=unit)
+        if row.get("detail"):
+            chip["detail"] = row["detail"]
+        unit = str(row.get("unit") or "fraction")
+        settings_paths = row.get("settings_paths") or ()
+        live_paths = row.get("paths") or ()
+        if row["id"] == "morpho_borrow" and not live_paths:
+            live_paths = MORPHO_BOOK_PATHS
+        if settings_paths or live_paths:
+            # skip_zero: blank/0 manual override must not paint 0% as books
+            # (empty settings can also land on snapshot.coinbase_manual / RH overlay).
+            rate, hit = _first_apy_hit(
+                ctx, settings_paths, unit=unit, skip_zero=True
+            )
             from_settings = rate is not None
             if rate is None:
                 rate, hit = _first_apy_hit(
-                    ctx, row.get("paths") or MORPHO_BOOK_PATHS, unit=unit
+                    ctx, live_paths, unit=unit, skip_zero=True
                 )
             if rate is not None:
                 chip["rate_pct"] = rate
                 chip["approx"] = False
                 chip["source"] = "books"
-                notes = f"from {hit}" if hit else "from books variable_apr"
+                notes = f"from {hit}" if hit else "from books"
                 if from_settings:
                     notes = f"{notes} · FCC settings override"
                 else:
                     notes = f"{notes} · live books"
+                if row["id"] == RH_MARGIN_ID:
+                    notes = f"{notes} · 5% up to $50k product framing"
                 chip["notes"] = notes
-            notional = _first_number(ctx, MORPHO_NOTIONAL_PATHS)
-            if notional is not None:
-                chip["notional"] = notional
+        notional = _first_number(ctx, DEBT_SEED_NOTIONAL_PATHS.get(row["id"]) or ())
+        if notional is not None:
+            chip["notional"] = notional
+            if row["id"] == "morpho_borrow":
                 chip["notional_kind"] = "principal"
-        if row["id"] == "one_card":
-            notional = _first_number(ctx, ONE_CARD_NOTIONAL_PATHS)
-            if notional is not None:
-                chip["notional"] = notional
+            elif row["id"] == "one_card":
                 chip["notional_kind"] = "balance"
+            else:
+                chip["notional_kind"] = "principal"
         chips.append(chip)
     return chips
 
@@ -668,10 +761,13 @@ def _first_apy_hit(
     paths: Iterable[Iterable[str]],
     *,
     unit: str = "fraction",
+    skip_zero: bool = False,
 ) -> tuple[Optional[float], Optional[str]]:
     for path in paths:
         raw = _dig(ctx, path)
         if raw is None or raw == "":
+            continue
+        if skip_zero and _is_empty_override(raw):
             continue
         rate = _fraction_field_to_pct(raw) if unit == "fraction" else _as_float(raw)
         if rate is None:
