@@ -302,6 +302,24 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertFalse(jr.get("counts_toward_hy"))
         self.assertTrue(rates_are_honest(payload))
 
+    def test_jr_uses_canonical_jr_strcusx_apy_field(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "snapshot": {
+                    "solana": {"jr_strcusx_apy": 0.176, "jr_strcusx": 3.3}
+                }
+            },
+            config={},
+            x_money={},
+            solana={},
+        )
+        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
+        self.assertAlmostEqual(jr["rate_pct"], 17.6)
+        self.assertEqual(jr["source"], "books")
+        self.assertIn("jr_strcusx_apy", jr["notes"])
+        self.assertNotIn("notional", jr)
+        self.assertTrue(rates_are_honest(payload))
+
     def test_usdg_seed_always_shows_with_gold_caveat(self) -> None:
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {}}},
