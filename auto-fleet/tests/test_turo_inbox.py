@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import mailbox
 import sys
 import tempfile
@@ -84,6 +85,7 @@ class TuroInboxTests(unittest.TestCase):
         payload = turo_inbox.turo_payload(inbox_path=empty, units=ROSTER_UNITS)
         self.assertEqual(payload["bookings"], [])
         self.assertEqual(payload["unmatched"], [])
+        self.assertEqual(payload["photo_messages"], [])
         self.assertIn("empty", payload["inbox_status"].lower())
         for uid in ("m3-2022", "corolla-2022", "m3-2020"):
             unit = turo_inbox.turo_for_unit(uid, payload)
@@ -625,6 +627,338 @@ class TuroInboxTests(unittest.TestCase):
             )
             self.assertEqual(payload["bookings"][0]["unit_id"], "corolla-2024")
             self.assertEqual(payload["bookings"][0]["trip_id"], "60615645")
+            self.assertNotIn("attachments", payload["bookings"][0])
+            self.assertEqual(payload["photo_messages"], [])
+
+
+def _fixture_jpeg(tag: bytes = b"turo-fixture") -> bytes:
+    """Minimal JPEG bytes. Not a trip photo — just real image MIME for ingest."""
+    comment = tag[:60]
+    return (
+        b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+        + b"\xff\xfe"
+        + bytes([(len(comment) + 2) >> 8, (len(comment) + 2) & 0xFF])
+        + comment
+        + b"\xff\xd9"
+    )
+
+
+class TuroInboxPhotoTests(unittest.TestCase):
+    def test_claim_without_parts_is_honest_missing(self) -> None:
+        payload = turo_inbox.turo_payload(
+            inbox_path=FIXTURES / "turo_photo_claim_only.json",
+            units=_with_roles(ROSTER_UNITS),
+        )
+        booked = [b for b in payload["bookings"] if b.get("status") == "booked"]
+        self.assertEqual(len(booked), 1)
+        self.assertNotIn("attachments", booked[0])
+        self.assertFalse(booked[0].get("claims_photos"))
+        photos = payload["photo_messages"]
+        self.assertEqual(len(photos), 1)
+        rec = photos[0]
+        self.assertEqual(rec["kind"], "guest_message")
+        self.assertEqual(rec["trip_id"], "60615645")
+        self.assertEqual(rec["attachments"], [])
+        self.assertTrue(rec["photos_missing"])
+        self.assertTrue(rec["claims_photos"])
+        self.assertEqual(rec["unit_id"], "corolla-2024")
+        subjects = {b["subject"] for b in payload["bookings"]}
+        self.assertTrue(all("sent you a message" not in s.lower() for s in subjects))
+
+    def test_json_attachments_pass_through_on_booking(self) -> None:
+        jpeg = _fixture_jpeg(b"blocked-in")
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "turo_inbox.json"
+            media = Path(td) / "turo_inbox_media" / "msg-photo-1"
+            media.mkdir(parents=True)
+            photo = media / "blocked-in.jpg"
+            photo.write_bytes(jpeg)
+            dump = {
+                "as_of": "2026-08-19",
+                "source": "test_fixture",
+                "messages": [
+                    {
+                        "id": "msg-photo-1",
+                        "from": "Turo <noreply@mail.turo.com>",
+                        "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+                        "date": "Tue, 19 Aug 2026 15:10:00 +0000",
+                        "body": (
+                            "Toyota Corolla 2024\nbooked by Pat Kim\n"
+                            "Reservation ID #60619999\n"
+                        ),
+                        "attachments": [
+                            {
+                                "filename": "blocked-in.jpg",
+                                "mime": "image/jpeg",
+                                "size": len(jpeg),
+                                "sha256": hashlib.sha256(jpeg).hexdigest(),
+                                "path": str(photo),
+                                "relpath": "msg-photo-1/blocked-in.jpg",
+                            }
+                        ],
+                    }
+                ],
+            }
+            dest.write_text(json.dumps(dump), encoding="utf-8")
+            payload = turo_inbox.turo_payload(
+                inbox_path=dest, units=_with_roles(ROSTER_UNITS)
+            )
+            rec = payload["bookings"][0]
+            self.assertEqual(rec["unit_id"], "corolla-2024")
+            self.assertEqual(len(rec["attachments"]), 1)
+            self.assertEqual(rec["attachments"][0]["filename"], "blocked-in.jpg")
+            self.assertEqual(rec["attachments"][0]["path"], str(photo))
+            self.assertTrue(photo.is_file())
+            self.assertEqual(photo.read_bytes(), jpeg)
+            unit = turo_inbox.turo_for_unit("corolla-2024", payload)
+            self.assertEqual(len(unit["photos"]), 1)
+            self.assertEqual(unit["photos"][0]["attachments"][0]["relpath"], "msg-photo-1/blocked-in.jpg")
+
+    def test_guest_mms_merges_onto_matching_trip(self) -> None:
+        jpeg = _fixture_jpeg(b"fuel-gauge")
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "turo_inbox.json"
+            photo = Path(td) / "turo_inbox_media" / "guest-1" / "fuel.jpg"
+            photo.parent.mkdir(parents=True)
+            photo.write_bytes(jpeg)
+            dump = {
+                "messages": [
+                    {
+                        "id": "booked-1",
+                        "from": "Turo <noreply@mail.turo.com>",
+                        "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+                        "date": "Tue, 19 Aug 2026 15:10:00 +0000",
+                        "body": (
+                            "Toyota Corolla 2024\nbooked by Pat Kim\n"
+                            "Reservation ID #60619999\n"
+                        ),
+                    },
+                    {
+                        "id": "guest-1",
+                        "from": "Turo <noreply@mail.turo.com>",
+                        "subject": "Pat has sent you a message about your Toyota Corolla 2024",
+                        "date": "Wed, 20 Aug 2026 12:00:00 +0000",
+                        "body": "Contains photo(s).\nReservation ID #60619999\nToyota Corolla 2024\n",
+                        "attachments": [
+                            {
+                                "filename": "fuel.jpg",
+                                "mime": "image/jpeg",
+                                "size": len(jpeg),
+                                "sha256": hashlib.sha256(jpeg).hexdigest(),
+                                "path": str(photo),
+                                "relpath": "guest-1/fuel.jpg",
+                            }
+                        ],
+                    },
+                ]
+            }
+            dest.write_text(json.dumps(dump), encoding="utf-8")
+            payload = turo_inbox.turo_payload(
+                inbox_path=dest, units=_with_roles(ROSTER_UNITS)
+            )
+            booked = [b for b in payload["bookings"] if b.get("status") == "booked"]
+            self.assertEqual(len(booked), 1)
+            self.assertEqual(booked[0]["attachments"][0]["filename"], "fuel.jpg")
+            guest = payload["photo_messages"]
+            self.assertEqual(len(guest), 1)
+            self.assertEqual(guest[0]["kind"], "guest_message")
+            self.assertFalse(guest[0].get("photos_missing"))
+            subjects = {b["subject"] for b in payload["bookings"]}
+            self.assertTrue(all("sent you a message" not in s.lower() for s in subjects))
+
+    def test_eml_image_part_is_written(self) -> None:
+        jpeg = _fixture_jpeg(b"damage")
+        with tempfile.TemporaryDirectory() as td:
+            eml = Path(td) / "guest.eml"
+            msg = EmailMessage()
+            msg["From"] = "Turo <noreply@mail.turo.com>"
+            msg["Subject"] = "Pat has sent you a message about your Toyota Corolla 2024"
+            msg["Date"] = "Wed, 20 Aug 2026 12:00:00 +0000"
+            msg["Message-ID"] = "<eml-photo-1@turo.com>"
+            msg.set_content(
+                "Contains photo(s).\nReservation ID #60619999\nToyota Corolla 2024\n"
+            )
+            msg.add_attachment(
+                jpeg, maintype="image", subtype="jpeg", filename="damage.jpg"
+            )
+            eml.write_bytes(msg.as_bytes())
+            payload = turo_inbox.turo_payload(
+                inbox_path=eml, units=_with_roles(ROSTER_UNITS)
+            )
+            self.assertEqual(payload["bookings"], [])
+            self.assertEqual(len(payload["photo_messages"]), 1)
+            att = payload["photo_messages"][0]["attachments"][0]
+            self.assertEqual(att["filename"], "damage.jpg")
+            self.assertEqual(att["mime"], "image/jpeg")
+            stored = Path(att["path"])
+            self.assertTrue(stored.is_file())
+            self.assertEqual(stored.read_bytes(), jpeg)
+            self.assertTrue(att["relpath"].endswith("damage.jpg"))
+
+    def test_gmail_multipart_writes_inline_jpeg_skips_logo(self) -> None:
+        import turo_gmail
+
+        jpeg = _fixture_jpeg(b"mms-inline")
+        logo = b"\x89PNG\r\n\x1a\n" + b"logo-bytes-not-a-trip-photo"
+
+        def fake_http(url: str, data, headers):
+            if "oauth2.googleapis.com/token" in url:
+                return {"access_token": "tok-test"}
+            if url.startswith(turo_gmail.GMAIL_API + "/messages?") and "q=" in url:
+                return {"messages": [{"id": "m-mms"}]}
+            if "/messages/m-mms" in url and "/attachments/" not in url:
+                return {
+                    "id": "m-mms",
+                    "snippet": "Contains photo(s). Reservation ID #60619999",
+                    "payload": {
+                        "mimeType": "multipart/mixed",
+                        "headers": [
+                            {"name": "From", "value": "Turo <noreply@mail.turo.com>"},
+                            {
+                                "name": "Subject",
+                                "value": "Pat has sent you a message about your Toyota Corolla 2024",
+                            },
+                            {"name": "Date", "value": "Wed, 20 Aug 2026 12:00:00 +0000"},
+                        ],
+                        "parts": [
+                            {
+                                "mimeType": "text/plain",
+                                "body": {
+                                    "data": turo_gmail.base64.urlsafe_b64encode(
+                                        b"Contains photo(s).\nReservation ID #60619999\n"
+                                        b"Toyota Corolla 2024\n"
+                                    ).decode("ascii")
+                                },
+                            },
+                            {
+                                "mimeType": "image/jpeg",
+                                "filename": "IMG_blocked_in.jpg",
+                                "body": {
+                                    "data": turo_gmail.base64.urlsafe_b64encode(
+                                        jpeg
+                                    ).decode("ascii")
+                                },
+                            },
+                            {
+                                "mimeType": "image/png",
+                                "filename": "turo-logo.png",
+                                "body": {
+                                    "data": turo_gmail.base64.urlsafe_b64encode(
+                                        logo
+                                    ).decode("ascii")
+                                },
+                            },
+                        ],
+                    },
+                }
+            raise AssertionError(f"unexpected url {url}")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            token = Path(td) / "gmail-token.json"
+            token.write_text(
+                json.dumps(
+                    {"refresh_token": "r", "client_id": "cid", "client_secret": "sec"}
+                ),
+                encoding="utf-8",
+            )
+            turo_gmail.fetch_and_write(
+                dest,
+                token_path=token,
+                env_file=Path(td) / "missing.env",
+                env={},
+                http=fake_http,
+            )
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            msg = data["messages"][0]
+            self.assertIn("Contains photo(s)", msg["body"])
+            self.assertNotIn("JFIF", msg["body"])
+            self.assertEqual(len(msg["attachments"]), 1)
+            att = msg["attachments"][0]
+            self.assertEqual(att["filename"], "IMG_blocked_in.jpg")
+            stored = Path(att["path"])
+            self.assertEqual(stored.read_bytes(), jpeg)
+            self.assertTrue(str(data["media_dir"]).endswith("_media"))
+            self.assertTrue(str(att["path"]).startswith(str(data["media_dir"])))
+            payload = turo_inbox.turo_payload(
+                inbox_path=dest, units=_with_roles(ROSTER_UNITS)
+            )
+            self.assertEqual(payload["bookings"], [])
+            self.assertEqual(len(payload["photo_messages"]), 1)
+            self.assertEqual(
+                payload["photo_messages"][0]["attachments"][0]["sha256"],
+                att["sha256"],
+            )
+
+    def test_gmail_attachment_id_is_fetched(self) -> None:
+        import turo_gmail
+
+        jpeg = _fixture_jpeg(b"attachment-id")
+
+        def fake_http(url: str, data, headers):
+            if "oauth2.googleapis.com/token" in url:
+                return {"access_token": "tok-test"}
+            if url.startswith(turo_gmail.GMAIL_API + "/messages?") and "q=" in url:
+                return {"messages": [{"id": "m-att"}]}
+            if url.endswith("/attachments/ATT123") or "/attachments/ATT123" in url:
+                return {
+                    "size": len(jpeg),
+                    "data": turo_gmail.base64.urlsafe_b64encode(jpeg).decode("ascii"),
+                }
+            if "/messages/m-att" in url:
+                return {
+                    "id": "m-att",
+                    "snippet": "Contains photo(s).",
+                    "payload": {
+                        "mimeType": "multipart/mixed",
+                        "headers": [
+                            {"name": "From", "value": "Turo <noreply@mail.turo.com>"},
+                            {
+                                "name": "Subject",
+                                "value": "Pat has sent you a message about your Toyota Corolla 2024",
+                            },
+                            {"name": "Date", "value": "Wed, 20 Aug 2026 12:00:00 +0000"},
+                        ],
+                        "parts": [
+                            {
+                                "mimeType": "text/plain",
+                                "body": {
+                                    "data": turo_gmail.base64.urlsafe_b64encode(
+                                        b"Contains photo(s).\nReservation ID #60619999\n"
+                                        b"Toyota Corolla 2024\n"
+                                    ).decode("ascii")
+                                },
+                            },
+                            {
+                                "mimeType": "image/jpeg",
+                                "filename": "fuel.jpg",
+                                "body": {"attachmentId": "ATT123", "size": len(jpeg)},
+                            },
+                        ],
+                    },
+                }
+            raise AssertionError(f"unexpected url {url}")
+
+        with tempfile.TemporaryDirectory() as td:
+            dest = Path(td) / "dump.json"
+            token = Path(td) / "gmail-token.json"
+            token.write_text(
+                json.dumps(
+                    {"refresh_token": "r", "client_id": "cid", "client_secret": "sec"}
+                ),
+                encoding="utf-8",
+            )
+            turo_gmail.fetch_and_write(
+                dest,
+                token_path=token,
+                env_file=Path(td) / "missing.env",
+                env={},
+                http=fake_http,
+            )
+            data = json.loads(dest.read_text(encoding="utf-8"))
+            att = data["messages"][0]["attachments"][0]
+            self.assertEqual(Path(att["path"]).read_bytes(), jpeg)
+            self.assertEqual(att["filename"], "fuel.jpg")
 
 
 if __name__ == "__main__":

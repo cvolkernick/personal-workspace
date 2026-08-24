@@ -1,0 +1,21 @@
+{
+  "as_of": "2026-08-19",
+  "source": "test_fixture",
+  "inbox": "cvolkern@gmail.com",
+  "messages": [
+    {
+      "id": "claim-only-1",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "Alex has sent you a message about your Toyota Corolla 2024",
+      "date": "Tue, 19 Aug 2026 14:10:00 +0000",
+      "body": "Alex sent you a message.\nContains photo(s).\nReservation ID #60615645\nToyota Corolla 2024\n"
+    },
+    {
+      "id": "text-only-booked-1",
+      "from": "Turo <noreply@mail.turo.com>",
+      "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+      "date": "Tue, 19 Aug 2026 15:10:00 +0000",
+      "body": "Toyota Corolla 2024\nbooked by Pat Kim\nReservation ID #60619999\nTrip start: 8/23/26 3:00 pm\nTrip end: 8/25/26 3:00 pm\n"
+    }
+  ]
+}

@@ -160,7 +160,7 @@ def _merge_trip(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
         for key in keys:
             if merged.get(key) in (None, "") and ev.get(key) not in (None, ""):
                 merged[key] = ev[key]
-        for key in ("extra_drivers", "guest_asks"):
+        for key in ("extra_drivers", "guest_asks", "attachments"):
             vals = ev.get(key)
             if not vals:
                 continue
