@@ -1,0 +1,15 @@
+{
+  "schema_version": 0,
+  "budget_id": "",
+  "budget_name": "Chris's Plan",
+  "allow_approve": true,
+  "allow_categorize": true,
+  "forbid": [
+    "transfer",
+    "payment",
+    "move_money"
+  ],
+  "categories": [],
+  "payee_rules": [],
+  "notes": "v0 SoT (#340). budget_id is left blank until treasury/ynab_category_map_bootstrap.py fills it via GET /budgets (draft only: treasury/ynab_category_map.draft.json). Bootstrap does not overwrite this file without --overwrite-sot. categories[].id must come from YNAB GET /budgets/{id}/categories — never invent ids. Write helpers may PATCH category + approve only for enabled ids. Hard no transfer/payment/move_money without an explicit later order."
+}
