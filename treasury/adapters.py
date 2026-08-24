@@ -315,9 +315,24 @@ def build_snapshot(
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     from treasury.morpho_hy_sync import fetch_morpho_hy
+    from treasury.usdg_hy_sync import fetch_usdg_hy
 
     morpho_hy = fetch_morpho_hy(prefer_live=prefer_live_coinbase)
+    usdg_hy = fetch_usdg_hy(prefer_live=prefer_live_coinbase)
     rh_cfg = cfg.get("robinhood") or {}
+    # Overlay FCC settings yield/principal so the Settings form can re-show
+    # a human override after Refresh. Live APY stays on snapshot.usdg_hy.
+    rh = dict(rh)
+    for key in (
+        "usdg_earn_usdg",
+        "usdg_earn_apy_est",
+        "usdg_hy_apy_est",
+        "margin_loan_usd",
+        "equity_collateral_usd",
+    ):
+        val = rh_cfg.get(key)
+        if val is not None and val != "":
+            rh[key] = val
     ynab_cfg = cfg.get("ynab") or {}
     exp_cfg = cfg.get("expenses_sheet") or {}
     return {
@@ -325,6 +340,7 @@ def build_snapshot(
         "coinbase": cb,
         "coinbase_manual": manual,
         "morpho_hy": morpho_hy,
+        "usdg_hy": usdg_hy,
         "one_card": one_card,
         "rh_checking": rh_checking,
         "expenses": expenses,
@@ -338,6 +354,7 @@ def build_snapshot(
             "rh_checking_source": rh_checking.get("source"),
             "expenses_source": expenses.get("source"),
             "morpho_hy_source": morpho_hy.get("source"),
+            "usdg_hy_source": usdg_hy.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
@@ -358,6 +375,11 @@ def build_snapshot(
                 "high_yield_vault": (
                     "balance app-only; APY Morpho GraphQL vaultV2 avgNetApy "
                     "(Steakhouse HY USDC / Base; soft-fail; no scrape)"
+                ),
+                "usdg_hy": (
+                    "APY Morpho GraphQL vaultV2 avgNetApy "
+                    "(Steakhouse USDG / Robinhood Chain 4663; soft-fail; no scrape). "
+                    "Balance app-only. Do not invent a post-Gold rate."
                 ),
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",

@@ -21,7 +21,21 @@ Morpho HY precedence (settings > live books > seed):
      trusted feed (Morpho GraphQL vaultV2 ``avgNetApy``)
   3. Seed 7%
 
-Soft-fail live poller never writes a seed. No Coinbase HTML scrape.
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum USDG HY:
+  Preferred: live apy_est when a trustworthy source exists
+  Fallback: seed 7% + Gold-cancel caveat (do not invent a post-Gold rate)
+  Override: FCC settings manual beats seed and beats live when set
+  Do not invent rates.
+
+USDG HY precedence (settings > live books > seed):
+  1. FCC settings manual ``config.robinhood.usdg_earn_apy_est``
+     (or dedicated ``usdg_hy_apy_est``) when set — human override
+  2. Live books ``evaluation.inputs.rh_usdg_earn_apy_est`` and
+     snapshot ``usdg_hy`` paths from a trusted feed (Morpho GraphQL
+     vaultV2 ``avgNetApy`` — Steakhouse USDG / Robinhood Chain)
+  3. Seed 7% + Gold-cancel note
+
+Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 """
 
 from __future__ import annotations
@@ -39,6 +53,7 @@ TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
 XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
+USDG_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "usdg_hy_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -197,14 +212,26 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         "rate_kind": "APY",
         "unit": "fraction",
         "notes": (
-            "locked seed 7% APY · may end when RH Gold cancels — "
-            "do not invent a post-Gold rate · books override when usdg_earn_apy_est present"
+            "locked seed 7% APY · RH USDG Earn · variable · "
+            "precedence: FCC settings usdg_earn_apy_est / usdg_hy_apy_est > "
+            "live books (Morpho GraphQL vaultV2 avgNetApy · Steakhouse USDG / "
+            "Robinhood Chain) > seed · may end when RH Gold cancels — "
+            "do not invent a post-Gold rate"
         ),
         "deep_link": "index.html#panel-brokerage",
+        # settings_paths are checked first so a human override beats live books.
+        "settings_paths": (
+            ("config", "robinhood", "usdg_earn_apy_est"),
+            ("config", "robinhood", "usdg_hy_apy_est"),
+        ),
         "paths": (
             ("evaluation", "inputs", "rh_usdg_earn_apy_est"),
+            ("evaluation", "inputs", "usdg_hy_apy_est"),
             ("snapshot", "robinhood", "usdg_earn_apy_est"),
-            ("config", "robinhood", "usdg_earn_apy_est"),
+            ("snapshot", "usdg_hy", "apy_est"),
+            ("snapshot", "usdg_hy", "apy"),
+            ("usdg_hy", "apy_est"),
+            ("usdg_hy", "apy"),
         ),
         "notional_paths": (
             ("evaluation", "inputs", "rh_usdg_earn_usdg"),
@@ -335,6 +362,7 @@ def _books_ctx(
     x_money: Dict[str, Any],
     solana: Optional[Dict[str, Any]] = None,
     morpho_hy: Optional[Dict[str, Any]] = None,
+    usdg_hy: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
     snap = dict(snap)
@@ -346,6 +374,11 @@ def _books_ctx(
         mh = snap["morpho_hy"]
     if mh and not isinstance(snap.get("morpho_hy"), dict):
         snap["morpho_hy"] = mh
+    uh = usdg_hy if isinstance(usdg_hy, dict) else {}
+    if not uh and isinstance(snap.get("usdg_hy"), dict):
+        uh = snap["usdg_hy"]
+    if uh and not isinstance(snap.get("usdg_hy"), dict):
+        snap["usdg_hy"] = uh
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
         "snapshot": snap,
@@ -353,6 +386,7 @@ def _books_ctx(
         "x_money": x_money if isinstance(x_money, dict) else {},
         "solana": sol,
         "morpho_hy": mh,
+        "usdg_hy": uh,
     }
 
 
@@ -497,8 +531,8 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
 def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     """X Money / Morpho HY / USDG always appear (locked seeds); books override APY.
 
-    Morpho HY walks ``settings_paths`` before live ``paths`` so FCC settings
-    beat live books when Chris sets a manual vault_apy / morpho_hy_apy_est.
+    Morpho HY and USDG HY walk ``settings_paths`` before live ``paths`` so
+    FCC settings beat live books when Chris sets a manual override.
     """
     chips: List[Dict[str, Any]] = []
     for spec in LOCKED_YIELD_SEEDS:
@@ -527,7 +561,7 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             chip["approx"] = False
             chip["source"] = "books"
             notes = f"from {hit}" if hit else None
-            if spec["id"] == "morpho_hy" and notes:
+            if spec["id"] in ("morpho_hy", "usdg_earn") and notes:
                 if from_settings:
                     notes = f"{notes} · FCC settings override"
                 else:
@@ -578,10 +612,12 @@ def build_interest_spectrum(
             solana = snap_sol
     snap_mh = (treasury.get("snapshot") or {}).get("morpho_hy")
     morpho_hy = snap_mh if isinstance(snap_mh, dict) else {}
+    snap_uh = (treasury.get("snapshot") or {}).get("usdg_hy")
+    usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
-    ctx = _books_ctx(treasury, config, x_money, solana, morpho_hy)
+    ctx = _books_ctx(treasury, config, x_money, solana, morpho_hy, usdg_hy)
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
