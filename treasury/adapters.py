@@ -314,11 +314,13 @@ def build_snapshot(
 
     expenses = fetch_expenses(prefer_live=prefer_live_expenses)
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
+    from treasury.morpho_borrow_sync import fetch_morpho_borrow
     from treasury.morpho_hy_sync import fetch_morpho_hy
     from treasury.usdg_hy_sync import fetch_usdg_hy
 
     morpho_hy = fetch_morpho_hy(prefer_live=prefer_live_coinbase)
     usdg_hy = fetch_usdg_hy(prefer_live=prefer_live_coinbase)
+    morpho_borrow = fetch_morpho_borrow(prefer_live=prefer_live_coinbase)
     rh_cfg = cfg.get("robinhood") or {}
     # Overlay FCC settings yield/principal so the Settings form can re-show
     # a human override after Refresh. Live APY stays on snapshot.usdg_hy.
@@ -341,6 +343,7 @@ def build_snapshot(
         "coinbase_manual": manual,
         "morpho_hy": morpho_hy,
         "usdg_hy": usdg_hy,
+        "morpho_borrow": morpho_borrow,
         "one_card": one_card,
         "rh_checking": rh_checking,
         "expenses": expenses,
@@ -355,6 +358,7 @@ def build_snapshot(
             "expenses_source": expenses.get("source"),
             "morpho_hy_source": morpho_hy.get("source"),
             "usdg_hy_source": usdg_hy.get("source"),
+            "morpho_borrow_source": morpho_borrow.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
@@ -380,6 +384,12 @@ def build_snapshot(
                     "APY Morpho GraphQL vaultV2 avgNetApy "
                     "(Steakhouse USDG / Robinhood Chain 4663; soft-fail; no scrape). "
                     "Balance app-only. Do not invent a post-Gold rate."
+                ),
+                "morpho_borrow": (
+                    "APR Morpho GraphQL marketById avgBorrowApy "
+                    "(cbBTC/USDC / Base "
+                    "0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836; "
+                    "soft-fail; no scrape). Principal/LTV app-only. Do not invent rates."
                 ),
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",

@@ -32,6 +32,8 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("Settings", html)
         self.assertIn("m-vault-apy", html)
         self.assertIn("Morpho HY APY override", html)
+        self.assertIn("m-var-apr", html)
+        self.assertIn("Morpho borrow APR override", html)
         self.assertIn("m-usdg-apy", html)
         self.assertIn("USDG Earn APY override", html)
         self.assertIn("Interest Spectrum", html)

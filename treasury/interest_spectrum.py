@@ -35,6 +35,21 @@ USDG HY precedence (settings > live books > seed):
      vaultV2 ``avgNetApy`` — Steakhouse USDG / Robinhood Chain)
   3. Seed 7% + Gold-cancel note
 
+Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum Morpho borrow:
+  Preferred: live variable APR when a trustworthy source exists
+  Fallback: seed ~5%
+  Override: FCC settings manual beats seed and beats live when set
+  Do not invent rates.
+
+Morpho borrow precedence (settings > live books > seed):
+  1. FCC settings manual ``config.coinbase_manual.variable_apr``
+     (or dedicated ``morpho_borrow_apr``) when set — human override
+  2. Live books ``evaluation.inputs.variable_apr`` and snapshot
+     ``morpho_borrow`` paths from a trusted feed (Morpho GraphQL
+     ``marketById`` ``avgBorrowApy`` — cbBTC/USDC / Base
+     ``0x9103c3b4e834476c9a62ea009ba2c884ee42e94e6e314a26f04d312434191836``)
+  3. Seed ~5%
+
 Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 """
 
@@ -54,6 +69,7 @@ XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
 USDG_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "usdg_hy_latest.json"
+MORPHO_BORROW_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_borrow_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -121,9 +137,32 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
         "rate_pct": 5.0,
         "approx": True,
         "rate_kind": "APR",
-        "notes": "locked seed ~5% · books override when variable_apr present",
+        "unit": "fraction",
+        "notes": (
+            "locked seed ~5% APR · Coinbase Morpho borrow · variable · "
+            "precedence: FCC settings variable_apr / morpho_borrow_apr > "
+            "live books (Morpho GraphQL marketById avgBorrowApy · "
+            "cbBTC/USDC / Base) > seed · do not invent rates"
+        ),
         "deep_link": "index.html#morpho",
         "fcc_liability": True,
+        # settings_paths are checked first so a human override beats live books.
+        "settings_paths": (
+            ("config", "coinbase_manual", "variable_apr"),
+            ("config", "coinbase_manual", "morpho_borrow_apr"),
+        ),
+        "paths": (
+            ("evaluation", "inputs", "variable_apr"),
+            ("evaluation", "inputs", "morpho_borrow_apr"),
+            ("snapshot", "coinbase_manual", "variable_apr"),
+            ("snapshot", "morpho_borrow", "apr"),
+            ("snapshot", "morpho_borrow", "variable_apr"),
+            ("snapshot", "morpho_borrow", "avg_borrow_apy"),
+            ("snapshot", "morpho_borrow", "apy"),
+            ("morpho_borrow", "apr"),
+            ("morpho_borrow", "variable_apr"),
+            ("morpho_borrow", "apy"),
+        ),
     },
     {
         "id": "one_card",
@@ -269,10 +308,18 @@ JR_LIVE_APY_PATHS = (
     ("solana", "vault_apy"),
 )
 
+# Live/books paths only — settings stay on LOCKED_SEEDS morpho_borrow.settings_paths.
 MORPHO_BOOK_PATHS = (
     ("evaluation", "inputs", "variable_apr"),
+    ("evaluation", "inputs", "morpho_borrow_apr"),
     ("snapshot", "coinbase_manual", "variable_apr"),
-    ("config", "coinbase_manual", "variable_apr"),
+    ("snapshot", "morpho_borrow", "apr"),
+    ("snapshot", "morpho_borrow", "variable_apr"),
+    ("snapshot", "morpho_borrow", "avg_borrow_apy"),
+    ("snapshot", "morpho_borrow", "apy"),
+    ("morpho_borrow", "apr"),
+    ("morpho_borrow", "variable_apr"),
+    ("morpho_borrow", "apy"),
 )
 MORPHO_NOTIONAL_PATHS = (
     ("evaluation", "inputs", "loan_principal_usdc"),
@@ -363,6 +410,7 @@ def _books_ctx(
     solana: Optional[Dict[str, Any]] = None,
     morpho_hy: Optional[Dict[str, Any]] = None,
     usdg_hy: Optional[Dict[str, Any]] = None,
+    morpho_borrow: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
     snap = dict(snap)
@@ -379,6 +427,11 @@ def _books_ctx(
         uh = snap["usdg_hy"]
     if uh and not isinstance(snap.get("usdg_hy"), dict):
         snap["usdg_hy"] = uh
+    mb = morpho_borrow if isinstance(morpho_borrow, dict) else {}
+    if not mb and isinstance(snap.get("morpho_borrow"), dict):
+        mb = snap["morpho_borrow"]
+    if mb and not isinstance(snap.get("morpho_borrow"), dict):
+        snap["morpho_borrow"] = mb
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
         "snapshot": snap,
@@ -387,6 +440,7 @@ def _books_ctx(
         "solana": sol,
         "morpho_hy": mh,
         "usdg_hy": uh,
+        "morpho_borrow": mb,
     }
 
 
@@ -455,12 +509,23 @@ def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "rate_pct": float(row["rate_pct"]),
         }
         if row["id"] == "morpho_borrow":
-            books = _fraction_field_to_pct(_first_number(ctx, MORPHO_BOOK_PATHS))
-            if books is not None:
-                chip["rate_pct"] = books
+            unit = str(row.get("unit") or "fraction")
+            rate, hit = _first_apy_hit(ctx, row.get("settings_paths") or (), unit=unit)
+            from_settings = rate is not None
+            if rate is None:
+                rate, hit = _first_apy_hit(
+                    ctx, row.get("paths") or MORPHO_BOOK_PATHS, unit=unit
+                )
+            if rate is not None:
+                chip["rate_pct"] = rate
                 chip["approx"] = False
                 chip["source"] = "books"
-                chip["notes"] = "from books variable_apr"
+                notes = f"from {hit}" if hit else "from books variable_apr"
+                if from_settings:
+                    notes = f"{notes} · FCC settings override"
+                else:
+                    notes = f"{notes} · live books"
+                chip["notes"] = notes
             notional = _first_number(ctx, MORPHO_NOTIONAL_PATHS)
             if notional is not None:
                 chip["notional"] = notional
@@ -614,10 +679,14 @@ def build_interest_spectrum(
     morpho_hy = snap_mh if isinstance(snap_mh, dict) else {}
     snap_uh = (treasury.get("snapshot") or {}).get("usdg_hy")
     usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
+    snap_mb = (treasury.get("snapshot") or {}).get("morpho_borrow")
+    morpho_borrow = snap_mb if isinstance(snap_mb, dict) else {}
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
-    ctx = _books_ctx(treasury, config, x_money, solana, morpho_hy, usdg_hy)
+    ctx = _books_ctx(
+        treasury, config, x_money, solana, morpho_hy, usdg_hy, morpho_borrow
+    )
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
