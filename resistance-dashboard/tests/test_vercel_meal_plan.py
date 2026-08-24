@@ -222,6 +222,8 @@ class GenerateOnGet(unittest.TestCase):
         plan = body["plan"]
         self.assertTrue(plan.get("in_stock_only"))
         self.assertGreater(len(plan.get("items") or []), 0)
+        self.assertIn(body["sources"]["inventory_sot"], (INVENTORY_PATH, "turso"))
+        self.assertNotEqual(body["sources"]["inventory_sot"], "unset")
 
     def test_refresh_returns_dashboard_with_generated_plan(self):
         env = {"GOOGLE_CLIENT_SECRET": "test-secret"}

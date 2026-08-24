@@ -1,7 +1,8 @@
-"""Vercel pantry: bundled inventory.json + Turso seed/persist.
+"""Named pantry SoT: Turso when live, else fitness/nutrition/inventory.json.
 
-File is the empty-start seed. After seed, Turso is source of truth.
-Never invent ingredients or macros.
+Preferred SoT is Turso. File is the empty-start seed and the honest fallback
+when Turso is dark — never silent mix, never invent ingredients or macros.
+Public FitDash and Pi share this read/write contract.
 """
 
 from __future__ import annotations
@@ -22,6 +23,28 @@ CREATE TABLE IF NOT EXISTS nutrition_inventory (
 """
 
 INVENTORY_ROW_DEFAULT = "default"
+SOT_TURSO = "turso"
+SOT_FILE = INVENTORY_PATH
+FALLBACK_TURSO_DARK = "turso_dark"
+NAMED_INVENTORY_SOTS = (SOT_TURSO, SOT_FILE)
+
+
+def canonicalize_inventory_source(source: str) -> str:
+    """Named SoT only: turso vs fitness/nutrition/inventory.json. Never unset."""
+    raw = (source or "").strip()
+    if raw == SOT_TURSO or raw.startswith("turso"):
+        return SOT_TURSO
+    return SOT_FILE
+
+
+def inventory_source_fields(source: str) -> dict:
+    """API/config pantry SoT. File reads are labeled turso_dark, never mixed."""
+    active = canonicalize_inventory_source(source)
+    return {
+        "inventory": active,
+        "inventory_sot": active,
+        "inventory_fallback": None if active == SOT_TURSO else FALLBACK_TURSO_DARK,
+    }
 
 
 def _workspace_file_candidates(rel: str) -> list:
@@ -165,14 +188,16 @@ def save_preview_inventory(inventory: dict, user_id: str = "") -> dict:
 
 
 def load_preview_inventory(user_id: str = "") -> Tuple[dict, str]:
-    """Turso pantry if present; seed from bundled file when the row is empty.
+    """Turso pantry if present; seed from bundled file when the row is missing.
 
     After seed, Turso is SoT. File is the empty-start seed only.
-    Source is "turso" or INVENTORY_PATH (never "unset").
+    Source is "turso" or INVENTORY_PATH (never "unset"). Turso-dark reads
+    keep the file name — inventory_source_fields labels the fallback.
     """
     from .turso_http import turso_enabled
 
     file_inv, file_src = load_workspace_inventory()
+    file_src = canonicalize_inventory_source(file_src)
     if not turso_enabled():
         return file_inv, file_src
     try:
@@ -180,11 +205,44 @@ def load_preview_inventory(user_id: str = "") -> Tuple[dict, str]:
     except Exception:
         return file_inv, file_src
     if not _turso_row_empty(existing):
-        return _as_inventory(existing), "turso"
+        return _as_inventory(existing), SOT_TURSO
     if not file_inv.get("ingredients"):
         return file_inv, file_src
     try:
         _turso_put_inventory(user_id, file_inv)
     except Exception:
         return file_inv, file_src
-    return file_inv, "turso"
+    return file_inv, SOT_TURSO
+
+
+def persist_inventory(
+    inventory: dict,
+    user_id: str = "",
+    *,
+    file_client=None,
+    message: str = "nutrition: pantry write",
+) -> dict:
+    """Write the named SoT. Turso when live; file only when Turso is dark."""
+    from .turso_http import turso_enabled
+
+    inv = _as_inventory(inventory)
+    if turso_enabled():
+        saved = save_preview_inventory(inv, user_id)
+        return {
+            "ok": True,
+            "source": SOT_TURSO,
+            "path": None,
+            "verified_on_readback": True,
+            "inventory": saved,
+        }
+    if file_client is None:
+        raise RuntimeError("turso env missing")
+    from .nutrition_store import write_nutrition_file
+
+    write = dict(
+        write_nutrition_file(file_client, SOT_FILE, inv, message=message) or {}
+    )
+    write["ok"] = not write.get("error")
+    write["source"] = SOT_FILE
+    write["inventory"] = inv
+    return write
