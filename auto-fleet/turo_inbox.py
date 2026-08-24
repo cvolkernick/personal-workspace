@@ -28,6 +28,11 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence, Union
 
+try:
+    from . import turo_media
+except ImportError:  # script / unittest path
+    import turo_media  # type: ignore
+
 DEFAULT_INBOX_NAME = "turo_inbox.json"
 CONFIG_INBOX = Path.home() / ".config" / "auto-fleet" / "turo_inbox.json"
 GMAIL_INBOX_ADDR = "cvolkern@gmail.com"
@@ -557,6 +562,57 @@ def parse_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
         rec["guest_asks"] = guest_asks
     if host_label:
         rec["host_label"] = host_label
+    attachments = turo_media.normalize_attachments(raw.get("attachments"))
+    if attachments:
+        rec["attachments"] = attachments
+    if turo_media.claims_photos(subject, body, str(raw.get("snippet") or "")):
+        rec["claims_photos"] = True
+        if not attachments:
+            rec["photos_missing"] = True
+    return rec
+
+
+def _trip_and_vehicle_from_blob(blob: str) -> tuple[Optional[str], Optional[str]]:
+    trip = None
+    m = _TRIP_ID.search(blob)
+    if m:
+        trip = m.group(1)
+    if not trip:
+        hm = _TRIP_HASH.search(blob)
+        if hm:
+            trip = hm.group(1)
+    return trip, _vehicle_from_blob(blob)
+
+
+def parse_photo_message(raw: Mapping[str, Any]) -> Optional[dict[str, Any]]:
+    """Photo-bearing (or 'Contains photo(s)') mail. Not a booking record."""
+    subject = str(raw.get("subject") or "")
+    body = flatten_mail_text(str(raw.get("body") or raw.get("snippet") or ""))
+    snippet = flatten_mail_text(str(raw.get("snippet") or ""))
+    attachments = turo_media.normalize_attachments(raw.get("attachments"))
+    claims = turo_media.claims_photos(subject, body, snippet)
+    if not attachments and not claims:
+        return None
+    blob = _message_blob(raw) or f"{subject}\n{body}"
+    trip, vehicle = _trip_and_vehicle_from_blob(blob)
+    if not vehicle:
+        vehicle = raw.get("vehicle")
+    rec: dict[str, Any] = {
+        "message_id": raw.get("id") or raw.get("message_id") or raw.get("message-id"),
+        "subject": subject,
+        "from": str(raw.get("from") or ""),
+        "date": raw.get("date"),
+        "kind": "guest_message" if "sent you a message" in subject.lower() else "mail",
+        "trip_id": trip,
+        "vehicle": vehicle,
+        "attachments": attachments,
+        "claims_photos": claims,
+    }
+    if claims and not attachments:
+        rec["photos_missing"] = True
+    excerpt = body or snippet
+    if excerpt:
+        rec["excerpt"] = excerpt[:240]
     return rec
 
 
@@ -571,14 +627,23 @@ def parse_records(records: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def _message_from_email(msg: Message, fallback_id: str) -> dict[str, Any]:
-    return {
-        "id": msg.get("Message-ID") or fallback_id,
+def _message_from_email(
+    msg: Message,
+    fallback_id: str,
+    media_dir: Path | None = None,
+) -> dict[str, Any]:
+    mid = str(msg.get("Message-ID") or fallback_id)
+    rec: dict[str, Any] = {
+        "id": mid,
         "subject": _header_str(msg, "Subject"),
         "from": _header_str(msg, "From"),
         "date": _header_str(msg, "Date"),
         "body": _body_text(msg),
     }
+    attachments = turo_media.attachments_from_email(msg, media_dir, mid)
+    if attachments:
+        rec["attachments"] = attachments
+    return rec
 
 
 def _annotate_payout_dest(detail: str) -> str:
@@ -647,6 +712,7 @@ def load_json_messages(
             "note": data.get("note"),
             "forward_since": data.get("forward_since"),
             "poll_interval_s": data.get("poll_interval_s"),
+            "media_dir": data.get("media_dir"),
         }
         msgs = data.get("messages")
         if msgs is None:
@@ -657,15 +723,18 @@ def load_json_messages(
     return [], "parse error: expected object or list", None
 
 
-def load_maildir_messages(path: Path) -> tuple[list[dict[str, Any]], Optional[str]]:
+def load_maildir_messages(
+    path: Path, media_dir: Path | None = None
+) -> tuple[list[dict[str, Any]], Optional[str]]:
     try:
         box = mailbox.Maildir(str(path), create=False)
     except Exception as exc:  # noqa: BLE001
         return [], f"parse error: {exc}"
     out: list[dict[str, Any]] = []
+    dest = media_dir if media_dir is not None else turo_media.media_dir_for(path)
     try:
         for key, msg in box.iteritems():
-            out.append(_message_from_email(msg, key))
+            out.append(_message_from_email(msg, key, dest))
     except Exception as exc:  # noqa: BLE001
         return out, f"parse error: {exc}"
     finally:
@@ -676,13 +745,16 @@ def load_maildir_messages(path: Path) -> tuple[list[dict[str, Any]], Optional[st
     return out, None
 
 
-def load_eml_message(path: Path) -> tuple[list[dict[str, Any]], Optional[str]]:
+def load_eml_message(
+    path: Path, media_dir: Path | None = None
+) -> tuple[list[dict[str, Any]], Optional[str]]:
     try:
         raw = path.read_bytes()
         msg = message_from_bytes(raw, policy=policy.default)
     except Exception as exc:  # noqa: BLE001
         return [], f"parse error: {exc}"
-    return [_message_from_email(msg, path.name)], None
+    dest = media_dir if media_dir is not None else turo_media.media_dir_for(path)
+    return [_message_from_email(msg, path.name, dest)], None
 
 
 def resolve_inbox_path(
@@ -715,11 +787,12 @@ def load_inbox(
     if not p.exists():
         return _unconfigured()
     meta: Optional[dict[str, Any]] = None
+    media = turo_media.media_dir_for(p)
     if p.is_dir():
-        raw, err = load_maildir_messages(p)
+        raw, err = load_maildir_messages(p, media)
         kind = "maildir"
     elif p.suffix.lower() == ".eml":
-        raw, err = load_eml_message(p)
+        raw, err = load_eml_message(p, media)
         kind = "eml"
     else:
         raw, err, meta = load_json_messages(p)
@@ -727,12 +800,12 @@ def load_inbox(
         if err and "parse error" in err:
             head = p.read_text(encoding="utf-8", errors="replace")[:1]
             if head not in ("{", "["):
-                alt, alt_err = load_eml_message(p)
+                alt, alt_err = load_eml_message(p, media)
                 if not alt_err and alt:
                     raw, err, kind = alt, None, "eml"
 
     if err:
-        return _result(
+        result = _result(
             bookings=[],
             status="error",
             detail=err,
@@ -740,6 +813,8 @@ def load_inbox(
             kind=kind,
             error=err,
         )
+        result["raw_messages"] = []
+        return result
     kept = [m for m in raw if keep_forward_message(m, cutoff)]
     dropped = len(raw) - len(kept)
     bookings = parse_records(kept)
@@ -771,16 +846,18 @@ def load_inbox(
             ) + " — empty bookings, not invented trips"
         if dropped:
             detail += f" ({dropped} historical dropped)"
-        return _result(
+        empty = _result(
             bookings=[],
             status="empty",
             detail=detail,
             message_count=0,
             kind=kind,
         )
+        empty["raw_messages"] = kept
+        return empty
     if not bookings:
         prefix = f"watching {watching}{since_bit}; " if watching else ""
-        return _result(
+        empty = _result(
             bookings=[],
             status="empty",
             detail=(
@@ -790,20 +867,24 @@ def load_inbox(
             message_count=len(kept),
             kind=kind,
         )
-    return _result(
+        empty["raw_messages"] = kept
+        return empty
+    parsed = _result(
         bookings=bookings,
         status="parsed",
         detail=f"{kind} parsed; {len(bookings)} trip event(s){since_bit}",
         message_count=len(kept),
         kind=kind,
     )
+    parsed["raw_messages"] = kept
+    return parsed
 
 
 def _booking_match_blob(booking: Mapping[str, Any]) -> str:
     return _norm_text(
         " ".join(
             str(booking.get(k) or "")
-            for k in ("vehicle", "subject", "body", "snippet")
+            for k in ("vehicle", "subject", "body", "snippet", "excerpt")
         )
     )
 
@@ -896,20 +977,56 @@ def turo_payload(
         else:
             unmatched.append(rec)
 
+    by_trip: dict[str, list[dict[str, Any]]] = {}
+    for rec in bookings + unmatched:
+        tid = str(rec.get("trip_id") or "")
+        if tid:
+            by_trip.setdefault(tid, []).append(rec)
+
+    photo_messages: list[dict[str, Any]] = []
+    for raw in loaded.get("raw_messages") or []:
+        if not isinstance(raw, dict):
+            continue
+        photo = parse_photo_message(raw)
+        if not photo:
+            continue
+        uid = match_unit(photo, units) if (photo.get("vehicle") or photo.get("vin")) else None
+        photo["unit_id"] = uid
+        photo_messages.append(photo)
+        tid = str(photo.get("trip_id") or "")
+        atts = photo.get("attachments") or []
+        if tid and atts:
+            for rec in by_trip.get(tid, []):
+                rec["attachments"] = turo_media.merge_attachments(
+                    rec.get("attachments"), atts
+                )
+
     status = loaded.get("inbox_status") or "empty"
     detail = loaded.get("inbox_detail") or ""
     by_unit: dict[str, list[dict[str, Any]]] = {str(u["id"]): [] for u in units}
+    photos_by_unit: dict[str, list[dict[str, Any]]] = {str(u["id"]): [] for u in units}
     for b in bookings:
         by_unit[str(b["unit_id"])].append(b)
+    unmatched_photos: list[dict[str, Any]] = []
+    for photo in photo_messages:
+        uid = photo.get("unit_id")
+        if uid and uid in photos_by_unit:
+            photos_by_unit[str(uid)].append(photo)
+        else:
+            unmatched_photos.append(photo)
     return {
         "inbox_status": _annotate_payout_dest(detail or status),
         "inbox_state": status,
         "inbox_detail": _annotate_payout_dest(detail),
         "inbox_kind": loaded.get("inbox_kind"),
         "inbox_path": str(inbox_path) if inbox_path else None,
+        "media_dir": str(turo_media.media_dir_for(inbox_path)) if inbox_path else None,
         "refreshed_at": _now(),
         "by_unit": by_unit,
+        "photos_by_unit": photos_by_unit,
         "unmatched": unmatched,
+        "unmatched_photos": unmatched_photos,
+        "photo_messages": photo_messages,
         "bookings": bookings + unmatched,
         "message_count": loaded.get("message_count", 0),
         "payout_destination": PAYOUT_DESTINATION,
@@ -921,6 +1038,7 @@ def turo_payload(
 def turo_for_unit(unit_id: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     return {
         "bookings": list((payload.get("by_unit") or {}).get(unit_id) or []),
+        "photos": list((payload.get("photos_by_unit") or {}).get(unit_id) or []),
         "inbox_status": payload.get("inbox_status"),
         "payout_destination": payload.get("payout_destination") or PAYOUT_DESTINATION,
     }

@@ -151,8 +151,11 @@ class FleetAssemblyTests(unittest.TestCase):
         payload = self._build(FIXTURES / "expenses_with_fleet.json")
         for unit in payload["units"]:
             self.assertEqual(unit["turo"]["bookings"], [])
+            self.assertEqual(unit["turo"]["photos"], [])
             self.assertEqual(unit["dimo"]["status"], "unconfigured")
             self.assertIsNone(unit["dimo"]["odometer"])
+        self.assertEqual(payload["turo_photos"], [])
+        self.assertEqual(payload["sources"]["turo"]["photo_count"], 0)
         self.assertIn("empty", payload["sources"]["turo"]["inbox_status"].lower())
 
     def test_portal_override_is_not_live_payoff(self) -> None:

@@ -11,6 +11,7 @@ Query: after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.co
 Forward-only — do not dump historical / label:Turo 2024 mail.
 
 Default output: ~/.config/auto-fleet/turo_inbox.json (mode 600, not git).
+Image MIME parts → ~/.config/auto-fleet/turo_inbox_media/ (not git).
 Missing Gmail creds → honest empty dump (source=gmail_unconfigured), exit 0.
 """
 
@@ -29,9 +30,10 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 try:
-    from . import turo_inbox
+    from . import turo_inbox, turo_media
 except ImportError:  # script path
     import turo_inbox  # type: ignore
+    import turo_media  # type: ignore
 
 DEFAULT_OUT = turo_inbox.CONFIG_INBOX
 GMAIL_QUERY = turo_inbox.GMAIL_QUERY
@@ -70,9 +72,11 @@ def write_dump(
     source: str = "gmail_dump",
     note: str | None = None,
     error: str | None = None,
+    media_dir: Path | None = None,
 ) -> Path:
     dest = Path(path) if path is not None else DEFAULT_OUT
     dest.parent.mkdir(parents=True, exist_ok=True)
+    media = media_dir if media_dir is not None else turo_media.media_dir_for(dest)
     payload: dict[str, Any] = {
         "as_of": _now(),
         "source": source,
@@ -82,6 +86,8 @@ def write_dump(
         "poll_interval_s": turo_inbox.POLL_INTERVAL_S,
         "messages": [dict(m) for m in messages],
     }
+    if media is not None:
+        payload["media_dir"] = str(media)
     if note:
         payload["note"] = note
     if error:
@@ -183,17 +189,31 @@ def _http_json(
     return json.loads(raw)
 
 
-def _b64url_decode(data: str) -> str:
+def _b64url_decode_bytes(data: str) -> bytes:
     pad = "=" * (-len(data) % 4)
-    return base64.urlsafe_b64decode(data + pad).decode("utf-8", errors="replace")
+    return base64.urlsafe_b64decode(data + pad)
+
+
+def _b64url_decode(data: str) -> str:
+    return _b64url_decode_bytes(data).decode("utf-8", errors="replace")
+
+
+def _iter_payload_parts(payload: Mapping[str, Any]):
+    yield payload
+    parts = payload.get("parts") if isinstance(payload.get("parts"), list) else []
+    for part in parts:
+        if isinstance(part, dict):
+            yield from _iter_payload_parts(part)
 
 
 def _payload_text(payload: Mapping[str, Any]) -> str:
     mime = str(payload.get("mimeType") or "")
+    if mime.lower().startswith("image/"):
+        return ""
     body = payload.get("body") if isinstance(payload.get("body"), dict) else {}
     data = str(body.get("data") or "") if isinstance(body, dict) else ""
     parts = payload.get("parts") if isinstance(payload.get("parts"), list) else []
-    if data and (mime.startswith("text/plain") or not parts):
+    if data and (mime.startswith("text/plain") or mime.startswith("text/html") or not parts):
         return _b64url_decode(data)
     texts: list[str] = []
     htmls: list[str] = []
@@ -201,6 +221,8 @@ def _payload_text(payload: Mapping[str, Any]) -> str:
         if not isinstance(part, dict):
             continue
         child_mime = str(part.get("mimeType") or "")
+        if child_mime.lower().startswith("image/"):
+            continue
         text = _payload_text(part)
         if not text:
             continue
@@ -227,14 +249,106 @@ def _headers_map(payload: Mapping[str, Any]) -> dict[str, str]:
     return out
 
 
-def gmail_message_to_record(raw: Mapping[str, Any]) -> dict[str, Any]:
+def _part_disposition(part: Mapping[str, Any]) -> str:
+    headers = _headers_map(part)
+    return str(headers.get("content-disposition") or "").lower()
+
+
+def _part_content_id(part: Mapping[str, Any]) -> str:
+    headers = _headers_map(part)
+    return str(headers.get("content-id") or "").strip()
+
+
+def _fetch_gmail_attachment(
+    fn: HttpFn,
+    auth: Mapping[str, str],
+    message_id: str,
+    attachment_id: str,
+) -> bytes:
+    url = (
+        f"{GMAIL_API}/messages/{urllib.parse.quote(str(message_id))}"
+        f"/attachments/{urllib.parse.quote(str(attachment_id))}"
+    )
+    raw = fn(url, None, auth) or {}
+    data = str((raw or {}).get("data") or "") if isinstance(raw, dict) else ""
+    if not data:
+        return b""
+    return _b64url_decode_bytes(data)
+
+
+def extract_gmail_images(
+    raw: Mapping[str, Any],
+    media_dir: Path | None,
+    *,
+    http: HttpFn | None = None,
+    auth: Mapping[str, str] | None = None,
+) -> list[dict[str, Any]]:
+    """Persist image MIME parts from a Gmail users.messages resource.
+
+    Inline body.data is written locally. attachmentId parts are fetched
+    only when http + auth are provided (the live --fetch path). Missing
+    bytes stay missing — no invented photos.
+    """
+    if media_dir is None:
+        return []
+    payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
+    if not isinstance(payload, dict):
+        return []
+    message_id = str(raw.get("id") or raw.get("threadId") or "msg")
+    out: list[dict[str, Any]] = []
+    index = 0
+    for part in _iter_payload_parts(payload):
+        mime = str(part.get("mimeType") or "")
+        filename = str(part.get("filename") or "")
+        cid = _part_content_id(part)
+        if not turo_media.keep_image_part(mime, filename=filename, content_id=cid):
+            continue
+        body = part.get("body") if isinstance(part.get("body"), dict) else {}
+        data_b64 = str(body.get("data") or "") if isinstance(body, dict) else ""
+        att_id = str(body.get("attachmentId") or "") if isinstance(body, dict) else ""
+        blob = b""
+        if data_b64:
+            try:
+                blob = _b64url_decode_bytes(data_b64)
+            except Exception:  # noqa: BLE001
+                blob = b""
+        elif att_id and http is not None and auth is not None:
+            try:
+                blob = _fetch_gmail_attachment(http, auth, message_id, att_id)
+            except Exception:  # noqa: BLE001
+                blob = b""
+        if not blob:
+            continue
+        index += 1
+        rec = turo_media.write_image_bytes(
+            media_dir,
+            message_id,
+            blob,
+            filename=filename,
+            mime=mime,
+            index=index,
+            inline="inline" in _part_disposition(part) or bool(cid),
+            content_id=cid or None,
+        )
+        if rec:
+            out.append(rec)
+    return out
+
+
+def gmail_message_to_record(
+    raw: Mapping[str, Any],
+    *,
+    media_dir: Path | None = None,
+    http: HttpFn | None = None,
+    auth: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
     payload = raw.get("payload") if isinstance(raw.get("payload"), dict) else {}
     headers = _headers_map(payload if isinstance(payload, dict) else {})
     body = turo_inbox.flatten_mail_text(
         _payload_text(payload if isinstance(payload, dict) else {})
     )
     snippet = turo_inbox.flatten_mail_text(str(raw.get("snippet") or ""))
-    return {
+    rec: dict[str, Any] = {
         "id": raw.get("id") or raw.get("threadId"),
         "from": headers.get("from", ""),
         "subject": headers.get("subject", ""),
@@ -242,6 +356,52 @@ def gmail_message_to_record(raw: Mapping[str, Any]) -> dict[str, Any]:
         "body": body or snippet,
         "snippet": snippet,
     }
+    attachments = extract_gmail_images(
+        raw, media_dir, http=http, auth=auth
+    )
+    if attachments:
+        rec["attachments"] = attachments
+    return rec
+
+
+def materialize_message_images(
+    raw: Mapping[str, Any],
+    media_dir: Path | None,
+    *,
+    http: HttpFn | None = None,
+    auth: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Normalize one dump message, writing image bytes when present.
+
+    Gmail API-shaped objects (payload.parts) are converted. Already-flat
+    records keep text and persist any attachments[].data / path.
+    """
+    if isinstance(raw.get("payload"), dict):
+        return gmail_message_to_record(raw, media_dir=media_dir, http=http, auth=auth)
+    rec = dict(raw)
+    message_id = str(rec.get("id") or rec.get("message_id") or rec.get("message-id") or "msg")
+    existing = rec.get("attachments")
+    if media_dir is not None and isinstance(existing, list) and existing:
+        written: list[dict[str, Any]] = []
+        for i, item in enumerate(existing, start=1):
+            if not isinstance(item, dict):
+                continue
+            att = turo_media.materialize_attachment_data(
+                item, media_dir, message_id, index=i
+            )
+            if att:
+                written.append(att)
+        if written:
+            rec["attachments"] = written
+        else:
+            rec.pop("attachments", None)
+    elif "attachments" in rec:
+        atts = turo_media.normalize_attachments(rec.get("attachments"))
+        if atts:
+            rec["attachments"] = atts
+        else:
+            rec.pop("attachments", None)
+    return rec
 
 
 def refresh_access_token(creds: Mapping[str, str], *, http: HttpFn | None = None) -> str:
@@ -271,6 +431,7 @@ def fetch_gmail_messages(
     *,
     http: HttpFn | None = None,
     max_results: int = MAX_RESULTS,
+    media_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     fn = http or _http_json
     access = refresh_access_token(creds, http=fn)
@@ -293,7 +454,11 @@ def fetch_gmail_messages(
         )
         raw = fn(get_url, None, auth)
         if isinstance(raw, dict):
-            out.append(gmail_message_to_record(raw))
+            out.append(
+                gmail_message_to_record(
+                    raw, media_dir=media_dir, http=fn, auth=auth
+                )
+            )
     return out
 
 
@@ -324,8 +489,11 @@ def fetch_and_write(
                 "Empty bookings, not invented trips."
             ),
         )
+    media = turo_media.media_dir_for(dest)
     try:
-        messages = fetch_gmail_messages(query, creds, http=http)
+        messages = fetch_gmail_messages(
+            query, creds, http=http, media_dir=media
+        )
     except Exception as exc:  # noqa: BLE001
         return write_dump(
             [],
@@ -335,6 +503,7 @@ def fetch_and_write(
             source="gmail_error",
             note="Pi writer: Gmail fetch failed. Empty bookings, not invented trips.",
             error=str(exc),
+            media_dir=media,
         )
     return write_dump(
         messages,
@@ -342,6 +511,7 @@ def fetch_and_write(
         inbox=inbox,
         query=query,
         source="gmail_api",
+        media_dir=media,
     )
 
 
@@ -397,9 +567,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         raw = json.load(sys.stdin)
     else:
         raw = json.loads(Path(args.from_json).read_text(encoding="utf-8"))
-    messages = normalize_messages(raw)
-    dest = write_dump(messages, args.out, inbox=args.inbox)
-    print(f"wrote {len(messages)} message(s) to {dest}")
+    dest = Path(args.out)
+    media = turo_media.media_dir_for(dest)
+    messages = [
+        materialize_message_images(m, media)
+        for m in normalize_messages(raw)
+    ]
+    dest = write_dump(messages, dest, inbox=args.inbox, media_dir=media)
+    n_photos = sum(len(m.get("attachments") or []) for m in messages)
+    print(f"wrote {len(messages)} message(s) ({n_photos} photo(s)) to {dest}")
     return 0
 
 

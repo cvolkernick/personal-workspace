@@ -300,6 +300,7 @@ def build_fleet(
         turo_unit["schedule"] = car_cards.schedule_for_bookings(
             turo_unit.get("bookings") or [], now_s
         )
+        turo_unit.setdefault("photos", [])
         row = {
             "id": unit["id"],
             "identity": identity_for(unit),
@@ -322,6 +323,8 @@ def build_fleet(
         "units": assembled,
         "shared_finance": shared_finance(tab, units),
         "turo_unmatched": turo.get("unmatched") or [],
+        "turo_photos": turo.get("photo_messages") or [],
+        "turo_unmatched_photos": turo.get("unmatched_photos") or [],
         "expenses_snapshot": {
             "path": str(resolved_expenses),
             "as_of": (expenses or {}).get("as_of") if expenses else None,
@@ -353,6 +356,8 @@ def build_fleet(
                 "refreshed_at": turo.get("refreshed_at"),
                 "forward_since": turo.get("forward_since"),
                 "poll_interval_s": turo.get("poll_interval_s"),
+                "media_dir": turo.get("media_dir"),
+                "photo_count": len(turo.get("photo_messages") or []),
             },
         },
     }

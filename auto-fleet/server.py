@@ -5,6 +5,7 @@
   GET  /api/fleet   → roster units + DIMO / Turo / costs strips
   GET  /api/turo-tasks → open Google Tasks on the Turo list
   POST /api/turo-tasks/complete → checkbox write-back to Google Tasks
+  GET  /api/turo-inbox-media/<relpath> → ingested Turo mail photo (email ingest only)
   GET  /            → UI
 
 Usage:
@@ -21,7 +22,7 @@ import webbrowser
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Optional
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 PKG_DIR = Path(__file__).resolve().parent
 ROOT = PKG_DIR.parent
@@ -30,7 +31,9 @@ if str(ROOT) not in sys.path:
 if str(PKG_DIR) not in sys.path:
     sys.path.insert(0, str(PKG_DIR))
 
-from fleet import build_fleet, load_roster  # noqa: E402
+from fleet import DATA_DIR, build_fleet, load_roster  # noqa: E402
+from turo_inbox import resolve_inbox_path  # noqa: E402
+from turo_media import media_dir_for, resolve_media_file  # noqa: E402
 from turo_tasks import complete_task, list_open_tasks  # noqa: E402
 
 DEFAULT_PORT = 8796
@@ -144,6 +147,31 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
                     },
                 )
             return
+        if path.startswith("/api/turo-inbox-media/"):
+            rel = unquote(path[len("/api/turo-inbox-media/") :])
+            inbox = resolve_inbox_path(_INBOX_PATH, DATA_DIR)
+            media = media_dir_for(inbox)
+            dest = resolve_media_file(media, rel) if media else None
+            if dest is None:
+                self._json(404, {"ok": False, "error": "photo not found"})
+                return
+            data = dest.read_bytes()
+            mime = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".webp": "image/webp",
+                ".heic": "image/heic",
+                ".heif": "image/heif",
+            }.get(dest.suffix.lower(), "application/octet-stream")
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "private, max-age=300")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if path in ("/", "/index.html"):
             self.path = "/index.html"
             return super().do_GET()
@@ -203,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     _BOUND_HOST, _BOUND_PORT = server.server_address[0], int(server.server_address[1])
     url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"Auto Fleet dashboard → {url}")
-    print("API: /api/health /api/fleet /api/turo-tasks")
+    print("API: /api/health /api/fleet /api/turo-tasks /api/turo-inbox-media/")
     print("Secrets: ~/.config/auto-fleet/env (not in repo)")
     if not args.no_browser:
         webbrowser.open(url)

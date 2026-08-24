@@ -51,6 +51,7 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | `turo_inbox.py` | Local JSON / maildir / Gmail-dump parser |
 | `gtasks.py` / `turo_tasks.py` | Prism Google Tasks client + Turo list read/complete |
 | `turo_gmail.py` | Write `~/.config/auto-fleet/turo_inbox.json` (`--fetch` or `--from-json`) |
+| `turo_media.py` | Persist image MIME parts next to the dump (`turo_inbox_media/`) |
 | `data/roster.json` | Five-unit seed |
 | `data/notes.json` | 2026-08-13 portal override (stale on purpose) |
 | `data/turo_inbox.json` | Empty fixture — no invented trips |
@@ -120,8 +121,13 @@ python3 auto-fleet/turo_gmail.py --from-json /path/to/messages.json
 python3 auto-fleet/turo_gmail.py --from-json - < messages.json
 ```
 
-Writes `~/.config/auto-fleet/turo_inbox.json` (mode 600). Override with
-`AUTO_FLEET_TURO_INBOX` or `--out`.
+Writes `~/.config/auto-fleet/turo_inbox.json` (mode 600). Image / MMS MIME
+parts land in `~/.config/auto-fleet/turo_inbox_media/<message_id>/` (mode
+600) and are listed on each message as `attachments[]` (`path`, `relpath`,
+`mime`, `sha256`, `size`). Helm opens those files or
+`GET /api/turo-inbox-media/<relpath>`. Text-only mail stays text-only.
+“Contains photo(s)” without image parts is flagged `photos_missing` — no
+invented bytes. Override dump path with `AUTO_FLEET_TURO_INBOX` or `--out`.
 
 **Gmail query:** `after:2026/08/18 from:(turo.com OR mail.turo.com OR transactional.turo.com)`
 
