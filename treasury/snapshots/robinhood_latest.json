@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-24T14:13:13.108571+00:00",
+  "as_of": "2026-08-24T14:38:32.432403+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-24T14:13:13.108567+00:00",
-    "total_value": 227.5419154508,
-    "equity_value": 227.4519154508,
+    "as_of": "2026-08-24T14:38:32.432399+00:00",
+    "total_value": 230.2711804082,
+    "equity_value": 230.1811804082,
     "cash": 0.09,
     "buying_power": 0.09,
     "unleveraged_buying_power": 0.09,
@@ -39,8 +39,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "123.665000",
-        "price": "123.665000"
+        "last_price": "126.585000",
+        "price": "126.585000",
+        "bid_price": "126.550000",
+        "ask_price": "126.640000"
       },
       {
         "symbol": "MARA",
@@ -54,8 +56,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "11.550100",
-        "price": "11.550100"
+        "last_price": "11.969900",
+        "price": "11.969900",
+        "bid_price": "11.960000",
+        "ask_price": "11.970000"
       },
       {
         "symbol": "TSLA",
@@ -69,8 +73,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "353.590000",
-        "price": "353.590000"
+        "last_price": "356.863200",
+        "price": "356.863200",
+        "bid_price": "356.820000",
+        "ask_price": "356.870000"
       },
       {
         "symbol": "SPCX",
@@ -84,8 +90,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "133.570100",
-        "price": "133.570100"
+        "last_price": "134.585000",
+        "price": "134.585000",
+        "bid_price": "134.570000",
+        "ask_price": "134.600000"
       },
       {
         "symbol": "BITA",
@@ -99,8 +107,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "60.390000",
-        "price": "60.390000"
+        "last_price": "60.899900",
+        "price": "60.899900",
+        "bid_price": "60.690000",
+        "ask_price": "60.930000"
       },
       {
         "symbol": "IREN",
@@ -114,8 +124,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "40.045000",
-        "price": "40.045000"
+        "last_price": "40.640000",
+        "price": "40.640000",
+        "bid_price": "40.640000",
+        "ask_price": "40.670000"
       },
       {
         "symbol": "CLSK",
@@ -129,8 +141,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "12.030000",
-        "price": "12.030000"
+        "last_price": "12.250000",
+        "price": "12.250000",
+        "bid_price": "12.250000",
+        "ask_price": "12.260000"
       },
       {
         "symbol": "STRC",
@@ -144,8 +158,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "96.700000",
-        "price": "96.700000"
+        "last_price": "96.765000",
+        "price": "96.765000",
+        "bid_price": "96.730000",
+        "ask_price": "96.800000"
       },
       {
         "symbol": "SATA",
@@ -160,7 +176,9 @@
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
         "last_price": "100.010000",
-        "price": "100.010000"
+        "price": "100.010000",
+        "bid_price": "100.000000",
+        "ask_price": "100.010000"
       },
       {
         "symbol": "GOOGL",
@@ -174,8 +192,10 @@
         "shares_held_for_asset_transfer": "0.000000",
         "shares_pending_from_options_events": "0.000000",
         "type": "long",
-        "last_price": "348.015000",
-        "price": "348.015000"
+        "last_price": "348.535000",
+        "price": "348.535000",
+        "bid_price": "348.620000",
+        "ask_price": "348.670000"
       }
     ]
   },
@@ -220,5 +240,5 @@
     "connected": true,
     "note": "Trades only on agentic_allowed accounts; primary margin is read/policy only for this agent"
   },
-  "notes": "Live MCP refresh 2026-08-24 ~14:10Z after STRC/SATA/GOOGL fills. pending_deposits $25 is not spendable (already deployed this morning)."
+  "notes": "Live MCP refresh 2026-08-24 ~14:36Z mid-session review. pending_deposits $25 is not spendable (already deployed 09:50 ET). Do not treat Pi 13:29Z snapshot cash $25.09 as free capital."
 }

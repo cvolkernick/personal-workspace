@@ -28,8 +28,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "227.5419154508",
-      "equity_value": "227.4519154508",
+      "total_value": "230.2711804082",
+      "equity_value": "230.1811804082",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -64,8 +64,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "123.665000",
-      "price": "123.665000"
+      "last_price": "126.585000",
+      "price": "126.585000",
+      "bid_price": "126.550000",
+      "ask_price": "126.640000"
     },
     {
       "symbol": "MARA",
@@ -79,8 +81,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "11.550100",
-      "price": "11.550100"
+      "last_price": "11.969900",
+      "price": "11.969900",
+      "bid_price": "11.960000",
+      "ask_price": "11.970000"
     },
     {
       "symbol": "TSLA",
@@ -94,8 +98,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "353.590000",
-      "price": "353.590000"
+      "last_price": "356.863200",
+      "price": "356.863200",
+      "bid_price": "356.820000",
+      "ask_price": "356.870000"
     },
     {
       "symbol": "SPCX",
@@ -109,8 +115,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "133.570100",
-      "price": "133.570100"
+      "last_price": "134.585000",
+      "price": "134.585000",
+      "bid_price": "134.570000",
+      "ask_price": "134.600000"
     },
     {
       "symbol": "BITA",
@@ -124,8 +132,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "60.390000",
-      "price": "60.390000"
+      "last_price": "60.899900",
+      "price": "60.899900",
+      "bid_price": "60.690000",
+      "ask_price": "60.930000"
     },
     {
       "symbol": "IREN",
@@ -139,8 +149,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "40.045000",
-      "price": "40.045000"
+      "last_price": "40.640000",
+      "price": "40.640000",
+      "bid_price": "40.640000",
+      "ask_price": "40.670000"
     },
     {
       "symbol": "CLSK",
@@ -154,8 +166,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "12.030000",
-      "price": "12.030000"
+      "last_price": "12.250000",
+      "price": "12.250000",
+      "bid_price": "12.250000",
+      "ask_price": "12.260000"
     },
     {
       "symbol": "STRC",
@@ -169,8 +183,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "96.700000",
-      "price": "96.700000"
+      "last_price": "96.765000",
+      "price": "96.765000",
+      "bid_price": "96.730000",
+      "ask_price": "96.800000"
     },
     {
       "symbol": "SATA",
@@ -185,7 +201,9 @@
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
       "last_price": "100.010000",
-      "price": "100.010000"
+      "price": "100.010000",
+      "bid_price": "100.000000",
+      "ask_price": "100.010000"
     },
     {
       "symbol": "GOOGL",
@@ -199,8 +217,10 @@
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
       "type": "long",
-      "last_price": "348.015000",
-      "price": "348.015000"
+      "last_price": "348.535000",
+      "price": "348.535000",
+      "bid_price": "348.620000",
+      "ask_price": "348.670000"
     }
   ],
   "accounts": [
@@ -238,5 +258,833 @@
       "permanently_deactivated": false
     }
   ],
-  "notes": "Live MCP refresh 2026-08-24 ~14:10Z after STRC/SATA/GOOGL fills. pending_deposits $25 is not spendable (already deployed this morning)."
+  "quotes": [
+    {
+      "quote": {
+        "symbol": "MSTR",
+        "last_trade_price": "126.585000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.033017755Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "119.250000",
+        "previous_close": "119.250000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "126.550000",
+        "venue_bid_time": "2026-08-24T14:36:02.698495498Z",
+        "ask_price": "126.640000",
+        "venue_ask_time": "2026-08-24T14:36:02.698495498Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "MSTR",
+        "date": "2026-08-21",
+        "price": "119.25",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "STRC",
+        "last_trade_price": "96.765000",
+        "venue_last_trade_time": "2026-08-24T14:36:00.665179311Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "96.180000",
+        "previous_close": "96.180000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "96.730000",
+        "venue_bid_time": "2026-08-24T14:35:58.197240722Z",
+        "ask_price": "96.800000",
+        "venue_ask_time": "2026-08-24T14:35:58.197240722Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "STRC",
+        "date": "2026-08-21",
+        "price": "96.18",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "SATA",
+        "last_trade_price": "100.010000",
+        "venue_last_trade_time": "2026-08-24T14:35:00.225618583Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "99.958400",
+        "previous_close": "100.010000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "100.000000",
+        "venue_bid_time": "2026-08-24T14:35:00.225618583Z",
+        "ask_price": "100.010000",
+        "venue_ask_time": "2026-08-24T14:35:00.225618583Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "SATA",
+        "date": "2026-08-21",
+        "price": "100.01",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "ASST",
+        "last_trade_price": "19.850000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.12380374Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "18.220000",
+        "previous_close": "18.220000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "19.850000",
+        "venue_bid_time": "2026-08-24T14:36:03.238080755Z",
+        "ask_price": "19.870000",
+        "venue_ask_time": "2026-08-24T14:36:03.238080755Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "ASST",
+        "date": "2026-08-21",
+        "price": "18.22",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "BITA",
+        "last_trade_price": "60.899900",
+        "venue_last_trade_time": "2026-08-24T14:35:06.884587371Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "59.380000",
+        "previous_close": "59.380000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "60.690000",
+        "venue_bid_time": "2026-08-24T14:36:00.856582936Z",
+        "ask_price": "60.930000",
+        "venue_ask_time": "2026-08-24T14:36:00.856582936Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "BITA",
+        "date": "2026-08-21",
+        "price": "59.38",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "MARA",
+        "last_trade_price": "11.969900",
+        "venue_last_trade_time": "2026-08-24T14:36:02.917486463Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "11.260000",
+        "previous_close": "11.260000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "11.960000",
+        "venue_bid_time": "2026-08-24T14:36:02.668792615Z",
+        "ask_price": "11.970000",
+        "venue_ask_time": "2026-08-24T14:36:02.668792615Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "MARA",
+        "date": "2026-08-21",
+        "price": "11.26",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "RIOT",
+        "last_trade_price": "20.620000",
+        "venue_last_trade_time": "2026-08-24T14:36:01.581738432Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "19.830000",
+        "previous_close": "19.830000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "20.600000",
+        "venue_bid_time": "2026-08-24T14:36:03.687781356Z",
+        "ask_price": "20.640000",
+        "venue_ask_time": "2026-08-24T14:36:03.687781356Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "RIOT",
+        "date": "2026-08-21",
+        "price": "19.83",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "CLSK",
+        "last_trade_price": "12.250000",
+        "venue_last_trade_time": "2026-08-24T14:36:01.690274742Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "11.980000",
+        "previous_close": "11.980000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "12.250000",
+        "venue_bid_time": "2026-08-24T14:36:03.441037852Z",
+        "ask_price": "12.260000",
+        "venue_ask_time": "2026-08-24T14:36:03.441037852Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "CLSK",
+        "date": "2026-08-21",
+        "price": "11.98",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "WULF",
+        "last_trade_price": "15.910000",
+        "venue_last_trade_time": "2026-08-24T14:35:58.727578977Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "15.640000",
+        "previous_close": "15.640000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "15.910000",
+        "venue_bid_time": "2026-08-24T14:36:03.440190354Z",
+        "ask_price": "15.920000",
+        "venue_ask_time": "2026-08-24T14:36:03.440190354Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "WULF",
+        "date": "2026-08-21",
+        "price": "15.64",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "IREN",
+        "last_trade_price": "40.640000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.440111928Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "41.880000",
+        "previous_close": "41.880000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "40.640000",
+        "venue_bid_time": "2026-08-24T14:36:03.766717918Z",
+        "ask_price": "40.670000",
+        "venue_ask_time": "2026-08-24T14:36:03.766717918Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "IREN",
+        "date": "2026-08-21",
+        "price": "41.88",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "TSLA",
+        "last_trade_price": "356.863200",
+        "venue_last_trade_time": "2026-08-24T14:36:03.430073147Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "362.860000",
+        "previous_close": "362.860000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "356.820000",
+        "venue_bid_time": "2026-08-24T14:36:03.372889015Z",
+        "ask_price": "356.870000",
+        "venue_ask_time": "2026-08-24T14:36:03.372889015Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "TSLA",
+        "date": "2026-08-21",
+        "price": "362.86",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "SPCX",
+        "last_trade_price": "134.585000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.505714971Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "136.970000",
+        "previous_close": "136.970000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "134.570000",
+        "venue_bid_time": "2026-08-24T14:36:03.517442751Z",
+        "ask_price": "134.600000",
+        "venue_ask_time": "2026-08-24T14:36:03.517442751Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "SPCX",
+        "date": "2026-08-21",
+        "price": "136.97",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "BE",
+        "last_trade_price": "197.780000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.842963774Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "201.450000",
+        "previous_close": "201.450000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "197.520000",
+        "venue_bid_time": "2026-08-24T14:36:02.983751638Z",
+        "ask_price": "197.960000",
+        "venue_ask_time": "2026-08-24T14:36:02.983751638Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "BE",
+        "date": "2026-08-21",
+        "price": "201.45",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "GOOGL",
+        "last_trade_price": "348.535000",
+        "venue_last_trade_time": "2026-08-24T14:36:04.087931341Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "344.820000",
+        "previous_close": "344.820000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "348.620000",
+        "venue_bid_time": "2026-08-24T14:36:03.536042669Z",
+        "ask_price": "348.670000",
+        "venue_ask_time": "2026-08-24T14:36:03.536042669Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "GOOGL",
+        "date": "2026-08-21",
+        "price": "344.82",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "AAPL",
+        "last_trade_price": "313.158400",
+        "venue_last_trade_time": "2026-08-24T14:36:03.268281583Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "309.350000",
+        "previous_close": "309.350000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "313.150000",
+        "venue_bid_time": "2026-08-24T14:36:03.401982092Z",
+        "ask_price": "313.180000",
+        "venue_ask_time": "2026-08-24T14:36:03.401982092Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "AAPL",
+        "date": "2026-08-21",
+        "price": "309.35",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "NVDA",
+        "last_trade_price": "210.010000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.925782164Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "214.720000",
+        "previous_close": "214.720000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "210.010000",
+        "venue_bid_time": "2026-08-24T14:36:03.518504364Z",
+        "ask_price": "210.030000",
+        "venue_ask_time": "2026-08-24T14:36:03.518504364Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "NVDA",
+        "date": "2026-08-21",
+        "price": "214.72",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "PLTR",
+        "last_trade_price": "175.505000",
+        "venue_last_trade_time": "2026-08-24T14:36:03.117363808Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "179.940000",
+        "previous_close": "179.940000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "175.500000",
+        "venue_bid_time": "2026-08-24T14:36:03.018906111Z",
+        "ask_price": "175.530000",
+        "venue_ask_time": "2026-08-24T14:36:03.018906111Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "PLTR",
+        "date": "2026-08-21",
+        "price": "179.94",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "EVGO",
+        "last_trade_price": "1.490000",
+        "venue_last_trade_time": "2026-08-24T14:36:01.60597406Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "1.510000",
+        "previous_close": "1.510000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "1.490000",
+        "venue_bid_time": "2026-08-24T14:36:00.553694937Z",
+        "ask_price": "1.500000",
+        "venue_ask_time": "2026-08-24T14:36:00.553694937Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "EVGO",
+        "date": "2026-08-21",
+        "price": "1.51",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    },
+    {
+      "quote": {
+        "symbol": "AMZN",
+        "last_trade_price": "261.465100",
+        "venue_last_trade_time": "2026-08-24T14:36:04.059642302Z",
+        "last_non_reg_trade_price": null,
+        "venue_last_non_reg_trade_time": null,
+        "adjusted_previous_close": "258.630000",
+        "previous_close": "258.630000",
+        "previous_close_date": "2026-08-21",
+        "bid_price": "261.430000",
+        "venue_bid_time": "2026-08-24T14:36:03.145417374Z",
+        "ask_price": "261.500000",
+        "venue_ask_time": "2026-08-24T14:36:03.145417374Z",
+        "has_traded": true,
+        "state": "active"
+      },
+      "close": {
+        "symbol": "AMZN",
+        "date": "2026-08-21",
+        "price": "258.63",
+        "interpolated": false,
+        "source": "sip-list-exchange-close"
+      }
+    }
+  ],
+  "tradability": [
+    {
+      "data": {
+        "results": [
+          {
+            "symbol": "STRC",
+            "name": "Strategy Inc Variable Rate Series A Perpetual Stretch Preferred Stock",
+            "simple_name": "Strategy Inc Variable Rate Series A Perpetual Stretch Preferred Stock",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "SATA",
+            "name": "Strive, Inc. Variable Rate Series A Perpetual Preferred Stock",
+            "simple_name": "Strive, Inc. Variable Rate Series A Perpetual Preferred Stock",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "untradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "ASST",
+            "name": "Strive, Inc. Class A Common Stock",
+            "simple_name": "Strive, Inc.",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "RIOT",
+            "name": "Riot Platforms, Inc. Common Stock",
+            "simple_name": "Riot Platforms",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": true,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "WULF",
+            "name": "TeraWulf Inc. Common Stock",
+            "simple_name": "TeraWulf",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "BE",
+            "name": "Bloom Energy Corporation",
+            "simple_name": "Bloom Energy",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "NVDA",
+            "name": "NVIDIA Corporation Common Stock",
+            "simple_name": "NVIDIA",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": true,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "AAPL",
+            "name": "Apple Inc. Common Stock",
+            "simple_name": "Apple",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "PLTR",
+            "name": "Palantir Technologies Inc. Class A Common Stock",
+            "simple_name": "Palantir Technologies",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": true,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "EVGO",
+            "name": "EVgo Inc. Class A Common Stock",
+            "simple_name": "EVgo",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "untradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          }
+        ]
+      },
+      "guide": "Headline answer: use the account_type_tradabilities entry matching the user's account_type. If account_type_tradabilities is empty, report that account-type tradability could not be determined and rely on tradeable + state alone. Any of tradeable=false, state='inactive', or 'untradable' overrides everything below \u2014 surface first. Session mapping: regular_hours uses the headline; extended_hours / all_day_hours need all_day_tradability='all_day_tradability_tradable'; 24/7 needs twenty_four_seven_tradability='twenty_four_seven_tradability_tradable'. Mention internal_halt_* only when internal_halt_sessions overlaps the session the user wants. Fractional and dollar-based orders place only in regular_hours regardless of the flags. See trading://market-hours for session clock times."
+    },
+    {
+      "data": {
+        "results": [
+          {
+            "symbol": "AMZN",
+            "name": "Amazon.com, Inc. Common Stock",
+            "simple_name": "Amazon",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          },
+          {
+            "symbol": "GOOGL",
+            "name": "Alphabet Inc. Class A Common Stock",
+            "simple_name": "Alphabet Class A",
+            "state": "active",
+            "country": "US",
+            "tradeable": true,
+            "fractional_tradability": "tradable",
+            "extended_hours_fractional_tradability": false,
+            "all_day_tradability": "tradable",
+            "short_selling_tradability": "tradable",
+            "account_type_tradabilities": [
+              {
+                "account_type": "individual",
+                "account_type_tradability": "tradable"
+              }
+            ]
+          }
+        ]
+      },
+      "guide": "Headline answer: use the account_type_tradabilities entry matching the user's account_type. If account_type_tradabilities is empty, report that account-type tradability could not be determined and rely on tradeable + state alone. Any of tradeable=false, state='inactive', or 'untradable' overrides everything below \u2014 surface first. Session mapping: regular_hours uses the headline; extended_hours / all_day_hours need all_day_tradability='all_day_tradability_tradable'; 24/7 needs twenty_four_seven_tradability='twenty_four_seven_tradability_tradable'. Mention internal_halt_* only when internal_halt_sessions overlaps the session the user wants. Fractional and dollar-based orders place only in regular_hours regardless of the flags. See trading://market-hours for session clock times."
+    }
+  ],
+  "nvda_earnings": {
+    "data": {
+      "results": [
+        {
+          "symbol": "NVDA",
+          "year": 2025,
+          "quarter": 4,
+          "eps": {
+            "estimate": "0.840000",
+            "actual": "0.890000"
+          },
+          "report": {
+            "date": "2025-02-26",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2026,
+          "quarter": 1,
+          "eps": {
+            "estimate": "0.750000",
+            "actual": "0.960000"
+          },
+          "report": {
+            "date": "2025-05-28",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2026,
+          "quarter": 2,
+          "eps": {
+            "estimate": "0.980000",
+            "actual": "1.040000"
+          },
+          "report": {
+            "date": "2025-08-27",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2026,
+          "quarter": 3,
+          "eps": {
+            "estimate": "1.220000",
+            "actual": "1.300000"
+          },
+          "report": {
+            "date": "2025-11-19",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2026,
+          "quarter": 4,
+          "eps": {
+            "estimate": "1.500000",
+            "actual": "1.620000"
+          },
+          "report": {
+            "date": "2026-02-25",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2027,
+          "quarter": 1,
+          "eps": {
+            "estimate": "1.760000",
+            "actual": "1.870000"
+          },
+          "report": {
+            "date": "2026-05-20",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2027,
+          "quarter": 2,
+          "eps": {
+            "estimate": "2.070000",
+            "actual": null
+          },
+          "report": {
+            "date": "2026-08-26",
+            "timing": "pm",
+            "verified": true
+          }
+        },
+        {
+          "symbol": "NVDA",
+          "year": 2027,
+          "quarter": 3,
+          "eps": {
+            "estimate": "2.340000",
+            "actual": null
+          },
+          "report": {
+            "date": "2026-11-18",
+            "timing": "pm",
+            "verified": false
+          }
+        }
+      ]
+    },
+    "guide": "Entries are sorted ascending \u2014 historical quarters first, most recent / upcoming quarter last. Distinguish \"upcoming\" from \"reported\" by eps.actual: null means the company has not yet reported. For \"will earnings happen by date X\" questions, use report.date. When report.verified is false, present the date as tentative rather than confirmed. If upstream cannot resolve the symbol (typo, delisted, non-equity), the response carries an empty results array and the symbol appears in not_found \u2014 surface that as \"no data for X\" rather than treating it as a tool failure. This tool does NOT return an \"expected move\" \u2014 pair with options data for implied-volatility-based moves."
+  },
+  "notes": "Live MCP refresh 2026-08-24 ~14:36Z mid-session review. pending_deposits $25 is not spendable (already deployed 09:50 ET). Do not treat Pi 13:29Z snapshot cash $25.09 as free capital."
 }

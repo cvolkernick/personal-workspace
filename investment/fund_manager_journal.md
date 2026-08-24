@@ -1856,3 +1856,31 @@
 - **critic:** ok — Block treating pending $25 as cash. Block held-only default for next capital. STRC/SATA under-allocation challenge: seats now exist (~$11); no new BTC-complex dollars this pass. Miner skip is capital, not overlap. Block NVDA into print. AMZN homework closed; still no first-buy vs GOOGL on dust.
 - **executor:** hold — No place/cancel. robinhood-trading reachable via stored OAuth HTTP (Grok session MCP tools disconnected). Dust cannot meet min_trade $1.00. Scope remains agentic ••••1752 only.
 
+
+## 2026-08-24T14:31:55 — deploy
+**Summary:** Rules → need team/LLM: free capital cash $25.09 BP $25.09 (deployable $25.09 ≥ min_trade $1.00)
+**Book:** NAV $228.3935 · BP $25.09
+**Weights before (deployed):** BTC-complex 0.4008 · Stocks 0.5992
+**Why now:** Scheduled daily review (rules path). Mid-session style; no day-trading.
+**Why not alternatives:** Quorum team should debate size/names; Executor only places after OK.
+**Team:**
+- **scout:** observe — NAV $228.39 BP $25.09 cash $25.09
+- **thesis:** ok — deployed BTC 0.4008 stocks 0.5992
+- **risk:** review — Agentic capital only; no trade if hold
+- **critic:** challenge — Hold preferred when bands ok — avoid churn
+- **executor:** await_team — No MCP orders on pure rules HOLD
+
+
+## 2026-08-24T14:38:32 — hold
+**Summary:** Mid-session team HOLD on agentic ••••1752: NAV~$230.27, cash/BP $0.09 < min $1. Live mix ~40.4% BTC-complex / ~59.6% stocks (in ±5% band) after 09:50 ET fills (STRC $6 + SATA $5 + GOOGL $14). Full research/rotate. Stale Pi $25.09 is not spendable. No orders.
+**Book:** NAV $230.2712 · BP $0.09
+**Weights before (deployed):** BTC-complex 0.4043 · Stocks 0.5957
+**Why now:** User-run mid-session-style review ~10:36 ET. Rules path at 10:31 ET flagged $25.09 off a stale Pi snapshot (as_of 13:29Z). Live MCP confirms fills (STRC/SATA/GOOGL) and residual $0.09. Uniform research/rotate required even with dust capital (size-invariant). pending_deposits $25 is not spendable.
+**Why not alternatives:** No buy: cash/BP $0.09 < min_trade $1. Did not treat pending_deposits $25 or Pi cash $25.09 as new capital (already spent this morning; NAV ~$230.27 does not include another $25). No forced rotate to add miners/BE: 40/60 in band; cash-account settlement risk; no thesis break. Did NOT skip STRC/SATA on thesis — seats exist; skip is no residual. Did NOT reject RIOT/WULF for miner overlap — capital is the only gate. Did NOT chase MSTR/MARA/ASST bounce. NVDA blocked into 8/26 AMC print. AMZN ready but not first-buy vs held GOOGL on dust. Held-only top-up rejected as default for next free cash.
+**Team:**
+- **scout:** ok — Agentic ••••1752 live MCP NAV $230.27 equity~$230.18 cash/BP $0.09. Held: MSTR STRC SATA BITA MARA IREN CLSK TSLA SPCX GOOGL. Deployed ~40.4/59.6 in band. Pi snapshot was stale (pre-fill $25.09). Regular hours ~10:36 ET. BTC-USD CB ~$79.7k. MSTR +6.2% / MARA +6.3% today.
+- **thesis:** ok — HOLD. Binding theme gaps filled this morning (STRC+SATA digital-credit seats; GOOGL AI). Mix in band. Next free capital: RIOT/WULF or STRC/SATA residual in 40%; BE vs post-NVDA in 60%. Not held-only. Do not chase MSTR/MARA bounce.
+- **risk:** ok — Agentic cash only; $0.09 < min $1; no leverage; ignore pending_deposits $25 and stale Pi $25.09; NVDA 8/26 AMC event risk; AMZN dive current; no sell-to-buy settlement risk needed.
+- **critic:** ok — Block treating pending $25 / stale Pi cash as spendable. Block held-only default (incl. MSTR/MARA bounce chase) for next capital. STRC/SATA under-allocation challenge: seats now exist (~$11); no new BTC-complex dollars this pass. Miner skip is capital, not overlap. Block NVDA into print.
+- **executor:** hold — No place/cancel. robinhood-trading reachable via stored OAuth HTTP (Grok session MCP tools disconnected). Dust cannot meet min_trade $1.00. Scope remains agentic ••••1752 only.
+
