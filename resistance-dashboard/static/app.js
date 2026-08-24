@@ -3775,6 +3775,8 @@
   let lastQuestSyncedDay = "";
   /** Last GT-backed quest payload — Refresh data must not wipe task ids. */
   let lastSyncedDailyTasks = null;
+  /** Food-log fingerprint last written onto meal-plan GT items this page. */
+  let lastSyncedFoodLogsFp = "";
 
   function escQuest(value) {
     return String(value == null ? "" : value)
@@ -4627,22 +4629,35 @@
 
     // Daily quests: paint local plan immediately; GT ensure only on first
     // Today load of a new local date (or retry). Refresh data / quiet poll
-    // / meal rebuild must not re-run the rollover sweep.
+    // / inventory meal rebuild must not re-run the rollover sweep.
+    // Exception (#321): new food logs that force meal-plan regen re-sync so
+    // prior meal-plan GT leaves can be purged+recreated. Not inventory.
     const incoming = today.daily_tasks || data.daily_tasks || null;
     const day = civilDay((data.meta && data.meta.local_today) || today.date || "");
     const alreadySyncedToday = !!(lastQuestSyncedDay && day && lastQuestSyncedDay === day);
+    const foodFp = String(((today.nutrition || {}).food_logs_fp) || "");
+    const foodLogsForceMealRegen = !!(
+      alreadySyncedToday &&
+      foodFp &&
+      lastSyncedFoodLogsFp &&
+      foodFp !== lastSyncedFoodLogsFp
+    );
     const daily =
-      alreadySyncedToday && lastSyncedDailyTasks ? lastSyncedDailyTasks : incoming;
+      alreadySyncedToday && lastSyncedDailyTasks && !foodLogsForceMealRegen
+        ? lastSyncedDailyTasks
+        : incoming;
     // Bind collapse + quest delegation once (before/after quest re-renders)
     bindCollapsibles($("today-hub") || document);
     bindDailyQuestClicks();
     renderDailyPlanTasks(daily, today.actions || []);
     if (
-      !alreadySyncedToday &&
-      (!daily || daily.needs_sync || daily.source !== "google_tasks")
+      (!alreadySyncedToday &&
+        (!daily || daily.needs_sync || daily.source !== "google_tasks")) ||
+      foodLogsForceMealRegen
     ) {
       syncDailyTasksFromServer().then((ok) => {
         if (ok && day) lastQuestSyncedDay = day;
+        if (ok && foodFp) lastSyncedFoodLogsFp = foodFp;
       });
     }
 

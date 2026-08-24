@@ -147,6 +147,9 @@ class TestCoach(unittest.TestCase):
         self.assertEqual(board["recommendation"], "train")
         self.assertTrue(board.get("targets"))
         self.assertTrue(any(t.get("motivation") for t in board["targets"]))
+        self.assertTrue(board["nutrition"].get("food_logs_fp"))
+        self.assertEqual(len(board["nutrition"]["food_logs_fp"]), 16)
+        self.assertEqual(board["meal"].get("food_logs_fp"), board["nutrition"]["food_logs_fp"])
         meal_ids = {it.get("id") for it in (board.get("meal") or {}).get("items") or []}
         self.assertTrue(meal_ids <= stocked_ids)
         purchases = board.get("purchases") or []
