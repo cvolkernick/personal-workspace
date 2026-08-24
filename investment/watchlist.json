@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-23",
+  "as_of": "2026-08-24",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -74,7 +74,7 @@
       "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Next earnings est. ~2026-10-28; FCF/capex guide",
-      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. BP dust today. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/BE)."
+      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. First agentic seat filled 2026-08-24 ($14). Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/BE). Not promoted to core."
     },
     {
       "symbol": "AAPL",
@@ -184,17 +184,17 @@
         "advertising"
       ],
       "sleeve_if_owned": "stocks_growth",
-      "status": "monitor",
+      "status": "ready",
       "priority": "medium",
-      "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist.",
+      "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist. AWS/AI operating story is real; GAAP EPS distorted by Anthropic mark; TTM FCF negative on AI capex. Second hyperscaler vs already-held GOOGL — not the first AI dollar.",
       "added": "2026-08-22",
       "added_by": "owner",
       "deep_dive_required_before_buy": true,
-      "last_deep_dive": null,
-      "last_deep_dive_path": null,
-      "last_verdict": null,
-      "next_catalyst": "pending first deep-dive",
-      "notes": "Owner jot 2026-08-22 via Grok. Deep-dive queued. Not auto-buy. No size while household free-dollar red / until dive ready."
+      "last_deep_dive": "2026-08-24",
+      "last_deep_dive_path": "investment/research/AMZN_deep_dive.md",
+      "last_verdict": "ready_consider_behind_googl_nvda",
+      "next_catalyst": "Next earnings est. ~2026-10-29 (unconfirmed); or material FCF/capex/AWS-growth shift",
+      "notes": "Deep-dive 2026-08-24 closed owner-add homework. Q2'26 IR: sales $200.6B +20%; AWS $42.2B +37%; op. inc. $27.5B; NI $62.6B includes $53.4B Anthropic mark. Ready for consider set; not auto-buy. Behind held GOOGL and NVDA into 8/26 print for scarce residual. BP dust today."
     }
   ]
 }

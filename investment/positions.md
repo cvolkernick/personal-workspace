@@ -48,6 +48,8 @@ Machine source: [`watchlist.json`](./watchlist.json). Owner 2026-08-04: watchlis
 | **AAPL** | AI stack (Apple) | ready | Dive 2026-08-04. Quality/ecosystem AI; behind GOOGL/NVDA on pure AI. |
 | **NVDA** | AI stack (NVIDIA) | ready | Dive 2026-08-04. Pure AI infra; next print ~2026-08-26 event risk. |
 | **PLTR** | AI harness/apps (Palantir) | ready | Dive 2026-08-04. Medium priority; high multiple / gov gates. |
+| **EVGO** | Energy (EVgo) | ready | Dive 2026-08-06. Low-priority show-me Superchargers. |
+| **AMZN** | AI stack (Amazon) | ready | Dive 2026-08-24. AWS/AI real; GAAP EPS Anthropic-mark; behind GOOGL/NVDA. |
 
 **Rules**
 1. Prefer **core allowlist** for routine rebalances toward 40/60 when relative value favors it; **strong theme bias**.

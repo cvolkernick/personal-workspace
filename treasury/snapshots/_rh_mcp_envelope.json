@@ -28,8 +28,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "226.458558879",
-      "equity_value": "226.368558879",
+      "total_value": "227.5419154508",
+      "equity_value": "227.4519154508",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -63,7 +63,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "123.665000",
+      "price": "123.665000"
     },
     {
       "symbol": "MARA",
@@ -76,7 +78,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "11.550100",
+      "price": "11.550100"
     },
     {
       "symbol": "TSLA",
@@ -89,7 +93,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "353.590000",
+      "price": "353.590000"
     },
     {
       "symbol": "SPCX",
@@ -102,7 +108,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "133.570100",
+      "price": "133.570100"
     },
     {
       "symbol": "BITA",
@@ -115,7 +123,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "60.390000",
+      "price": "60.390000"
     },
     {
       "symbol": "IREN",
@@ -128,7 +138,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "40.045000",
+      "price": "40.045000"
     },
     {
       "symbol": "CLSK",
@@ -141,7 +153,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "12.030000",
+      "price": "12.030000"
     },
     {
       "symbol": "STRC",
@@ -154,7 +168,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "96.700000",
+      "price": "96.700000"
     },
     {
       "symbol": "SATA",
@@ -167,7 +183,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "100.010000",
+      "price": "100.010000"
     },
     {
       "symbol": "GOOGL",
@@ -180,7 +198,9 @@
       "shares_held_for_options_events": "0.000000",
       "shares_held_for_asset_transfer": "0.000000",
       "shares_pending_from_options_events": "0.000000",
-      "type": "long"
+      "type": "long",
+      "last_price": "348.015000",
+      "price": "348.015000"
     }
   ],
   "accounts": [
@@ -218,5 +238,5 @@
       "permanently_deactivated": false
     }
   ],
-  "notes": "Post-deploy 2026-08-24 fund-manager review: STRC $6 + SATA $5 + GOOGL $14 filled on agentic."
+  "notes": "Live MCP refresh 2026-08-24 ~14:10Z after STRC/SATA/GOOGL fills. pending_deposits $25 is not spendable (already deployed this morning)."
 }

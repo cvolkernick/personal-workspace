@@ -1,124 +1,111 @@
-# Fund manager research — 2026-08-24 (~09:48 ET)
+# Fund manager research — 2026-08-24 (~10:10 ET)
 
-**As of:** 2026-08-24 ~13:48Z (~09:48 ET, regular hours; user-run mid-session-style review)  
+**As of:** 2026-08-24 ~14:13Z (~10:10 ET, regular hours; user-run mid-session-style review)  
 **Account:** agentic ••••1752 only (`674601752`)  
 **Process:** Uniform research/rotate (size-invariant) — Scout → Thesis → Risk → Critic → Executor  
-**Live NAV (RH total after fills):** ~$227.25  
-**cash/BP after:** ~$0.09 · **min_trade:** $1.00  
-**cash/BP before:** $25.09 (deployable; pending_deposits field still showed $25 — NAV did not jump; treated as the same already-spendable deposit)  
-**MCP:** robinhood-trading HTTP MCP with stored OAuth (this Grok session’s MCP tools were disconnected; Executor used the same venue via authenticated MCP)  
+**Live NAV (RH total):** **$227.54**  
+**cash/BP:** **$0.09** · **min_trade:** $1.00 · **pending_deposits field $25 is NOT spendable** (already deployed 09:50 ET)  
+**MCP:** robinhood-trading HTTP MCP with stored OAuth (this Grok session’s MCP tools were disconnected; Scout/Executor used the same venue via authenticated MCP)  
 **Owner prefs:** elevate **STRC/SATA** in BTC-complex deploys; **multi-miner diversification good**; watchlist ready names in consider set  
-**Trigger:** User-run fund-manager review after rules path `need_llm` (free capital $25.09)
+**Trigger:** User-run fund-manager review. Morning team already **DEPLOYED** STRC $6 + SATA $5 + GOOGL $14 (filled). This pass re-scouts live book and re-runs research/rotate.
 
 ## 1) Scout snapshot
 
 | Field | Value |
 |-------|--------|
-| Held before | MSTR, BITA, MARA, IREN, CLSK, TSLA, SPCX |
-| Held after | + **STRC**, **SATA**, **GOOGL** |
-| Deployed mix before (RH last × qty) | **~39.2% / 60.8%** BTC-complex / stocks — in ±5% band, stocks slightly heavy |
-| Idle cash before | **$25.09** (above min $1) |
-| Theme coverage before | Digital credit (MSTR, BITA) · miners (MARA, IREN, CLSK) · growth (TSLA, SPCX) |
-| Gaps before | **STRC/SATA unheld** (elevated digital credit) · ASST unheld · RIOT/WULF optional · **pure AI mega-cap** · energy (BE) |
+| Held | MSTR, **STRC**, **SATA**, BITA, MARA, IREN, CLSK, TSLA, SPCX, **GOOGL** |
+| Deployed mix (qty × RH last ~14:10Z) | **~40.2% / 59.8%** BTC-complex / stocks — in ±5% band |
+| Idle cash | **$0.09** (below min $1) |
+| Theme coverage | Digital credit (**STRC, SATA**, MSTR, BITA) · miners (MARA, IREN, CLSK) · growth (TSLA, SPCX) · AI mega-cap (**GOOGL**) |
+| Remaining gaps | ASST unheld · RIOT/WULF optional miners · NVDA/AAPL/BE/PLTR/EVGO/AMZN watchlist · energy (BE) |
 
-### Live marks before deploy (qty × RH last ~13:47Z)
+### Live marks (qty × RH last ~14:10Z)
 
 | Symbol | Sleeve | Theme | ~$ | % of equity |
 |--------|--------|-------|-----|-------------|
-| MSTR | btc | digital credit | 35.48 | ~17.6% |
-| BITA | btc | BTC yield | 17.42 | ~8.6% |
-| MARA | btc | miner | 10.83 | ~5.4% |
-| IREN | btc | miner/power | 11.05 | ~5.5% |
-| CLSK | btc | miner | 4.31 | ~2.1% |
-| TSLA | stocks | growth | 68.61 | ~34.0% |
-| SPCX | stocks | growth | 54.19 | ~26.8% |
+| TSLA | stocks | growth | 68.72 | 30.2% |
+| SPCX | stocks | growth | 53.27 | 23.4% |
+| MSTR | btc | digital credit | 36.32 | 16.0% |
+| BITA | btc | BTC yield | 17.61 | 7.7% |
+| GOOGL | stocks | AI stack | 14.06 | 6.2% |
+| MARA | btc | miner | 11.10 | 4.9% |
+| IREN | btc | miner/power | 11.00 | 4.8% |
+| STRC | btc | digital credit | 6.02 | 2.6% |
+| SATA | btc | digital credit | 5.00 | 2.2% |
+| CLSK | btc | miner | 4.35 | 1.9% |
 
-**Sub-sleeve (BTC complex ~$79.1 before):**
-- Credit/yield (MSTR+BITA): ~$52.9 (~67% of complex) — **no STRC/SATA seat**
-- Miners (MARA+IREN+CLSK): ~$26.2 (~33% of complex) — multi-miner stack OK
-- STRC last $96.37, spread **$96.36×1200 / $96.40×200** — tight; fractional tradable
-- SATA last $99.97, spread **$99.96×1600 / $100.00×500** — near par; 13% daily dividend (Strive 2026-08-24: $0.0516/share, 55th consecutive)
-- BITA spread ~$0.24 and thin tape vs STRC/SATA — **BITA is the less-liquid credit name**, not STRC
+**Sub-sleeve (BTC complex ~$91.4):**
+- Credit/yield (MSTR+BITA+**STRC+SATA**): ~$65.0 (~71% of complex) — **STRC/SATA seats exist** (~$11.0)
+- Miners (MARA+IREN+CLSK): ~$26.5 (~29% of complex) — multi-miner stack OK
+- STRC last $96.70, spread $96.65 / $96.70  
+- SATA last $100.01, spread $99.99 / $100.00 (near par)
+- BITA spread ~$0.25 — still the thinner credit name
+- BTC-USD (Coinbase) ~$79,097 — context only; no RH spot BTC ticket this pass
 
-**Watchlist ready:** BE, GOOGL, AAPL, NVDA, PLTR, EVGO  
-**Watchlist monitor (not consider-for-size):** AMZN — owner add 2026-08-22, **no deep-dive yet** (homework debt)  
+**Watchlist ready:** BE, GOOGL (**held**), AAPL, NVDA, PLTR, EVGO, **AMZN** (dive completed this pass)  
 **Private (not deployable):** ANDURIL, SARONIC, BOOM
+
+**Stale-snapshot trap:** Pi `robinhood_latest.json` at 13:29Z still showed cash $25.09 and no STRC/SATA/GOOGL. Live MCP is authoritative. Do **not** treat pending_deposits $25 as free capital.
 
 ## 2) Research / rotate (REQUIRED)
 
 ### Names considered
-MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, BTC (RH), BE, GOOGL, AAPL, NVDA, PLTR, EVGO, AMZN; held-only top-up of MSTR/TSLA/SPCX; forced rotate sells.
+MSTR, BITA, MARA, IREN, CLSK, RIOT, WULF, **STRC**, **SATA**, ASST, TSLA, SPCX, BTC (RH), BE, GOOGL, AAPL, NVDA, PLTR, EVGO, AMZN; held-only top-up of TSLA/SPCX/MSTR/GOOGL; forced rotate sells; morning-style re-deploy of $25 (already done).
 
-### Names chosen
+### Names chosen (this pass)
 
-| Name | Theme map | Sleeve | Notional | Why now |
-|------|-----------|--------|----------|---------|
-| **STRC** | digital credit / BTC yield | btc_digital_credit | $6.00 | Owner-preferred core inside 40%; 12% stated / ~12.4% effective; tight spread; first seat |
-| **SATA** | digital credit / BTC yield | btc_digital_credit | $5.00 | Pair with STRC; 13% daily; trades ~par; yield edge vs cash |
-| **GOOGL** | AI stack / growth | stocks_growth | $14.00 | First liquid AI mega-cap seat; dive 2026-08-04 `ready`; fills uncovered AI theme |
+| Name | Theme map | Action | Why now |
+|------|-----------|--------|---------|
+| **—** | — | **HOLD** | No deployable cash. Mix in band. Morning deploy already filled the binding gaps (STRC/SATA + GOOGL). |
 
 ### Names rejected *for action this pass*
 
 | Name / path | Why not **now** |
 |-------------|-----------------|
-| **Held-only MSTR/TSLA/SPCX top-up** | Path-dependent inertia. TSLA already ~34% of equity. Digital credit + AI gaps dominate. |
-| **MSTR add** | Already largest BTC name; STRC/SATA is the owner-elevated residual inside the 40% |
-| **BITA add** | Already held; thinner tape than STRC/SATA |
-| **ASST** | Secondary Strive common vs preferred SATA; more vol; SATA is the credit expression |
-| **MARA / IREN / CLSK add** | Miner sleeve already diversified (3 names). Skip *this* residual because **credit underweight vs owner STRC/SATA bias**, not because of “miner overlap.” |
-| **RIOT, WULF** | Valid diversifiers — **not** rejected for overlap. Skip only because $11 BTC ticket is reserved for first STRC/SATA seats |
-| **BTC spot on RH** | Prefer equity/credit vehicles on agentic RH; CB for spot/vault |
-| **TSLA add** | Single-name already ~34% of equity; down ~2.8% today is not a reason to add |
-| **SPCX add** | Core, but already ~27% of equity; AI gap is the stocks-sleeve hole |
-| **NVDA** | Ready / co-lead AI; **event risk** — earnings est. ~2026-08-26. Skip new size into print |
-| **AAPL** | Ready; owner 2026-08-23 ranks behind NVDA/GOOGL/BE. GOOGL wins first AI dollar |
-| **BE** | Ready; best energy/AI-power expression; −7% today. Still harsh multiple/beta (~3.7). Scarce $14 stocks ticket prefers liquid AI compounder. Next capital if energy is the gap |
-| **PLTR** | Ready, medium priority, high multiple / gov gates |
-| **EVGO** | Ready, low-priority show-me Superchargers; no live utilization proof |
-| **AMZN** | Monitor; **deep-dive missing** — cannot first-buy. Queue dive (owner add 2026-08-22) |
-| **Forced rotate sells** | Sleeves in band; no thesis break; cash-account settlement risk on sell-to-buy while free cash exists |
+| **Re-spend $25 / pending_deposits** | Already filled 09:50 ET. Field is stale. Live BP $0.09. |
+| **Held-only TSLA/SPCX/MSTR/GOOGL top-up** | Path-dependent inertia; no free capital anyway. TSLA still ~30% of equity. |
+| **STRC / SATA add** | Seats exist. Owner bias is *presence + preferential residual*, not 40% all-credit. Skip because **no residual dollars**, not because credit is “covered.” |
+| **ASST** | Secondary vs preferred SATA; more vol. No capital. |
+| **MARA / IREN / CLSK add** | Miner sleeve already 3 names. Skip *this* pass because **no capital**, not “miner overlap.” |
+| **RIOT, WULF** | Valid diversifiers — **not** rejected for overlap. Eligible on next BTC-shaped residual once STRC/SATA seats exist (they do). Blocked only by $0.09. |
+| **BTC spot on RH** | Prefer equity/credit on agentic RH; CB for spot (~$79.1k). RH “BTC” quote ~$34.92 is not spot bitcoin. |
+| **GOOGL add** | First seat filled this morning. No residual. |
+| **NVDA** | Ready / co-lead AI; **event risk** — FY27 Q2 **confirmed 2026-08-26 AMC** (est. EPS $2.07). Block new size into print. |
+| **AAPL** | Ready; owner ranks behind NVDA/GOOGL/BE. |
+| **BE** | Ready; best energy/AI-power expression; −4% today. Harsh multiple (~274×) / beta. Energy gap remains for *next* stocks residual if energy is the sleeve being filled. |
+| **PLTR** | Ready, medium priority, high multiple / gov gates. |
+| **EVGO** | Ready, low-priority show-me Superchargers; no utilization proof. Last ~$1.49. |
+| **AMZN** | Dive **completed this pass** → `ready`. Still **no size**: dust capital; second hyperscaler vs already-held GOOGL; GAAP EPS $5.75 is Anthropic-mark noise. |
+| **Forced rotate sells** | Sleeves in band; no thesis break; cash-account settlement risk. |
 
-### How new capital best serves themes *now*
+### How new capital would best serve themes *now* (no new capital)
 
-Idle **$25.09** was ~11% of NAV unallocated. Deployed mix already in band, so this is **theme-gap capital**, not a 40/60 emergency rebalance.
+Idle **$0.09** cannot fill min $1. **If** a deposit lands before NVDA 8/26:
 
-1. **~$11 BTC-complex (~44% of deploy):** first **STRC + SATA** seats (owner digital-credit bias; yield > cash). Slight BTC tilt vs 40% of new money because deployed book was stocks-heavy (~39.2/60.8) and STRC/SATA were the binding gap.
-2. **~$14 stocks (~56% of deploy):** first **GOOGL** seat for the uncovered AI stack under the 60%. Not a TSLA/SPCX top-up.
-3. Miners retained (MARA/IREN/CLSK). Next miner add (RIOT/WULF/CLSK top-up) is eligible when the credit seat exists and residual is miner-shaped.
-4. Do **not** park residual in cash — STRC/SATA *are* the preferred idle-capital expression inside the 40%.
+1. **BTC-complex residual:** STRC/SATA seats exist — miner diversifier (**RIOT/WULF**) is eligible; small STRC/SATA top-up remains valid as preferential residual vs cash, not a required add.
+2. **Stocks residual:** energy gap (**BE**) or wait for NVDA post-print; do **not** default to TSLA/SPCX/GOOGL top-up without beating BE/NVDA/AMZN on that pass.
+3. Do **not** park residual in cash — STRC/SATA remain the preferred idle-capital expression inside the 40%.
 
-### Liquidity / structure notes (STRC/SATA rebuttal check)
+### AMZN homework (closed)
 
-Prior cycles skipped STRC/SATA as “illiquid for tiny tickets” or “covered by MSTR+BITA.” **Rebutted this pass:**
-- STRC book: Bid $96.36 × 1200 Z · Ask $96.40 × 200 Q · Last $96.37 × 100 K. Updated 9:47 AM ET.
-- SATA book: Bid $99.96 × 1600 K · Ask $100.00 × 500 P · Last $99.96 × 600 N. Updated 9:47 AM ET.
-- GOOGL book: Bid $346.34 × 40 Q · Ask $346.41 × 40 Q · Last $346.3597 × 50 D. Updated 9:48 AM ET.
-- Both prefs **fractional tradable** on agentic. $5–6 tickets are well inside displayed size.
-- BITA is the thinner credit name (wider spread / low volume). Skipping STRC/SATA for “liquidity” would be inverted.
+Owner add 2026-08-22 was `monitor` without dive. Inline `/position-deep-dive` equivalent written to `investment/research/AMZN_deep_dive.md`. Status **`ready`**. Verdict: `ready_consider_behind_googl_nvda`. Not an order.
 
 ## 3–5) Thesis / Risk / Critic
 
 | Role | Vote | Note |
 |------|------|------|
-| Scout | ok | NAV ~$227; BP $25.09; 7 names; sleeves in band; STRC/SATA/GOOGL tradable fractional; ~09:48 ET regular hours |
-| Thesis | ok (deploy) | STRC+SATA for digital-credit seat; GOOGL for AI gap; 40/60 of NAV after ~39.7/60.3 |
-| Risk | ok | Agentic cash only; $25 within BP; min $1; spreads tight; no leverage; NVDA print risk avoided; first-buy GOOGL dive current (<90d) |
-| Critic | ok | Block held-only. Force STRC/SATA into BTC deploy. Reject false miner-overlap as the skip reason (credit gap is the real reason). Block NVDA into print, AMZN without dive, BE on this scarce stocks ticket |
-| Executor | execute | 3 market dollar buys, agentic regular_hours; all **filled** |
+| Scout | ok | Live MCP NAV $227.54; BP $0.09; 10 names including STRC/SATA/GOOGL; sleeves 40.2/59.8 in band; ~10:10 ET regular hours; Pi snapshot was stale |
+| Thesis | ok (**hold**) | Binding gaps filled this morning. No free capital. Next dollar: miners RIOT/WULF *or* STRC/SATA residual in 40%; BE vs post-NVDA in 60% |
+| Risk | ok (**hold**) | Agentic cash only; $0.09 < $1; no leverage; NVDA 8/26 AMC event risk; AMZN dive current; pending_deposits ignored |
+| Critic | ok (**hold**) | Block treating pending $25 as cash. Block held-only default for *next* capital. Force STRC/SATA only when deploying *new* BTC-complex dollars — seats already exist. Miner skip is capital, not overlap. Block NVDA into print. AMZN homework closed; still no first-buy vs GOOGL on dust. |
+| Executor | **hold** | No place/cancel. Venue reachable. Dust cannot meet min $1. |
 
 ## 6) Decision
-**DEPLOY $25.00** on agentic ••••1752: STRC $6 + SATA $5 + GOOGL $14. Residual cash ~$0.09.
+**HOLD** on agentic ••••1752. Residual cash ~$0.09. No orders.
 
-### Fills
-| Symbol | Side | $ | Qty | Avg px | Order id | State |
-|--------|------|---|-----|--------|----------|-------|
-| STRC | buy | 6.00 | 0.062240 | 96.3999 | `6a8c4ba6-fc5c-4224-9043-8d65b55e4c02` | filled |
-| SATA | buy | 5.00 | 0.050000 | 99.9999 | `6a8c4ba6-e4d3-435a-a8a2-46b1769be153` | filled |
-| GOOGL | buy | 14.00 | 0.040399 | 346.54 | `6a8c4ba7-ef49-4e48-93c3-f5ba122a68ff` | filled |
-
-## Next cycle hooks
-1. **AMZN** owner-add 2026-08-22 still `monitor` without dive → run `/position-deep-dive symbol=AMZN` before any size.
-2. **NVDA** — re-evaluate after ~2026-08-26 print.
-3. **BE** — energy gap remains; consider on next free capital if energy is the sleeve being filled.
-4. If another deposit lands, keep STRC/SATA bias inside BTC residual; miners (RIOT/WULF) eligible as diversifiers.
-5. Watchlist GOOGL is now **held** — do not promote to core unless owner asks.
+### Next cycle hooks
+1. **NVDA** — re-evaluate after **2026-08-26 AMC** print (confirmed).
+2. **BE** — energy gap remains; consider on next free *stocks* capital if energy is the sleeve being filled.
+3. **RIOT / WULF** — eligible miner diversifiers on next BTC-shaped residual (STRC/SATA seats now exist).
+4. **AMZN** — now `ready`; still behind GOOGL/NVDA for scarce residual.
+5. If another deposit lands, re-open the full consider set — **not** held-only.
