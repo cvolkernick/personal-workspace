@@ -170,8 +170,11 @@
         asset yield below. Locked yield seeds always show (X Money 6%, Morpho HY 7%,
         USDG 7%). Morpho borrow precedence: FCC settings manual &gt; live Morpho
         GraphQL marketById avgBorrowApy (cbBTC/USDC / Base) &gt; seed ~5%.
-        Morpho HY precedence: FCC settings manual &gt; live Morpho
-        GraphQL avgNetApy &gt; seed 7%. USDG HY precedence: FCC settings
+        Morpho HY product chip: FCC settings manual &gt; product_apy
+        (Coinbase One / in-app when honest) &gt; seed 7%. Morpho GraphQL
+        avgNetApy is vault_apy reference only — ≠ Coinbase One product
+        rate; vault GraphQL alone does not paint the product chip.
+        USDG HY precedence: FCC settings
         manual &gt; live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
         Chain) &gt; seed 7% + Gold-cancel caveat — do not invent rates.
         JR-strcUSX is a spectrum chip only (~20% target unless a live Solstice
@@ -192,7 +195,7 @@
 
     <section class="card" id="unknown-card">
       <h2>Rate unknown</h2>
-      <p class="hint">Locked yield seeds always show. Settings override beats live books; live books beat the seed. Honest empty only when a venue is still unknown.</p>
+      <p class="hint">Locked yield seeds always show. Settings override beats live books; live books beat the seed. Morpho HY product chip: settings &gt; product_apy &gt; seed 7% (vault GraphQL is not product APY). Honest empty only when a venue is still unknown.</p>
       <div id="unknown-row"></div>
     </section>
 

@@ -27,6 +27,8 @@ from treasury.interest_spectrum import (  # noqa: E402
     LOCKED_SEED_RATE_BY_ID,
     LOCKED_SEEDS,
     LOCKED_YIELD_SEEDS,
+    MORPHO_HY_VAULT_NE_PRODUCT_NOTE,
+    MORPHO_HY_VAULT_REF_PATHS,
     SEED_TICKS_PCT,
     USDG_GOLD_CAVEAT,
     WELLS_OFF_FCC_ID,
@@ -65,17 +67,27 @@ def _free_port() -> int:
 
 
 class TestInterestSpectrumBuilder(unittest.TestCase):
-    def test_morpho_hy_settings_paths_precede_live_books(self) -> None:
+    def test_morpho_hy_settings_paths_precede_product_apy(self) -> None:
         spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == "morpho_hy")
         self.assertAlmostEqual(spec["rate_pct"], 7.0)
         settings = list(spec["settings_paths"])
         live = list(spec["paths"])
-        self.assertEqual(settings[0], ("config", "coinbase_manual", "vault_apy"))
+        vault_ref = list(spec.get("vault_ref_paths") or MORPHO_HY_VAULT_REF_PATHS)
+        self.assertEqual(settings[0], ("config", "coinbase_manual", "product_apy"))
+        self.assertIn(("config", "coinbase_manual", "vault_apy"), settings)
         self.assertIn(("config", "coinbase_manual", "morpho_hy_apy_est"), settings)
         self.assertNotIn(("config", "coinbase_manual", "vault_apy"), live)
-        self.assertIn(("evaluation", "inputs", "vault_apy"), live)
+        self.assertNotIn(("evaluation", "inputs", "vault_apy"), live)
+        self.assertNotIn(("evaluation", "inputs", "hy_vault_apy"), live)
+        self.assertNotIn(("snapshot", "morpho_hy", "apy_est"), live)
+        self.assertNotIn(("snapshot", "morpho_hy", "apy"), live)
+        self.assertIn(("evaluation", "inputs", "product_apy"), live)
+        self.assertIn(("evaluation", "inputs", "vault_apy"), vault_ref)
+        self.assertIn("product_apy", spec["notes"])
         self.assertIn("settings", spec["notes"])
         self.assertIn("seed", spec["notes"])
+        self.assertIn("vault reference", spec["notes"])
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, spec["notes"])
 
     def test_morpho_borrow_settings_paths_precede_live_books(self) -> None:
         spec = next(row for row in LOCKED_SEEDS if row["id"] == "morpho_borrow")
@@ -170,6 +182,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
 
         self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 6.0)
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.0)
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, by_id["morpho_hy"]["notes"])
         self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 7.0)
         self.assertIn("Gold", by_id["usdg_earn"]["notes"])
         self.assertIn("cancel", by_id["usdg_earn"]["notes"].lower())
@@ -196,6 +209,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
                     "inputs": {
                         "variable_apr": 0.0487,
                         "vault_apy": 0.036,
+                        "product_apy": 0.036,
                         "card_balance": 462.2,
                         "loan_principal_usdc": 1200,
                     }
@@ -214,6 +228,10 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(by_id["x_money"]["kind"], "yield")
         self.assertEqual(by_id["x_money"]["lane"], "below")
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 3.6)
+        self.assertEqual(by_id["morpho_hy"]["source"], "books")
+        self.assertIn("product_apy", by_id["morpho_hy"]["notes"])
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, by_id["morpho_hy"]["notes"])
+        self.assertAlmostEqual(by_id["morpho_hy"]["vault_apy_pct"], 3.6)
         self.assertAlmostEqual(by_id["usdg_earn"]["rate_pct"], 3.2)
         self.assertEqual(by_id["usdg_earn"]["source"], "books")
         self.assertIn("Gold", by_id["usdg_earn"]["notes"])
@@ -538,29 +556,84 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertFalse(chip["approx"])
         self.assertIn("config.coinbase_manual.vault_apy", chip["notes"])
         self.assertIn("settings", chip["notes"].lower())
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertTrue(rates_are_honest(payload))
 
-    def test_morpho_hy_live_beats_seed(self) -> None:
+    def test_morpho_hy_settings_product_apy_key_beats_seed(self) -> None:
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {"vault_apy": 0.0291}}},
+            config={"coinbase_manual": {"product_apy": 0.072}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 7.2)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("config.coinbase_manual.product_apy", chip["notes"])
+        self.assertNotIn("evaluation.inputs.vault_apy", chip["notes"].split("vault reference")[0])
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
+        self.assertAlmostEqual(chip["vault_apy_pct"], 2.91)
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_hy_vault_graphql_alone_does_not_paint_product_chip(self) -> None:
+        """Naked vault_apy / GraphQL ~2.91% must not become books product APY."""
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {"vault_apy": 0.0291, "hy_vault_apy": 0.0291}},
+                "snapshot": {
+                    "morpho_hy": {
+                        "apy_est": 0.0291,
+                        "apy": 0.0291,
+                        "vault_apy": 0.0291,
+                        "avg_net_apy": 0.0291,
+                        "source": "morpho_graphql",
+                    }
+                },
+            },
             config={},
             x_money={},
             solana={},
         )
         chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
-        self.assertAlmostEqual(chip["rate_pct"], 2.91)
-        self.assertEqual(chip["source"], "books")
-        self.assertFalse(chip["approx"])
-        self.assertIn("evaluation.inputs.vault_apy", chip["notes"])
-        self.assertIn("live", chip["notes"])
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertTrue(chip["approx"])
+        self.assertNotAlmostEqual(chip["rate_pct"], 2.91)
+        self.assertNotEqual(chip["source"], "books")
+        self.assertAlmostEqual(chip["vault_apy_pct"], 2.91)
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertTrue(rates_are_honest(payload))
 
-    def test_morpho_hy_settings_beats_live_when_set(self) -> None:
+    def test_morpho_hy_product_apy_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"product_apy": 0.064, "vault_apy": 0.0291}}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 6.4)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("evaluation.inputs.product_apy", chip["notes"])
+        self.assertIn("product_apy", chip["notes"])
+        self.assertNotIn("evaluation.inputs.vault_apy", chip["notes"].split("vault reference")[0])
+        self.assertAlmostEqual(chip["vault_apy_pct"], 2.91)
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_morpho_hy_settings_beats_product_apy_when_set(self) -> None:
         payload = build_interest_spectrum(
             treasury={
-                "evaluation": {"inputs": {"vault_apy": 0.0291, "hy_vault_apy": 0.031}},
+                "evaluation": {
+                    "inputs": {
+                        "vault_apy": 0.0291,
+                        "hy_vault_apy": 0.031,
+                        "product_apy": 0.064,
+                    }
+                },
                 "snapshot": {
-                    "morpho_hy": {"apy_est": 0.028},
+                    "morpho_hy": {"apy_est": 0.028, "product_apy": 0.06},
                     "coinbase_manual": {"vault_apy": 0.0291},
                 },
             },
@@ -572,12 +645,14 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(chip["rate_pct"], 8.0)
         self.assertEqual(chip["source"], "books")
         self.assertIn("config.coinbase_manual.vault_apy", chip["notes"])
-        self.assertNotIn("evaluation.inputs.vault_apy", chip["notes"])
+        self.assertNotIn("evaluation.inputs.product_apy", chip["notes"])
+        self.assertNotIn("evaluation.inputs.vault_apy", chip["notes"].split("vault reference")[0])
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertTrue(rates_are_honest(payload))
 
-    def test_morpho_hy_dedicated_settings_key_beats_live(self) -> None:
+    def test_morpho_hy_dedicated_settings_key_beats_product_apy(self) -> None:
         payload = build_interest_spectrum(
-            treasury={"evaluation": {"inputs": {"vault_apy": 0.029}}},
+            treasury={"evaluation": {"inputs": {"vault_apy": 0.029, "product_apy": 0.05}}},
             config={"coinbase_manual": {"morpho_hy_apy_est": 0.061}},
             x_money={},
             solana={},
@@ -585,8 +660,29 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
         self.assertAlmostEqual(chip["rate_pct"], 6.1)
         self.assertIn("config.coinbase_manual.morpho_hy_apy_est", chip["notes"])
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
 
-    def test_morpho_hy_blank_settings_does_not_beat_live(self) -> None:
+    def test_morpho_hy_blank_settings_does_not_beat_product_apy(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"product_apy": 0.063, "vault_apy": 0.0291}}},
+            config={
+                "coinbase_manual": {
+                    "product_apy": None,
+                    "vault_apy": None,
+                    "morpho_hy_apy_est": "",
+                }
+            },
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
+        self.assertAlmostEqual(chip["rate_pct"], 6.3)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("evaluation.inputs.product_apy", chip["notes"])
+        self.assertAlmostEqual(chip["rate_pct"], 6.3)
+        self.assertNotAlmostEqual(chip["rate_pct"], 2.91)
+
+    def test_morpho_hy_blank_settings_and_naked_vault_falls_to_seed(self) -> None:
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {"vault_apy": 0.0291}}},
             config={"coinbase_manual": {"vault_apy": None, "morpho_hy_apy_est": ""}},
@@ -594,8 +690,10 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
             solana={},
         )
         chip = {c["id"]: c for c in payload["chips"]}["morpho_hy"]
-        self.assertAlmostEqual(chip["rate_pct"], 2.91)
-        self.assertIn("evaluation.inputs.vault_apy", chip["notes"])
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertAlmostEqual(chip["vault_apy_pct"], 2.91)
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
 
     def test_morpho_hy_seed_always_visible_when_no_books(self) -> None:
         payload = build_interest_spectrum(
@@ -609,6 +707,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(chip["source"], "locked_seed")
         self.assertTrue(chip["approx"])
         self.assertIn("seed", chip["notes"].lower())
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, chip["notes"])
         self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
         self.assertTrue(rates_are_honest(payload))
 
@@ -640,6 +739,9 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn("Locked yield seeds always show", html)
         self.assertIn("FCC settings manual", html)
         self.assertIn("seed 7%", html)
+        self.assertIn("product_apy", html)
+        self.assertIn("vault_apy reference only", html)
+        self.assertIn("≠ Coinbase One product", html)
         self.assertIn("USDG HY precedence", html)
         self.assertIn("Morpho borrow precedence", html)
         self.assertIn("avgBorrowApy", html)

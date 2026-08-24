@@ -385,17 +385,29 @@ def evaluate_treasury(
     vault_raw = man.get("vault_usdc")
     vault_known = not _is_missing(vault_raw)
     vault_usdc = _f(vault_raw) if vault_known else 0.0
-    # Live Morpho HY APY from GraphQL poller (snapshot.morpho_hy). Settings
-    # override stays on config.coinbase_manual and is not copied here so
-    # spectrum can keep settings > live > seed distinct.
+    # Live Morpho HY vault APY from GraphQL poller (snapshot.morpho_hy).
+    # vault_apy is vault reference only — never a product chip rate.
+    # Settings override stays on config.coinbase_manual and is not copied
+    # here so spectrum can keep settings > product_apy > seed distinct.
     mh = snapshot.get("morpho_hy") if isinstance(snapshot.get("morpho_hy"), dict) else {}
     vault_apy = None
-    for key in ("apy_est", "apy", "avg_net_apy"):
+    for key in ("vault_apy", "apy_est", "apy", "avg_net_apy"):
         if not _is_missing(mh.get(key)):
             try:
                 vault_apy = float(mh.get(key))
             except (TypeError, ValueError):
                 vault_apy = None
+            else:
+                break
+    # product_apy = Coinbase One / in-app when honest. GraphQL vault fields
+    # must not invent this. Settings stay on config, not copied here.
+    product_apy = None
+    for key in ("product_apy", "morpho_hy_product_apy"):
+        if not _is_missing(mh.get(key)):
+            try:
+                product_apy = float(mh.get(key))
+            except (TypeError, ValueError):
+                product_apy = None
             else:
                 break
     # Live USDG HY APY from GraphQL poller (snapshot.usdg_hy). Settings
@@ -847,6 +859,7 @@ def evaluate_treasury(
             "collateral_btc_usd": coll_usd if coll_usd else None,
             "vault_usdc": vault_usdc if vault_known else None,
             "vault_apy": vault_apy,
+            "product_apy": product_apy,
             "variable_apr": variable_apr,
             "rh_usdg_earn_apy_est": rh_usdg_earn_apy_est,
             "rh_usdg_earn_usdg": rh_usdg_earn_usdg,

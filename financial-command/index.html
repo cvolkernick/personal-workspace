@@ -2246,7 +2246,7 @@
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
         <span id="morpho" hidden></span>
-        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (settings / live Morpho GraphQL / seed 7% · Gold may cancel)</div>
+        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; Morpho HY product chip = settings / product_apy / seed 7% (vault GraphQL ≠ Coinbase One product rate); RH equity/margin → USDG Earn (settings / live Morpho GraphQL / seed 7% · Gold may cancel)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
             <label>CB loan principal (USDC)</label>
@@ -2257,8 +2257,9 @@
             <input id="m-ltv" type="number" step="0.01" min="0" max="2" placeholder="or leave blank if principal+collateral set" />
             <label>CB High Yield vault USDC (LTV buffer)</label>
             <input id="m-vault" type="number" step="any" placeholder="Morpho HY · not card float" />
-            <label>Morpho HY APY override (0–1 · blank = live or seed 7%)</label>
-            <input id="m-vault-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed 7%" />
+            <label>Coinbase One Morpho HY product APY override (0–1 · blank = product_apy or seed 7%)</label>
+            <input id="m-vault-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = seed 7% · not Morpho vault GraphQL" />
+            <p class="hint">Vault GraphQL avgNetApy is vault reference only — not the Coinbase One in-app product rate. Do not invent a One %. Blank uses honest product_apy if present, else seed 7%.</p>
             <label>Morpho borrow APR override (0–1 · blank = live or seed ~5%)</label>
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed ~5%" />
             <label>Morpho liquidation price (BTC USD)</label>
@@ -4307,7 +4308,7 @@
       set("m-collateral", man.collateral_btc_usd);
       set("m-ltv", man.ltv);
       set("m-vault", man.vault_usdc);
-      set("m-vault-apy", man.vault_apy ?? man.morpho_hy_apy_est);
+      set("m-vault-apy", man.product_apy ?? man.vault_apy ?? man.morpho_hy_apy_est);
       set("m-var-apr", man.variable_apr ?? man.morpho_borrow_apr);
       set("m-liq-price", man.liquidation_price_btc_usd);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
@@ -4626,6 +4627,7 @@
         collateral_btc_usd: num("m-collateral"),
         ltv: num("m-ltv"),
         vault_usdc: num("m-vault"),
+        product_apy: num("m-vault-apy"),
         vault_apy: num("m-vault-apy"),
         variable_apr: num("m-var-apr"),
         liquidation_price_btc_usd: num("m-liq-price"),
