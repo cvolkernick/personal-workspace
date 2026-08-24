@@ -76,6 +76,21 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("settings", spec["notes"])
         self.assertIn("seed", spec["notes"])
 
+    def test_usdg_hy_settings_paths_precede_live_books(self) -> None:
+        spec = next(row for row in LOCKED_YIELD_SEEDS if row["id"] == "usdg_earn")
+        self.assertAlmostEqual(spec["rate_pct"], 7.0)
+        settings = list(spec["settings_paths"])
+        live = list(spec["paths"])
+        self.assertEqual(settings[0], ("config", "robinhood", "usdg_earn_apy_est"))
+        self.assertIn(("config", "robinhood", "usdg_hy_apy_est"), settings)
+        self.assertNotIn(("config", "robinhood", "usdg_earn_apy_est"), live)
+        self.assertIn(("evaluation", "inputs", "rh_usdg_earn_apy_est"), live)
+        self.assertIn(("snapshot", "usdg_hy", "apy_est"), live)
+        self.assertIn("settings", spec["notes"])
+        self.assertIn("seed", spec["notes"])
+        self.assertIn("Gold", spec["notes"])
+        self.assertIn(USDG_GOLD_CAVEAT, spec["notes"])
+
     def test_two_lane_axis_and_locked_seeds(self) -> None:
         payload = build_interest_spectrum(
             treasury={},
@@ -283,6 +298,110 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertIn("Gold", usdg["notes"])
         self.assertIn("cancel", usdg["notes"].lower())
         self.assertIn("do not invent a post-Gold rate", usdg["notes"])
+        self.assertIn("precedence", usdg["notes"])
+        self.assertIn("settings", usdg["notes"])
+
+    def test_usdg_hy_settings_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {}}},
+            config={"robinhood": {"usdg_earn_apy_est": 0.041}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(chip["rate_pct"], 4.1)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("config.robinhood.usdg_earn_apy_est", chip["notes"])
+        self.assertIn("settings", chip["notes"].lower())
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_usdg_hy_live_beats_seed(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_usdg_earn_apy_est": 0.0328}}},
+            config={},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(chip["rate_pct"], 3.28)
+        self.assertEqual(chip["source"], "books")
+        self.assertFalse(chip["approx"])
+        self.assertIn("evaluation.inputs.rh_usdg_earn_apy_est", chip["notes"])
+        self.assertIn("live", chip["notes"])
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_usdg_hy_settings_beats_live_when_set(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {"inputs": {"rh_usdg_earn_apy_est": 0.0328}},
+                "snapshot": {
+                    "usdg_hy": {"apy_est": 0.031},
+                    "robinhood": {"usdg_earn_apy_est": 0.0328},
+                },
+            },
+            config={"robinhood": {"usdg_earn_apy_est": 0.055}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(chip["rate_pct"], 5.5)
+        self.assertEqual(chip["source"], "books")
+        self.assertIn("config.robinhood.usdg_earn_apy_est", chip["notes"])
+        self.assertNotIn("evaluation.inputs.rh_usdg_earn_apy_est", chip["notes"])
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_usdg_hy_dedicated_settings_key_beats_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_usdg_earn_apy_est": 0.033}}},
+            config={"robinhood": {"usdg_hy_apy_est": 0.048}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(chip["rate_pct"], 4.8)
+        self.assertIn("config.robinhood.usdg_hy_apy_est", chip["notes"])
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+
+    def test_usdg_hy_blank_settings_does_not_beat_live(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"evaluation": {"inputs": {"rh_usdg_earn_apy_est": 0.0328}}},
+            config={"robinhood": {"usdg_earn_apy_est": None, "usdg_hy_apy_est": ""}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertAlmostEqual(chip["rate_pct"], 3.28)
+        self.assertIn("evaluation.inputs.rh_usdg_earn_apy_est", chip["notes"])
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+
+    def test_usdg_does_not_invent_post_gold_rate(self) -> None:
+        """Gold-cancelled flags must not invent 0% or any other post-Gold APY."""
+        payload = build_interest_spectrum(
+            treasury={
+                "evaluation": {
+                    "inputs": {
+                        "gold_cancelled": True,
+                        "rh_gold": False,
+                        "post_gold_apy": 0.0,
+                    }
+                },
+                "snapshot": {"robinhood": {"gold": False, "gold_cancelled": True}},
+            },
+            config={"robinhood": {"gold": False}},
+            x_money={},
+            solana={},
+        )
+        chip = {c["id"]: c for c in payload["chips"]}["usdg_earn"]
+        self.assertEqual(chip["source"], "locked_seed")
+        self.assertAlmostEqual(chip["rate_pct"], 7.0)
+        self.assertTrue(chip["approx"])
+        self.assertIn(USDG_GOLD_CAVEAT, chip["notes"])
+        self.assertNotAlmostEqual(chip["rate_pct"], 0.0)
+        self.assertTrue(rates_are_honest(payload))
 
     def test_morpho_hy_settings_beats_seed(self) -> None:
         payload = build_interest_spectrum(
@@ -399,6 +518,8 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn("Locked yield seeds always show", html)
         self.assertIn("FCC settings manual", html)
         self.assertIn("seed 7%", html)
+        self.assertIn("USDG HY precedence", html)
+        self.assertIn("Gold-cancel", html)
         self.assertNotIn("Yield venues appear only when", html)
         self.assertNotIn("Coach threshold", html)
         self.assertNotIn("coach X", html)

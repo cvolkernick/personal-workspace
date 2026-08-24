@@ -2246,7 +2246,7 @@
       <summary>Settings · Morpho · floors · agent brief</summary>
       <div class="body">
         <span id="morpho" hidden></span>
-        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (Morpho ~7% est.)</div>
+        <div class="hint">Morpho loops (app-only) — CB BTC collateral → USDC vault; RH equity/margin → USDG Earn (settings / live Morpho GraphQL / seed 7% · Gold may cancel)</div>
         <div class="manual-form grid-2" id="manual-form">
           <div>
             <label>CB loan principal (USDC)</label>
@@ -2267,8 +2267,8 @@
           <div>
             <label>RH USDG Earn (lent principal)</label>
             <input id="m-usdg-earn" type="number" step="any" placeholder="Robinhood Earn · Morpho USDG" />
-            <label>RH USDG Earn APY est. (0–1)</label>
-            <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="e.g. 0.07" />
+            <label>RH USDG Earn APY override (0–1 · blank = live or seed 7%)</label>
+            <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed 7%" />
             <label>RH margin loan used (USD)</label>
             <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
             <label>RH equity collateral (USD)</label>
@@ -4316,7 +4316,7 @@
       const rhCfg = (snap.meta && snap.meta.rh_accounts) || {};
       const rhMan = snap.robinhood || {};
       set("m-usdg-earn", rhMan.usdg_earn_usdg ?? inp.rh_usdg_earn_usdg);
-      set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? inp.rh_usdg_earn_apy_est ?? 0.07);
+      set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? rhMan.usdg_hy_apy_est);
       set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
       set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
 

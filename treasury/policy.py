@@ -398,6 +398,23 @@ def evaluate_treasury(
                 vault_apy = None
             else:
                 break
+    # Live USDG HY APY from GraphQL poller (snapshot.usdg_hy). Settings
+    # override stays on config.robinhood and is not copied here so
+    # spectrum can keep settings > live > seed distinct. Never invent
+    # a post-Gold rate from a Gold-cancelled flag.
+    uh = snapshot.get("usdg_hy") if isinstance(snapshot.get("usdg_hy"), dict) else {}
+    rh_usdg_earn_apy_est = None
+    for key in ("apy_est", "apy", "avg_net_apy"):
+        if not _is_missing(uh.get(key)):
+            try:
+                rh_usdg_earn_apy_est = float(uh.get(key))
+            except (TypeError, ValueError):
+                rh_usdg_earn_apy_est = None
+            else:
+                break
+    rh_usdg_earn_usdg = None
+    if not _is_missing(rh.get("usdg_earn_usdg")):
+        rh_usdg_earn_usdg = _f(rh.get("usdg_earn_usdg"))
     count_vault = bool(p.get("count_vault_toward_buffers", True))
     # Working USDC = idle Advanced Trade USDC + High Yield vault (when known & enabled)
     working_usdc = liquid_usdc + (vault_usdc if count_vault and vault_known else 0.0)
@@ -817,6 +834,8 @@ def evaluate_treasury(
             "collateral_btc_usd": coll_usd if coll_usd else None,
             "vault_usdc": vault_usdc if vault_known else None,
             "vault_apy": vault_apy,
+            "rh_usdg_earn_apy_est": rh_usdg_earn_apy_est,
+            "rh_usdg_earn_usdg": rh_usdg_earn_usdg,
             "card_balance": card_balance if not _is_missing(card_balance_raw) else None,
             "card_available_credit": card_avail,
             "card_security_deposit_usdc": card_deposit,
