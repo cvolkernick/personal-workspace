@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -525,6 +526,79 @@ def food_logs_for_day(
             continue
         out.append(f.to_dict() if hasattr(f, "to_dict") else dict(f))  # type: ignore[arg-type]
     return out
+
+
+def _food_log_as_fp_row(log: Any) -> Optional[tuple]:
+    if log is None:
+        return None
+    if isinstance(log, dict):
+        d = log
+    elif hasattr(log, "to_dict"):
+        d = log.to_dict()
+    else:
+        d = None
+    if not isinstance(d, dict):
+        return None
+    name = str(d.get("name") or "").strip().lower()
+    if not name and d.get("calories") is None and d.get("protein_g") is None:
+        return None
+
+    def _num(value: Any) -> str:
+        try:
+            return f"{float(value):.1f}"
+        except (TypeError, ValueError):
+            return ""
+
+    return (
+        str(d.get("date") or "")[:10],
+        name,
+        str(d.get("time") or ""),
+        _num(d.get("calories")),
+        _num(d.get("protein_g")),
+        _num(d.get("carbs_g")),
+        _num(d.get("fat_g")),
+    )
+
+
+def food_logs_fingerprint(
+    logs: Optional[Sequence[Any]] = None,
+    *,
+    consumed: Optional[dict] = None,
+    day: str = "",
+) -> str:
+    """Stable hash of civil-day / wake-window food logs that force meal regen.
+
+    Identity is the logged lines (name/time/macros) plus consumed totals when
+    present. Empty logs still hash — morning plan vs first log is a real change.
+    Does not invent food.
+    """
+    rows = []
+    for log in logs or []:
+        row = _food_log_as_fp_row(log)
+        if row:
+            rows.append(row)
+    rows.sort()
+    cons = consumed if isinstance(consumed, dict) else {}
+
+    def _cons(key: str) -> str:
+        try:
+            return f"{float(cons.get(key)):.1f}"
+        except (TypeError, ValueError):
+            return ""
+
+    payload = {
+        "day": str(day or "")[:10],
+        "logs": rows,
+        "consumed": (
+            _cons("calories"),
+            _cons("protein_g"),
+            _cons("carbs_g"),
+            _cons("fat_g"),
+            int(cons.get("food_log_count") or len(rows)),
+        ),
+    }
+    raw = json.dumps(payload, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
 
 def remaining_macros(targets: dict, consumed: dict) -> dict:

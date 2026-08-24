@@ -15,6 +15,7 @@ from rt_dashboard.models import FoodLogEntry, NutritionDay  # noqa: E402
 from rt_dashboard.nutrition_planner import (  # noqa: E402
     SERVING_GRAMS_REQUIRED_MSG,
     add_ingredient,
+    food_logs_fingerprint,
     format_plan_portion,
     format_portion_label,
     generate_meal_plan,
@@ -249,6 +250,48 @@ class TestNutritionPlanner(unittest.TestCase):
         self.assertEqual(consumed["protein_g"], 17.0)
         self.assertEqual(consumed["source"], "food_logs")
         self.assertEqual(consumed["food_log_count"], 2)
+
+    def test_food_logs_fingerprint_changes_when_logs_change(self):
+        logs = [
+            FoodLogEntry(
+                date="2026-08-24",
+                name="Eggs",
+                calories=140,
+                protein_g=12,
+                carbs_g=1,
+                fat_g=10,
+                time="08:10",
+            )
+        ]
+        empty = food_logs_fingerprint([], consumed={"calories": 0}, day="2026-08-24")
+        first = food_logs_fingerprint(
+            logs,
+            consumed={"calories": 140, "protein_g": 12, "food_log_count": 1},
+            day="2026-08-24",
+        )
+        again = food_logs_fingerprint(
+            [logs[0].to_dict()],
+            consumed={"calories": 140, "protein_g": 12, "food_log_count": 1},
+            day="2026-08-24",
+        )
+        more = food_logs_fingerprint(
+            logs
+            + [
+                FoodLogEntry(
+                    date="2026-08-24",
+                    name="Oats",
+                    calories=150,
+                    protein_g=5,
+                    time="09:00",
+                )
+            ],
+            consumed={"calories": 290, "protein_g": 17, "food_log_count": 2},
+            day="2026-08-24",
+        )
+        self.assertEqual(len(first), 16)
+        self.assertEqual(first, again)
+        self.assertNotEqual(empty, first)
+        self.assertNotEqual(first, more)
 
     def test_meal_plan_excludes_out_of_stock(self):
         inv = {

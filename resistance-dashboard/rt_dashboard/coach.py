@@ -444,6 +444,20 @@ def build_today_board(
             empty_reason = "remaining_macros"
         else:
             empty_reason = "empty"
+    meal_logs = list(mp.get("food_logs_today") or [])
+    if not meal_logs and food_logs_today is not None:
+        meal_logs = [
+            (f.to_dict() if hasattr(f, "to_dict") else dict(f))
+            for f in list(food_logs_today)
+            if isinstance(f, dict) or hasattr(f, "to_dict")
+        ]
+    from .nutrition_planner import food_logs_fingerprint
+
+    food_logs_fp = food_logs_fingerprint(
+        meal_logs or food_logs_today,
+        consumed=consumed,
+        day=str(as_of or ""),
+    )
     meal_block = {
         "message": message,
         "in_stock_only": bool(mp.get("in_stock_only", True)),
@@ -457,6 +471,8 @@ def build_today_board(
         "planned_totals": mp.get("planned_totals") or {},
         "remaining_after_plan": mp.get("remaining_after_plan") or {},
         "empty": empty,
+        "food_logs_today": meal_logs,
+        "food_logs_fp": food_logs_fp,
     }
 
     # Purchase / restock recommendations
@@ -682,6 +698,7 @@ def build_today_board(
             "remaining": rem,
             "meal_plan_message": mp.get("message"),
             "food_log_count": n_logs,
+            "food_logs_fp": food_logs_fp,
         },
         "actions": actions,
         "sleep_battery": {

@@ -11,9 +11,13 @@ from rt_dashboard.daily_plan_tasks import (
     _delete_order,
     cache_key,
     collect_fitdash_quest_ids,
+    collect_meal_plan_task_ids,
     ensure_daily_tasks,
+    is_meal_plan_owned_task,
+    meal_quest_notes,
     plan_from_today_board,
     plan_preview,
+    purge_meal_plan_tasks,
     purge_stale_quest_tasks,
     quest_mark_day,
     quest_notes,
@@ -638,6 +642,334 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(result.get("groups"), [])
         self.assertEqual(result.get("summary"), {"done": 0, "total": 0})
         self.assertEqual(created, [])
+
+    def test_meal_ownership_marker_skips_jots_and_lifts(self):
+        day = "2026-08-24"
+        meal = {
+            "id": "m1",
+            "title": "Next meal · 12:00 PM: Chicken · 170g",
+            "notes": meal_quest_notes("", day, "abc123def4567890"),
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        legacy = {
+            "id": "m-legacy",
+            "title": "Later meal: Rice · 195g",
+            "notes": "[fitdash-quest:2026-08-24]",
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        lift = {
+            "id": "t1",
+            "title": "DB Press (50 lb 3×10)",
+            "notes": "[fitdash-quest:2026-08-24]",
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        jot = {
+            "id": "jot",
+            "title": "Call the dentist",
+            "notes": "",
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        protein = {
+            "id": "p-act",
+            "title": "Cover remaining protein (~40 g) from the meal plan",
+            "notes": "[fitdash-quest:2026-08-24]",
+            "due": "2026-08-24T00:00:00.000Z",
+        }
+        self.assertTrue(is_meal_plan_owned_task(meal, day=day))
+        self.assertTrue(is_meal_plan_owned_task(legacy, day=day))
+        self.assertFalse(is_meal_plan_owned_task(lift, day=day))
+        self.assertFalse(is_meal_plan_owned_task(jot, day=day))
+        self.assertFalse(is_meal_plan_owned_task(protein, day=day))
+        ids = collect_meal_plan_task_ids(
+            [meal, legacy, lift, jot, protein], day=day
+        )
+        self.assertEqual(ids, {"m1", "m-legacy"})
+
+    def test_purge_meal_plan_silent_when_none(self):
+        with mock.patch(
+            "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+            return_value={
+                "ok": True,
+                "tasks": [
+                    {
+                        "id": "jot",
+                        "title": "Buy stamps",
+                        "notes": "",
+                        "status": "needsAction",
+                    }
+                ],
+            },
+        ), mock.patch(
+            "rt_dashboard.daily_plan_tasks.gtb.delete_task",
+            side_effect=AssertionError("must not delete"),
+        ):
+            stats = purge_meal_plan_tasks(
+                list_id="L1", day="2026-08-24", cache={}, save=False
+            )
+        self.assertTrue(stats["ok"])
+        self.assertTrue(stats["silent"])
+        self.assertEqual(stats["purged"], [])
+
+    def test_food_log_regen_purges_old_meal_recreates_keeps_jot(self):
+        """Assay hook: one regen cycle — before/after GT ids on meal leaves."""
+        prior_fp = "aaaaaaaaaaaaaaaa"
+        new_fp = "bbbbbbbbbbbbbbbb"
+        store = {
+            "nut-h": {
+                "id": "nut-h",
+                "title": "Nutrition",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "old-meal": {
+                "id": "old-meal",
+                "title": "Next meal · 12:00 PM: Chicken · 250g",
+                "notes": meal_quest_notes("", "2026-08-24", prior_fp),
+                "parent": "nut-h",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "lift": {
+                "id": "lift",
+                "title": "Complete today's PUSH session",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Text the vet",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+
+        def fake_list(list_id, show_completed=True, show_hidden=True):
+            return {"ok": True, "tasks": list(store.values())}
+
+        def fake_delete(list_id, task_id):
+            store.pop(task_id, None)
+            return {"ok": True}
+
+        def fake_create(list_id, title, notes="", due=None, parent=None):
+            tid = f"new-{len(created) + 1}"
+            task = {
+                "id": tid,
+                "title": title,
+                "notes": notes,
+                "due": f"{due}T00:00:00.000Z" if due and len(str(due)) == 10 else due,
+                "status": "needsAction",
+                "parent": parent,
+            }
+            created.append(task)
+            store[tid] = task
+            return {"ok": True, "task": task}
+
+        def fake_get(list_id, task_id):
+            task = store.get(task_id)
+            if not task:
+                return {"ok": False, "error": "missing"}
+            return {"ok": True, "task": task}
+
+        board = {
+            "date": "2026-08-24",
+            "actions": [
+                {
+                    "kind": "training",
+                    "text": "Complete today's PUSH session",
+                    "id": "train-session",
+                }
+            ],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {
+                "meals": [
+                    {
+                        "label": "Next meal",
+                        "eat_at_label": "3:30 PM",
+                        "items": [
+                            {
+                                "name": "Greek yogurt",
+                                "portion_g": 200,
+                                "serving_label": "200g",
+                            }
+                        ],
+                    }
+                ],
+                "items": [],
+                "food_logs_today": [
+                    {
+                        "date": "2026-08-24",
+                        "name": "Eggs",
+                        "calories": 140,
+                        "protein_g": 12,
+                        "time": "08:10",
+                    }
+                ],
+                "food_logs_fp": new_fp,
+            },
+            "nutrition": {
+                "consumed": {"calories": 140, "protein_g": 12, "food_log_count": 1},
+                "food_log_count": 1,
+                "food_logs_fp": new_fp,
+            },
+            "purchases": [],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True, "source": "session"},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks", side_effect=fake_list
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task", side_effect=fake_delete
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task", side_effect=fake_create
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task", side_effect=fake_get
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.complete_task",
+                return_value={"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks._load_cache",
+                return_value={
+                    "2026-08-24": {
+                        "list_id": "L1",
+                        "ids": {
+                            "nutrition|group": "nut-h",
+                            "nutrition|meal-0-chicken-0": "old-meal",
+                            "training|action-training-0": "lift",
+                        },
+                    }
+                },
+            ):
+                before_ids = collect_meal_plan_task_ids(
+                    list(store.values()), day="2026-08-24"
+                )
+                result = ensure_daily_tasks(board, day="2026-08-24")
+
+        self.assertTrue(result.get("ok"), result)
+        regen = result.get("meal_regen") or {}
+        self.assertTrue(regen.get("triggered"), regen)
+        self.assertEqual(regen.get("reason"), "food_logs")
+        self.assertEqual(regen.get("fingerprint"), new_fp)
+        self.assertEqual(regen.get("prior_fingerprint"), prior_fp)
+        self.assertIn("old-meal", regen.get("purged") or [])
+        self.assertNotIn("old-meal", store)
+        self.assertIn("jot", store)
+        self.assertIn("lift", store)
+        self.assertEqual(store["jot"]["title"], "Text the vet")
+        after_meal = [
+            t
+            for t in store.values()
+            if is_meal_plan_owned_task(t, day="2026-08-24")
+        ]
+        self.assertTrue(after_meal)
+        self.assertTrue(all("Greek yogurt" in (t.get("title") or "") for t in after_meal))
+        self.assertTrue(
+            all(f"[fitdash-meal:2026-08-24]" in (t.get("notes") or "") for t in after_meal)
+        )
+        self.assertTrue(
+            all(f"[fitdash-foods:{new_fp}]" in (t.get("notes") or "") for t in after_meal)
+        )
+        self.assertTrue(regen.get("created"))
+        self.assertEqual(before_ids, {"old-meal"})
+        self.assertTrue(set(regen["created"]).isdisjoint(before_ids))
+
+    def test_same_food_log_fp_does_not_purge_meal_tasks(self):
+        fp = "cccccccccccccccc"
+        store = {
+            "nut-h": {
+                "id": "nut-h",
+                "title": "Nutrition",
+                "notes": "[fitdash-quest:2026-08-24]",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+            "keep-meal": {
+                "id": "keep-meal",
+                "title": "Next meal · 12:00 PM: Chicken · 170g",
+                "notes": meal_quest_notes("", "2026-08-24", fp),
+                "parent": "nut-h",
+                "status": "needsAction",
+                "due": "2026-08-24T00:00:00.000Z",
+            },
+        }
+        deleted: list[str] = []
+        board = {
+            "date": "2026-08-24",
+            "actions": [],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {
+                "meals": [
+                    {
+                        "label": "Next meal",
+                        "eat_at_label": "12:00 PM",
+                        "items": [
+                            {
+                                "name": "Chicken",
+                                "portion_g": 170,
+                                "serving_label": "170g",
+                            }
+                        ],
+                    }
+                ],
+                "food_logs_fp": fp,
+            },
+            "nutrition": {"food_logs_fp": fp, "food_log_count": 0},
+            "purchases": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.dict(
+                "os.environ", {"RESISTANCE_DASHBOARD_CONFIG_DIR": tmp}
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.credentials_status",
+                return_value={"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.resolve_list_id",
+                return_value="L1",
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.list_tasks",
+                return_value={"ok": True, "tasks": list(store.values())},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.delete_task",
+                side_effect=lambda lid, tid: deleted.append(tid) or {"ok": True},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.get_task",
+                side_effect=lambda lid, tid: {"ok": True, "task": store[tid]}
+                if tid in store
+                else {"ok": False},
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.create_task",
+                side_effect=AssertionError("must hydrate existing meal task"),
+            ), mock.patch(
+                "rt_dashboard.daily_plan_tasks._load_cache",
+                return_value={
+                    "2026-08-24": {
+                        "list_id": "L1",
+                        "ids": {
+                            "nutrition|group": "nut-h",
+                            "nutrition|meal-0-chicken-0": "keep-meal",
+                        },
+                    }
+                },
+            ), mock.patch("rt_dashboard.daily_plan_tasks._save_cache"):
+                result = ensure_daily_tasks(board, day="2026-08-24")
+        self.assertTrue(result.get("ok"), result)
+        self.assertEqual(deleted, [])
+        regen = result.get("meal_regen") or {}
+        self.assertFalse(regen.get("triggered"))
+        self.assertTrue(regen.get("silent"))
+        nut = next(g for g in result["groups"] if g["group"] == "nutrition")
+        self.assertEqual(nut["items"][0]["task_id"], "keep-meal")
 
 
 if __name__ == "__main__":
