@@ -147,6 +147,20 @@ def _snapshot_age_hours(path: Path) -> float | None:
         return None
 
 
+def _ynab_refresh_ok(ynab_report: object) -> bool:
+    """True only when every YNAB feed is live-clean. Soft-preserve is never 'ok'."""
+    from treasury.ynab_sync import ynab_feeds_clean
+
+    return ynab_feeds_clean(ynab_report)
+
+
+def _ynab_soft_preserved(ynab_report: object, feed: str = "x_money") -> bool:
+    """FCC flag: a feed kept its prior snapshot after a live pick/sync miss."""
+    from treasury.ynab_sync import ynab_feed_soft_preserved
+
+    return ynab_feed_soft_preserved(ynab_report, feed)
+
+
 def _ynab_cash_stale(max_hours: float = 6.0) -> bool:
     """True if any YNAB cash feed is missing or older than max_hours."""
     for name in ("x_money_latest.json", "one_card_latest.json", "rh_checking_latest.json"):
@@ -167,14 +181,14 @@ def _maybe_refresh_ynab_for_coach(*, force: bool = False) -> bool:
     if not force and not _ynab_cash_stale(6.0):
         return False
     try:
-        from treasury.ynab_sync import main as ynab_main
+        from treasury.ynab_sync import sync_and_write_report, ynab_feeds_clean
 
-        ynab_main([])
+        ynab_report = sync_and_write_report()
         _last_ynab_refresh_ts = time.time()
-        sys.stderr.write("[fcc] coach: ynab_sync refreshed cash feeds\n")
-        return True
-    except SystemExit:
-        _last_ynab_refresh_ts = time.time()
+        if ynab_feeds_clean(ynab_report):
+            sys.stderr.write("[fcc] coach: ynab_sync refreshed cash feeds\n")
+        else:
+            sys.stderr.write(f"[fcc] coach: ynab_sync not clean {ynab_report}\n")
         return True
     except Exception as e:
         sys.stderr.write(f"[fcc] coach ynab_sync warning: {e}\n")
@@ -1048,14 +1062,17 @@ class FCCHandler(SimpleHTTPRequestHandler):
             try:
                 if not offline:
                     try:
-                        from treasury.ynab_sync import main as ynab_main
+                        from treasury.ynab_sync import sync_and_write_report
 
-                        ynab_main([])
-                        report["ynab"] = "ok"
-                    except SystemExit as se:
-                        report["ynab"] = "ok" if se.code in (0, None) else f"exit {se.code}"
+                        # Per-feed {as_of, token_source, live_error|preserved} — never bare "ok"
+                        # on soft-preserve (X Money pick miss used to hide the Mac snapshot).
+                        report["ynab"] = sync_and_write_report()
                     except Exception as ye:
-                        report["ynab"] = f"error: {ye}"
+                        report["ynab"] = {
+                            "one_card": {"as_of": None, "token_source": None, "live_error": str(ye)},
+                            "rh_checking": {"as_of": None, "token_source": None, "live_error": str(ye)},
+                            "x_money": {"as_of": None, "token_source": None, "live_error": str(ye)},
+                        }
                         sys.stderr.write(f"[fcc] ynab_sync warning: {ye}\n")
                     try:
                         from treasury.expenses_sync import main as exp_main
@@ -1247,11 +1264,10 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if not args.offline:
             try:
-                from treasury.ynab_sync import main as ynab_main
+                from treasury.ynab_sync import sync_and_write_report
 
-                ynab_main([])
-            except SystemExit:
-                pass
+                ynab_boot = sync_and_write_report()
+                print(f"ynab_sync report: {ynab_boot}", file=sys.stderr)
             except Exception as ye:
                 print(f"ynab_sync warning: {ye}", file=sys.stderr)
             try:

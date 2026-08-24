@@ -4880,7 +4880,13 @@
         // Honest toast: Refresh is not "all feeds" (RH trade is MCP-only)
         const r = body.refreshed || {};
         const bits = [];
-        if (r.ynab === "ok") bits.push("YNAB");
+        const ynabFeeds = ["one_card", "rh_checking", "x_money"];
+        const ynabObj = r.ynab && typeof r.ynab === "object";
+        const ynabSoft = ynabObj && ynabFeeds.some((k) => {
+          const f = r.ynab[k] || {};
+          return f.live_error || f.preserved;
+        });
+        if (r.ynab === "ok" || (ynabObj && !ynabSoft)) bits.push("YNAB");
         else if (r.ynab && r.ynab !== "skipped") bits.push("YNAB⚠");
         if (r.expenses === "ok") bits.push("Sheet");
         else if (r.expenses && r.expenses !== "skipped") bits.push("Sheet⚠");

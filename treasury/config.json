@@ -29,9 +29,11 @@
     "notes": "Margin book on \u2022\u2022\u2022\u20229737; agentic account \u2022\u2022\u2022\u20221752 for agent orders when enabled."
   },
   "ynab": {
-    "budget_name": null,
+    "budget_name": "Chris's Plan",
     "account_name": null,
     "checking_account_name": null,
-    "notes": "Token at ~/.config/ynab/token. Auto-picks Coinbase One Card + RH Checking."
+    "x_money_account_id": "cc4aa802-28b5-47bd-b8e4-fae703c98a93",
+    "x_money_account_name": "Checking \u2013 2201",
+    "notes": "Token at ~/.config/ynab/token. Auto-picks One Card + RH Checking. X Money pinned by account_id first, then dash-normalized name (Checking \u2013 2201)."
   }
 }
