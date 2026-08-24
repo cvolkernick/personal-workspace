@@ -2266,18 +2266,18 @@
             <input id="m-var-apr" type="number" step="0.0001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed ~5%" />
             <label>Morpho liquidation price (BTC USD)</label>
             <input id="m-liq-price" type="number" step="any" placeholder="e.g. 16559.79" />
-            <label>Bitcoin est. CAGR as APY override (0–1 · blank = seed 30%)</label>
-            <input id="m-btc-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 30% · est. CAGR as APY" />
-            <p class="hint">Interest Spectrum Bitcoin line only. Estimated CAGR used as APY — not a fixed cash rate. Blank keeps the 30% seed.</p>
+            <label>Bitcoin est. CAGR override (0–1 · blank = seed 30%)</label>
+            <input id="m-btc-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 30% · est. CAGR" />
+            <p class="hint">Interest Spectrum Bitcoin line only. Est. CAGR — not cash APR/APY. Blank keeps the 30% seed. Do not invent a live BTC return.</p>
           </div>
           <div>
             <label>RH USDG Earn (lent principal)</label>
             <input id="m-usdg-earn" type="number" step="any" placeholder="Robinhood Earn · Morpho USDG" />
             <label>RH USDG Earn APY override (0–1 · blank = live or seed 7%)</label>
             <input id="m-usdg-apy" type="number" step="0.001" min="0" max="1" placeholder="blank = Morpho GraphQL or seed 7%" />
-            <label>Agentic Fund est. CAGR as APY override (0–1 · blank = seed 15%)</label>
-            <input id="m-agentic-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 15% · est. CAGR as APY" />
-            <p class="hint">Interest Spectrum Agentic Fund line only. Estimated CAGR used as APY — not a fixed cash rate. Blank keeps the 15% seed.</p>
+            <label>Agentic Fund est. CAGR override (0–1 · blank = seed 15%)</label>
+            <input id="m-agentic-cagr" type="number" step="0.001" min="0" max="2" placeholder="blank = seed 15% · est. CAGR" />
+            <p class="hint">Interest Spectrum Agentic Fund line only. Est. CAGR — not cash APR/APY. Blank keeps the 15% seed. Do not invent a live agentic return.</p>
             <label>RH margin loan used (USD)</label>
             <input id="m-rh-margin-loan" type="number" step="any" placeholder="optional · funding Earn" />
             <label>RH equity collateral (USD)</label>
@@ -4319,7 +4319,7 @@
       set("m-vault-apy", man.product_apy ?? man.vault_apy ?? man.morpho_hy_apy_est);
       set("m-var-apr", man.variable_apr ?? man.morpho_borrow_apr);
       set("m-liq-price", man.liquidation_price_btc_usd);
-      set("m-btc-cagr", man.bitcoin_cagr_apy_est ?? man.btc_cagr_apy_est);
+      set("m-btc-cagr", man.bitcoin_cagr_est ?? man.btc_cagr_est ?? man.bitcoin_cagr_apy_est ?? man.btc_cagr_apy_est);
       // Don't overwrite card with YNAB if empty override preferred - still prefill from manual only
       set("m-card-bal", man.card_balance);
       set(
@@ -4333,7 +4333,7 @@
       const rhMan = snap.robinhood || {};
       set("m-usdg-earn", rhMan.usdg_earn_usdg ?? inp.rh_usdg_earn_usdg);
       set("m-usdg-apy", rhMan.usdg_earn_apy_est ?? rhMan.usdg_hy_apy_est);
-      set("m-agentic-cagr", rhMan.agentic_fund_cagr_apy_est ?? rhMan.agentic_cagr_apy_est);
+      set("m-agentic-cagr", rhMan.agentic_fund_cagr_est ?? rhMan.agentic_cagr_est ?? rhMan.agentic_fund_cagr_apy_est ?? rhMan.agentic_cagr_apy_est);
       set("m-rh-margin-loan", rhMan.margin_loan_usd ?? inp.rh_margin_loan_usd);
       set("m-rh-eq-coll", rhMan.equity_collateral_usd ?? inp.rh_equity_collateral_usd);
 
@@ -4640,7 +4640,7 @@
         product_apy: num("m-vault-apy"),
         vault_apy: num("m-vault-apy"),
         variable_apr: num("m-var-apr"),
-        bitcoin_cagr_apy_est: num("m-btc-cagr"),
+        bitcoin_cagr_est: num("m-btc-cagr"),
         liquidation_price_btc_usd: num("m-liq-price"),
         card_balance: num("m-card-bal"),
         one_card_security_deposit_usdc: num("m-card-deposit"),
@@ -4658,7 +4658,7 @@
       return {
         usdg_earn_usdg: num("m-usdg-earn"),
         usdg_earn_apy_est: num("m-usdg-apy"),
-        agentic_fund_cagr_apy_est: num("m-agentic-cagr"),
+        agentic_fund_cagr_est: num("m-agentic-cagr"),
         margin_loan_usd: num("m-rh-margin-loan"),
         equity_collateral_usd: num("m-rh-eq-coll"),
       };

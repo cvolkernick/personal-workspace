@@ -59,15 +59,19 @@ Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
   Soft-fail: leave snapshot APY None; chip stays docs_target.
   Do not invent a live print. No wallet notional. No HTML scrape.
 
-Chris lock (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
-  Two locked yield seeds only. Estimated CAGR used as APY — not a
-  fixed cash rate. Do not open a general equity expected-return axis.
-  Do not invent other equity / BTC assumed-return lines.
-  1. Bitcoin — seed 30% APY (est. CAGR as APY)
-  2. Agentic Fund — seed 15% APY (est. CAGR as APY)
-  Precedence: FCC settings manual > dedicated live books field > seed.
+Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
+  Two locked yield seeds only. Explicit est. CAGR exception — not cash
+  APR/APY, not Morpho-style live APY. Cash venues stay ``apr_apy_only``.
+  Do not open a general equity axis (NVDA/AAPL/GOOGL/BE etc.).
+  Do not invent live BTC / agentic returns. No scrape. No notionals
+  unless already on books.
+  1. Bitcoin — seed 30% · rate_kind ``est. CAGR``
+  2. Agentic Fund — seed 15% · rate_kind ``est. CAGR``
+  Precedence: FCC settings manual > locked est. CAGR seed.
   Generic ``btc_expected_return`` / ``equity_expected_return`` /
   ``assumed_return`` / ``appreciation_pct`` stay off these chips.
+  Payload flags ``est_cagr`` on the chips and ``policy.est_cagr_exception``
+  so honesty checks do not treat them as cash APR.
 
 Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 """
@@ -197,17 +201,22 @@ LOCKED_SEEDS: tuple[dict[str, Any], ...] = (
     },
 )
 
-# Bitcoin / Agentic Fund (#336) — estimated CAGR plotted as APY, not cash yield.
+# Bitcoin / Agentic Fund (#336) — explicit est. CAGR exception, not cash APR/APY.
 BITCOIN_ID = "bitcoin"
 AGENTIC_FUND_ID = "agentic_fund"
-CAGR_AS_APY_LABEL = "est. CAGR as APY"
-CAGR_AS_APY_NOTE = "est. CAGR used as APY · not a fixed cash rate"
+EST_CAGR_KIND = "est. CAGR"
+EST_CAGR_LABEL = "est. CAGR"
+EST_CAGR_NOTE = "est. CAGR · not cash APR/APY"
+# Back-compat aliases for the first #336 draft labels.
+CAGR_AS_APY_LABEL = EST_CAGR_LABEL
+CAGR_AS_APY_NOTE = EST_CAGR_NOTE
+EST_CAGR_IDS = frozenset({BITCOIN_ID, AGENTIC_FUND_ID})
 
 # Chris 2026-08-23 locked yield seeds. Always show; books override when an
 # honest product APY is already present. Morpho HY vault GraphQL is
 # reference only — it must not paint the product chip. Pattern matches
 # Morpho borrow ~5% / One Card ~29%. Bitcoin / Agentic Fund (#336) are
-# est. CAGR as APY seeds — not a general equity axis.
+# est. CAGR seeds (not cash APR/APY) — not a general equity axis.
 LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
     {
         "id": "x_money",
@@ -316,64 +325,61 @@ LOCKED_YIELD_SEEDS: tuple[dict[str, Any], ...] = (
         ),
     },
     {
-        "id": "bitcoin",
+        "id": BITCOIN_ID,
         "venue": "Bitcoin",
         "label": "Bitcoin",
-        "detail": "est. CAGR as APY",
+        "detail": EST_CAGR_NOTE,
         "kind": "yield",
         "rate_pct": 30.0,
         "approx": True,
-        "rate_kind": "APY",
+        "rate_kind": EST_CAGR_KIND,
         "unit": "fraction",
-        "cagr_as_apy": True,
+        "est_cagr": True,
         "notes": (
-            f"locked seed 30% APY · {CAGR_AS_APY_NOTE} · "
+            f"locked seed 30% · {EST_CAGR_NOTE} · "
             "these two lines only · "
-            "precedence: FCC settings bitcoin_cagr_apy_est / "
-            "btc_cagr_apy_est > dedicated live books > seed · "
-            "do not invent a live BTC print"
+            "precedence: FCC settings bitcoin_cagr_est / "
+            "btc_cagr_est > locked seed · "
+            "do not invent a live BTC return · no scrape"
         ),
         "deep_link": "index.html#bitcoin",
         "settings_paths": (
+            ("config", "coinbase_manual", "bitcoin_cagr_est"),
+            ("config", "coinbase_manual", "btc_cagr_est"),
             ("config", "coinbase_manual", "bitcoin_cagr_apy_est"),
             ("config", "coinbase_manual", "btc_cagr_apy_est"),
         ),
-        "paths": (
-            ("evaluation", "inputs", "bitcoin_cagr_apy_est"),
-            ("evaluation", "inputs", "btc_cagr_apy_est"),
-            ("snapshot", "bitcoin", "cagr_apy_est"),
-            ("snapshot", "coinbase_manual", "bitcoin_cagr_apy_est"),
-        ),
+        # No live books paths — do not invent BTC returns.
+        "paths": (),
     },
     {
-        "id": "agentic_fund",
+        "id": AGENTIC_FUND_ID,
         "venue": "Agentic Fund",
         "label": "Agentic Fund",
-        "detail": "est. CAGR as APY",
+        "detail": EST_CAGR_NOTE,
         "kind": "yield",
         "rate_pct": 15.0,
         "approx": True,
-        "rate_kind": "APY",
+        "rate_kind": EST_CAGR_KIND,
         "unit": "fraction",
-        "cagr_as_apy": True,
+        "est_cagr": True,
         "notes": (
-            f"locked seed 15% APY · {CAGR_AS_APY_NOTE} · "
+            f"locked seed 15% · {EST_CAGR_NOTE} · "
             "these two lines only · "
-            "precedence: FCC settings agentic_fund_cagr_apy_est / "
-            "agentic_cagr_apy_est > dedicated live books > seed · "
-            "do not invent a live equity print"
+            "precedence: FCC settings agentic_fund_cagr_est / "
+            "agentic_cagr_est > locked seed · "
+            "do not invent a live agentic return · no scrape · "
+            "no equity basket expansion"
         ),
         "deep_link": "index.html#agentic-fund",
         "settings_paths": (
+            ("config", "robinhood", "agentic_fund_cagr_est"),
+            ("config", "robinhood", "agentic_cagr_est"),
             ("config", "robinhood", "agentic_fund_cagr_apy_est"),
             ("config", "robinhood", "agentic_cagr_apy_est"),
         ),
-        "paths": (
-            ("evaluation", "inputs", "agentic_fund_cagr_apy_est"),
-            ("evaluation", "inputs", "agentic_cagr_apy_est"),
-            ("snapshot", "agentic_fund", "cagr_apy_est"),
-            ("snapshot", "robinhood", "agentic_fund_cagr_apy_est"),
-        ),
+        # No live books paths — do not invent agentic returns.
+        "paths": (),
     },
 )
 
@@ -738,18 +744,19 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     Morpho HY product chip: settings > product_apy > seed 7%. Naked vault
     GraphQL ``vault_apy`` is reference only and must not paint the chip.
     USDG HY still walks ``settings_paths`` before live ``paths``.
-    Bitcoin / Agentic Fund: settings > dedicated CAGR field > seed.
-    Generic equity / BTC expected-return fields stay off those chips.
+    Bitcoin / Agentic Fund: settings > locked est. CAGR seed only.
+    No live BTC / agentic invent. Generic expected-return fields stay off.
     """
     chips: List[Dict[str, Any]] = []
     for spec in LOCKED_YIELD_SEEDS:
+        est_cagr = bool(spec.get("est_cagr") or spec["id"] in EST_CAGR_IDS)
         chip: Dict[str, Any] = {
             "id": spec["id"],
             "venue": spec["venue"],
             "label": spec["label"],
             "kind": "yield",
             "lane": "below",
-            "rate_kind": "APY",
+            "rate_kind": EST_CAGR_KIND if est_cagr else "APY",
             "approx": True,
             "source": "locked_seed",
             "notes": spec.get("notes"),
@@ -760,13 +767,14 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
         }
         if spec.get("detail"):
             chip["detail"] = spec["detail"]
-        if spec.get("cagr_as_apy"):
-            chip["cagr_as_apy"] = True
-            chip["rate_basis"] = CAGR_AS_APY_LABEL
+        if est_cagr:
+            chip["est_cagr"] = True
+            chip["rate_basis"] = EST_CAGR_LABEL
         unit = str(spec.get("unit") or "fraction")
         rate, hit = _first_apy_hit(ctx, spec.get("settings_paths") or (), unit=unit)
         from_settings = rate is not None
-        if rate is None:
+        # Est. CAGR chips: settings only. Never invent a live BTC/agentic print.
+        if rate is None and not est_cagr:
             rate, hit = _first_apy_hit(ctx, spec.get("paths") or (), unit=unit)
         if rate is not None:
             chip["rate_pct"] = rate
@@ -778,24 +786,31 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
                     notes = f"{notes} · FCC settings override"
                 else:
                     notes = f"{notes} · product_apy"
-            elif spec["id"] in ("usdg_earn", BITCOIN_ID, AGENTIC_FUND_ID) and notes:
+            elif spec["id"] == "usdg_earn" and notes:
                 if from_settings:
                     notes = f"{notes} · FCC settings override"
                 else:
                     notes = f"{notes} · live books"
+            elif est_cagr and notes:
+                notes = f"{notes} · FCC settings override"
+                chip["rate_kind"] = EST_CAGR_KIND
+                chip["est_cagr"] = True
             if spec["id"] == "usdg_earn":
                 notes = f"{notes} · {USDG_GOLD_CAVEAT}" if notes else USDG_GOLD_CAVEAT
             chip["notes"] = notes
-        if spec.get("cagr_as_apy"):
+        if est_cagr:
             notes = chip.get("notes")
-            if CAGR_AS_APY_NOTE not in str(notes or ""):
-                chip["notes"] = f"{notes} · {CAGR_AS_APY_NOTE}" if notes else CAGR_AS_APY_NOTE
+            if EST_CAGR_NOTE not in str(notes or ""):
+                chip["notes"] = f"{notes} · {EST_CAGR_NOTE}" if notes else EST_CAGR_NOTE
+            chip["rate_kind"] = EST_CAGR_KIND
+            chip["est_cagr"] = True
         if spec["id"] == "morpho_hy":
             _attach_morpho_hy_vault_ref(chip, ctx, spec)
-        notional = _first_number(ctx, spec.get("notional_paths") or ())
-        if notional is not None:
-            chip["notional"] = notional
-            chip["notional_kind"] = "balance"
+        if not est_cagr:
+            notional = _first_number(ctx, spec.get("notional_paths") or ())
+            if notional is not None:
+                chip["notional"] = notional
+                chip["notional_kind"] = "balance"
         chips.append(chip)
     chips.append(_jr_strcusx_chip(ctx))
     return chips
@@ -878,6 +893,8 @@ def build_interest_spectrum(
         "coach_wired": False,
         "policy": {
             "apr_apy_only": True,
+            "est_cagr_exception": True,
+            "est_cagr_ids": [BITCOIN_ID, AGENTIC_FUND_ID],
             "equity_btc_assumed_return": False,
             "invented_rates": False,
             "wells_is_fcc_liability": False,
@@ -895,19 +912,37 @@ def build_interest_spectrum(
 
 
 def rates_are_honest(payload: Dict[str, Any]) -> bool:
-    """True when every placed rate is locked-fleet, locked-seed, books, or JR docs target."""
+    """True when every placed rate is locked-fleet, locked-seed, books, JR docs, or est. CAGR exception."""
     if not isinstance(payload, dict):
         return False
     if payload.get("coach_wired"):
         return False
+    policy = payload.get("policy") if isinstance(payload.get("policy"), dict) else {}
+    est_ids = {
+        str(x)
+        for x in (policy.get("est_cagr_ids") or EST_CAGR_IDS)
+        if x
+    }
     for chip in payload.get("chips") or []:
         if not isinstance(chip, dict):
             return False
-        if str(chip.get("id")) == WELLS_OFF_FCC_ID:
+        chip_id = str(chip.get("id"))
+        if chip_id == WELLS_OFF_FCC_ID:
             return False
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
             return False
-        if chip.get("rate_kind") not in ("APR", "APY"):
+        est_cagr = bool(chip.get("est_cagr") or chip_id in est_ids)
+        if est_cagr:
+            # Explicit #336 exception — never treat as cash APR/APY.
+            if not policy.get("est_cagr_exception"):
+                return False
+            if chip.get("rate_kind") != EST_CAGR_KIND:
+                return False
+            if chip.get("rate_kind") in ("APR", "APY"):
+                return False
+            if chip_id not in EST_CAGR_IDS:
+                return False
+        elif chip.get("rate_kind") not in ("APR", "APY"):
             return False
         rate = chip.get("rate_pct")
         if rate is None:
@@ -916,17 +951,17 @@ def rates_are_honest(payload: Dict[str, Any]) -> bool:
         if source not in ALLOWED_SOURCES:
             return False
         if source == "locked_financing":
-            locked = LOCKED_RATE_BY_ID.get(str(chip.get("id")))
+            locked = LOCKED_RATE_BY_ID.get(chip_id)
             if locked is None or abs(float(rate) - locked) > 1e-9:
                 return False
             continue
         if source == "locked_seed":
-            locked = LOCKED_SEED_RATE_BY_ID.get(str(chip.get("id")))
+            locked = LOCKED_SEED_RATE_BY_ID.get(chip_id)
             if locked is None or abs(float(rate) - locked) > 1e-9:
                 return False
             continue
         if source == "docs_target":
-            if str(chip.get("id")) != JR_STRCUSX_ID:
+            if chip_id != JR_STRCUSX_ID:
                 return False
             if abs(float(rate) - JR_TARGET_PCT) > 1e-9:
                 return False
@@ -935,4 +970,8 @@ def rates_are_honest(payload: Dict[str, Any]) -> bool:
             continue
         if source != "books":
             return False
+        if est_cagr:
+            # Settings override of the est. CAGR seed — still not cash APR.
+            if chip.get("rate_kind") != EST_CAGR_KIND:
+                return False
     return True
