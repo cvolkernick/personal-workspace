@@ -1,0 +1,9 @@
+{
+  "framework": null,
+  "rewrites": [
+    {
+      "source": "/api/agent/fleet",
+      "destination": "/api/agent/fleet.py"
+    }
+  ]
+}

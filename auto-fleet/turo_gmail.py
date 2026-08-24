@@ -562,6 +562,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         data = json.loads(dest.read_text(encoding="utf-8"))
         n = len(data.get("messages") or [])
         print(f"wrote {n} message(s) to {dest} source={data.get('source')}")
+        _publish_agent_snapshot(dest)
         return 0
     if args.from_json == "-":
         raw = json.load(sys.stdin)
@@ -576,7 +577,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     dest = write_dump(messages, dest, inbox=args.inbox, media_dir=media)
     n_photos = sum(len(m.get("attachments") or []) for m in messages)
     print(f"wrote {len(messages)} message(s) ({n_photos} photo(s)) to {dest}")
+    _publish_agent_snapshot(dest)
     return 0
+
+
+def _publish_agent_snapshot(inbox_path: Path) -> None:
+    try:
+        from . import agent_fleet
+    except ImportError:  # script path
+        import agent_fleet  # type: ignore
+    agent_fleet.maybe_publish_from_inbox(inbox_path)
 
 
 if __name__ == "__main__":

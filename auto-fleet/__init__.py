@@ -1,3 +1,11 @@
 """Internal Auto Fleet ops dashboard (not TREAD)."""
 
-__all__ = ["dimo_client", "turo_inbox", "turo_gmail", "turo_media", "fleet"]
+__all__ = [
+    "agent_fleet",
+    "dimo_client",
+    "fleet",
+    "service_auth",
+    "turo_gmail",
+    "turo_inbox",
+    "turo_media",
+]

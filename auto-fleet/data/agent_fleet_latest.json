@@ -1,0 +1,94 @@
+{
+  "ok": true,
+  "read_only": true,
+  "as_of": "2026-08-17T00:00:00+00:00",
+  "stale": true,
+  "stale_reason": "prism/writer dark — shipped empty fixture, no invented trips",
+  "source": "empty_fixture",
+  "unit_count": 5,
+  "units": [
+    {
+      "id": "m3-2020",
+      "identity": {
+        "year": 2020,
+        "make": "Tesla",
+        "model": "Model 3",
+        "role": "personal",
+        "host_label": null
+      },
+      "bookings": [],
+      "schedule": [],
+      "photos": [],
+      "inbox_status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record."
+    },
+    {
+      "id": "m3-2022",
+      "identity": {
+        "year": 2022,
+        "make": "Tesla",
+        "model": "Model 3",
+        "role": "turo",
+        "host_label": "Mike's"
+      },
+      "bookings": [],
+      "schedule": [],
+      "photos": [],
+      "inbox_status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record."
+    },
+    {
+      "id": "corolla-2022",
+      "identity": {
+        "year": 2022,
+        "make": "Toyota",
+        "model": "Corolla",
+        "role": "turo",
+        "host_label": "Mike's"
+      },
+      "bookings": [],
+      "schedule": [],
+      "photos": [],
+      "inbox_status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record."
+    },
+    {
+      "id": "corolla-2024",
+      "identity": {
+        "year": 2024,
+        "make": "Toyota",
+        "model": "Corolla",
+        "role": "turo",
+        "host_label": "Mike's"
+      },
+      "bookings": [],
+      "schedule": [],
+      "photos": [],
+      "inbox_status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record."
+    },
+    {
+      "id": "r1s-2023",
+      "identity": {
+        "year": 2023,
+        "make": "Rivian",
+        "model": "R1S",
+        "role": "personal",
+        "host_label": null
+      },
+      "bookings": [],
+      "schedule": [],
+      "photos": [],
+      "inbox_status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record."
+    }
+  ],
+  "unmatched": [],
+  "unmatched_photos": [],
+  "inbox": {
+    "state": "empty",
+    "status": "Shipped empty fixture. Live dump lives on prism. No invented trips. Payout destination is X Money. Payout mail is a cash-landed signal, not a booking record.",
+    "kind": "json",
+    "refreshed_at": null,
+    "forward_since": "2026-08-18T02:00:00+00:00",
+    "poll_interval_s": 900,
+    "message_count": 0,
+    "photo_count": 0,
+    "payout_destination": "X Money"
+  }
+}
