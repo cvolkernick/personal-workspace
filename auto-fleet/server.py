@@ -3,6 +3,7 @@
 
   GET  /api/health  → {ok, service: "auto-fleet", port}
   GET  /api/fleet   → roster units + DIMO / Turo / costs strips
+  GET  /api/agent/fleet → read-only Helm brief (token / loopback)
   GET  /api/turo-tasks → open Google Tasks on the Turo list
   POST /api/turo-tasks/complete → checkbox write-back to Google Tasks
   GET  /api/turo-inbox-media/<relpath> → ingested Turo mail photo (email ingest only)
@@ -31,6 +32,7 @@ if str(ROOT) not in sys.path:
 if str(PKG_DIR) not in sys.path:
     sys.path.insert(0, str(PKG_DIR))
 
+from agent_fleet import handle_agent_fleet_http  # noqa: E402
 from fleet import DATA_DIR, build_fleet, load_roster  # noqa: E402
 from turo_inbox import resolve_inbox_path  # noqa: E402
 from turo_media import media_dir_for, resolve_media_file  # noqa: E402
@@ -75,7 +77,10 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header(
+            "Access-Control-Allow-Headers",
+            "Authorization, Content-Type, X-Auto-Fleet-Service-Token",
+        )
         self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
@@ -96,6 +101,16 @@ class AutoFleetHandler(SimpleHTTPRequestHandler):
                     "note": "Internal ops. Not TREAD. Pi is prod.",
                 },
             )
+            return
+        if path == "/api/agent/fleet":
+            client_host = (self.client_address or ("", 0))[0]
+            code, payload = handle_agent_fleet_http(
+                self.headers,
+                client_host,
+                roster_path=_ROSTER_PATH,
+                inbox_path=_INBOX_PATH,
+            )
+            self._json(code, payload)
             return
         if path == "/api/fleet":
             try:
@@ -231,7 +246,9 @@ def main(argv: list[str] | None = None) -> int:
     _BOUND_HOST, _BOUND_PORT = server.server_address[0], int(server.server_address[1])
     url = f"http://{_BOUND_HOST}:{_BOUND_PORT}/"
     print(f"Auto Fleet dashboard → {url}")
-    print("API: /api/health /api/fleet /api/turo-tasks /api/turo-inbox-media/")
+    print(
+        "API: /api/health /api/fleet /api/agent/fleet /api/turo-tasks /api/turo-inbox-media/"
+    )
     print("Secrets: ~/.config/auto-fleet/env (not in repo)")
     if not args.no_browser:
         webbrowser.open(url)

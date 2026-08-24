@@ -20,8 +20,13 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures"
 EMPTY_ENV = None  # set per test
 
 
-def _http_json(method: str, url: str, timeout: float = 8.0) -> tuple[int, dict]:
-    req = urllib.request.Request(url, method=method)
+def _http_json(
+    method: str,
+    url: str,
+    timeout: float = 8.0,
+    headers: dict | None = None,
+) -> tuple[int, dict]:
+    req = urllib.request.Request(url, method=method, headers=headers or {})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             raw = resp.read().decode("utf-8")
@@ -364,6 +369,126 @@ class AutoFleetServerTests(unittest.TestCase):
                 )
                 self.assertEqual(code, 404)
                 self.assertFalse(traversal.get("ok", True))
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+    def test_agent_fleet_loopback_and_token_deny(self) -> None:
+        port = 18798
+        with tempfile.TemporaryDirectory() as td:
+            env_path = Path(td) / "env"
+            env_path.write_text("# empty on purpose\n", encoding="utf-8")
+            gtasks_dir = Path(td) / "gtasks"
+            gtasks_dir.mkdir()
+            proc_env = {
+                **os.environ,
+                "PYTHONPATH": str(ROOT),
+                "GOOGLE_TASKS_CONFIG_DIR": str(gtasks_dir),
+                "AUTO_FLEET_SERVICE_TOKEN": "house-secret",
+                "AUTO_FLEET_SERVICE_LOOPBACK": "1",
+            }
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(port),
+                    "--host",
+                    "127.0.0.1",
+                    "--no-browser",
+                    "--env",
+                    str(env_path),
+                    "--turo-inbox",
+                    str(FIXTURES / "turo_mikes_vehicle.json"),
+                ],
+                cwd=str(ROOT),
+                env=proc_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            base = f"http://127.0.0.1:{port}"
+            try:
+                deadline = time.time() + 10
+                last_err: Exception | None = None
+                while time.time() < deadline:
+                    try:
+                        code, health = _http_json("GET", f"{base}/api/health")
+                        if code == 200 and health.get("ok"):
+                            break
+                    except Exception as exc:  # noqa: BLE001
+                        last_err = exc
+                        time.sleep(0.1)
+                else:
+                    err = (proc.stderr.read() if proc.stderr else "") or str(last_err)
+                    self.fail(f"server did not become ready: {err}")
+
+                code, brief = _http_json("GET", f"{base}/api/agent/fleet")
+                self.assertEqual(code, 200, brief)
+                self.assertTrue(brief.get("ok"))
+                self.assertTrue(brief.get("read_only"))
+                by_id = {u["id"]: u for u in brief["units"]}
+                self.assertEqual(by_id["m3-2022"]["bookings"][0]["trip_id"], "99112233")
+                self.assertNotIn("house-secret", json.dumps(brief))
+                self.assertNotIn("5YJ3E1EA6NF289917", json.dumps(brief))
+
+                code, fleet = _http_json("GET", f"{base}/api/fleet")
+                self.assertEqual(code, 200, fleet)
+                self.assertTrue(fleet.get("ok"))
+                self.assertIn("units", fleet)
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+
+            deny_env = {**proc_env, "AUTO_FLEET_SERVICE_LOOPBACK": "0"}
+            proc = subprocess.Popen(
+                [
+                    sys.executable,
+                    str(SERVER),
+                    "--port",
+                    str(port),
+                    "--host",
+                    "127.0.0.1",
+                    "--no-browser",
+                    "--env",
+                    str(env_path),
+                    "--turo-inbox",
+                    str(FIXTURES / "turo_mikes_vehicle.json"),
+                ],
+                cwd=str(ROOT),
+                env=deny_env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                deadline = time.time() + 10
+                while time.time() < deadline:
+                    try:
+                        code, _health = _http_json("GET", f"{base}/api/health")
+                        if code == 200:
+                            break
+                    except Exception:  # noqa: BLE001
+                        time.sleep(0.1)
+                else:
+                    self.fail("deny-mode server did not become ready")
+                code, denied = _http_json("GET", f"{base}/api/agent/fleet")
+                self.assertEqual(code, 401, denied)
+                self.assertEqual(denied.get("error"), "auth_required")
+                self.assertNotIn("units", denied)
+                code, allowed = _http_json(
+                    "GET",
+                    f"{base}/api/agent/fleet",
+                    headers={"Authorization": "Bearer house-secret"},
+                )
+                self.assertEqual(code, 200, allowed)
+                self.assertTrue(allowed.get("ok"))
             finally:
                 proc.terminate()
                 try:

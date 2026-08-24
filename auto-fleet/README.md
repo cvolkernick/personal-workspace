@@ -28,7 +28,8 @@ Open http://127.0.0.1:8796/
 | Method | Path | Notes |
 |--------|------|--------|
 | GET | `/api/health` | `{ok, service: "auto-fleet", port}` |
-| GET | `/api/fleet` | Roster units + strips |
+| GET | `/api/fleet` | Roster units + strips (intranet) |
+| GET | `/api/agent/fleet` | Read-only Helm brief (token / loopback). No Tailscale required when a published snapshot is present |
 | GET | `/api/turo-tasks` | Open Google Tasks on the **Turo** list |
 | POST | `/api/turo-tasks/complete` | Checkbox write-back (`task_id`, `list_id`) |
 
@@ -43,6 +44,8 @@ python3 -m unittest discover -s auto-fleet/tests -v
 | Path | Purpose |
 |------|---------|
 | `server.py` / `index.html` | Dashboard + JSON API (car-centric cards) |
+| `agent_fleet.py` / `service_auth.py` | Read-only Helm brief + service-token gate (#295) |
+| `data/agent_fleet_latest.json` | Shipped empty/stale snapshot — no invented trips |
 | `fleet.py` | Assemble `/api/fleet` |
 | `car_cards.py` | Locked lender/APR, trip schedule, GT→car match |
 | `glance.py` | Miles / SoC / stale / PTP presentation helpers |
@@ -72,6 +75,9 @@ DIMO_VEHICLE_TOKENS={"m3-2022": 123, "corolla-2022": 456}
 # or per unit:
 DIMO_TOKEN_M3_2022=
 DIMO_TOKEN_COROLLA_2022=
+# optional — Helm /api/agent/fleet (never commit):
+AUTO_FLEET_SERVICE_TOKEN=
+AUTO_FLEET_AGENT_SNAPSHOT=
 ```
 
 Missing file / missing keys → DIMO `status: unconfigured`. The process does not crash.
@@ -145,6 +151,37 @@ on the car card; they are not Google Tasks.
 
 Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
 `off` disables, tests only).
+
+## Helm read-only brief (#295)
+
+Same class of gate as FitDash `GET /api/agent/today` (#293). Seats do **not**
+need Tailscale to read units + bookings paint + inbox status when a published
+snapshot is on a shared path.
+
+```bash
+# Pi loopback (AUTO_FLEET_SERVICE_LOOPBACK=1, default)
+curl -sS http://127.0.0.1:8796/api/agent/fleet
+
+# Shared token — Bearer
+curl -sS -H "Authorization: Bearer $AUTO_FLEET_SERVICE_TOKEN" \
+  http://127.0.0.1:8796/api/agent/fleet
+
+# Shared token — custom header
+curl -sS -H "X-Auto-Fleet-Service-Token: $AUTO_FLEET_SERVICE_TOKEN" \
+  http://127.0.0.1:8796/api/agent/fleet
+
+# No Tailscale: read the published packet (prism writer writes this next to the dump)
+python3 -m auto-fleet.agent_fleet --read
+# or: AUTO_FLEET_AGENT_SNAPSHOT=/path/to/agent_fleet.json
+```
+
+The 15m writer (`auto-fleet-turo-writer.timer`) publishes
+`agent_fleet.json` next to the inbox dump after `--fetch`. Override with
+`AUTO_FLEET_AGENT_SNAPSHOT`. Cookie-less / token-less non-loopback is **401**.
+`/api/fleet` and invoice-ready `/api/turo-tasks` stay on the intranet
+dashboard. Payload is dump/email-ingest derived — no invented trips. Missing
+writer → honest empty / stale. No DIMO / Gmail / GT keys, no lender accounts,
+no VIN, no absolute `~/.config` paths.
 
 ## Pi install (Slice C)
 
