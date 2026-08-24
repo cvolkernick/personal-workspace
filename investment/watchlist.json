@@ -50,7 +50,7 @@
       "last_deep_dive_path": "investment/research/BE_deep_dive.md",
       "last_verdict": "ready_consider_no_size_until_free_capital",
       "next_catalyst": "Next earnings est. ~2026-10-27; or >25% drawdown refresh",
-      "notes": "Post-Q2'26 refresh 2026-08-04. Print strong (rev ~$1.07B; prior guide raise). Status ready for consideration. Valuation/beta still harsh; BP dust blocks size today. Not core; not auto-buy."
+      "notes": "Post-Q2'26 refresh 2026-08-04. Print strong (rev ~$1.07B; prior guide raise). Status ready for consideration. Valuation/beta still harsh; BP dust blocks size today. Not core; not auto-buy. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/GOOGL)."
     },
     {
       "symbol": "GOOGL",
@@ -74,7 +74,7 @@
       "last_deep_dive_path": "investment/research/GOOGL_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Next earnings est. ~2026-10-28; FCF/capex guide",
-      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. BP dust today."
+      "notes": "Deep-dive 2026-08-04. Prefer Class A (GOOGL); GOOG economic equivalent. Top-tier liquid AI + cash compounder at non-extreme multiple. Ready for consider set; not auto-buy. BP dust today. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with NVDA/BE)."
     },
     {
       "symbol": "AAPL",
@@ -97,8 +97,8 @@
       "last_deep_dive": "2026-08-04",
       "last_deep_dive_path": "investment/research/AAPL_deep_dive.md",
       "last_verdict": "ready_consider",
-      "next_catalyst": "Next earnings est. ~2026-10-29; Services/iPhone guide",
-      "notes": "Deep-dive 2026-08-04. Quality compounder; AI purity behind GOOGL/NVDA. Ready for consider set; not auto-buy."
+      "next_catalyst": "Next earnings est. ~2026-10-29; Services/iPhone guide \u2014 watch rank slightly below NVDA/GOOGL/BE peer set",
+      "notes": "Deep-dive 2026-08-04. Quality compounder; AI purity behind GOOGL/NVDA. Ready for consider set; not auto-buy. Owner preference 2026-08-23 via Grok/Meridian: relative watch priority slightly below the NVDA / GOOGL / BE top peer set \u2014 still ready/high consider-set, not equal-weight with those three. Not auto-buy."
     },
     {
       "symbol": "NVDA",
@@ -122,7 +122,7 @@
       "last_deep_dive_path": "investment/research/NVDA_deep_dive.md",
       "last_verdict": "ready_consider",
       "next_catalyst": "Open-weight / model-factory follow-through + earnings est. ~2026-08-26 \u2014 event risk for any new size into print",
-      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models — thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held."
+      "notes": "Deep-dive 2026-08-04. Pure AI infra co-lead with GOOGL. Concentration/valuation/export gates. 2026-08-23 (Chris via Grok/Nakatoshi AC): NVDA investing in their own open-source/open-weight models — thesis: may reinforce core GPU franchise via vertical integration / industry lock-in. Note only; not a price target or position. Ready for consider set; not auto-buy. Not held. Owner 2026-08-23 via Grok/Meridian: remains top peer set for watch relative priority (with GOOGL/BE)."
     },
     {
       "symbol": "PLTR",
