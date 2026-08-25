@@ -65,8 +65,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "232.262854719",
-      "equity_value": "232.172854719",
+      "total_value": "230.59960126",
+      "equity_value": "230.50960126",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -86,5 +86,148 @@
       }
     },
     "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
+  },
+  "primary_positions": {
+    "data": {
+      "positions": []
+    },
+    "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
+  },
+  "agentic_positions": {
+    "data": {
+      "positions": [
+        {
+          "symbol": "MSTR",
+          "quantity": "0.293682",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "93.810000",
+          "shares_available_for_sells": "0.293682",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "MARA",
+          "quantity": "0.961298",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "12.400000",
+          "shares_available_for_sells": "0.961298",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "TSLA",
+          "quantity": "0.194348",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "307.440000",
+          "shares_available_for_sells": "0.194348",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "SPCX",
+          "quantity": "0.398798",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "112.710000",
+          "shares_available_for_sells": "0.398798",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "BITA",
+          "quantity": "0.291610",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "51.880000",
+          "shares_available_for_sells": "0.291610",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "IREN",
+          "quantity": "0.274791",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "37.960000",
+          "shares_available_for_sells": "0.274791",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "CLSK",
+          "quantity": "0.361794",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "13.820000",
+          "shares_available_for_sells": "0.361794",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "STRC",
+          "quantity": "0.062240",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "96.400000",
+          "shares_available_for_sells": "0.062240",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "SATA",
+          "quantity": "0.050000",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "100.000000",
+          "shares_available_for_sells": "0.050000",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        },
+        {
+          "symbol": "GOOGL",
+          "quantity": "0.040399",
+          "intraday_quantity": "0.000000",
+          "average_buy_price": "346.540000",
+          "shares_available_for_sells": "0.040399",
+          "shares_held_for_sells": "0.000000",
+          "shares_held_for_stock_grants": "0.000000",
+          "shares_held_for_options_events": "0.000000",
+          "shares_held_for_asset_transfer": "0.000000",
+          "shares_pending_from_options_events": "0.000000",
+          "type": "long"
+        }
+      ]
+    },
+    "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
   }
 }
