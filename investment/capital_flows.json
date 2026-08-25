@@ -1,8 +1,8 @@
 {
-  "version": 39,
-  "as_of": "2026-08-11",
-  "title": "Capital Flows — X Money · Digital Credit ↔ Margin",
-  "notes": "v39: reverse LE order to X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. Digital Credit ↔ Margin (replaces X Money ↔ Margin as the equities loop). X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "version": 40,
+  "as_of": "2026-08-25",
+  "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
+  "notes": "v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
   "legend": {
     "observed": "Seen in YNAB/Plaid or expense sheet",
     "owner_stated": "Confirmed by owner",
@@ -18,7 +18,7 @@
       {
         "id": "liquidity_engine",
         "label": "Liquidity Engine",
-        "ids": ["x_money", "digital_credit", "margin"]
+        "ids": ["x_money", "digital_credit", "margin", "jr_strcusx"]
       },
       {
         "id": "deploy",
@@ -123,7 +123,16 @@
       "stroke": "liq-green",
       "subtitle": "Agentic · stocks · HY",
       "confidence": "owner_stated",
-      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money). Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
+      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money) and with JR-strcUSX. Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
+    },
+    {
+      "id": "jr_strcusx",
+      "label": "JR-strcUSX",
+      "kind": "leverage",
+      "stroke": "liq-amber",
+      "subtitle": "DC-credit parlay",
+      "confidence": "owner_stated",
+      "notes": "Bottom of LE. Bidirectional with Margin only. DC-credit parlay (Solana sleeve) — not HY / not LTV defense. Visibility of the live book; now-deploy lock stands (no mint)."
     },
     {
       "id": "bills_essential",
@@ -254,12 +263,29 @@
       "style": "risk",
       "label": "optional extract",
       "notes": "Optional loop back Digital Credit ← Margin — NOT income. Dual-engine risk."
+    },
+    {
+      "from": "margin",
+      "to": "jr_strcusx",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "→ JR-strcUSX",
+      "notes": "Margin seats / rebalances into JR-strcUSX. Same two-way LE spine as Digital Credit ↔ Margin. Visibility path — not a mint."
+    },
+    {
+      "from": "jr_strcusx",
+      "to": "margin",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "→ Margin",
+      "notes": "JR-strcUSX back into the Margin equities engine. Same two-way LE spine as the cards above."
     }
   ],
   "open_questions": [
     "Exact Morpho LTV target band (cool park-to-HY vs hot pull-to-BTC)",
     "Exact RH margin-use target band (cool park-to-USDG vs heat pull-to-stock)",
     "Cadence of Digital Credit → Margin vs former 1st-of-month X Money auto",
-    "When to allow margin extract vs dual-leverage hard block"
+    "When to allow margin extract vs dual-leverage hard block",
+    "JR-strcUSX ↔ Margin: residual seat vs Morpho override still owner-named (now-deploy: visibility only, no mint)"
   ]
 }
