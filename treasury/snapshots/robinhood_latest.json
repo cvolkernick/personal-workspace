@@ -1,6 +1,6 @@
 {
   "source": "live",
-  "as_of": "2026-08-25T01:41:42.269306+00:00",
+  "as_of": "2026-08-25T04:45:05.431100+00:00",
   "total_value": 0.094046,
   "equity_value": 0.0,
   "cash": 0.09,
@@ -14,9 +14,9 @@
   "positions": [],
   "agentic": {
     "source": "live",
-    "as_of": "2026-08-25T01:41:42.269302+00:00",
-    "total_value": 227.89707442,
-    "equity_value": 227.80707442,
+    "as_of": "2026-08-25T04:45:05.431096+00:00",
+    "total_value": 228.50324448,
+    "equity_value": 228.41324448,
     "cash": 0.09,
     "buying_power": 0.09,
     "unleveraged_buying_power": 0.09,
@@ -121,7 +121,7 @@
       {
         "symbol": "STRC",
         "quantity": "0.062240",
-        "intraday_quantity": "0.062240",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "96.400000",
         "shares_available_for_sells": "0.062240",
         "shares_held_for_sells": "0.000000",
@@ -134,7 +134,7 @@
       {
         "symbol": "SATA",
         "quantity": "0.050000",
-        "intraday_quantity": "0.050000",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "100.000000",
         "shares_available_for_sells": "0.050000",
         "shares_held_for_sells": "0.000000",
@@ -147,7 +147,7 @@
       {
         "symbol": "GOOGL",
         "quantity": "0.040399",
-        "intraday_quantity": "0.040399",
+        "intraday_quantity": "0.000000",
         "average_buy_price": "346.540000",
         "shares_available_for_sells": "0.040399",
         "shares_held_for_sells": "0.000000",
