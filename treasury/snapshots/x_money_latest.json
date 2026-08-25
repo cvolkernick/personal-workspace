@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-24T19:58:10.130620+00:00",
+  "as_of": "2026-08-25T13:43:33.264516+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -9,14 +9,14 @@
   "account_type": "checking",
   "direct_import_linked": true,
   "direct_import_in_error": false,
-  "balance_raw": -436.4,
+  "balance_raw": -535.35,
   "cash": 0.0,
   "available": 0.0,
-  "cleared_balance": -436.4,
+  "cleared_balance": -535.35,
   "uncleared_balance": 0.0,
-  "spend_30d": 4244.34,
-  "inflow_30d": 3756.31,
-  "transaction_count": 231,
+  "spend_30d": 4375.92,
+  "inflow_30d": 3799.07,
+  "transaction_count": 238,
   "transactions": [
     {
       "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -571,5 +571,5 @@
   ],
   "notes": "X Money via YNAB/Plaid. Plaid may label the account as 'Checking \u2013 ####'. Cash sleeve separate from RH Checking ACH float. Product pays ~6% APY on cash (see config ynab.x_money_apy_est).",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-26"
+  "since": "2026-05-27"
 }
