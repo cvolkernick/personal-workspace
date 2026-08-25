@@ -111,6 +111,10 @@
       stroke: var(--cash);
       stroke-width: 2;
     }
+    .node-box.liq-amber {
+      stroke: var(--credit);
+      stroke-width: 2;
+    }
     .node-box.credit { stroke: var(--credit); }
     .node-box.venue { stroke: var(--venue); }
     .node-box.invest { stroke: var(--invest); }
@@ -211,6 +215,7 @@
     .swatch-node.liq-gray { border-color: #7a8694; }
     .swatch-node.liq-blue { border-color: var(--venue); }
     .swatch-node.liq-green { border-color: var(--cash); }
+    .swatch-node.liq-amber { border-color: var(--credit); }
     .swatch-node.planned-brown {
       border-color: #a67c52;
       border-style: dashed;
@@ -249,7 +254,7 @@
 
     <section class="card">
       <h2>Flow map</h2>
-      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(X Money ↔ Digital Credit ↔ Margin)</em> → <strong>Deploy</strong>. Turo → X Money; Lyft → both X Money and Digital Credit; Digital Credit ↔ Margin. HY ↔ borrowing rotation lives inside each credit card.</p>
+      <p class="hint">Spine L→R: <strong>Income</strong> → <strong>Liquidity Engine</strong> <em>(X Money ↔ Digital Credit ↔ Margin ↔ JR-strcUSX)</em> → <strong>Deploy</strong>. Turo → X Money; Lyft → both X Money and Digital Credit; Digital Credit ↔ Margin; Margin ↔ JR-strcUSX. HY ↔ borrowing rotation lives inside each credit card. JR is DC-credit parlay, not HY.</p>
       <div class="flow-wrap">
         <svg class="flow-svg" id="flow-svg" viewBox="0 0 900 460" role="img" aria-label="Capital flow diagram"></svg>
       </div>
@@ -260,16 +265,17 @@
             <div class="leg-item"><span class="swatch-node liq-blue"></span><div><strong>Blue</strong><span class="desc"> — Digital Credit (Morpho · BTC · HY)</span></div></div>
             <div class="leg-item"><span class="swatch-node liq-gray"></span><div><strong>Gray</strong><span class="desc"> — X Money · Turo</span></div></div>
             <div class="leg-item"><span class="swatch-node liq-green"></span><div><strong>Green</strong><span class="desc"> — Margin (Agentic · stocks · HY)</span></div></div>
+            <div class="leg-item"><span class="swatch-node liq-amber"></span><div><strong>Amber</strong><span class="desc"> — JR-strcUSX (DC-credit parlay)</span></div></div>
             <div class="leg-item"><span class="swatch-node invest"></span><div><strong>Invest</strong><span class="desc"> — Deploy · Collateral</span></div></div>
             <div class="leg-item"><span class="swatch-node expense"></span><div><strong>Expense</strong><span class="desc"> — Deploy spend</span></div></div>
             <div class="leg-item"><span class="desc"><strong>Purple dashed</strong> — margin extract (not income)</span></div></div>
           </div>
         </div>
         <div>
-          <h3>Layout (v39 · X Money · Digital Credit ↔ Margin)</h3>
+          <h3>Layout (v40 · X Money · Digital Credit ↔ Margin ↔ JR-strcUSX)</h3>
           <div class="map-legend-grid">
-            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (X Money ↔ Digital Credit ↔ Margin) → <strong>Deploy</strong></span></div>
-            <div class="leg-item"><span class="desc">Turo → X Money · Lyft → X Money + Digital Credit · ASICs → Digital Credit. X Money ↔ Digital Credit; Digital Credit ↔ Margin. Deploy from X Money: Essential · Fleet · Collateral · Productive · Consumer.</span></div>
+            <div class="leg-item"><span class="desc"><strong>Income</strong> → <strong>LE</strong> (X Money ↔ Digital Credit ↔ Margin ↔ JR-strcUSX) → <strong>Deploy</strong></span></div>
+            <div class="leg-item"><span class="desc">Turo → X Money · Lyft → X Money + Digital Credit · ASICs → Digital Credit. X Money ↔ Digital Credit; Digital Credit ↔ Margin; Margin ↔ JR-strcUSX. Deploy from X Money: Essential · Fleet · Collateral · Productive · Consumer.</span></div>
           </div>
         </div>
       </div>
@@ -327,7 +333,7 @@
     }
 
     function layoutNodes(data) {
-      // Prefer model: Income → LE (X Money → Digital Credit → Margin) → Deploy
+      // Prefer model: Income → LE (X Money → Digital Credit → Margin → JR-strcUSX) → Deploy
       const layoutCols =
         (data.layout && data.layout.columns) ||
         [
@@ -339,7 +345,7 @@
           {
             id: "liquidity_engine",
             label: "Liquidity Engine",
-            ids: ["x_money", "digital_credit", "margin"],
+            ids: ["x_money", "digital_credit", "margin", "jr_strcusx"],
           },
           {
             id: "deploy",

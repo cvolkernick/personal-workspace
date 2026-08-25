@@ -77,6 +77,15 @@ class TestDashboardArtifact(unittest.TestCase):
         self.assertIn("lyft", ids)
         self.assertIn("turo", ids)
         self.assertIn("asics", ids)
+        ch_ids = [c["id"] for c in model["channels"]]
+        self.assertIn("jr_strcusx", ch_ids)
+        le = next(
+            c for c in model["layout"]["columns"] if c["id"] == "liquidity_engine"
+        )
+        self.assertEqual(le["ids"][-1], "jr_strcusx")
+        pairs = {(e["from"], e["to"]) for e in model["edges"]}
+        self.assertIn(("margin", "jr_strcusx"), pairs)
+        self.assertIn(("jr_strcusx", "margin"), pairs)
         self.assertGreater(len(model.get("edges") or []), 5)
 
 
