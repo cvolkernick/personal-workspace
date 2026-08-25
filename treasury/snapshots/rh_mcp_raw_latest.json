@@ -65,8 +65,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "230.376084841",
-      "equity_value": "230.286084841",
+      "total_value": "229.05243845",
+      "equity_value": "228.96243845",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -190,7 +190,7 @@
         {
           "symbol": "STRC",
           "quantity": "0.062240",
-          "intraday_quantity": "0.062240",
+          "intraday_quantity": "0.000000",
           "average_buy_price": "96.400000",
           "shares_available_for_sells": "0.062240",
           "shares_held_for_sells": "0.000000",
@@ -203,7 +203,7 @@
         {
           "symbol": "SATA",
           "quantity": "0.050000",
-          "intraday_quantity": "0.050000",
+          "intraday_quantity": "0.000000",
           "average_buy_price": "100.000000",
           "shares_available_for_sells": "0.050000",
           "shares_held_for_sells": "0.000000",
@@ -216,7 +216,7 @@
         {
           "symbol": "GOOGL",
           "quantity": "0.040399",
-          "intraday_quantity": "0.040399",
+          "intraday_quantity": "0.000000",
           "average_buy_price": "346.540000",
           "shares_available_for_sells": "0.040399",
           "shares_held_for_sells": "0.000000",
@@ -229,6 +229,5 @@
       ]
     },
     "guide": "Sellable shares: use shares_available_for_sells, not quantity. Yesterday's quantity = quantity - intraday_quantity. average_buy_price is the average cost per share shown in the Robinhood app (it already reflects partial sells) \u2014 use it as the user's average cost; it may be omitted for positions still reconciling. No market price here \u2014 for current value or PnL, call get_equity_quotes and multiply by quantity. Present symbol, quantity, average_buy_price, and type when not 'long'; suppress other fields unless asked."
-  },
-  "as_of": "2026-08-24T16:33:08Z"
+  }
 }

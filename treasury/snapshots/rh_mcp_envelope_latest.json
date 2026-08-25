@@ -7,7 +7,7 @@
       "account_number": "5QW39737",
       "rhs_account_number": "106397375",
       "rhc_account_number": "311250215027",
-      "type": "cash",
+      "type": "margin",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
       "is_default": true,
@@ -23,7 +23,7 @@
       "account_number": "674601752",
       "rhs_account_number": "674601752",
       "rhc_account_number": "311264401076",
-      "type": "cash",
+      "type": "limited_margin",
       "unsettled_funds": "0.0000",
       "brokerage_account_type": "individual",
       "nickname": "Agentic",
@@ -63,24 +63,24 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "228.0912711072",
-      "equity_value": "203.0012711072",
+      "total_value": "229.05243845",
+      "equity_value": "228.96243845",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
       "crypto_value": "0",
-      "cash": "25.09",
+      "cash": "0.09",
       "pending_deposits": "25",
       "mutual_funds_value": "0",
       "fixed_income_value": "0",
       "currency": "USD",
       "buying_power": {
-        "buying_power": "25.0900",
-        "unleveraged_buying_power": "25.0900",
+        "buying_power": "0.0900",
+        "unleveraged_buying_power": "0.0900",
         "display_currency": "USD"
       },
       "crypto_buying_power": {
-        "buying_power": "25.0900"
+        "buying_power": "0.0900"
       }
     },
     "guide": "Show total_value as \"account value\" or \"portfolio value\". The breakdown fields show how value is distributed across asset types. Zero-value fields mean the user has no holdings in that asset class \u2014 omit them from display unless the user explicitly asks. For \"how much cash do I have?\" use the cash field. buying_power is the real-time authoritative spendable figure from the broker; quote buying_power.buying_power as the primary affordability answer with buying_power.display_currency. For \"how much can I spend on crypto?\" quote crypto_buying_power.buying_power instead \u2014 crypto is cash-only (not marginable), so the top-level buying_power may overstate it; crypto_buying_power is omitted when unavailable. crypto_value reflects the user's crypto holdings value. On a cash account, recently sold proceeds that have not yet settled are not spendable and are not included in buying_power; that unsettled amount is reported as unsettled_funds by get_accounts (not here), so if you do not already have the account's unsettled_funds, call get_accounts to check it. Whenever you report buying power or account value for a type='cash' account whose unsettled_funds is greater than 0, inform the user those unsettled proceeds could be traded immediately with a limited-margin upgrade, and \u2014 if the get_limited_margin_upgrade_info tool is available \u2014 call it with the account_number and share the appropriate upgrade link. If that tool is not available, say nothing about limited margin (there is no fallback)."
@@ -171,6 +171,45 @@
       "intraday_quantity": "0.000000",
       "average_buy_price": "13.820000",
       "shares_available_for_sells": "0.361794",
+      "shares_held_for_sells": "0.000000",
+      "shares_held_for_stock_grants": "0.000000",
+      "shares_held_for_options_events": "0.000000",
+      "shares_held_for_asset_transfer": "0.000000",
+      "shares_pending_from_options_events": "0.000000",
+      "type": "long"
+    },
+    {
+      "symbol": "STRC",
+      "quantity": "0.062240",
+      "intraday_quantity": "0.000000",
+      "average_buy_price": "96.400000",
+      "shares_available_for_sells": "0.062240",
+      "shares_held_for_sells": "0.000000",
+      "shares_held_for_stock_grants": "0.000000",
+      "shares_held_for_options_events": "0.000000",
+      "shares_held_for_asset_transfer": "0.000000",
+      "shares_pending_from_options_events": "0.000000",
+      "type": "long"
+    },
+    {
+      "symbol": "SATA",
+      "quantity": "0.050000",
+      "intraday_quantity": "0.000000",
+      "average_buy_price": "100.000000",
+      "shares_available_for_sells": "0.050000",
+      "shares_held_for_sells": "0.000000",
+      "shares_held_for_stock_grants": "0.000000",
+      "shares_held_for_options_events": "0.000000",
+      "shares_held_for_asset_transfer": "0.000000",
+      "shares_pending_from_options_events": "0.000000",
+      "type": "long"
+    },
+    {
+      "symbol": "GOOGL",
+      "quantity": "0.040399",
+      "intraday_quantity": "0.000000",
+      "average_buy_price": "346.540000",
+      "shares_available_for_sells": "0.040399",
       "shares_held_for_sells": "0.000000",
       "shares_held_for_stock_grants": "0.000000",
       "shares_held_for_options_events": "0.000000",
