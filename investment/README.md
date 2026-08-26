@@ -47,6 +47,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 | **AI stack** | Infrastructure (hardware) through foundational models and app layers (software) | Broad AI exposure over time; not limited to “chips only” |
 | **Equity / growth (stocks sleeve)** | Non-BTC-primary growth names in the “60” | e.g. TSLA, SPCX |
 | **Energy** | Overarches BTC mining, AI infra, and hard-money macro | Watchlist (e.g. **BE** Bloom Energy); deep-dive before first buy |
+| **Space economy** | Launch + in-space infrastructure as a **stocks/growth lens**, not a basket | **Held core:** SPCX. **Watch:** **RKLB** (Neutron = the SpaceX-alternative bet). Not every space ticker. |
 
 ### Macro framing
 
@@ -55,6 +56,7 @@ Long **Bitcoin & hard money**, **AI**, and **digital credit**, with **energy** a
 - **Digital credit (STRC/SATA):** **Small bias inside the ~40% stack** toward a real STRC/SATA seat on deploys — BTC-fundamental high-yield / frequent-dividend credit, not cash. Owner 2026-08-04: yields roughly ~2× typical USDC/USDG cash, so prefer STRC/SATA over pure cash-like residual when deploying into the complex. Not “covered by MSTR+BITA” as a default skip; not 40% all-credit.
 - **Miners:** Diversify across multiple names (MARA, IREN, CLSK, RIOT, WULF, …). Multi-miner is intentional; do not reject for “overlap” alone.
 - **Energy** is the shared constraint (mining, AI power, electrification); opportunistic, not a mandatory line-item yet.
+- **Space:** SPCX is the core expression (already held). RKLB is watchlist optionality on a second launcher — deep-dive 2026-08-26; **not** a mandate to buy space names. Do not treat LUNR/PL/RDW/FLY as SpaceX competitors.
 
 ## Target structure — “modernized 60/40”
 

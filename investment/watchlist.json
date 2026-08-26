@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "as_of": "2026-08-24",
+  "as_of": "2026-08-26",
   "purpose": "Owner-interested equities the agentic fund manager must actively research and consider on systemic deploys \u2014 not auto-buy. Core allowlist remains preferred for default rebalances; strong theme bias still applies at size time.",
   "policy": {
     "auto_buy": false,
@@ -195,6 +195,29 @@
       "last_verdict": "ready_consider_behind_googl_nvda",
       "next_catalyst": "Next earnings est. ~2026-10-29 (unconfirmed); or material FCF/capex/AWS-growth shift",
       "notes": "Deep-dive 2026-08-24 closed owner-add homework. Q2'26 IR: sales $200.6B +20%; AWS $42.2B +37%; op. inc. $27.5B; NI $62.6B includes $53.4B Anthropic mark. Ready for consider set; not auto-buy. Behind held GOOGL and NVDA into 8/26 print for scarce residual. BP dust today."
+    },
+    {
+      "symbol": "RKLB",
+      "name": "Rocket Lab",
+      "theme": "space_economy",
+      "themes": [
+        "space_economy",
+        "launch",
+        "growth_equity",
+        "spacex_alternative"
+      ],
+      "sleeve_if_owned": "stocks_growth",
+      "status": "ready",
+      "priority": "high",
+      "thesis_fit": "Only public Western attempt at Falcon 9-class medium-lift (Neutron, unflown). Electron is operational small-lift; space systems + proposed Iridium deal copy the launch+constellation template. Fits new Space Northstar lens under ~60% stocks/growth as optionality vs already-held SPCX — not a substitute for SpaceX, not a space basket.",
+      "added": "2026-08-26",
+      "added_by": "owner",
+      "deep_dive_required_before_buy": true,
+      "last_deep_dive": "2026-08-26",
+      "last_deep_dive_path": "investment/research/RKLB_deep_dive.md",
+      "last_verdict": "ready_consider_no_size_until_neutron_and_free_capital",
+      "next_catalyst": "Neutron Flight 1 or official slip past Q1 2027; Iridium close/break (mid-2027); or >25% move from ~$66.91 (2026-08-25 close)",
+      "notes": "Owner-add via Grok #Orchestration 2026-08-26 (space-economy Northstar). Dive same day. Close $66.91 / ~$40B cap / TTM rev ~$769M / P/S ~50-59x. Neutron pad Q4 2026, year-end window narrowing. NSSL Lane 1 gated on Flight 1. Already hold SPCX core. Not auto-buy. No size while Neutron unflown + thin buffer. ASTS is the connectivity candidate — not added this pass."
     }
   ]
 }

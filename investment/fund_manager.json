@@ -239,14 +239,16 @@
         "GOOGL",
         "AAPL",
         "NVDA",
-        "PLTR"
+        "PLTR",
+        "RKLB"
       ],
       "themes": [
         "growth_equity",
         "ai_stack",
-        "energy_adjacent"
+        "energy_adjacent",
+        "space_economy"
       ],
-      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) via investment/watchlist.json \u2014 owner-add triggers auto deep-dive \u2192 ready for consider set each deploy; never auto-buy."
+      "notes": "Core: TSLA/SPCX. Watchlist AI/growth (GOOGL, AAPL, NVDA, PLTR) + space alternative RKLB via investment/watchlist.json \u2014 owner-add triggers auto deep-dive \u2192 ready for consider set each deploy; never auto-buy. SPCX is the space core; RKLB is Neutron optionality, not a substitute."
     },
     "energy_opportunistic": {
       "target_pct": null,
