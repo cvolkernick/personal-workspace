@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-26T05:08:29.510030+00:00",
+    "as_of": "2026-08-26T08:12:13.107198+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-25T19:48:31.998047+00:00",
@@ -3284,7 +3284,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-26T05:08:27.143029+00:00",
+      "as_of": "2026-08-26T08:12:12.983536+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3298,9 +3298,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-26T05:08:27.143025+00:00",
-        "total_value": 230.37853176,
-        "equity_value": 230.28853176,
+        "as_of": "2026-08-26T08:12:12.983532+00:00",
+        "total_value": 230.56881032,
+        "equity_value": 230.47881032,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3627,7 +3627,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 230.37853176,
+      "rh_agentic_total_value": 230.56881032,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 10,
@@ -3735,7 +3735,7 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-25T19:48:31.998047+00:00",
-        "robinhood_as_of": "2026-08-26T05:08:27.143029+00:00",
+        "robinhood_as_of": "2026-08-26T08:12:12.983536+00:00",
         "one_card_as_of": "2026-08-25T19:48:32.598491+00:00",
         "rh_checking_as_of": "2026-08-25T19:48:32.847300+00:00",
         "x_money_as_of": "2026-08-25T19:48:33.160793+00:00",
@@ -3743,20 +3743,20 @@
         "expenses_as_of": "2026-08-25T19:48:37.041342+00:00"
       },
       "stale": [
-        "coinbase data 9.3h old (>6.0h)",
-        "one_card data 9.3h old (>6.0h)",
-        "rh_checking data 9.3h old (>6.0h)",
-        "x_money data 9.3h old (>6.0h)",
-        "solana data 9.3h old (>6.0h)",
-        "expenses data 9.3h old (>6.0h)"
+        "coinbase data 12.4h old (>6.0h)",
+        "one_card data 12.4h old (>6.0h)",
+        "rh_checking data 12.4h old (>6.0h)",
+        "x_money data 12.4h old (>6.0h)",
+        "solana data 12.4h old (>6.0h)",
+        "expenses data 12.4h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 9.3h old (>6.0h)",
-        "one_card data 9.3h old (>6.0h)",
-        "rh_checking data 9.3h old (>6.0h)",
-        "x_money data 9.3h old (>6.0h)",
-        "solana data 9.3h old (>6.0h)",
-        "expenses data 9.3h old (>6.0h)"
+        "coinbase data 12.4h old (>6.0h)",
+        "one_card data 12.4h old (>6.0h)",
+        "rh_checking data 12.4h old (>6.0h)",
+        "x_money data 12.4h old (>6.0h)",
+        "solana data 12.4h old (>6.0h)",
+        "expenses data 12.4h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -4081,25 +4081,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-26T05:08:29.519642+00:00",
+      "as_of": "2026-08-26T08:12:13.112253+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-26T05:08:29.512162+00:00",
+        "as_of": "2026-08-26T08:12:13.109242+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 230.3785,
+        "nav_usd": 230.5688,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 199.7289,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3517,
-          "stocks_growth": 0.5152,
+          "btc_digital_credit": 0.3514,
+          "stocks_growth": 0.5148,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -4206,7 +4206,7 @@
           "path": "investment/watchlist.json",
           "auto_buy": false,
           "deep_dive_workflow": "position-deep-dive",
-          "count": 7,
+          "count": 8,
           "symbols": [
             "BE",
             "GOOGL",
@@ -4214,7 +4214,8 @@
             "NVDA",
             "PLTR",
             "EVGO",
-            "AMZN"
+            "AMZN",
+            "RKLB"
           ],
           "entries": [
             {
@@ -4300,6 +4301,18 @@
               "last_deep_dive": "2026-08-24",
               "held": false,
               "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist. AWS/AI operating story is real; GAAP EPS distorted by Anthropic mark; TTM FCF negative on AI capex. Second hyperscaler vs already-held GOOGL \u2014 not the first AI dollar."
+            },
+            {
+              "symbol": "RKLB",
+              "name": "Rocket Lab",
+              "theme": "space_economy",
+              "status": "ready",
+              "priority": "high",
+              "sleeve_if_owned": "stocks_growth",
+              "deep_dive_required_before_buy": true,
+              "last_deep_dive": "2026-08-26",
+              "held": false,
+              "thesis_fit": "Only public Western attempt at Falcon 9-class medium-lift (Neutron, unflown). Electron is operational small-lift; space systems + proposed Iridium deal copy the launch+constellation template. Fits new Space Northstar lens under ~60% stocks/growth as optionality vs already-held SPCX \u2014 not a substitute for SpaceX, not a space basket."
             }
           ],
           "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -4386,7 +4399,7 @@
         },
         "manager_hints": [
           "Deployed mix within target bands \u2014 discretionary alpha only.",
-          "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN \u2014 deep-dive via /position-deep-dive before first buy when required.",
+          "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB \u2014 deep-dive via /position-deep-dive before first buy when required.",
           "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
         ],
         "fair_game": true,
@@ -5870,25 +5883,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-26T05:08:29.519642+00:00",
+    "as_of": "2026-08-26T08:12:13.112253+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-26T05:08:29.512162+00:00",
+      "as_of": "2026-08-26T08:12:13.109242+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 230.3785,
+      "nav_usd": 230.5688,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 199.7289,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3517,
-        "stocks_growth": 0.5152,
+        "btc_digital_credit": 0.3514,
+        "stocks_growth": 0.5148,
         "other": 0.0,
         "cash": 0.0004
       },
@@ -5995,7 +6008,7 @@
         "path": "investment/watchlist.json",
         "auto_buy": false,
         "deep_dive_workflow": "position-deep-dive",
-        "count": 7,
+        "count": 8,
         "symbols": [
           "BE",
           "GOOGL",
@@ -6003,7 +6016,8 @@
           "NVDA",
           "PLTR",
           "EVGO",
-          "AMZN"
+          "AMZN",
+          "RKLB"
         ],
         "entries": [
           {
@@ -6089,6 +6103,18 @@
             "last_deep_dive": "2026-08-24",
             "held": false,
             "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist. AWS/AI operating story is real; GAAP EPS distorted by Anthropic mark; TTM FCF negative on AI capex. Second hyperscaler vs already-held GOOGL \u2014 not the first AI dollar."
+          },
+          {
+            "symbol": "RKLB",
+            "name": "Rocket Lab",
+            "theme": "space_economy",
+            "status": "ready",
+            "priority": "high",
+            "sleeve_if_owned": "stocks_growth",
+            "deep_dive_required_before_buy": true,
+            "last_deep_dive": "2026-08-26",
+            "held": false,
+            "thesis_fit": "Only public Western attempt at Falcon 9-class medium-lift (Neutron, unflown). Electron is operational small-lift; space systems + proposed Iridium deal copy the launch+constellation template. Fits new Space Northstar lens under ~60% stocks/growth as optionality vs already-held SPCX \u2014 not a substitute for SpaceX, not a space basket."
           }
         ],
         "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -6175,7 +6201,7 @@
       },
       "manager_hints": [
         "Deployed mix within target bands \u2014 discretionary alpha only.",
-        "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN \u2014 deep-dive via /position-deep-dive before first buy when required.",
+        "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB \u2014 deep-dive via /position-deep-dive before first buy when required.",
         "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
       ],
       "fair_game": true,

@@ -1,24 +1,24 @@
 {
   "ok": true,
-  "as_of": "2026-08-26T05:08:29.519642+00:00",
+  "as_of": "2026-08-26T08:12:13.112253+00:00",
   "agentic_account_number": "674601752",
   "policy_path": "investment/fund_manager.json",
   "analysis": {
     "ok": true,
-    "as_of": "2026-08-26T05:08:29.512162+00:00",
+    "as_of": "2026-08-26T08:12:13.109242+00:00",
     "policy_version": 1,
     "mode": "active",
     "account_last4": "1752",
     "account_number": "674601752",
     "agentic_allowed": true,
-    "nav_usd": 230.3785,
+    "nav_usd": 230.5688,
     "cash_usd": 0.09,
     "buying_power_usd": 0.09,
     "pending_deposits_usd": null,
     "equity_market_value_usd": 199.7289,
     "weights_of_nav": {
-      "btc_digital_credit": 0.3517,
-      "stocks_growth": 0.5152,
+      "btc_digital_credit": 0.3514,
+      "stocks_growth": 0.5148,
       "other": 0.0,
       "cash": 0.0004
     },
@@ -125,7 +125,7 @@
       "path": "investment/watchlist.json",
       "auto_buy": false,
       "deep_dive_workflow": "position-deep-dive",
-      "count": 7,
+      "count": 8,
       "symbols": [
         "BE",
         "GOOGL",
@@ -133,7 +133,8 @@
         "NVDA",
         "PLTR",
         "EVGO",
-        "AMZN"
+        "AMZN",
+        "RKLB"
       ],
       "entries": [
         {
@@ -219,6 +220,18 @@
           "last_deep_dive": "2026-08-24",
           "held": false,
           "thesis_fit": "Liquid mega-cap AWS + retail + ads under ~60% stocks/growth; not on agentic core allowlist. AWS/AI operating story is real; GAAP EPS distorted by Anthropic mark; TTM FCF negative on AI capex. Second hyperscaler vs already-held GOOGL \u2014 not the first AI dollar."
+        },
+        {
+          "symbol": "RKLB",
+          "name": "Rocket Lab",
+          "theme": "space_economy",
+          "status": "ready",
+          "priority": "high",
+          "sleeve_if_owned": "stocks_growth",
+          "deep_dive_required_before_buy": true,
+          "last_deep_dive": "2026-08-26",
+          "held": false,
+          "thesis_fit": "Only public Western attempt at Falcon 9-class medium-lift (Neutron, unflown). Electron is operational small-lift; space systems + proposed Iridium deal copy the launch+constellation template. Fits new Space Northstar lens under ~60% stocks/growth as optionality vs already-held SPCX \u2014 not a substitute for SpaceX, not a space basket."
         }
       ],
       "on_review": "Scout/Thesis MUST include every status=ready watchlist name in the consider set each allocation assessment (alongside held + unheld core). Reject with reasons if not sized. Prefer core allowlist for routine rebalance when relative value favors it; strong theme bias. Owner-added names must not stall on monitor without a dive. Agents may PROPOSE new names (start as monitor \u2192 auto-queue dive \u2192 ready). Never auto-buy."
@@ -305,7 +318,7 @@
     },
     "manager_hints": [
       "Deployed mix within target bands \u2014 discretionary alpha only.",
-      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN \u2014 deep-dive via /position-deep-dive before first buy when required.",
+      "Watchlist candidates (not auto-buy): BE, AAPL, NVDA, PLTR, EVGO, AMZN, RKLB \u2014 deep-dive via /position-deep-dive before first buy when required.",
       "Private companies on IPO/list monitor (not deployable): ANDURIL, SARONIC, BOOM \u2014 promote to public watchlist only after a live ticker."
     ],
     "fair_game": true,
