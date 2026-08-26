@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-25T19:48:37.041342+00:00",
+  "as_of": "2026-08-26T14:04:22.647421+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -43,19 +43,6 @@
           "annually": 24000.0,
           "budget_allocation": null,
           "quarterly": 6000.0,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Card",
-          "daily": 0.79,
-          "weekly": 5.52,
-          "biweekly": 11.05,
-          "monthly": 24.0,
-          "annually": 288.0,
-          "budget_allocation": null,
-          "quarterly": 72.0,
           "tab": "Essential"
         },
         {
@@ -251,6 +238,19 @@
           "annually": 179.88,
           "budget_allocation": null,
           "quarterly": 44.97,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Card",
+          "daily": 0.79,
+          "weekly": 5.52,
+          "biweekly": 11.05,
+          "monthly": 24.0,
+          "annually": 288.0,
+          "budget_allocation": null,
+          "quarterly": 72.0,
           "tab": "Essential"
         },
         {
@@ -1227,19 +1227,6 @@
           "tab": "Essential"
         },
         {
-          "date": "9/24/2026",
-          "from": "Coinbase",
-          "item": "Coinbase One Card",
-          "daily": 0.79,
-          "weekly": 5.52,
-          "biweekly": 11.05,
-          "monthly": 24.0,
-          "annually": 288.0,
-          "budget_allocation": null,
-          "quarterly": 72.0,
-          "tab": "Essential"
-        },
-        {
           "date": "8/31/2026",
           "from": "X Money",
           "item": "Dog Food",
@@ -1432,6 +1419,19 @@
           "annually": 179.88,
           "budget_allocation": null,
           "quarterly": 44.97,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/24/2026",
+          "from": "Coinbase",
+          "item": "Coinbase One Card",
+          "daily": 0.79,
+          "weekly": 5.52,
+          "biweekly": 11.05,
+          "monthly": 24.0,
+          "annually": 288.0,
+          "budget_allocation": null,
+          "quarterly": 72.0,
           "tab": "Essential"
         },
         {

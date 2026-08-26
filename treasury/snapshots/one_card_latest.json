@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-25T19:48:32.598491+00:00",
+  "as_of": "2026-08-26T14:04:17.583214+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -17,7 +17,7 @@
   "cleared_balance": -470.36,
   "uncleared_balance": 0.0,
   "spend_30d": 58.72,
-  "payments_30d": 117.59,
+  "payments_30d": 87.59,
   "transaction_count": 55,
   "transactions": [
     {
@@ -573,5 +573,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-27"
+  "since": "2026-05-28"
 }
