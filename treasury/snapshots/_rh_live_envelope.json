@@ -63,8 +63,8 @@
   },
   "agentic_portfolio": {
     "data": {
-      "total_value": "230.376084841",
-      "equity_value": "230.286084841",
+      "total_value": "229.87726242",
+      "equity_value": "229.78726242",
       "options_value": "0",
       "futures_value": "0",
       "event_contracts_value": "0",
@@ -181,7 +181,7 @@
     {
       "symbol": "STRC",
       "quantity": "0.062240",
-      "intraday_quantity": "0.062240",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "96.400000",
       "shares_available_for_sells": "0.062240",
       "shares_held_for_sells": "0.000000",
@@ -194,7 +194,7 @@
     {
       "symbol": "SATA",
       "quantity": "0.050000",
-      "intraday_quantity": "0.050000",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "100.000000",
       "shares_available_for_sells": "0.050000",
       "shares_held_for_sells": "0.000000",
@@ -207,7 +207,7 @@
     {
       "symbol": "GOOGL",
       "quantity": "0.040399",
-      "intraday_quantity": "0.040399",
+      "intraday_quantity": "0.000000",
       "average_buy_price": "346.540000",
       "shares_available_for_sells": "0.040399",
       "shares_held_for_sells": "0.000000",
