@@ -9,6 +9,11 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import shutil
+import subprocess
+import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
@@ -20,6 +25,38 @@ DEFAULT_MODEL = os.environ.get("XAI_MODEL", "grok-4-1-fast-non-reasoning")
 AUTH_PATH = Path.home() / ".grok" / "auth.json"
 MAX_CONTEXT_CHARS = int(os.environ.get("FCC_ASK_MAX_CONTEXT_CHARS", "32000"))
 REQUEST_TIMEOUT = int(os.environ.get("FCC_ASK_TIMEOUT_SEC", "90"))
+GROK_LOGIN_TIMEOUT_SEC = int(os.environ.get("FCC_GROK_LOGIN_TIMEOUT_SEC", "480"))
+_GROK_LOGIN_PUBLIC_KEYS = (
+    "ok",
+    "started",
+    "already",
+    "phase",
+    "method",
+    "verification_uri",
+    "user_code",
+    "error",
+    "auth_ok",
+    "auth_source",
+    "expired",
+)
+_URI_RE = re.compile(r"https://[^\s>'\"\\]+")
+_CODE_LABEL_RE = re.compile(
+    r"(?:user[_\s-]?code|enter(?:\s+the)?\s+code|code)\s*[:=]\s*([A-Z0-9][A-Z0-9-]{3,24})",
+    re.I,
+)
+_CODE_BARE_RE = re.compile(r"\b([A-Z0-9]{4}-[A-Z0-9]{4})\b")
+_SECRET_LINE_RE = re.compile(
+    r"(?i)(access_token|refresh_token|id_token|client_secret|client_id|"
+    r"authorization:\s*bearer|device_code)\s*[:=]\s*\S+"
+)
+_login_lock = threading.Lock()
+_login_proc: subprocess.Popen[str] | None = None
+_login_output: list[str] = []
+_login_started_at: float | None = None
+_login_phase: str = "idle"
+_login_error: str | None = None
+_login_uri: str | None = None
+_login_user_code: str | None = None
 
 SYSTEM_PROMPT = """You are the Financial Advisor for the user's Financial Command Center (FCC).
 
@@ -151,6 +188,234 @@ def auth_status() -> dict[str, Any]:
         "error": creds.get("error"),
         "suggestions": list(ADVISOR_SUGGESTIONS),
     }
+
+
+def _which_grok() -> str | None:
+    override = (os.environ.get("FCC_GROK_BIN") or "").strip()
+    if override:
+        p = Path(override)
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    found = shutil.which("grok")
+    if found:
+        return found
+    for p in (
+        Path.home() / ".local" / "bin" / "grok",
+        Path("/opt/homebrew/bin/grok"),
+        Path("/usr/local/bin/grok"),
+    ):
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    return None
+
+
+def _redact_secrets(line: str) -> str:
+    text = (line or "").replace("\x00", "")
+    return _SECRET_LINE_RE.sub(r"\1=<redacted>", text)[:400]
+
+
+def _https_uri(raw: str | None) -> str | None:
+    uri = (raw or "").strip().rstrip(").,]>\"'")
+    if not uri.startswith("https://"):
+        return None
+    if any(tok in uri.lower() for tok in ("access_token", "refresh_token", "id_token")):
+        return None
+    return uri[:300]
+
+
+def parse_grok_login_output(blob: str) -> dict[str, str | None]:
+    """Pull public device-auth fields from grok CLI text. Never tokens."""
+    uri = None
+    for match in _URI_RE.finditer(blob or ""):
+        candidate = _https_uri(match.group(0))
+        if candidate:
+            uri = candidate
+            if any(n in candidate for n in ("auth.x.ai", "accounts.x.ai", "activate", "device")):
+                break
+    code = None
+    labeled = _CODE_LABEL_RE.search(blob or "")
+    if labeled:
+        code = labeled.group(1).strip().rstrip(").,")
+    if not code:
+        bare = _CODE_BARE_RE.search(blob or "")
+        if bare:
+            code = bare.group(1)
+    if code and len(code) > 32:
+        code = None
+    return {"verification_uri": uri, "user_code": code}
+
+
+def _public_login_view(*, started: bool = False, already: bool = False) -> dict[str, Any]:
+    auth = auth_status()
+    phase = _login_phase
+    out = {
+        "ok": phase == "ok",
+        "started": started or phase in ("starting", "pending"),
+        "already": already,
+        "phase": phase,
+        "method": "grok_cli",
+        "verification_uri": _https_uri(_login_uri),
+        "user_code": _login_user_code,
+        "error": _login_error,
+        "auth_ok": bool(auth.get("ok")),
+        "auth_source": auth.get("source"),
+        "expired": bool(auth.get("expired")),
+    }
+    return {k: out.get(k) for k in _GROK_LOGIN_PUBLIC_KEYS}
+
+
+def reset_grok_login_state(*, kill: bool = True) -> None:
+    """Test/helper: drop in-flight grok login state."""
+    global _login_proc, _login_started_at, _login_phase, _login_error
+    global _login_uri, _login_user_code
+    with _login_lock:
+        proc = _login_proc
+        if kill and proc is not None and proc.poll() is None:
+            try:
+                proc.terminate()
+                proc.wait(timeout=2)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+        _login_proc = None
+        _login_output.clear()
+        _login_started_at = None
+        _login_phase = "idle"
+        _login_error = None
+        _login_uri = None
+        _login_user_code = None
+
+
+def _refresh_login_from_output_locked() -> None:
+    global _login_uri, _login_user_code
+    parsed = parse_grok_login_output("\n".join(_login_output))
+    if parsed.get("verification_uri"):
+        _login_uri = parsed["verification_uri"]
+    if parsed.get("user_code"):
+        _login_user_code = parsed["user_code"]
+    if _login_phase == "starting" and (_login_uri or _login_user_code):
+        _login_phase_set_pending()
+
+
+def _login_phase_set_pending() -> None:
+    global _login_phase
+    if _login_phase in ("starting", "idle"):
+        _login_phase = "pending"
+
+
+def _pump_grok_login(proc: subprocess.Popen[str]) -> None:
+    global _login_phase, _login_error, _login_proc
+    try:
+        stdout = proc.stdout
+        if stdout is not None:
+            for raw in stdout:
+                line = _redact_secrets(raw.rstrip("\n"))
+                with _login_lock:
+                    _login_output.append(line)
+                    if len(_login_output) > 80:
+                        del _login_output[:20]
+                    _refresh_login_from_output_locked()
+        code = proc.wait(timeout=GROK_LOGIN_TIMEOUT_SEC)
+        with _login_lock:
+            if code == 0:
+                _login_phase = "ok"
+                _login_error = None
+            else:
+                _login_phase = "fail"
+                tail = " ".join(_login_output[-4:]).strip()
+                _login_error = (
+                    _redact_secrets(tail)[:220]
+                    if tail
+                    else f"grok login exited {code}"
+                )
+    except subprocess.TimeoutExpired:
+        with _login_lock:
+            _login_phase = "fail"
+            _login_error = "Grok login timed out"
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    except Exception as exc:
+        with _login_lock:
+            _login_phase = "fail"
+            _login_error = _redact_secrets(str(exc))[:220]
+    finally:
+        with _login_lock:
+            if _login_proc is proc:
+                _login_proc = None
+
+
+def start_grok_login() -> dict[str, Any]:
+    """Start the existing `grok login --device-auth` CLI. Public fields only."""
+    global _login_proc, _login_started_at, _login_phase, _login_error
+    global _login_uri, _login_user_code
+    with _login_lock:
+        proc = _login_proc
+        if proc is not None and proc.poll() is None:
+            _refresh_login_from_output_locked()
+            return _public_login_view(started=True, already=True)
+        grok = _which_grok()
+        if not grok:
+            _login_phase = "fail"
+            _login_error = "grok CLI not found"
+            _login_uri = None
+            _login_user_code = None
+            return _public_login_view(started=False)
+        _login_output.clear()
+        _login_uri = None
+        _login_user_code = None
+        _login_error = None
+        _login_phase = "starting"
+        _login_started_at = time.time()
+        try:
+            spawned = subprocess.Popen(
+                [grok, "login", "--device-auth"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+        except OSError as exc:
+            _login_phase = "fail"
+            _login_error = _redact_secrets(str(exc))[:220]
+            return _public_login_view(started=False)
+        _login_proc = spawned
+        threading.Thread(
+            target=_pump_grok_login,
+            args=(spawned,),
+            daemon=True,
+            name="fcc-grok-login",
+        ).start()
+    time.sleep(0.25)
+    with _login_lock:
+        _refresh_login_from_output_locked()
+        return _public_login_view(started=_login_phase in ("starting", "pending", "ok"))
+
+
+def grok_login_status() -> dict[str, Any]:
+    """Public snapshot of in-flight or last grok CLI login."""
+    with _login_lock:
+        proc = _login_proc
+        if proc is not None and proc.poll() is None:
+            if (
+                _login_started_at
+                and time.time() - _login_started_at > GROK_LOGIN_TIMEOUT_SEC
+            ):
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                _login_phase = "fail"
+                _login_error = "Grok login timed out"
+            else:
+                _refresh_login_from_output_locked()
+        return _public_login_view(
+            started=_login_phase in ("starting", "pending"),
+            already=_login_phase in ("starting", "pending"),
+        )
 
 
 def _slim_actions(actions: list, limit: int = 8) -> list[dict[str, Any]]:

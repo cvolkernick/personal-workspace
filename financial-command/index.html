@@ -760,6 +760,37 @@
       color: var(--muted);
       font-size: 0.75rem;
     }
+    button.grok-login,
+    .grok-login {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font: inherit;
+      font-size: inherit;
+      font-weight: 500;
+      padding: 0;
+      margin: 0;
+      border-radius: 0;
+      display: inline;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      cursor: pointer;
+    }
+    button.grok-login:hover,
+    .grok-login:hover {
+      color: var(--accent);
+      filter: none;
+    }
+    button.grok-login:disabled {
+      opacity: 0.65;
+      cursor: wait;
+    }
+    .grok-login-status {
+      color: var(--muted);
+      font-size: inherit;
+    }
+    .grok-login-status.fail { color: var(--yellow); }
+    .grok-login-status.ok { color: var(--green); }
     a { color: var(--accent); }
     .hidden { display: none !important; }
 
@@ -2312,6 +2343,11 @@
 
         <div class="hint" style="margin-top:1rem">Stress detail</div>
         <div id="stress-grid"></div>
+
+        <p class="hint" id="grok-login-settings-row" style="margin-top:1rem">
+          <button type="button" class="grok-login" id="btn-grok-login-settings" title="Refresh SuperGrok session">Grok login</button>
+          <span class="grok-login-status" data-grok-login-status></span>
+        </p>
       </div>
     </details>
   </main>
@@ -2323,6 +2359,9 @@
     <a href="interest-spectrum.html">Interest Spectrum</a> ·
     <a href="../investment/treasury-action-items.md">action items</a> ·
     <a href="../research/coinbase-automation-feasibility.md">API feasibility</a>
+    ·
+    <button type="button" class="grok-login" id="btn-grok-login" title="Refresh SuperGrok session">Grok login</button>
+    <span class="grok-login-status" id="grok-login-status" data-grok-login-status hidden></span>
   </footer>
 
   <script>
@@ -5227,6 +5266,108 @@
     }
     renderAdvisorChips(DEFAULT_ADVISOR_CHIPS);
     loadAdvisorStatus();
+
+    function setGrokLoginBusy(busy) {
+      document.querySelectorAll(".grok-login").forEach((btn) => {
+        btn.disabled = !!busy;
+      });
+    }
+
+    function setGrokLoginNote(data) {
+      const nodes = document.querySelectorAll("[data-grok-login-status]");
+      if (!nodes.length) return;
+      const phase = (data && data.phase) || "";
+      const err = (data && data.error) || "";
+      nodes.forEach((el) => {
+        el.hidden = false;
+        el.classList.remove("ok", "fail");
+        el.textContent = "";
+        if (phase === "ok") {
+          el.classList.add("ok");
+          el.textContent = "Grok login ok";
+          return;
+        }
+        if (phase === "fail") {
+          el.classList.add("fail");
+          el.textContent = "Grok login failed" + (err ? " — " + err : "");
+          return;
+        }
+        if (phase === "pending" || phase === "starting") {
+          const code = data.user_code || "";
+          const uri = data.verification_uri || "";
+          if (code && /^https:\/\//i.test(uri)) {
+            el.append("Approve Grok login · code ");
+            const strong = document.createElement("strong");
+            strong.textContent = code;
+            el.append(strong);
+            el.append(" at ");
+            const a = document.createElement("a");
+            a.href = uri;
+            a.target = "_blank";
+            a.rel = "noopener noreferrer";
+            a.textContent = "xAI";
+            el.append(a);
+            return;
+          }
+          el.textContent = code
+            ? "Approve Grok login · code " + code
+            : "Starting Grok login…";
+          return;
+        }
+        el.hidden = true;
+      });
+    }
+
+    async function pollGrokLogin(first) {
+      let data = first || {};
+      for (let i = 0; i < 90; i++) {
+        if (data.phase === "ok") {
+          setGrokLoginNote(data);
+          loadAdvisorStatus();
+          return;
+        }
+        if (data.phase === "fail") {
+          setGrokLoginNote(data);
+          loadAdvisorStatus();
+          return;
+        }
+        setGrokLoginNote(data);
+        await new Promise((r) => setTimeout(r, 2000));
+        const res = await fetch("/api/ask/login?ts=" + Date.now());
+        data = await res.json().catch(() => ({ phase: "fail", error: "status unreadable" }));
+      }
+      setGrokLoginNote({ phase: "fail", error: "timed out waiting for Grok login" });
+    }
+
+    async function grokLoginRefresh() {
+      setGrokLoginBusy(true);
+      setGrokLoginNote({ phase: "starting" });
+      try {
+        const res = await fetch("/api/ask/login", { method: "POST" });
+        const data = await res.json().catch(() => ({}));
+        if (!data || (!data.started && data.phase !== "ok" && data.phase !== "pending")) {
+          setGrokLoginNote({
+            phase: "fail",
+            error: data.error || "HTTP " + res.status,
+          });
+          loadAdvisorStatus();
+          return;
+        }
+        await pollGrokLogin(data);
+      } catch (e) {
+        setGrokLoginNote({
+          phase: "fail",
+          error: e.message || "Grok login failed",
+        });
+        loadAdvisorStatus();
+      } finally {
+        setGrokLoginBusy(false);
+      }
+    }
+
+    document.querySelectorAll(".grok-login").forEach((btn) => {
+      btn.addEventListener("click", grokLoginRefresh);
+    });
 
     /** Tab shell on all viewports (web top strip / phone bottom bar). */
     const FCC_MOBILE_MQ = "(max-width: 720px)";
