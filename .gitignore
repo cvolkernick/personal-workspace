@@ -52,6 +52,11 @@ dashboard/branches.txt
 resistance-dashboard/.env
 resistance-dashboard/.env.local
 
+# Coinbase CDP key — prism only, never commit
+**/.config/coinbase/
+**/cdp-api-key.json
+treasury/snapshots/coinbase_usdc_sends.json
+
 # Full Grok session archives must never land in this repo (use ~/Backups/)
 Backups/
 **/grok-sessions-*.tar.gz
