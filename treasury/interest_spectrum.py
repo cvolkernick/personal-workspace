@@ -790,6 +790,17 @@ def _first_apy_hit(
     return None, None
 
 
+def _jr_row_has_apy(row: Any) -> bool:
+    """True when a Solstice sidecar / snapshot row already has a live fraction."""
+    if not isinstance(row, dict):
+        return False
+    for key in ("jr_strcusx_apy", "solstice_apy", "strcusx_apy", "apy", "apy_est"):
+        n = _as_float(row.get(key))
+        if n is not None and n >= 0:
+            return True
+    return False
+
+
 def _jr_live_rate_pct(ctx: Dict[str, Any]) -> tuple[Optional[float], Optional[str]]:
     """JR books APY is always a 0+ fraction (epoch can exceed 100% → fraction > 1)."""
     for path in JR_LIVE_APY_PATHS:
@@ -958,9 +969,15 @@ def build_interest_spectrum(
     config: Optional[Dict[str, Any]] = None,
     x_money: Optional[Dict[str, Any]] = None,
     solana: Optional[Dict[str, Any]] = None,
+    solstice_jr: Optional[Dict[str, Any]] = None,
     stub: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Assemble APR/APY chips on a shared 0→~30% two-lane axis."""
+    # Disk path (FCC /api/interest-spectrum) must read solstice_jr_latest.json.
+    # treasury_latest.json often omits snapshot.solstice_jr (offline FCC +
+    # work/treasury auto-save). Tests pass an explicit treasury dict and must
+    # not pick up a machine-local sidecar.
+    treasury_from_disk = not isinstance(treasury, dict)
     treasury = treasury if isinstance(treasury, dict) else _load_json(
         TREASURY_FCC if TREASURY_FCC.is_file() else TREASURY_SNAP
     )
@@ -981,8 +998,13 @@ def build_interest_spectrum(
     usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
     snap_mb = (treasury.get("snapshot") or {}).get("morpho_borrow")
     morpho_borrow = snap_mb if isinstance(snap_mb, dict) else {}
-    snap_sj = (treasury.get("snapshot") or {}).get("solstice_jr")
-    solstice_jr = snap_sj if isinstance(snap_sj, dict) else {}
+    if not isinstance(solstice_jr, dict):
+        snap_sj = (treasury.get("snapshot") or {}).get("solstice_jr")
+        solstice_jr = snap_sj if isinstance(snap_sj, dict) else {}
+        if treasury_from_disk and not _jr_row_has_apy(solstice_jr):
+            sidecar = _load_json(SOLSTICE_JR_SNAPSHOT)
+            if _jr_row_has_apy(sidecar):
+                solstice_jr = sidecar
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
