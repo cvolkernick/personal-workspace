@@ -101,7 +101,7 @@
       '<span class="sb-fill-wrap hbb-fill-wrap">' +
       '<span class="' +
       fillClass +
-      '" style="height:' +
+      '" style="width:' +
       fillPct +
       '%"></span>' +
       '<span class="sb-label hbb-label"><span class="sb-big">' +
