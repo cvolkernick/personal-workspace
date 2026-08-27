@@ -17,6 +17,7 @@ from treasury.coinbase_usdc_sends import (  # noqa: E402
     PRISM_KEY_PATH,
     RENT_DEST_EMAIL,
     RENT_DEST_FINGERPRINTS,
+    THAIS_EXCLUDED_SEND_IDS,
     actual_for_item,
     collect_usdc_sends,
     is_usdc_send,
@@ -228,6 +229,51 @@ class TestSendFilter(unittest.TestCase):
         self.assertEqual(pending_only, [])
         self.assertAlmostEqual(
             actual_for_item([pending], item_name="August Rent", month=date(2026, 8, 27)),
+            0.0,
+        )
+
+    def test_smoke_proof_id_is_not_thais_actual(self) -> None:
+        smoke_id = "baa3976e-3304-53f7-b168-e35f16325653"
+        self.assertIn(smoke_id, THAIS_EXCLUDED_SEND_IDS)
+        smoke = _send(
+            id=smoke_id,
+            created_at="2026-08-27T16:00:00Z",
+            amount={"amount": "-1.239144", "currency": "USDC"},
+            to={"resource": "address"},
+            description="Thais proof",
+        )
+        monthly = _send(id="aug10-thais-895")
+        self.assertFalse(matches_thais(smoke))
+        self.assertTrue(matches_thais(monthly))
+        book = collect_usdc_sends(
+            {
+                "transactions": [
+                    smoke,
+                    monthly,
+                    _send(
+                        id="aug27-rent-email-25",
+                        created_at="2026-08-27T12:00:00Z",
+                        description="",
+                        to={"resource": "email", "email": "nvolkern@gmail.com"},
+                        amount={"amount": "-25.00", "currency": "USDC"},
+                    ),
+                ]
+            }
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
+            895.0,
+        )
+        self.assertNotAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
+            896.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="August Rent", month=date(2026, 8, 27)),
+            25.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="April Rent", month=date(2026, 8, 27)),
             0.0,
         )
 

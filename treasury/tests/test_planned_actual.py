@@ -854,6 +854,15 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                     "to": {"resource": "address"},
                     "description": "Thaís",
                 },
+                {
+                    "id": "baa3976e-3304-53f7-b168-e35f16325653",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-27T16:00:00Z",
+                    "amount": {"amount": "-1.239144", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thais proof",
+                },
             ],
         }
         strip = build_planned_actual_strip(snaps, _ac_map(), as_of="2026-08-27")
@@ -866,6 +875,8 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
         self.assertAlmostEqual(thais["planned"], 900.0)
         self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertNotAlmostEqual(thais["actual"], 896.239144)
+        self.assertNotAlmostEqual(thais["planned"], 30.0 * 31)
         self.assertEqual(thais["flag"], FLAG_ON)
         self.assertFalse(strip["coach_wired"])
 

@@ -34,9 +34,15 @@ SNAPSHOT_NAME = "coinbase_usdc_sends.json"
 PRISM_KEY_PATH = Path.home() / ".config" / "coinbase" / "cdp-api-key.json"
 
 # Thaís attribution is name-on-send only. Do not invent dest fingerprints.
+# Smoke/proof sends share the monthly dest — exclude by id, not by guessing dest.
 # Rent dest is email only. No phone. No address. No other dests.
 _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
 THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset()
+THAIS_EXCLUDED_SEND_IDS = frozenset(
+    {
+        "baa3976e-3304-53f7-b168-e35f16325653",  # 2026-08-27 $1 Solana proof
+    }
+)
 RENT_DEST_EMAIL = "nvolkern@gmail.com"
 RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset({RENT_DEST_EMAIL})
 
@@ -166,6 +172,9 @@ def _to_resource(tx: Dict[str, Any]) -> str:
 
 def matches_thais(tx: Dict[str, Any]) -> bool:
     """Thaís = named type=send to an address. Never phone / unlabeled / amount-guess."""
+    tid = str(tx.get("id") or "").strip().casefold()
+    if tid and tid in THAIS_EXCLUDED_SEND_IDS:
+        return False
     dest = dest_fingerprint(tx)
     if dest and dest in THAIS_DEST_FINGERPRINTS:
         return True
