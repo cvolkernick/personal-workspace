@@ -99,6 +99,35 @@ class RecommendCut(unittest.TestCase):
         self.assertGreater(rec["tdee_kcal"], 2000)
         self.assertIn("wearable is an estimate", " ".join(rec["reasons"]))
 
+    def test_no_weigh_in_calorie_stays_applied(self):
+        """Grok AC: 14d burned all 2500, weight=[], notes=cutting, applied=2100.
+
+        abstain=True, TDEE hat still 2500, recommended calories stay 2100.
+        Do not invent gap_lb=10.
+        """
+        burned = [(f"2026-08-{d:02d}", 2500) for d in range(14, 28)]
+        rec = recommend_nutrition_targets(
+            health=_snap(burned=burned, weights=[]),
+            targets={
+                "calories": 2100,
+                "protein_g": 210,
+                "carbs_g": 180,
+                "fat_g": 55,
+                "notes": "cutting",
+            },
+            as_of="2026-08-27",
+        )
+        self.assertTrue(rec["abstain"])
+        self.assertEqual(rec["tdee_kcal"], 2500)
+        self.assertEqual(rec["tdee_days"], 14)
+        self.assertIsNone(rec["current_weight_lbs"])
+        self.assertEqual(rec["recommended"]["calories"], 2100)
+        self.assertEqual(rec["delta"]["calories"], 0)
+        self.assertEqual(rec["recommended"]["protein_g"], 210)
+        self.assertTrue(
+            any("weigh-in" in r.lower() and "abstain" in r.lower() for r in rec["reasons"])
+        )
+
     def test_missing_burn_not_zero_abstain(self):
         rec = recommend_nutrition_targets(
             health=_snap(burned=[], weights=[("2026-08-27", 173)]),

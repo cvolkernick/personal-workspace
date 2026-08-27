@@ -206,14 +206,16 @@ def recommend_nutrition_targets(
         getter=lambda r: getattr(r, "calories", None),
     )
 
-    calorie_abstain = tdee is None or tdee_days < TDEE_MIN_DAYS
-    if calorie_abstain:
+    tdee_thin = tdee is None or tdee_days < TDEE_MIN_DAYS
+    no_weigh_in = current_lb is None
+    # No recent weigh-in: calorie rec stays applied (do not invent gap_lb).
+    calorie_abstain = tdee_thin or no_weigh_in
+    tdee_hat = None
+    if tdee_thin:
         reasons.append(
             f"TDEE abstains — need ≥{TDEE_MIN_DAYS} present burned days in {TDEE_WINDOW_DAYS}d "
             f"(have {tdee_days})"
         )
-        tdee_hat = None
-        rec_cal = int(applied["calories"])
     else:
         tdee_hat = round_kcal(tdee)
         reasons.append(
@@ -225,8 +227,12 @@ def recommend_nutrition_targets(
                 f"logged {TDEE_WINDOW_DAYS}d mean {round_kcal(intake_mean)} kcal "
                 f"({intake_days} present days) — cross-check only"
             )
+
+    rec_cal = int(applied["calories"])
+    if calorie_abstain:
+        rec_cal = int(applied["calories"])
+    else:
         rec_cal = tdee_hat
-        deficit = 0
         if phase == "cut":
             gap_lb = (current_lb - goal_lb) if (current_lb and goal_lb) else 10.0
             gap_lb = max(0.0, gap_lb)
@@ -244,7 +250,6 @@ def recommend_nutrition_targets(
                 elif gap_lb > 3 and weekly > -0.2:
                     rec_cal = rec_cal - 100
                     reasons.append("loss slower than 0.2 lb/week with gap > 3 lb — deepen 100")
-            # Keep deficit inside 250–500 of TDEE
             rec_cal = int(clamp(rec_cal, tdee_hat - 500, tdee_hat - 250))
             floor = max(1800, round_kcal(11 * current_lb) if current_lb else 1800)
             if rec_cal < floor:
@@ -284,11 +289,18 @@ def recommend_nutrition_targets(
 
         rec_cal = round_kcal(rec_cal)
 
-    macros = _macros_for(calories=int(rec_cal), current_lb=current_lb, phase=phase)
     if current_lb:
+        macros = _macros_for(calories=int(rec_cal), current_lb=current_lb, phase=phase)
         reasons.append(
             f"protein {'1.0' if phase == 'cut' else '0.9'} g/lb current → {macros['protein_g']} g"
         )
+    else:
+        # No bodyweight: do not invent protein/fat; calories already applied.
+        macros = {
+            "protein_g": int(applied["protein_g"]),
+            "carbs_g": int(applied["carbs_g"]),
+            "fat_g": int(applied["fat_g"]),
+        }
 
     recommended = {
         "calories": int(rec_cal),
@@ -302,17 +314,7 @@ def recommend_nutrition_targets(
         "carbs_g": recommended["carbs_g"] - applied["carbs_g"],
         "fat_g": recommended["fat_g"] - applied["fat_g"],
     }
-    abstain = bool(calorie_abstain or current_lb is None)
-    if abstain and calorie_abstain:
-        recommended["calories"] = int(applied["calories"])
-        delta["calories"] = 0
-        macros = _macros_for(
-            calories=int(recommended["calories"]), current_lb=current_lb, phase=phase
-        )
-        recommended.update(macros)
-        delta["protein_g"] = recommended["protein_g"] - applied["protein_g"]
-        delta["carbs_g"] = recommended["carbs_g"] - applied["carbs_g"]
-        delta["fat_g"] = recommended["fat_g"] - applied["fat_g"]
+    abstain = bool(calorie_abstain)
 
     return {
         "as_of": day,
