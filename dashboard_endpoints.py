@@ -40,6 +40,7 @@ _DEFAULT_SERVICES: dict[str, dict[str, Any]] = {
         "health": "/api/healthz",
     },
     "auto-fleet": {"port": 8796, "path": "/", "health": "/api/health"},
+    "horizon": {"port": 8795, "path": "/", "health": "/api/health"},
 }
 
 
