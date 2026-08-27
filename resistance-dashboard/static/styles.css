@@ -2763,48 +2763,70 @@ body.m-shell .quest-card {
   font-size: 0.8rem;
 }
 
-/* Mini sleep-style battery under hydration — same .sb-fill bands, smaller shell. */
-.hbb-row {
-  display: inline-flex;
+/* Mini sleep-style batteries in the hydration header — same .sb-fill bands.
+   Sleep .sb-shell stays full-width / 44px fill — do not change it. */
+.hydration-pacing-header {
   align-items: center;
-  gap: 0.45rem;
+}
+
+.hydration-pacing-header-end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  margin-left: auto;
+}
+
+.hbb-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.18rem;
 }
 
 .hbb-name {
   color: inherit;
+  font-size: 0.62rem;
+  line-height: 1.15;
+  text-align: center;
+  max-width: 4.4rem;
 }
 
-/* Standing bottle: taller than wide. #284 was 50×28 landscape (squat bar).
-   Sleep .sb-shell stays full-width / 44px fill — do not change it. */
+/* Standing bottle, shrunk for the header row. Still taller than wide.
+   #284 was 50×28 landscape; #354 was 32×66 under the summary. */
 .hidrate-bottle-charge {
-  margin: 0.25rem 0 0;
-  font-size: 0.78rem;
-  padding-top: 6px; /* room for top nub */
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.72rem;
+  padding-top: 5px; /* room for top nub */
 }
 
 .hidrate-bottle-charge .sb-shell {
-  width: 32px;
-  padding: 3px;
-  border-radius: 7px;
+  width: 22px;
+  padding: 2px;
+  border-radius: 6px;
   flex: 0 0 auto;
   display: block;
-  margin-right: 8px;
+  margin-right: 0;
 }
 
 .hidrate-bottle-charge .sb-shell::after {
   right: auto;
   left: 50%;
-  top: -5px;
+  top: -4px;
   transform: translateX(-50%);
-  width: 12px;
-  height: 5px;
+  width: 8px;
+  height: 4px;
   border-radius: 2px 2px 0 0;
 }
 
 .hidrate-bottle-charge .sb-fill-wrap {
   display: block; /* markup is a span; height is ignored while inline */
-  height: 56px;
-  border-radius: 4px;
+  height: 38px;
+  border-radius: 3px;
 }
 
 .hidrate-bottle-charge .sb-fill {
@@ -2821,7 +2843,7 @@ body.m-shell .quest-card {
 }
 
 .hidrate-bottle-charge .sb-big {
-  font-size: 0.58rem;
+  font-size: 0.5rem;
   line-height: 1;
   color: var(--text);
 }

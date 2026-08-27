@@ -162,6 +162,8 @@ class TestSummarizeBottleCharge(unittest.TestCase):
         self.assertEqual(got["name"], "Spark Steel")
         self.assertEqual(got["status"], "ok")
         self.assertIsNone(got["error"])
+        self.assertEqual(len(got["bottles"]), 1)
+        self.assertEqual(got["bottles"][0]["percent"], 68.0)
 
     def test_prefers_newer_bottle(self):
         got = summarize_bottle_charge(
@@ -172,6 +174,82 @@ class TestSummarizeBottleCharge(unittest.TestCase):
         )
         self.assertEqual(got["percent"], 90.0)
         self.assertEqual(got["name"], "New")
+        self.assertEqual(len(got["bottles"]), 2)
+        names = {b["name"] for b in got["bottles"]}
+        self.assertEqual(names, {"Old", "New"})
+
+    def test_surfaces_both_bottles_capacity_order(self):
+        got = summarize_bottle_charge(
+            [
+                {
+                    "name": "946ml PRO",
+                    "serialNumber": "BIG",
+                    "capacity": 946,
+                    "batteryLevel": 40,
+                    "updatedAt": "2026-08-22T00:00:00.000Z",
+                },
+                {
+                    "name": "621ml PRO",
+                    "serialNumber": "SMALL",
+                    "capacity": 621,
+                    "batteryLevel": 80,
+                    "updatedAt": "2026-08-21T00:00:00.000Z",
+                },
+            ]
+        )
+        self.assertTrue(got["available"])
+        self.assertEqual(got["percent"], 40.0)
+        self.assertEqual(got["name"], "946ml PRO")
+        self.assertEqual([b["name"] for b in got["bottles"]], ["621ml PRO", "946ml PRO"])
+        self.assertEqual([b["percent"] for b in got["bottles"]], [80.0, 40.0])
+        self.assertEqual(got["bottles"][0]["capacity_ml"], 621.0)
+        self.assertEqual(got["bottles"][1]["capacity_ml"], 946.0)
+
+    def test_includes_uncharged_bottle_alongside_charged(self):
+        got = summarize_bottle_charge(
+            [
+                {
+                    "name": "621ml PRO",
+                    "serialNumber": "SMALL",
+                    "capacity": 621,
+                    "batteryLevel": 80,
+                    "updatedAt": "2026-08-22T00:00:00.000Z",
+                },
+                {
+                    "name": "946ml PRO",
+                    "serialNumber": "BIG",
+                    "capacity": 946,
+                    "updatedAt": "2026-08-22T00:00:00.000Z",
+                },
+            ]
+        )
+        self.assertTrue(got["available"])
+        self.assertEqual(len(got["bottles"]), 2)
+        self.assertEqual(got["bottles"][1]["name"], "946ml PRO")
+        self.assertFalse(got["bottles"][1]["available"])
+        self.assertIsNone(got["bottles"][1]["percent"])
+        self.assertEqual(got["bottles"][1]["status"], "missing_field")
+
+    def test_dedupes_same_serial_keeps_newer(self):
+        got = summarize_bottle_charge(
+            [
+                {
+                    "name": "Old",
+                    "serialNumber": "ABC",
+                    "batteryLevel": 10,
+                    "updatedAt": "2026-01-01T00:00:00.000Z",
+                },
+                {
+                    "name": "New",
+                    "serialNumber": "ABC",
+                    "batteryLevel": 90,
+                    "updatedAt": "2026-08-22T00:00:00.000Z",
+                },
+            ]
+        )
+        self.assertEqual(got["percent"], 90.0)
+        self.assertEqual(got["name"], "New")
+        self.assertEqual(len(got["bottles"]), 1)
 
     def test_missing_field_is_honest_empty(self):
         got = summarize_bottle_charge(
@@ -181,12 +259,16 @@ class TestSummarizeBottleCharge(unittest.TestCase):
         self.assertIsNone(got["percent"])
         self.assertEqual(got["status"], "missing_field")
         self.assertNotIn("%", str(got["percent"]))
+        self.assertEqual(len(got["bottles"]), 1)
+        self.assertEqual(got["bottles"][0]["name"], "Spark")
+        self.assertIsNone(got["bottles"][0]["percent"])
 
     def test_empty_results_are_honest_empty(self):
         got = summarize_bottle_charge([])
         self.assertFalse(got["available"])
         self.assertIsNone(got["percent"])
         self.assertEqual(got["status"], "empty")
+        self.assertEqual(got["bottles"], [])
 
 
 class TestHidrateBottleChargeHelper(unittest.TestCase):
@@ -402,10 +484,23 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         css = (root / "static" / "styles.css").read_text(encoding="utf-8")
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
-        self.assertIn("hidrate-bottle.js?v=bottle-charge-5", html)
-        self.assertIn("styles.css?v=bottle-tall-2", html)
+        self.assertIn("hidrate-bottle.js?v=bottle-charge-6", html)
+        self.assertIn("styles.css?v=bottle-inline-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
+        self.assertIn("hydration-pacing-header-end", html)
+        section = html[
+            html.find('id="hydration-pacing-section"') : html.find(
+                'id="hydration-pacing-summary"'
+            )
+        ]
+        self.assertIn('id="hidrate-bottle-charge"', section)
+        self.assertIn("hydration-pacing-meta", section)
+        self.assertLess(
+            html.find('id="hidrate-bottle-charge"'),
+            html.find('id="hydration-pacing-summary"'),
+        )
         self.assertIn("hidrate_bottle", js)
+        self.assertIn("bottlesFrom", js)
         self.assertIn("unavailable", js)
         self.assertIn("sb-shell", js)
         self.assertIn("sb-fill-wrap", js)
@@ -419,24 +514,26 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         start = css.find(".hidrate-bottle-charge .sb-shell {")
         self.assertGreaterEqual(start, 0)
         hidrate_block = css[start : css.find(".pace-track", start)]
-        self.assertIn("width: 32px;", hidrate_block)
-        self.assertIn("height: 56px;", hidrate_block)
+        self.assertIn("width: 22px;", hidrate_block)
+        self.assertIn("height: 38px;", hidrate_block)
         wrap_start = hidrate_block.find(".hidrate-bottle-charge .sb-fill-wrap {")
         self.assertGreaterEqual(wrap_start, 0)
         wrap_block = hidrate_block[wrap_start : hidrate_block.find("}", wrap_start) + 1]
         self.assertIn("display: block;", wrap_block)
-        self.assertIn("height: 56px;", wrap_block)
-        self.assertIn("height: 5px;", hidrate_block)
-        self.assertIn("top: -5px;", hidrate_block)
+        self.assertIn("height: 38px;", wrap_block)
+        self.assertIn("height: 4px;", hidrate_block)
+        self.assertIn("top: -4px;", hidrate_block)
         self.assertNotIn("width: 50px;", hidrate_block)
         self.assertNotIn("height: 28px;", hidrate_block)
+        self.assertNotIn("width: 32px;", hidrate_block)
+        self.assertNotIn("height: 56px;", hidrate_block)
         self.assertNotIn("width: 72px;", hidrate_block)
         self.assertNotIn("width: 64px;", hidrate_block)
         self.assertNotIn(".hidrate-bottle-charge .hbb-shell", hidrate_block)
         # Standing body: fill-wrap taller than shell width.
         self.assertLess(
-            hidrate_block.find("width: 32px;"),
-            hidrate_block.find("height: 56px;"),
+            hidrate_block.find("width: 22px;"),
+            hidrate_block.find("height: 38px;"),
         )
         # Sleep battery shell stays full-width / 44px fill — not the mini sizes.
         sleep_shell = css[css.find(".sb-shell {") : css.find(".hidrate-bottle-charge .sb-shell")]

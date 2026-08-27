@@ -381,8 +381,10 @@ def _empty_bottle_charge(
         "field": None,
         "name": None,
         "serial": None,
+        "capacity_ml": None,
         "status": status,
         "error": error,
+        "bottles": [],
     }
 
 
@@ -396,6 +398,51 @@ def _bottle_sync_iso(row: Dict[str, Any]) -> str:
         if isinstance(v, str) and v.strip():
             return v.strip()
     return ""
+
+
+def _bottle_row_id(row: Dict[str, Any]) -> str:
+    serial = str(row.get("serialNumber") or "").strip()
+    if serial:
+        return "s:" + serial
+    oid = str(row.get("objectId") or "").strip()
+    if oid:
+        return "o:" + oid
+    return ""
+
+
+def _bottle_capacity_ml(row: Dict[str, Any]) -> Optional[float]:
+    """Parse Bottle.capacity as ml when present. Do not invent a size."""
+    v = row.get("capacity")
+    if v is None or v == "":
+        return None
+    try:
+        n = float(v)
+    except (TypeError, ValueError):
+        return None
+    if n != n or n <= 0:
+        return None
+    return n
+
+
+def _bottle_entry(
+    row: Dict[str, Any],
+    *,
+    percent: Optional[float],
+    field: Optional[str],
+    status: str,
+) -> Dict[str, Any]:
+    name = str(row.get("name") or "").strip() or None
+    serial = str(row.get("serialNumber") or "").strip() or None
+    return {
+        "available": percent is not None,
+        "percent": percent,
+        "field": field,
+        "name": name,
+        "serial": serial,
+        "capacity_ml": _bottle_capacity_ml(row),
+        "status": status,
+        "error": None,
+    }
 
 
 def _bottle_battery_percent(row: Dict[str, Any]) -> Optional[Tuple[float, str]]:
@@ -425,33 +472,79 @@ def _bottle_battery_percent(row: Dict[str, Any]) -> Optional[Tuple[float, str]]:
 
 
 def summarize_bottle_charge(rows: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
-    """Pick charge from Bottle rows. Honest empty when field/list is missing."""
+    """Charge for every connected Bottle.
+
+    Top-level percent/name stay the newest charged bottle (agent_today /
+    older UI). ``bottles`` lists each distinct serial/objectId so the
+    hydration header can show both (621ml PRO + 946ml PRO), not only the
+    latest row. Honest empty when the list or charge field is missing.
+    """
     bottles = [r for r in (rows or []) if isinstance(r, dict)]
     if not bottles:
         return _empty_bottle_charge("empty")
 
-    scored: List[Tuple[str, Dict[str, Any], float, str]] = []
-    for row in bottles:
+    newest_first = sorted(bottles, key=_bottle_sync_iso, reverse=True)
+    seen: set[str] = set()
+    scored: List[Tuple[str, Dict[str, Any]]] = []
+    for row in newest_first:
+        rid = _bottle_row_id(row)
+        if rid and rid in seen:
+            continue
+        if rid:
+            seen.add(rid)
+        iso = _bottle_sync_iso(row)
         parsed = _bottle_battery_percent(row)
         if parsed is None:
-            continue
-        percent, field = parsed
-        scored.append((_bottle_sync_iso(row), row, percent, field))
-    if not scored:
-        return _empty_bottle_charge("missing_field")
+            scored.append(
+                (
+                    iso,
+                    _bottle_entry(
+                        row, percent=None, field=None, status="missing_field"
+                    ),
+                )
+            )
+        else:
+            percent, field = parsed
+            scored.append(
+                (
+                    iso,
+                    _bottle_entry(row, percent=percent, field=field, status="ok"),
+                )
+            )
 
+    if not scored:
+        return _empty_bottle_charge("empty")
+
+    # Display: smaller capacity first (621 then 946). Python sort is stable,
+    # so newest-first input keeps recency as the tie-breaker.
     scored.sort(key=lambda item: item[0], reverse=True)
-    _iso, row, percent, field = scored[0]
-    name = str(row.get("name") or "").strip() or None
-    serial = str(row.get("serialNumber") or "").strip() or None
+    scored.sort(
+        key=lambda item: (
+            item[1].get("capacity_ml") is None,
+            item[1].get("capacity_ml")
+            if item[1].get("capacity_ml") is not None
+            else 0,
+        )
+    )
+    entries = [item[1] for item in scored]
+
+    charged_pairs = [item for item in scored if item[1].get("percent") is not None]
+    if not charged_pairs:
+        empty = _empty_bottle_charge("missing_field")
+        empty["bottles"] = entries
+        return empty
+
+    _iso, head = max(charged_pairs, key=lambda item: item[0])
     return {
         "available": True,
-        "percent": percent,
-        "field": field,
-        "name": name,
-        "serial": serial,
+        "percent": head["percent"],
+        "field": head["field"],
+        "name": head["name"],
+        "serial": head["serial"],
+        "capacity_ml": head.get("capacity_ml"),
         "status": "ok",
         "error": None,
+        "bottles": entries,
     }
 
 
