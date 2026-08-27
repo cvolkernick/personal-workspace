@@ -308,6 +308,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
         self.assertEqual(rent["category_id"], RENT_ID)
         self.assertEqual(rent["actual"], 0.0)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
 
     def test_student_loan_citation_electric_water_not_yet(self) -> None:
         strip = build_planned_actual_strip(_snaps(_ac_items(), []), _ac_map(), as_of=AS_OF)
