@@ -1,8 +1,9 @@
-"""Coinbase v2 USDC send book — display-only actuals for Thaís.
+"""Coinbase v2 USDC send book — display-only actuals for Thaís and Rent.
 
 Venue is Coinbase v2 USDC `type=send` only. Ignore lend / lock / One Card / X Money.
-Rent dest fingerprint is HOLD (do not guess phone vs address). Recurring send is HOLD.
-$25/day is future booking after dest — never rewrite Rent planned.
+Rent dest is email only: nvolkern@gmail.com (casefold). No phone. No other dests.
+Thaís is named address send. Recurring send is HOLD.
+Rent planned stays sheet monthly — never rewrite to $25 * days.
 No Transfer key. No sender code. Key lives only on prism.
 
 Tests use fixtures only. This module never copies or logs the CDP key.
@@ -32,10 +33,11 @@ SNAPSHOT_NAME = "coinbase_usdc_sends.json"
 PRISM_KEY_PATH = Path.home() / ".config" / "coinbase" / "cdp-api-key.json"
 
 # Thaís attribution is name-on-send only. Do not invent dest fingerprints.
-# Rent dest (phone vs address) is HOLD — empty set, never guess.
+# Rent dest is email only. No phone. No address. No other dests.
 _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
 THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset()
-RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset()
+RENT_DEST_EMAIL = "nvolkern@gmail.com"
+RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset({RENT_DEST_EMAIL})
 
 
 def _fold(val: Any) -> str:
@@ -138,6 +140,21 @@ def dest_fingerprint(tx: Dict[str, Any]) -> str:
     return str(tx.get("to_address") or tx.get("destination") or "").strip()
 
 
+def dest_email(tx: Dict[str, Any]) -> str:
+    """Email dest only. Never phone or chain address."""
+    dest = tx.get("to") or {}
+    if isinstance(dest, dict):
+        resource = str(dest.get("resource") or "").strip().casefold()
+        if resource == "phone":
+            return ""
+        email = str(dest.get("email") or "").strip()
+        if email:
+            return _fold(email)
+        if resource == "email":
+            return _fold(dest.get("address") or dest.get("id") or "")
+    return _fold(tx.get("to_email") or "")
+
+
 def _to_resource(tx: Dict[str, Any]) -> str:
     dest = tx.get("to") or {}
     if isinstance(dest, dict):
@@ -158,9 +175,14 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
 
 
 def matches_rent(tx: Dict[str, Any]) -> bool:
-    """HOLD — dest fingerprint (phone vs address) is still open. Do not guess."""
-    dest = dest_fingerprint(tx)
-    return bool(dest) and dest in RENT_DEST_FINGERPRINTS
+    """Rent = v2 USDC type=send to nvolkern@gmail.com only. Email only."""
+    if tx_type(tx) != SEND_TYPE:
+        return False
+    resource = _to_resource(tx)
+    if resource and resource != "email":
+        return False
+    email = dest_email(tx)
+    return bool(email) and email in {_fold(x) for x in RENT_DEST_FINGERPRINTS}
 
 
 def extract_raw_txs(payload: Any) -> List[Dict[str, Any]]:

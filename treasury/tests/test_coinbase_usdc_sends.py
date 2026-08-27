@@ -15,6 +15,8 @@ if str(ROOT) not in sys.path:
 from treasury.coinbase_usdc_sends import (  # noqa: E402
     IGNORE_TYPES,
     PRISM_KEY_PATH,
+    RENT_DEST_EMAIL,
+    RENT_DEST_FINGERPRINTS,
     actual_for_item,
     collect_usdc_sends,
     is_usdc_send,
@@ -126,17 +128,53 @@ class TestSendFilter(unittest.TestCase):
         )
         self.assertFalse(any(abs(send_spend_amount(t) - 2090.0) < 1 for t in book))
 
-    def test_rent_dest_hold_never_matches(self) -> None:
-        tx = _send(
-            id="maybe-rent",
+    def test_rent_email_only_counts_pending_send(self) -> None:
+        self.assertEqual(RENT_DEST_FINGERPRINTS, frozenset({RENT_DEST_EMAIL}))
+        self.assertEqual(RENT_DEST_EMAIL, "nvolkern@gmail.com")
+        email_send = _send(
+            id="aug27-rent-email-25",
+            status="pending",
+            created_at="2026-08-27T12:00:00Z",
+            description="",
+            to={"resource": "email", "email": "Nvolkern@Gmail.com"},
+            amount={"amount": "-25.00", "currency": "USDC"},
+        )
+        phone = _send(
+            id="nicole-phone",
+            created_at="2026-08-15T12:00:00Z",
             description="Nicole Volkernick",
             to={"resource": "phone", "phone": "+15555550100"},
             amount={"amount": "-25.00", "currency": "USDC"},
         )
-        self.assertFalse(matches_rent(tx))
+        unlabeled_5 = _send(
+            id="aug10-unlabeled-5",
+            created_at="2026-08-10T12:00:00Z",
+            description="",
+            to={"resource": "address"},
+            amount={"amount": "-5.00", "currency": "USDC"},
+        )
+        unlabeled_125 = _send(
+            id="aug4-unlabeled-125",
+            created_at="2026-08-04T12:00:00Z",
+            description="",
+            to={"resource": "address"},
+            amount={"amount": "-125.00", "currency": "USDC"},
+        )
+        self.assertTrue(matches_rent(email_send))
+        self.assertFalse(matches_thais(email_send))
+        for tx in (phone, unlabeled_5, unlabeled_125):
+            self.assertFalse(matches_rent(tx), tx["id"])
+            self.assertFalse(matches_thais(tx), tx["id"])
+        book = collect_usdc_sends(
+            {"transactions": [email_send, phone, unlabeled_5, unlabeled_125, _send()]}
+        )
         self.assertAlmostEqual(
-            actual_for_item([tx], item_name="Rent", month=date(2026, 8, 15)),
-            0.0,
+            actual_for_item(book, item_name="Rent", month=date(2026, 8, 27)),
+            25.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
+            895.0,
         )
 
     def test_load_send_book_from_snapshots_not_disk_key(self) -> None:
