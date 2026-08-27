@@ -13,7 +13,7 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=hydration-meta-bottom-1" />
+    <link rel="stylesheet" href="/styles.css?v=calorie-meta-bottom-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
@@ -305,13 +305,13 @@
       >
         <div class="calorie-bar-header">
           <h2 class="calorie-bar-title">Calorie pacing · eating window</h2>
-          <span class="muted calorie-bar-meta" id="calorie-pacing-meta"></span>
         </div>
         <div class="pace-track" id="calorie-pacing-track" role="img" aria-label="Calorie pace progress">
           <div class="pace-fill" id="calorie-pacing-fill"></div>
           <div class="pace-marker" id="calorie-pacing-marker" title="Expected progress now"></div>
         </div>
         <p class="muted calorie-bar-summary" id="calorie-pacing-summary">—</p>
+        <p class="muted calorie-bar-meta calorie-bar-footer" id="calorie-pacing-meta"></p>
       </section>
 
       <section
@@ -323,7 +323,6 @@
       >
         <div class="calorie-bar-header">
           <h2 class="calorie-bar-title">Today · calories in vs out</h2>
-          <span class="muted calorie-bar-meta" id="calorie-delta-meta"></span>
         </div>
         <div class="delta-track" id="calorie-delta-track" role="img" aria-label="Calorie surplus or deficit">
           <div class="delta-mid" aria-hidden="true"></div>
@@ -336,6 +335,7 @@
           </div>
         </div>
         <p class="muted calorie-bar-summary" id="calorie-delta-summary">—</p>
+        <p class="muted calorie-bar-meta calorie-bar-footer" id="calorie-delta-meta"></p>
       </section>
 
       <!-- Macro tiles: same-day Today|Target — Today tab only (not Trends). -->

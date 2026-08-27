@@ -2778,8 +2778,9 @@ body.m-shell .quest-card {
   margin-left: auto;
 }
 
-/* Wake / bed / % window / paced / target lives under the bar — not next to bottles. */
-.hydration-pacing-footer {
+/* Wake / bed / % window / paced / target (and calorie equivalents) live under the bar. */
+.hydration-pacing-footer,
+.calorie-bar-footer {
   display: block;
   width: 100%;
   margin: 0.35rem 0 0;
