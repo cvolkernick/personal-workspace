@@ -38,7 +38,7 @@ Volume framework (baked into FitDash workout planning — Dean Turner / DeanTTra
   commands: "focus on chest and glutes", "auto focus", "clear focus".
 
 Rules:
-- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review.
+- Ground answers in the provided data: workouts, recovery, weight, sleep, nutrition intake, hydration, inventory, targets, meal plan, coach today board, 7d adherence, weekly review, coach.nutrition_targets.
 - If something is missing from the data, say so clearly. Do not invent sessions, weights, macros, or dates.
 - Prefer concise, practical coach advice. Use bullet lists when helpful.
 - When discussing progress, cite specific numbers and dates from the data.
@@ -46,9 +46,11 @@ Rules:
 - Do not discuss secrets, tokens, or how to hack systems.
 - Note: the user can also run local commands (handled outside the model, no need to invent syntax):
   natural language like "set protein to 220", "update calories to 2000", "change macros to 220p 150c 55f",
-  "apply those recommendations", "mark chicken out of stock", "refresh meal plan".
-  If they ask you to change targets, suggest concrete numbers they can confirm, or tell them to say
-  "apply those" / "set protein to X" so the dashboard can write the config.
+  "apply those recommendations", "apply coach targets", "mark chicken out of stock", "refresh meal plan".
+  If they ask you to change targets, prefer coach.nutrition_targets.recommended over inventing
+  macros. Tell them to say "apply coach targets" (subroutine) or "apply those" (last chat numbers)
+  or "set protein to X" so the dashboard can write the config. Do not invent daily kcal/macros
+  when the subroutine returned a recommendation.
 """
 
 
@@ -475,6 +477,7 @@ def build_fitness_context(dashboard: dict, *, compact: bool = True) -> dict:
             ][:20],
         },
         "coach": {
+            "nutrition_targets": (dashboard.get("coach") or {}).get("nutrition_targets"),
             "today": (dashboard.get("coach") or {}).get("today"),
             "food_commentary": {
                 "working_well": (

@@ -1141,10 +1141,28 @@ def build_coach_payload(
         recovery=recovery,
         food_commentary=food_commentary,
     )
+    nutrition_targets: Dict[str, Any] = {}
+    try:
+        from .nutrition_targets import recommend_nutrition_targets
+
+        nutrition_targets = recommend_nutrition_targets(
+            health=health,
+            targets=targets or {},
+            recovery=recovery,
+            adherence_7d=adherence,
+            as_of=day,
+        )
+    except Exception as exc:  # noqa: BLE001
+        nutrition_targets = {
+            "abstain": True,
+            "error": str(exc),
+            "reasons": [f"recommend_nutrition_targets failed: {exc}"],
+        }
     return {
         "today": today,
         "adherence_7d": adherence,
         "weekly_review": weekly,
         "food_commentary": food_commentary,
         "brief": brief,
+        "nutrition_targets": nutrition_targets,
     }
