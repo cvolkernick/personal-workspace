@@ -171,8 +171,12 @@
         USDG 7%, Bitcoin 30%, Agentic Fund 15%). Bitcoin and Agentic Fund are
         <strong>est. CAGR</strong> (not cash APR/APY). Settings override beats
         the locked est. CAGR seed when set. These two lines only; a general equity
-        axis stays off this page. Morpho borrow precedence: FCC settings manual &gt; live Morpho
+        axis stays off this page. Coinbase BTC-backed Morpho loan (margin/borrow)
+        precedence: FCC settings manual &gt; live Morpho
         GraphQL marketById avgBorrowApy (cbBTC/USDC / Base) &gt; seed ~5%.
+        Blank/0 Morpho loan settings must not paint 0%.
+        RH margin interest: FCC settings manual &gt; live books (when already
+        present) &gt; seed 5% (5% up to $50k product framing). Do not scrape RH.
         Morpho HY product chip: FCC settings manual &gt; product_apy
         (Coinbase One / in-app when honest) &gt; seed 7%. Morpho GraphQL
         avgNetApy is vault_apy reference only — ≠ Coinbase One product
