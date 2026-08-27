@@ -94,8 +94,8 @@
     "notes": "Public RPC only. JR-strcUSX is DC-credit parlay, never HY/LTV defense. NFT/meme dust ignored."
   },
   "braiins": {
-    "payout_threshold_btc": 0.01,
-    "notes": "Owner 2026-08-05: raised pool payout threshold from 0.005 \u2192 0.01 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer from payout history alone (history still clusters at old 0.005 until the first 0.01 payout lands). Braiins free on-chain floor remains 0.005; this is our account rule, not the pool minimum."
+    "payout_threshold_btc": 0.005,
+    "notes": "Owner 2026-08-27: pool payout threshold returned 0.01 \u2192 0.005 BTC (Braiins UI). FCC next-payout ETA / progress read this override \u2014 do not re-infer 0.01 from the 2026-08-05 raise, and do not wait for history (last send was a 0.002 manual). Braiins free on-chain floor is 0.005; this is now both the pool minimum and our account rule."
   },
   "pi_sync": {
     "enabled": true,

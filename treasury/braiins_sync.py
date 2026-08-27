@@ -217,9 +217,10 @@ def _infer_payout_outlook(
       - current balance + avg daily rewards
     Actual send runs at the next 09:00 UTC evaluation after the rule is met.
 
-    Owner 2026-08-05: account threshold raised 0.005 → 0.01 BTC. Set via config so
-    FCC ETA/progress do not stay stuck on historical ~0.005 medians until the first
-    0.01 payout confirms. Pool free on-chain floor is still 0.005 (Braiins docs).
+    Owner 2026-08-27: account threshold returned 0.01 → 0.005 BTC (Braiins UI).
+    Config override must match the live account rule so FCC ETA/progress do not
+    stay stuck on the 2026-08-05 0.01 raise. Pool free on-chain floor is 0.005
+    (Braiins docs); that is now also our account rule.
     """
     rows = _payout_rows(payouts)
     confirmed = [r for r in rows if (r.get("status") or "").lower() == "confirmed"]

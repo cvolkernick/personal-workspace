@@ -81,12 +81,12 @@
       "label": "ASICs",
       "kind": "income",
       "confidence": "owner_stated",
-      "evidence": "Braiins → Digital Credit (Coinbase) every other month.",
+      "evidence": "Braiins \u2192 Digital Credit (Coinbase). Pool threshold 0.005 BTC (owner 2026-08-27; reverted from 0.01).",
       "typical_landing": "digital_credit",
       "engine_target": "digital_credit",
-      "cadence": "every_other_month",
+      "cadence": "approx_monthly",
       "pool": "braiins",
-      "payout_threshold_btc": 0.01
+      "payout_threshold_btc": 0.005
     }
   ],
   "integrations": {
@@ -94,7 +94,7 @@
       "status": "ready",
       "purpose": "ASIC pool stats",
       "sync_command": "python3 treasury/braiins_sync.py",
-      "payout_threshold_btc": 0.01
+      "payout_threshold_btc": 0.005
     }
   },
   "channels": [
