@@ -98,9 +98,48 @@ assert(
   "can reuse agent Today slice of the same field"
 );
 
-assert(azm.sparklineSvg(present.daily).indexOf("<svg") === 0, "present days get a sparkline");
-assert(azm.sparklineSvg(empty.daily) === "", "no sparkline when no points");
-assert(azm.sparklineSvg(present.daily).indexOf("99") === -1, "sparkline does not invent out-of-window values");
+assert(azm.sparklineSvg(present.daily, present.labels).indexOf("<svg") === 0, "present days get a sparkline");
+assert(azm.sparklineSvg(empty.daily, empty.labels) === "", "no sparkline when no points");
+assert(azm.sparklineSvg(present.daily, present.labels).indexOf("99") === -1, "sparkline does not invent out-of-window values");
+
+const spark = azm.sparklineSvg(present.daily, present.labels);
+assert(spark.indexOf('data-y-min="0"') !== -1, "Y domain starts at 0");
+assert(spark.indexOf('data-y-max="30"') !== -1, "Y top is this week's max present minutes (30)");
+assert((spark.match(/class="azm-y"/g) || []).length === 2, "Y ticks: 0 and max only");
+assert(spark.indexOf('class="azm-y"') !== -1 && spark.indexOf(">0</text>") !== -1, "Y floor label is 0");
+assert(spark.indexOf(">30</text>") !== -1, "Y top label is 30 minutes, not a min-max stretch");
+assert(spark.indexOf("azm-baseline") !== -1, "faint 0-baseline");
+const yTexts = [...spark.matchAll(/class="azm-y"[^>]*>([^<]+)/g)].map(function (m) {
+  return m[1];
+});
+assert(yTexts.indexOf("0") !== -1 && yTexts.indexOf("30") !== -1, "Y ticks are 0 and 30");
+assert(
+  yTexts.every(function (t) {
+    return t.toUpperCase().indexOf("AZM") === -1;
+  }),
+  "Y ticks are minutes only, no AZM word"
+);
+const letters = present.labels.map(azm.weekdayLetter);
+assert(letters.length === 7, "one weekday letter per civil slot");
+assert(letters[letters.length - 1] === azm.weekdayLetter("2026-08-23"), "rightmost X is today");
+assert((spark.match(/class="azm-x"/g) || []).length === 7, "null days still occupy an X slot");
+letters.forEach(function (letter, idx) {
+  assert(spark.indexOf(">" + letter + "</text>") !== -1, "X label " + letter + " at slot " + idx);
+});
+assert((spark.match(/<circle /g) || []).length === 5, "dots only on present total_minutes days");
+assert((spark.match(/fill="#3d9cf0"/g) || []).length === 5, "dots stay #3d9cf0");
+const cys = [...spark.matchAll(/<circle [^>]*cy="([^"]+)"/g)].map(function (m) {
+  return Number(m[1]);
+});
+assert(cys.length === 5, "parsed 5 present-day dots");
+const cy12 = cys[2];
+const cy30 = cys[3];
+assert(cy30 < cy12, "30 min sits above 12 (height-from-zero, not min/max stretch)");
+const baseMatch = spark.match(/class="azm-baseline"[^>]*y1="([^"]+)"/);
+assert(baseMatch, "baseline has y1");
+const y0 = Number(baseMatch[1]);
+assert(cy12 < y0 - 4, "12 min is not glued to the floor (would be if Y scaled from min=12)");
+assert(spark.indexOf("chart.js") === -1, "still an SVG spark, not Chart.js");
 
 const els = {};
 function makeEl(id) {

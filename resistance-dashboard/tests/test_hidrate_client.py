@@ -485,7 +485,7 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
         self.assertIn("hidrate-bottle.js?v=bottle-charge-7", html)
-        self.assertIn("styles.css?v=calorie-meta-bottom-1", html)
+        self.assertIn("styles.css?v=azm-spark-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hydration-pacing-header-end", html)
         header_end = html[
