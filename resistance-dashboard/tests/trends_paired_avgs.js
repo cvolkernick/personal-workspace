@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * #254/#258/#268: Avg intake / Avg burned / Avg deficit share the Σ 60d
+ * #254/#258/#268: Avg intake / Avg burned / Avg deficit share the Σ 75d
  * paired-days window. Same pair-day honesty as #243. Sign: surplus +,
  * deficit − (mean intake − burned). No invented rows.
  */
@@ -20,13 +20,13 @@ function almostEqual(a, b, msg) {
   assert(Math.abs(a - b) < 1e-9, msg + " got " + a + " expected " + b);
 }
 
-assert(avgs.SPAN_DAYS === 60, "span must be the same 60d window as Σ chips");
+assert(avgs.SPAN_DAYS === 75, "span must be the same 75d window as Σ chips");
 
 const now = new Date(2026, 7, 22, 12, 0, 0);
 const labels = avgs.windowLabels(avgs.SPAN_DAYS, now);
-assert(labels.length === 60, "60 civil labels");
+assert(labels.length === 75, "75 civil labels");
 assert(labels[labels.length - 1] === "2026-08-22", "window ends today");
-assert(labels[0] === "2026-06-24", "window starts 59 days earlier");
+assert(labels[0] === "2026-06-09", "window starts 74 days earlier");
 
 const recentPaired = [
   { date: "2026-08-20", calories: 2000 },
@@ -44,31 +44,39 @@ const nutrition = [
   { date: "2026-08-19", calories: 9999 },
   { date: "2026-07-01", calories: 1111 },
   { date: "2026-06-20", calories: 3333 },
+  { date: "2026-06-01", calories: 5555 },
 ];
 const burned = [
   ...recentBurned,
   { date: "2026-08-18", calories: 8888 },
   { date: "2026-07-01", calories: 2222 },
   { date: "2026-06-20", calories: 4444 },
+  { date: "2026-06-01", calories: 6666 },
 ];
 const nutritionCopy = JSON.parse(JSON.stringify(nutrition));
 const burnedCopy = JSON.parse(JSON.stringify(burned));
 
-const stats = avgs.pairedCalorieWindow(nutrition, burned, 60, now);
-assert(stats.pairDays === 4, "only days with both series inside 60d");
+const stats = avgs.pairedCalorieWindow(nutrition, burned, 75, now);
+assert(stats.pairDays === 5, "only days with both series inside 75d");
 assert(
-  stats.sumIn === 2000 + 2200 + 1800 + 1111,
-  "Σ intake is the paired sum (includes 2026-07-01, now inside 60d)"
+  stats.sumIn === 2000 + 2200 + 1800 + 1111 + 3333,
+  "Σ intake is the paired sum (includes 2026-06-20, now inside 75d)"
 );
 assert(
-  stats.sumOut === 2500 + 2300 + 2400 + 2222,
-  "Σ burned is the paired sum (includes 2026-07-01, now inside 60d)"
+  stats.sumOut === 2500 + 2300 + 2400 + 2222 + 4444,
+  "Σ burned is the paired sum (includes 2026-06-20, now inside 75d)"
 );
-almostEqual(stats.avgIn, stats.sumIn / 4, "avg intake = Σ intake / N");
-almostEqual(stats.avgOut, stats.sumOut / 4, "avg burned = Σ burned / N");
-almostEqual(stats.avgIn, 1777.75, "avg intake 1777.75");
-almostEqual(stats.avgOut, 2355.5, "avg burned 2355.5");
-const perDayDeltas = [2000 - 2500, 2200 - 2300, 1800 - 2400, 1111 - 2222];
+almostEqual(stats.avgIn, stats.sumIn / 5, "avg intake = Σ intake / N");
+almostEqual(stats.avgOut, stats.sumOut / 5, "avg burned = Σ burned / N");
+almostEqual(stats.avgIn, 2088.8, "avg intake 2088.8");
+almostEqual(stats.avgOut, 2773.2, "avg burned 2773.2");
+const perDayDeltas = [
+  2000 - 2500,
+  2200 - 2300,
+  1800 - 2400,
+  1111 - 2222,
+  3333 - 4444,
+];
 const meanDelta =
   perDayDeltas.reduce(function (a, b) {
     return a + b;
@@ -82,7 +90,7 @@ almostEqual(
   stats.avgIn - stats.avgOut,
   "mean(delta) matches intake_avg − burned_avg on the same pair set"
 );
-almostEqual(stats.avgDelta, -577.75, "avg deficit −577.75 (negative = deficit)");
+almostEqual(stats.avgDelta, -684.4, "avg deficit −684.4 (negative = deficit)");
 assert(stats.avgDelta < 0, "this fixture is a net deficit");
 assert(
   JSON.stringify(nutrition) === JSON.stringify(nutritionCopy),
@@ -93,13 +101,22 @@ assert(
   "must not invent or mutate burned rows"
 );
 
+const still60 = avgs.pairedCalorieWindow(nutrition, burned, 60, now);
+assert(
+  still60.pairDays === 4,
+  "explicit 60d still excludes 2026-06-20 (pairing is window-honest, not invented)"
+);
 const still45 = avgs.pairedCalorieWindow(nutrition, burned, 45, now);
 assert(
   still45.pairDays === 3,
   "explicit 45d still excludes 2026-07-01 (pairing is window-honest, not invented)"
 );
+assert(
+  stats.pairDays === 5,
+  "75d includes 2026-06-20 and still excludes 2026-06-01 (outside the window)"
+);
 
-const empty = avgs.pairedCalorieWindow([], [], 60, now);
+const empty = avgs.pairedCalorieWindow([], [], 75, now);
 assert(empty.pairDays === 0, "empty pairDays=0");
 assert(empty.avgIn === null && empty.avgOut === null, "no avgs when unpaired");
 assert(empty.avgDelta === null && empty.sumDelta === 0, "no avgDelta when unpaired");
@@ -111,7 +128,7 @@ assert(avgs.formatAvgDelta(empty.pairDays, empty.sumDelta) === "—", "empty Δ 
 const unpairedOnly = avgs.pairedCalorieWindow(
   [{ date: "2026-08-22", calories: 1800 }],
   [{ date: "2026-08-21", calories: 2400 }],
-  60,
+  75,
   now
 );
 assert(unpairedOnly.pairDays === 0, "intake-only + burned-only is not a pair");
@@ -128,7 +145,7 @@ const nanSkip = avgs.pairedCalorieWindow(
     { date: "2026-08-22", calories: 2400 },
     { date: "2026-08-21", calories: 2100 },
   ],
-  60,
+  75,
   now
 );
 assert(nanSkip.pairDays === 1, "NaN intake is skipped like Σ chips");
