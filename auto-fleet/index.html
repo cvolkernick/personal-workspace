@@ -183,6 +183,8 @@
     }
     .strip.host-identity { padding-top: 0.4rem; padding-bottom: 0.15rem; }
     .strip.host-identity .chips { margin: 0.05rem 0 0.2rem; }
+    .strip.awaiting { padding-top: 0.35rem; padding-bottom: 0.1rem; }
+    .strip.awaiting .host-ops-item { padding: 0.12rem 0; }
     .metrics {
       display: grid;
       grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr);
@@ -979,18 +981,33 @@
         if (hits.length > 1) return null;
       }
       const hay = blob.toLowerCase();
-      const hits = [];
+      const yearHits = [];
+      const plateHits = [];
       for (const u of units || []) {
         const idn = u.identity || {};
-        const year = String(idn.year || "");
-        const make = String(idn.make || "").toLowerCase();
-        const model = String(idn.model || "").toLowerCase();
-        if (!year || !make || !model) continue;
-        const name = `${make} ${model}`;
-        if (hay.includes(`${year} ${name}`) || hay.includes(`${name} ${year}`)) hits.push(u.id);
-        else if (hay.includes(year) && hay.includes(model)) hits.push(u.id);
+        const year = String(idn.year || u.year || "");
+        const make = String(idn.make || u.make || "").toLowerCase();
+        const model = String(idn.model || u.model || "").toLowerCase();
+        const plate = String(idn.plate || u.plate || "").trim();
+        if (year && model) {
+          const name = `${make} ${model}`.trim();
+          if ((name && (hay.includes(`${year} ${name}`) || hay.includes(`${name} ${year}`)))
+            || (hay.includes(year) && hay.includes(model))) {
+            yearHits.push(u.id);
+          }
+        }
+        if (plate) {
+          const escaped = plate.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+          const re = new RegExp("(^|[^A-Za-z0-9])" + escaped + "([^A-Za-z0-9]|$)", "i");
+          if (re.test(blob)) plateHits.push(u.id);
+        }
       }
-      return hits.length === 1 ? hits[0] : null;
+      if (yearHits.length > 1 || plateHits.length > 1) return null;
+      const found = [];
+      if (yearHits.length === 1) found.push(yearHits[0]);
+      if (plateHits.length === 1) found.push(plateHits[0]);
+      const unique = found.filter((id, i) => found.indexOf(id) === i);
+      return unique.length === 1 ? unique[0] : null;
     }
 
     function assignInvoiceItems(items, units) {
@@ -998,6 +1015,7 @@
       const unmatched = [];
       for (const it of items || []) {
         if (!it || !(it.title || it.notes)) continue;
+        if ((it.status || "needsAction") !== "needsAction") continue;
         const uid = matchTaskUnit(it, units);
         if (uid) {
           (by[uid] = by[uid] || []).push(it);
@@ -1130,7 +1148,15 @@
       return `<h2>Next 30 days</h2><div class="queue">${queueHead()}${rows.join("")}</div>`;
     }
 
-    function moneyStrip(f, invoiceItems, listId) {
+    function awaitingStrip(items, listId) {
+      const open = (items || []).filter((it) => it && (it.title || it.notes)
+        && (it.status || "needsAction") === "needsAction");
+      if (!open.length) return "";
+      const rows = open.map((it) => invoiceItemRow(it, listId)).join("");
+      return `<div class="strip awaiting"><h3>Awaiting</h3>${rows}</div>`;
+    }
+
+    function moneyStrip(f) {
       const locked = (f && f.locked) || {};
       const showBalances = locked.show_balances !== false;
       const portal = portalOf(f);
@@ -1142,10 +1168,6 @@
       if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);
       if (locked.monthly != null) bits.push(`${money(locked.monthly)}/mo`);
       if (bits.length) body += `<div class="row muted">${esc(bits.join(" · "))}</div>`;
-      if (invoiceItems && invoiceItems.length) {
-        body += `<div class="row">Invoice-ready</div>`;
-        body += invoiceItems.map((it) => invoiceItemRow(it, listId)).join("");
-      }
       if (ptp) {
         body += `<div class="row due-lead">PTP ${money(ptp.amount)} due ${esc(ptp.due || "—")}${ptp.installment ? ` · ${esc(ptp.installment)}` : ""}</div>`;
       }
@@ -1236,7 +1258,7 @@
     }
 
     function costsStrip(f) {
-      return moneyStrip(f, [], "");
+      return moneyStrip(f);
     }
 
     function glanceStrip(units, nowMs, pollS) {
@@ -1293,7 +1315,8 @@
             ${hostIdentityStrip(idn)}
             ${vehicleStrip(u, g)}
             ${scheduleStrip(u.turo || {}, g, invoiceItems)}
-            ${moneyStrip(u.finance || {}, invoiceItems, u.invoice_list_id || "")}
+            ${awaitingStrip(invoiceItems, u.invoice_list_id || "")}
+            ${moneyStrip(u.finance || {})}
             ${tripDetailStrip(u.turo || {})}
           </div>
         </article>`;
@@ -1557,10 +1580,20 @@
           (hasFleet ? ` · costs sheet ${expAt}` : ` · costs stale (${expAt})`);
         const list = fleet.units || [];
         const assigned = assignInvoiceItems((tasks && tasks.items) || [], list);
-        const leftover = Object.assign({}, tasks || {}, { unmatched: assigned.unmatched });
+        const taskSrc = (fleet.sources && fleet.sources.turo_tasks) || {};
         list.forEach((u) => {
-          u.invoice_ready = assigned.by[u.id] || [];
-          u.invoice_list_id = (tasks && tasks.list_id) || "";
+          if (!Array.isArray(u.invoice_ready)) {
+            u.invoice_ready = assigned.by[u.id] || [];
+          }
+          u.invoice_list_id = (tasks && tasks.list_id) || taskSrc.list_id || u.invoice_list_id || "";
+        });
+        const leftover = Object.assign({}, tasks || {}, {
+          ok: tasks ? !!tasks.ok : taskSrc.ok !== false,
+          error: (tasks && tasks.error) || taskSrc.error,
+          list_id: (tasks && tasks.list_id) || taskSrc.list_id || "",
+          unmatched: Array.isArray(fleet.invoice_unmatched)
+            ? fleet.invoice_unmatched
+            : assigned.unmatched,
         });
         renderHostOps(leftover);
         $("glance").innerHTML = list.map((u) => renderGlanceCell(u, glanceOf(u, nowMs, pollS))).join("");

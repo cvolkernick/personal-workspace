@@ -97,14 +97,16 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 
 ## Invoice-ready (Google Tasks)
 
-Open items from the Google Tasks list named **Turo** nest under the matching
-car card (year/make/model or reservation # — never guess which Corolla).
-Find-or-create that list only — no extra lists, no Fleet-local task JSON.
-Title and notes come from the GT item Helm files; this page does not invent
-amounts, VINs, or trips. Checkbox completes the item in Google Tasks.
+Open items from the Google Tasks list named **Turo** nest on `/api/fleet`
+as `invoice_ready` and paint as a thin **Awaiting** line on the matching
+car (year/model in title/notes, plate, or reservation # — never guess
+which Corolla). Bookings stay on the email-dump path. Find-or-create that
+list only — no extra lists, no Fleet-local task JSON. Title and notes
+come from the GT item Helm files; this page does not invent amounts,
+VINs, or trips. Checkbox completes the item in Google Tasks.
 Unmatched items stay in a leftover **Unassigned invoice-ready** strip.
 No open items → strip omitted (no empty-state theater). Missing creds →
-honest error, not fake rows.
+honest error, not fake rows. Helm `/api/agent/fleet` stays dump-only.
 
 Auto Fleet is the standing surface for invoice-ready Turo items. Orchestra
 may later show the same Google Task only when it is NOW/NEXT in that

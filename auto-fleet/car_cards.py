@@ -298,6 +298,47 @@ def extract_trip_id(text: str) -> Optional[str]:
     return None
 
 
+def _unit_year(unit: Mapping[str, Any]) -> str:
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    return str(unit.get("year") or ident.get("year") or "")
+
+
+def _unit_model(unit: Mapping[str, Any]) -> str:
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    return str(unit.get("model") or ident.get("model") or "")
+
+
+def _unit_plate(unit: Mapping[str, Any]) -> str:
+    ident = unit.get("identity") if isinstance(unit.get("identity"), dict) else {}
+    plate = unit.get("plate") if unit.get("plate") is not None else ident.get("plate")
+    return str(plate or "").strip().upper()
+
+
+def _year_model_hits(blob: str, roster: Sequence[Mapping[str, Any]]) -> list[str]:
+    hay = turo_inbox._norm_text(blob)
+    hits: list[str] = []
+    for unit in roster:
+        year = _unit_year(unit)
+        model = _unit_model(unit).lower()
+        if not year or not model:
+            continue
+        if year in hay and model in hay:
+            hits.append(str(unit["id"]))
+    return hits
+
+
+def _plate_hits(blob: str, roster: Sequence[Mapping[str, Any]]) -> list[str]:
+    hay = turo_inbox._norm_text(blob).upper()
+    hits: list[str] = []
+    for unit in roster:
+        plate = _unit_plate(unit)
+        if not plate:
+            continue
+        if re.search(rf"(?<![A-Z0-9]){re.escape(plate)}(?![A-Z0-9])", hay):
+            hits.append(str(unit["id"]))
+    return hits
+
+
 def match_invoice_unit(
     item: Mapping[str, Any],
     units: Sequence[Mapping[str, Any]],
@@ -306,8 +347,8 @@ def match_invoice_unit(
     """Attach a GT Turo item to one roster unit. None = unmatched, never guessed.
 
     Trip # wins when it maps to exactly one unit's bookings. Else year +
-    make/model via the same matcher as the Gmail dump. Yearless Corolla
-    stays unmatched.
+    model in title/notes, or an exact plate token. Disagreeing signals stay
+    unmatched. Yearless Corolla without a plate stays unmatched.
     """
     title = str(item.get("title") or "")
     notes = str(item.get("notes") or "")
@@ -330,21 +371,29 @@ def match_invoice_unit(
         "vehicle": blob,
         "trip_id": trip,
     }
+    found: list[str] = []
     uid = turo_inbox.match_unit(fake, roster)
     if uid:
-        return uid
-    hay = turo_inbox._norm_text(blob)
-    hits: list[str] = []
-    for unit in roster:
-        year = str(unit.get("year") or "")
-        model = str(unit.get("model") or "").lower()
-        if not year or not model:
-            continue
-        if year in hay and model in hay:
-            hits.append(str(unit["id"]))
-    if len(hits) == 1:
-        return hits[0]
+        found.append(str(uid))
+    year_hits = _year_model_hits(blob, roster)
+    if len(year_hits) > 1:
+        return None
+    if len(year_hits) == 1:
+        found.append(year_hits[0])
+    plate_hits = _plate_hits(blob, roster)
+    if len(plate_hits) > 1:
+        return None
+    if len(plate_hits) == 1:
+        found.append(plate_hits[0])
+    unique = list(dict.fromkeys(found))
+    if len(unique) == 1:
+        return unique[0]
     return None
+
+
+def _is_open_gt_item(item: Mapping[str, Any]) -> bool:
+    status = str(item.get("status") or "needsAction")
+    return status == "needsAction"
 
 
 def attach_invoice_items(
@@ -352,13 +401,18 @@ def attach_invoice_items(
     units: Sequence[Mapping[str, Any]],
     bookings_by_unit: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> dict[str, Any]:
-    """Split GT items into per-unit lists + unmatched leftover."""
+    """Split open GT items into per-unit lists + unmatched leftover.
+
+    Completed items are dropped — they do not paint on a car or the bucket.
+    """
     by_unit: dict[str, list[dict[str, Any]]] = {
         str(u["id"]): [] for u in units if isinstance(u, dict) and u.get("id")
     }
     unmatched: list[dict[str, Any]] = []
     for raw in items or []:
         if not isinstance(raw, dict):
+            continue
+        if not _is_open_gt_item(raw):
             continue
         rec = dict(raw)
         uid = rec.get("unit_id") or match_invoice_unit(rec, units, bookings_by_unit)
