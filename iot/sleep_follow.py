@@ -558,6 +558,7 @@ def tick_sleep_follow(
             cr = control(target, "keep", bri)
             controls.append({"target": target, **(cr if isinstance(cr, dict) else {"ok": bool(cr)})})
         follow["last_brightness"] = bri
+        follow["done"] = False
         log.info(
             "sleep_follow dim day=%s pct=%.1f bri=%s targets=%s ok=%s empty_at=%s",
             day,

@@ -147,6 +147,7 @@ class TickIntegrationTests(unittest.TestCase):
                 force=True,
             )
             self.assertTrue(r1.get("ok"))
+            self.assertFalse((r1.get("follow") or {}).get("done"))
             self.assertEqual(calls[-1][0], "masterbedroom")
             self.assertEqual(calls[-1][1], "keep")
             self.assertEqual(calls[-1][2], pct_to_wiz_brightness(25))
@@ -460,6 +461,64 @@ class TickIntegrationTests(unittest.TestCase):
                 ["masterbedroom", "livingroom", "entryway"],
             )
             self.assertTrue(all(c[1] == "keep" for c in calls))
+
+    def test_force_tick_clears_stale_done_when_battery_charged(self) -> None:
+        """force=True skips the evening-reset gate; dimming must still clear done."""
+        tz = ZoneInfo("America/New_York")
+        now = datetime(2026, 8, 26, 21, 30, tzinfo=tz)
+        calls: list[tuple] = []
+
+        def control(target: str, color: str, brightness):
+            calls.append((target, color, brightness))
+            return {"ok": True}
+
+        def fetch(*, base_url, path, token):  # noqa: ARG001
+            return {"ok": True, "pct_charged": 66.0, "empty_at": None}
+
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            sched = {
+                "location": {
+                    "latitude": 26.6093,
+                    "longitude": -81.60184,
+                    "timezone": "America/New_York",
+                },
+                "sleep_battery_follow": {
+                    "enabled": True,
+                    "poll_minutes": 15,
+                    "target": "masterbedroom",
+                    "fitdash_url": "http://example.invalid",
+                },
+                "routines": [],
+            }
+            sp = td_path / "schedule.json"
+            st = td_path / "state.json"
+            sp.write_text(json.dumps(sched), encoding="utf-8")
+            st.write_text(
+                json.dumps(
+                    {
+                        "fired": {},
+                        "sleep_battery_follow": {
+                            "day": "2026-08-26",
+                            "active": False,
+                            "done": True,
+                            "completed_at": "2026-08-26T04:10:26-04:00",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            r = tick_sleep_follow(
+                control=control,
+                schedule_path=sp,
+                state_path=st,
+                now=now,
+                fetch_fn=fetch,
+                force=True,
+            )
+            self.assertTrue(r.get("ok"), r)
+            self.assertFalse((r.get("follow") or {}).get("done"))
+            self.assertEqual(calls[-1][1], "keep")
 
 
 if __name__ == "__main__":
