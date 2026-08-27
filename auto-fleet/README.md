@@ -90,7 +90,7 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 
 | Source | MVP behavior |
 |--------|----------------|
-| **DIMO** | Unconfigured until env + vehicle token ids exist. Live path mints a Developer JWT then a **Vehicle JWT** via `dimo-python-sdk`. Never send `DIMO_API_KEY` as a telemetry Bearer. |
+| **DIMO** | Unconfigured until env + vehicle token ids exist. Live path mints a Developer JWT then a **Vehicle JWT** via `dimo-python-sdk`. Never send `DIMO_API_KEY` as a telemetry Bearer. Telemetry is `signalsLatest` (latest GPS / SoC / odo), **not** a live stream. Dashboard polls `/api/fleet` every 30s for location; Turo writer stays every 15 minutes. Fleet map is OSM. |
 | **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. Prod writer is the Pi 15m timer (`auto-fleet-turo-writer.timer`) — not a Mac Grok/MCP poll. Historical / `label:Turo` 2024 mail is dropped. The server does not call Gmail. Payout dest is **X Money**. |
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |
@@ -148,6 +148,15 @@ Unit match uses the mail **body** year (`Toyota Corolla 2024` →
 `corolla-2024`) plus reservation #. Yearless Corolla stays unmatched.
 Mike host mail does not attach to Chris personal units. Bookings paint
 on the car card; they are not Google Tasks.
+
+Static host identity (dashboard `/api/fleet` only): **Mike's** · driver
+`27172979` · public link `https://turo.com/us/en/drivers/27172979`.
+Mail-proven on **corolla-2022** and **corolla-2024**. `m3-2022` stays
+gated (Fleet-tagged turo / Mike's, no mail tying it to that driver).
+Personal units have no host chip. Human open-in-browser only — the
+server never fetches, scrapes, or logs into Turo. No live ratings,
+trip counts, listing inventory, or response time. Helm
+`/api/agent/fleet` is unchanged.
 
 Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
 `off` disables, tests only).

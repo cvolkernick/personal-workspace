@@ -101,6 +101,34 @@ class DimoClientTests(unittest.TestCase):
         self.assertIsNone(out["soc"])
         self.assertEqual(out["last_seen"], "2026-08-17T22:12:12.917Z")
         self.assertEqual(out["location"]["latitude"], 26.64)
+        self.assertEqual(out["location_timestamp"], "2026-08-17T22:12:12.917Z")
+        self.assertEqual(out["speed"], 0.0)
+        self.assertIsNone(out["heading"])
+        self.assertIsNone(out["ignition_on"])
+
+    def test_normalize_heading_and_ignition(self) -> None:
+        payload = {
+            "data": {
+                "signalsLatest": {
+                    "speed": {"value": 32.2, "timestamp": "2026-08-27T01:10:00Z"},
+                    "currentLocationHeading": {
+                        "value": 187.4,
+                        "timestamp": "2026-08-27T01:10:00Z",
+                    },
+                    "isIgnitionOn": {"value": 1, "timestamp": "2026-08-27T01:10:00Z"},
+                    "currentLocationCoordinates": {
+                        "timestamp": "2026-08-27T01:10:01Z",
+                        "value": {"latitude": 26.67, "longitude": -82.03},
+                    },
+                }
+            }
+        }
+        out = dimo_client._normalize_telemetry(payload)
+        self.assertEqual(out["speed"], 32.2)
+        self.assertEqual(out["heading"], 187.4)
+        self.assertTrue(out["ignition_on"])
+        self.assertEqual(out["location_timestamp"], "2026-08-27T01:10:01Z")
+        self.assertEqual(out["last_seen"], "2026-08-27T01:10:01Z")
 
     def test_telemetry_query_uses_real_signal_names(self) -> None:
         body = dimo_client._telemetry_body(131908).decode("utf-8")
@@ -108,6 +136,8 @@ class DimoClientTests(unittest.TestCase):
         self.assertNotIn("odometer {", body)
         self.assertIn("powertrainTransmissionTravelledDistance", body)
         self.assertIn("currentLocationCoordinates", body)
+        self.assertIn("currentLocationHeading", body)
+        self.assertIn("isIgnitionOn", body)
 
     def test_is_configured_requires_id_domain_and_secret(self) -> None:
         self.assertFalse(dimo_client.is_configured({}))

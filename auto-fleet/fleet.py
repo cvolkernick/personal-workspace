@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any, Mapping, Optional, Sequence
 
 try:
     from . import car_cards, dimo_client, glance, turo_inbox
@@ -179,6 +180,7 @@ def identity_for(unit: Mapping[str, Any]) -> dict[str, Any]:
         "vin": unit.get("vin"),
         "plate": plate,
         "host_label": car_cards.host_label_for(unit),
+        "host_identity": car_cards.host_identity_for(unit),
         "role": role,
         "lender": unit.get("lender"),
         "account": unit.get("account"),
@@ -270,6 +272,20 @@ def shared_finance(
     }
 
 
+def _dimo_for_units(
+    units: Sequence[Mapping[str, Any]],
+    env: Mapping[str, str],
+) -> list[dict[str, Any]]:
+    """Fetch DIMO per unit. Parallel — sequential SDK round-trips were ~12s on Pi."""
+    if not units:
+        return []
+    if len(units) == 1:
+        return [dimo_client.dimo_for_unit(units[0], env)]
+    workers = min(8, len(units))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(lambda unit: dimo_client.dimo_for_unit(unit, env), units))
+
+
 def build_fleet(
     *,
     roster_path: Path | None = None,
@@ -293,9 +309,10 @@ def build_fleet(
     env = dimo_env if dimo_env is not None else dimo_client.load_dimo_env(env_path)
     now_s = now or _now()
     poll_s = turo.get("poll_interval_s") or turo_inbox.POLL_INTERVAL_S
+    dimo_rows = _dimo_for_units(units, env)
 
     assembled = []
-    for unit in units:
+    for unit, dimo in zip(units, dimo_rows):
         turo_unit = turo_inbox.turo_for_unit(str(unit["id"]), turo)
         turo_unit["schedule"] = car_cards.schedule_for_bookings(
             turo_unit.get("bookings") or [], now_s
@@ -307,7 +324,7 @@ def build_fleet(
             "finance": finance_for_unit(
                 unit, tab=tab, expenses=expenses, notes=notes, units=units
             ),
-            "dimo": dimo_client.dimo_for_unit(unit, env),
+            "dimo": dimo,
             "turo": turo_unit,
         }
         row["glance"] = glance.glance_for_unit(

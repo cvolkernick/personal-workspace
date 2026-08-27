@@ -1,0 +1,291 @@
+{
+  "version": 40,
+  "as_of": "2026-08-25",
+  "title": "Capital Flows — X Money · Digital Credit ↔ Margin ↔ JR-strcUSX",
+  "notes": "v40: JR-strcUSX card at the bottom of Liquidity Engine, bidirectional with Margin (same two-way LE spine as the cards above). Not HY / not LTV defense; now-deploy lock stands (no mint). v39 spine otherwise unchanged: X Money → Digital Credit → Margin. Turo → X Money only. Lyft → both X Money and Digital Credit. X Money still funds Deploy and still two-way with Digital Credit (cash ↔ Morpho/BTC).",
+  "legend": {
+    "observed": "Seen in YNAB/Plaid or expense sheet",
+    "owner_stated": "Confirmed by owner",
+    "inferred": "Optional / conditional path"
+  },
+  "layout": {
+    "columns": [
+      {
+        "id": "income",
+        "label": "Income",
+        "ids": ["turo", "lyft", "x_creator", "tread", "asics"]
+      },
+      {
+        "id": "liquidity_engine",
+        "label": "Liquidity Engine",
+        "ids": ["x_money", "digital_credit", "margin", "jr_strcusx"]
+      },
+      {
+        "id": "deploy",
+        "label": "Deploy",
+        "ids": [
+          "bills_essential",
+          "bills_fleet",
+          "bills_collateral",
+          "bills_productive",
+          "bills_consumer"
+        ]
+      }
+    ]
+  },
+  "income_sources": [
+    {
+      "id": "turo",
+      "label": "Turo",
+      "kind": "income",
+      "confidence": "owner_stated",
+      "evidence": "Turo payouts land X Money (ops cash sleeve).",
+      "typical_landing": "x_money",
+      "cadence": "semi_daily"
+    },
+    {
+      "id": "lyft",
+      "label": "Lyft",
+      "kind": "income",
+      "confidence": "owner_stated",
+      "evidence": "Lyft splits to both X Money (ops) and Digital Credit (Coinbase/Morpho engine).",
+      "typical_landing": "x_money",
+      "landing_label": "X Money · Digital Credit",
+      "engine_target": "digital_credit",
+      "cadence": "weekly"
+    },
+    {
+      "id": "x_creator",
+      "label": "X Creator",
+      "kind": "income",
+      "status": "planned",
+      "stroke": "planned-brown",
+      "confidence": "owner_stated",
+      "evidence": "Planned — not live.",
+      "typical_landing": "x_money",
+      "cadence": "biweekly"
+    },
+    {
+      "id": "tread",
+      "label": "TREAD",
+      "kind": "income",
+      "status": "planned",
+      "stroke": "planned-brown",
+      "confidence": "owner_stated",
+      "evidence": "Planned — not live.",
+      "typical_landing": "x_money",
+      "cadence": "monthly"
+    },
+    {
+      "id": "asics",
+      "label": "ASICs",
+      "kind": "income",
+      "confidence": "owner_stated",
+      "evidence": "Braiins → Digital Credit (Coinbase) every other month.",
+      "typical_landing": "digital_credit",
+      "engine_target": "digital_credit",
+      "cadence": "every_other_month",
+      "pool": "braiins",
+      "payout_threshold_btc": 0.01
+    }
+  ],
+  "integrations": {
+    "braiins_pool": {
+      "status": "ready",
+      "purpose": "ASIC pool stats",
+      "sync_command": "python3 treasury/braiins_sync.py",
+      "payout_threshold_btc": 0.01
+    }
+  },
+  "channels": [
+    {
+      "id": "x_money",
+      "label": "X Money",
+      "kind": "cash",
+      "stroke": "liq-gray",
+      "subtitle": "~6% · ops float",
+      "confidence": "owner_stated",
+      "notes": "Ops cash sleeve (left of LE). Receives Turo + half of Lyft; funds Deploy; two-way with Digital Credit (cash ↔ Morpho/BTC)."
+    },
+    {
+      "id": "digital_credit",
+      "label": "Digital Credit",
+      "kind": "leverage",
+      "stroke": "liq-blue",
+      "subtitle": "BTC · Morpho · HY",
+      "confidence": "owner_stated",
+      "notes": "Morpho engine mid-LE: liquidity → BTC spot; LTV cool → HY LTV Buffer; LTV hot → HY tops BTC. One Card refinance via Morpho. Two-way with X Money and with Margin. HY is generic high-yield defense (venue product incidental)."
+    },
+    {
+      "id": "margin",
+      "label": "Margin",
+      "kind": "leverage",
+      "stroke": "liq-green",
+      "subtitle": "Agentic · stocks · HY",
+      "confidence": "owner_stated",
+      "notes": "RH equities engine: liquidity → stock spot; margin cool → HY LTV Buffer; heat → HY tops stock. Bidirectional with Digital Credit (not X Money) and with JR-strcUSX. Optional extract is not income. HY is generic high-yield defense (venue product incidental)."
+    },
+    {
+      "id": "jr_strcusx",
+      "label": "JR-strcUSX",
+      "kind": "leverage",
+      "stroke": "liq-amber",
+      "subtitle": "DC-credit parlay",
+      "confidence": "owner_stated",
+      "notes": "Bottom of LE. Bidirectional with Margin only. DC-credit parlay (Solana sleeve) — not HY / not LTV defense. Visibility of the live book; now-deploy lock stands (no mint)."
+    },
+    {
+      "id": "bills_essential",
+      "label": "Essential",
+      "kind": "expense",
+      "subtitle": "Personal must-pays",
+      "confidence": "owner_stated"
+    },
+    {
+      "id": "bills_fleet",
+      "label": "Fleet",
+      "kind": "expense",
+      "subtitle": "Auto fleet burn",
+      "confidence": "owner_stated"
+    },
+    {
+      "id": "bills_collateral",
+      "label": "Collateral",
+      "kind": "invest",
+      "subtitle": "Agentic · BTC stack",
+      "confidence": "owner_stated",
+      "notes": "Deploy sink for free dollars into investable collateral (Agentic / BTC) after Essential + Fleet, before discretionary."
+    },
+    {
+      "id": "bills_productive",
+      "label": "Productive Discretionary",
+      "kind": "expense",
+      "subtitle": "Capex",
+      "confidence": "owner_stated"
+    },
+    {
+      "id": "bills_consumer",
+      "label": "Consumer Discretionary",
+      "kind": "expense",
+      "subtitle": "Wishlist",
+      "confidence": "owner_stated"
+    }
+  ],
+  "edges": [
+    {
+      "from": "turo",
+      "to": "x_money",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Turo ops land X Money."
+    },
+    {
+      "from": "lyft",
+      "to": "x_money",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Lyft share to ops cash."
+    },
+    {
+      "from": "lyft",
+      "to": "digital_credit",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "notes": "Lyft share to Morpho/BTC engine."
+    },
+    {
+      "from": "asics",
+      "to": "digital_credit",
+      "confidence": "owner_stated",
+      "weight": 4
+    },
+    {
+      "from": "x_money",
+      "to": "digital_credit",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "cash → DC engine",
+      "notes": "X Money funds Digital Credit (Coinbase / Morpho / BTC / HY LTV Buffer)."
+    },
+    {
+      "from": "digital_credit",
+      "to": "x_money",
+      "confidence": "owner_stated",
+      "weight": 5,
+      "label": "borrow → cash",
+      "notes": "Morpho USDC (and ops surplus) into X Money cash sleeve."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_essential",
+      "confidence": "owner_stated",
+      "weight": 4
+    },
+    {
+      "from": "x_money",
+      "to": "bills_fleet",
+      "confidence": "owner_stated",
+      "weight": 4
+    },
+    {
+      "from": "x_money",
+      "to": "bills_collateral",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "invest collateral",
+      "notes": "Free dollars into Agentic / BTC collateral after ops floors."
+    },
+    {
+      "from": "x_money",
+      "to": "bills_productive",
+      "confidence": "owner_stated",
+      "weight": 3
+    },
+    {
+      "from": "x_money",
+      "to": "bills_consumer",
+      "confidence": "owner_stated",
+      "weight": 2
+    },
+    {
+      "from": "digital_credit",
+      "to": "margin",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "→ equities engine",
+      "notes": "Digital Credit funds / rebalances into Margin (RH Agentic · stocks · USDG). Replaces prior X Money → Margin auto as the DC–Margin spine."
+    },
+    {
+      "from": "margin",
+      "to": "digital_credit",
+      "confidence": "inferred",
+      "weight": 2,
+      "style": "risk",
+      "label": "optional extract",
+      "notes": "Optional loop back Digital Credit ← Margin — NOT income. Dual-engine risk."
+    },
+    {
+      "from": "margin",
+      "to": "jr_strcusx",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "→ JR-strcUSX",
+      "notes": "Margin seats / rebalances into JR-strcUSX. Same two-way LE spine as Digital Credit ↔ Margin. Visibility path — not a mint."
+    },
+    {
+      "from": "jr_strcusx",
+      "to": "margin",
+      "confidence": "owner_stated",
+      "weight": 4,
+      "label": "→ Margin",
+      "notes": "JR-strcUSX back into the Margin equities engine. Same two-way LE spine as the cards above."
+    }
+  ],
+  "open_questions": [
+    "Exact Morpho LTV target band (cool park-to-HY vs hot pull-to-BTC)",
+    "Exact RH margin-use target band (cool park-to-USDG vs heat pull-to-stock)",
+    "Cadence of Digital Credit → Margin vs former 1st-of-month X Money auto",
+    "When to allow margin extract vs dual-leverage hard block",
+    "JR-strcUSX ↔ Margin: residual seat vs Morpho override still owner-named (now-deploy: visibility only, no mint)"
+  ]
+}

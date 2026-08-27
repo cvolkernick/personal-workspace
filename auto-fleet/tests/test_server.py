@@ -149,6 +149,21 @@ class AutoFleetServerTests(unittest.TestCase):
                         jpeg = resp.read()
                         self.assertGreater(len(jpeg), 10_000, still)
                         self.assertTrue(jpeg.startswith(b"\xff\xd8"), still)
+                self.assertEqual(
+                    by_id["corolla-2022"]["identity"]["host_identity"],
+                    {
+                        "host_label": "Mike's",
+                        "driver_id": "27172979",
+                        "public_url": "https://turo.com/us/en/drivers/27172979",
+                    },
+                )
+                self.assertEqual(
+                    by_id["corolla-2024"]["identity"]["host_identity"],
+                    by_id["corolla-2022"]["identity"]["host_identity"],
+                )
+                self.assertIsNone(by_id["m3-2022"]["identity"]["host_identity"])
+                self.assertIsNone(by_id["m3-2020"]["identity"]["host_identity"])
+                self.assertIsNone(by_id["r1s-2023"]["identity"]["host_identity"])
                 for unit in fleet["units"]:
                     self.assertIn("identity", unit)
                     self.assertIn("year", unit["identity"])
@@ -234,6 +249,10 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("after:2026/08/18", readme)
         self.assertIn("financial-command/", readme)
         self.assertIn("setInterval(load, 15 * 60 * 1000)", html)
+        self.assertIn("setInterval(load, 30 * 1000)", html)
+        self.assertIn('id="page-loader"', html)
+        self.assertIn('id="load-bar"', html)
+        self.assertIn('id="fleet-map"', html)
         sched_src = html[schedule_fn:money_fn]
         self.assertNotIn("inbox_status", sched_src)
         self.assertIn("function bookingRow", html)

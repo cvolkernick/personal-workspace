@@ -61,6 +61,14 @@ _TRIP_IN_TEXT = re.compile(
 _TRIP_HASH = re.compile(r"(?:^|[\s(])#\s*(\d{6,8})\b")
 
 
+# Static public host profile. Mail-proven Corollas only. Never fetched.
+MIKE_TURO_HOST_LABEL = "Mike's"
+MIKE_TURO_DRIVER_ID = "27172979"
+MIKE_TURO_PUBLIC_URL = "https://turo.com/us/en/drivers/27172979"
+# Fleet-tagged turo / Mike's is not enough. m3-2022 stays gated.
+MAIL_PROVEN_HOST_UNIT_IDS = frozenset({"corolla-2022", "corolla-2024"})
+
+
 def host_label_for(unit: Mapping[str, Any]) -> Optional[str]:
     """Turo-role units are Mike's. Personal units: only if roster names a host."""
     raw = (unit.get("host") or "").strip()
@@ -69,8 +77,24 @@ def host_label_for(unit: Mapping[str, Any]) -> Optional[str]:
             return raw
         return f"{raw}'s"
     if (unit.get("role") or "").lower() == "turo":
-        return "Mike's"
+        return MIKE_TURO_HOST_LABEL
     return None
+
+
+def host_identity_for(unit: Mapping[str, Any]) -> Optional[dict[str, str]]:
+    """Thin static Mike Turo chip. Mail-proven units only. No live Turo read."""
+    uid = str(unit.get("id") or "")
+    if uid not in MAIL_PROVEN_HOST_UNIT_IDS:
+        return None
+    if (unit.get("role") or "").lower() != "turo":
+        return None
+    if host_label_for(unit) != MIKE_TURO_HOST_LABEL:
+        return None
+    return {
+        "host_label": MIKE_TURO_HOST_LABEL,
+        "driver_id": MIKE_TURO_DRIVER_ID,
+        "public_url": MIKE_TURO_PUBLIC_URL,
+    }
 
 
 def locked_finance_for(unit_id: str) -> dict[str, Any]:

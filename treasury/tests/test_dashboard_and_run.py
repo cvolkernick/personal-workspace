@@ -61,6 +61,33 @@ class TestDashboardArtifact(unittest.TestCase):
         ):
             self.assertIn(needle.lower(), text.lower())
 
+    def test_capital_flows_model(self):
+        html = (ROOT / "financial-command" / "capital-flows.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Capital Flows", html)
+        self.assertIn("/api/capital-flows", html)
+        model_path = ROOT / "investment" / "capital_flows.json"
+        self.assertTrue(
+            model_path.is_file(),
+            "investment/capital_flows.json must ship with capital-flows.html",
+        )
+        model = json.loads(model_path.read_text(encoding="utf-8"))
+        ids = [s["id"] for s in model["income_sources"]]
+        self.assertIn("lyft", ids)
+        self.assertIn("turo", ids)
+        self.assertIn("asics", ids)
+        ch_ids = [c["id"] for c in model["channels"]]
+        self.assertIn("jr_strcusx", ch_ids)
+        le = next(
+            c for c in model["layout"]["columns"] if c["id"] == "liquidity_engine"
+        )
+        self.assertEqual(le["ids"][-1], "jr_strcusx")
+        pairs = {(e["from"], e["to"]) for e in model["edges"]}
+        self.assertIn(("margin", "jr_strcusx"), pairs)
+        self.assertIn(("jr_strcusx", "margin"), pairs)
+        self.assertGreater(len(model.get("edges") or []), 5)
+
 
 class TestRunTreasuryEntry(unittest.TestCase):
     def test_run_offline_writes_evaluation(self):
@@ -157,6 +184,13 @@ class TestFccSidecarAttach(unittest.TestCase):
         self.assertTrue(ico.is_file())
         self.assertGreater(ico.stat().st_size, 64)
         self.assertTrue((ROOT / "financial-command" / "favicon-32.png").is_file())
+
+    def test_capital_flows_payload_ok(self):
+        data = self.mod._capital_flows_payload()
+        self.assertTrue(data.get("ok"), data.get("error"))
+        self.assertIn("income_sources", data)
+        self.assertIn("channels", data)
+        self.assertGreater(len(data.get("edges") or []), 5)
 
 
 if __name__ == "__main__":

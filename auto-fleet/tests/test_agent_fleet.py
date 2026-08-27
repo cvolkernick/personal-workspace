@@ -105,6 +105,10 @@ class AgentFleetExportTests(unittest.TestCase):
             self.assertNotIn("lender", ident)
             self.assertNotIn("plate", ident)
             self.assertIn("role", ident)
+            self.assertNotIn("host_identity", ident)
+        blob = json.dumps(packet)
+        self.assertNotIn("27172979", blob)
+        self.assertNotIn("turo.com/us/en/drivers", blob)
 
     def test_attachments_metadata_without_absolute_path(self) -> None:
         jpeg = _fixture_jpeg(b"blocked-in")

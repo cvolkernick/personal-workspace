@@ -113,7 +113,11 @@ def empty_dimo(
         "odometer": None,
         "range": None,
         "soc": None,
+        "speed": None,
+        "heading": None,
+        "ignition_on": None,
         "location": None,
+        "location_timestamp": None,
     }
     if error:
         out["error"] = error
@@ -134,6 +138,35 @@ def _signal_timestamp(node: Any) -> Optional[str]:
     return None
 
 
+def _as_float(node: Any) -> Optional[float]:
+    val = _value(node)
+    if val is None or val == "":
+        return None
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_bool(node: Any) -> Optional[bool]:
+    val = _value(node)
+    if val is None or val == "":
+        return None
+    if isinstance(val, bool):
+        return val
+    if isinstance(val, (int, float)):
+        return bool(val)
+    text = str(val).strip().lower()
+    if text in ("true", "on", "yes"):
+        return True
+    if text in ("false", "off", "no"):
+        return False
+    try:
+        return bool(int(text))
+    except (TypeError, ValueError):
+        return None
+
+
 def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     data = payload.get("data") if isinstance(payload, dict) else None
     latest = (data or {}).get("signalsLatest") if isinstance(data, dict) else None
@@ -146,6 +179,9 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     soc = latest.get("powertrainTractionBatteryStateOfChargeCurrent") or latest.get(
         "soc"
     )
+    speed_node = latest.get("speed")
+    heading_node = latest.get("currentLocationHeading") or latest.get("heading")
+    ignition_node = latest.get("isIgnitionOn") or latest.get("ignition_on")
     coords = latest.get("currentLocationCoordinates")
     lat = lon = None
     if isinstance(coords, dict):
@@ -160,6 +196,9 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
     loc = latest.get("currentLocation") or latest.get("location")
     if lat is not None or lon is not None:
         loc = {"lat": lat, "lon": lon, "latitude": lat, "longitude": lon}
+    loc_ts = _signal_timestamp(coords) if isinstance(coords, dict) else None
+    if loc_ts is None and isinstance(loc, dict):
+        loc_ts = loc.get("timestamp") or loc.get("location_timestamp")
     stamps = [
         s
         for s in (
@@ -167,8 +206,8 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
             _signal_timestamp(odo) if isinstance(odo, dict) else None,
             _signal_timestamp(rng) if isinstance(rng, dict) else None,
             _signal_timestamp(soc) if isinstance(soc, dict) else None,
-            _signal_timestamp(latest.get("speed")) if isinstance(latest.get("speed"), dict) else None,
-            _signal_timestamp(coords) if isinstance(coords, dict) else None,
+            _signal_timestamp(speed_node) if isinstance(speed_node, dict) else None,
+            loc_ts,
         )
         if s
     ]
@@ -177,7 +216,11 @@ def _normalize_telemetry(payload: Any) -> dict[str, Any]:
         "odometer": _value(odo),
         "range": _value(rng),
         "soc": _value(soc),
+        "speed": _as_float(speed_node if speed_node is not None else latest.get("speed")),
+        "heading": _as_float(heading_node),
+        "ignition_on": _as_bool(ignition_node),
         "location": loc if isinstance(loc, dict) else None,
+        "location_timestamp": loc_ts,
     }
 
 
@@ -188,6 +231,8 @@ TELEMETRY_QUERY = (
     "powertrainTractionBatteryStateOfChargeCurrent { value timestamp } "
     "powertrainFuelSystemRelativeLevel { value timestamp } "
     "speed { value timestamp } "
+    "currentLocationHeading { value timestamp } "
+    "isIgnitionOn { value timestamp } "
     "currentLocationCoordinates { timestamp value { latitude longitude } } } }"
 )
 
@@ -279,7 +324,11 @@ def fetch_vehicle(
                         "odometer": payload.get("odometer"),
                         "range": payload.get("range"),
                         "soc": payload.get("soc"),
+                        "speed": payload.get("speed"),
+                        "heading": payload.get("heading"),
+                        "ignition_on": payload.get("ignition_on"),
                         "location": payload.get("location"),
+                        "location_timestamp": payload.get("location_timestamp"),
                     }
         else:
             try:
@@ -304,7 +353,11 @@ def fetch_vehicle(
         "odometer": signals.get("odometer"),
         "range": signals.get("range"),
         "soc": signals.get("soc"),
+        "speed": signals.get("speed"),
+        "heading": signals.get("heading"),
+        "ignition_on": signals.get("ignition_on"),
         "location": signals.get("location"),
+        "location_timestamp": signals.get("location_timestamp"),
     }
 
 
