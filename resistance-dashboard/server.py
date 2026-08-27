@@ -142,6 +142,9 @@ from rt_dashboard.nutrition_store import (  # noqa: E402
     load_inventory_and_targets,
     write_nutrition_file,
 )
+from rt_dashboard.nutrition_targets import (  # noqa: E402
+    merge_recommended_into_applied,
+)
 from rt_dashboard.grok_ask import (  # noqa: E402
     GrokAskError,
     ask_about_dashboard,
@@ -994,6 +997,36 @@ def load_dashboard_data(
     return payload
 
 
+def _apply_coach_targets(client, *, user_id: Optional[str] = None) -> dict:
+    """Write subroutine recommended macros. Never called from dashboard load."""
+    data = load_dashboard_data(force_refresh=False, user_id=user_id)
+    rec = ((data.get("coach") or {}).get("nutrition_targets") or {})
+    if rec.get("abstain") or not rec.get("recommended"):
+        return {
+            "ok": False,
+            "action": "apply_coach_targets",
+            "error": "Coach has no recommendation to apply",
+            "reasons": rec.get("reasons") or [],
+            "recommendation": rec,
+        }
+    store = load_inventory_and_targets(client)
+    base = merge_recommended_into_applied(store.get("targets") or {}, rec)
+    updated = update_targets(base)
+    write = write_nutrition_file(
+        client,
+        TARGETS_PATH,
+        updated,
+        message="nutrition: apply coach targets",
+    )
+    return {
+        "ok": True,
+        "action": "apply_coach_targets",
+        "targets": updated,
+        "recommendation": rec,
+        "write": write,
+    }
+
+
 def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dict:
     """Run a structured coach action against local/GitHub stores."""
     kind = action.get("action")
@@ -1065,6 +1098,8 @@ def _execute_coach_action(action: dict, *, user_id: Optional[str] = None) -> dic
                 message="nutrition: targets via coach",
             )
             return {"ok": True, "action": kind, "targets": updated, "write": write}
+        if kind == "apply_coach_targets":
+            return _apply_coach_targets(client, user_id=uid)
         if kind == "set_focus_muscles":
             from rt_dashboard.workout_planner import (
                 suggest_focus_muscles,
@@ -1750,6 +1785,12 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             try:
                 body = self._read_json()
                 client = build_github_client(for_write=True)
+                uid = (getattr(self, "_request_user", None) or {}).get("user_id")
+                if body.get("apply_coach"):
+                    result = _apply_coach_targets(client, user_id=uid)
+                    status = 200 if result.get("ok") else 400
+                    self._send_json(result, status=status)
+                    return
                 updated = update_targets(body)
                 write = write_nutrition_file(
                     client,

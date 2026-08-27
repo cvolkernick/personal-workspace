@@ -22,7 +22,7 @@
     <script src="/energy-weight-align.js?v=ewi-cap-1" defer></script>
     <script src="/hidrate-bottle.js?v=bottle-charge-7" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
-    <script src="/app.js?v=ewi-cap-5lb-1" defer></script>
+    <script src="/app.js?v=coach-targets-1" defer></script>
   </head>
   <body>
     <!-- Default visible: signed-out first paint. JS hides this only after auth/status OK. -->
@@ -571,6 +571,7 @@
           <strong>Refresh plan</strong> rebuilds the workout plan only.
           <strong>Refresh data</strong> pulls Health and logs only.
         </p>
+        <div id="coach-targets-rec" class="coach-targets-rec" hidden></div>
         <form class="log-form" id="targets-form">
           <div class="row cols-4">
             <label>Cal target<input type="number" id="tgt-cal" min="0" step="1" required /></label>
@@ -583,9 +584,19 @@
               >Weight goal (lb)
               <input type="number" id="tgt-weight-goal" min="80" max="500" step="0.1" placeholder="e.g. 175" />
             </label>
+            <label title="cut / maintain / slow bulk. Blank = infer from notes or scale vs goal."
+              >Phase
+              <select id="tgt-phase">
+                <option value="">infer</option>
+                <option value="cut">cut</option>
+                <option value="maintain">maintain</option>
+                <option value="slow_bulk">slow bulk</option>
+              </select>
+            </label>
           </div>
           <div class="actions">
             <button type="submit" class="primary">Save targets</button>
+            <button type="button" id="btn-apply-coach-targets">Apply coach targets</button>
           </div>
           <p class="muted" id="targets-status" style="margin: 0"></p>
         </form>

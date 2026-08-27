@@ -211,6 +211,7 @@ def try_parse_coach_action(
       - update my calories to 2000
       - change macros to 220p 150c 55f
       - apply those recommendations  (uses last Grok reply for numbers)
+      - apply coach targets / apply coach macros  (subroutine recs only)
       - mark chicken out of stock / set eggs in stock
       - refresh meal plan / regenerate my meal plan
     """
@@ -301,6 +302,13 @@ def try_parse_coach_action(
         if muscles:
             return {"action": "set_focus_muscles", "muscles": muscles}
 
+    # --- targets: apply coach subroutine (not last chat macros) -------------
+    if re.match(
+        r"^(?:please\s+)?apply\s+coach\s+(?:targets?|macros?)\s*[.!?]?\s*$",
+        low,
+    ):
+        return {"action": "apply_coach_targets"}
+
     # --- targets: apply last recommendation ---------------------------------
     if _APPLY_FROM_CONTEXT.match(low):
         vals = _targets_from_history(history)
@@ -380,7 +388,7 @@ def format_action_reply(result: Dict[str, Any]) -> str:
     if action == "set_stock":
         state = "in stock" if result.get("in_stock") else "out of stock"
         return f"**Done.** Marked **{result.get('name') or result.get('id')}** as {state}."
-    if action == "set_targets":
+    if action in ("set_targets", "apply_coach_targets"):
         t = result.get("targets") or {}
         bits = []
         if t.get("calories") is not None:
@@ -392,6 +400,8 @@ def format_action_reply(result: Dict[str, Any]) -> str:
         if t.get("fat_g") is not None:
             bits.append(f"F{t.get('fat_g')}")
         detail = " · ".join(bits) if bits else str(t)
+        if action == "apply_coach_targets":
+            return f"**Coach targets applied:** {detail}."
         return f"**Targets updated:** {detail}."
     if action == "set_focus_muscles":
         muscles = result.get("muscles") or []

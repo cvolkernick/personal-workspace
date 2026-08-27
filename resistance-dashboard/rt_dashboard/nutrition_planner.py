@@ -24,6 +24,8 @@ DEFAULT_TARGETS = {
     "fat_g": 55,
     # Optional scale goal for Trends weight chart guide line (lb). None = unset.
     "weight_goal_lbs": None,
+    # Optional nutrition phase: cut | maintain | slow_bulk. None = infer.
+    "phase": None,
     "notes": "Default cutting targets",
     "updated_at": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
 }
@@ -70,6 +72,8 @@ def normalize_targets(raw: Optional[dict]) -> dict:
                 t[k] = float(raw[k])
         if "weight_goal_lbs" in raw:
             t["weight_goal_lbs"] = _coerce_weight_goal_lbs(raw.get("weight_goal_lbs"))
+        if "phase" in raw:
+            t["phase"] = _coerce_phase(raw.get("phase"))
         if raw.get("notes"):
             t["notes"] = str(raw["notes"])
         if raw.get("updated_at"):
@@ -90,7 +94,20 @@ def normalize_targets(raw: Optional[dict]) -> dict:
     t["fat_g"] = max(0.0, min(300.0, float(t["fat_g"])))
     if "weight_goal_lbs" not in t:
         t["weight_goal_lbs"] = None
+    if "phase" not in t:
+        t["phase"] = None
     return t
+
+
+def _coerce_phase(raw: Any) -> Optional[str]:
+    if raw is None or raw == "":
+        return None
+    v = str(raw).strip().lower().replace("-", "_").replace(" ", "_")
+    if v in ("bulk", "gain"):
+        v = "slow_bulk"
+    if v in ("cut", "maintain", "slow_bulk"):
+        return v
+    return None
 
 
 def _coerce_weight_goal_lbs(raw: Any) -> Optional[float]:

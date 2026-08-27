@@ -2857,6 +2857,10 @@
           ? t.weight_goal_lbs
           : "";
     }
+    if ($("tgt-phase")) {
+      $("tgt-phase").value = t.phase || "";
+    }
+    renderCoachTargetRec(state && state.coach);
     if ($("macro-pace-bars")) {
       $("macro-pace-bars").innerHTML = `
         <div class="macro-progress-list">
@@ -5248,11 +5252,73 @@
     }
   }
 
+  function renderCoachTargetRec(coach) {
+    const box = $("coach-targets-rec");
+    const btn = $("btn-apply-coach-targets");
+    if (!box) return;
+    const rec = (coach && coach.nutrition_targets) || {};
+    const recd = rec.recommended;
+    if (!recd) {
+      box.hidden = true;
+      if (btn) btn.disabled = true;
+      return;
+    }
+    const applied = rec.applied || {};
+    const delta = rec.delta || {};
+    const reasons = rec.reasons || [];
+    const dCal = delta.calories || 0;
+    const dSign = dCal > 0 ? "+" : "";
+    box.hidden = false;
+    box.innerHTML = `
+      <p class="muted" style="margin:0 0 0.4rem;font-size:0.85rem">
+        Coach recommendation · phase <strong>${rec.phase || "—"}</strong>
+        ${rec.abstain ? " · <em>abstain calories (thin data)</em>" : ""}
+      </p>
+      <div class="chart-summary-row">
+        <div class="chart-summary-chip">
+          <span class="chip-k">Recommended</span>
+          <span class="chip-v">${recd.calories} / ${recd.protein_g}P / ${recd.carbs_g}C / ${recd.fat_g}F</span>
+          <span class="chip-s">${dSign}${dCal} kcal vs applied ${applied.calories || "—"}</span>
+        </div>
+        <div class="chart-summary-chip">
+          <span class="chip-k">TDEE hat</span>
+          <span class="chip-v">${rec.tdee_kcal != null ? rec.tdee_kcal : "—"}</span>
+          <span class="chip-s">${rec.tdee_days || 0} present days · wearable estimate</span>
+        </div>
+      </div>
+      <ul class="reasons" style="margin:0.4rem 0 0;font-size:0.8rem">
+        ${reasons.map((r) => `<li>${r}</li>`).join("")}
+      </ul>
+    `;
+    if (btn) btn.disabled = !!rec.abstain;
+  }
+
+  async function applyCoachTargets() {
+    const status = $("targets-status");
+    if (status) status.textContent = "Applying coach targets…";
+    try {
+      const res = await fetch("/api/targets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apply_coach: true }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || res.status);
+      if (status) status.textContent = "Coach targets applied";
+      showAlert("Coach targets applied", "ok");
+      await loadDashboard();
+    } catch (e) {
+      if (status) status.textContent = "";
+      showAlert(`Apply coach targets failed: ${e.message}`, "err");
+    }
+  }
+
   async function submitTargets(ev) {
     ev.preventDefault();
     const status = $("targets-status");
     if (status) status.textContent = "Saving…";
     const wgRaw = $("tgt-weight-goal") ? $("tgt-weight-goal").value : "";
+    const phaseRaw = $("tgt-phase") ? $("tgt-phase").value : "";
     const body = {
       calories: Number($("tgt-cal").value),
       protein_g: Number($("tgt-p").value),
@@ -5260,6 +5326,7 @@
       fat_g: Number($("tgt-f").value),
       // Empty string clears the goal; omit is not used so chart stays in sync
       weight_goal_lbs: wgRaw === "" || wgRaw == null ? null : Number(wgRaw),
+      phase: phaseRaw || null,
     };
     try {
       const res = await fetch("/api/targets", {
@@ -5728,6 +5795,9 @@
     }
     if ($("targets-form")) {
       $("targets-form").addEventListener("submit", submitTargets);
+    }
+    if ($("btn-apply-coach-targets")) {
+      $("btn-apply-coach-targets").addEventListener("click", applyCoachTargets);
     }
 
     if ($("equipment-form")) {

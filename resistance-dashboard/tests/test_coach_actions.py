@@ -53,6 +53,22 @@ class TestCoachActions(unittest.TestCase):
             try_parse_coach_action("should I set calories to 2000?")
         )
 
+    def test_apply_coach_targets_not_chat_macros(self):
+        a = try_parse_coach_action("apply coach targets")
+        self.assertEqual(a["action"], "apply_coach_targets")
+        self.assertNotIn("targets", a)
+        b = try_parse_coach_action("please apply coach macros")
+        self.assertEqual(b["action"], "apply_coach_targets")
+        history = [
+            {
+                "role": "assistant",
+                "content": "I'd bump protein to 220g and calories around 2000 kcal.",
+            }
+        ]
+        chat = try_parse_coach_action("apply those recommendations", history=history)
+        self.assertEqual(chat["action"], "set_targets")
+        self.assertTrue(chat.get("from_context"))
+
     def test_apply_from_history(self):
         history = [
             {
