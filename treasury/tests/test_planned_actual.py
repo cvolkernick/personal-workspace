@@ -813,7 +813,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "aug27-rent-email-25",
                     "type": "send",
-                    "status": "pending",
+                    "status": "completed",
                     "created_at": "2026-08-27T12:00:00Z",
                     "amount": {"amount": "-25.00", "currency": "USDC"},
                     "to": {"resource": "email", "email": "nvolkern@gmail.com"},
@@ -865,6 +865,32 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertAlmostEqual(thais["actual"], 895.0)
         self.assertEqual(thais["flag"], FLAG_ON)
         self.assertFalse(strip["coach_wired"])
+
+        pending_only = dict(snaps)
+        pending_only["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "aug27-rent-still-pending",
+                    "type": "send",
+                    "status": "pending",
+                    "created_at": "2026-08-27T12:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                }
+            ],
+        }
+        pending_strip = build_planned_actual_strip(pending_only, _ac_map(), as_of="2026-08-27")
+        self.assertEqual(_row(pending_strip, "Rent")["actual"], 0.0)
+        self.assertEqual(_row(pending_strip, "Rent")["flag"], FLAG_OFF_BOOK)
+
+        snaps_aug = _snaps([_item("August Rent", 2090.0, "Coinbase")], [])
+        snaps_aug["coinbase_usdc_sends"] = snaps["coinbase_usdc_sends"]
+        august = build_planned_actual_strip(snaps_aug, _ac_map(), as_of="2026-08-27")
+        row = _row(august, "August Rent")
+        self.assertAlmostEqual(row["planned"], 2090.0)
+        self.assertAlmostEqual(row["actual"], 25.0)
+        self.assertEqual(row["flag"], FLAG_ON)
 
     def test_leftover_ynab_pile_does_not_backfill_thais_or_rent(self) -> None:
         snaps = _snaps(_ac_items(), _leftover_pile(87))

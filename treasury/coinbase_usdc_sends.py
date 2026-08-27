@@ -1,7 +1,8 @@
 """Coinbase v2 USDC send book — display-only actuals for Thaís and Rent.
 
 Venue is Coinbase v2 USDC `type=send` only. Ignore lend / lock / One Card / X Money.
-Rent dest is email only: nvolkern@gmail.com (casefold). No phone. No other dests.
+Rent dest is email only: nvolkern@gmail.com (casefold). status=completed only.
+Pending/failed/canceled do not book. No phone. No other dests.
 Thaís is named address send. Recurring send is HOLD.
 Rent planned stays sheet monthly — never rewrite to $25 * days.
 No Transfer key. No sender code. Key lives only on prism.
@@ -175,8 +176,10 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
 
 
 def matches_rent(tx: Dict[str, Any]) -> bool:
-    """Rent = v2 USDC type=send to nvolkern@gmail.com only. Email only."""
+    """Rent = completed v2 USDC type=send to nvolkern@gmail.com only. Email only."""
     if tx_type(tx) != SEND_TYPE:
+        return False
+    if tx_status(tx) != "completed":
         return False
     resource = _to_resource(tx)
     if resource and resource != "email":
@@ -254,13 +257,32 @@ def prism_key_present() -> bool:
     return PRISM_KEY_PATH.is_file()
 
 
+_MONTH_FIRST = frozenset(
+    {
+        "january", "february", "march", "april", "may", "june", "july", "august",
+        "september", "october", "november", "december",
+        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
+    }
+)
+
+
+def _item_kind(item_name: str) -> str:
+    """First token, after dropping a leading month so 'August Rent' → rent."""
+    toks = _fold(item_name).split()
+    if not toks:
+        return ""
+    if toks[0] in _MONTH_FIRST and len(toks) > 1:
+        return toks[1]
+    return toks[0]
+
+
 def item_sends_for_month(
     sends: Sequence[Dict[str, Any]],
     *,
     item_name: str,
     month: date,
 ) -> List[Dict[str, Any]]:
-    key = _fold(item_name).split()[0] if item_name else ""
+    key = _item_kind(item_name)
     matched: List[Dict[str, Any]] = []
     for tx in sends:
         if not tx_in_month(tx, month):

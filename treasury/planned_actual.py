@@ -4,7 +4,7 @@ SoT:
   planned — Personal Expense Sheet Essential (legacy Personal) + Fleet + Collateral.
   actual  — this-month YNAB in-map spend by payee, except Coinbase USDC items.
   Thaís   — Coinbase v2 USDC type=send only (lend/lock ignored).
-  Rent    — planned = sheet monthly; actual = v2 USDC type=send to nvolkern@gmail.com.
+  Rent    — planned = sheet monthly; actual = completed v2 USDC type=send to nvolkern@gmail.com.
   join    — sheet Item → one YNAB category_id (map name / sheet_item / payee).
 
 Never writes money, never nudges the coach, never touches Interest Spectrum.
