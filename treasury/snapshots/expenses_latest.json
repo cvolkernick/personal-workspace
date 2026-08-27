@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-27T14:40:40.862914+00:00",
+  "as_of": "2026-08-27T17:43:12.852447+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -24,25 +24,25 @@
       "role": "upcoming_expense_estimates",
       "item_count": 29,
       "totals": {
-        "daily": 484.44,
-        "weekly": 3391.07,
-        "biweekly": 6782.14,
-        "monthly": 14734.58,
-        "annually": 59728.92,
-        "quarterly": 25341.73
+        "daily": 483.62,
+        "weekly": 3385.32,
+        "biweekly": 6770.63,
+        "monthly": 14709.58,
+        "annually": 59703.92,
+        "quarterly": 25316.73
       },
       "items": [
         {
           "date": "4/1/2026",
           "from": "Coinbase",
           "item": "April Rent",
-          "daily": 25.48,
-          "weekly": 178.36,
-          "biweekly": 356.71,
-          "monthly": 775.0,
-          "annually": 775.0,
+          "daily": 24.66,
+          "weekly": 172.6,
+          "biweekly": 345.21,
+          "monthly": 750.0,
+          "annually": 750.0,
           "budget_allocation": null,
-          "quarterly": 775.0,
+          "quarterly": 750.0,
           "tab": "Essential"
         },
         {
@@ -411,7 +411,7 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13501.91,
+        "Coinbase": 13476.91,
         "X Money": 1232.67
       },
       "top_monthly": [
@@ -473,7 +473,7 @@
         },
         {
           "item": "April Rent",
-          "monthly": 775.0,
+          "monthly": 750.0,
           "from": "Coinbase",
           "date": "4/1/2026",
           "budget_allocation": null,
@@ -517,8 +517,8 @@
           "date": "4/1/2026",
           "item": "April Rent",
           "from": "Coinbase",
-          "monthly": 775.0,
-          "weekly": 178.36,
+          "monthly": 750.0,
+          "weekly": 172.6,
           "tab": "Essential"
         },
         {
@@ -1270,25 +1270,25 @@
       "role": "upcoming_expense_estimates",
       "item_count": 29,
       "totals": {
-        "daily": 484.44,
-        "weekly": 3391.07,
-        "biweekly": 6782.14,
-        "monthly": 14734.58,
-        "annually": 59728.92,
-        "quarterly": 25341.73
+        "daily": 483.62,
+        "weekly": 3385.32,
+        "biweekly": 6770.63,
+        "monthly": 14709.58,
+        "annually": 59703.92,
+        "quarterly": 25316.73
       },
       "items": [
         {
           "date": "4/1/2026",
           "from": "Coinbase",
           "item": "April Rent",
-          "daily": 25.48,
-          "weekly": 178.36,
-          "biweekly": 356.71,
-          "monthly": 775.0,
-          "annually": 775.0,
+          "daily": 24.66,
+          "weekly": 172.6,
+          "biweekly": 345.21,
+          "monthly": 750.0,
+          "annually": 750.0,
           "budget_allocation": null,
-          "quarterly": 775.0,
+          "quarterly": 750.0,
           "tab": "Essential"
         },
         {
@@ -1657,7 +1657,7 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13501.91,
+        "Coinbase": 13476.91,
         "X Money": 1232.67
       },
       "top_monthly": [
@@ -1719,7 +1719,7 @@
         },
         {
           "item": "April Rent",
-          "monthly": 775.0,
+          "monthly": 750.0,
           "from": "Coinbase",
           "date": "4/1/2026",
           "budget_allocation": null,
@@ -1763,8 +1763,8 @@
           "date": "4/1/2026",
           "item": "April Rent",
           "from": "Coinbase",
-          "monthly": 775.0,
-          "weekly": 178.36,
+          "monthly": 750.0,
+          "weekly": 172.6,
           "tab": "Essential"
         },
         {
@@ -2103,13 +2103,13 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 20309.63,
-    "essential_monthly": 14734.58,
-    "personal_monthly": 14734.58,
-    "personal_daily": 484.44,
-    "essential_daily": 484.44,
-    "personal_weekly": 3391.07,
-    "personal_annually": 59728.92,
+    "upcoming_expense_monthly": 20284.63,
+    "essential_monthly": 14709.58,
+    "personal_monthly": 14709.58,
+    "personal_daily": 483.62,
+    "essential_daily": 483.62,
+    "personal_weekly": 3385.32,
+    "personal_annually": 59703.92,
     "fleet_monthly": 5575.05,
     "fleet_daily": 185.52,
     "fleet_annually": 28117.57,
@@ -2121,14 +2121,14 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 20309.63,
-    "combined_daily": 669.97,
+    "combined_monthly": 20284.63,
+    "combined_daily": 669.15,
     "by_source_monthly": {
-      "Coinbase": 13519.91,
+      "Coinbase": 13494.91,
       "X Money": 5439.72,
       "NFCU (Zelle)": 1350.0
     },
-    "coinbase_funded_monthly": 13519.91,
+    "coinbase_funded_monthly": 13494.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5439.72
