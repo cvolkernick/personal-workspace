@@ -184,11 +184,11 @@ class ScheduleTests(unittest.TestCase):
                 "livingroom",
                 "entryway",
                 "masterbathroom",
-                "exterior",
                 "garage",
             }.issubset(targets),
             targets,
         )
+        self.assertNotIn("exterior", targets)
         self.assertNotIn("plantlights", targets)
         self.assertNotIn("office", targets)
         self.assertNotIn("plugs", targets)
