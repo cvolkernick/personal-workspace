@@ -1,6 +1,6 @@
 {
   "source": "google_sheets",
-  "as_of": "2026-08-26T19:54:19.239365+00:00",
+  "as_of": "2026-08-27T14:40:40.862914+00:00",
   "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
   "sheet_name": "Personal Expense Sheet",
   "semantics": {
@@ -22,27 +22,79 @@
   "tabs": {
     "Essential": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 29,
       "totals": {
-        "daily": 486.08,
-        "weekly": 3402.58,
-        "biweekly": 6805.15,
-        "monthly": 14784.58,
-        "annually": 50593.92,
-        "quarterly": 16206.73
+        "daily": 484.44,
+        "weekly": 3391.07,
+        "biweekly": 6782.14,
+        "monthly": 14734.58,
+        "annually": 59728.92,
+        "quarterly": 25341.73
       },
       "items": [
         {
           "date": "4/1/2026",
           "from": "Coinbase",
-          "item": "Rent (April / May / June / July / August / September)",
-          "daily": 370.68,
-          "weekly": 2594.79,
-          "biweekly": 5189.59,
-          "monthly": 11275.0,
-          "annually": 24000.0,
+          "item": "April Rent",
+          "daily": 25.48,
+          "weekly": 178.36,
+          "biweekly": 356.71,
+          "monthly": 775.0,
+          "annually": 775.0,
           "budget_allocation": null,
-          "quarterly": 6000.0,
+          "quarterly": 775.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "5/1/2026",
+          "from": "Coinbase",
+          "item": "May Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "6/1/2026",
+          "from": "Coinbase",
+          "item": "June Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "7/1/2026",
+          "from": "Coinbase",
+          "item": "July Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "8/1/2026",
+          "from": "Coinbase",
+          "item": "August Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
           "tab": "Essential"
         },
         {
@@ -60,15 +112,15 @@
         },
         {
           "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
+          "from": "Coinbase",
+          "item": "September Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 24000.0,
           "budget_allocation": null,
-          "quarterly": 250.0,
+          "quarterly": 6000.0,
           "tab": "Essential"
         },
         {
@@ -134,6 +186,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "from": "X Money",
+          "item": "Student Loan",
+          "daily": 2.74,
+          "weekly": 19.18,
+          "biweekly": 38.36,
+          "monthly": 83.33,
+          "annually": 1000.0,
+          "budget_allocation": null,
+          "quarterly": 250.0,
           "tab": "Essential"
         },
         {
@@ -346,15 +411,47 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13551.91,
+        "Coinbase": 13501.91,
         "X Money": 1232.67
       },
       "top_monthly": [
         {
-          "item": "Rent (April / May / June / July / August / September)",
-          "monthly": 11275.0,
+          "item": "May Rent",
+          "monthly": 2090.0,
           "from": "Coinbase",
-          "date": "4/1/2026",
+          "date": "5/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "June Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "6/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "July Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "7/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "August Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "8/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "September Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "9/1/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -371,6 +468,14 @@
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "9/10/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "April Rent",
+          "monthly": 775.0,
+          "from": "Coinbase",
+          "date": "4/1/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -405,55 +510,47 @@
           "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
-        },
-        {
-          "item": "Banfield",
-          "monthly": 85.0,
-          "from": "X Money",
-          "date": "9/19/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Student Loan",
-          "monthly": 83.33,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Water",
-          "monthly": 67.0,
-          "from": "X Money",
-          "date": "9/18/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "AT&T Final Bill",
-          "monthly": 50.0,
-          "from": "Coinbase",
-          "date": "7/15/2027",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Rythm Health",
-          "monthly": 33.78,
-          "from": "X Money",
-          "date": "9/22/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
         }
       ],
       "upcoming_by_date": [
         {
           "date": "4/1/2026",
-          "item": "Rent (April / May / June / July / August / September)",
+          "item": "April Rent",
           "from": "Coinbase",
-          "monthly": 11275.0,
-          "weekly": 2594.79,
+          "monthly": 775.0,
+          "weekly": 178.36,
+          "tab": "Essential"
+        },
+        {
+          "date": "5/1/2026",
+          "item": "May Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "6/1/2026",
+          "item": "June Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "7/1/2026",
+          "item": "July Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "8/1/2026",
+          "item": "August Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
           "tab": "Essential"
         },
         {
@@ -466,10 +563,10 @@
         },
         {
           "date": "9/1/2026",
-          "item": "Student Loan",
-          "from": "X Money",
-          "monthly": 83.33,
-          "weekly": 19.18,
+          "item": "September Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
           "tab": "Essential"
         },
         {
@@ -521,6 +618,14 @@
           "tab": "Essential"
         },
         {
+          "date": "9/17/2026",
+          "item": "Student Loan",
+          "from": "X Money",
+          "monthly": 83.33,
+          "weekly": 19.18,
+          "tab": "Essential"
+        },
+        {
           "date": "9/18/2026",
           "item": "Pawp",
           "from": "X Money",
@@ -566,46 +671,6 @@
           "from": "Coinbase",
           "monthly": 29.99,
           "weekly": 6.9,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/23/2026",
-          "item": "YNAB",
-          "from": "X Money",
-          "monthly": 14.99,
-          "weekly": 3.45,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Card",
-          "from": "Coinbase",
-          "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/11/2026",
-          "item": "FilterEasy",
-          "from": "X Money",
-          "monthly": 10.65,
-          "weekly": 2.45,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/29/2026",
-          "item": "SodaStream Refills",
-          "from": "X Money",
-          "monthly": 18.09,
-          "weekly": 4.16,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "item": "Amazon Prime",
-          "from": "X Money",
-          "monthly": 11.67,
-          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -662,7 +727,7 @@
         },
         {
           "date": "9/1/2026",
-          "from": null,
+          "from": "NFCU (Zelle)",
           "item": "Rivian R1S",
           "daily": 45.0,
           "weekly": 315.0,
@@ -741,14 +806,14 @@
       ],
       "by_source_monthly": {
         "X Money": 4207.05,
-        "Unspecified": 1350.0,
+        "NFCU (Zelle)": 1350.0,
         "Coinbase": 18.0
       },
       "top_monthly": [
         {
           "item": "Rivian R1S",
           "monthly": 1350.0,
-          "from": null,
+          "from": "NFCU (Zelle)",
           "date": "9/1/2026",
           "budget_allocation": null,
           "tab": "Fleet"
@@ -846,7 +911,7 @@
         {
           "date": "9/1/2026",
           "item": "Rivian R1S",
-          "from": null,
+          "from": "NFCU (Zelle)",
           "monthly": 1350.0,
           "weekly": 315.0,
           "tab": "Fleet"
@@ -1203,27 +1268,79 @@
     },
     "Personal": {
       "role": "upcoming_expense_estimates",
-      "item_count": 24,
+      "item_count": 29,
       "totals": {
-        "daily": 486.08,
-        "weekly": 3402.58,
-        "biweekly": 6805.15,
-        "monthly": 14784.58,
-        "annually": 50593.92,
-        "quarterly": 16206.73
+        "daily": 484.44,
+        "weekly": 3391.07,
+        "biweekly": 6782.14,
+        "monthly": 14734.58,
+        "annually": 59728.92,
+        "quarterly": 25341.73
       },
       "items": [
         {
           "date": "4/1/2026",
           "from": "Coinbase",
-          "item": "Rent (April / May / June / July / August / September)",
-          "daily": 370.68,
-          "weekly": 2594.79,
-          "biweekly": 5189.59,
-          "monthly": 11275.0,
-          "annually": 24000.0,
+          "item": "April Rent",
+          "daily": 25.48,
+          "weekly": 178.36,
+          "biweekly": 356.71,
+          "monthly": 775.0,
+          "annually": 775.0,
           "budget_allocation": null,
-          "quarterly": 6000.0,
+          "quarterly": 775.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "5/1/2026",
+          "from": "Coinbase",
+          "item": "May Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "6/1/2026",
+          "from": "Coinbase",
+          "item": "June Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "7/1/2026",
+          "from": "Coinbase",
+          "item": "July Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
+          "tab": "Essential"
+        },
+        {
+          "date": "8/1/2026",
+          "from": "Coinbase",
+          "item": "August Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 2090.0,
+          "budget_allocation": null,
+          "quarterly": 2090.0,
           "tab": "Essential"
         },
         {
@@ -1241,15 +1358,15 @@
         },
         {
           "date": "9/1/2026",
-          "from": "X Money",
-          "item": "Student Loan",
-          "daily": 2.74,
-          "weekly": 19.18,
-          "biweekly": 38.36,
-          "monthly": 83.33,
-          "annually": 1000.0,
+          "from": "Coinbase",
+          "item": "September Rent",
+          "daily": 68.71,
+          "weekly": 480.99,
+          "biweekly": 961.97,
+          "monthly": 2090.0,
+          "annually": 24000.0,
           "budget_allocation": null,
-          "quarterly": 250.0,
+          "quarterly": 6000.0,
           "tab": "Essential"
         },
         {
@@ -1315,6 +1432,19 @@
           "annually": 50.0,
           "budget_allocation": null,
           "quarterly": 12.5,
+          "tab": "Essential"
+        },
+        {
+          "date": "9/17/2026",
+          "from": "X Money",
+          "item": "Student Loan",
+          "daily": 2.74,
+          "weekly": 19.18,
+          "biweekly": 38.36,
+          "monthly": 83.33,
+          "annually": 1000.0,
+          "budget_allocation": null,
+          "quarterly": 250.0,
           "tab": "Essential"
         },
         {
@@ -1527,15 +1657,47 @@
         }
       ],
       "by_source_monthly": {
-        "Coinbase": 13551.91,
+        "Coinbase": 13501.91,
         "X Money": 1232.67
       },
       "top_monthly": [
         {
-          "item": "Rent (April / May / June / July / August / September)",
-          "monthly": 11275.0,
+          "item": "May Rent",
+          "monthly": 2090.0,
           "from": "Coinbase",
-          "date": "4/1/2026",
+          "date": "5/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "June Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "6/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "July Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "7/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "August Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "8/1/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "September Rent",
+          "monthly": 2090.0,
+          "from": "Coinbase",
+          "date": "9/1/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1552,6 +1714,14 @@
           "monthly": 900.0,
           "from": "Coinbase",
           "date": "9/10/2026",
+          "budget_allocation": null,
+          "tab": "Essential"
+        },
+        {
+          "item": "April Rent",
+          "monthly": 775.0,
+          "from": "Coinbase",
+          "date": "4/1/2026",
           "budget_allocation": null,
           "tab": "Essential"
         },
@@ -1586,55 +1756,47 @@
           "date": "9/19/2026",
           "budget_allocation": null,
           "tab": "Essential"
-        },
-        {
-          "item": "Banfield",
-          "monthly": 85.0,
-          "from": "X Money",
-          "date": "9/19/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Student Loan",
-          "monthly": 83.33,
-          "from": "X Money",
-          "date": "9/1/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Water",
-          "monthly": 67.0,
-          "from": "X Money",
-          "date": "9/18/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "AT&T Final Bill",
-          "monthly": 50.0,
-          "from": "Coinbase",
-          "date": "7/15/2027",
-          "budget_allocation": null,
-          "tab": "Essential"
-        },
-        {
-          "item": "Rythm Health",
-          "monthly": 33.78,
-          "from": "X Money",
-          "date": "9/22/2026",
-          "budget_allocation": null,
-          "tab": "Essential"
         }
       ],
       "upcoming_by_date": [
         {
           "date": "4/1/2026",
-          "item": "Rent (April / May / June / July / August / September)",
+          "item": "April Rent",
           "from": "Coinbase",
-          "monthly": 11275.0,
-          "weekly": 2594.79,
+          "monthly": 775.0,
+          "weekly": 178.36,
+          "tab": "Essential"
+        },
+        {
+          "date": "5/1/2026",
+          "item": "May Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "6/1/2026",
+          "item": "June Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "7/1/2026",
+          "item": "July Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
+          "tab": "Essential"
+        },
+        {
+          "date": "8/1/2026",
+          "item": "August Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
           "tab": "Essential"
         },
         {
@@ -1647,10 +1809,10 @@
         },
         {
           "date": "9/1/2026",
-          "item": "Student Loan",
-          "from": "X Money",
-          "monthly": 83.33,
-          "weekly": 19.18,
+          "item": "September Rent",
+          "from": "Coinbase",
+          "monthly": 2090.0,
+          "weekly": 480.99,
           "tab": "Essential"
         },
         {
@@ -1702,6 +1864,14 @@
           "tab": "Essential"
         },
         {
+          "date": "9/17/2026",
+          "item": "Student Loan",
+          "from": "X Money",
+          "monthly": 83.33,
+          "weekly": 19.18,
+          "tab": "Essential"
+        },
+        {
           "date": "9/18/2026",
           "item": "Pawp",
           "from": "X Money",
@@ -1747,46 +1917,6 @@
           "from": "Coinbase",
           "monthly": 29.99,
           "weekly": 6.9,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/23/2026",
-          "item": "YNAB",
-          "from": "X Money",
-          "monthly": 14.99,
-          "weekly": 3.45,
-          "tab": "Essential"
-        },
-        {
-          "date": "9/24/2026",
-          "item": "Coinbase One Card",
-          "from": "Coinbase",
-          "monthly": 24.0,
-          "weekly": 5.52,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/11/2026",
-          "item": "FilterEasy",
-          "from": "X Money",
-          "monthly": 10.65,
-          "weekly": 2.45,
-          "tab": "Essential"
-        },
-        {
-          "date": "10/29/2026",
-          "item": "SodaStream Refills",
-          "from": "X Money",
-          "monthly": 18.09,
-          "weekly": 4.16,
-          "tab": "Essential"
-        },
-        {
-          "date": "1/9/2027",
-          "item": "Amazon Prime",
-          "from": "X Money",
-          "monthly": 11.67,
-          "weekly": 2.68,
           "tab": "Essential"
         }
       ],
@@ -1973,13 +2103,13 @@
     }
   },
   "summary": {
-    "upcoming_expense_monthly": 19009.63,
-    "essential_monthly": 14784.58,
-    "personal_monthly": 14784.58,
-    "personal_daily": 486.08,
-    "essential_daily": 486.08,
-    "personal_weekly": 3402.58,
-    "personal_annually": 50593.92,
+    "upcoming_expense_monthly": 20309.63,
+    "essential_monthly": 14734.58,
+    "personal_monthly": 14734.58,
+    "personal_daily": 484.44,
+    "essential_daily": 484.44,
+    "personal_weekly": 3391.07,
+    "personal_annually": 59728.92,
     "fleet_monthly": 5575.05,
     "fleet_daily": 185.52,
     "fleet_annually": 28117.57,
@@ -1991,13 +2121,14 @@
     "discretionary_daily": 100.0,
     "consumer_discretionary_monthly": 0.0,
     "consumer_discretionary_daily": 0.0,
-    "combined_monthly": 19009.63,
-    "combined_daily": 626.61,
+    "combined_monthly": 20309.63,
+    "combined_daily": 669.97,
     "by_source_monthly": {
-      "Coinbase": 13569.91,
-      "X Money": 5439.72
+      "Coinbase": 13519.91,
+      "X Money": 5439.72,
+      "NFCU (Zelle)": 1350.0
     },
-    "coinbase_funded_monthly": 13569.91,
+    "coinbase_funded_monthly": 13519.91,
     "rh_funded_monthly": 0,
     "rh_checking_funded_monthly": 0,
     "x_money_funded_monthly": 5439.72

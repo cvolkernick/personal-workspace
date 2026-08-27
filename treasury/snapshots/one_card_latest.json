@@ -1,6 +1,6 @@
 {
   "source": "ynab",
-  "as_of": "2026-08-27T02:50:56.114923+00:00",
+  "as_of": "2026-08-27T14:40:33.985308+00:00",
   "provider": "ynab",
   "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
   "budget_name": "Chris's Plan",
@@ -435,8 +435,8 @@
       "amount_display": -0.99,
       "memo": null,
       "cleared": "cleared",
-      "approved": false,
-      "category_name": "Uncategorized"
+      "approved": true,
+      "category_name": "\ud83d\udecd\ufe0f Shopping"
     },
     {
       "id": "0087c406-f86a-4753-b563-64a36d00f1e7",
@@ -483,7 +483,7 @@
       "category_name": "Uncategorized"
     },
     {
-      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
+      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -494,7 +494,7 @@
       "category_name": "\ud83d\udcb3 Subscriptions"
     },
     {
-      "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+      "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
       "date": "2026-08-15",
       "payee": "Dimo Corp",
       "amount": -8.99,
@@ -573,5 +573,5 @@
   ],
   "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
   "token_source": "/Users/cvolkernick/.config/ynab/token",
-  "since": "2026-05-28"
+  "since": "2026-05-29"
 }
