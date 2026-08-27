@@ -112,17 +112,33 @@ class TestFetchActiveZoneMinutes(unittest.TestCase):
         self.assertEqual(len(days), 3)
         self.assertEqual(days[0].total_minutes, 22.0)
 
-    def test_caps_at_14_days(self):
+    def test_caps_at_90_days(self):
         client = GoogleHealthClient(access_token="x")
-        captured: dict = {}
+        calls: list[int] = []
 
         def fake_rollup(data_type, days=14, end_date=None):
-            captured["days"] = days
+            calls.append(days)
+            return {"rollupDataPoints": []}
+
+        client.daily_rollup = fake_rollup  # type: ignore[method-assign]
+        self.assertEqual(client.fetch_active_zone_minutes(days=180), [])
+        self.assertEqual(sum(calls), 90)
+        self.assertTrue(all(d <= 14 for d in calls))
+
+    def test_chunks_90_day_window_like_calories(self):
+        client = GoogleHealthClient(access_token="x")
+        calls: list[dict] = []
+
+        def fake_rollup(data_type, days=14, end_date=None):
+            calls.append({"data_type": data_type, "days": days})
             return {"rollupDataPoints": []}
 
         client.daily_rollup = fake_rollup  # type: ignore[method-assign]
         self.assertEqual(client.fetch_active_zone_minutes(days=90), [])
-        self.assertEqual(captured["days"], 14)
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertTrue(all(c["data_type"] == "active-zone-minutes" for c in calls))
+        self.assertEqual(sum(c["days"] for c in calls), 90)
+        self.assertTrue(all(c["days"] <= 14 for c in calls))
 
     def test_missing_rollup_returns_empty(self):
         client = GoogleHealthClient(access_token="x")
@@ -159,6 +175,19 @@ class TestFetchHealthIncludesAzm(unittest.TestCase):
         self.assertEqual(payload["active_zone_minutes"][0]["date"], "2026-08-16")
         self.assertEqual(payload["active_zone_minutes"][0]["total_minutes"], 22)
         self.assertIsNone(payload["error"])
+
+    def test_snapshot_requests_azm_for_full_window(self):
+        client = self._client()
+        captured: dict = {}
+
+        def _azm(days=14):
+            captured["days"] = days
+            return []
+
+        client.fetch_active_zone_minutes = _azm  # type: ignore[method-assign]
+        snap = client.fetch_health(days=90)
+        self.assertEqual(captured["days"], 90)
+        self.assertEqual(snap.active_zone_minutes, [])
 
     def test_azm_error_folds_into_snapshot_errors(self):
         client = self._client()
