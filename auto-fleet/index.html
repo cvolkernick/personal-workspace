@@ -67,23 +67,23 @@
     }
     .glance {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.55rem;
-      margin: 0 0 1rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.35rem;
+      margin: 0 0 0.75rem;
     }
     .glance-cell {
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 0.15rem;
-      min-height: 88px;
-      padding: 0.65rem 0.75rem;
+      gap: 0.08rem;
+      min-height: 44px;
+      min-width: 0;
+      padding: 0.32rem 0.45rem;
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 12px;
+      border-radius: 9px;
       color: inherit;
       text-decoration: none;
-      min-width: 44px;
     }
     .glance-cell:hover { border-color: var(--accent); }
     .glance-cell.stale { border-color: #6a5a2a; }
@@ -94,17 +94,30 @@
     .glance-top {
       display: flex;
       justify-content: space-between;
-      gap: 0.4rem;
+      gap: 0.25rem;
       align-items: baseline;
+      min-width: 0;
     }
-    .glance-name { font-weight: 700; font-size: 0.95rem; }
-    .glance-hero { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.03em; }
+    .glance-name {
+      font-weight: 700;
+      font-size: 0.72rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .glance-hero { font-size: 1.05rem; font-weight: 700; letter-spacing: -0.03em; line-height: 1.1; }
     .glance-meta {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.25rem;
+      gap: 0.12rem;
       color: var(--muted);
-      font-size: 0.75rem;
+      font-size: 0.65rem;
+    }
+    .glance-cell .chip {
+      font-size: 0.58rem;
+      padding: 0.06rem 0.32rem;
+      min-height: 0;
     }
     .grid {
       display: grid;
