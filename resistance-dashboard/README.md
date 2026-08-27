@@ -9,6 +9,7 @@ Mobile-friendly dashboard that:
 - **Charts** weekly volume and per-exercise strength (best working load + Epley e1RM)
 - **Fetches weight & sleep** from Google Fit REST (`dataset:aggregate` / sessions) when OAuth env vars are set
 - **Suggests recovery status** from sleep, recent training volume, and weight trend
+- **Nutrition targets:** **applied** values live in `fitness/nutrition/targets.json` (Kitchen form, `set targets`, meal plan, calorie pacing, 7d adherence). **Recommended** values are a coach-subroutine job (`recommend_nutrition_targets`) from goal vs current data — recommend on load, write only on explicit apply. Same pattern as `suggest_focus_muscles`. Contract: [`fitness/nutrition/COACH_TARGETS.md`](../fitness/nutrition/COACH_TARGETS.md). Ask Grok explains that payload; it does not own the numbers.
 
 ## Quick start
 
@@ -161,7 +162,9 @@ resistance-dashboard/
   vercel.json               # ignoreCommand + static output; not a WSGI app
   vercel-ignore-paths.txt   # prefixes that count as FitDash for Vercel
   .vercelignore             # keeps server.py out of the Vercel build
-  rt_dashboard/             # parse, analytics, recovery, GitHub, Google Fit
+  rt_dashboard/             # parse, analytics, recovery, coach, GitHub, Google Fit
+                            # coach recommends nutrition targets; does not auto-write targets.json
+                            # see ../fitness/nutrition/COACH_TARGETS.md
   static/                   # mobile-first UI + Chart.js
   tests/                    # pure logic + wire-format fixtures
   scripts/                  # verification helpers + vercel_ignore.py

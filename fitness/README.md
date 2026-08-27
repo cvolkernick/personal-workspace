@@ -28,10 +28,12 @@ Comprehensive fitness tracking system for TruColors.
 - Meal planning
 - High-protein value analysis
 - Water intake tracking
+- **Applied** calorie/macro targets: `nutrition/targets.json` (FitDash SoT)
+- **Coach-owned recommendations:** [nutrition/COACH_TARGETS.md](nutrition/COACH_TARGETS.md) — subroutine recommends from goals vs data; apply is explicit. Do not treat the April 1,700 kcal table in `nutrition/README.md` as live.
 
 ### [Fitbit/](Fitbit/)
 - Fitbit sync scripts
 
 ---
 
-*Last updated: May 25, 2026*
+*Last updated: 2026-08-27 (coach-owned targets contract; live applied numbers still `nutrition/targets.json`)*

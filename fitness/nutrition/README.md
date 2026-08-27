@@ -13,26 +13,31 @@
 
 **Target:** 3,000 mL (3L) per day
 
-## Daily Targets (CUTTING - Updated Apr 23)
+## Daily targets — live store vs this page
 
-> ⚠️ **Analysis:** Weight gain +4.4 lbs (Jan-Apr) indicates ~570 cal/day surplus
-> **Target adjusted to:** 1,700 cal/day for deficit
+**Live applied targets** are `targets.json` (FitDash Kitchen + meal planner + calorie pacing + 7d adherence). Do not treat the April table below as current.
 
-| Metric | Target | Notes |
-|--------|--------|-------|
+**Coach-owned recommendations (design lock, not shipped):** recommended kcal/macros come from a deterministic coach subroutine (`recommend_nutrition_targets`) given goal weight / phase vs current weight, wearable TDEE, recovery, and adherence. Applied values change only on explicit apply. Contract: [COACH_TARGETS.md](./COACH_TARGETS.md).
+
+### Historical note (CUTTING — Apr 23, 2026)
+
+> Weight gain +4.4 lbs (Jan–Apr) indicated ~570 cal/day surplus. Target was adjusted to 1,700 cal/day on paper. That number is **not** what FitDash applies today.
+
+| Metric | Then | Notes |
+|--------|------|-------|
 | Calories | **1,700** | Down from 2,200 (deficit mode) |
 | Protein | 200g+ | Keep high |
 | Carbs | ~150g | Lower to hit calorie target |
 | Fat | ~45g | Keep moderate |
 
-**Expected:** ~1 lb/week weight loss
-
+**Then expected:** ~1 lb/week weight loss.
 
 ## Dashboard inventory & meal planning
 
 | File | Purpose |
 |------|---------|
 | `inventory.json` | Curated ingredients you currently have (add/remove from dashboard) |
-| `targets.json` | Daily calorie + macro targets used by rest-of-day meal planner |
+| `targets.json` | **Applied** daily calorie + macro targets (SoT for pacing, remaining, meal plan, adherence) |
+| `COACH_TARGETS.md` | How the coach layer should *recommend* those targets from goals vs data |
 
-The resistance dashboard reads today's intake from Google Health, compares to `targets.json`, and builds a plan from **in-stock** items in `inventory.json`.
+The resistance dashboard reads today's intake from Google Health, compares to **applied** `targets.json`, and builds a plan from **in-stock** items in `inventory.json`. Recommendations must not silently overwrite that file.
