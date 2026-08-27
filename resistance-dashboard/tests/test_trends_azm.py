@@ -34,12 +34,16 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn('id="azm-sparkline"', HTML)
         self.assertIn('id="azm-trend-note"', HTML)
         self.assertIn("Active Zone Minutes · 7d", HTML)
-        self.assertIn("/trends-azm.js?v=azm-week-1", HTML)
+        self.assertIn("/trends-azm.js?v=azm-week-2", HTML)
         sleep_idx = HTML.find('id="sleep-trend-card"')
         azm_idx = HTML.find('id="azm-trend-card"')
         cal_idx = HTML.find('id="calories-macros-charts"')
         self.assertLess(sleep_idx, azm_idx)
         self.assertLess(azm_idx, cal_idx)
+        azm_card = HTML[azm_idx:cal_idx]
+        self.assertNotIn("chart-box", azm_card)
+        self.assertNotIn("<canvas", azm_card)
+        self.assertIn('id="azm-sparkline"', azm_card)
 
     def test_weekly_is_7d_trailing_sum(self):
         self.assertIn("var SPAN_DAYS = 7;", OVERLAY)
@@ -49,6 +53,9 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn('return "—";', OVERLAY)
         self.assertIn("weeklySum", OVERLAY)
         self.assertIn("sparklineSvg", OVERLAY)
+        self.assertIn('data-y-min="0"', OVERLAY)
+        self.assertIn("weekdayLetter", OVERLAY)
+        self.assertNotIn("(v - min)", OVERLAY)
 
     def test_honest_empty_not_invented(self):
         self.assertIn("No Active Zone Minutes in the last 7 days.", OVERLAY)
@@ -97,6 +104,9 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertNotIn("sleep-battery-panel", OVERLAY)
         self.assertNotIn("empty_at", OVERLAY)
         self.assertNotIn("pct_charged", OVERLAY)
+        self.assertIn(".sb-shell", CSS)
+        sleep_wrap = CSS.split(".sb-fill-wrap {", 1)[1].split("}", 1)[0]
+        self.assertIn("height: 44px", sleep_wrap)
 
 
 class TrendsAzmSourceLock(unittest.TestCase):
@@ -150,10 +160,10 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertIn("resistance-dashboard/", paths)
 
     def test_cache_bumped(self):
-        self.assertIn("/trends-azm.js?v=azm-week-1", HTML)
-        self.assertIn("styles.css?v=calorie-meta-bottom-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v69"', SW)
-        self.assertIn("/styles.css?v=calorie-meta-bottom-1", SW)
+        self.assertIn("/trends-azm.js?v=azm-week-2", HTML)
+        self.assertIn("styles.css?v=azm-spark-1", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v70"', SW)
+        self.assertIn("/styles.css?v=azm-spark-1", SW)
         self.assertNotIn("fitdash-shell-v60", SW)
         self.assertNotIn("fitdash-shell-v61", SW)
         self.assertNotIn("fitdash-shell-v62", SW)
@@ -163,6 +173,10 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v66", SW)
         self.assertNotIn("fitdash-shell-v67", SW)
         self.assertNotIn("fitdash-shell-v68", SW)
+        self.assertNotIn("fitdash-shell-v69", SW)
+        self.assertNotIn("azm-week-1", HTML)
+        self.assertNotIn("calorie-meta-bottom-1", HTML)
+        self.assertNotIn("calorie-meta-bottom-1", SW)
 
 
 if __name__ == "__main__":

@@ -83,38 +83,82 @@
     return Math.round(sum).toLocaleString();
   }
 
-  function sparklineSvg(daily) {
+  /** One weekday letter (S M T W T F S) from a civil YYYY-MM-DD. Local date. */
+  function weekdayLetter(iso) {
+    var p = String(iso || "").split("-");
+    if (p.length < 3) return "";
+    var y = Number(p[0]);
+    var mo = Number(p[1]);
+    var d = Number(p[2]);
+    if (!y || !mo || !d) return "";
+    var dt = new Date(y, mo - 1, d);
+    if (Number.isNaN(dt.getTime())) return "";
+    return "SMTWTFS".charAt(dt.getDay());
+  }
+
+  /**
+   * Labeled 7-day spark. Y domain is 0 → max present total_minutes (not min/max).
+   * Null days keep their X slot, break the line, and get no dot / no zero point.
+   */
+  function sparklineSvg(daily, labels) {
     var present = [];
     (daily || []).forEach(function (v, i) {
       if (v == null || Number.isNaN(Number(v))) return;
       present.push({ i: i, v: Number(v) });
     });
     if (!present.length) return "";
-    var w = 160;
-    var h = 36;
-    var pad = 3;
+    var w = 184;
+    var h = 56;
+    var left = 26;
+    var right = 6;
+    var top = 11;
+    var bottom = 15;
+    var plotW = w - left - right;
+    var plotH = h - top - bottom;
+    var plotBottom = h - bottom;
     var n = daily.length;
-    var min = Math.min.apply(
-      null,
-      present.map(function (p) {
-        return p.v;
-      })
-    );
     var max = Math.max.apply(
       null,
       present.map(function (p) {
         return p.v;
       })
     );
-    var span = max - min;
+    var yMaxLabel = Math.round(max);
     function x(i) {
-      return pad + (n <= 1 ? (w - 2 * pad) / 2 : (i / (n - 1)) * (w - 2 * pad));
+      return left + (n <= 1 ? plotW / 2 : (i / (n - 1)) * plotW);
     }
     function y(v) {
-      if (span <= 0) return h / 2;
-      return pad + (1 - (v - min) / span) * (h - 2 * pad);
+      if (max <= 0) return plotBottom;
+      return top + (1 - v / max) * plotH;
     }
     var parts = [];
+    parts.push(
+      '<line class="azm-baseline" x1="' +
+        left.toFixed(1) +
+        '" y1="' +
+        plotBottom.toFixed(1) +
+        '" x2="' +
+        (w - right).toFixed(1) +
+        '" y2="' +
+        plotBottom.toFixed(1) +
+        '" stroke="#8b9bb4" stroke-opacity="0.35" stroke-width="1"/>'
+    );
+    parts.push(
+      '<text class="azm-y" x="' +
+        (left - 3).toFixed(1) +
+        '" y="' +
+        (top + 3).toFixed(1) +
+        '" text-anchor="end" font-size="9" fill="#8b9bb4">' +
+        yMaxLabel +
+        "</text>"
+    );
+    parts.push(
+      '<text class="azm-y" x="' +
+        (left - 3).toFixed(1) +
+        '" y="' +
+        plotBottom.toFixed(1) +
+        '" text-anchor="end" font-size="9" fill="#8b9bb4" dominant-baseline="middle">0</text>'
+    );
     var run = [];
     function flush() {
       if (!run.length) return;
@@ -148,6 +192,20 @@
       run.push({ i: i, v: Number(v) });
     }
     flush();
+    for (var xi = 0; xi < n; xi++) {
+      var letter =
+        labels && labels[xi] != null ? weekdayLetter(labels[xi]) : "";
+      if (!letter) continue;
+      parts.push(
+        '<text class="azm-x" x="' +
+          x(xi).toFixed(1) +
+          '" y="' +
+          (h - 3).toFixed(1) +
+          '" text-anchor="middle" font-size="9" fill="#8b9bb4">' +
+          letter +
+          "</text>"
+      );
+    }
     return (
       '<svg class="azm-spark-svg" viewBox="0 0 ' +
       w +
@@ -155,7 +213,11 @@
       h +
       '" width="100%" height="' +
       h +
-      '" role="img" aria-label="Daily Active Zone Minutes">' +
+      '" data-y-min="0" data-y-max="' +
+      yMaxLabel +
+      '" role="img" aria-label="Daily Active Zone Minutes, 0 to ' +
+      yMaxLabel +
+      ' minutes, last 7 days">' +
       parts.join("") +
       "</svg>"
     );
@@ -195,7 +257,7 @@
     }
     var spark = document.getElementById("azm-sparkline");
     if (spark) {
-      spark.innerHTML = sparklineSvg(stats.daily);
+      spark.innerHTML = sparklineSvg(stats.daily, stats.labels);
     }
     paintedKey = key;
     return stats;
@@ -240,6 +302,7 @@
     azmPoints: azmPoints,
     weeklyAzm: weeklyAzm,
     formatWeekly: formatWeekly,
+    weekdayLetter: weekdayLetter,
     sparklineSvg: sparklineSvg,
     paintAzmCard: paintAzmCard,
   };
