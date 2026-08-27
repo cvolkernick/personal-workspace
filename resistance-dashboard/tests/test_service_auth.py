@@ -364,6 +364,13 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(len(body["today"]["active_zone_minutes"]), 1)
         self.assertEqual(body["today"]["active_zone_minutes"][0]["date"], "2026-08-16")
         self.assertEqual(body["today"]["active_zone_minutes"][0]["total_minutes"], 22)
+        self.assertIn("nutrition", body["today"])
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+        self.assertEqual(body["today"]["nutrition"]["meals"], [])
+        self.assertEqual(body["week"]["start"], "2026-08-17")
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(body["week"]["sleep"], [])
+        self.assertIsNone(body["week"]["nutrition"]["calories"])
         self.assertNotIn("house-secret", json.dumps(body))
 
     def test_dashboard_stays_session_gated_on_loopback(self) -> None:
@@ -378,6 +385,7 @@ class AgentTodayHttpTests(unittest.TestCase):
         self.assertEqual(denied_status, 401)
         self.assertEqual(denied.get("error"), "auth_required")
         self.assertNotIn("today", denied)
+        self.assertNotIn("week", denied)
         self.assertNotIn("active_zone_minutes", denied)
         self.assertNotIn("house-secret", json.dumps(denied))
         ok_status, ok_body = self._get(

@@ -128,7 +128,7 @@ Honest gaps (no fake events):
 - `GET /api/dashboard` — sessions, analytics, health, recovery (Trends calories intake vs burned is a **60d** rolling paired window; sleep / macros / weight / hydration stay 90d)
 - `GET /api/dashboard?refresh=1` — force 90-day Google Health pull (Refresh data)
 - `GET /api/warm` — incremental 14-day Health + Hidrate cache warm (loopback / service token; no page load)
-- `GET /api/agent/today` — read-only Today brief for agents (workout, hydration wake pace, bottle, wake window, `today.active_zone_minutes`). Same loopback / `FITDASH_SERVICE_TOKEN` gate as `/api/sleep_battery`. Cookie-less without token is 401. Does not invent ml / loads / sessions / AZM. `today.active_zone_minutes` is the HealthSnapshot array (7–14 daily points when Google Health returned them) or honest `[]`.
+- `GET /api/agent/today` — read-only Today + this-week brief for agents (workout letter, hydration wake pace, bottle, wake window, `today.active_zone_minutes`, `today.nutrition`, `week.nutrition` / `week.logged_sessions` / `week.sleep`). Same loopback / `FITDASH_SERVICE_TOKEN` gate as `/api/sleep_battery`. Cookie-less without token is 401 on the function; the production alias is cookie-less 200 via that gate. Does not invent ml / loads / sessions / AZM / intake / sleep. Nutrition is logged calories/protein + live books (or 2100/210P) + meal slots if present. Week is the ISO week Monday→today. Personal `/api/dashboard` and `/api/workouts` stay session-gated.
 - `POST /api/workouts` — log a session  
   ```json
   {
