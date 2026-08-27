@@ -2763,11 +2763,6 @@ body.m-shell .quest-card {
   font-size: 0.8rem;
 }
 
-.hidrate-bottle-charge {
-  margin: 0.25rem 0 0;
-  font-size: 0.78rem;
-}
-
 /* Mini sleep-style battery under hydration — same .sb-fill bands, smaller shell. */
 .hbb-row {
   display: inline-flex;
@@ -2779,30 +2774,54 @@ body.m-shell .quest-card {
   color: inherit;
 }
 
-/* #283: obvious taller/narrower vs #264/#274. Base sizes — sleep .sb-shell unchanged. */
+/* Standing bottle: taller than wide. #284 was 50×28 landscape (squat bar).
+   Sleep .sb-shell stays full-width / 44px fill — do not change it. */
+.hidrate-bottle-charge {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  padding-top: 6px; /* room for top nub */
+}
+
 .hidrate-bottle-charge .sb-shell {
-  width: 50px;
+  width: 32px;
   padding: 3px;
-  border-radius: 8px;
+  border-radius: 7px;
   flex: 0 0 auto;
   display: block;
   margin-right: 8px;
 }
 
 .hidrate-bottle-charge .sb-shell::after {
-  right: -6px;
-  width: 4px;
-  height: 14px;
-  border-radius: 0 2px 2px 0;
+  right: auto;
+  left: 50%;
+  top: -5px;
+  transform: translateX(-50%);
+  width: 12px;
+  height: 5px;
+  border-radius: 2px 2px 0 0;
 }
 
 .hidrate-bottle-charge .sb-fill-wrap {
-  height: 28px;
-  border-radius: 5px;
+  display: block; /* markup is a span; height is ignored while inline */
+  height: 56px;
+  border-radius: 4px;
+}
+
+.hidrate-bottle-charge .sb-fill {
+  display: block;
+  top: auto;
+  right: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 100%;
+  height: 0%;
+  max-height: 100%;
+  transition: height 0.35s ease, background 0.25s ease;
 }
 
 .hidrate-bottle-charge .sb-big {
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   line-height: 1;
   color: var(--text);
 }
