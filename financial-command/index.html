@@ -3604,15 +3604,13 @@
         const lv = pct(ltvVal);
         const manSnap = (data.snapshot || {}).coinbase_manual || {};
         const apr =
-          man.variable_apr != null
-            ? f(man.variable_apr)
-            : man.morpho_borrow_apr != null
-              ? f(man.morpho_borrow_apr)
-              : manSnap.variable_apr != null
-                ? f(manSnap.variable_apr)
-                : inp.variable_apr != null
-                  ? f(inp.variable_apr)
-                  : null;
+          manSnap.variable_apr != null
+            ? f(manSnap.variable_apr)
+            : manSnap.morpho_borrow_apr != null
+              ? f(manSnap.morpho_borrow_apr)
+              : inp.variable_apr != null
+                ? f(inp.variable_apr)
+                : null;
         const liq =
           inp.liquidation_price_btc_usd != null
             ? f(inp.liquidation_price_btc_usd)
