@@ -26,7 +26,7 @@ from treasury.planned_actual import (  # noqa: E402
     is_skipped_tx,
     names_join,
 )
-from treasury.ynab_category_map import validate_category_map  # noqa: E402
+from treasury.ynab_category_map import MAP_PATH, load_category_map, validate_category_map  # noqa: E402
 
 # Known fixtures (tests only — not hard-coded in UI).
 THAIS_ID = "5cef00e5"
@@ -644,7 +644,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                     "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
-                    "to": {"resource": "address", "address": "0xthaisdestfixture"},
+                    "to": {"resource": "address"},
                     "description": "Thaís",
                 },
                 {
@@ -653,7 +653,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                     "status": "completed",
                     "created_at": "2026-07-10T14:00:00Z",
                     "amount": {"amount": "-900.00", "currency": "USDC"},
-                    "to": {"resource": "address", "address": "0xthaisdestfixture"},
+                    "to": {"resource": "address"},
                     "description": "Thaís",
                 },
                 {
@@ -725,6 +725,69 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(thais["actual"], 0.0)
         self.assertEqual(thais["flag"], FLAG_OFF_BOOK)
         self.assertNotEqual(thais["flag"], "under")
+
+    def test_leftover_ynab_pile_does_not_backfill_thais_or_rent(self) -> None:
+        snaps = _snaps(_ac_items(), _leftover_pile(87))
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "send-aug-thais",
+                    "type": "send",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                }
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        thais = _row(strip, "Thaís")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertGreaterEqual(strip["summary"]["skipped_leftover_txs"], 87)
+        self.assertFalse(strip["coach_wired"])
+        self.assertFalse(strip["spectrum_trigger"])
+
+    def test_live_map_joins_gym_pets_subs_loans_collateral(self) -> None:
+        cmap = load_category_map(MAP_PATH)
+        items = [
+            _item("Gym", 20.0, "X Money"),
+            _item("Pets", 40.0, "X Money"),
+            _item("FilterEasy", 10.65, "X Money"),
+            _item("Student Loan", 83.33, "X Money"),
+            _item("Lee County Citation", 161.0, "X Money"),
+            _item("Santander", 1082.52, "X Money"),
+            _item("GM Financial", 900.0, "X Money"),
+            _item("Capital One", 700.0, "X Money"),
+            _item("Rivian R1S", 1100.0, "NFCU (Zelle)", tab="Fleet"),
+            _item("ASIC Fleet OpEx", 2500.0, "X Money", tab="Collateral"),
+            _item("Agentic Fund Allocation", 100.0, "X Money", tab="Collateral"),
+            _item("Thaís", 900.0, "Coinbase"),
+            _item("Rent", 2090.0, "Coinbase"),
+        ]
+        extra = {
+            "Fleet": {"items": [], "role": "fleet_ops"},
+            "Collateral": {"items": [], "role": "collateral"},
+        }
+        strip = build_planned_actual_strip(_snaps(items, [], extra_tabs=extra), cmap, as_of=AS_OF)
+        by_item = {r["item"]: r for r in strip["rows"]}
+        self.assertEqual(by_item["Gym"]["category_id"], "4b5886e5-a645-401e-a5a7-a24d52e9e044")
+        self.assertEqual(by_item["Pets"]["category_id"], "cff7ed48-bffe-4bf6-8102-740fefff82b0")
+        self.assertEqual(by_item["FilterEasy"]["category_id"], "77083d0b-3501-4639-9990-ced43c1a0435")
+        self.assertEqual(by_item["Student Loan"]["category_id"], "ec45e5f7-2912-43a4-a23c-4fb1357571b7")
+        self.assertEqual(by_item["Lee County Citation"]["category_id"], "69f30960-4655-4b94-97f0-875f1062ff45")
+        self.assertEqual(by_item["ASIC Fleet OpEx"]["category_id"], "06e562d9-48d8-4ede-8295-af004741dca0")
+        self.assertEqual(by_item["Agentic Fund Allocation"]["category_id"], "d178971c-6761-4e1a-b2d3-0e41607da87a")
+        self.assertEqual(by_item["Thaís"]["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(by_item["Rent"]["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(by_item["Rent"]["actual"], 0.0)
+        self.assertEqual(by_item["Santander"]["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(by_item["Rivian R1S"]["flag"], FLAG_OFF_BOOK)
+        self.assertFalse(strip["coach_wired"])
 
 
 class TestCoachAndSpectrumUnchanged(unittest.TestCase):

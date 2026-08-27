@@ -32,7 +32,7 @@ def _send(**overrides):
         "status": "completed",
         "created_at": "2026-08-10T14:00:00Z",
         "amount": {"amount": "-895.00", "currency": "USDC"},
-        "to": {"resource": "address", "address": "0xthaisdestfixture"},
+        "to": {"resource": "address"},
         "description": "Thaís",
     }
     row.update(overrides)
@@ -74,6 +74,20 @@ class TestSendFilter(unittest.TestCase):
         self.assertAlmostEqual(
             actual_for_item(book, item_name="Thaís", month=date(2026, 7, 15)),
             900.0,
+        )
+
+    def test_unlabeled_address_send_is_not_thais(self) -> None:
+        tx = _send(
+            id="unlabeled-addr",
+            description="",
+            to={"resource": "address", "address": "0xnotinvented"},
+            amount={"amount": "-125.00", "currency": "USDC"},
+        )
+        self.assertFalse(matches_thais(tx))
+        self.assertFalse(matches_rent(tx))
+        self.assertAlmostEqual(
+            actual_for_item([tx], item_name="Thaís", month=date(2026, 8, 15)),
+            0.0,
         )
 
     def test_rent_dest_hold_never_matches(self) -> None:

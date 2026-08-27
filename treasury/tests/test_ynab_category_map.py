@@ -173,13 +173,26 @@ class TestSoTSchema(unittest.TestCase):
             },
         )
         names = {c["name"] for c in cats}
-        self.assertIn("Thaís", names)
-        self.assertIn("🎓 Student Loan", names)
-        self.assertIn("Lee County Citation", names)
-        self.assertIn("🏋️ Gym", names)
+        for required in (
+            "Thaís",
+            "🎓 Student Loan",
+            "Lee County Citation",
+            "🏋️ Gym",
+            "🐾 Pets",
+            "💳 Subscriptions",
+            "Rivian R1S",
+            "GM Financial",
+            "Capital One",
+            "Santander",
+            "ASIC Fleet OpEx",
+            "Agentic Fund Allocation",
+        ):
+            self.assertIn(required, names)
         by_id = {c["id"]: c for c in cats}
         self.assertEqual(by_id["b8e23b96-da05-45cc-a4b8-01b6c3031e10"].get("sheet_item"), "Fleet Insurance")
         self.assertEqual(by_id["77083d0b-3501-4639-9990-ced43c1a0435"].get("sheet_item"), "FilterEasy")
+        self.assertEqual(by_id["4b5886e5-a645-401e-a5a7-a24d52e9e044"]["name"], "🏋️ Gym")
+        self.assertEqual(rules[0]["category_name"], "🏋️ Gym")
         for row in cats:
             cid = str(row.get("id") or "")
             self.assertRegex(cid, r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")

@@ -30,10 +30,10 @@ SNAPSHOT_NAME = "coinbase_usdc_sends.json"
 # Prism-only. Never commit, never read into git, never copy off prism.
 PRISM_KEY_PATH = Path.home() / ".config" / "coinbase" / "cdp-api-key.json"
 
-# Thaís dest is an address. Rent dest is unset until Chris confirms.
+# Thaís attribution is name-on-send only. Do not invent dest fingerprints.
+# Rent dest (phone vs address) is HOLD — empty set, never guess.
 _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
-# Fixture dest only — live attribution also uses description / to.name.
-THAIS_DEST_FINGERPRINTS = frozenset({"0xthaisdestfixture"})
+THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset()
 RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset()
 
 
