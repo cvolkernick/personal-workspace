@@ -215,6 +215,31 @@ class TestFccNavFleet(unittest.TestCase):
             for needle in ORCHESTRA_NEEDLES:
                 self.assertNotIn(needle, html, f"{name} still has {needle!r}")
 
+        more_spec = _by_id(index, "link-interest-spectrum-full")
+        self.assertEqual(more_spec["href"], "interest-spectrum.html")
+        self.assertIn("Open", more_spec["text"])
+        self.assertIn('id="interest-spectrum-card"', index_html)
+        self.assertIn('id="link-interest-spectrum-full"', index_html)
+        # More-tab card must live on the More panel, not a Glance/Cash tab.
+        card_idx = index_html.find('id="interest-spectrum-card"')
+        self.assertGreater(card_idx, 0)
+        self.assertIn('data-m-panel="more"', index_html[card_idx : card_idx + 120])
+
+        spec_html = (FCC / "interest-spectrum.html").read_text(encoding="utf-8")
+        # Mobile cull hides satellite siblings, never the FCC back-link.
+        self.assertIn("#nav-horizon", spec_html)
+        self.assertIn("#nav-watchlist", spec_html)
+        self.assertRegex(
+            spec_html,
+            r"#nav-horizon,\s*#nav-capital-flows,\s*#nav-watchlist,\s*#nav-fleet",
+        )
+        self.assertNotRegex(
+            spec_html,
+            r"#nav-fcc\s*[,\{]",
+        )
+        footer_fcc = [a for a in spectrum if a["href"] == "index.html"]
+        self.assertGreaterEqual(len(footer_fcc), 2, "header + footer FCC back-links")
+
     def test_orchestra_and_horizon_have_no_fleet_nav(self) -> None:
         orch = (ROOT / "orchestra" / "index.html").read_text(encoding="utf-8")
         self.assertNotIn('id: "fleet"', orch)
