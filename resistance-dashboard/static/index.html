@@ -13,13 +13,13 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>FitDash</title>
-    <link rel="stylesheet" href="/styles.css?v=bottle-tall-2" />
+    <link rel="stylesheet" href="/styles.css?v=bottle-inline-1" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js" defer></script>
     <script src="/meal-snapshot.js?v=meal-slot-1" defer></script>
     <script src="/trends-paired-avgs.js?v=paired-avgs-4" defer></script>
     <script src="/trends-azm.js?v=azm-week-1" defer></script>
-    <script src="/hidrate-bottle.js?v=bottle-charge-5" defer></script>
+    <script src="/hidrate-bottle.js?v=bottle-charge-6" defer></script>
     <script src="/supergrok.js?v=connect-1" defer></script>
     <script src="/app.js?v=meal-gtasks-321-1" defer></script>
   </head>
@@ -278,20 +278,22 @@
         data-m-panel="today"
         aria-label="Hydration pacing through wake window"
       >
-        <div class="calorie-bar-header">
+        <div class="calorie-bar-header hydration-pacing-header">
           <h2 class="calorie-bar-title">Hydration pacing · wake window</h2>
-          <span class="muted calorie-bar-meta" id="hydration-pacing-meta"></span>
+          <div class="hydration-pacing-header-end">
+            <div
+              class="muted hidrate-bottle-charge"
+              id="hidrate-bottle-charge"
+              aria-live="polite"
+            >Bottle —</div>
+            <span class="muted calorie-bar-meta" id="hydration-pacing-meta"></span>
+          </div>
         </div>
         <div class="pace-track" id="hydration-pacing-track" role="img" aria-label="Hydration pace progress">
           <div class="pace-fill" id="hydration-pacing-fill"></div>
           <div class="pace-marker" id="hydration-pacing-marker" title="Expected progress now"></div>
         </div>
         <p class="muted calorie-bar-summary" id="hydration-pacing-summary">—</p>
-        <div
-          class="muted hidrate-bottle-charge"
-          id="hidrate-bottle-charge"
-          aria-live="polite"
-        >Bottle —</div>
       </section>
 
       <section

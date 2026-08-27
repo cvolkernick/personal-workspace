@@ -52,7 +52,8 @@ hbb.paint(
 );
 assert(el.innerHTML.includes('class="sb-fill critical"'), "12% is critical");
 assert(el.innerHTML.includes("height:12%"), "paint fill matches 12");
-assert(el.title === "Hidrate batteryLevel", "keeps field tooltip");
+assert(el.title.indexOf("Puck 12%") !== -1, "tooltip includes name and percent");
+assert(el.title.indexOf("batteryLevel") !== -1, "keeps field tooltip");
 
 const missing = { innerHTML: "", title: "" };
 hbb.paint({ hidrate_bottle: { available: false, percent: null, status: "missing_field" } }, missing);
@@ -65,5 +66,45 @@ hbb.paint({}, none);
 assert(none.innerHTML.includes("Bottle"), "no payload still says Bottle");
 assert(none.innerHTML.includes("—"), "no payload is dash");
 assert(none.title === "", "no payload drops title");
+
+const two = { innerHTML: "", title: "" };
+hbb.paint(
+  {
+    hidrate_bottle: {
+      available: true,
+      percent: 40,
+      name: "946ml PRO",
+      bottles: [
+        { available: true, percent: 80, name: "621ml PRO", capacity_ml: 621 },
+        { available: true, percent: 40, name: "946ml PRO", capacity_ml: 946 },
+      ],
+    },
+  },
+  two
+);
+assert(two.innerHTML.includes("621ml PRO"), "renders 621ml PRO");
+assert(two.innerHTML.includes("946ml PRO"), "renders 946ml PRO");
+assert(two.innerHTML.includes("height:80%"), "621 fill matches percent");
+assert(two.innerHTML.includes("height:40%"), "946 fill matches percent");
+assert((two.innerHTML.match(/hbb-row/g) || []).length === 2, "two bottle rows");
+assert(two.title.indexOf("621ml PRO 80%") !== -1, "tooltip includes 621");
+assert(two.title.indexOf("946ml PRO 40%") !== -1, "tooltip includes 946");
+
+const sameName = { innerHTML: "", title: "" };
+hbb.paint(
+  {
+    hidrate_bottle: {
+      available: true,
+      bottles: [
+        { available: true, percent: 10, name: "PRO", capacity_ml: 621 },
+        { available: true, percent: 20, name: "PRO", capacity_ml: 946 },
+      ],
+    },
+  },
+  sameName
+);
+assert(sameName.innerHTML.includes("621 ml"), "same name uses 621 ml");
+assert(sameName.innerHTML.includes("946 ml"), "same name uses 946 ml");
+assert(!sameName.innerHTML.includes(">PRO<"), "does not keep colliding PRO label");
 
 console.log("ok hidrate-bottle-mini");

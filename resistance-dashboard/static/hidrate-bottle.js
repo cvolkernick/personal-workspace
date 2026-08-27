@@ -21,6 +21,38 @@
     return null;
   }
 
+  function bottlesFrom(payload) {
+    if (!payload || typeof payload !== "object") return [];
+    if (Array.isArray(payload.bottles) && payload.bottles.length) {
+      return payload.bottles.filter(function (b) {
+        return b && typeof b === "object";
+      });
+    }
+    return [payload];
+  }
+
+  function fmtCapacity(n) {
+    const num = Number(n);
+    if (!Number.isFinite(num) || num <= 0) return "";
+    const rounded = Number.isInteger(num) ? String(num) : String(Math.round(num));
+    return rounded + " ml";
+  }
+
+  function bottleLabel(bottle, siblings) {
+    if (!bottle || typeof bottle !== "object") return "Bottle";
+    const name = String(bottle.name || "").trim();
+    const cap = fmtCapacity(bottle.capacity_ml);
+    const sameName =
+      name &&
+      Array.isArray(siblings) &&
+      siblings.filter(function (b) {
+        return String((b && b.name) || "").trim() === name;
+      }).length > 1;
+    if (sameName && cap) return cap;
+    if (name) return name;
+    return cap || "Bottle";
+  }
+
   function fmtPercent(n) {
     if (n == null || n === "") return "";
     const num = Number(n);
@@ -63,9 +95,6 @@
     const fillClass = "sb-fill" + (level ? " " + level : "");
     return (
       '<span class="hbb-row">' +
-      '<span class="hbb-name">' +
-      escapeHtml(name) +
-      "</span>" +
       '<span class="sb-shell hbb-shell" aria-label="' +
       escapeHtml(aria) +
       '">' +
@@ -78,7 +107,10 @@
       '<span class="sb-label hbb-label"><span class="sb-big">' +
       label +
       "</span></span>" +
-      "</span></span></span>"
+      "</span></span>" +
+      '<span class="hbb-name">' +
+      escapeHtml(name) +
+      "</span></span>"
     );
   }
 
@@ -99,21 +131,38 @@
       if (el.removeAttribute) el.removeAttribute("title");
       return el;
     }
-    const pct = clampPct(bottle.percent);
-    if (bottle.available && pct != null) {
-      const name = String(bottle.name || "").trim() || "Bottle";
-      el.innerHTML = renderMiniHtml(name, pct);
-      el.title = bottle.field ? "Hidrate " + bottle.field : "Hidrate bottle charge";
-      return el;
+    const list = bottlesFrom(bottle);
+    const parts = [];
+    const titles = [];
+    for (let i = 0; i < list.length; i++) {
+      const row = list[i];
+      const pct = clampPct(row.percent);
+      const name = bottleLabel(row, list);
+      const show = row.available !== false && pct != null;
+      parts.push(renderMiniHtml(name, show ? pct : null));
+      titles.push(show ? name + " " + fmtPercent(pct) + "%" : name + " —");
     }
-    el.innerHTML = renderMiniHtml("Bottle", null);
-    el.title = emptyTitle(String(bottle.status || ""));
+    el.innerHTML = parts.join("") || renderMiniHtml("Bottle", null);
+    const anyCharged = list.some(function (row) {
+      return row.available !== false && clampPct(row.percent) != null;
+    });
+    if (anyCharged) {
+      var title = titles.join(" · ");
+      if (list.length === 1 && bottle.field) {
+        title += " · Hidrate " + String(bottle.field);
+      }
+      el.title = title;
+    } else {
+      el.title = emptyTitle(String(bottle.status || ""));
+    }
     return el;
   }
 
   if (typeof module !== "undefined" && module.exports) {
     module.exports = {
       bottleFrom: bottleFrom,
+      bottlesFrom: bottlesFrom,
+      bottleLabel: bottleLabel,
       fmtPercent: fmtPercent,
       clampPct: clampPct,
       fillLevel: fillLevel,
