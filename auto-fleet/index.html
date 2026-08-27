@@ -1047,7 +1047,11 @@
       const locked = f.locked || {};
       const meta = [];
       if (idn.host_label) meta.push(`<div class="row">${esc(idn.host_label)}</div>`);
-      if (idn.plate) meta.push(`<div class="row">Plate ${esc(idn.plate)}</div>`);
+      if (idn.plate) {
+        meta.push(
+          `<div class="row">Plate <button type="button" class="booking-res" data-copy="${esc(idn.plate)}" title="Copy plate">${esc(idn.plate)}</button></div>`
+        );
+      }
       const bits = [];
       if (locked.lender) bits.push(locked.lender);
       if (locked.apr_pct != null) bits.push(`${locked.apr_pct}% APR`);

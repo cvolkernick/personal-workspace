@@ -14,6 +14,7 @@ if str(PKG) not in sys.path:
 
 import dimo_client  # noqa: E402
 import fleet  # noqa: E402
+import glance  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 ROSTER = PKG / "data" / "roster.json"
@@ -59,6 +60,11 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertIsNone(r1s["identity"]["vin"])
         self.assertEqual(r1s["identity"]["lender"], "Vivek")
         self.assertEqual(by_id["m3-2020"]["identity"]["lender"], "Wells Fargo")
+        self.assertEqual(by_id["corolla-2022"]["identity"]["plate"], "24EWUH")
+        self.assertEqual(by_id["corolla-2024"]["identity"]["plate"], "25EWUH")
+        self.assertIsNone(by_id["m3-2020"]["identity"]["plate"])
+        self.assertIsNone(by_id["m3-2022"]["identity"]["plate"])
+        self.assertIsNone(r1s["identity"]["plate"])
         self.assertNotIn("color", r1s["identity"])
         self.assertEqual(r1s["glance"]["title"], "2023 Rivian R1S")
         self.assertEqual(
@@ -279,6 +285,29 @@ class FleetAssemblyTests(unittest.TestCase):
         self.assertEqual(by_id["corolla-2024"]["dimo"]["odometer"], 44)
         self.assertEqual(by_id["r1s-2023"]["dimo"]["odometer"], 55)
         self.assertEqual(by_id["m3-2020"]["glance"]["location_label"], "26.67, -82.03")
+
+
+class RosterPlateLockTests(unittest.TestCase):
+    """#370 — Corolla plates only. Other units stay blank until Chris gives one."""
+
+    def test_shipped_roster_plates(self) -> None:
+        roster = json.loads(ROSTER.read_text(encoding="utf-8"))
+        by_id = {u["id"]: u for u in roster["units"]}
+        self.assertEqual(by_id["corolla-2022"]["plate"], "24EWUH")
+        self.assertEqual(by_id["corolla-2024"]["plate"], "25EWUH")
+        for uid in ("m3-2020", "m3-2022", "r1s-2023"):
+            self.assertFalse(by_id[uid].get("plate"))
+        self.assertEqual(fleet.identity_for({"id": "x", "plate": "  "})["plate"], None)
+        self.assertEqual(fleet.identity_for({"id": "x"})["plate"], None)
+
+    def test_plate_field_is_copyable_like_reservation(self) -> None:
+        html = glance.plate_field_html({"plate": "24EWUH"})
+        self.assertIn("24EWUH", html)
+        self.assertIn('data-copy="24EWUH"', html)
+        self.assertIn("booking-res", html)
+        self.assertIn("Copy plate", html)
+        self.assertEqual(glance.plate_field_html({"plate": None}), "")
+        self.assertEqual(glance.plate_field_html({}), "")
 
 
 if __name__ == "__main__":
