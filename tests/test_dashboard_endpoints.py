@@ -60,6 +60,20 @@ class EndpointResolveTests(unittest.TestCase):
         self.assertIn("try-restart", text)
         self.assertIn("GITHUB_TOKEN", text)
 
+    def test_horizon_is_registered_from_existing_bind(self) -> None:
+        cfg = de.load_endpoints()
+        services = cfg.get("services") or {}
+        self.assertIn("horizon", services)
+        self.assertEqual(int(services["horizon"]["port"]), 8795)
+        self.assertEqual(services["horizon"].get("path"), "/")
+        self.assertIn("horizon", de._DEFAULT_SERVICES)
+        self.assertEqual(int(de._DEFAULT_SERVICES["horizon"]["port"]), 8795)
+        with mock.patch.dict(os.environ, {"PI_HOST": "192.168.100.98"}, clear=False):
+            url = de.service_url("horizon")
+            self.assertEqual(url, "http://192.168.100.98:8795/")
+            self.assertNotIn("vercel", url.lower())
+            self.assertNotIn("127.0.0.1", url)
+
     def test_cli_prints_orchestra_url(self) -> None:
         env = {**os.environ, "PYTHONPATH": str(ROOT), "PI_HOST": "192.168.100.98"}
         out = subprocess.check_output(

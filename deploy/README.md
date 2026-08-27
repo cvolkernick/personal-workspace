@@ -22,6 +22,7 @@ Default host is in `deploy/endpoints.json` (`pi_host`). Override anytime with en
 | iot | **8780** | `iot-dashboard.service` |
 | resistance-dashboard | **8787** | `resistance-dashboard.service` |
 | auto-fleet | **8796** | `auto-fleet.service` (+ `auto-fleet-turo-writer.timer`) |
+| Horizon Macro (`research/horizon`) | **8795** | `horizon-dashboard.service` |
 
 Each unit: **bind all interfaces (`0.0.0.0`)**, **`--no-browser`**, **`--local`** (API handled on the Pi), **Restart=always**.
 

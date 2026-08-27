@@ -1778,7 +1778,7 @@
         padding: 0.4rem 0.3rem;
       }
       /* Hide secondary nav links on very tight chrome; keep Refresh + status */
-      #nav-orchestra,
+      #nav-horizon,
       #nav-capital-flows,
       #nav-interest-spectrum,
       #nav-fleet {
@@ -1969,7 +1969,7 @@
         <div class="sub">Liquidity · fund manager · bills · spend</div>
       </div>
       <div class="controls">
-        <button type="button" class="btn" id="nav-orchestra" data-open-orchestra title="Ensure Orchestrator is running, then open">← Orchestrator</button>
+        <a class="btn" href="http://127.0.0.1:8795/" id="nav-horizon" title="Horizon macro (same host)">Horizon</a>
         <a class="btn" href="capital-flows.html" id="nav-capital-flows" title="Income → channels flow map">Capital Flows</a>
         <a class="btn" href="interest-spectrum.html" id="nav-interest-spectrum" title="APR / APY interest spectrum">Interest Spectrum</a>
         <a class="btn" href="watchlist.html" id="nav-watchlist" title="Watchlist research">Watchlist</a>
@@ -5331,7 +5331,7 @@
     loadTreasury();
   </script>
   <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-  <script src="nav-orchestra.js"></script>
+  <script src="nav-horizon.js"></script>
   <script src="nav-fleet.js"></script>
 
 </body>

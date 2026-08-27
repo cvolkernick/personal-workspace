@@ -1,10 +1,11 @@
-"""FCC nav: Fleet is a same-host deep-link, not an embed."""
+"""FCC nav: Fleet + Horizon are same-host deep-links; Orchestra is gone."""
 
 from __future__ import annotations
 
 import importlib.util
 import re
 import socket
+import sys
 import threading
 import unittest
 import urllib.error
@@ -14,9 +15,29 @@ from http.server import ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from research.horizon.server import DEFAULT_PORT as HORIZON_PORT  # noqa: E402
+
 FCC = ROOT / "financial-command"
 SURFACES = ("index.html", "capital-flows.html", "watchlist.html", "interest-spectrum.html")
 HARDCODED_IPS = ("192.168.100.98", "100.67.114.2")
+PUBLIC_URL_NEEDLES = (
+    "vercel.app",
+    "vercel.com",
+    "horizon.vercel",
+    "https://horizon",
+    "strategy/horizon.md",
+)
+ORCHESTRA_NEEDLES = (
+    "nav-orchestra",
+    "data-open-orchestra",
+    "open-orchestra",
+    "← Orchestrator",
+    "nav-orchestra.js",
+    "openOrchestrator",
+)
 
 
 class _AnchorParser(HTMLParser):
@@ -64,6 +85,15 @@ def fleet_href(hostname: str) -> str:
     """Same contract as financial-command/nav-fleet.js fccFleetHref."""
     host = hostname or "127.0.0.1"
     return f"http://{host}:8796/"
+
+
+def horizon_href(hostname: str) -> str:
+    """Same contract as financial-command/nav-horizon.js fccHorizonHref.
+
+    Port is research/horizon/server.py DEFAULT_PORT — not invented here.
+    """
+    host = hostname or "127.0.0.1"
+    return f"http://{host}:{HORIZON_PORT}/"
 
 
 class TestFccNavFleet(unittest.TestCase):
@@ -144,9 +174,10 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertEqual(_by_id(spectrum, "nav-capital-flows")["href"], "capital-flows.html")
         self.assertEqual(_by_id(spectrum, "nav-watchlist")["href"], "watchlist.html")
 
-        index_html = (FCC / "index.html").read_text(encoding="utf-8")
-        self.assertIn('id="nav-orchestra"', index_html)
-        self.assertIn("← Orchestrator", index_html)
+        for name in SURFACES:
+            html = (FCC / name).read_text(encoding="utf-8")
+            for needle in ORCHESTRA_NEEDLES:
+                self.assertNotIn(needle, html, f"{name} still has {needle!r}")
 
     def test_orchestra_and_horizon_have_no_fleet_nav(self) -> None:
         orch = (ROOT / "orchestra" / "index.html").read_text(encoding="utf-8")
@@ -176,6 +207,80 @@ class TestFccNavFleet(unittest.TestCase):
         self.assertNotEqual(fleet_href("prism-gateway"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href("127.0.0.1"), "http://127.0.0.1:8796/")
         self.assertEqual(fleet_href("localhost"), "http://localhost:8796/")
+
+
+class TestFccNavHorizon(unittest.TestCase):
+    def test_horizon_bind_comes_from_research_horizon_server(self) -> None:
+        src = (ROOT / "research" / "horizon" / "server.py").read_text(encoding="utf-8")
+        self.assertRegex(src, r"(?m)^DEFAULT_PORT\s*=\s*8795\s*$")
+        self.assertEqual(HORIZON_PORT, 8795)
+        self.assertNotEqual(HORIZON_PORT, 8791)  # seasonal plan, not Horizon Macro
+
+    def test_nav_contains_horizon_link_on_every_fcc_surface(self) -> None:
+        port_token = f":{HORIZON_PORT}"
+        for name in SURFACES:
+            html = (FCC / name).read_text(encoding="utf-8")
+            anchors = _parse_anchors(html)
+            hz = _by_id(anchors, "nav-horizon")
+            self.assertEqual(hz["text"], "Horizon", name)
+            self.assertNotIn(str(HORIZON_PORT), hz["text"], name)
+            self.assertNotRegex(hz["title"], r"\d{4}", name)
+            self.assertIn(port_token, hz["href"], name)
+            self.assertTrue(
+                hz["href"].startswith("http://"),
+                f"{name} Horizon href must be an origin, not a relative FCC path",
+            )
+            self.assertNotIn("<iframe", html.lower(), name)
+            self.assertIn("nav-horizon.js", html, name)
+            self.assertNotIn("nav-orchestra.js", html, name)
+            for ip in HARDCODED_IPS:
+                self.assertNotIn(ip, hz["href"], name)
+                self.assertNotIn(ip, html, name)
+            for needle in PUBLIC_URL_NEEDLES:
+                self.assertNotIn(needle, hz["href"], name)
+                self.assertNotIn(needle, html, name)
+
+    def test_horizon_href_uses_current_hostname_and_server_port(self) -> None:
+        js = (FCC / "nav-horizon.js").read_text(encoding="utf-8")
+        self.assertIn("location.hostname", js)
+        self.assertIn(f"HORIZON_PORT = {HORIZON_PORT}", js)
+        self.assertIn("fccHorizonHref", js)
+        self.assertNotIn("<iframe", js.lower())
+        self.assertNotIn("vercel", js.lower())
+        for ip in HARDCODED_IPS:
+            self.assertNotIn(ip, js)
+        for needle in PUBLIC_URL_NEEDLES:
+            self.assertNotIn(needle, js)
+
+        self.assertEqual(horizon_href("192.168.100.98"), f"http://192.168.100.98:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href("100.67.114.2"), f"http://100.67.114.2:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href("prism-gateway"), f"http://prism-gateway:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href("127.0.0.1"), f"http://127.0.0.1:{HORIZON_PORT}/")
+        self.assertEqual(horizon_href(""), f"http://127.0.0.1:{HORIZON_PORT}/")
+        self.assertNotEqual(horizon_href("prism-gateway"), "http://127.0.0.1:8795/")
+
+        self.assertRegex(
+            js,
+            r"""["']http://["']\s*\+\s*host\s*\+\s*["']:["']\s*\+\s*HORIZON_PORT\s*\+\s*["']/["']""",
+        )
+
+    def test_orchestra_controls_are_gone_from_fcc(self) -> None:
+        self.assertFalse((FCC / "nav-orchestra.js").is_file())
+        server = (FCC / "server.py").read_text(encoding="utf-8")
+        self.assertNotIn("/api/open-orchestra", server)
+        self.assertNotIn("ensure_orchestra", server)
+        self.assertNotIn("ORCHESTRA_PORT", server)
+        for name in SURFACES:
+            html = (FCC / name).read_text(encoding="utf-8")
+            for needle in ORCHESTRA_NEEDLES:
+                self.assertNotIn(needle, html, f"{name} still has {needle!r}")
+
+    def test_auto_fleet_nav_still_present(self) -> None:
+        for name in SURFACES:
+            html = (FCC / name).read_text(encoding="utf-8")
+            fleet = _by_id(_parse_anchors(html), "nav-fleet")
+            self.assertEqual(fleet["text"], "Fleet", name)
+            self.assertIn("nav-fleet.js", html, name)
 
 
 def _load_fcc_server():
@@ -228,14 +333,20 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertEqual(prefixed, 200)
         self.assertEqual(prefixed_body, expected)
 
-    def test_root_nav_orchestra_js_is_fcc_sibling(self) -> None:
-        expected = (FCC / "nav-orchestra.js").read_bytes()
-        code, body = self._get("/nav-orchestra.js")
+    def test_root_nav_horizon_js_is_fcc_sibling(self) -> None:
+        expected = (FCC / "nav-horizon.js").read_bytes()
+        code, body = self._get("/nav-horizon.js")
         self.assertEqual(code, 200)
         self.assertEqual(body, expected)
-        prefixed, prefixed_body = self._get("/financial-command/nav-orchestra.js")
+        prefixed, prefixed_body = self._get("/financial-command/nav-horizon.js")
         self.assertEqual(prefixed, 200)
         self.assertEqual(prefixed_body, expected)
+
+    def test_root_nav_orchestra_js_is_gone(self) -> None:
+        code, _ = self._get("/nav-orchestra.js")
+        self.assertEqual(code, 404)
+        prefixed, _ = self._get("/financial-command/nav-orchestra.js")
+        self.assertEqual(prefixed, 404)
 
     def test_root_missing_js_stays_404(self) -> None:
         code, _ = self._get("/no-such-nav.js")
@@ -246,14 +357,33 @@ class TestRootNavJsRemap(unittest.TestCase):
         self.assertEqual(root_code, 200)
         self.assertIn(b'id="nav-fleet"', root_body)
         self.assertIn(b"nav-fleet.js", root_body)
+        self.assertIn(b'id="nav-horizon"', root_body)
+        self.assertIn(b"nav-horizon.js", root_body)
+        self.assertNotIn(b"nav-orchestra", root_body)
+        self.assertNotIn(b"Orchestrator", root_body)
         html_code, html_body = self._get("/financial-command/index.html")
         self.assertEqual(html_code, 200)
         self.assertIn(b'id="nav-fleet"', html_body)
+        self.assertIn(b'id="nav-horizon"', html_body)
+
+    def test_open_orchestra_api_is_gone(self) -> None:
+        get_code, _ = self._get("/api/open-orchestra")
+        self.assertIn(get_code, (404, 405))
+        url = f"http://127.0.0.1:{self.port}/api/open-orchestra"
+        req = urllib.request.Request(url, data=b"{}", method="POST")
+        req.add_header("Content-Type", "application/json")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                post_code = resp.status
+        except urllib.error.HTTPError as exc:
+            post_code = exc.code
+        self.assertEqual(post_code, 404)
 
     def test_remap_helper_only_fcc_js_basenames(self) -> None:
         remap = self.mod._root_fcc_js_remap
         self.assertEqual(remap("/nav-fleet.js"), "/financial-command/nav-fleet.js")
-        self.assertEqual(remap("/nav-orchestra.js"), "/financial-command/nav-orchestra.js")
+        self.assertEqual(remap("/nav-horizon.js"), "/financial-command/nav-horizon.js")
+        self.assertIsNone(remap("/nav-orchestra.js"))
         self.assertIsNone(remap("/financial-command/nav-fleet.js"))
         self.assertIsNone(remap("/no-such-nav.js"))
         self.assertIsNone(remap("/../nav-fleet.js"))

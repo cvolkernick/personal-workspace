@@ -7,7 +7,7 @@
 #   PI_HOST=100.x.y.z bash deploy/open_dashboard.sh orchestra   # Tailscale
 #
 # Services: orchestra | financial-command | projects-dashboard |
-#           holistic | iot | resistance-dashboard | auto-fleet
+#           holistic | iot | resistance-dashboard | auto-fleet | horizon
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
