@@ -612,7 +612,7 @@ def build_today_board(
     if bat.get("mode") == "awake" and float(bat.get("pct_charged") or 100) < 30:
         actions.append(
             {
-                "id": "protect-bedtime",
+                "id": "sleep-battery-low",
                 "kind": "sleep",
                 "priority": 2,
                 "text": (
