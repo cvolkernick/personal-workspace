@@ -316,6 +316,14 @@ def queue_bookings(
     return live, canceled
 
 
+def next_upcoming_index(live: Sequence[Mapping[str, Any]] | None) -> Optional[int]:
+    """Index of the soonest upcoming trip. Active is in-progress, not next."""
+    for i, booking in enumerate(live or []):
+        if trip_phase(booking) == "upcoming":
+            return i
+    return None
+
+
 def booking_row_html(
     booking: Mapping[str, Any],
     *,
@@ -328,6 +336,7 @@ def booking_row_html(
     status = "cancelled" if phase == "canceled" else phase
     when = human_when(booking.get("start"), booking.get("end"))
     chip_kind = "ok" if phase == "active" else ("mute" if phase == "canceled" else "")
+    next_trip = bool(next_trip) and phase == "upcoming"
     next_badge = _chip("NEXT", "next") if next_trip else ""
     who_inner = ""
     if car:
@@ -378,8 +387,9 @@ def schedule_queue_html(
         '<div class="queue-cols" aria-hidden="true"><span></span><span>When</span>'
         "<span>Status</span><span>Guest</span><span>Pickup</span><span>Res</span></div>"
     )
+    next_idx = next_upcoming_index(live)
     live_rows = [
-        booking_row_html(b, next_trip=(i == 0), invoice_items=invoice_items)
+        booking_row_html(b, next_trip=(i == next_idx), invoice_items=invoice_items)
         for i, b in enumerate(live)
     ]
     live_body = (

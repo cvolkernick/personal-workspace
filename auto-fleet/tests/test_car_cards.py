@@ -367,6 +367,74 @@ class SchedulePhaseTests(unittest.TestCase):
         self.assertEqual(marie["start"], "2026-08-23T13:00:00-04:00")
 
 
+class NextBadgeTests(unittest.TestCase):
+    """NEXT is the soonest upcoming trip, never an in-progress active one."""
+
+    def test_next_upcoming_index_skips_active(self) -> None:
+        live, _ = glance.queue_bookings(
+            [
+                {"guest": "Marie", "phase": "active", "start": "2026-08-23T12:30:00-04:00"},
+                {"guest": "Nayive", "phase": "upcoming", "start": "2026-08-26T11:00:00-04:00"},
+            ]
+        )
+        self.assertEqual(live[0]["guest"], "Marie")
+        self.assertEqual(glance.next_upcoming_index(live), 1)
+        self.assertIsNone(
+            glance.next_upcoming_index([{"guest": "Marie", "phase": "active"}])
+        )
+
+    def test_active_only_queue_has_no_next_badge(self) -> None:
+        html = glance.schedule_queue_html(
+            [
+                {
+                    "guest": "Marie",
+                    "phase": "active",
+                    "status": "booked",
+                    "start": "2026-08-23T12:30:00-04:00",
+                    "end": "2026-08-30T12:30:00-04:00",
+                    "trip_id": "60604995",
+                }
+            ]
+        )
+        self.assertIn("Marie", html)
+        self.assertIn('data-phase="active"', html)
+        self.assertNotIn("NEXT", html)
+        self.assertNotIn("booking active next", html)
+
+    def test_active_marie_does_not_steal_next_from_nayive(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=BODY_YEAR,
+            dimo_env={},
+            now="2026-08-23T15:30:00-04:00",
+        )
+        c22 = next(u for u in payload["units"] if u["id"] == "corolla-2022")
+        html = glance.schedule_queue_html(c22["turo"]["schedule"])
+        articles = html.split("<article ")
+        marie = next(a for a in articles if "Marie" in a)
+        nayive = next(a for a in articles if "Nayive" in a)
+        self.assertIn('data-phase="active"', marie)
+        self.assertNotIn("NEXT", marie)
+        self.assertIn("NEXT", nayive)
+        self.assertIn('data-phase="upcoming"', nayive)
+
+    def test_booking_row_refuses_next_on_active(self) -> None:
+        html = glance.booking_row_html(
+            {"guest": "Marie", "phase": "active", "trip_id": "60604995"},
+            next_trip=True,
+        )
+        self.assertNotIn("NEXT", html)
+        self.assertNotIn("booking active next", html)
+
+    def test_index_next_badge_uses_upcoming_index(self) -> None:
+        index = (PKG / "index.html").read_text(encoding="utf-8")
+        self.assertIn("function nextUpcomingIndex", index)
+        self.assertIn("next: i === nextIdx", index)
+        self.assertNotIn("next: i === 0", index)
+
+
 class OpsFieldTests(unittest.TestCase):
     def test_ops_flags_only_when_present_in_mail(self) -> None:
         parsed = turo_inbox.parse_message(
@@ -506,6 +574,7 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn(".booking.canceled", index)
         self.assertIn("queue-canceled", index)
         self.assertIn("function next30Strip", index)
+        self.assertIn("function nextUpcomingIndex", index)
         self.assertIn('id="next30"', index)
         self.assertNotIn("CIC", index)
         self.assertNotIn(":8796", index)

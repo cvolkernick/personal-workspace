@@ -919,15 +919,19 @@
       return { live, canceled };
     }
 
+    function nextUpcomingIndex(live) {
+      return (live || []).findIndex((b) => tripPhase(b) === "upcoming");
+    }
+
     function queueHead() {
       return `<div class="queue-cols" aria-hidden="true"><span></span><span>When</span><span>Status</span><span>Guest</span><span>Pickup</span><span>Res</span></div>`;
     }
 
     function bookingRow(b, opts) {
-      const next = !!(opts && opts.next);
       const invoiceItems = (opts && opts.invoiceItems) || [];
       const car = (opts && opts.car) || "";
       const phase = tripPhase(b);
+      const next = !!(opts && opts.next) && phase === "upcoming";
       const status = statusLabel(phase);
       const when = humanWhen(b.start, b.end);
       const chipKind = phase === "active" ? "ok" : (phase === "canceled" ? "mute" : "");
@@ -1055,7 +1059,8 @@
     function scheduleStrip(t, g, invoiceItems) {
       const trips = scheduleOf(t);
       const queued = queueBookings(trips);
-      const liveRows = queued.live.map((b, i) => bookingRow(b, { next: i === 0, invoiceItems }));
+      const nextIdx = nextUpcomingIndex(queued.live);
+      const liveRows = queued.live.map((b, i) => bookingRow(b, { next: i === nextIdx, invoiceItems }));
       const canceledRows = queued.canceled.map((b) => bookingRow(b, { invoiceItems }));
       const liveBody = liveRows.length
         ? `<div class="queue">${queueHead()}${liveRows.join("")}</div>`
@@ -1112,8 +1117,9 @@
         return startKey(a.b).localeCompare(startKey(c.b));
       });
       if (!items.length) return "";
+      const nextIdx = nextUpcomingIndex(items.map((it) => it.b));
       const rows = items.map((it, i) => bookingRow(it.b, {
-        next: i === 0,
+        next: i === nextIdx,
         invoiceItems: it.invoiceItems,
         car: it.car,
       }));
