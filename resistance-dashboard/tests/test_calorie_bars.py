@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import unittest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from rt_dashboard.calorie_bars import (
     build_calorie_bars_payload,
@@ -282,6 +283,43 @@ class TestCalorieBars(unittest.TestCase):
         self.assertIn("protein_g", mp)
         self.assertEqual(mp["calories"]["band"], "green")
         self.assertEqual(payload["pacing"].get("band"), "green")
+
+
+class TestCalorieBarCardLayout(unittest.TestCase):
+    def test_pacing_and_delta_meta_are_card_footers(self):
+        root = Path(__file__).resolve().parents[1]
+        html = (root / "static" / "index.html").read_text(encoding="utf-8")
+        css = (root / "static" / "styles.css").read_text(encoding="utf-8")
+
+        pace = html[
+            html.find('id="calorie-pacing-section"') : html.find(
+                'id="calorie-delta-section"'
+            )
+        ]
+        delta = html[
+            html.find('id="calorie-delta-section"') : html.find('id="nutrition-stats"')
+        ]
+        pace_header = pace[pace.find("calorie-bar-header") : pace.find("pace-track")]
+        delta_header = delta[delta.find("calorie-bar-header") : delta.find("delta-track")]
+
+        self.assertNotIn("calorie-pacing-meta", pace_header)
+        self.assertNotIn("calorie-delta-meta", delta_header)
+        self.assertGreater(
+            pace.find('id="calorie-pacing-meta"'),
+            pace.find('id="calorie-pacing-summary"'),
+        )
+        self.assertGreater(
+            delta.find('id="calorie-delta-meta"'),
+            delta.find('id="calorie-delta-summary"'),
+        )
+        self.assertIn("calorie-bar-footer", pace)
+        self.assertIn("calorie-bar-footer", delta)
+        self.assertIn(".calorie-bar-footer", css)
+        # Hydration footer still last in its own card.
+        self.assertGreater(
+            html.find('id="hydration-pacing-meta"'),
+            html.find('id="hydration-pacing-summary"'),
+        )
 
 
 if __name__ == "__main__":
