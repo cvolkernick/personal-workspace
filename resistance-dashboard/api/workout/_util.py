@@ -554,7 +554,7 @@ def _agent_today_from_stores(headers, query: str = ""):
     """Cookie-less service path: Turso + Hidrate + optional Health. No invented ml."""
     import os
 
-    from api.dashboard import _load_health, _load_sessions, request_tz_name
+    from api.dashboard import _load_health, _load_sessions, _today_consumed, request_tz_name
     from rt_dashboard.agent_today import assemble_dashboard_slice, export_agent_today
     from rt_dashboard.google_health import GoogleHealthClient
     from rt_dashboard.grok_planner import dashboard_plan_slots
@@ -628,6 +628,28 @@ def _agent_today_from_stores(headers, query: str = ""):
         recovery=None,
         as_of=today,
     )
+
+    nutrition_store: dict = {}
+    try:
+        from rt_dashboard.meal_plan_store import load_last_good_meal_plan
+        from rt_dashboard.nutrition_store import load_workspace_targets
+
+        targets, _t_src = load_workspace_targets()
+        consumed = _today_consumed(health, today)
+        meal_plan = None
+        try:
+            meal_plan = load_last_good_meal_plan(uid, today)
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"meal_plan: {type(exc).__name__}")
+            meal_plan = None
+        nutrition_store = {
+            "targets": targets,
+            "today_consumed": consumed or None,
+            "meal_plan": meal_plan if isinstance(meal_plan, dict) else {},
+        }
+    except Exception as exc:  # noqa: BLE001
+        errors.append(f"nutrition: {type(exc).__name__}")
+
     slice_payload = assemble_dashboard_slice(
         date=today,
         sessions=sessions,
@@ -637,6 +659,7 @@ def _agent_today_from_stores(headers, query: str = ""):
         hidrate_bottle=bottle,
         sleep_battery=sleep_battery,
         health=health,
+        nutrition_store=nutrition_store,
         meta_error="; ".join(errors) if errors else None,
     )
     return 200, export_agent_today(slice_payload)

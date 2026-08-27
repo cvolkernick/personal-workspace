@@ -1,6 +1,7 @@
-"""Agent read-only Today export (#293 / #312). Token/loopback allow; cookie-less deny.
+"""Agent read-only Today export (#293 / #312 / #380). Token/loopback allow; cookie-less deny.
 
-Fixtures cover empty vs populated dashboard slices. No invented ml / sessions / AZM.
+Fixtures cover empty vs populated dashboard slices. No invented ml / sessions / AZM /
+intake / weekly volume / sleep. Personal dashboard/workouts stay 401 without a session.
 """
 
 from __future__ import annotations
@@ -23,8 +24,10 @@ from rt_dashboard.models import (
     ActiveZoneMinutesDay,
     ExerciseEntry,
     HealthSnapshot,
+    NutritionDay,
     Session,
     SetEntry,
+    SleepSample,
 )
 
 
@@ -94,6 +97,31 @@ POPULATED = {
     },
     "coach": {"today": {"date": "2026-08-23"}},
     "meta": {"local_today": "2026-08-23", "error": None},
+    "nutrition_store": {
+        "targets": {"calories": 2100.0, "protein_g": 210.0},
+        "today_consumed": {
+            "date": "2026-08-23",
+            "calories": 680.0,
+            "protein_g": 56.0,
+            "source": "daily_rollup",
+        },
+        "meal_plan": {
+            "meals": [
+                {
+                    "label": "Next meal",
+                    "eat_at": "2026-08-23T12:00:00-04:00",
+                    "items": [
+                        {
+                            "name": "Chicken",
+                            "calories": 280,
+                            "protein_g": 52,
+                            "portion_g": 210,
+                        }
+                    ],
+                }
+            ]
+        },
+    },
     "health": {
         "active_zone_minutes": [
             {
@@ -105,7 +133,35 @@ POPULATED = {
                 "source": "google_health",
             }
             for day in range(16, 23)
-        ]
+        ],
+        "nutrition": [
+            {
+                "date": "2026-08-21",
+                "calories": 1900.0,
+                "protein_g": 180.0,
+                "source": "google_health",
+            },
+            {
+                "date": "2026-08-23",
+                "calories": 680.0,
+                "protein_g": 56.0,
+                "source": "google_health",
+            },
+        ],
+        "sleep": [
+            {
+                "date": "2026-08-22",
+                "sleep_hours": 7.5,
+                "source": "google_health",
+            }
+        ],
+        "sleep_intervals": [
+            {
+                "start": "2026-08-22T23:00:00-04:00",
+                "end": "2026-08-23T07:00:00-04:00",
+                "source": "google_health",
+            }
+        ],
     },
 }
 
@@ -140,6 +196,21 @@ class ExportFixtures(unittest.TestCase):
         self.assertIsNone(today["wake_window"]["last_wake_at"])
         self.assertIsNone(today["wake_window"]["empty_at"])
         self.assertEqual(today["active_zone_minutes"], [])
+        nut = today["nutrition"]
+        self.assertIsNone(nut["calories"])
+        self.assertIsNone(nut["protein_g"])
+        self.assertEqual(nut["targets"]["calories"], 2100.0)
+        self.assertEqual(nut["targets"]["protein_g"], 210.0)
+        self.assertEqual(nut["meals"], [])
+        self.assertIsNone(nut["source"])
+        week = body["week"]
+        self.assertIsNone(week["start"])
+        self.assertIsNone(week["end"])
+        self.assertIsNone(week["nutrition"]["calories"])
+        self.assertIsNone(week["nutrition"]["protein_g"])
+        self.assertEqual(week["nutrition"]["days"], [])
+        self.assertEqual(week["logged_sessions"], [])
+        self.assertEqual(week["sleep"], [])
         self.assertNotIn("error", body)
 
     def test_populated_slice_copies_existing_fields_only(self):
@@ -171,6 +242,30 @@ class ExportFixtures(unittest.TestCase):
         self.assertEqual(azm[0]["date"], "2026-08-16")
         self.assertEqual(azm[0]["total_minutes"], 31.0)
         self.assertEqual(azm[-1]["date"], "2026-08-22")
+        nut = today["nutrition"]
+        self.assertEqual(nut["calories"], 680.0)
+        self.assertEqual(nut["protein_g"], 56.0)
+        self.assertEqual(nut["targets"]["calories"], 2100.0)
+        self.assertEqual(nut["targets"]["protein_g"], 210.0)
+        self.assertEqual(nut["meals"][0]["label"], "Next meal")
+        self.assertEqual(nut["meals"][0]["items"][0]["name"], "Chicken")
+        self.assertEqual(nut["source"], "daily_rollup")
+        week = body["week"]
+        self.assertEqual(week["start"], "2026-08-17")
+        self.assertEqual(week["end"], "2026-08-23")
+        self.assertEqual(week["nutrition"]["calories"], 2580.0)
+        self.assertEqual(week["nutrition"]["protein_g"], 236.0)
+        self.assertEqual([d["date"] for d in week["nutrition"]["days"]], ["2026-08-21", "2026-08-23"])
+        self.assertEqual(len(week["logged_sessions"]), 1)
+        self.assertEqual(week["logged_sessions"][0]["date"], "2026-08-23")
+        self.assertEqual(week["logged_sessions"][0]["session_type"], "pull")
+        self.assertEqual(week["logged_sessions"][0]["volume"], 1500)
+        self.assertEqual(week["logged_sessions"][0]["exercises"][0]["name"], "DB Row")
+        self.assertEqual(len(week["sleep"]), 1)
+        self.assertEqual(week["sleep"][0]["start"], "2026-08-22T23:00:00-04:00")
+        self.assertEqual(week["sleep"][0]["end"], "2026-08-23T07:00:00-04:00")
+        self.assertEqual(week["sleep"][0]["duration_hours"], 8.0)
+        self.assertEqual(week["sleep"][0]["battery"]["pct_charged"], 62.0)
 
     def test_rest_day_is_signal_not_empty(self):
         body = export_agent_today(
@@ -294,6 +389,142 @@ class ExportFixtures(unittest.TestCase):
         )
         self.assertEqual(body["today"]["active_zone_minutes"], [])
 
+    def test_unsigned_nutrition_is_honest_empty(self):
+        body = export_agent_today(
+            {
+                "health": {
+                    "calories_burned": [{"date": "2026-08-23", "calories": 400}],
+                    "nutrition": [],
+                    "food_logs": [],
+                },
+                "nutrition_store": {
+                    "today_consumed": {
+                        "calories": 0.0,
+                        "protein_g": 0.0,
+                        "source": "none",
+                    },
+                    "meal_plan": {"meals": []},
+                },
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        nut = body["today"]["nutrition"]
+        self.assertIsNone(nut["calories"])
+        self.assertIsNone(nut["protein_g"])
+        self.assertEqual(nut["meals"], [])
+        self.assertIsNone(nut["source"])
+        self.assertEqual(nut["targets"]["calories"], 2100.0)
+        self.assertEqual(body["week"]["nutrition"]["days"], [])
+        self.assertIsNone(body["week"]["nutrition"]["calories"])
+
+    def test_food_logs_fill_today_when_no_rollup(self):
+        body = export_agent_today(
+            {
+                "health": {
+                    "food_logs": [
+                        {
+                            "date": "2026-08-23",
+                            "name": "Eggs",
+                            "calories": 180,
+                            "protein_g": 16,
+                        },
+                        {
+                            "date": "2026-08-22",
+                            "name": "Oats",
+                            "calories": 300,
+                            "protein_g": 12,
+                        },
+                    ]
+                },
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        nut = body["today"]["nutrition"]
+        self.assertEqual(nut["calories"], 180.0)
+        self.assertEqual(nut["protein_g"], 16.0)
+        self.assertEqual(nut["source"], "food_logs")
+        week = body["week"]["nutrition"]
+        self.assertEqual(week["calories"], 480.0)
+        self.assertEqual(week["protein_g"], 28.0)
+        self.assertEqual([d["date"] for d in week["days"]], ["2026-08-22", "2026-08-23"])
+
+    def test_week_sessions_only_this_iso_week(self):
+        body = export_agent_today(
+            {
+                "sessions": [
+                    {
+                        "date": "2026-08-16",
+                        "session_type": "legs",
+                        "exercises": [{"name": "Squat", "volume": 2000}],
+                        "volume": 2000,
+                    },
+                    {
+                        "date": "2026-08-18",
+                        "session_type": "push",
+                        "exercises": [{"name": "Press", "volume": 900}],
+                        "volume": 900,
+                    },
+                ],
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        logged = body["week"]["logged_sessions"]
+        self.assertEqual([s["date"] for s in logged], ["2026-08-18"])
+        self.assertEqual(logged[0]["session_type"], "push")
+        self.assertEqual(logged[0]["volume"], 900)
+        self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
+
+    def test_empty_logged_week_is_honest(self):
+        body = export_agent_today(
+            {
+                "workout": {"session_type": "push", "is_rest_day": False, "exercises": []},
+                "sessions": [],
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        self.assertEqual(body["week"]["start"], "2026-08-17")
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(body["today"]["workout"]["logged_exercises"], [])
+
+    def test_implied_zero_sleep_is_not_a_session(self):
+        body = export_agent_today(
+            {
+                "health": {
+                    "sleep": [
+                        {
+                            "date": "2026-08-20",
+                            "sleep_hours": 0.0,
+                            "source": "implied_zero",
+                        },
+                        {
+                            "date": "2026-08-21",
+                            "sleep_hours": 7.2,
+                            "source": "google_health",
+                        },
+                    ]
+                },
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        sleep = body["week"]["sleep"]
+        self.assertEqual(len(sleep), 1)
+        self.assertEqual(sleep[0]["date"], "2026-08-21")
+        self.assertEqual(sleep[0]["duration_hours"], 7.2)
+        self.assertIsNone(sleep[0]["start"])
+        self.assertIsNone(sleep[0]["end"])
+        self.assertIsNone(sleep[0]["battery"])
+
+    def test_live_targets_override_book_defaults(self):
+        body = export_agent_today(
+            {
+                "nutrition_store": {"targets": {"calories": 1950, "protein_g": 190}},
+                "coach": {"today": {"date": "2026-08-23"}},
+            }
+        )
+        self.assertEqual(body["today"]["nutrition"]["targets"]["calories"], 1950.0)
+        self.assertEqual(body["week"]["nutrition"]["targets"]["protein_g"], 190.0)
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+
     def test_civil_only_hydration_is_unknown_not_on_pace(self):
         body = export_agent_today(
             {
@@ -391,6 +622,24 @@ class VercelAgentTodayAuth(unittest.TestCase):
             status, body = dashboard_body({}, "")
         self.assertEqual(status, 401)
         self.assertEqual(body["error"], "auth_required")
+        self.assertNotIn("today", body)
+        self.assertNotIn("week", body)
+
+    def test_workouts_stay_cookie_gated(self):
+        from api.workout._util import daily_tasks_body, refresh_body, workouts_body
+
+        with mock.patch.dict(os.environ, {}, clear=True):
+            for name, fn in (
+                ("workouts", workouts_body),
+                ("daily_tasks", daily_tasks_body),
+                ("refresh", refresh_body),
+            ):
+                status, body = fn({})
+                self.assertEqual(status, 401, name)
+                self.assertEqual(body["error"], "auth_required")
+                self.assertNotIn("sessions", body)
+                self.assertNotIn("today", body)
+                self.assertNotIn("week", body)
 
     def test_token_allows_without_google_cookie(self):
         env = {"FITDASH_SERVICE_TOKEN": "house-secret", "FITDASH_SERVICE_LOOPBACK": "0"}
@@ -409,6 +658,9 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertIn("active_zone_minutes", body["today"])
         self.assertEqual(len(body["today"]["active_zone_minutes"]), 7)
         self.assertEqual(body["today"]["active_zone_minutes"][0]["date"], "2026-08-16")
+        self.assertEqual(body["today"]["nutrition"]["calories"], 680.0)
+        self.assertEqual(body["week"]["logged_sessions"][0]["session_type"], "pull")
+        self.assertEqual(body["week"]["sleep"][0]["duration_hours"], 8.0)
         self._assert_no_secrets(body)
         load.assert_called_once()
 
@@ -426,6 +678,9 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertTrue(body["ok"])
         self.assertTrue(body["today"]["workout"]["empty"])
         self.assertEqual(body["today"]["active_zone_minutes"], [])
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(body["week"]["sleep"], [])
         self._assert_no_secrets(body)
 
     def test_wrong_token_denied(self):
@@ -524,6 +779,12 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertNotEqual(hyd.get("status"), "on_pace")
         self.assertIsNone(body["today"]["wake_window"]["last_wake_at"])
         self.assertEqual(body["today"]["active_zone_minutes"], [])
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+        self.assertIsNone(body["today"]["nutrition"]["protein_g"])
+        self.assertEqual(body["today"]["nutrition"]["meals"], [])
+        self.assertEqual(body["week"]["logged_sessions"], [])
+        self.assertEqual(body["week"]["sleep"], [])
+        self.assertIsNone(body["week"]["nutrition"]["calories"])
         self._assert_no_secrets(body)
 
     def test_store_path_copies_healthsnapshot_azm(self):
@@ -572,6 +833,83 @@ class VercelAgentTodayAuth(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(body["ok"])
         self.assertEqual(body["today"]["active_zone_minutes"], [AZM_DAY])
+        self._assert_no_secrets(body)
+
+    def test_store_path_copies_intake_week_volume_and_sleep(self):
+        env = {
+            "FITDASH_SERVICE_TOKEN": "house-secret",
+            "FITDASH_SERVICE_LOOPBACK": "0",
+            "TZ": "UTC",
+        }
+        session = Session(
+            date="2026-08-18",
+            session_type="pull",
+            exercises=[
+                ExerciseEntry(
+                    name="DB Row",
+                    sets=[SetEntry(weight_lbs=50, sets=3, reps=10)],
+                )
+            ],
+        )
+        snap = HealthSnapshot(
+            nutrition=[
+                NutritionDay(date="2026-08-18", calories=1900, protein_g=180)
+            ],
+            sleep=[
+                SleepSample(date="2026-08-18", sleep_hours=7.5, source="google_health")
+            ],
+            sleep_intervals=[
+                {
+                    "start": "2026-08-17T23:00:00+00:00",
+                    "end": "2026-08-18T06:30:00+00:00",
+                    "source": "google_health",
+                }
+            ],
+        )
+        empty_bottle = {
+            "available": False,
+            "percent": None,
+            "status": "not_configured",
+            "name": None,
+            "field": None,
+            "error": None,
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch(
+                "rt_dashboard.timeutil.local_today_iso", return_value="2026-08-23"
+            ), mock.patch(
+                "api.dashboard._load_sessions", return_value=([session], [], "turso")
+            ), mock.patch(
+                "rt_dashboard.google_health.GoogleHealthClient.credentials_present",
+                return_value=True,
+            ), mock.patch(
+                "api.dashboard._load_health", return_value=(snap, [])
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_bottle_charge",
+                return_value=empty_bottle,
+            ), mock.patch(
+                "rt_dashboard.hidrate_client.hidrate_hydration_samples",
+                return_value=[],
+            ), mock.patch(
+                "rt_dashboard.meal_plan_store.load_last_good_meal_plan",
+                return_value=None,
+            ):
+                status, body = agent_today_body(
+                    {"X-FitDash-Service-Token": "house-secret"}, ""
+                )
+        self.assertEqual(status, 200)
+        self.assertTrue(body["ok"])
+        self.assertEqual(body["week"]["start"], "2026-08-17")
+        self.assertEqual(body["week"]["end"], "2026-08-23")
+        self.assertEqual(body["week"]["nutrition"]["calories"], 1900.0)
+        self.assertEqual(body["week"]["nutrition"]["protein_g"], 180.0)
+        self.assertEqual(body["week"]["logged_sessions"][0]["session_type"], "pull")
+        self.assertEqual(body["week"]["logged_sessions"][0]["volume"], 1500.0)
+        self.assertEqual(body["week"]["sleep"][0]["duration_hours"], 7.5)
+        self.assertEqual(body["week"]["sleep"][0]["start"], "2026-08-17T23:00:00+00:00")
+        self.assertIsNone(body["today"]["nutrition"]["calories"])
+        self.assertEqual(body["today"]["nutrition"]["targets"]["calories"], 2100.0)
+        self.assertEqual(body["today"]["nutrition"]["meals"], [])
         self._assert_no_secrets(body)
 
 
