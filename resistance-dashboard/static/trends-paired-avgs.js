@@ -1,6 +1,6 @@
 /**
  * FitDash Trends #254/#258/#268: Avg intake / Avg burned / Avg deficit on the same
- * 75d paired-days window as the Σ chips in app.js (days with both nutrition +
+ * 60d paired-days window as the Σ chips in app.js (days with both nutrition +
  * calories_burned). Overlay only — does not rewrite app.js or add food rows.
  * Sign: positive = surplus (intake − burned), negative = deficit.
  */
@@ -8,7 +8,7 @@
   "use strict";
 
   /** Must match CAL_IN_OUT_SPAN_DAYS in app.js. */
-  var SPAN_DAYS = 75;
+  var SPAN_DAYS = 60;
 
   function windowLabels(spanDays, now) {
     var end = now ? new Date(now) : new Date();
@@ -28,7 +28,7 @@
   }
 
   /**
-   * Same pair set as the Σ chips: 75d civil labels, include a day only when
+   * Same pair set as the Σ chips: 60d civil labels, include a day only when
    * both intake and burned are present and numeric. Avgs = Σ / pairDays.
    * Per-day delta_i = intake_i − burned_i; avgDelta = mean(delta_i).
    */
