@@ -16,7 +16,7 @@ DEFAULT_POLICY: Dict[str, Any] = {
     "cb_card_float_usdc": 500.0,
     "cb_loan_buffer_usdc": 1000.0,
     "cb_bridge_dry_powder_usdc": 200.0,
-    "rh_bp_floor": 500.0,
+    "rh_bp_floor": 0.0,  # MO: not a cash sleeve — agentic RH allocates immediately; dust BP is min-trade, not a floor miss
     "rh_margin_use_max": 0.40,
     "excess_split_cb": 0.60,
     "excess_split_rh": 0.40,
