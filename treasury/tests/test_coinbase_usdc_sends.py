@@ -21,6 +21,7 @@ from treasury.coinbase_usdc_sends import (  # noqa: E402
     load_send_book,
     matches_rent,
     matches_thais,
+    send_spend_amount,
     write_send_book,
 )
 
@@ -76,19 +77,54 @@ class TestSendFilter(unittest.TestCase):
             900.0,
         )
 
-    def test_unlabeled_address_send_is_not_thais(self) -> None:
-        tx = _send(
-            id="unlabeled-addr",
-            description="",
-            to={"resource": "address", "address": "0xnotinvented"},
-            amount={"amount": "-125.00", "currency": "USDC"},
-        )
-        self.assertFalse(matches_thais(tx))
-        self.assertFalse(matches_rent(tx))
+    def test_unlabeled_aug_and_july_phone_sends_not_assigned(self) -> None:
+        unlabeled = [
+            _send(
+                id="aug10-unlabeled-5",
+                created_at="2026-08-10T12:00:00Z",
+                description="",
+                to={"resource": "address"},
+                amount={"amount": "-5.00", "currency": "USDC"},
+            ),
+            _send(
+                id="aug4-unlabeled-125",
+                created_at="2026-08-04T12:00:00Z",
+                description="",
+                to={"resource": "address"},
+                amount={"amount": "-125.00", "currency": "USDC"},
+            ),
+            _send(
+                id="jul-phone-20",
+                created_at="2026-07-12T12:00:00Z",
+                description="",
+                to={"resource": "phone"},
+                amount={"amount": "-20.00", "currency": "USDC"},
+            ),
+            _send(
+                id="jul-phone-40",
+                created_at="2026-07-20T12:00:00Z",
+                description="",
+                to={"resource": "phone"},
+                amount={"amount": "-40.00", "currency": "USDC"},
+            ),
+        ]
+        book = collect_usdc_sends({"transactions": unlabeled + [_send()]})
+        for tx in unlabeled:
+            self.assertFalse(matches_thais(tx), tx["id"])
+            self.assertFalse(matches_rent(tx), tx["id"])
         self.assertAlmostEqual(
-            actual_for_item([tx], item_name="Thaís", month=date(2026, 8, 15)),
+            actual_for_item(book, item_name="Thaís", month=date(2026, 8, 15)),
+            895.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Rent", month=date(2026, 8, 15)),
             0.0,
         )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="Rent", month=date(2026, 7, 15)),
+            0.0,
+        )
+        self.assertFalse(any(abs(send_spend_amount(t) - 2090.0) < 1 for t in book))
 
     def test_rent_dest_hold_never_matches(self) -> None:
         tx = _send(

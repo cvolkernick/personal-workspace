@@ -137,10 +137,21 @@ def dest_fingerprint(tx: Dict[str, Any]) -> str:
     return str(tx.get("to_address") or tx.get("destination") or "").strip()
 
 
+def _to_resource(tx: Dict[str, Any]) -> str:
+    dest = tx.get("to") or {}
+    if isinstance(dest, dict):
+        return str(dest.get("resource") or "").strip().casefold()
+    return ""
+
+
 def matches_thais(tx: Dict[str, Any]) -> bool:
+    """Thaís = named type=send to an address. Never phone / unlabeled / amount-guess."""
     dest = dest_fingerprint(tx)
     if dest and dest in THAIS_DEST_FINGERPRINTS:
         return True
+    resource = _to_resource(tx)
+    if resource and resource != "address":
+        return False
     blob = _blob(tx)
     return any(n in blob for n in _THAIS_NAME_NEEDLES)
 

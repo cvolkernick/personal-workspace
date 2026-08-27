@@ -518,7 +518,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         txs = [
             _tx(
                 payee="Rent",
-                amount=-2090.0,
+                amount=-100.0,
                 category_id=RENT_ID,
                 category_name="Rent",
                 tx_id="one-card-rent",
@@ -550,7 +550,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
             _item("Thaís", 900.0, "Coinbase One Card"),
         ]
         txs = [
-            _tx(payee="Rent", amount=-2090.0, category_id=RENT_ID, category_name="Rent"),
+            _tx(payee="Rent", amount=-100.0, category_id=RENT_ID, category_name="Rent"),
             _tx(payee="Thaís", amount=-900.0, category_id=THAIS_ID, category_name="Thaís"),
         ]
         snaps = _snaps(items, [])
@@ -559,7 +559,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
             "transactions": [
                 _tx(
                     payee="August Rent",
-                    amount=-2090.0,
+                    amount=-100.0,
                     category_id=RENT_ID,
                     category_name="Rent",
                     tx_id="one-card-aug-rent",
@@ -673,6 +673,38 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                     "type": "lock",
                     "created_at": "2026-08-13T14:00:00Z",
                     "amount": {"amount": "-25.00", "currency": "USDC"},
+                },
+                {
+                    "id": "aug10-unlabeled-5",
+                    "type": "send",
+                    "created_at": "2026-08-10T12:00:00Z",
+                    "amount": {"amount": "-5.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "aug4-unlabeled-125",
+                    "type": "send",
+                    "created_at": "2026-08-04T12:00:00Z",
+                    "amount": {"amount": "-125.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "jul-phone-20",
+                    "type": "send",
+                    "created_at": "2026-07-12T12:00:00Z",
+                    "amount": {"amount": "-20.00", "currency": "USDC"},
+                    "to": {"resource": "phone"},
+                    "description": "",
+                },
+                {
+                    "id": "jul-phone-40",
+                    "type": "send",
+                    "created_at": "2026-07-20T12:00:00Z",
+                    "amount": {"amount": "-40.00", "currency": "USDC"},
+                    "to": {"resource": "phone"},
+                    "description": "",
                 },
             ],
         }
