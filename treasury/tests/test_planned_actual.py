@@ -745,6 +745,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-jul-only",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-07-10T14:00:00Z",
                     "amount": {"amount": "-900.00", "currency": "USDC"},
                     "description": "Thaís",
@@ -779,6 +780,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-aug-thais",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
                     "to": {"resource": "address"},
@@ -846,6 +848,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-aug-thais",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
                     "to": {"resource": "address"},
@@ -884,13 +887,23 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(_row(pending_strip, "Rent")["actual"], 0.0)
         self.assertEqual(_row(pending_strip, "Rent")["flag"], FLAG_OFF_BOOK)
 
-        snaps_aug = _snaps([_item("August Rent", 2090.0, "Coinbase")], [])
+        snaps_aug = _snaps(
+            [
+                _item("April Rent", 775.0, "Coinbase"),
+                _item("August Rent", 2090.0, "Coinbase"),
+            ],
+            [],
+        )
         snaps_aug["coinbase_usdc_sends"] = snaps["coinbase_usdc_sends"]
-        august = build_planned_actual_strip(snaps_aug, _ac_map(), as_of="2026-08-27")
-        row = _row(august, "August Rent")
-        self.assertAlmostEqual(row["planned"], 2090.0)
-        self.assertAlmostEqual(row["actual"], 25.0)
-        self.assertEqual(row["flag"], FLAG_ON)
+        both = build_planned_actual_strip(snaps_aug, _ac_map(), as_of="2026-08-27")
+        august = _row(both, "August Rent")
+        april = _row(both, "April Rent")
+        self.assertAlmostEqual(august["planned"], 2090.0)
+        self.assertAlmostEqual(august["actual"], 25.0)
+        self.assertEqual(august["flag"], FLAG_ON)
+        self.assertAlmostEqual(april["planned"], 775.0)
+        self.assertEqual(april["actual"], 0.0)
+        self.assertNotEqual(april["actual"], 25.0)
 
     def test_leftover_ynab_pile_does_not_backfill_thais_or_rent(self) -> None:
         snaps = _snaps(_ac_items(), _leftover_pile(87))
@@ -900,6 +913,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-aug-thais",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
                     "to": {"resource": "address"},

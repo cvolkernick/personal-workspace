@@ -109,7 +109,8 @@ def is_usdc_send(tx: Dict[str, Any]) -> bool:
     if tx_currency(tx) and tx_currency(tx) != USDC:
         return False
     status = tx_status(tx)
-    if status in {"failed", "canceled", "cancelled", "expired"}:
+    # Book only completed. Pending / failed / canceled / expired do not enter the book.
+    if status != "completed":
         return False
     return True
 
@@ -257,13 +258,20 @@ def prism_key_present() -> bool:
     return PRISM_KEY_PATH.is_file()
 
 
-_MONTH_FIRST = frozenset(
-    {
-        "january", "february", "march", "april", "may", "june", "july", "august",
-        "september", "october", "november", "december",
-        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec",
-    }
-)
+_MONTH_NUM = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
 
 
 def _item_kind(item_name: str) -> str:
@@ -271,9 +279,17 @@ def _item_kind(item_name: str) -> str:
     toks = _fold(item_name).split()
     if not toks:
         return ""
-    if toks[0] in _MONTH_FIRST and len(toks) > 1:
+    if toks[0] in _MONTH_NUM and len(toks) > 1:
         return toks[1]
     return toks[0]
+
+
+def _item_send_month(item_name: str, as_of: date) -> date:
+    """Month-prefixed rows use that month. Bare 'Rent' uses as_of month."""
+    toks = _fold(item_name).split()
+    if toks and toks[0] in _MONTH_NUM:
+        return date(as_of.year, _MONTH_NUM[toks[0]], 1)
+    return as_of
 
 
 def item_sends_for_month(
@@ -283,9 +299,10 @@ def item_sends_for_month(
     month: date,
 ) -> List[Dict[str, Any]]:
     key = _item_kind(item_name)
+    send_month = _item_send_month(item_name, month)
     matched: List[Dict[str, Any]] = []
     for tx in sends:
-        if not tx_in_month(tx, month):
+        if not tx_in_month(tx, send_month):
             continue
         if key == "thais" and matches_thais(tx):
             matched.append(tx)

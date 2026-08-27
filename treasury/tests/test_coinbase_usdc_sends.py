@@ -184,8 +184,13 @@ class TestSendFilter(unittest.TestCase):
             to={"resource": "address"},
             amount={"amount": "-125.00", "currency": "USDC"},
         )
+        self.assertTrue(is_usdc_send(email_send))
+        self.assertFalse(is_usdc_send(pending))
+        self.assertFalse(is_usdc_send(failed))
+        self.assertFalse(is_usdc_send(canceled))
         self.assertTrue(matches_rent(email_send))
         self.assertFalse(matches_thais(email_send))
+        self.assertFalse(matches_rent(pending))
         for tx in (pending, failed, canceled, phone, unlabeled_5, unlabeled_125):
             self.assertFalse(matches_rent(tx), tx["id"])
             self.assertFalse(matches_thais(tx), tx["id"])
@@ -208,8 +213,22 @@ class TestSendFilter(unittest.TestCase):
             25.0,
         )
         self.assertAlmostEqual(
+            actual_for_item(book, item_name="August Rent", month=date(2026, 8, 27)),
+            25.0,
+        )
+        self.assertAlmostEqual(
+            actual_for_item(book, item_name="April Rent", month=date(2026, 8, 27)),
+            0.0,
+        )
+        self.assertAlmostEqual(
             actual_for_item(book, item_name="Thaís", month=date(2026, 8, 27)),
             895.0,
+        )
+        pending_only = collect_usdc_sends({"transactions": [pending]})
+        self.assertEqual(pending_only, [])
+        self.assertAlmostEqual(
+            actual_for_item([pending], item_name="August Rent", month=date(2026, 8, 27)),
+            0.0,
         )
 
     def test_load_send_book_from_snapshots_not_disk_key(self) -> None:
