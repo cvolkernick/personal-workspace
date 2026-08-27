@@ -94,6 +94,7 @@ class AgentFleetExportTests(unittest.TestCase):
         self.assertNotIn("finance", blob)
         self.assertNotIn("dimo", blob.lower())
         self.assertNotIn("google_tasks", blob.lower())
+        self.assertNotIn("invoice_ready", blob)
         self.assertEqual(agent_fleet.secret_leaks(packet), [])
 
     def test_identity_omits_vin_account_lender(self) -> None:

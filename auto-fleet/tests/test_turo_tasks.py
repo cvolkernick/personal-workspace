@@ -198,6 +198,8 @@ class SurfaceContractTests(unittest.TestCase):
         self.assertIn("/api/turo-tasks", html)
         self.assertIn("/api/turo-tasks/complete", html)
         self.assertIn("function renderHostOps", html)
+        self.assertIn("function awaitingStrip", html)
+        self.assertIn("<h3>Awaiting</h3>", html)
         self.assertNotIn("nothing to do", html.lower())
         self.assertNotIn("no invoice-ready", html.lower())
         self.assertNotIn("Orchestra", html)
@@ -226,6 +228,118 @@ class SurfaceContractTests(unittest.TestCase):
             json.loads((ROOT / "resistance-dashboard" / "vercel.json").read_text())
         )
         self.assertNotIn("GOOGLE_TASKS", dumped)
+
+
+class FleetInvoiceReadySnapshotTests(unittest.TestCase):
+    """#382 — /api/fleet units carry awaiting fields from the GT Turo list."""
+
+    def _build(self, gt, inbox=None):
+        import fleet
+
+        return fleet.build_fleet(
+            roster_path=PKG / "data" / "roster.json",
+            notes_path=PKG / "data" / "notes.json",
+            expenses_path=PKG / "tests" / "fixtures" / "expenses_no_fleet.json",
+            inbox_path=inbox or (PKG / "data" / "turo_inbox.json"),
+            dimo_env={},
+            now="2026-08-23T12:00:00+00:00",
+            gt=gt,
+        )
+
+    def test_honest_empty_when_turo_list_has_no_open_items(self) -> None:
+        gt = FakeGT(lists=[{"id": "turo-1", "title": "Turo"}], tasks=[])
+        payload = self._build(gt)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["invoice_unmatched"], [])
+        for unit in payload["units"]:
+            self.assertEqual(unit["invoice_ready"], [])
+            self.assertEqual(unit["turo"]["invoice_ready"], [])
+        self.assertEqual(payload["sources"]["turo_tasks"]["source"], "google_tasks")
+        self.assertTrue(payload["sources"]["turo_tasks"]["ok"])
+        import glance
+
+        html = glance.render_unit_card_html(payload["units"][2], now="2026-08-23T12:00:00+00:00")
+        self.assertNotIn("<h3>Awaiting</h3>", html)
+
+    def test_open_item_matches_car_completed_hidden(self) -> None:
+        gt = FakeGT(
+            lists=[{"id": "turo-1", "title": "Turo"}],
+            tasks=[
+                {
+                    "id": "open-1",
+                    "list_id": "turo-1",
+                    "title": "Rebill toll — 2024 Corolla",
+                    "notes": "SunPass. File on Turo.",
+                    "status": "needsAction",
+                },
+                {
+                    "id": "done-1",
+                    "list_id": "turo-1",
+                    "title": "2024 Corolla already invoiced",
+                    "notes": "",
+                    "status": "completed",
+                },
+                {
+                    "id": "plate-1",
+                    "list_id": "turo-1",
+                    "title": "Follow-up — plate 24EWUH",
+                    "notes": "",
+                    "status": "needsAction",
+                },
+                {
+                    "id": "loose-1",
+                    "list_id": "turo-1",
+                    "title": "Garage insurance shared",
+                    "notes": "No car in this note.",
+                    "status": "needsAction",
+                },
+            ],
+        )
+        inbox = PKG / "tests" / "fixtures" / "turo_mike_corolla_body_year.json"
+        payload = self._build(gt, inbox=inbox)
+        by_id = {u["id"]: u for u in payload["units"]}
+        c24 = by_id["corolla-2024"]["invoice_ready"]
+        c22 = by_id["corolla-2022"]["invoice_ready"]
+        self.assertEqual([i["title"] for i in c24], ["Rebill toll — 2024 Corolla"])
+        self.assertEqual([i["title"] for i in c22], ["Follow-up — plate 24EWUH"])
+        self.assertEqual(payload["invoice_unmatched"][0]["title"], "Garage insurance shared")
+        self.assertEqual(by_id["m3-2020"]["invoice_ready"], [])
+        for item in c24 + c22:
+            self.assertNotIn("amount", item)
+            self.assertNotIn("vin", item)
+        painted = " ".join(i["title"] for u in payload["units"] for i in u["invoice_ready"])
+        self.assertNotIn("already invoiced", painted)
+        self.assertTrue(by_id["corolla-2024"]["turo"]["bookings"])
+        import glance
+
+        html24 = glance.render_unit_card_html(by_id["corolla-2024"], now="2026-08-23T12:00:00+00:00")
+        self.assertIn("<h3>Awaiting</h3>", html24)
+        self.assertIn("Rebill toll — 2024 Corolla", html24)
+        self.assertNotIn("already invoiced", html24)
+        html20 = glance.render_unit_card_html(by_id["m3-2020"], now="2026-08-23T12:00:00+00:00")
+        self.assertNotIn("<h3>Awaiting</h3>", html20)
+
+    def test_trip_id_matches_booking_not_name_guess(self) -> None:
+        gt = FakeGT(
+            lists=[{"id": "turo-1", "title": "Turo"}],
+            tasks=[
+                {
+                    "id": "trip-1",
+                    "list_id": "turo-1",
+                    "title": "Invoice cleaning fee #60615645",
+                    "notes": "",
+                    "status": "needsAction",
+                }
+            ],
+        )
+        inbox = PKG / "tests" / "fixtures" / "turo_mike_corolla_body_year.json"
+        payload = self._build(gt, inbox=inbox)
+        by_id = {u["id"]: u for u in payload["units"]}
+        self.assertEqual(
+            [i["title"] for i in by_id["corolla-2024"]["invoice_ready"]],
+            ["Invoice cleaning fee #60615645"],
+        )
+        self.assertEqual(by_id["corolla-2022"]["invoice_ready"], [])
 
 
 class TuroTasksHttpTests(unittest.TestCase):

@@ -10,12 +10,13 @@ from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
 try:
-    from . import car_cards, dimo_client, glance, turo_inbox
+    from . import car_cards, dimo_client, glance, turo_inbox, turo_tasks
 except ImportError:  # script / unittest path
     import car_cards  # type: ignore
     import dimo_client  # type: ignore
     import glance  # type: ignore
     import turo_inbox  # type: ignore
+    import turo_tasks  # type: ignore
 
 PKG_DIR = Path(__file__).resolve().parent
 DATA_DIR = PKG_DIR / "data"
@@ -287,6 +288,47 @@ def _dimo_for_units(
         return list(pool.map(lambda unit: dimo_client.dimo_for_unit(unit, env), units))
 
 
+def _attach_invoice_ready(
+    assembled: list[dict[str, Any]],
+    units: Sequence[Mapping[str, Any]],
+    *,
+    gt: Any | None = None,
+) -> dict[str, Any]:
+    """Nest open GT Turo items on each car. Completed stay off. No invented rows."""
+    bookings_by_unit = {
+        str(row["id"]): (row.get("turo") or {}).get("bookings") or []
+        for row in assembled
+        if row.get("id")
+    }
+    listed = turo_tasks.list_open_tasks(
+        gt=gt,
+        units=list(units),
+        bookings_by_unit=bookings_by_unit,
+    )
+    split = car_cards.attach_invoice_items(
+        listed.get("items") or [],
+        units,
+        bookings_by_unit,
+    )
+    for row in assembled:
+        ready = split["by_unit"].get(str(row["id"]), [])
+        row["invoice_ready"] = ready
+        turo = row.get("turo")
+        if isinstance(turo, dict):
+            turo["invoice_ready"] = ready
+    return {
+        "invoice_unmatched": split["unmatched"],
+        "turo_tasks": {
+            "ok": listed.get("ok"),
+            "source": listed.get("source") or "google_tasks",
+            "list_title": listed.get("list_title") or turo_tasks.LIST_TITLE,
+            "list_id": listed.get("list_id"),
+            "error": listed.get("error"),
+            "count": listed.get("count", len(listed.get("items") or [])),
+        },
+    }
+
+
 def build_fleet(
     *,
     roster_path: Path | None = None,
@@ -296,6 +338,7 @@ def build_fleet(
     env_path: Path | None = None,
     dimo_env: Mapping[str, str] | None = None,
     now: str | None = None,
+    gt: Any | None = None,
 ) -> dict[str, Any]:
     roster = load_roster(roster_path)
     notes = load_notes(notes_path)
@@ -333,6 +376,8 @@ def build_fleet(
         )
         assembled.append(row)
 
+    invoice = _attach_invoice_ready(assembled, units, gt=gt)
+
     return {
         "ok": True,
         "as_of": now_s,
@@ -343,6 +388,7 @@ def build_fleet(
         "turo_unmatched": turo.get("unmatched") or [],
         "turo_photos": turo.get("photo_messages") or [],
         "turo_unmatched_photos": turo.get("unmatched_photos") or [],
+        "invoice_unmatched": invoice["invoice_unmatched"],
         "expenses_snapshot": {
             "path": str(resolved_expenses),
             "as_of": (expenses or {}).get("as_of") if expenses else None,
@@ -377,5 +423,6 @@ def build_fleet(
                 "media_dir": turo.get("media_dir"),
                 "photo_count": len(turo.get("photo_messages") or []),
             },
+            "turo_tasks": invoice["turo_tasks"],
         },
     }

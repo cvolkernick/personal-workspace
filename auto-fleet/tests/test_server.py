@@ -173,6 +173,8 @@ class AutoFleetServerTests(unittest.TestCase):
                     self.assertIn("dimo", unit)
                     self.assertIn(unit["dimo"]["status"], ("unconfigured", "ok", "error"))
                     self.assertEqual(unit["turo"]["bookings"], [])
+                    self.assertEqual(unit["invoice_ready"], [])
+                    self.assertEqual(unit["turo"]["invoice_ready"], [])
                     self.assertIn("inbox_status", unit["turo"])
                     self.assertNotIn("live_payoff", unit["finance"])
                     self.assertNotIn("combined_monthly", unit["finance"])
@@ -185,6 +187,8 @@ class AutoFleetServerTests(unittest.TestCase):
                         )
                 self.assertFalse(fleet["sources"]["expenses"]["uses_combined_monthly"])
                 self.assertNotIn("combined_monthly", fleet)
+                self.assertEqual(fleet.get("invoice_unmatched"), [])
+                self.assertIn("turo_tasks", fleet["sources"])
 
                 code, tasks = _http_json("GET", f"{base}/api/turo-tasks")
                 self.assertEqual(code, 200, tasks)
@@ -228,7 +232,8 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertGreater(trip_fn, money_fn)
         render = html[html.find("function renderUnit") :]
         self.assertLess(render.find("vehicleStrip("), render.find("scheduleStrip("))
-        self.assertLess(render.find("scheduleStrip("), render.find("moneyStrip("))
+        self.assertLess(render.find("scheduleStrip("), render.find("awaitingStrip("))
+        self.assertLess(render.find("awaitingStrip("), render.find("moneyStrip("))
         self.assertLess(render.find("moneyStrip("), render.find("tripDetailStrip("))
         self.assertNotIn("<h3>Finance", html)
         self.assertIn("<h3>Vehicle", html)

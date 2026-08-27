@@ -158,8 +158,11 @@ class FleetAssemblyTests(unittest.TestCase):
         for unit in payload["units"]:
             self.assertEqual(unit["turo"]["bookings"], [])
             self.assertEqual(unit["turo"]["photos"], [])
+            self.assertEqual(unit["invoice_ready"], [])
+            self.assertEqual(unit["turo"]["invoice_ready"], [])
             self.assertEqual(unit["dimo"]["status"], "unconfigured")
             self.assertIsNone(unit["dimo"]["odometer"])
+        self.assertEqual(payload["invoice_unmatched"], [])
         self.assertEqual(payload["turo_photos"], [])
         self.assertEqual(payload["sources"]["turo"]["photo_count"], 0)
         self.assertIn("empty", payload["sources"]["turo"]["inbox_status"].lower())

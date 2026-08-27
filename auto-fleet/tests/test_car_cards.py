@@ -47,6 +47,7 @@ ROSTER_UNITS = [
         "make": "Toyota",
         "model": "Corolla",
         "role": "turo",
+        "plate": "24EWUH",
         "vin": "5YFVPMAE9NP362974",
     },
     {
@@ -55,6 +56,7 @@ ROSTER_UNITS = [
         "make": "Toyota",
         "model": "Corolla",
         "role": "turo",
+        "plate": "25EWUH",
         "vin": "5YFB4MDE9RP121896",
     },
     {
@@ -504,14 +506,21 @@ class InvoiceMatchTests(unittest.TestCase):
         plate_only = {
             "id": "task-3",
             "title": "Rebill toll — plate 24EWUH",
-            "notes": "Plate is display/ops, not a match key.",
+            "notes": "File on Turo.",
         }
-        plated = [
-            {**u, "plate": "24EWUH"} if u["id"] == "corolla-2022" else
-            {**u, "plate": "25EWUH"} if u["id"] == "corolla-2024" else u
-            for u in ROSTER_UNITS
-        ]
-        self.assertIsNone(car_cards.match_invoice_unit(plate_only, plated))
+        self.assertEqual(car_cards.match_invoice_unit(plate_only, ROSTER_UNITS), "corolla-2022")
+        unknown_plate = {
+            "id": "task-4",
+            "title": "Rebill toll — plate ZZ9999",
+            "notes": "",
+        }
+        self.assertIsNone(car_cards.match_invoice_unit(unknown_plate, ROSTER_UNITS))
+        conflict = {
+            "id": "task-5",
+            "title": "2024 Corolla plate 24EWUH",
+            "notes": "Year and plate name different cars.",
+        }
+        self.assertIsNone(car_cards.match_invoice_unit(conflict, ROSTER_UNITS))
 
     def test_gt_trip_id_uses_bookings_not_name_guess(self) -> None:
         books = {
@@ -528,11 +537,15 @@ class InvoiceMatchTests(unittest.TestCase):
         items = [
             {"id": "a", "title": "Rebill 2022 Tesla Model 3", "notes": ""},
             {"id": "b", "title": "Garage insurance shared", "notes": ""},
+            {"id": "done", "title": "2024 Corolla already billed", "notes": "", "status": "completed"},
         ]
         split = car_cards.attach_invoice_items(items, ROSTER_UNITS)
         self.assertEqual(len(split["by_unit"]["m3-2022"]), 1)
         self.assertEqual(split["unmatched"][0]["title"], "Garage insurance shared")
         self.assertEqual(split["by_unit"]["corolla-2024"], [])
+        painted = [i["title"] for rows in split["by_unit"].values() for i in rows]
+        painted += [i["title"] for i in split["unmatched"]]
+        self.assertNotIn("2024 Corolla already billed", painted)
 
 
 class CardHtmlTests(unittest.TestCase):
@@ -723,9 +736,11 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("function hostIdentityStrip", html)
         self.assertIn("function scheduleStrip", html)
         self.assertIn("function moneyStrip", html)
+        self.assertIn("function awaitingStrip", html)
         self.assertIn("function tripDetailStrip", html)
         self.assertIn("Unassigned Mike Turo", html)
         self.assertIn("Unassigned invoice-ready", html)
+        self.assertIn("<h3>Awaiting</h3>", html)
         self.assertNotIn("CIC", html)
         self.assertNotIn("Orchestra", html)
         self.assertNotIn(":8796", html)
@@ -741,6 +756,31 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("data-copy", veh_fn)
         cards_fn = html[html.find("function renderUnit") : html.find("function renderShared")]
         self.assertNotIn("renderHostOps", cards_fn)
+
+    def test_awaiting_strip_present_vs_honest_empty(self) -> None:
+        unit = {
+            "id": "corolla-2024",
+            "identity": {"year": 2024, "make": "Toyota", "model": "Corolla", "role": "turo"},
+            "finance": {"locked": {"lender": "Santander", "apr_pct": 10.18}},
+            "dimo": {"status": "unconfigured"},
+            "turo": {"bookings": [], "schedule": []},
+            "invoice_ready": [
+                {"id": "t1", "title": "Follow-up cleaning #60463692", "notes": "File on Turo.", "status": "needsAction"},
+                {"id": "done", "title": "already billed", "notes": "", "status": "completed"},
+            ],
+        }
+        html = glance.render_unit_card_html(unit, now=NOW)
+        self.assertIn('<div class="strip awaiting">', html)
+        self.assertIn("<h3>Awaiting</h3>", html)
+        self.assertIn("Follow-up cleaning #60463692", html)
+        self.assertNotIn("already billed", html)
+        empty = dict(unit)
+        empty["invoice_ready"] = []
+        empty_html = glance.render_unit_card_html(empty, now=NOW)
+        self.assertNotIn("<h3>Awaiting</h3>", empty_html)
+        self.assertNotIn("class=\"strip awaiting\"", empty_html)
+        self.assertNotIn("no invoice-ready", empty_html.lower())
+        self.assertNotIn("nothing to do", empty_html.lower())
 
     def test_annotate_gt_items_optional(self) -> None:
         items = turo_tasks.annotate_unit_ids(

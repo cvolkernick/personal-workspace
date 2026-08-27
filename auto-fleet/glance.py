@@ -409,6 +409,25 @@ def schedule_queue_html(
     return live_body + canceled_body
 
 
+def awaiting_strip_html(items: Sequence[Mapping[str, Any]] | None) -> str:
+    """Thin awaiting / follow-up line. Omitted when there are no open items."""
+    rows: list[str] = []
+    for item in items or []:
+        if not isinstance(item, dict):
+            continue
+        if (item.get("status") or "needsAction") != "needsAction":
+            continue
+        title = str(item.get("title") or "").strip()
+        notes = str(item.get("notes") or "").strip()
+        if not title and not notes:
+            continue
+        extra = f'<div class="muted">{_esc(notes)}</div>' if title and notes else ""
+        rows.append(f'<div class="row awaiting">{_esc(title or notes)}{extra}</div>')
+    if not rows:
+        return ""
+    return f'<div class="strip awaiting"><h3>Awaiting</h3>{"".join(rows)}</div>'
+
+
 def photo_for(unit: Mapping[str, Any]) -> Optional[str]:
     uid = str(unit.get("id") or "")
     if uid in PHOTOS:
@@ -678,8 +697,14 @@ def render_unit_card_html(
     if schedule is None:
         schedule = car_cards.schedule_for_bookings(turo.get("bookings") or [], now)
     schedule = [b for b in schedule if isinstance(b, dict)]
-    invoice_items = turo.get("invoice_ready") or finance.get("invoice_ready") or []
+    invoice_items = (
+        unit.get("invoice_ready")
+        or turo.get("invoice_ready")
+        or finance.get("invoice_ready")
+        or []
+    )
     schedule_html = schedule_queue_html(schedule, invoice_items)
+    awaiting_html = awaiting_strip_html(invoice_items)
 
     portal = _portal(finance)
     due = due_from_finance(finance)
@@ -708,12 +733,6 @@ def render_unit_card_html(
         stale = "stale" if portal.get("stale", True) else "sheet"
         cost_bits.append(
             f'<div class="row muted">{_esc(" · ".join(extra))} {_chip(stale, "warn")}</div>'
-        )
-    for item in invoice_items:
-        if not isinstance(item, dict):
-            continue
-        cost_bits.append(
-            f'<div class="row invoice-ready">{_esc(item.get("title") or "")}</div>'
         )
     lines = finance.get("sheet_lines") or []
     for line in lines:
@@ -775,6 +794,7 @@ def render_unit_card_html(
         f'<h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
         f"{dimo_body}</div>"
         f'<div class="strip"><h3>Schedule</h3>{schedule_html}</div>'
+        f"{awaiting_html}"
         f'<div class="strip"><h3>Money</h3>{"".join(cost_bits)}</div>'
         f"{trip_html}"
         f"</article>"
