@@ -1,6 +1,6 @@
 """APR/APY interest spectrum for FCC (Nakatoshi strip AC).
 
-One shared 0% → ~30% axis. Debt chips above; yield chips below.
+One shared 0% → ~30% axis. Yield chips above (gain); debt chips below (cost).
 Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
 and APR/APY already on books. Never invent yields. Equity/BTC
 assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
@@ -662,7 +662,7 @@ def _fleet_chips() -> List[Dict[str, Any]]:
             "label": venue,
             "detail": row.get("detail"),
             "kind": "debt",
-            "lane": "above",
+            "lane": "below",
             "rate_pct": float(row["rate_pct"]),
             "rate_kind": "APR",
             "approx": False,
@@ -703,7 +703,7 @@ def _seed_debt_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "venue": row["venue"],
             "label": row["label"],
             "kind": "debt",
-            "lane": "above",
+            "lane": "below",
             "rate_kind": "APR",
             "approx": True,
             "source": "locked_seed",
@@ -786,7 +786,7 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "venue": "JR-strcUSX",
         "label": "JR-strcUSX",
         "kind": "yield",
-        "lane": "below",
+        "lane": "above",
         "rate_kind": "APY",
         "fcc_liability": False,
         "counts_toward_hy": False,
@@ -851,7 +851,7 @@ def _yield_chips(ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
             "venue": spec["venue"],
             "label": spec["label"],
             "kind": "yield",
-            "lane": "below",
+            "lane": "above",
             "rate_kind": EST_CAGR_KIND if est_cagr else "APY",
             "approx": True,
             "source": "locked_seed",
@@ -960,7 +960,7 @@ def build_interest_spectrum(
     for chip in chips:
         if chip.get("kind") not in ALLOWED_CHIP_KINDS:
             chip["kind"] = "debt" if chip.get("rate_kind") == "APR" else "yield"
-        chip["lane"] = "above" if chip["kind"] == "debt" else "below"
+        chip["lane"] = "below" if chip["kind"] == "debt" else "above"
         if chip.get("id") == WELLS_OFF_FCC_ID:
             raise AssertionError("Wells/20 Tesla must stay off the FCC spectrum")
 
@@ -979,8 +979,8 @@ def build_interest_spectrum(
             "right": "~30%",
             "min_pct": 0.0,
             "max_pct": _axis_max(placed),
-            "debt_lane": "above",
-            "yield_lane": "below",
+            "debt_lane": "below",
+            "yield_lane": "above",
             "ticks": list(SEED_TICKS_PCT),
         },
         "chips": chips,

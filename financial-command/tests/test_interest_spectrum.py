@@ -205,8 +205,8 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(payload["title"], "Interest Spectrum")
         self.assertEqual(payload["brand"], "FCC")
         self.assertEqual(payload["axis"]["layout"], "two_lane")
-        self.assertEqual(payload["axis"]["debt_lane"], "above")
-        self.assertEqual(payload["axis"]["yield_lane"], "below")
+        self.assertEqual(payload["axis"]["debt_lane"], "below")
+        self.assertEqual(payload["axis"]["yield_lane"], "above")
         self.assertEqual(payload["axis"]["left"], "0%")
         self.assertGreaterEqual(payload["axis"]["max_pct"], 29)
         self.assertEqual(payload["axis"]["ticks"], list(SEED_TICKS_PCT))
@@ -227,7 +227,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         for row in LOCKED_FLEET:
             chip = by_id[row["id"]]
             self.assertEqual(chip["kind"], "debt")
-            self.assertEqual(chip["lane"], "above")
+            self.assertEqual(chip["lane"], "below")
             self.assertAlmostEqual(chip["rate_pct"], row["rate_pct"])
             self.assertEqual(chip["source"], "locked_financing")
             self.assertNotIn("principal_balance", chip)
@@ -238,7 +238,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(by_id["morpho_borrow"]["source"], "locked_seed")
         self.assertEqual(by_id["morpho_borrow"]["deep_link"], "index.html#morpho")
         self.assertEqual(by_id["morpho_borrow"]["kind"], "debt")
-        self.assertEqual(by_id["morpho_borrow"]["lane"], "above")
+        self.assertEqual(by_id["morpho_borrow"]["lane"], "below")
         self.assertEqual(by_id["morpho_borrow"]["label"], "Coinbase BTC-backed Morpho loan")
         self.assertIn("margin/borrow", by_id["morpho_borrow"]["detail"])
         self.assertEqual(by_id["morpho_borrow"]["rate_kind"], "APR")
@@ -247,7 +247,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertTrue(by_id[RH_MARGIN_ID]["approx"])
         self.assertEqual(by_id[RH_MARGIN_ID]["source"], "locked_seed")
         self.assertEqual(by_id[RH_MARGIN_ID]["kind"], "debt")
-        self.assertEqual(by_id[RH_MARGIN_ID]["lane"], "above")
+        self.assertEqual(by_id[RH_MARGIN_ID]["lane"], "below")
         self.assertEqual(by_id[RH_MARGIN_ID]["label"], "RH margin interest")
         self.assertEqual(by_id[RH_MARGIN_ID]["rate_kind"], "APR")
         self.assertIn("5% up to $50k", by_id[RH_MARGIN_ID]["notes"])
@@ -265,7 +265,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         for row in LOCKED_YIELD_SEEDS:
             chip = by_id[row["id"]]
             self.assertEqual(chip["kind"], "yield")
-            self.assertEqual(chip["lane"], "below")
+            self.assertEqual(chip["lane"], "above")
             self.assertAlmostEqual(chip["rate_pct"], row["rate_pct"])
             self.assertEqual(chip["source"], "locked_seed")
             self.assertTrue(chip["approx"])
@@ -308,7 +308,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
 
         jr = by_id[JR_STRCUSX_ID]
         self.assertEqual(jr["kind"], "yield")
-        self.assertEqual(jr["lane"], "below")
+        self.assertEqual(jr["lane"], "above")
         self.assertAlmostEqual(jr["rate_pct"], JR_TARGET_PCT)
         self.assertEqual(jr["rate_label"], JR_TARGET_LABEL)
         self.assertEqual(jr["source"], "docs_target")
@@ -344,7 +344,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertAlmostEqual(by_id["morpho_borrow"]["notional"], 1200)
         self.assertAlmostEqual(by_id["x_money"]["rate_pct"], 4.0)
         self.assertEqual(by_id["x_money"]["kind"], "yield")
-        self.assertEqual(by_id["x_money"]["lane"], "below")
+        self.assertEqual(by_id["x_money"]["lane"], "above")
         self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 3.6)
         self.assertEqual(by_id["morpho_hy"]["source"], "books")
         self.assertIn("product_apy", by_id["morpho_hy"]["notes"])
@@ -716,7 +716,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(chip["source"], "books")
         self.assertFalse(chip["approx"])
         self.assertEqual(chip["kind"], "debt")
-        self.assertEqual(chip["lane"], "above")
+        self.assertEqual(chip["lane"], "below")
         self.assertIn("config.robinhood.rh_margin_apr", chip["notes"])
         self.assertIn("settings", chip["notes"].lower())
         self.assertIn("5% up to $50k", chip["notes"])
@@ -802,7 +802,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertEqual(chip["source"], "locked_seed")
         self.assertTrue(chip["approx"])
         self.assertEqual(chip["kind"], "debt")
-        self.assertEqual(chip["lane"], "above")
+        self.assertEqual(chip["lane"], "below")
         self.assertIn("seed", chip["notes"].lower())
         self.assertIn("5% up to $50k", chip["notes"])
         self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
@@ -1022,7 +1022,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         chip = {c["id"]: c for c in payload["chips"]}[BITCOIN_ID]
         self.assertAlmostEqual(chip["rate_pct"], 30.0)
         self.assertEqual(chip["source"], "locked_seed")
-        self.assertEqual(chip["lane"], "below")
+        self.assertEqual(chip["lane"], "above")
         self.assertTrue(chip["approx"])
         self.assertTrue(chip["est_cagr"])
         self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
@@ -1042,7 +1042,7 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         chip = {c["id"]: c for c in payload["chips"]}[AGENTIC_FUND_ID]
         self.assertAlmostEqual(chip["rate_pct"], 15.0)
         self.assertEqual(chip["source"], "locked_seed")
-        self.assertEqual(chip["lane"], "below")
+        self.assertEqual(chip["lane"], "above")
         self.assertTrue(chip["approx"])
         self.assertTrue(chip["est_cagr"])
         self.assertEqual(chip["rate_kind"], EST_CAGR_KIND)
@@ -1247,6 +1247,12 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertIn('data-layout="two_lane"', html)
         self.assertIn("DEBT COST", html)
         self.assertIn("ASSET YIELD", html)
+        self.assertIn("Asset yield (above)", html)
+        self.assertIn("Debt cost (below)", html)
+        self.assertNotIn("Debt cost (above)", html)
+        self.assertIn('y="28" fill="#3dd6b0"', html)
+        self.assertIn('y="348" fill="#ff8a6b"', html)
+        self.assertIn('chip.kind === "yield" ? "above" : "below"', html)
         self.assertIn("0% → ~30%", html)
         self.assertIn("/api/interest-spectrum", html)
         self.assertIn('id="nav-fcc"', html)
@@ -1346,6 +1352,8 @@ class TestInterestSpectrumApi(unittest.TestCase):
         data = json.loads(body.decode("utf-8"))
         self.assertTrue(data.get("ok"))
         self.assertEqual(data.get("axis", {}).get("layout"), "two_lane")
+        self.assertEqual(data.get("axis", {}).get("yield_lane"), "above")
+        self.assertEqual(data.get("axis", {}).get("debt_lane"), "below")
         self.assertFalse(data.get("coach_wired"))
         self.assertTrue(rates_are_honest(data))
         ids = {c["id"] for c in data.get("chips") or []}
@@ -1357,7 +1365,10 @@ class TestInterestSpectrumApi(unittest.TestCase):
         self.assertNotIn(WELLS_OFF_FCC_ID, ids)
         for chip in data.get("chips") or []:
             self.assertIn(chip.get("kind"), ("debt", "yield"))
-            self.assertIn(chip.get("lane"), ("above", "below"))
+            if chip.get("kind") == "yield":
+                self.assertEqual(chip.get("lane"), "above")
+            else:
+                self.assertEqual(chip.get("lane"), "below")
 
         page_code, page_body = self._get("/financial-command/interest-spectrum")
         self.assertEqual(page_code, 200)
