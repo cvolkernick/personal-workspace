@@ -310,13 +310,19 @@ def _pump_grok_login(proc: subprocess.Popen[str]) -> None:
     try:
         stdout = proc.stdout
         if stdout is not None:
-            for raw in stdout:
-                line = _redact_secrets(raw.rstrip("\n"))
-                with _login_lock:
-                    _login_output.append(line)
-                    if len(_login_output) > 80:
-                        del _login_output[:20]
-                    _refresh_login_from_output_locked()
+            try:
+                for raw in stdout:
+                    line = _redact_secrets(raw.rstrip("\n"))
+                    with _login_lock:
+                        _login_output.append(line)
+                        if len(_login_output) > 80:
+                            del _login_output[:20]
+                        _refresh_login_from_output_locked()
+            finally:
+                try:
+                    stdout.close()
+                except Exception:
+                    pass
         code = proc.wait(timeout=GROK_LOGIN_TIMEOUT_SEC)
         with _login_lock:
             if code == 0:
@@ -397,6 +403,7 @@ def start_grok_login() -> dict[str, Any]:
 
 def grok_login_status() -> dict[str, Any]:
     """Public snapshot of in-flight or last grok CLI login."""
+    global _login_phase, _login_error
     with _login_lock:
         proc = _login_proc
         if proc is not None and proc.poll() is None:

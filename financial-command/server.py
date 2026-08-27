@@ -772,10 +772,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
         if path in ("/api/ask/login", "/api/advisor/login"):
             try:
                 result = start_grok_login()
-                code = 200
-                if result.get("phase") == "fail" and not result.get("started"):
-                    code = 503 if "not found" in str(result.get("error") or "") else 500
-                self._json(code, result)
+                self._json(200, result)
             except Exception as e:
                 self._json(500, {"ok": False, "phase": "fail", "error": str(e)})
             return
