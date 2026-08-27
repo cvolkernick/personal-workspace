@@ -166,8 +166,8 @@
       <h2>Spectrum</h2>
       <p class="hint">
         Shared APR/APY axis: <strong>0%</strong> left → <strong>~30%</strong> right
-        (cap at One Card / highest contractual rate). Debt cost above the axis;
-        asset yield below. Locked yield seeds always show (X Money 6%, Morpho HY 7%,
+        (cap at One Card / highest contractual rate). Asset yield above the axis
+        (gain); debt cost below (loss). Locked yield seeds always show (X Money 6%, Morpho HY 7%,
         USDG 7%, Bitcoin 30%, Agentic Fund 15%). Bitcoin and Agentic Fund are
         <strong>est. CAGR</strong> (not cash APR/APY). Settings override beats
         the locked est. CAGR seed when set. These two lines only; a general equity
@@ -190,12 +190,12 @@
       </p>
       <div class="axis-wrap">
         <div class="spectrum" id="spectrum" data-layout="two_lane">
-          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane interest spectrum: debt cost above, asset yield below, 0 to about 30 percent"></svg>
+          <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane interest spectrum: asset yield above, debt cost below, 0 to about 30 percent"></svg>
         </div>
       </div>
       <div class="legend">
-        <span><i class="swatch debt"></i>Debt cost (above)</span>
-        <span><i class="swatch yield"></i>Asset yield (below)</span>
+        <span><i class="swatch yield"></i>Asset yield (above)</span>
+        <span><i class="swatch debt"></i>Debt cost (below)</span>
         <span>Tap a chip for the FCC / Fleet deep-link. No trade or mint controls.</span>
       </div>
     </section>
@@ -276,7 +276,7 @@
     function stackLanes(chips, maxPct) {
       const above = [];
       const below = [];
-      chips.forEach((c) => (c.kind === "yield" ? below : above).push(c));
+      chips.forEach((c) => (c.kind === "yield" ? above : below).push(c));
       function assign(list) {
         const sorted = list.slice().sort((a, b) => Number(a.rate_pct) - Number(b.rate_pct));
         const used = [];
@@ -302,9 +302,9 @@
       const axisY = 180;
 
       let html = `
-        <text x="70" y="28" fill="#ff8a6b" font-size="12" font-weight="700" letter-spacing="0.06em">DEBT COST</text>
+        <text x="70" y="28" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">ASSET YIELD</text>
         <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~30%</text>
-        <text x="70" y="348" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">ASSET YIELD</text>
+        <text x="70" y="348" fill="#ff8a6b" font-size="12" font-weight="700" letter-spacing="0.06em">DEBT COST</text>
         <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
       `;
       ticks.forEach((t, i) => {
@@ -320,8 +320,8 @@
         const leftPct = (chip._x / 1000) * 100;
         const stack = chip._stack || 0;
         const top = chip.kind === "yield"
-          ? axisY + 14 + stack * 58
-          : axisY - 14 - stack * 58;
+          ? axisY - 14 - stack * 58
+          : axisY + 14 + stack * 58;
         const href = chipHref(chip);
         const tag = href ? "a" : "div";
         const extra = href
@@ -330,7 +330,7 @@
         const sub = fmtNotional(chip);
         const basis = chip.est_cagr ? (chip.rate_basis || "est. CAGR") : (chip.rate_basis || "");
         const el = document.createElement("div");
-        el.innerHTML = `<${tag} class="chip ${esc(chip.kind)} ${chip.kind === "yield" ? "below" : "above"}"${extra} style="left:${leftPct}%;top:${top}px">
+        el.innerHTML = `<${tag} class="chip ${esc(chip.kind)} ${chip.kind === "yield" ? "above" : "below"}"${extra} style="left:${leftPct}%;top:${top}px">
           <span class="who">${esc(chip.venue || chip.label)}</span>
           <span class="rate">${esc(fmtRate(chip))}</span>
           ${basis ? `<span class="subn">${esc(basis)}</span>` : ""}
