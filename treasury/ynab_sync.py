@@ -317,7 +317,10 @@ def _summarize_txs(
             "memo": t.get("memo"),
             "cleared": t.get("cleared"),
             "approved": t.get("approved"),
+            "category_id": t.get("category_id"),
             "category_name": t.get("category_name"),
+            "transfer_account_id": t.get("transfer_account_id"),
+            "transfer_transaction_id": t.get("transfer_transaction_id"),
         }
         txs_out.append(entry)
         try:
