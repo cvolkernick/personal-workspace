@@ -370,6 +370,58 @@ class TestHydrationBars(unittest.TestCase):
         self.assertEqual(payload["day"]["water_ml"], 1800.0)
         self.assertEqual(len(timed_sip_samples([], payload.get("hydration"))), 0)
 
+    def test_after_empty_holds_wake_fraction_not_civil_24(self):
+        """Restore 2026-08-27: empty 07:28 ET, now 10:00 → frac=1.0, not ~0.41."""
+        wake = datetime(2026, 8, 26, 22, 0, 0, tzinfo=ET)
+        empty = datetime(2026, 8, 27, 7, 28, 0, tzinfo=ET)
+        now = datetime(2026, 8, 27, 10, 0, 0, tzinfo=ET)
+        samples = [
+            {
+                "logged_at": datetime(2026, 8, 26, 23, 0, tzinfo=ET).isoformat(),
+                "water_ml": 800,
+                "source": "hidrate",
+            },
+            {
+                "logged_at": datetime(2026, 8, 27, 6, 0, tzinfo=ET).isoformat(),
+                "water_ml": 667,
+                "source": "hidrate",
+            },
+        ]
+        payload = build_hydration_bars_payload(
+            hydration=[
+                HydrationDay(date="2026-08-27", water_ml=667, source="hidrate"),
+            ],
+            samples=samples,
+            sleep_battery={
+                "last_wake_at": wake.isoformat(),
+                "empty_at": empty.isoformat(),
+                "awake_budget_hours": 15,
+            },
+            as_of="2026-08-27",
+            now=now,
+            tz_name="America/New_York",
+            target_ml_override=2743,
+        )
+        pac = payload["pacing"]
+        self.assertEqual(pac["window_fraction"], 1.0)
+        self.assertEqual(pac["window"]["source"], "sleep_battery_after_empty")
+        self.assertNotAlmostEqual(pac["window_fraction"], 10.0 / 24.0, places=2)
+        self.assertLess(abs(pac["window_fraction"] - 1.0), 0.001)
+        self.assertGreater(abs(pac["window_fraction"] - 0.41), 0.05)
+        self.assertEqual(pac["consumed_ml"], 1467.0)
+        self.assertEqual(pac["target_ml"], 2743.0)
+        self.assertEqual(pac["status"], "behind")
+        self.assertNotEqual(pac["status"], "ahead")
+        self.assertAlmostEqual(pac["paced_budget_ml"], 2743.0, places=1)
+        self.assertEqual(payload["day"]["water_ml"], 667.0)
+        self.assertEqual(payload["day"]["date"], "2026-08-27")
+        self.assertTrue(
+            str(pac["window"]["window_start"]).startswith("2026-08-26T22:00:00")
+        )
+        self.assertTrue(
+            str(pac["window"]["window_end"]).startswith("2026-08-27T07:28:00")
+        )
+
     def test_sips_outside_window_still_sip_aware(self):
         """Timestamps exist but none in this wake → paced 0, not unknown."""
         wake = datetime(2026, 8, 23, 7, 0, 0, tzinfo=ET)
