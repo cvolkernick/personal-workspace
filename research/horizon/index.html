@@ -424,7 +424,7 @@
     <div class="top-inner">
       <div class="brand">
         <h1><span class="logo-emoji" role="img" aria-label="sunrise">🌅</span><span class="logo-text">Horizon</span></h1>
-        <div class="sub">Global macro &amp; geopolitical intelligence · world-state · strategy linkage · port 8795</div>
+        <div class="sub">Global macro &amp; geopolitical intelligence · world-state · strategy linkage</div>
       </div>
       <div class="controls">
         <span class="pill" id="pill-version">—</span>
@@ -432,8 +432,7 @@
         <span class="pill" id="pill-status">loading</span>
         <button type="button" class="primary" id="btn-refresh" title="Re-run offline pipeline">↻ Refresh</button>
         <button type="button" id="btn-live" title="Refresh with live RSS if available">Live sources</button>
-        <a class="btn" id="link-seasonal" href="http://127.0.0.1:8791/" title="Seasonal themes (different app)">Seasonal plan</a>
-        <a class="btn" id="link-orchestra" href="http://127.0.0.1:8790/" title="Orchestrator">Orchestrator</a>
+        <a class="btn" id="nav-fcc" href="http://127.0.0.1:8000/financial-command/index.html" title="Financial Command Center (same host)">FCC</a>
       </div>
     </div>
   </header>
@@ -633,15 +632,6 @@
     }
     bindTabNav(document.getElementById("tabs"));
     bindTabNav(document.getElementById("mobile-tabs"));
-
-    // Same-host deep links (LAN / Tailscale / localhost)
-    (function wirePeerLinks() {
-      const host = window.location.hostname || "127.0.0.1";
-      const seasonal = document.getElementById("link-seasonal");
-      const orchestra = document.getElementById("link-orchestra");
-      if (seasonal) seasonal.href = `http://${host}:8791/`;
-      if (orchestra) orchestra.href = `http://${host}:8790/`;
-    })();
 
     function renderKpis(payload) {
       const brief = payload.brief || {};
@@ -1149,5 +1139,6 @@
     // Auto-refresh payload every 60s (read-only)
     setInterval(loadDashboard, 60000);
   </script>
+  <script src="nav-fcc.js"></script>
 </body>
 </html>
