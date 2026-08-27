@@ -662,6 +662,7 @@ def load_snapshots(directory: Path) -> Dict[str, Any]:
         "one_card": "one_card_latest.json",
         "rh_checking": "rh_checking_latest.json",
         "coinbase": "coinbase_latest.json",
+        "coinbase_usdc_sends": "coinbase_usdc_sends.json",
         "robinhood": "robinhood_latest.json",
         "treasury": "treasury_latest.json",
     }

@@ -26,7 +26,7 @@ from treasury.planned_actual import (  # noqa: E402
     is_skipped_tx,
     names_join,
 )
-from treasury.ynab_category_map import validate_category_map  # noqa: E402
+from treasury.ynab_category_map import MAP_PATH, load_category_map, validate_category_map  # noqa: E402
 
 # Known fixtures (tests only — not hard-coded in UI).
 THAIS_ID = "5cef00e5"
@@ -118,6 +118,7 @@ def _snaps(
         "x_money": {"transactions": txs, "source": "ynab"},
         "one_card": {"transactions": [], "source": "ynab"},
         "rh_checking": {"transactions": [], "source": "ynab"},
+        "coinbase_usdc_sends": {"source": "fixture", "transactions": []},
     }
 
 
@@ -517,7 +518,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         txs = [
             _tx(
                 payee="Rent",
-                amount=-2090.0,
+                amount=-100.0,
                 category_id=RENT_ID,
                 category_name="Rent",
                 tx_id="one-card-rent",
@@ -549,7 +550,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
             _item("Thaís", 900.0, "Coinbase One Card"),
         ]
         txs = [
-            _tx(payee="Rent", amount=-2090.0, category_id=RENT_ID, category_name="Rent"),
+            _tx(payee="Rent", amount=-100.0, category_id=RENT_ID, category_name="Rent"),
             _tx(payee="Thaís", amount=-900.0, category_id=THAIS_ID, category_name="Thaís"),
         ]
         snaps = _snaps(items, [])
@@ -558,7 +559,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
             "transactions": [
                 _tx(
                     payee="August Rent",
-                    amount=-2090.0,
+                    amount=-100.0,
                     category_id=RENT_ID,
                     category_name="Rent",
                     tx_id="one-card-aug-rent",
@@ -630,6 +631,237 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         for row in strip["rows"]:
             self.assertIn(row["flag"], FLAGS)
             self.assertNotIn(row["flag"], ("over", "under", "overspend"))
+
+
+    def test_aug_thais_coinbase_send_900_895_on(self) -> None:
+        snaps = _snaps(_ac_items(), [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "send-aug-thais",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                },
+                {
+                    "id": "send-jul-thais",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-07-10T14:00:00Z",
+                    "amount": {"amount": "-900.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                },
+                {
+                    "id": "lend-withdraw",
+                    "type": "retail_defi_lend_withdrawal",
+                    "created_at": "2026-08-11T14:00:00Z",
+                    "amount": {"amount": "895.00", "currency": "USDC"},
+                },
+                {
+                    "id": "cc-lock",
+                    "type": "credit_card_collateral_lock",
+                    "created_at": "2026-08-12T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                },
+                {
+                    "id": "generic-lock",
+                    "type": "lock",
+                    "created_at": "2026-08-13T14:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                },
+                {
+                    "id": "aug10-unlabeled-5",
+                    "type": "send",
+                    "created_at": "2026-08-10T12:00:00Z",
+                    "amount": {"amount": "-5.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "aug4-unlabeled-125",
+                    "type": "send",
+                    "created_at": "2026-08-04T12:00:00Z",
+                    "amount": {"amount": "-125.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "jul-phone-20",
+                    "type": "send",
+                    "created_at": "2026-07-12T12:00:00Z",
+                    "amount": {"amount": "-20.00", "currency": "USDC"},
+                    "to": {"resource": "phone"},
+                    "description": "",
+                },
+                {
+                    "id": "jul-phone-40",
+                    "type": "send",
+                    "created_at": "2026-07-20T12:00:00Z",
+                    "amount": {"amount": "-40.00", "currency": "USDC"},
+                    "to": {"resource": "phone"},
+                    "description": "",
+                },
+            ],
+        }
+        snaps["one_card"] = {
+            "transactions": [
+                _tx(payee="Thaís", amount=-900.0, category_id=THAIS_ID, category_name="Thaís"),
+            ],
+            "source": "ynab",
+        }
+        snaps["x_money"] = {
+            "transactions": [
+                _tx(payee="Rent", amount=-25.0, category_id=RENT_ID, category_name="Rent"),
+                _tx(payee="Thaís", amount=-900.0, category_id=THAIS_ID, category_name="Thaís"),
+            ],
+            "source": "ynab",
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        thais = _row(strip, "Thaís")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertNotEqual(thais["flag"], "under")
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["from_venue"], COINBASE_USDC_LABEL)
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertAlmostEqual(rent["planned"], 2090.0)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
+        self.assertFalse(strip["coach_wired"])
+        self.assertFalse(strip["spectrum_trigger"])
+
+    def test_july_thais_send_not_in_aug_actual(self) -> None:
+        snaps = _snaps(_ac_items(), [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "send-jul-only",
+                    "type": "send",
+                    "created_at": "2026-07-10T14:00:00Z",
+                    "amount": {"amount": "-900.00", "currency": "USDC"},
+                    "description": "Thaís",
+                }
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        thais = _row(strip, "Thaís")
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertEqual(thais["actual"], 0.0)
+        self.assertEqual(thais["flag"], FLAG_OFF_BOOK)
+        self.assertNotEqual(thais["flag"], "under")
+
+    def test_rent_planned_is_sheet_monthly_not_twenty_five_times_days(self) -> None:
+        items = [
+            _item("Rent", 2090.0, "Coinbase"),
+            _item("Thaís", 900.0, "Coinbase"),
+        ]
+        items[0]["daily"] = 25.0
+        snaps = _snaps(items, [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "future-daily-shape",
+                    "type": "send",
+                    "created_at": "2026-08-15T12:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "phone"},
+                    "description": "Nicole Volkernick",
+                },
+                {
+                    "id": "send-aug-thais",
+                    "type": "send",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                },
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        rent = _row(strip, "Rent")
+        thais = _row(strip, "Thaís")
+        self.assertAlmostEqual(rent["planned"], 2090.0)
+        self.assertNotAlmostEqual(rent["planned"], 25.0 * 31)
+        self.assertNotAlmostEqual(rent["planned"], 25.0 * 30)
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertFalse(strip["coach_wired"])
+
+    def test_leftover_ynab_pile_does_not_backfill_thais_or_rent(self) -> None:
+        snaps = _snaps(_ac_items(), _leftover_pile(87))
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "send-aug-thais",
+                    "type": "send",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                }
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        thais = _row(strip, "Thaís")
+        rent = _row(strip, "Rent")
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertGreaterEqual(strip["summary"]["skipped_leftover_txs"], 87)
+        self.assertFalse(strip["coach_wired"])
+        self.assertFalse(strip["spectrum_trigger"])
+
+    def test_live_map_joins_gym_pets_subs_loans_collateral(self) -> None:
+        cmap = load_category_map(MAP_PATH)
+        items = [
+            _item("Gym", 20.0, "X Money"),
+            _item("Pets", 40.0, "X Money"),
+            _item("FilterEasy", 10.65, "X Money"),
+            _item("Student Loan", 83.33, "X Money"),
+            _item("Lee County Citation", 161.0, "X Money"),
+            _item("Santander", 1082.52, "X Money"),
+            _item("GM Financial", 900.0, "X Money"),
+            _item("Capital One", 700.0, "X Money"),
+            _item("Rivian R1S", 1100.0, "NFCU (Zelle)", tab="Fleet"),
+            _item("ASIC Fleet OpEx", 2500.0, "X Money", tab="Collateral"),
+            _item("Agentic Fund Allocation", 100.0, "X Money", tab="Collateral"),
+            _item("Thaís", 900.0, "Coinbase"),
+            _item("Rent", 2090.0, "Coinbase"),
+        ]
+        extra = {
+            "Fleet": {"items": [], "role": "fleet_ops"},
+            "Collateral": {"items": [], "role": "collateral"},
+        }
+        strip = build_planned_actual_strip(_snaps(items, [], extra_tabs=extra), cmap, as_of=AS_OF)
+        by_item = {r["item"]: r for r in strip["rows"]}
+        self.assertEqual(by_item["Gym"]["category_id"], "4b5886e5-a645-401e-a5a7-a24d52e9e044")
+        self.assertEqual(by_item["Pets"]["category_id"], "cff7ed48-bffe-4bf6-8102-740fefff82b0")
+        self.assertEqual(by_item["FilterEasy"]["category_id"], "77083d0b-3501-4639-9990-ced43c1a0435")
+        self.assertEqual(by_item["Student Loan"]["category_id"], "ec45e5f7-2912-43a4-a23c-4fb1357571b7")
+        self.assertEqual(by_item["Lee County Citation"]["category_id"], "69f30960-4655-4b94-97f0-875f1062ff45")
+        self.assertEqual(by_item["ASIC Fleet OpEx"]["category_id"], "06e562d9-48d8-4ede-8295-af004741dca0")
+        self.assertEqual(by_item["Agentic Fund Allocation"]["category_id"], "d178971c-6761-4e1a-b2d3-0e41607da87a")
+        self.assertEqual(by_item["Thaís"]["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(by_item["Rent"]["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(by_item["Rent"]["actual"], 0.0)
+        self.assertEqual(by_item["Santander"]["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(by_item["Rivian R1S"]["flag"], FLAG_OFF_BOOK)
+        self.assertFalse(strip["coach_wired"])
 
 
 class TestCoachAndSpectrumUnchanged(unittest.TestCase):

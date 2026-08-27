@@ -152,14 +152,18 @@ class TestSoTSchema(unittest.TestCase):
         self.assertTrue(data["allow_approve"])
         self.assertTrue(data["allow_categorize"])
         self.assertTrue(HARD_FORBID.issubset(set(data["forbid"])))
-        self.assertEqual(data["payee_rules"], [])
+        self.assertEqual(data["as_of"], "2026-08-27T15:52:32Z")
+        rules = data["payee_rules"]
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0]["payee_name"], "Planet Fitness")
+        self.assertEqual(rules[0]["category_id"], "4b5886e5-a645-401e-a5a7-a24d52e9e044")
         cats = data["categories"]
-        self.assertEqual(len(cats), 15)
+        self.assertEqual(len(cats), 33)
         enabled = [c for c in cats if c.get("enabled") is True]
         disabled = [c for c in cats if c.get("enabled") is not True]
-        self.assertEqual(len(enabled), 12)
+        self.assertEqual(len(enabled), 30)
         self.assertEqual(len(disabled), 3)
-        self.assertEqual(len(enabled_category_ids(data)), 12)
+        self.assertEqual(len(enabled_category_ids(data)), 30)
         self.assertEqual(
             {c["name"] for c in disabled},
             {
@@ -168,6 +172,27 @@ class TestSoTSchema(unittest.TestCase):
                 "Coinbase One Card – 5361",
             },
         )
+        names = {c["name"] for c in cats}
+        for required in (
+            "Thaís",
+            "🎓 Student Loan",
+            "Lee County Citation",
+            "🏋️ Gym",
+            "🐾 Pets",
+            "💳 Subscriptions",
+            "Rivian R1S",
+            "GM Financial",
+            "Capital One",
+            "Santander",
+            "ASIC Fleet OpEx",
+            "Agentic Fund Allocation",
+        ):
+            self.assertIn(required, names)
+        by_id = {c["id"]: c for c in cats}
+        self.assertEqual(by_id["b8e23b96-da05-45cc-a4b8-01b6c3031e10"].get("sheet_item"), "Fleet Insurance")
+        self.assertEqual(by_id["77083d0b-3501-4639-9990-ced43c1a0435"].get("sheet_item"), "FilterEasy")
+        self.assertEqual(by_id["4b5886e5-a645-401e-a5a7-a24d52e9e044"]["name"], "🏋️ Gym")
+        self.assertEqual(rules[0]["category_name"], "🏋️ Gym")
         for row in cats:
             cid = str(row.get("id") or "")
             self.assertRegex(cid, r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
