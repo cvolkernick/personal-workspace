@@ -234,6 +234,10 @@ class AutoFleetServerTests(unittest.TestCase):
         self.assertIn("after:2026/08/18", readme)
         self.assertIn("financial-command/", readme)
         self.assertIn("setInterval(load, 15 * 60 * 1000)", html)
+        self.assertIn("setInterval(load, 30 * 1000)", html)
+        self.assertIn('id="page-loader"', html)
+        self.assertIn('id="load-bar"', html)
+        self.assertIn('id="fleet-map"', html)
         sched_src = html[schedule_fn:money_fn]
         self.assertNotIn("inbox_status", sched_src)
         self.assertIn("function bookingRow", html)

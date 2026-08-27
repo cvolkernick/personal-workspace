@@ -191,6 +191,7 @@ class FormatTests(unittest.TestCase):
         self.assertIn('data-freshness="dead"', html)
         self.assertIn("48d ago", html)
         self.assertIn("https://maps.google.com/?q=27.95,-82.46", html)
+        self.assertIn("27.95, -82.46", html)
         self.assertNotIn("27.95000000", html)
         self.assertNotIn("Kia", html)
         self.assertNotIn("Spark", html)
@@ -266,6 +267,20 @@ class FormatTests(unittest.TestCase):
         self.assertNotIn("Fleet tab not", html)
         self.assertNotIn("SoC", html)
 
+    def test_coord_pair_and_speed_mph(self) -> None:
+        self.assertEqual(
+            glance.coord_pair({"lat": 27.95, "lon": -82.46}),
+            "27.95, -82.46",
+        )
+        self.assertEqual(
+            glance.coord_pair({"latitude": 26.672633, "longitude": -82.027344}),
+            "26.67263, -82.02734",
+        )
+        self.assertIsNone(glance.coord_pair(None))
+        self.assertEqual(glance.speed_mph(1.609344), 1.0)
+        self.assertEqual(glance.speed_mph(0), 0.0)
+        self.assertIsNone(glance.speed_mph(None))
+
     def test_index_html_glance_contract(self) -> None:
         html = (PKG / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="glance"', html)
@@ -280,6 +295,9 @@ class FormatTests(unittest.TestCase):
         self.assertIn("static/fleet/rivian-r1s-2023.jpg", html)
         self.assertIn("static/fleet/tesla-model-3-2022.jpg", html)
         self.assertIn("maps.google.com", html)
+        self.assertIn('id="page-loader"', html)
+        self.assertIn('id="fleet-map"', html)
+        self.assertIn("setInterval(load, 30 * 1000)", html)
         self.assertIn("max-width: 390px", html)
         self.assertIn("grid-template-columns: 1fr 1fr", html)
         self.assertIn("min-height: 44px", html)

@@ -6,6 +6,7 @@ units. DIMO distances are kilometres; the operator is US, so we render miles.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence
 
@@ -432,6 +433,39 @@ def maps_url(location: Any) -> Optional[str]:
     return f"https://maps.google.com/?q={lat_f},{lon_f}"
 
 
+def format_coord(value: Any, ndigits: int = 5) -> Optional[str]:
+    try:
+        n = float(value)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(n):
+        return None
+    text = f"{n:.{ndigits}f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def coord_pair(location: Any) -> Optional[str]:
+    if not isinstance(location, dict):
+        return None
+    lat = format_coord(location.get("lat", location.get("latitude")))
+    lon = format_coord(location.get("lon", location.get("longitude")))
+    if lat is None or lon is None:
+        return None
+    return f"{lat}, {lon}"
+
+
+def speed_mph(kmh: Any) -> Optional[float]:
+    if kmh is None or kmh == "":
+        return None
+    try:
+        mph = float(kmh) / KM_PER_MILE
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(mph):
+        return None
+    return round(mph, 1)
+
+
 def glance_for_unit(
     unit: Mapping[str, Any],
     *,
@@ -449,6 +483,8 @@ def glance_for_unit(
     odo = odo_miles(dimo.get("odometer"))
     rng = range_miles(dimo.get("range"))
     last_seen = dimo.get("last_seen")
+    loc = dimo.get("location")
+    loc_ts = dimo.get("location_timestamp")
     fresh = freshness(last_seen, now)
     due = due_from_finance(finance)
     schedule = turo.get("schedule")
@@ -481,7 +517,12 @@ def glance_for_unit(
         "amount_due": due["amount_due"],
         "past_due": due["past_due"],
         "photo": photo_for(unit),
-        "maps_url": maps_url(dimo.get("location")),
+        "maps_url": maps_url(loc),
+        "location_label": coord_pair(loc),
+        "location_relative": relative_age(loc_ts or (last_seen if loc else None), now),
+        "speed_mph": speed_mph(dimo.get("speed")),
+        "heading": dimo.get("heading"),
+        "ignition_on": dimo.get("ignition_on"),
         "show_soc": soc is not None,
     }
 
@@ -543,7 +584,19 @@ def render_unit_card_html(
                 f'<div class="row muted">Last seen {_esc(g["last_seen_relative"])}</div>'
             )
         if g.get("maps_url"):
-            rows.append(f'<div class="row"><a class="maps" href="{_esc(g["maps_url"])}">Map</a></div>')
+            loc_bits = []
+            if g.get("location_label"):
+                loc_bits.append(str(g["location_label"]))
+            if g.get("location_relative"):
+                loc_bits.append(str(g["location_relative"]))
+            speed = g.get("speed_mph")
+            if speed is not None and speed >= 1:
+                loc_bits.append(f"{speed} mph")
+            prefix = f'{_esc(" · ".join(loc_bits))} ' if loc_bits else ""
+            rows.append(
+                f'<div class="row">{prefix}'
+                f'<a class="maps" href="{_esc(g["maps_url"])}">Map</a></div>'
+            )
         dimo_body = "".join(rows) or '<div class="empty">No vehicle signals</div>'
 
     locked = finance.get("locked") if isinstance(finance.get("locked"), dict) else {}
