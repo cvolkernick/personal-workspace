@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sys
 import unittest
 from pathlib import Path
@@ -101,6 +102,121 @@ class LockedFinanceTests(unittest.TestCase):
         self.assertEqual(by_id["m3-2022"]["identity"]["host_label"], "Mike's")
         self.assertIsNone(by_id["r1s-2023"]["identity"]["plate"])
         self.assertIsNone(by_id["r1s-2023"]["identity"]["vin"])
+
+
+class HostIdentityTests(unittest.TestCase):
+    """Mail-proven Mike Turo chip. Static. Not a host inbox. Helm stays locked."""
+
+    STATIC = {
+        "host_label": "Mike's",
+        "driver_id": "27172979",
+        "public_url": "https://turo.com/us/en/drivers/27172979",
+    }
+
+    def test_mail_proven_corollas_only(self) -> None:
+        self.assertEqual(
+            car_cards.host_identity_for({"id": "corolla-2022", "role": "turo"}),
+            self.STATIC,
+        )
+        self.assertEqual(
+            car_cards.host_identity_for({"id": "corolla-2024", "role": "turo"}),
+            self.STATIC,
+        )
+        self.assertIsNone(
+            car_cards.host_identity_for({"id": "m3-2022", "role": "turo"})
+        )
+        self.assertIsNone(
+            car_cards.host_identity_for({"id": "m3-2020", "role": "personal"})
+        )
+        self.assertIsNone(
+            car_cards.host_identity_for({"id": "r1s-2023", "role": "personal"})
+        )
+        self.assertIsNone(
+            car_cards.host_identity_for({"id": "corolla-2022", "role": "personal"})
+        )
+
+    def test_fleet_payload_scopes_chip_to_corollas(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=EMPTY_INBOX,
+            dimo_env={},
+            now=NOW,
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+        for uid in ("corolla-2022", "corolla-2024"):
+            self.assertEqual(by_id[uid]["identity"]["host_identity"], self.STATIC)
+        for uid in ("m3-2022", "m3-2020", "r1s-2023"):
+            self.assertIsNone(by_id[uid]["identity"]["host_identity"])
+        blob = json.dumps(payload)
+        self.assertNotIn("rating", blob.lower())
+        self.assertNotIn("response time", blob.lower())
+        self.assertNotIn("listing inventory", blob.lower())
+
+    def test_card_html_host_strip_on_corollas_only(self) -> None:
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=EMPTY_INBOX,
+            dimo_env={},
+            now=NOW,
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+        for uid in ("corolla-2022", "corolla-2024"):
+            html = glance.render_unit_card_html(by_id[uid], now=NOW)
+            host = html[: html.find("<h3>Vehicle</h3>")]
+            self.assertIn('class="strip host-identity"', host)
+            self.assertIn("<h3>Host</h3>", host)
+            self.assertIn("Mike&#39;s", host)
+            self.assertIn("27172979", host)
+            self.assertIn("https://turo.com/us/en/drivers/27172979", host)
+            self.assertIn("turo.com/us/en/drivers/27172979", host)
+            self.assertIn('target="_blank"', host)
+            self.assertIn("rel=\"noopener\"", host)
+            self.assertNotIn("Schedule", host)
+            self.assertNotIn("booking", host.lower())
+            self.assertNotIn("inbox", host.lower())
+        for uid in ("m3-2022", "m3-2020", "r1s-2023"):
+            html = glance.render_unit_card_html(by_id[uid], now=NOW)
+            self.assertNotIn("host-identity", html)
+            self.assertNotIn("27172979", html)
+            self.assertNotIn("turo.com/us/en/drivers", html)
+        m3 = glance.render_unit_card_html(by_id["m3-2022"], now=NOW)
+        self.assertIn("Mike&#39;s", m3)
+
+    def test_dash_host_strip_is_not_a_second_inbox(self) -> None:
+        index = (PKG / "index.html").read_text(encoding="utf-8")
+        fn = index[
+            index.find("function hostIdentityStrip") : index.find("function vehicleStrip")
+        ]
+        self.assertGreater(index.find("function hostIdentityStrip"), 0)
+        self.assertIn("host-identity", fn)
+        self.assertIn("host.public_url", fn)
+        self.assertIn("target=\"_blank\"", fn)
+        self.assertIn("rel=\"noopener\"", fn)
+        self.assertNotIn("booking", fn.lower())
+        self.assertNotIn("inbox", fn.lower())
+        self.assertNotIn("rating", fn.lower())
+        self.assertNotIn("scheduleStrip", fn)
+        self.assertNotIn(":8796", index)
+        render = index[index.find("function renderUnit") : index.find("function renderShared")]
+        self.assertIn("hostIdentityStrip(idn)", render)
+        self.assertLess(
+            render.find("hostIdentityStrip(idn)"),
+            render.find("vehicleStrip(u, g)"),
+        )
+
+    def test_no_turo_network_from_host_identity(self) -> None:
+        src = (PKG / "car_cards.py").read_text(encoding="utf-8")
+        self.assertIn(self.STATIC["public_url"], src)
+        self.assertNotIn("urlopen", src)
+        self.assertNotIn("requests", src)
+        self.assertNotIn("urllib", src)
+        server = (PKG / "server.py").read_text(encoding="utf-8")
+        self.assertNotIn("turo.com/us/en/drivers", server)
+        self.assertNotIn("27172979", server)
 
 
 class ScheduleCollapseTests(unittest.TestCase):
@@ -501,6 +617,7 @@ class CardHtmlTests(unittest.TestCase):
         html = (PKG / "index.html").read_text(encoding="utf-8")
         self.assertIn("<title>Auto Fleet</title>", html)
         self.assertIn("function vehicleStrip", html)
+        self.assertIn("function hostIdentityStrip", html)
         self.assertIn("function scheduleStrip", html)
         self.assertIn("function moneyStrip", html)
         self.assertIn("function tripDetailStrip", html)

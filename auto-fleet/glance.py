@@ -491,6 +491,34 @@ def _chip(text: str, kind: str = "") -> str:
     return f'<span class="{cls}">{_esc(text)}</span>'
 
 
+def host_identity_strip_html(ident: Mapping[str, Any] | None) -> str:
+    """Thin Host strip. Identity only — never bookings or live Turo metrics."""
+    host = None
+    if isinstance(ident, Mapping):
+        raw = ident.get("host_identity")
+        if isinstance(raw, Mapping):
+            host = raw
+    if not host or not host.get("driver_id"):
+        return ""
+    chips: list[str] = []
+    label = host.get("host_label")
+    if label:
+        chips.append(_chip(str(label)))
+    chips.append(_chip(str(host["driver_id"])))
+    url = str(host.get("public_url") or "").strip()
+    link = ""
+    if url:
+        shown = url.replace("https://", "").replace("http://", "")
+        link = (
+            f'<div class="row"><a class="maps" href="{_esc(url)}" '
+            f'target="_blank" rel="noopener">{_esc(shown)}</a></div>'
+        )
+    return (
+        f'<div class="strip host-identity"><h3>Host</h3>'
+        f'<div class="chips">{"".join(chips)}</div>{link}</div>'
+    )
+
+
 def render_unit_card_html(
     unit: Mapping[str, Any],
     *,
@@ -507,6 +535,9 @@ def render_unit_card_html(
     chips = [_chip(str(g.get("role") or "unknown"))]
     if ident.get("host_label"):
         chips.append(_chip(str(ident["host_label"])))
+    host = ident.get("host_identity") if isinstance(ident.get("host_identity"), dict) else None
+    if host and host.get("driver_id"):
+        chips.append(_chip(str(host["driver_id"])))
     if ident.get("plate"):
         chips.append(_chip(str(ident["plate"])))
     if g.get("vin_short"):
@@ -657,6 +688,7 @@ def render_unit_card_html(
         f'<h2>{_esc(g.get("title"))}</h2>'
         f'<div class="chips">{"".join(chips)}</div>'
         f"</div></div>"
+        f"{host_identity_strip_html(ident)}"
         f'<div class="strip"><h3>Vehicle</h3>{locked_html}'
         f'<h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
         f"{dimo_body}</div>"
