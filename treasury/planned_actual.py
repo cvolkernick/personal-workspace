@@ -561,6 +561,8 @@ def build_planned_actual_strip(
         cat = join_item_category(item, cmap, txs)
         if cat is None:
             continue
+        # Rent planned is sheet monthly only. Do not rewrite to $25 * days.
+        # $25/day is future booking after Nicole dest exists — not a planned rewrite.
         planned = _f(item.get("monthly"))
         from_label = locked_from_label(item)
         coinbase_usdc = is_coinbase_usdc_item(item.get("item")) or is_coinbase_usdc_from(

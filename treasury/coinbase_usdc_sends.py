@@ -2,6 +2,7 @@
 
 Venue is Coinbase v2 USDC `type=send` only. Ignore lend / lock / One Card / X Money.
 Rent dest fingerprint is HOLD (do not guess phone vs address). Recurring send is HOLD.
+$25/day is future booking after dest — never rewrite Rent planned.
 No Transfer key. No sender code. Key lives only on prism.
 
 Tests use fixtures only. This module never copies or logs the CDP key.
