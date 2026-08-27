@@ -1,17 +1,17 @@
 {
   "source": "live",
-  "as_of": "2026-08-27T17:43:14.908895+00:00",
+  "as_of": "2026-08-27T19:49:42.509773+00:00",
   "wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
   "rpc_url": "https://api.mainnet-beta.solana.com",
-  "slot": 442154635,
+  "slot": 442175291,
   "sol": 0.058890792,
-  "sol_usd_price": 107.85335107116437,
-  "sol_usd": 6.351569264434918,
+  "sol_usd_price": 109.30174890872779,
+  "sol_usd": 6.436866560220115,
   "usdc": 0.0,
   "jr_strcusx": 3.317128,
-  "jr_strcusx_usd_price": 1.025530706111483,
-  "jr_strcusx_usd": 3.4018166201021707,
-  "book_usd": 9.753385884537089,
+  "jr_strcusx_usd_price": 1.026048825282466,
+  "jr_strcusx_usd": 3.4035352877115757,
+  "book_usd": 9.840401847931691,
   "counts_toward_hy": false,
   "counts_toward_ltv_defense": false,
   "counts_toward_working_usdc": false,
@@ -21,15 +21,15 @@
       "mint": "So11111111111111111111111111111111111111112",
       "role": "gas",
       "amount": 0.058890792,
-      "usd_price": 107.85335107116437,
-      "usd": 6.351569264434918
+      "usd_price": 109.30174890872779,
+      "usd": 6.436866560220115
     },
     {
       "symbol": "USDC",
       "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
       "role": "onchain_stable",
       "amount": 0.0,
-      "usd_price": 1.000011502439946,
+      "usd_price": 0.9999606925831029,
       "usd": 0.0
     },
     {
@@ -37,8 +37,8 @@
       "mint": "BQ6LPc68knpko292UsMLbQYfaHhWD7S84sA98632hrzX",
       "role": "dc_credit_parlay",
       "amount": 3.317128,
-      "usd_price": 1.025530706111483,
-      "usd": 3.4018166201021707
+      "usd_price": 1.026048825282466,
+      "usd": 3.4035352877115757
     }
   ],
   "ignored_token_accounts": 47,
