@@ -68,13 +68,15 @@ RH margin interest precedence (settings > live books > seed):
   3. Seed 5%
 
 Chris / Nakatoshi lock (2026-08-23) — Interest Spectrum JR-strcUSX (#309):
-  Not a locked seed. Live Solstice quote only if already on the
-  FCC/solana snapshot (``jr_strcusx_apy`` / ``solstice_apy`` /
-  ``strcusx_apy``). Else ~20% docs_target.
-  Populate only from a verified public/docs JSON field. None found:
-  partner Bearer API (instruction endpoints only) + HTML attestation.
-  Soft-fail: leave snapshot APY None; chip stays docs_target.
-  Do not invent a live print. No wallet notional. No HTML scrape.
+  Not a locked seed. Live Solstice quote only if already on books
+  (``jr_strcusx_apy`` / ``solstice_apy`` / ``strcusx_apy``). Else ~20%
+  docs_target. Do not invent a live print. No wallet notional. No HTML scrape.
+
+Chris 2026-08-27 — poll app.solstice.finance/strcusx:
+  The app has no public JSON APY. It computes ``juniorApy`` from STRC-USX
+  on-chain AccountingState. FCC polls that account (public getAccountInfo)
+  on treasury refresh. Precedence: live on-chain > prior sidecar > ~20%
+  docs_target. Partner REST stays instruction-only. HTML scrape rejected.
 
 Chris / Nakatoshi PO AC (2026-08-24) — Interest Spectrum Bitcoin + Agentic Fund (#336):
   Two locked yield seeds only. Explicit est. CAGR exception — not cash
@@ -110,6 +112,7 @@ SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
 USDG_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "usdg_hy_latest.json"
 MORPHO_BORROW_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_borrow_latest.json"
+SOLSTICE_JR_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solstice_jr_latest.json"
 FLEET_NOTES = ROOT / "auto-fleet" / "data" / "notes.json"
 FLEET_ROSTER = ROOT / "auto-fleet" / "data" / "roster.json"
 
@@ -458,10 +461,9 @@ MORPHO_HY_VAULT_REF_PATHS = (
     ("morpho_hy", "apy"),
 )
 
-# JR-strcUSX is not a locked seed. Live Solstice quote only if already on the
-# FCC/solana snapshot — no scrape, no partner-key invent. Else ~20% target
-# (docs), spectrum chip only. Populate path: treasury/solstice_jr_sync.py
-# (source blocked 2026-08-24 — see SOURCE_BLOCKER there).
+# JR-strcUSX is not a locked seed. Live Solstice quote from STRC-USX
+# AccountingState juniorApy (app.solstice.finance/strcusx formula). Else
+# ~20% target (docs), spectrum chip only. Populate: treasury/solstice_jr_sync.py.
 JR_STRCUSX_ID = "jr_strcusx"
 JR_TARGET_PCT = 20.0
 JR_TARGET_LABEL = "~20% target"
@@ -474,10 +476,15 @@ JR_LIVE_APY_PATHS = (
     ("evaluation", "inputs", "jr_strcusx_apy"),
     ("evaluation", "inputs", "solstice_apy"),
     ("evaluation", "inputs", "strcusx_apy"),
+    ("snapshot", "solstice_jr", "jr_strcusx_apy"),
+    ("snapshot", "solstice_jr", "apy"),
+    ("snapshot", "solstice_jr", "apy_est"),
     ("snapshot", "solana", "jr_strcusx_apy"),
     ("snapshot", "solana", "solstice_apy"),
     ("snapshot", "solana", "strcusx_apy"),
     ("snapshot", "solana", "vault_apy"),
+    ("solstice_jr", "jr_strcusx_apy"),
+    ("solstice_jr", "apy"),
     ("solana", "jr_strcusx_apy"),
     ("solana", "solstice_apy"),
     ("solana", "strcusx_apy"),
@@ -608,6 +615,7 @@ def _books_ctx(
     morpho_hy: Optional[Dict[str, Any]] = None,
     usdg_hy: Optional[Dict[str, Any]] = None,
     morpho_borrow: Optional[Dict[str, Any]] = None,
+    solstice_jr: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
     snap = dict(snap)
@@ -629,6 +637,11 @@ def _books_ctx(
         mb = snap["morpho_borrow"]
     if mb and not isinstance(snap.get("morpho_borrow"), dict):
         snap["morpho_borrow"] = mb
+    sj = solstice_jr if isinstance(solstice_jr, dict) else {}
+    if not sj and isinstance(snap.get("solstice_jr"), dict):
+        sj = snap["solstice_jr"]
+    if sj and not isinstance(snap.get("solstice_jr"), dict):
+        snap["solstice_jr"] = sj
     return {
         "evaluation": treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {},
         "snapshot": snap,
@@ -638,6 +651,7 @@ def _books_ctx(
         "morpho_hy": mh,
         "usdg_hy": uh,
         "morpho_borrow": mb,
+        "solstice_jr": sj,
     }
 
 
@@ -776,6 +790,19 @@ def _first_apy_hit(
     return None, None
 
 
+def _jr_live_rate_pct(ctx: Dict[str, Any]) -> tuple[Optional[float], Optional[str]]:
+    """JR books APY is always a 0+ fraction (epoch can exceed 100% → fraction > 1)."""
+    for path in JR_LIVE_APY_PATHS:
+        raw = _dig(ctx, path)
+        if raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        if n is None or n < 0:
+            continue
+        return n * 100.0, ".".join(path)
+    return None, None
+
+
 def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Spectrum-only JR chip. Live Solstice APY if already on books; else ~20% target.
 
@@ -794,15 +821,19 @@ def _jr_strcusx_chip(ctx: Dict[str, Any]) -> Dict[str, Any]:
         "deep_link": "index.html#panel-solana",
         "placed": True,
     }
-    live, hit = _first_apy_hit(ctx, JR_LIVE_APY_PATHS)
+    live, hit = _jr_live_rate_pct(ctx)
     if live is not None:
         chip["rate_pct"] = live
         chip["approx"] = False
         chip["source"] = "books"
         chip["notes"] = (
-            f"from {hit} · does not count toward HY/LTV floors · spectrum chip only"
+            f"from {hit} · live epoch APY (app.solstice.finance/strcusx) · "
+            "does not count toward HY/LTV floors · spectrum chip only"
             if hit
-            else "live Solstice on books · does not count toward HY/LTV floors · spectrum chip only"
+            else (
+                "live Solstice on books · does not count toward HY/LTV floors · "
+                "spectrum chip only"
+            )
         )
         return chip
     chip["rate_pct"] = JR_TARGET_PCT
@@ -950,11 +981,20 @@ def build_interest_spectrum(
     usdg_hy = snap_uh if isinstance(snap_uh, dict) else {}
     snap_mb = (treasury.get("snapshot") or {}).get("morpho_borrow")
     morpho_borrow = snap_mb if isinstance(snap_mb, dict) else {}
+    snap_sj = (treasury.get("snapshot") or {}).get("solstice_jr")
+    solstice_jr = snap_sj if isinstance(snap_sj, dict) else {}
     # stub is retained as a blank file only — coach is not wired this ship.
     _ = stub if stub is not None else _load_json(FCC_STUB)
 
     ctx = _books_ctx(
-        treasury, config, x_money, solana, morpho_hy, usdg_hy, morpho_borrow
+        treasury,
+        config,
+        x_money,
+        solana,
+        morpho_hy,
+        usdg_hy,
+        morpho_borrow,
+        solstice_jr,
     )
     chips = _fleet_chips() + _seed_debt_chips(ctx) + _yield_chips(ctx)
     for chip in chips:

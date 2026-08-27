@@ -316,11 +316,13 @@ def build_snapshot(
     manual = _merge_manual_with_one_card(dict(cfg.get("coinbase_manual") or {}), one_card)
     from treasury.morpho_borrow_sync import fetch_morpho_borrow
     from treasury.morpho_hy_sync import fetch_morpho_hy
+    from treasury.solstice_jr_sync import fetch_solstice_jr
     from treasury.usdg_hy_sync import fetch_usdg_hy
 
     morpho_hy = fetch_morpho_hy(prefer_live=prefer_live_coinbase)
     usdg_hy = fetch_usdg_hy(prefer_live=prefer_live_coinbase)
     morpho_borrow = fetch_morpho_borrow(prefer_live=prefer_live_coinbase)
+    solstice_jr = fetch_solstice_jr(prefer_live=prefer_live_coinbase)
     rh_cfg = cfg.get("robinhood") or {}
     # Overlay FCC settings yield/principal so the Settings form can re-show
     # a human override after Refresh. Live APY stays on snapshot.usdg_hy.
@@ -354,6 +356,7 @@ def build_snapshot(
         "morpho_hy": morpho_hy,
         "usdg_hy": usdg_hy,
         "morpho_borrow": morpho_borrow,
+        "solstice_jr": solstice_jr,
         "one_card": one_card,
         "rh_checking": rh_checking,
         "expenses": expenses,
@@ -369,6 +372,7 @@ def build_snapshot(
             "morpho_hy_source": morpho_hy.get("source"),
             "usdg_hy_source": usdg_hy.get("source"),
             "morpho_borrow_source": morpho_borrow.get("source"),
+            "solstice_jr_source": solstice_jr.get("source"),
             "rh_accounts": {
                 "primary": rh_cfg.get("account_number"),
                 "agentic": rh_cfg.get("agentic_account_number"),
@@ -404,12 +408,11 @@ def build_snapshot(
                     "soft-fail; no scrape). Principal/LTV app-only. Do not invent rates."
                 ),
                 "solstice_jr": (
-                    "JR-strcUSX APY on solana snapshot (jr_strcusx_apy / "
-                    "solstice_apy / strcusx_apy). Public/docs JSON field "
-                    "blocked 2026-08-24 — api.solstice.finance/v1 is partner "
-                    "Bearer + instruction endpoints only; attestation is HTML "
-                    "(scrape rejected). Soft-fail leaves fields None; spectrum "
-                    "stays ~20% docs_target. Do not invent a live print."
+                    "JR-strcUSX live epoch APY from STRC-USX AccountingState "
+                    "juniorApy (same formula as app.solstice.finance/strcusx). "
+                    "Public getAccountInfo; HTML scrape rejected; partner REST "
+                    "is instruction-only. Soft-fail keeps prior; spectrum stays "
+                    "~20% docs_target if no live quote. Do not invent a print."
                 ),
                 "one_card": "ynab/plaid (balance + txs)",
                 "rh_checking": "ynab/plaid (checking balance + ACH-related txs)",
