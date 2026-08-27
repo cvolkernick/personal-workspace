@@ -149,6 +149,21 @@ class AutoFleetServerTests(unittest.TestCase):
                         jpeg = resp.read()
                         self.assertGreater(len(jpeg), 10_000, still)
                         self.assertTrue(jpeg.startswith(b"\xff\xd8"), still)
+                self.assertEqual(
+                    by_id["corolla-2022"]["identity"]["host_identity"],
+                    {
+                        "host_label": "Mike's",
+                        "driver_id": "27172979",
+                        "public_url": "https://turo.com/us/en/drivers/27172979",
+                    },
+                )
+                self.assertEqual(
+                    by_id["corolla-2024"]["identity"]["host_identity"],
+                    by_id["corolla-2022"]["identity"]["host_identity"],
+                )
+                self.assertIsNone(by_id["m3-2022"]["identity"]["host_identity"])
+                self.assertIsNone(by_id["m3-2020"]["identity"]["host_identity"])
+                self.assertIsNone(by_id["r1s-2023"]["identity"]["host_identity"])
                 for unit in fleet["units"]:
                     self.assertIn("identity", unit)
                     self.assertIn("year", unit["identity"])

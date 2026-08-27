@@ -149,6 +149,15 @@ Unit match uses the mail **body** year (`Toyota Corolla 2024` →
 Mike host mail does not attach to Chris personal units. Bookings paint
 on the car card; they are not Google Tasks.
 
+Static host identity (dashboard `/api/fleet` only): **Mike's** · driver
+`27172979` · public link `https://turo.com/us/en/drivers/27172979`.
+Mail-proven on **corolla-2022** and **corolla-2024**. `m3-2022` stays
+gated (Fleet-tagged turo / Mike's, no mail tying it to that driver).
+Personal units have no host chip. Human open-in-browser only — the
+server never fetches, scrapes, or logs into Turo. No live ratings,
+trip counts, listing inventory, or response time. Helm
+`/api/agent/fleet` is unchanged.
+
 Parser cutoff: `AUTO_FLEET_TURO_SINCE` (default `2026-08-18T02:00:00+00:00`;
 `off` disables, tests only).
 

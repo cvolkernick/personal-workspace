@@ -167,6 +167,8 @@
       letter-spacing: 0.04em;
       font-weight: 650;
     }
+    .strip.host-identity { padding-top: 0.4rem; padding-bottom: 0.15rem; }
+    .strip.host-identity .chips { margin: 0.05rem 0 0.2rem; }
     .metrics {
       display: grid;
       grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr);
@@ -882,6 +884,21 @@
       return (t && t.bookings) || [];
     }
 
+    function hostIdentityStrip(idn) {
+      const host = idn && idn.host_identity;
+      if (!host || !host.driver_id) return "";
+      const chips = [
+        host.host_label ? chip(host.host_label) : "",
+        chip(host.driver_id),
+      ].join("");
+      const url = host.public_url || "";
+      const shown = String(url).replace(/^https?:\/\//, "");
+      const link = url
+        ? `<div class="row"><a class="maps" href="${esc(url)}" target="_blank" rel="noopener">${esc(shown)}</a></div>`
+        : "";
+      return `<div class="strip host-identity"><h3>Host</h3><div class="chips">${chips}</div>${link}</div>`;
+    }
+
     function vehicleStrip(u, g) {
       const idn = u.identity || {};
       const f = u.finance || {};
@@ -1103,9 +1120,11 @@
       const photo = g.photo || unitPhoto(u.id);
       const fresh = g.freshness || "unknown";
       const vinChip = g.vin_short || vinShort(idn.vin);
+      const host = idn.host_identity || {};
       const chips = [
         chip(idn.role || "unknown"),
         idn.host_label ? chip(idn.host_label) : "",
+        host.driver_id ? chip(host.driver_id) : "",
         idn.plate ? chip(idn.plate) : "",
         vinChip ? chip(vinChip) : "",
         idn.lender ? chip(idn.lender) : "",
@@ -1123,6 +1142,7 @@
             </div>
           </div>
           <div class="body">
+            ${hostIdentityStrip(idn)}
             ${vehicleStrip(u, g)}
             ${scheduleStrip(u.turo || {}, g, invoiceItems)}
             ${moneyStrip(u.finance || {}, invoiceItems, u.invoice_list_id || "")}

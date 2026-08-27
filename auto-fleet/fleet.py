@@ -179,6 +179,7 @@ def identity_for(unit: Mapping[str, Any]) -> dict[str, Any]:
         "vin": unit.get("vin"),
         "plate": plate,
         "host_label": car_cards.host_label_for(unit),
+        "host_identity": car_cards.host_identity_for(unit),
         "role": role,
         "lender": unit.get("lender"),
         "account": unit.get("account"),
