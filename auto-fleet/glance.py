@@ -542,6 +542,25 @@ def _chip(text: str, kind: str = "") -> str:
     return f'<span class="{cls}">{_esc(text)}</span>'
 
 
+def copyable_html(value: Any, *, title: str) -> str:
+    """Same control as reservation # — button.booking-res + data-copy."""
+    text = _esc(value)
+    return (
+        f'<button type="button" class="booking-res" data-copy="{text}" '
+        f'title="{_esc(title)}">{text}</button>'
+    )
+
+
+def plate_field_html(ident: Mapping[str, Any] | None) -> str:
+    """Vehicle-strip plate field. Blank/omit when roster has no plate."""
+    if not isinstance(ident, Mapping):
+        return ""
+    plate = ident.get("plate")
+    if not plate:
+        return ""
+    return f'<div class="row">Plate {copyable_html(plate, title="Copy plate")}</div>'
+
+
 def host_identity_strip_html(ident: Mapping[str, Any] | None) -> str:
     """Thin Host strip. Identity only — never bookings or live Turo metrics."""
     host = None
@@ -752,7 +771,7 @@ def render_unit_card_html(
         f'<div class="chips">{"".join(chips)}</div>'
         f"</div></div>"
         f"{host_identity_strip_html(ident)}"
-        f'<div class="strip"><h3>Vehicle</h3>{locked_html}'
+        f'<div class="strip"><h3>Vehicle</h3>{plate_field_html(ident)}{locked_html}'
         f'<h3>DIMO {_chip(str(dimo_st), "ok" if dimo_st == "ok" else "warn")}</h3>'
         f"{dimo_body}</div>"
         f'<div class="strip"><h3>Schedule</h3>{schedule_html}</div>'

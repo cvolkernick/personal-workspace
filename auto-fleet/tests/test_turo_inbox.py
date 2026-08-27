@@ -518,6 +518,41 @@ class TuroInboxTests(unittest.TestCase):
         self.assertIsNotNone(parsed)
         self.assertIsNone(turo_inbox.match_unit(parsed, _with_roles(ROSTER_UNITS)))
 
+    def test_plate_is_display_only_not_a_match_key(self) -> None:
+        """Year-in-mail-body stays the match key. Plate is ops metadata only."""
+        plated = []
+        for u in _with_roles(ROSTER_UNITS):
+            rec = dict(u)
+            if rec["id"] == "corolla-2022":
+                rec["plate"] = "24EWUH"
+            elif rec["id"] == "corolla-2024":
+                rec["plate"] = "25EWUH"
+            plated.append(rec)
+        yearless = turo_inbox.parse_message(
+            {
+                "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+                "from": "Turo <noreply@mail.turo.com>",
+                "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+                "body": (
+                    "Toyota Corolla\nplate 24EWUH\nbooked by Pat Kim\n"
+                    "Reservation ID #60990000\n"
+                ),
+            }
+        )
+        self.assertIsNone(turo_inbox.match_unit(yearless, plated))
+        year_wins = turo_inbox.parse_message(
+            {
+                "subject": "(Mike's vehicle) - Pat's trip with your Toyota Corolla is booked!",
+                "from": "Turo <noreply@mail.turo.com>",
+                "date": "Tue, 18 Aug 2026 14:10:00 +0000",
+                "body": (
+                    "Toyota Corolla 2024\nplate 24EWUH\nbooked by Pat Kim\n"
+                    "Reservation ID #60990001\n"
+                ),
+            }
+        )
+        self.assertEqual(turo_inbox.match_unit(year_wins, plated), "corolla-2024")
+
     def test_guest_name_is_not_a_unit_map(self) -> None:
         """Ops hint guests still require a body year — never guest→year alone."""
         rec = {

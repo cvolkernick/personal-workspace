@@ -100,6 +100,9 @@ class LockedFinanceTests(unittest.TestCase):
         self.assertEqual(by_id["corolla-2024"]["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["corolla-2022"]["identity"]["host_label"], "Mike's")
         self.assertEqual(by_id["m3-2022"]["identity"]["host_label"], "Mike's")
+        self.assertEqual(by_id["corolla-2022"]["identity"]["plate"], "24EWUH")
+        self.assertEqual(by_id["corolla-2024"]["identity"]["plate"], "25EWUH")
+        self.assertIsNone(by_id["m3-2022"]["identity"]["plate"])
         self.assertIsNone(by_id["r1s-2023"]["identity"]["plate"])
         self.assertIsNone(by_id["r1s-2023"]["identity"]["vin"])
 
@@ -498,6 +501,17 @@ class InvoiceMatchTests(unittest.TestCase):
             "notes": "No year in the task.",
         }
         self.assertIsNone(car_cards.match_invoice_unit(yearless, ROSTER_UNITS))
+        plate_only = {
+            "id": "task-3",
+            "title": "Rebill toll — plate 24EWUH",
+            "notes": "Plate is display/ops, not a match key.",
+        }
+        plated = [
+            {**u, "plate": "24EWUH"} if u["id"] == "corolla-2022" else
+            {**u, "plate": "25EWUH"} if u["id"] == "corolla-2024" else u
+            for u in ROSTER_UNITS
+        ]
+        self.assertIsNone(car_cards.match_invoice_unit(plate_only, plated))
 
     def test_gt_trip_id_uses_bookings_not_name_guess(self) -> None:
         books = {
@@ -541,6 +555,12 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("driveway", html)
         self.assertIn("Santander", html)
         self.assertIn("10.18% APR", html)
+        veh24 = html[html.find("<h3>Vehicle</h3>") : html.find("<h3>Schedule</h3>")]
+        self.assertIn("25EWUH", veh24)
+        self.assertIn('data-copy="25EWUH"', veh24)
+        self.assertIn("Copy plate", veh24)
+        self.assertIn("booking-res", veh24)
+        self.assertNotIn("24EWUH", veh24)
         self.assertNotIn("inbox_status", html)
         self.assertNotIn("Kia", html)
         self.assertNotIn("Jessica", html)
@@ -549,9 +569,23 @@ class CardHtmlTests(unittest.TestCase):
         self.assertIn("5.65% APR", wells)
         self.assertNotIn("principal", wells)
         self.assertNotIn("amount_due", wells)
+        self.assertNotIn("24EWUH", wells)
+        self.assertNotIn("25EWUH", wells)
+        self.assertNotIn("Copy plate", wells)
         rivian = glance.render_unit_card_html(by_id["r1s-2023"], now=NOW)
         self.assertIn("Vivek", rivian)
         self.assertIn("$1,350.00/mo", rivian)
+        self.assertNotIn("24EWUH", rivian)
+        self.assertNotIn("25EWUH", rivian)
+        c22 = glance.render_unit_card_html(by_id["corolla-2022"], now=NOW)
+        veh22 = c22[c22.find("<h3>Vehicle</h3>") : c22.find("<h3>Schedule</h3>")]
+        self.assertIn("24EWUH", veh22)
+        self.assertIn('data-copy="24EWUH"', veh22)
+        self.assertNotIn("25EWUH", veh22)
+        m3turo = glance.render_unit_card_html(by_id["m3-2022"], now=NOW)
+        self.assertNotIn("24EWUH", m3turo)
+        self.assertNotIn("25EWUH", m3turo)
+        self.assertNotIn("Copy plate", m3turo)
 
     def test_schedule_queue_is_structured_not_joined_prose(self) -> None:
         index = (PKG / "index.html").read_text(encoding="utf-8")
@@ -697,6 +731,14 @@ class CardHtmlTests(unittest.TestCase):
         self.assertNotIn(":8796", html)
         self.assertNotIn("VIN unknown", html)
         self.assertNotIn("invent", html.lower())
+        self.assertNotIn("parking-map", html)
+        self.assertNotIn("driveway-diagram", html)
+        self.assertNotIn("driveway map", html.lower())
+        veh_fn = html[html.find("function vehicleStrip") : html.find("function scheduleStrip")]
+        self.assertIn("idn.plate", veh_fn)
+        self.assertIn("Copy plate", veh_fn)
+        self.assertIn("booking-res", veh_fn)
+        self.assertIn("data-copy", veh_fn)
         cards_fn = html[html.find("function renderUnit") : html.find("function renderShared")]
         self.assertNotIn("renderHostOps", cards_fn)
 

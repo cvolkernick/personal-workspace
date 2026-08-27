@@ -170,6 +170,7 @@ def identity_for(unit: Mapping[str, Any]) -> dict[str, Any]:
     role = unit.get("role") or "unknown"
     if role not in VALID_ROLES:
         role = "unknown"
+    # Display/ops metadata only. Match key stays year-in-mail-body — never plate.
     plate = unit.get("plate")
     if plate is not None:
         plate = str(plate).strip() or None
