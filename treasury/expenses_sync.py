@@ -462,7 +462,7 @@ def sync_expenses(
         }
 
     try:
-        personal_csv, _ess_name = fetch_essential_csv(sid)
+        personal_csv, _ = fetch_essential_csv(sid)
         discretionary_csv = fetch_sheet_csv(sid, DISCRETIONARY_TAB)
         fleet_csv = try_fetch_sheet_csv(sid, FLEET_TAB)
         collateral_csv = try_fetch_sheet_csv(sid, COLLATERAL_TAB)
