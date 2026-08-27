@@ -1,8 +1,10 @@
-"""Coinbase v2 USDC send book — display-only actuals for Thaís.
+"""Coinbase v2 USDC send book — display-only actuals for Thaís and Rent.
 
 Venue is Coinbase v2 USDC `type=send` only. Ignore lend / lock / One Card / X Money.
-Rent dest fingerprint is HOLD (do not guess phone vs address). Recurring send is HOLD.
-$25/day is future booking after dest — never rewrite Rent planned.
+Rent dest is email only: nvolkern@gmail.com (casefold). status=completed only.
+Pending/failed/canceled do not book. No phone. No other dests.
+Thaís is named address send. Recurring send is HOLD.
+Rent planned stays sheet monthly — never rewrite to $25 * days.
 No Transfer key. No sender code. Key lives only on prism.
 
 Tests use fixtures only. This module never copies or logs the CDP key.
@@ -32,10 +34,11 @@ SNAPSHOT_NAME = "coinbase_usdc_sends.json"
 PRISM_KEY_PATH = Path.home() / ".config" / "coinbase" / "cdp-api-key.json"
 
 # Thaís attribution is name-on-send only. Do not invent dest fingerprints.
-# Rent dest (phone vs address) is HOLD — empty set, never guess.
+# Rent dest is email only. No phone. No address. No other dests.
 _THAIS_NAME_NEEDLES = frozenset({"thais", "thaís"})
 THAIS_DEST_FINGERPRINTS: frozenset[str] = frozenset()
-RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset()
+RENT_DEST_EMAIL = "nvolkern@gmail.com"
+RENT_DEST_FINGERPRINTS: frozenset[str] = frozenset({RENT_DEST_EMAIL})
 
 
 def _fold(val: Any) -> str:
@@ -106,7 +109,8 @@ def is_usdc_send(tx: Dict[str, Any]) -> bool:
     if tx_currency(tx) and tx_currency(tx) != USDC:
         return False
     status = tx_status(tx)
-    if status in {"failed", "canceled", "cancelled", "expired"}:
+    # Book only completed. Pending / failed / canceled / expired do not enter the book.
+    if status != "completed":
         return False
     return True
 
@@ -138,6 +142,21 @@ def dest_fingerprint(tx: Dict[str, Any]) -> str:
     return str(tx.get("to_address") or tx.get("destination") or "").strip()
 
 
+def dest_email(tx: Dict[str, Any]) -> str:
+    """Email dest only. Never phone or chain address."""
+    dest = tx.get("to") or {}
+    if isinstance(dest, dict):
+        resource = str(dest.get("resource") or "").strip().casefold()
+        if resource == "phone":
+            return ""
+        email = str(dest.get("email") or "").strip()
+        if email:
+            return _fold(email)
+        if resource == "email":
+            return _fold(dest.get("address") or dest.get("id") or "")
+    return _fold(tx.get("to_email") or "")
+
+
 def _to_resource(tx: Dict[str, Any]) -> str:
     dest = tx.get("to") or {}
     if isinstance(dest, dict):
@@ -158,9 +177,16 @@ def matches_thais(tx: Dict[str, Any]) -> bool:
 
 
 def matches_rent(tx: Dict[str, Any]) -> bool:
-    """HOLD — dest fingerprint (phone vs address) is still open. Do not guess."""
-    dest = dest_fingerprint(tx)
-    return bool(dest) and dest in RENT_DEST_FINGERPRINTS
+    """Rent = completed v2 USDC type=send to nvolkern@gmail.com only. Email only."""
+    if tx_type(tx) != SEND_TYPE:
+        return False
+    if tx_status(tx) != "completed":
+        return False
+    resource = _to_resource(tx)
+    if resource and resource != "email":
+        return False
+    email = dest_email(tx)
+    return bool(email) and email in {_fold(x) for x in RENT_DEST_FINGERPRINTS}
 
 
 def extract_raw_txs(payload: Any) -> List[Dict[str, Any]]:
@@ -232,16 +258,51 @@ def prism_key_present() -> bool:
     return PRISM_KEY_PATH.is_file()
 
 
+_MONTH_NUM = {
+    "january": 1, "jan": 1,
+    "february": 2, "feb": 2,
+    "march": 3, "mar": 3,
+    "april": 4, "apr": 4,
+    "may": 5,
+    "june": 6, "jun": 6,
+    "july": 7, "jul": 7,
+    "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
+
+def _item_kind(item_name: str) -> str:
+    """First token, after dropping a leading month so 'August Rent' → rent."""
+    toks = _fold(item_name).split()
+    if not toks:
+        return ""
+    if toks[0] in _MONTH_NUM and len(toks) > 1:
+        return toks[1]
+    return toks[0]
+
+
+def _item_send_month(item_name: str, as_of: date) -> date:
+    """Month-prefixed rows use that month. Bare 'Rent' uses as_of month."""
+    toks = _fold(item_name).split()
+    if toks and toks[0] in _MONTH_NUM:
+        return date(as_of.year, _MONTH_NUM[toks[0]], 1)
+    return as_of
+
+
 def item_sends_for_month(
     sends: Sequence[Dict[str, Any]],
     *,
     item_name: str,
     month: date,
 ) -> List[Dict[str, Any]]:
-    key = _fold(item_name).split()[0] if item_name else ""
+    key = _item_kind(item_name)
+    send_month = _item_send_month(item_name, month)
     matched: List[Dict[str, Any]] = []
     for tx in sends:
-        if not tx_in_month(tx, month):
+        if not tx_in_month(tx, send_month):
             continue
         if key == "thais" and matches_thais(tx):
             matched.append(tx)

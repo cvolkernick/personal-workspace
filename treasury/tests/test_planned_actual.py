@@ -745,6 +745,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-jul-only",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-07-10T14:00:00Z",
                     "amount": {"amount": "-900.00", "currency": "USDC"},
                     "description": "Thaís",
@@ -779,6 +780,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-aug-thais",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
                     "to": {"resource": "address"},
@@ -800,6 +802,109 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(thais["flag"], FLAG_ON)
         self.assertFalse(strip["coach_wired"])
 
+    def test_rent_email_send_books_actual_planned_stays_sheet_monthly(self) -> None:
+        items = [
+            _item("Rent", 2090.0, "Coinbase"),
+            _item("Thaís", 900.0, "Coinbase"),
+        ]
+        items[0]["daily"] = 25.0
+        snaps = _snaps(items, [])
+        snaps["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "aug27-rent-email-25",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-27T12:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                    "description": "",
+                },
+                {
+                    "id": "nicole-phone",
+                    "type": "send",
+                    "created_at": "2026-08-15T12:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "phone", "phone": "+15555550100"},
+                    "description": "Nicole Volkernick",
+                },
+                {
+                    "id": "aug10-unlabeled-5",
+                    "type": "send",
+                    "created_at": "2026-08-10T12:00:00Z",
+                    "amount": {"amount": "-5.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "aug4-unlabeled-125",
+                    "type": "send",
+                    "created_at": "2026-08-04T12:00:00Z",
+                    "amount": {"amount": "-125.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "",
+                },
+                {
+                    "id": "send-aug-thais",
+                    "type": "send",
+                    "status": "completed",
+                    "created_at": "2026-08-10T14:00:00Z",
+                    "amount": {"amount": "-895.00", "currency": "USDC"},
+                    "to": {"resource": "address"},
+                    "description": "Thaís",
+                },
+            ],
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of="2026-08-27")
+        rent = _row(strip, "Rent")
+        thais = _row(strip, "Thaís")
+        self.assertAlmostEqual(rent["planned"], 2090.0)
+        self.assertNotAlmostEqual(rent["planned"], 25.0 * 31)
+        self.assertAlmostEqual(rent["actual"], 25.0)
+        self.assertEqual(rent["flag"], FLAG_ON)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
+        self.assertAlmostEqual(thais["planned"], 900.0)
+        self.assertAlmostEqual(thais["actual"], 895.0)
+        self.assertEqual(thais["flag"], FLAG_ON)
+        self.assertFalse(strip["coach_wired"])
+
+        pending_only = dict(snaps)
+        pending_only["coinbase_usdc_sends"] = {
+            "source": "coinbase_v2_usdc",
+            "transactions": [
+                {
+                    "id": "aug27-rent-still-pending",
+                    "type": "send",
+                    "status": "pending",
+                    "created_at": "2026-08-27T12:00:00Z",
+                    "amount": {"amount": "-25.00", "currency": "USDC"},
+                    "to": {"resource": "email", "email": "nvolkern@gmail.com"},
+                }
+            ],
+        }
+        pending_strip = build_planned_actual_strip(pending_only, _ac_map(), as_of="2026-08-27")
+        self.assertEqual(_row(pending_strip, "Rent")["actual"], 0.0)
+        self.assertEqual(_row(pending_strip, "Rent")["flag"], FLAG_OFF_BOOK)
+
+        snaps_aug = _snaps(
+            [
+                _item("April Rent", 775.0, "Coinbase"),
+                _item("August Rent", 2090.0, "Coinbase"),
+            ],
+            [],
+        )
+        snaps_aug["coinbase_usdc_sends"] = snaps["coinbase_usdc_sends"]
+        both = build_planned_actual_strip(snaps_aug, _ac_map(), as_of="2026-08-27")
+        august = _row(both, "August Rent")
+        april = _row(both, "April Rent")
+        self.assertAlmostEqual(august["planned"], 2090.0)
+        self.assertAlmostEqual(august["actual"], 25.0)
+        self.assertEqual(august["flag"], FLAG_ON)
+        self.assertAlmostEqual(april["planned"], 775.0)
+        self.assertEqual(april["actual"], 0.0)
+        self.assertNotEqual(april["actual"], 25.0)
+
     def test_leftover_ynab_pile_does_not_backfill_thais_or_rent(self) -> None:
         snaps = _snaps(_ac_items(), _leftover_pile(87))
         snaps["coinbase_usdc_sends"] = {
@@ -808,6 +913,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 {
                     "id": "send-aug-thais",
                     "type": "send",
+                    "status": "completed",
                     "created_at": "2026-08-10T14:00:00Z",
                     "amount": {"amount": "-895.00", "currency": "USDC"},
                     "to": {"resource": "address"},

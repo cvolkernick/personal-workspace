@@ -4,7 +4,7 @@ SoT:
   planned — Personal Expense Sheet Essential (legacy Personal) + Fleet + Collateral.
   actual  — this-month YNAB in-map spend by payee, except Coinbase USDC items.
   Thaís   — Coinbase v2 USDC type=send only (lend/lock ignored).
-  Rent    — planned = sheet monthly; actual 0 until dest fingerprint is known.
+  Rent    — planned = sheet monthly; actual = completed v2 USDC type=send to nvolkern@gmail.com.
   join    — sheet Item → one YNAB category_id (map name / sheet_item / payee).
 
 Never writes money, never nudges the coach, never touches Interest Spectrum.
@@ -51,6 +51,7 @@ COINBASE_USDC_LABEL = "Coinbase USDC"
 # Chris venue lock: these items are Coinbase USDC custodial send (not One Card / X Money).
 _COINBASE_USDC_ITEM_FIRST = frozenset({"rent", "thais"})
 _THAIS_ITEM_FIRST = "thais"
+_RENT_ITEM_FIRST = "rent"
 
 # Never render: One Card payment-as-payment, RH Gold remnant.
 _OFF_MAP_ITEM_NEEDLES = (
@@ -215,6 +216,11 @@ def is_coinbase_usdc_item(item_name: Any) -> bool:
 def is_thais_item(item_name: Any) -> bool:
     key = _ascii_item_key(item_name)
     return bool(key) and key.split()[0] == _THAIS_ITEM_FIRST
+
+
+def is_rent_item(item_name: Any) -> bool:
+    key = _ascii_item_key(item_name)
+    return bool(key) and key.split()[0] == _RENT_ITEM_FIRST
 
 
 def is_coinbase_usdc_from(from_label: Any) -> bool:
@@ -569,14 +575,16 @@ def build_planned_actual_strip(
             from_label
         )
         thais = is_thais_item(item.get("item"))
-        off_book = (coinbase_usdc and not thais) or (
+        rent = is_rent_item(item.get("item"))
+        usdc_named = thais or rent
+        off_book = (coinbase_usdc and not usdc_named) or (
             not coinbase_usdc and is_off_book_from(from_label)
         )
         # Coinbase USDC custodial send: never count One Card / X Money txs as actual.
         payment_hits = 0
         matched: List[Dict[str, Any]] = []
         send_hits: List[Dict[str, Any]] = []
-        if thais:
+        if usdc_named:
             send_hits = item_sends_for_month(
                 usdc_sends, item_name=str(item.get("item") or ""), month=month
             )
@@ -596,8 +604,8 @@ def build_planned_actual_strip(
                 matched.append(tx)
         payment_shaped = (
             is_payment_shaped_item(item.get("item")) or (not matched and payment_hits > 0)
-        ) and not off_book and not thais
-        if thais and send_hits:
+        ) and not off_book and not usdc_named
+        if usdc_named and send_hits:
             actual = round(sum(tx_spend_amount(t) for t in send_hits), 2)
             flag = classify_flag(
                 off_book=False,
@@ -648,7 +656,7 @@ def build_planned_actual_strip(
         "notes": (
             "Display only. planned = Essential/Fleet/Collateral sheet monthly; "
             "actual = this-month YNAB in-map spend by payee "
-            "(Thaís = Coinbase v2 USDC type=send; Rent dest HOLD). "
+            "(Thaís = named address send; Rent = send to nvolkern@gmail.com). "
             "two-charge, cadence-lump, and payment-shaped are not lifestyle over."
         ),
     }
