@@ -184,13 +184,12 @@ class TestEvaluateTreasury(unittest.TestCase):
         ev = evaluate_treasury(snap)
         kinds = [a["kind"] for a in ev["actions"]]
         self.assertIn("card_float", kinds)
-        self.assertIn("dca_pause", kinds)
         self.assertIn("vault_pull", kinds)
+        # Default rh_bp_floor=0: dust BP is deployable, not a DCA pause / Glance floor miss
+        self.assertNotIn("dca_pause", kinds)
+        self.assertTrue(ev["dca"]["allow_dca"])
         self.assertEqual(ev["buckets"]["status"], "red")
         self.assertAlmostEqual(ev["inputs"]["working_usdc"], 150.0)
-        dca = [a for a in ev["actions"] if a["kind"] == "dca_pause"][0]
-        self.assertTrue(dca["api_reachable"])
-        self.assertEqual(dca["actor"], "agent")
         self.assertIn("data_quality", ev)
         self.assertIn("agent_brief", ev)
         self.assertTrue(ev["agent_brief"])
@@ -241,16 +240,43 @@ class TestEvaluateTreasury(unittest.TestCase):
         self.assertTrue(ev["dca"]["allow_dca"])
 
     def test_bridge_recommend_cb_to_rh(self):
+        # Explicit BP floor still enables CB→RH bridge recommend
         snap = {
             "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0},
             "coinbase_manual": {"ltv": 0.25, "card_balance": 0},
             "robinhood": {"buying_power": 100, "cash": 50, "equity_value": 10000},
         }
-        ev = evaluate_treasury(snap)
+        ev = evaluate_treasury(snap, policy={"rh_bp_floor": 500})
         bridges = [a for a in ev["actions"] if a["kind"] == "bridge_cb_to_rh"]
         self.assertTrue(bridges)
         self.assertFalse(bridges[0]["api_reachable"])
         self.assertIn("Recommend", bridges[0]["title"])
+
+    def test_default_bp_floor_zero_allows_dust_bp(self):
+        self.assertEqual(DEFAULT_POLICY["rh_bp_floor"], 0.0)
+        snap = {
+            "coinbase": {"liquid_usdc": 5000, "liquid_btc": 0, "source": "live"},
+            "coinbase_manual": {
+                "ltv": 0.25,
+                "card_balance": 0,
+                "vault_usdc": 1000,
+            },
+            "robinhood": {
+                "buying_power": 0.09,
+                "cash": 0.09,
+                "equity_value": 10000,
+                "source": "live",
+            },
+        }
+        ev = evaluate_treasury(snap)
+        self.assertEqual(ev["policy"]["rh_bp_floor"], 0.0)
+        self.assertTrue(ev["dca"]["allow_dca"])
+        kinds = [a["kind"] for a in ev["actions"]]
+        self.assertNotIn("dca_pause", kinds)
+        self.assertEqual(
+            [a for a in ev["actions"] if a["kind"] == "bridge_cb_to_rh"],
+            [],
+        )
 
     def test_derive_ltv_from_principal_collateral(self):
         snap = {
