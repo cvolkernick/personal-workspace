@@ -1,4 +1,4 @@
-"""Interest Spectrum: two-lane APR/APY axis, no invent, no coach wiring."""
+"""Interest Spectrum: two-lane APR/APY axis, no invent, FCF nudge after essentials."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import unittest
 import urllib.error
 import urllib.request
 from http.server import ThreadingHTTPServer
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -41,7 +42,9 @@ from treasury.interest_spectrum import (  # noqa: E402
     SEED_TICKS_PCT,
     USDG_GOLD_CAVEAT,
     WELLS_OFF_FCC_ID,
+    build_fcf_coach,
     build_interest_spectrum,
+    household_overdue_count,
     rates_are_honest,
 )
 
@@ -1447,8 +1450,309 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
             stub={"coach_threshold_pct": 4.25},
         )
         self.assertFalse(payload["coach_wired"])
+        self.assertFalse(payload["policy"]["coach_wired"])
+        self.assertIsNone(payload.get("coach_nudge"))
         self.assertNotIn("coach_threshold_pct", payload)
         self.assertNotIn("coach_threshold_locked", payload)
+        self.assertNotIn("coach_threshold_x", payload)
+
+
+def _exp_tabs(*items: dict) -> dict:
+    return {"tabs": {"Essential": {"items": list(items)}}}
+
+
+def _current_treasury(
+    *,
+    free_dollar: float = 100.0,
+    ltv: float | None = 0.40,
+    expenses: dict | None = None,
+    extra_snap: dict | None = None,
+    extra_inputs: dict | None = None,
+) -> dict:
+    inputs: dict = {"next_free_dollar": free_dollar}
+    if ltv is not None:
+        inputs["ltv"] = ltv
+    snap = {"expenses": expenses or _exp_tabs()}
+    if extra_snap:
+        snap.update(extra_snap)
+    if extra_inputs:
+        inputs.update(extra_inputs)
+    return {
+        "as_of": "2026-08-27",
+        "evaluation": {
+            "inputs": inputs,
+            "cashflow_allocation": {"next_free_dollar": free_dollar},
+        },
+        "snapshot": snap,
+    }
+
+
+class TestSpectrumFcfCoach(unittest.TestCase):
+    def test_overdue_household_is_display_only(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=250,
+                ltv=0.40,
+                expenses=_exp_tabs(
+                    {
+                        "item": "One Card",
+                        "date": "2026-08-01",
+                        "amount_due": 50,
+                    },
+                    {
+                        "item": "Rent",
+                        "date": "2026-09-01",
+                        "amount_due": 8400,
+                    },
+                ),
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertTrue(payload["ok"])
+        self.assertGreaterEqual(len(payload["chips"]), 8)
+        self.assertFalse(payload["coach_wired"])
+        self.assertFalse(payload["policy"]["coach_wired"])
+        self.assertIsNone(payload.get("coach_nudge"))
+        self.assertGreater(payload["coach"]["household_overdue_count"], 0)
+        self.assertFalse(payload["coach"]["essentials_current"])
+        self.assertNotIn(WELLS_OFF_FCC_ID, {c["id"] for c in payload["chips"]})
+        self.assertTrue(rates_are_honest(payload))
+        self.assertNotIn("coach_threshold_pct", payload)
+
+    def test_current_with_free_dollar_zero_is_display_only(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=0,
+                ltv=0.45,
+                expenses=_exp_tabs(
+                    {
+                        "item": "Santander",
+                        "date": "2026-09-05",
+                        "amount_due": 773,
+                    }
+                ),
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertTrue(payload["ok"])
+        self.assertGreaterEqual(len(payload["placed"]), 8)
+        self.assertTrue(payload["coach"]["essentials_current"])
+        self.assertEqual(payload["coach"]["household_overdue_count"], 0)
+        self.assertEqual(payload["coach"]["next_free_dollar"], 0)
+        self.assertFalse(payload["coach_wired"])
+        self.assertFalse(payload["policy"]["coach_wired"])
+        self.assertIsNone(payload.get("coach_nudge"))
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_current_with_free_dollar_paints_nudge_line(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(free_dollar=120, ltv=0.40),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertTrue(payload["coach_wired"])
+        self.assertTrue(payload["policy"]["coach_wired"])
+        nudge = payload["coach_nudge"]
+        self.assertIsNotNone(nudge)
+        self.assertEqual(nudge["debt_id"], "one_card")
+        self.assertEqual(nudge["yield_id"], "morpho_hy")
+        self.assertAlmostEqual(nudge["debt_rate_pct"], 29.0)
+        self.assertAlmostEqual(nudge["yield_rate_pct"], 7.0)
+        self.assertEqual(nudge["line"], "next free dollar: One Card 29% vs HY 7%")
+        low = nudge["line"].lower()
+        for tok in (
+            "mint",
+            "overlay",
+            "dip",
+            "sleeve",
+            "cagr",
+            "cic",
+            "invent",
+            "trade",
+            "jr",
+            "bitcoin",
+            "agentic",
+        ):
+            self.assertNotIn(tok, low)
+        ids = {c["id"] for c in payload["chips"]}
+        self.assertIn(JR_STRCUSX_ID, ids)
+        self.assertIn(BITCOIN_ID, ids)
+        self.assertIn(AGENTIC_FUND_ID, ids)
+        self.assertNotIn(WELLS_OFF_FCC_ID, ids)
+        self.assertTrue(rates_are_honest(payload))
+        self.assertNotIn("coach_threshold_pct", payload)
+
+    def test_ltv_alert_is_manage_ping_not_fail_of_current(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(free_dollar=80, ltv=0.45),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertTrue(payload["coach"]["essentials_current"])
+        self.assertTrue(payload["coach_wired"])
+        self.assertEqual(
+            payload["coach_nudge"]["line"],
+            "next free dollar: One Card 29% vs HY 7%",
+        )
+
+    def test_ltv_at_max_keeps_display_only(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(free_dollar=80, ltv=0.50),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertFalse(payload["coach"]["essentials_current"])
+        self.assertFalse(payload["coach_wired"])
+        self.assertIsNone(payload.get("coach_nudge"))
+
+    def test_wells_overdue_does_not_fail_current(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=90,
+                ltv=0.40,
+                expenses=_exp_tabs(
+                    {
+                        "item": "Wells Fargo",
+                        "date": "2026-08-01",
+                        "amount_due": 400,
+                    }
+                ),
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertEqual(payload["coach"]["household_overdue_count"], 0)
+        self.assertTrue(payload["coach_wired"])
+
+    def test_gold_overdue_fails_current(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=90,
+                ltv=0.40,
+                expenses=_exp_tabs(
+                    {
+                        "item": "RH Gold",
+                        "date": "2026-08-10",
+                        "amount_due": 5,
+                    }
+                ),
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        self.assertGreater(payload["coach"]["household_overdue_count"], 0)
+        self.assertFalse(payload["coach_wired"])
+
+    def test_vault_apy_still_not_product_when_nudge_on(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=150,
+                ltv=0.40,
+                extra_inputs={"vault_apy": 0.029, "hy_vault_apy": 0.029, "product_apy": 0.072},
+                extra_snap={
+                    "morpho_hy": {
+                        "vault_apy": 0.029,
+                        "apy_est": 0.029,
+                        "product_apy": 0.072,
+                    }
+                },
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 7.2)
+        self.assertAlmostEqual(by_id["morpho_hy"]["vault_apy_pct"], 2.9)
+        self.assertEqual(by_id["morpho_hy"]["vault_rate_kind"], "vault_reference")
+        self.assertIn(MORPHO_HY_VAULT_NE_PRODUCT_NOTE, by_id["morpho_hy"]["notes"])
+        self.assertTrue(payload["coach_wired"])
+        self.assertEqual(payload["coach_nudge"]["yield_id"], "morpho_hy")
+        self.assertAlmostEqual(payload["coach_nudge"]["yield_rate_pct"], 7.2)
+        self.assertNotIn("2.9", payload["coach_nudge"]["line"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_live_beats_settings_beats_seed_when_nudge_on(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=150,
+                ltv=0.40,
+                extra_inputs={
+                    "product_apy": 0.064,
+                    "x_money_apy_est": 0.055,
+                    "rh_usdg_earn_apy_est": 0.05,
+                },
+            ),
+            config={"coinbase_manual": {"product_apy": 0.08}},
+            x_money={},
+            solana={},
+        )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertAlmostEqual(by_id["morpho_hy"]["rate_pct"], 6.4)
+        self.assertIn("evaluation.inputs.product_apy", by_id["morpho_hy"]["notes"])
+        self.assertNotIn("config.coinbase_manual.product_apy", by_id["morpho_hy"]["notes"])
+        self.assertTrue(payload["coach_wired"])
+        self.assertEqual(payload["coach_nudge"]["yield_id"], "morpho_hy")
+        self.assertAlmostEqual(payload["coach_nudge"]["yield_rate_pct"], 6.4)
+        self.assertIn("6.4%", payload["coach_nudge"]["line"])
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_jr_btc_agentic_cannot_win_park_fcf(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(free_dollar=200, ltv=0.40),
+            config={},
+            x_money={},
+            solana={},
+        )
+        by_id = {c["id"]: c for c in payload["chips"]}
+        self.assertGreater(by_id[BITCOIN_ID]["rate_pct"], by_id["morpho_hy"]["rate_pct"])
+        self.assertGreater(by_id[JR_STRCUSX_ID]["rate_pct"], by_id["morpho_hy"]["rate_pct"])
+        self.assertGreater(by_id[AGENTIC_FUND_ID]["rate_pct"], by_id["x_money"]["rate_pct"])
+        self.assertNotIn(payload["coach_nudge"]["yield_id"], (JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID))
+        self.assertIn(payload["coach_nudge"]["yield_id"], ("x_money", "morpho_hy", "usdg_earn"))
+        coach = build_fcf_coach(payload["chips"], _current_treasury(free_dollar=200, ltv=0.40))
+        self.assertNotIn(coach["nudge"]["yield_id"], (JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID))
+
+    def test_usdg_cancelled_does_not_win_park_fcf(self) -> None:
+        payload = build_interest_spectrum(
+            treasury=_current_treasury(
+                free_dollar=200,
+                ltv=0.40,
+                extra_inputs={"gold_cancelled": True},
+                extra_snap={"robinhood": {"gold_cancelled": True, "gold": False}},
+            ),
+            config={},
+            x_money={},
+            solana={},
+        )
+        ids = {c["id"] for c in payload["chips"]}
+        self.assertIn("usdg_earn", ids)
+        self.assertNotEqual(payload["coach_nudge"]["yield_id"], "usdg_earn")
+
+    def test_household_overdue_count_ignores_due_soon_and_wells(self) -> None:
+        tre = _current_treasury(
+            expenses=_exp_tabs(
+                {"item": "Capital One", "date": "2026-09-10", "amount_due": 373},
+                {"item": "Wells Fargo", "date": "2026-08-01", "amount_due": 200},
+                {"item": "Groceries", "date": "2026-08-01", "amount_due": 40},
+            )
+        )
+        n, ids = household_overdue_count(
+            tre,
+            expenses=tre["snapshot"]["expenses"],
+            today=date(2026, 8, 27),
+        )
+        self.assertEqual(n, 0)
+        self.assertEqual(ids, [])
 
 
 class TestInterestSpectrumPage(unittest.TestCase):
@@ -1498,11 +1802,16 @@ class TestInterestSpectrumPage(unittest.TestCase):
         self.assertNotIn("Yield venues appear only when", html)
         self.assertNotIn("Coach threshold", html)
         self.assertNotIn("coach X", html)
+        self.assertIn('id="coach-nudge"', html)
+        self.assertIn("display-only FCF nudge", html)
+        self.assertNotIn("no coach wiring", html)
         self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("CIC", html)
         self.assertNotIn("vercel", html.lower())
         self.assertNotIn("buy token", html.lower())
         self.assertNotIn("place order", html.lower())
+        self.assertNotIn("mint JR", html)
+        self.assertNotIn("sleeve-while-red", html)
         lower = html.lower()
         for needle in EQUITY_BTC_NEEDLES:
             self.assertNotIn(needle, lower)
@@ -1570,7 +1879,12 @@ class TestInterestSpectrumApi(unittest.TestCase):
         self.assertEqual(data.get("axis", {}).get("layout"), "two_lane")
         self.assertEqual(data.get("axis", {}).get("yield_lane"), "above")
         self.assertEqual(data.get("axis", {}).get("debt_lane"), "below")
-        self.assertFalse(data.get("coach_wired"))
+        self.assertEqual(data.get("coach_wired"), (data.get("policy") or {}).get("coach_wired"))
+        if data.get("coach_wired"):
+            self.assertTrue((data.get("coach_nudge") or {}).get("line"))
+            self.assertTrue((data.get("policy") or {}).get("coach_wired"))
+        else:
+            self.assertFalse((data.get("policy") or {}).get("coach_wired"))
         self.assertTrue(rates_are_honest(data))
         ids = {c["id"] for c in data.get("chips") or []}
         self.assertTrue(set(LOCKED_RATE_BY_ID).issubset(ids))

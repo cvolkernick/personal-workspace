@@ -4,8 +4,9 @@ One shared 0% → ~30% axis. Yield chips above (gain); debt chips below (cost).
 Honest rates only: locked debt seeds, locked yield seeds (Chris 2026-08-23),
 and APR/APY already on books. Never invent yields. Equity/BTC
 assumed-return stays off-axis. Wells/20 Tesla stays off FCC.
-JR-strcUSX is a spectrum chip only (not HY/LTV). Coach threshold X
-is not wired.
+JR-strcUSX is a spectrum chip only (not HY/LTV). Coach is display-only
+on this ruler: a qualitative FCF nudge after essentials are current.
+No numeric threshold X.
 
 Chris / Nakatoshi lock (2026-08-26) — Interest Spectrum precedence (#360):
   **live books > settings > seeds**
@@ -106,15 +107,17 @@ Soft-fail live poller never writes a seed. No Coinbase / Robinhood HTML scrape.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "treasury" / "config.json"
 FCC_STUB = ROOT / "financial-command" / "interest-spectrum.json"
 TREASURY_FCC = ROOT / "financial-command" / "treasury_latest.json"
 TREASURY_SNAP = ROOT / "treasury" / "snapshots" / "treasury_latest.json"
+EXPENSES_SNAP = ROOT / "treasury" / "snapshots" / "expenses_latest.json"
+ONE_CARD_SNAP = ROOT / "treasury" / "snapshots" / "one_card_latest.json"
 XM_SNAPSHOT = ROOT / "treasury" / "snapshots" / "x_money_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
 MORPHO_HY_SNAPSHOT = ROOT / "treasury" / "snapshots" / "morpho_hy_latest.json"
@@ -545,6 +548,38 @@ DEBT_SEED_NOTIONAL_PATHS = {
 
 # Wells / 20 Tesla — Auto Fleet metadata only; never a FCC spectrum chip.
 WELLS_OFF_FCC_ID = "m3-2020"
+
+# Household Do-now overdue set for the FCF nudge gate (#372).
+# Wells stays off. Cap One / Gold CIC stay existing Do-now SOP (not this nudge).
+FCC_AUTO_UNIT_IDS = frozenset({"corolla-2024", "corolla-2022", "m3-2022", "r1s-2023"})
+SURE_PAYABLE_DEBT_IDS = frozenset({"one_card"}) | FCC_AUTO_UNIT_IDS
+LIQUID_YIELD_IDS = frozenset({"x_money", "morpho_hy", "usdg_earn"})
+PARK_FCF_NEVER_IDS = frozenset({JR_STRCUSX_ID, BITCOIN_ID, AGENTIC_FUND_ID})
+# Morpho LTV < 0.50 is current. 0.45 is a manage ping, not a fail of current.
+MORPHO_LTV_CURRENT_MAX = 0.50
+NUDGE_LABELS = {
+    "one_card": "One Card",
+    "morpho_hy": "HY",
+    "x_money": "X Money",
+    "usdg_earn": "USDG",
+    "corolla-2024": "Santander",
+    "corolla-2022": "Capital One",
+    "m3-2022": "GM Financial",
+    "r1s-2023": "Rivian",
+}
+_NUDGE_NEVER = (
+    "mint jr",
+    "mint",
+    "overlay",
+    "dip",
+    "sleeve-while-red",
+    "sleeve while red",
+    "cagr",
+    "cic",
+    "invent",
+    "trade",
+    "size",
+)
 
 ALLOWED_CHIP_KINDS = frozenset({"debt", "yield"})
 ALLOWED_SOURCES = frozenset({"locked_financing", "locked_seed", "books", "docs_target"})
@@ -1044,6 +1079,322 @@ def _axis_max(placed: List[Dict[str, Any]]) -> float:
     return float(((int(span) + 4) // 5) * 5)
 
 
+def _norm_item(value: Any) -> str:
+    return " ".join(str(value or "").lower().replace("_", " ").replace("-", " ").split())
+
+
+def _is_wells_item(text: Any) -> bool:
+    n = _norm_item(text)
+    return (
+        "wells" in n
+        or n == WELLS_OFF_FCC_ID.replace("-", " ")
+        or "20 tesla" in n
+        or "m3 2020" in n
+    )
+
+
+def _is_one_card_item(text: Any) -> bool:
+    n = _norm_item(text)
+    return "one card" in n and "coinbase one" != n
+
+
+def _is_fcc_auto_item(text: Any) -> bool:
+    if _is_wells_item(text):
+        return False
+    n = _norm_item(text)
+    needles = (
+        "santander",
+        "capital one",
+        "gm financial",
+        "rivian",
+        "vivek",
+        "corolla 2024",
+        "corolla 2022",
+        "24 corolla",
+        "22 corolla",
+        "22 tesla",
+        "23 rivian",
+        "m3 2022",
+        "r1s 2023",
+    )
+    return any(needle in n for needle in needles)
+
+
+def _is_billed_gold_item(text: Any) -> bool:
+    n = _norm_item(text)
+    if "usdg" in n or "cancel" in n:
+        return False
+    return (
+        n == "gold"
+        or "rh gold" in n
+        or "robinhood gold" in n
+        or "billed gold" in n
+        or "gold membership" in n
+    )
+
+
+def _is_household_item(text: Any) -> bool:
+    if _is_wells_item(text):
+        return False
+    return (
+        _is_one_card_item(text)
+        or _is_fcc_auto_item(text)
+        or _is_billed_gold_item(text)
+    )
+
+
+def _plan_date(treasury: Dict[str, Any]) -> date:
+    for raw in (
+        treasury.get("as_of_plan"),
+        treasury.get("as_of"),
+        (treasury.get("evaluation") or {}).get("as_of")
+        if isinstance(treasury.get("evaluation"), dict)
+        else None,
+    ):
+        if not raw:
+            continue
+        s = str(raw).strip()
+        if "T" in s:
+            s = s.split("T", 1)[0]
+        try:
+            return date.fromisoformat(s[:10])
+        except ValueError:
+            continue
+    return datetime.now(timezone.utc).date()
+
+
+def _read_next_free_dollar(treasury: Dict[str, Any]) -> float:
+    """Numeric remaining FCF only. Do not invent a residual or a threshold X."""
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    ca = ev.get("cashflow_allocation") if isinstance(ev.get("cashflow_allocation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    for raw in (
+        ca.get("next_free_dollar"),
+        inp.get("next_free_dollar"),
+        treasury.get("next_free_dollar"),
+        ca.get("free_liquid_residual"),
+    ):
+        if isinstance(raw, bool) or raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        if n is not None:
+            return n
+    return 0.0
+
+
+def _read_ltv(treasury: Dict[str, Any]) -> Optional[float]:
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    man = snap.get("coinbase_manual") if isinstance(snap.get("coinbase_manual"), dict) else {}
+    for raw in (inp.get("ltv"), man.get("ltv"), ev.get("ltv")):
+        if raw is None or raw == "":
+            continue
+        n = _as_float(raw)
+        if n is not None:
+            return n
+    return None
+
+
+def _usdg_still_live(treasury: Dict[str, Any]) -> bool:
+    ev = treasury.get("evaluation") if isinstance(treasury.get("evaluation"), dict) else {}
+    inp = ev.get("inputs") if isinstance(ev.get("inputs"), dict) else {}
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    rh = snap.get("robinhood") if isinstance(snap.get("robinhood"), dict) else {}
+    uh = snap.get("usdg_hy") if isinstance(snap.get("usdg_hy"), dict) else {}
+    if (
+        inp.get("gold_cancelled")
+        or rh.get("gold_cancelled")
+        or uh.get("gold_cancelled")
+        or uh.get("ended")
+        or uh.get("live") is False
+    ):
+        return False
+    return True
+
+
+def _one_card_snapshot_overdue(one_card: Dict[str, Any], today: date) -> bool:
+    if not isinstance(one_card, dict) or not one_card:
+        return False
+    if one_card.get("overdue") is True:
+        return True
+    days = one_card.get("days_until_due")
+    d = _as_float(days)
+    if d is not None and d < 0:
+        return True
+    from treasury.expenses_sync import parse_sheet_date
+
+    due_dt = parse_sheet_date(
+        one_card.get("due_date") or one_card.get("payment_due") or one_card.get("date")
+    )
+    if due_dt is None:
+        return False
+    due_d = due_dt.date() if hasattr(due_dt, "date") else due_dt
+    return due_d < today
+
+
+def _fleet_notes_overdue(notes: Dict[str, Any]) -> List[str]:
+    units = notes.get("units") if isinstance(notes, dict) else None
+    if not isinstance(units, dict):
+        return []
+    overdue: List[str] = []
+    for unit_id, row in units.items():
+        uid = str(unit_id)
+        if uid == WELLS_OFF_FCC_ID or uid not in FCC_AUTO_UNIT_IDS:
+            continue
+        if not isinstance(row, dict):
+            continue
+        past = _as_float(row.get("past_due"))
+        if past is not None and past > 0:
+            overdue.append(uid)
+    return overdue
+
+
+def household_overdue_count(
+    treasury: Dict[str, Any],
+    *,
+    expenses: Optional[Dict[str, Any]] = None,
+    one_card: Optional[Dict[str, Any]] = None,
+    fleet_notes: Optional[Dict[str, Any]] = None,
+    today: Optional[date] = None,
+) -> Tuple[int, List[str]]:
+    """FCC Do-now overdue household count. Wells off. Due-soon does not count."""
+    from treasury.financial_coach import extract_expense_items, rank_obligations
+
+    t = today or _plan_date(treasury)
+    ids: List[str] = []
+    exp = expenses if isinstance(expenses, dict) else {}
+    ranked = rank_obligations(extract_expense_items(exp), today=t)
+    for row in ranked:
+        if not row.get("overdue"):
+            continue
+        label = f"{row.get('item') or ''} {row.get('id') or ''}"
+        if not _is_household_item(label):
+            continue
+        ids.append(str(row.get("id") or row.get("item") or "household"))
+    oc = one_card if isinstance(one_card, dict) else {}
+    if _one_card_snapshot_overdue(oc, t) and "one_card" not in ids:
+        ids.append("one_card")
+    for uid in _fleet_notes_overdue(fleet_notes or {}):
+        if uid not in ids:
+            ids.append(uid)
+    return len(ids), ids
+
+
+def _fmt_nudge_pct(rate: Any) -> str:
+    n = float(rate)
+    if abs(n - round(n)) < 1e-9:
+        return f"{int(round(n))}%"
+    return f"{n:.2f}".rstrip("0").rstrip(".") + "%"
+
+
+def _nudge_label(chip: Dict[str, Any]) -> str:
+    cid = str(chip.get("id") or "")
+    if cid in NUDGE_LABELS:
+        return NUDGE_LABELS[cid]
+    return str(chip.get("venue") or chip.get("label") or cid)
+
+
+def _pick_tallest_payable_debt(chips: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    eligible = [
+        c
+        for c in chips
+        if isinstance(c, dict)
+        and str(c.get("id")) in SURE_PAYABLE_DEBT_IDS
+        and str(c.get("id")) != WELLS_OFF_FCC_ID
+        and c.get("rate_pct") is not None
+    ]
+    if not eligible:
+        return None
+    return max(eligible, key=lambda c: float(c.get("rate_pct") or 0))
+
+
+def _pick_best_liquid_yield(
+    chips: List[Dict[str, Any]], *, usdg_live: bool
+) -> Optional[Dict[str, Any]]:
+    eligible = []
+    for c in chips:
+        if not isinstance(c, dict):
+            continue
+        cid = str(c.get("id") or "")
+        if cid in PARK_FCF_NEVER_IDS or c.get("est_cagr"):
+            continue
+        if cid not in LIQUID_YIELD_IDS:
+            continue
+        if cid == "usdg_earn" and not usdg_live:
+            continue
+        if c.get("rate_pct") is None:
+            continue
+        eligible.append(c)
+    if not eligible:
+        return None
+    return max(eligible, key=lambda c: float(c.get("rate_pct") or 0))
+
+
+def _nudge_copy_is_clean(line: str) -> bool:
+    low = line.lower()
+    return not any(tok in low for tok in _NUDGE_NEVER)
+
+
+def build_fcf_coach(
+    chips: List[Dict[str, Any]],
+    treasury: Dict[str, Any],
+    *,
+    expenses: Optional[Dict[str, Any]] = None,
+    one_card: Optional[Dict[str, Any]] = None,
+    fleet_notes: Optional[Dict[str, Any]] = None,
+    today: Optional[date] = None,
+) -> Dict[str, Any]:
+    """Qualitative FCF nudge. Display-only. Never a trade, mint, or size."""
+    overdue_n, overdue_ids = household_overdue_count(
+        treasury,
+        expenses=expenses,
+        one_card=one_card,
+        fleet_notes=fleet_notes,
+        today=today,
+    )
+    ltv = _read_ltv(treasury)
+    free_dollar = _read_next_free_dollar(treasury)
+    ltv_current = ltv is not None and ltv < MORPHO_LTV_CURRENT_MAX
+    essentials_current = overdue_n == 0 and ltv_current
+    wired = bool(essentials_current and free_dollar > 0)
+    debt = _pick_tallest_payable_debt(chips) if wired else None
+    yld = (
+        _pick_best_liquid_yield(chips, usdg_live=_usdg_still_live(treasury))
+        if wired
+        else None
+    )
+    nudge = None
+    if wired and debt is not None and yld is not None:
+        line = (
+            f"next free dollar: {_nudge_label(debt)} {_fmt_nudge_pct(debt['rate_pct'])}"
+            f" vs {_nudge_label(yld)} {_fmt_nudge_pct(yld['rate_pct'])}"
+        )
+        if _nudge_copy_is_clean(line):
+            nudge = {
+                "line": line,
+                "debt_id": debt.get("id"),
+                "debt_label": _nudge_label(debt),
+                "debt_rate_pct": float(debt["rate_pct"]),
+                "yield_id": yld.get("id"),
+                "yield_label": _nudge_label(yld),
+                "yield_rate_pct": float(yld["rate_pct"]),
+            }
+        else:
+            wired = False
+    else:
+        wired = False
+    return {
+        "wired": wired,
+        "nudge": nudge,
+        "essentials_current": essentials_current,
+        "household_overdue_count": overdue_n,
+        "household_overdue_ids": overdue_ids,
+        "next_free_dollar": free_dollar,
+        "ltv": ltv,
+    }
+
+
 def build_interest_spectrum(
     *,
     treasury: Optional[Dict[str, Any]] = None,
@@ -1086,8 +1437,21 @@ def build_interest_spectrum(
             sidecar = _load_json(SOLSTICE_JR_SNAPSHOT)
             if _jr_row_has_apy(sidecar):
                 solstice_jr = sidecar
-    # stub is retained as a blank file only — coach is not wired this ship.
+    # stub is retained as a blank file only — no numeric threshold X.
     _ = stub if stub is not None else _load_json(FCC_STUB)
+    snap = treasury.get("snapshot") if isinstance(treasury.get("snapshot"), dict) else {}
+    expenses = snap.get("expenses") if isinstance(snap.get("expenses"), dict) else {}
+    if not expenses:
+        root_exp = treasury.get("expenses")
+        expenses = root_exp if isinstance(root_exp, dict) else {}
+    if treasury_from_disk and not expenses:
+        expenses = _load_json(EXPENSES_SNAP)
+    one_card = snap.get("one_card") if isinstance(snap.get("one_card"), dict) else {}
+    if treasury_from_disk and not one_card:
+        one_card = _load_json(ONE_CARD_SNAP)
+    fleet_notes = snap.get("fleet_notes") if isinstance(snap.get("fleet_notes"), dict) else {}
+    if treasury_from_disk and not fleet_notes:
+        fleet_notes = _load_json(FLEET_NOTES)
 
     ctx = _books_ctx(
         treasury,
@@ -1110,6 +1474,15 @@ def build_interest_spectrum(
     placed = [c for c in chips if c.get("rate_pct") is not None]
     unknown: List[Dict[str, Any]] = []
     books_used = any(c.get("source") == "books" for c in chips)
+    coach = build_fcf_coach(
+        chips,
+        treasury,
+        expenses=expenses,
+        one_card=one_card,
+        fleet_notes=fleet_notes,
+        today=_plan_date(treasury),
+    )
+    coach_wired = bool(coach.get("wired"))
 
     return {
         "ok": True,
@@ -1129,7 +1502,9 @@ def build_interest_spectrum(
         "chips": chips,
         "placed": placed,
         "unknown": unknown,
-        "coach_wired": False,
+        "coach_wired": coach_wired,
+        "coach_nudge": coach.get("nudge"),
+        "coach": coach,
         "policy": {
             "apr_apy_only": True,
             "est_cagr_exception": True,
@@ -1139,7 +1514,7 @@ def build_interest_spectrum(
             "wells_is_fcc_liability": False,
             "wells_on_fcc_spectrum": False,
             "chip_size_is_notional": False,
-            "coach_wired": False,
+            "coach_wired": coach_wired,
             "rate_precedence": RATE_PRECEDENCE,
             "settings_are_fallback": True,
             "morpho_hy_vault_graphql_is_product": False,
@@ -1156,8 +1531,6 @@ def build_interest_spectrum(
 def rates_are_honest(payload: Dict[str, Any]) -> bool:
     """True when every placed rate is locked-fleet, locked-seed, books, JR docs, or est. CAGR exception."""
     if not isinstance(payload, dict):
-        return False
-    if payload.get("coach_wired"):
         return False
     policy = payload.get("policy") if isinstance(payload.get("policy"), dict) else {}
     est_ids = {

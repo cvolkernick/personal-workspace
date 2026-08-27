@@ -3,5 +3,5 @@
   "brand": "FCC",
   "coach_threshold_pct": null,
   "coach_wired": false,
-  "notes": "Coach threshold X is still open. Do not invent X. Spectrum ships without coach wiring."
+  "notes": "No numeric threshold X. Spectrum always paints. Qualitative FCF nudge only after essentials current and next_free_dollar > 0."
 }
