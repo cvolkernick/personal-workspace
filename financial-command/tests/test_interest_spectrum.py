@@ -467,6 +467,85 @@ class TestInterestSpectrumBuilder(unittest.TestCase):
         self.assertNotIn("notional", jr)
         self.assertTrue(rates_are_honest(payload))
 
+    def test_jr_uses_solstice_sidecar_kwarg_when_snapshot_omits_it(self) -> None:
+        payload = build_interest_spectrum(
+            treasury={"snapshot": {"solana": {"jr_strcusx": 3.3}}},
+            config={},
+            x_money={},
+            solana={},
+            solstice_jr={
+                "jr_strcusx_apy": 0.3473,
+                "apy": 0.3473,
+                "source": "solstice_onchain",
+            },
+        )
+        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
+        self.assertAlmostEqual(jr["rate_pct"], 34.73)
+        self.assertEqual(jr["source"], "books")
+        self.assertFalse(jr["approx"])
+        self.assertNotIn("rate_label", jr)
+        self.assertNotIn("notional", jr)
+        self.assertGreaterEqual(payload["axis"]["max_pct"], 35)
+        self.assertTrue(rates_are_honest(payload))
+
+    def test_jr_disk_path_reads_solstice_sidecar_when_snapshot_omits_it(self) -> None:
+        import tempfile
+
+        import treasury.interest_spectrum as spec
+
+        td = tempfile.TemporaryDirectory()
+        self.addCleanup(td.cleanup)
+        root = Path(td.name)
+        tre = root / "treasury_latest.json"
+        tre.write_text(
+            json.dumps({"snapshot": {"solana": {"jr_strcusx": 3.317128}}}),
+            encoding="utf-8",
+        )
+        sidecar = root / "solstice_jr_latest.json"
+        sidecar.write_text(
+            json.dumps(
+                {
+                    "jr_strcusx_apy": 0.3473,
+                    "apy": 0.3473,
+                    "source": "solstice_onchain",
+                }
+            ),
+            encoding="utf-8",
+        )
+        missing = root / "missing.json"
+        prev = {
+            "TREASURY_FCC": spec.TREASURY_FCC,
+            "TREASURY_SNAP": spec.TREASURY_SNAP,
+            "SOLSTICE_JR_SNAPSHOT": spec.SOLSTICE_JR_SNAPSHOT,
+            "XM_SNAPSHOT": spec.XM_SNAPSHOT,
+            "SOLANA_SNAPSHOT": spec.SOLANA_SNAPSHOT,
+            "CONFIG_PATH": spec.CONFIG_PATH,
+            "FCC_STUB": spec.FCC_STUB,
+        }
+
+        def _restore() -> None:
+            for key, val in prev.items():
+                setattr(spec, key, val)
+
+        self.addCleanup(_restore)
+        spec.TREASURY_FCC = tre
+        spec.TREASURY_SNAP = tre
+        spec.SOLSTICE_JR_SNAPSHOT = sidecar
+        spec.XM_SNAPSHOT = missing
+        spec.SOLANA_SNAPSHOT = missing
+        spec.CONFIG_PATH = missing
+        spec.FCC_STUB = missing
+
+        payload = spec.build_interest_spectrum()
+        jr = {c["id"]: c for c in payload["chips"]}[JR_STRCUSX_ID]
+        self.assertAlmostEqual(jr["rate_pct"], 34.73)
+        self.assertEqual(jr["source"], "books")
+        self.assertFalse(jr["approx"])
+        self.assertNotIn("rate_label", jr)
+        self.assertNotIn("notional", jr)
+        self.assertGreaterEqual(payload["axis"]["max_pct"], 35)
+        self.assertTrue(rates_are_honest(payload))
+
     def test_usdg_seed_always_shows_with_gold_caveat(self) -> None:
         payload = build_interest_spectrum(
             treasury={"evaluation": {"inputs": {}}},
