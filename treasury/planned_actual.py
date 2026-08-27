@@ -307,7 +307,9 @@ def planned_sheet_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
             name = str(raw.get("item") or raw.get("name") or "").strip()
             if not name or name.lower() == "total":
                 continue
-            key = item_match_key(name)
+            # Dedupe exact names across tabs, not month-stripped keys
+            # (April Rent and August Rent are separate mapped items).
+            key = normalize_name(name)
             if key in seen_names:
                 continue
             seen_names.add(key)

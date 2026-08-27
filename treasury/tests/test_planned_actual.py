@@ -584,6 +584,25 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(row["actual"], 0.0)
         self.assertEqual(row["from"], COINBASE_USDC_LABEL)
 
+    def test_month_prefixed_rent_rows_are_not_collapsed(self) -> None:
+        items = [
+            _item("April Rent", 775.0, "Coinbase"),
+            _item("August Rent", 2090.0, "Coinbase"),
+            _item("Thaís", 900.0, "Coinbase"),
+        ]
+        strip = build_planned_actual_strip(_snaps(items, []), _ac_map(), as_of=AS_OF)
+        april = _row(strip, "April Rent")
+        august = _row(strip, "August Rent")
+        thais = _row(strip, "Thaís")
+        self.assertEqual(april["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(august["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(thais["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(april["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(august["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(april["actual"], 0.0)
+        self.assertEqual(august["actual"], 0.0)
+
     def test_flag_enum_only(self) -> None:
         txs = [
             _tx(payee="Water", amount=-67.0, category_id=WATER_ID, category_name="Water"),
