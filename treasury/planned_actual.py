@@ -162,6 +162,10 @@ def names_join(item_name: Any, category_name: Any) -> bool:
         # require the shorter key to be a whole-token hit
         short, long = (a, b) if len(a) <= len(b) else (b, a)
         return short in long.split() or long.startswith(short + " ") or long.endswith(" " + short)
+    a_toks, b_toks = a.split(), b.split()
+    # "August Rent" / "Rent (April / May)" → Rent/Mortgage; "YNAB" → YNAB subscription
+    if a_toks and b_toks and a_toks[0] == b_toks[0] and a_toks[0] in {"rent", "ynab"}:
+        return True
     return False
 
 

@@ -295,6 +295,14 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertNotEqual(rent["flag"], "under")
         self.assertNotEqual(thais["flag"], "under")
 
+    def test_rent_parenthetical_joins_rent_category(self) -> None:
+        items = [_item("Rent (April / May / June / July / August)", 8400.0, "Coinbase")]
+        strip = build_planned_actual_strip(_snaps(items, []), _ac_map(), as_of=AS_OF)
+        rent = _row(strip, "Rent (April / May / June / July / August)")
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(rent["category_id"], RENT_ID)
+        self.assertEqual(rent["actual"], 0.0)
+
     def test_student_loan_citation_electric_water_not_yet(self) -> None:
         strip = build_planned_actual_strip(_snaps(_ac_items(), []), _ac_map(), as_of=AS_OF)
         for name, cid in (
