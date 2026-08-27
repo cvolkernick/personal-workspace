@@ -183,15 +183,28 @@
     return MONTHS[mo - 1];
   }
 
-  /** First slot of each YYYY-MM in the window (includes a mid-month start). */
+  /**
+   * Month starts in the window. A mid-month first slot is kept only when the
+   * next 1st is far enough away — otherwise May 30 sits on Jun 1.
+   */
   function monthTickIndexes(labels) {
-    var ticks = [];
+    var candidates = [];
     var prev = "";
     (labels || []).forEach(function (iso, i) {
       var ym = String(iso || "").slice(0, 7);
       if (!ym || ym === prev) return;
-      ticks.push(i);
+      candidates.push(i);
       prev = ym;
+    });
+    if (!candidates.length) return [];
+    var minGap = 12;
+    var ticks = [];
+    candidates.forEach(function (i, k) {
+      var next = k + 1 < candidates.length ? candidates[k + 1] : (labels || []).length;
+      if (k === 0 && next - i < minGap && candidates.length > 1) return;
+      var prevKept = ticks.length ? ticks[ticks.length - 1] : -minGap;
+      if (ticks.length && i - prevKept < minGap) return;
+      ticks.push(i);
     });
     return ticks;
   }

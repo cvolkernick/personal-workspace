@@ -174,11 +174,12 @@ assert(
 const ticks = azm.monthTickIndexes(present.labels);
 assert(ticks.length >= 3, "90d window has several month ticks");
 assert(azm.monthLabel(present.labels[0]) === "May", "window starts in May");
-assert(spark.indexOf(">May</text>") !== -1, "May tick");
+assert(spark.indexOf(">May</text>") === -1, "skip May 30 when it would sit on Jun 1");
 assert(spark.indexOf(">Jun</text>") !== -1, "Jun tick");
 assert(spark.indexOf(">Jul</text>") !== -1, "Jul tick");
 assert(spark.indexOf(">Aug</text>") !== -1, "Aug tick");
 assert((spark.match(/class="azm-x"/g) || []).length === ticks.length, "X labels are month ticks, not SMTWTFS");
+assert(ticks[0] > 0, "first kept tick is Jun 1, not the May 30 start");
 assert(spark.indexOf(">S</text>") === -1, "no weekday-letter X ticks on the 90d spark");
 assert(spark.indexOf("chart.js") === -1, "still an SVG spark, not Chart.js");
 assert(spark.indexOf("last 90 days") !== -1, "aria names the 90d window");
