@@ -46,7 +46,8 @@
     }
     header h1 { margin: 0; font-size: 1.2rem; font-weight: 650; letter-spacing: -0.02em; }
     header .sub { color: var(--muted); font-size: 0.85rem; }
-    button, .touch {
+    header .controls { display: flex; flex-wrap: wrap; gap: 0.45rem; align-items: center; }
+    button, .touch, a.btn {
       font: inherit;
       border-radius: 8px;
       border: 1px solid var(--border);
@@ -57,8 +58,12 @@
       cursor: pointer;
       min-height: 44px;
       min-width: 44px;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
-    button:hover { border-color: var(--accent); color: var(--accent); }
+    button:hover, a.btn:hover { border-color: var(--accent); color: var(--accent); }
     main { max-width: 1180px; margin: 0 auto; padding: 1rem 1.15rem 3rem; }
     .meta {
       color: var(--muted);
@@ -566,7 +571,10 @@
       <h1>Auto Fleet</h1>
       <div class="sub">Internal ops · five owned units</div>
     </div>
-    <button type="button" id="btn-refresh">Refresh</button>
+    <div class="controls">
+      <a class="btn" id="nav-fcc" href="http://127.0.0.1:8000/financial-command/index.html" title="Financial Command Center (same host)">FCC</a>
+      <button type="button" id="btn-refresh">Refresh</button>
+    </div>
   </header>
   <main>
     <p class="meta" id="status">Loading…</p>
@@ -1638,5 +1646,6 @@
     setInterval(load, 30 * 1000);
   </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="nav-fcc.js"></script>
 </body>
 </html>
