@@ -2802,11 +2802,13 @@ body.m-shell .quest-card {
 }
 
 .hidrate-bottle-charge .sb-fill-wrap {
+  display: block; /* markup is a span; height is ignored while inline */
   height: 56px;
   border-radius: 4px;
 }
 
 .hidrate-bottle-charge .sb-fill {
+  display: block;
   top: auto;
   right: 0;
   left: 0;

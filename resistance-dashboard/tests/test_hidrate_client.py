@@ -403,7 +403,7 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
         self.assertIn("hidrate-bottle.js?v=bottle-charge-5", html)
-        self.assertIn("styles.css?v=bottle-tall-1", html)
+        self.assertIn("styles.css?v=bottle-tall-2", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hidrate_bottle", js)
         self.assertIn("unavailable", js)
@@ -421,6 +421,11 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         hidrate_block = css[start : css.find(".pace-track", start)]
         self.assertIn("width: 32px;", hidrate_block)
         self.assertIn("height: 56px;", hidrate_block)
+        wrap_start = hidrate_block.find(".hidrate-bottle-charge .sb-fill-wrap {")
+        self.assertGreaterEqual(wrap_start, 0)
+        wrap_block = hidrate_block[wrap_start : hidrate_block.find("}", wrap_start) + 1]
+        self.assertIn("display: block;", wrap_block)
+        self.assertIn("height: 56px;", wrap_block)
         self.assertIn("height: 5px;", hidrate_block)
         self.assertIn("top: -5px;", hidrate_block)
         self.assertNotIn("width: 50px;", hidrate_block)
