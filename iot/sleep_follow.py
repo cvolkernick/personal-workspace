@@ -2,7 +2,7 @@
 
 After local sunset, poll FitDash Sleep Battery every N minutes and set configured
 target group(s) brightness to the battery % (brightness-only — no color change).
-When the battery hits 0%, turn those lights off and stop until the next evening.
+When the battery hits 0%, turn those lights off and stop until the next sunset.
 
 Follow continues **overnight past midnight until sunrise** while still active
 (so a 0% empty-at ~05:00 is still acted on — not frozen at the last dim %).
@@ -105,6 +105,56 @@ def follow_config(sched: Optional[Mapping[str, Any]] = None) -> dict[str, Any]:
         "fitdash_path": fitdash_path,
         "fitdash_service_token": str(token).strip(),
     }
+
+
+def _blank_follow(day: str) -> dict[str, Any]:
+    """Fresh follow-cycle state for a local civil day."""
+    return {
+        "day": day,
+        "active": False,
+        "done": False,
+        "last_poll_at": None,
+        "last_pct": None,
+        "last_brightness": None,
+        "last_error": None,
+        "activated_at": None,
+        "completed_at": None,
+    }
+
+
+def _parse_iso_dt(raw: Any, tz: Any) -> Optional[datetime]:
+    if not raw:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(raw))
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt.astimezone(tz)
+
+
+def done_blocks_until_next_sunset(
+    follow: Mapping[str, Any],
+    *,
+    now: datetime,
+    sunset: Optional[datetime],
+) -> bool:
+    """Whether a completed 0% cycle should still skip ticks.
+
+    Completing in the early morning of civil day D must not block sunset later
+    that same calendar day. Skip only until the next sunset after completed_at.
+    """
+    if not follow.get("done"):
+        return False
+    if sunset is None:
+        return True
+    completed = _parse_iso_dt(follow.get("completed_at"), now.tzinfo)
+    if completed is None:
+        return True
+    if now >= sunset and completed < sunset:
+        return False
+    return True
 
 
 def _parse_follow_state(state: Mapping[str, Any]) -> dict[str, Any]:
@@ -407,29 +457,28 @@ def tick_sleep_follow(
             )
             follow["day"] = day
         else:
-            follow = {
-                "day": day,
-                "active": False,
-                "done": False,
-                "last_poll_at": None,
-                "last_pct": None,
-                "last_brightness": None,
-                "last_error": None,
-                "activated_at": None,
-                "completed_at": None,
-            }
+            follow = _blank_follow(day)
 
     follow["day"] = day
 
     if follow.get("done") and not force:
-        save_state(_write_follow_state(state, follow), state_path)
-        return {
-            "ok": True,
-            "skipped": True,
-            "reason": "done_for_day",
-            "day": day,
-            "follow": follow,
-        }
+        sunset = _sun_moment(sched, "sunset", now=n) if loc else None
+        if done_blocks_until_next_sunset(follow, now=n, sunset=sunset):
+            save_state(_write_follow_state(state, follow), state_path)
+            return {
+                "ok": True,
+                "skipped": True,
+                "reason": "done_for_day",
+                "day": day,
+                "follow": follow,
+            }
+        # Morning 0% completion; tonight's sunset is a new cycle.
+        log.info(
+            "sleep_follow new evening after morning completion day=%s completed_at=%s",
+            day,
+            follow.get("completed_at"),
+        )
+        follow = _blank_follow(day)
 
     if not loc:
         follow["last_error"] = "no location — cannot know sunset"

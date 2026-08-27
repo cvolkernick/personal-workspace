@@ -174,6 +174,25 @@ class ScheduleTests(unittest.TestCase):
         self.assertIn("sunrise_office_off", ids)
         self.assertIn("sunset_plants_off", ids)
 
+    def test_shipped_sleep_follow_covers_dashboard_wiz_rooms(self) -> None:
+        sched = load_schedule(ROOT / "iot" / "schedule.json")
+        follow = sched.get("sleep_battery_follow") or {}
+        targets = set(follow.get("targets") or [])
+        self.assertTrue(
+            {
+                "masterbedroom",
+                "livingroom",
+                "entryway",
+                "masterbathroom",
+                "exterior",
+                "garage",
+            }.issubset(targets),
+            targets,
+        )
+        self.assertNotIn("plantlights", targets)
+        self.assertNotIn("office", targets)
+        self.assertNotIn("plugs", targets)
+
     def test_upcoming_has_both_triggers(self) -> None:
         items = upcoming_for_day(self._sched(), date(2026, 6, 21))
         triggers = {i["trigger"] for i in items}

@@ -11,10 +11,14 @@
     "target": "masterbedroom",
     "fitdash_url": "http://127.0.0.1:8787",
     "fitdash_path": "/api/sleep_battery",
-    "note": "After local sunset through overnight until sunrise: poll FitDash Sleep Battery every 15m; dim master bedroom + living room (color keep). At 0% turn those groups off and stop until next evening. Auth: loopback or FITDASH_SERVICE_TOKEN.",
+    "note": "After local sunset through overnight until sunrise: poll FitDash Sleep Battery every 15m; dim all dashboard Wiz room groups (color keep). At 0% turn those groups off and stop until the next sunset. Plugs (office, plant lights) stay on their own sunrise/sunset jobs — keep would turn them on. Auth: loopback or FITDASH_SERVICE_TOKEN.",
     "targets": [
       "masterbedroom",
-      "livingroom"
+      "livingroom",
+      "entryway",
+      "masterbathroom",
+      "exterior",
+      "garage"
     ]
   },
   "routines": [

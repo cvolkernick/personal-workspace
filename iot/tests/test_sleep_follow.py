@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 from iot.control import build_control_intent  # noqa: E402
 from iot.sleep_follow import (  # noqa: E402
     decide_action,
+    done_blocks_until_next_sunset,
     extract_sleep_battery,
     in_follow_window,
     pct_to_wiz_brightness,
@@ -368,6 +369,97 @@ class TickIntegrationTests(unittest.TestCase):
             self.assertFalse((r.get("follow") or {}).get("done"))
             self.assertEqual(calls[-1][0], "masterbedroom")
             self.assertEqual(calls[-1][1], "keep")
+
+    def test_morning_done_does_not_block_same_calendar_sunset(self) -> None:
+        """0% at 04:10 on day D must not skip sunset later that evening."""
+        tz = ZoneInfo("America/New_York")
+        sunset = datetime(2026, 8, 26, 19, 52, 45, tzinfo=tz)
+        now = datetime(2026, 8, 26, 21, 30, tzinfo=tz)
+        follow = {
+            "day": "2026-08-26",
+            "active": False,
+            "done": True,
+            "completed_at": "2026-08-26T04:10:26-04:00",
+        }
+        self.assertFalse(
+            done_blocks_until_next_sunset(follow, now=now, sunset=sunset)
+        )
+        # Same evening, already finished after sunset → still skip.
+        self.assertTrue(
+            done_blocks_until_next_sunset(
+                {
+                    **follow,
+                    "completed_at": "2026-08-26T20:15:00-04:00",
+                },
+                now=now,
+                sunset=sunset,
+            )
+        )
+
+        calls: list[tuple] = []
+
+        def control(target: str, color: str, brightness):
+            calls.append((target, color, brightness))
+            return {"ok": True}
+
+        def fetch(*, base_url, path, token):  # noqa: ARG001
+            return {"ok": True, "pct_charged": 55.0, "empty_at": None}
+
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            sched = {
+                "location": {
+                    "latitude": 26.6093,
+                    "longitude": -81.60184,
+                    "timezone": "America/New_York",
+                },
+                "sleep_battery_follow": {
+                    "enabled": True,
+                    "poll_minutes": 15,
+                    "targets": ["masterbedroom", "livingroom", "entryway"],
+                    "fitdash_url": "http://example.invalid",
+                },
+                "routines": [],
+            }
+            sp = td_path / "schedule.json"
+            st = td_path / "state.json"
+            sp.write_text(json.dumps(sched), encoding="utf-8")
+            st.write_text(
+                json.dumps(
+                    {
+                        "fired": {},
+                        "sleep_battery_follow": {
+                            "day": "2026-08-26",
+                            "active": False,
+                            "done": True,
+                            "last_poll_at": "2026-08-26T04:10:26-04:00",
+                            "last_pct": 0.0,
+                            "last_brightness": 0,
+                            "last_error": None,
+                            "activated_at": "2026-08-25T19:54:22-04:00",
+                            "completed_at": "2026-08-26T04:10:26-04:00",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            r = tick_sleep_follow(
+                control=control,
+                schedule_path=sp,
+                state_path=st,
+                now=now,
+                fetch_fn=fetch,
+                force=False,
+            )
+            self.assertTrue(r.get("ok"), r)
+            self.assertNotEqual(r.get("reason"), "done_for_day")
+            self.assertFalse((r.get("follow") or {}).get("done"))
+            self.assertEqual(
+                [c[0] for c in calls],
+                ["masterbedroom", "livingroom", "entryway"],
+            )
+            self.assertTrue(all(c[1] == "keep" for c in calls))
 
 
 if __name__ == "__main__":
