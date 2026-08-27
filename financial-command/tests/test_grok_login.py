@@ -175,6 +175,17 @@ class TestGrokLoginControl(unittest.TestCase):
         self.assertNotIn("~/.grok/auth.json", html)
         self.assertNotRegex(html, r"xai-[A-Za-z0-9]{8,}")
 
+    def test_ltv_tone_does_not_tdz_man(self) -> None:
+        """ltvTone runs before `const man` in render(); bare `man.` is a TDZ crash."""
+        html = INDEX.read_text(encoding="utf-8")
+        start = html.find("function ltvTone() {")
+        self.assertGreater(start, 0)
+        rest = html[start:]
+        end = re.search(r"\n      function ", rest)
+        body = rest[: end.start()] if end else rest[:1200]
+        self.assertIn("manSnap", body)
+        self.assertNotRegex(body, r"(?<![A-Za-z0-9_])man\.")
+
     def test_other_fcc_surfaces_have_no_header_grok_button(self) -> None:
         for name in ("capital-flows.html", "watchlist.html", "interest-spectrum.html"):
             html = (FCC / name).read_text(encoding="utf-8")
