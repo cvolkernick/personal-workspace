@@ -11,6 +11,8 @@ from unittest import mock
 from rt_dashboard.daily_plan_tasks import (
     PROTEIN_REMAINING_CACHE_KEY,
     PROTEIN_REMAINING_SLUG,
+    PROTECT_BEDTIME_CACHE_KEY,
+    PROTECT_BEDTIME_SLUG,
     PlannedGroup,
     PlannedItem,
     _delete_order,
@@ -19,10 +21,13 @@ from rt_dashboard.daily_plan_tasks import (
     collect_fitdash_quest_ids,
     collect_meal_plan_task_ids,
     collect_protein_remaining_tasks,
+    collect_sleep_quest_tasks,
     ensure_daily_tasks,
     is_meal_plan_owned_task,
     is_protein_remaining_owned_task,
+    is_sleep_owned_task,
     looks_like_protein_remaining_title,
+    looks_like_sleep_quest_title,
     meal_quest_notes,
     plan_from_today_board,
     plan_preview,
@@ -215,6 +220,21 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(quest_mark_day(notes), "2026-08-21")
         self.assertEqual(quest_mark_day(quest_notes("", "2026-08-21")), "2026-08-21")
         self.assertIsNone(quest_mark_day("just a jot"))
+        kinded = quest_notes("", "2026-08-26", kind_key="sleep|protect-bedtime")
+        self.assertIn("[fitdash-quest:2026-08-26]", kinded)
+        self.assertIn("[fitdash-kind:sleep|protect-bedtime]", kinded)
+
+    def test_meal_food_name_ignores_clock_colon(self):
+        from rt_dashboard.daily_plan_tasks import meal_food_name_from_title
+
+        self.assertEqual(
+            meal_food_name_from_title("Next meal · 12:00 PM: Chicken · 170g"),
+            "Chicken",
+        )
+        self.assertEqual(
+            meal_food_name_from_title("Later meal: Rice · 195g"),
+            "Rice",
+        )
 
     def test_collect_ids_marker_and_group_not_jots(self):
         tasks = [
@@ -903,11 +923,8 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(before_ids, {"old-meal"})
         self.assertTrue(set(regen["created"]).isdisjoint(before_ids))
 
-    def test_refresh_resync_recreates_meal_tasks_same_fp(self):
-        """Refresh / remaining-day title shift: same foods fp, meal GT ids rotate.
-
-        Assay #326: never triggered=false + empty purged while ids change.
-        """
+    def test_refresh_meal_title_shift_upserts_same_id(self):
+        """Same foods / same fp, slot label + clock change: upsert, no id rotate."""
         fp = "dddddddddddddddd"
         store = {
             "nut-h": {
@@ -990,6 +1007,19 @@ class TestDailyPlanTasks(unittest.TestCase):
                 return {"ok": False, "error": "missing"}
             return {"ok": True, "task": task}
 
+        def fake_update(list_id, task_id, title=None, notes=None, due=None, status=None, clear_due=False):
+            task = store.get(task_id)
+            if not task:
+                return {"ok": False, "error": "missing"}
+            if title is not None:
+                task["title"] = title
+            if notes is not None:
+                task["notes"] = notes
+            if status is not None:
+                task["status"] = status
+            store[task_id] = task
+            return {"ok": True, "task": task}
+
         board = {
             "date": "2026-08-24",
             "actions": [
@@ -1060,6 +1090,8 @@ class TestDailyPlanTasks(unittest.TestCase):
             ), mock.patch(
                 "rt_dashboard.daily_plan_tasks.gtb.get_task", side_effect=fake_get
             ), mock.patch(
+                "rt_dashboard.daily_plan_tasks.gtb.update_task", side_effect=fake_update
+            ), mock.patch(
                 "rt_dashboard.daily_plan_tasks.gtb.complete_task",
                 return_value={"ok": True},
             ), mock.patch(
@@ -1073,12 +1105,11 @@ class TestDailyPlanTasks(unittest.TestCase):
 
         self.assertTrue(result.get("ok"), result)
         regen = result.get("meal_regen") or {}
-        self.assertTrue(regen.get("triggered"), regen)
-        self.assertEqual(regen.get("reason"), "refresh_resync")
+        self.assertFalse(regen.get("triggered"), regen)
+        self.assertEqual(regen.get("purged") or [], [])
         self.assertEqual(regen.get("fingerprint"), fp)
         self.assertEqual(regen.get("prior_fingerprint"), fp)
-        self.assertIn("old-meal", regen.get("purged") or [])
-        self.assertNotIn("old-meal", store)
+        self.assertIn("old-meal", store)
         self.assertIn("jot", store)
         self.assertIn("lift", store)
         self.assertIn("shop", store)
@@ -1094,20 +1125,20 @@ class TestDailyPlanTasks(unittest.TestCase):
             for t in store.values()
             if is_meal_plan_owned_task(t, day="2026-08-24")
         ]
-        self.assertTrue(after_meal)
-        self.assertTrue(
-            all("Later meal" in (t.get("title") or "") for t in after_meal)
-        )
+        self.assertEqual(len(after_meal), 1)
+        self.assertEqual(after_meal[0]["id"], "old-meal")
+        self.assertIn("Later meal", after_meal[0]["title"])
+        self.assertIn("Chicken", after_meal[0]["title"])
         self.assertTrue(
             all("[fitdash-meal:2026-08-24]" in (t.get("notes") or "") for t in after_meal)
         )
         self.assertTrue(
             all(f"[fitdash-foods:{fp}]" in (t.get("notes") or "") for t in after_meal)
         )
-        self.assertTrue(regen.get("created"))
         self.assertEqual(before_ids, {"old-meal"})
-        self.assertTrue(set(regen["created"]).isdisjoint(before_ids))
-        self.assertFalse(regen.get("silent"))
+        self.assertFalse(
+            any(is_meal_plan_owned_task(t, day="2026-08-24") for t in created)
+        )
 
     def test_first_create_meal_tasks_stays_silent(self):
         """No owned meal GT → create is silent (not a Refresh resync)."""
@@ -1631,6 +1662,340 @@ class TestDailyPlanTasks(unittest.TestCase):
             )
         )
         self.assertIn("jot", store)
+
+    def test_sleep_slug_stable_without_id(self):
+        board = {
+            "date": "2026-08-26",
+            "actions": [
+                {
+                    "kind": "sleep",
+                    "text": (
+                        "Protect bedtime — battery 60.3% after wake 18:28."
+                    ),
+                },
+                {
+                    "kind": "sleep",
+                    "text": (
+                        "Protect bedtime — battery 81.7% after wake 18:28."
+                    ),
+                },
+            ],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        groups = plan_from_today_board(board, day="2026-08-26")
+        sleep = next(g for g in groups if g.group == "sleep")
+        bedtime = [
+            i for i in sleep.items if looks_like_sleep_quest_title(i.title)
+        ]
+        self.assertEqual(len(bedtime), 1)
+        self.assertEqual(bedtime[0].slug, PROTECT_BEDTIME_SLUG)
+        self.assertIn("60.3%", bedtime[0].title)
+
+    def test_hydrate_sleep_ignores_battery_in_title(self):
+        planned = [
+            PlannedGroup(
+                group="sleep",
+                title="Sleep & recovery",
+                items=[
+                    PlannedItem(
+                        group="sleep",
+                        slug=PROTECT_BEDTIME_SLUG,
+                        title="Protect bedtime — battery 81.7% after wake 18:28.",
+                    )
+                ],
+            )
+        ]
+        listed = {
+            "ok": True,
+            "tasks": [
+                {
+                    "id": "sleep-h",
+                    "title": "Sleep & recovery",
+                    "due": "2026-08-26T00:00:00.000Z",
+                    "notes": "[fitdash-quest:2026-08-26]",
+                },
+                {
+                    "id": "bed-old",
+                    "title": "Protect bedtime — battery 60.3% after wake 18:28.",
+                    "notes": "[fitdash-quest:2026-08-26]",
+                    "parent": "sleep-h",
+                    "due": "2026-08-26T00:00:00.000Z",
+                    "status": "needsAction",
+                },
+            ],
+        }
+        ids = _hydrate_ids_from_listed({}, planned, listed, "2026-08-26")
+        self.assertEqual(ids[PROTECT_BEDTIME_CACHE_KEY], "bed-old")
+
+    def test_sleep_owned_not_jot(self):
+        day = "2026-08-26"
+        task = {
+            "id": "s1",
+            "title": "Protect bedtime — battery 65.5% after wake 18:28.",
+            "notes": "[fitdash-quest:2026-08-26]",
+            "due": "2026-08-26T00:00:00.000Z",
+        }
+        jot = {
+            "id": "jot",
+            "title": "Protect bedtime someday",
+            "notes": "",
+            "due": "2026-08-26T00:00:00.000Z",
+        }
+        self.assertTrue(looks_like_sleep_quest_title(task["title"]))
+        self.assertTrue(is_sleep_owned_task(task, day=day))
+        self.assertTrue(looks_like_sleep_quest_title(jot["title"]))
+        self.assertFalse(is_sleep_owned_task(jot, day=day))
+
+    def _sleep_board(self, pct, extra_actions=None):
+        actions = list(extra_actions or [])
+        actions.append(
+            {
+                "kind": "sleep",
+                "text": (
+                    f"Protect bedtime — battery {pct}% after wake 18:28."
+                ),
+            }
+        )
+        return {
+            "date": "2026-08-26",
+            "actions": actions,
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+
+    def test_double_seed_sleep_stays_one(self):
+        store: dict = {}
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
+                second = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        incompletes = collect_sleep_quest_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        sleep_created = [
+            t
+            for t in created
+            if looks_like_sleep_quest_title(t.get("title") or "")
+        ]
+        self.assertEqual(len(sleep_created), 1)
+
+    def test_sleep_battery_change_upserts_same_id(self):
+        store: dict = {}
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(self._sleep_board(60.3), day="2026-08-26")
+                first_sleep = collect_sleep_quest_tasks(
+                    list(store.values()), day="2026-08-26", incomplete_only=True
+                )
+                first_id = first_sleep[0]["id"]
+                second = ensure_daily_tasks(self._sleep_board(81.7), day="2026-08-26")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        incompletes = collect_sleep_quest_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        self.assertEqual(incompletes[0]["id"], first_id)
+        self.assertIn("81.7%", incompletes[0]["title"])
+        self.assertNotIn("60.3%", incompletes[0]["title"])
+        sleep_created = [
+            t
+            for t in created
+            if looks_like_sleep_quest_title(t.get("title") or "")
+        ]
+        self.assertEqual(len(sleep_created), 1)
+
+    def test_refresh_collapses_sleep_duplicates(self):
+        store = {
+            "sleep-h": {
+                "id": "sleep-h",
+                "title": "Sleep & recovery",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-a": {
+                "id": "s-a",
+                "title": "Protect bedtime — battery 60.3% after wake 18:28.",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-b": {
+                "id": "s-b",
+                "title": "Protect bedtime — battery 65.5% after wake 18:28.",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-c": {
+                "id": "s-c",
+                "title": "Protect bedtime — battery 70.9% after wake 18:28.",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "lift": {
+                "id": "lift",
+                "title": "Complete today's PUSH session",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "protein": {
+                "id": "protein",
+                "title": "Cover remaining protein (~40 g) from the meal plan",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Text the vet",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(
+                    self._sleep_board(
+                        81.7,
+                        extra_actions=[
+                            {
+                                "kind": "training",
+                                "text": "Complete today's PUSH session",
+                                "id": "train-session",
+                            },
+                            {
+                                "kind": "nutrition",
+                                "text": (
+                                    "Cover remaining protein (~40 g) from the "
+                                    "meal plan"
+                                ),
+                                "id": "protein-remaining",
+                            },
+                        ],
+                    ),
+                    day="2026-08-26",
+                )
+        self.assertTrue(result.get("ok"), result)
+        incompletes = collect_sleep_quest_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(incompletes), 1)
+        self.assertIn("81.7%", incompletes[0]["title"])
+        self.assertIn("lift", store)
+        self.assertIn("protein", store)
+        self.assertIn("jot", store)
+        self.assertEqual(store["jot"]["title"], "Text the vet")
+        self.assertEqual(
+            store["protein"]["title"],
+            "Cover remaining protein (~40 g) from the meal plan",
+        )
+        self.assertFalse(
+            any(
+                looks_like_sleep_quest_title(t.get("title") or "")
+                for t in created
+            )
+        )
+
+    def test_completed_sleep_not_resurrected(self):
+        store = {
+            "s-done": {
+                "id": "s-done",
+                "title": "Protect bedtime — battery 60.3% after wake 18:28.",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "completed",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Call mom",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(self._sleep_board(81.7), day="2026-08-26")
+        self.assertTrue(result.get("ok"), result)
+        self.assertIn("s-done", store)
+        self.assertEqual(store["s-done"]["status"], "completed")
+        self.assertIn("60.3%", store["s-done"]["title"])
+        incompletes = collect_sleep_quest_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(incompletes, [])
+        self.assertFalse(
+            any(
+                looks_like_sleep_quest_title(t.get("title") or "")
+                for t in created
+            )
+        )
+        self.assertIn("jot", store)
+
+    def test_lift_weight_change_upserts_same_id(self):
+        def _lift_board(weight):
+            return {
+                "date": "2026-08-26",
+                "actions": [],
+                "workout": {
+                    "is_rest_day": False,
+                    "exercises": [
+                        {
+                            "name": "DB Press",
+                            "sets": 3,
+                            "reps": 10,
+                            "weight_lbs": weight,
+                        }
+                    ],
+                },
+                "meal": {"meals": [], "items": []},
+                "purchases": [],
+            }
+
+        store: dict = {}
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(_lift_board(50), day="2026-08-26")
+                lift_ids = [
+                    t["id"]
+                    for t in store.values()
+                    if "DB Press" in (t.get("title") or "")
+                    and t.get("status") != "completed"
+                ]
+                self.assertEqual(len(lift_ids), 1)
+                first_id = lift_ids[0]
+                second = ensure_daily_tasks(_lift_board(55), day="2026-08-26")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        lifts = [
+            t
+            for t in store.values()
+            if "DB Press" in (t.get("title") or "")
+            and t.get("status") != "completed"
+        ]
+        self.assertEqual(len(lifts), 1)
+        self.assertEqual(lifts[0]["id"], first_id)
+        self.assertIn("55 lb", lifts[0]["title"])
+        self.assertNotIn("50 lb", lifts[0]["title"])
 
 
 if __name__ == "__main__":

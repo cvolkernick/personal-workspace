@@ -535,6 +535,7 @@ def build_today_board(
     if rec_label == "rest":
         actions.append(
             {
+                "id": "train-session",
                 "kind": "training",
                 "priority": 1,
                 "text": "Rest / recover today — skip heavy lifting; optional walk or mobility.",
@@ -544,6 +545,7 @@ def build_today_board(
     elif rec_label == "easy":
         actions.append(
             {
+                "id": "train-session",
                 "kind": "training",
                 "priority": 1,
                 "text": (
@@ -558,6 +560,7 @@ def build_today_board(
         n_ex = len(exercises)
         actions.append(
             {
+                "id": "train-session",
                 "kind": "training",
                 "priority": 1,
                 "text": f"Complete today's {st} session ({n_ex} lifts as prescribed).",
@@ -594,6 +597,7 @@ def build_today_board(
         top = purchases[0]
         actions.append(
             {
+                "id": "shop-top",
                 "kind": "shopping",
                 "priority": 4,
                 "text": (
@@ -608,6 +612,7 @@ def build_today_board(
     if bat.get("mode") == "awake" and float(bat.get("pct_charged") or 100) < 30:
         actions.append(
             {
+                "id": "protect-bedtime",
                 "kind": "sleep",
                 "priority": 2,
                 "text": (
@@ -620,6 +625,7 @@ def build_today_board(
     elif bat.get("mode") == "awake":
         actions.append(
             {
+                "id": "protect-bedtime",
                 "kind": "sleep",
                 "priority": 5,
                 "text": (
@@ -635,6 +641,7 @@ def build_today_board(
     if isinstance(pacing, dict) and pacing.get("status") == "ahead":
         actions.append(
             {
+                "id": "calorie-pace",
                 "kind": "nutrition",
                 "priority": 3,
                 "text": "Calorie pace is ahead of the waking window — slow intake until the next meal slot.",
@@ -644,6 +651,7 @@ def build_today_board(
     elif isinstance(pacing, dict) and pacing.get("status") == "behind" and rem.get("calories", 0) > 400:
         actions.append(
             {
+                "id": "calorie-pace",
                 "kind": "nutrition",
                 "priority": 3,
                 "text": "Calorie pace is behind — don't skip planned meals if macros still remain.",
