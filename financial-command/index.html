@@ -2138,7 +2138,7 @@
         <span class="hint" id="planned-actual-asof">display only</span>
       </div>
       <p class="hint" id="planned-actual-note" style="margin:0.15rem 0 0.4rem">
-        Sheet monthly vs this-month in-map spend by payee. two-charge, cadence-lump, and payment-shaped are billing shape, not lifestyle over.
+        Personal/Essential, Fleet, and Collateral sheet monthly vs this-month in-map spend by payee. two-charge, cadence-lump, and payment-shaped are billing shape, not lifestyle over.
       </p>
       <div id="planned-actual-strip" class="pa-strip">
         <p class="hint">Loading planned vs actual…</p>
@@ -4902,10 +4902,11 @@
             (flag === "off-book From" || flag === "payment-shaped") && r.from
               ? `From=${escapeHtml(r.from)}`
               : escapeHtml(r.category_name || "");
+          const meta = [r.tab ? escapeHtml(r.tab) : "", fromBit].filter(Boolean).join(" · ");
           return (
-            `<div class="pa-row" data-flag="${escapeHtml(flag)}">` +
+            `<div class="pa-row" data-flag="${escapeHtml(flag)}" data-tab="${escapeHtml(r.tab || "")}">` +
             `<div><div class="name">${escapeHtml(r.item || "—")}</div>` +
-            `<div class="meta">${fromBit}</div></div>` +
+            `<div class="meta">${meta}</div></div>` +
             `<div class="amt"><span class="lab">planned</span>${money(r.planned)}</div>` +
             `<div class="amt"><span class="lab">actual</span>${money(r.actual)}</div>` +
             `<span class="pa-flag ${plannedActualFlagClass(flag)}">${escapeHtml(flag)}</span>` +

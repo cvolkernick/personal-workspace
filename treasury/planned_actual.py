@@ -584,8 +584,9 @@ def build_planned_actual_strip(
             "skipped_leftover_txs": skipped_leftover,
         },
         "notes": (
-            "Display only. planned = sheet monthly; actual = this-month YNAB "
-            "in-map spend by payee. two-charge and cadence-lump are not lifestyle over."
+            "Display only. planned = Essential/Fleet/Collateral sheet monthly; "
+            "actual = this-month YNAB in-map spend by payee. "
+            "two-charge, cadence-lump, and payment-shaped are not lifestyle over."
         ),
     }
 

@@ -22,6 +22,7 @@ from treasury.planned_actual import (  # noqa: E402
     FLAG_TWO_CHARGE,
     FLAGS,
     build_planned_actual_strip,
+    discover_planned_tabs,
     is_skipped_tx,
     names_join,
 )
@@ -436,6 +437,80 @@ class TestFlagEnumAndJoin(unittest.TestCase):
     def test_asic_not_aliased_to_fleet_opex(self) -> None:
         self.assertFalse(names_join("ASIC", "ASIC Fleet OpEx"))
         self.assertTrue(names_join("ASIC Fleet OpEx", "ASIC Fleet OpEx"))
+
+    def test_discover_planned_tabs_from_sheet_names_not_invented(self) -> None:
+        """Sheet tab titles (probed): Essential/Personal, Fleet, Collateral."""
+        found = [k for k, _ in discover_planned_tabs({
+            "Essential": {"role": "upcoming_expense_estimates", "items": []},
+            "Fleet": {"role": "fleet_ops", "items": []},
+            "Collateral": {"role": "collateral_investments", "items": []},
+            "Productive Discretionary": {"role": "productive_capital_outlay", "items": []},
+            "Consumer Discretionary": {"role": "consumer_wishlist", "items": []},
+        })]
+        self.assertEqual(found, ["Essential", "Fleet", "Collateral"])
+
+        personal_only = discover_planned_tabs({
+            "Personal": {"role": "upcoming_expense_estimates", "items": []},
+            "Discretionary": {"role": "excess_capital_targets", "items": []},
+        })
+        self.assertEqual([k for k, _ in personal_only], ["Personal"])
+
+        no_collateral = [k for k, _ in discover_planned_tabs({
+            "Essential": {"role": "upcoming_expense_estimates", "items": []},
+            "Fleet": {"role": "fleet_ops", "items": []},
+            "Productive Discretionary": {"role": "productive_capital_outlay", "items": []},
+        })]
+        self.assertEqual(no_collateral, ["Essential", "Fleet"])
+        self.assertNotIn("Collateral", no_collateral)
+
+    def test_personal_legacy_tab_still_renders_fleet_loans(self) -> None:
+        """AC 2: fleet loans on planned tabs are rows, not 'never render'."""
+        items = [
+            _item("Rent", 2090.0, "Coinbase"),
+            _item("Santander (June / July / August)", 1082.52, "X Money"),
+            _item("Capital One (June / July / August)", 1121.55, "X Money"),
+        ]
+        leftover = [
+            _tx(payee="Santander", amount=-1082.52, category_name="Uncategorized"),
+            _tx(
+                payee="Capital One",
+                amount=-1121.55,
+                transfer_account_id="xfer",
+                category_name="Uncategorized",
+            ),
+        ]
+        cmap = _map(
+            *_ac_map()["categories"],
+            _cat("sant", "Santander"),
+            _cat("cap", "Capital One"),
+        )
+        snaps = {
+            "expenses": {
+                "sheet_id": "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
+                "sheet_name": "Personal Expense Sheet",
+                "tabs": {
+                    "Personal": {"items": items, "role": "upcoming_expense_estimates"},
+                    "Discretionary": {
+                        "role": "excess_capital_targets",
+                        "items": [_item("ASIC", 2500.0, None), _item("Robot Vac", 0.0, None)],
+                    },
+                },
+            },
+            "x_money": {"transactions": leftover, "source": "ynab"},
+            "one_card": {"transactions": [], "source": "ynab"},
+            "rh_checking": {"transactions": [], "source": "ynab"},
+        }
+        strip = build_planned_actual_strip(snaps, cmap, as_of=AS_OF)
+        names = {r["item"] for r in strip["rows"]}
+        self.assertIn("Santander (June / July / August)", names)
+        self.assertIn("Capital One (June / July / August)", names)
+        self.assertNotIn("ASIC", names)
+        self.assertNotIn("Robot Vac", names)
+        sant = _row(strip, "Santander (June / July / August)")
+        self.assertEqual(sant["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(sant["actual"], 0.0)
+        self.assertAlmostEqual(sant["planned"], 1082.52)
+        self.assertEqual(sant["tab"], "Personal")
 
     def test_rent_thais_ignore_one_card_and_x_money_txs(self) -> None:
         txs = [
