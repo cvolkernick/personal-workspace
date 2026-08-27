@@ -485,20 +485,26 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
         self.assertIn("hidrate-bottle.js?v=bottle-charge-7", html)
-        self.assertIn("styles.css?v=bottle-sideways-1", html)
+        self.assertIn("styles.css?v=hydration-meta-bottom-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hydration-pacing-header-end", html)
-        section = html[
-            html.find('id="hydration-pacing-section"') : html.find(
-                'id="hydration-pacing-summary"'
+        header_end = html[
+            html.find("hydration-pacing-header-end") : html.find(
+                'id="hydration-pacing-track"'
             )
         ]
-        self.assertIn('id="hidrate-bottle-charge"', section)
-        self.assertIn("hydration-pacing-meta", section)
+        self.assertIn('id="hidrate-bottle-charge"', header_end)
+        self.assertNotIn("hydration-pacing-meta", header_end)
         self.assertLess(
             html.find('id="hidrate-bottle-charge"'),
             html.find('id="hydration-pacing-summary"'),
         )
+        self.assertGreater(
+            html.find('id="hydration-pacing-meta"'),
+            html.find('id="hydration-pacing-summary"'),
+        )
+        self.assertIn("hydration-pacing-footer", html)
+        self.assertIn(".hydration-pacing-footer", css)
         self.assertIn("hidrate_bottle", js)
         self.assertIn("bottlesFrom", js)
         self.assertIn("unavailable", js)
