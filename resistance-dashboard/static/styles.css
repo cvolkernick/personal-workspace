@@ -2773,9 +2773,18 @@ body.m-shell .quest-card {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0.45rem 0.75rem;
   margin-left: auto;
+}
+
+/* Wake / bed / % window / paced / target lives under the bar — not next to bottles. */
+.hydration-pacing-footer {
+  display: block;
+  width: 100%;
+  margin: 0.35rem 0 0;
+  line-height: 1.4;
+  white-space: normal;
 }
 
 .hbb-row {
