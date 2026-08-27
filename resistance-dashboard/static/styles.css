@@ -3205,26 +3205,29 @@ body.m-shell .quest-card {
   line-height: 1.35;
 }
 
-/* #299 Trends weekly AZM — compact 7d trailing sum + optional sparkline */
+/* #392 Trends AZM — 90d spark + 7d rolling avg chip (stacked so the spark can breathe) */
 .azm-week-row {
   display: flex;
+  flex-direction: column;
   align-items: stretch;
-  gap: 0.75rem;
+  gap: 0.65rem;
   margin-top: 0.5rem;
 }
 .azm-week-row .chart-summary-chip {
   flex: 0 0 auto;
   min-width: 8.5rem;
+  max-width: 12rem;
 }
 .azm-spark {
   flex: 1 1 auto;
-  min-height: 56px;
+  min-height: 80px;
+  width: 100%;
   display: flex;
   align-items: center;
 }
 .azm-spark-svg {
   width: 100%;
-  height: 56px;
+  height: 80px;
   display: block;
 }
 

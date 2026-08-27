@@ -500,18 +500,19 @@ class GoogleHealthClient:
             data = self.daily_rollup("total-calories", days=min(days, chunk))
             return parse_total_calories_rollup(data)
 
-    def fetch_active_zone_minutes(self, days: int = 14) -> List[ActiveZoneMinutesDay]:
+    def fetch_active_zone_minutes(self, days: int = 90) -> List[ActiveZoneMinutesDay]:
         """Activity AZM — needs activity_and_fitness.readonly (already granted).
 
-        Proof-first (#299): dailyRollUp('active-zone-minutes') for 7–14 civil
-        days, chunked like total-calories. AZM is not in Google's 14d-only
-        calories list (90d windows are allowed) but we still chunk for safety.
+        Trends #392 needs 90 civil days of real dailyRollUp points. Google
+        often caps a single dailyRollUp window (~14d), so we walk backward in
+        chunks like total-calories. AZM is not in Google's 14d-only calories
+        list (90d windows are allowed) but we still chunk for safety.
 
         Honest empty list when the rollup is missing. Never substitutes
         com.google.heart_minutes, com.google.active_minutes, steps, or burned
         kcal. Filter hint on DailyRollupDataPoint is ``active_zone_minutes``.
         """
-        days = max(1, min(int(days), 14))
+        days = max(1, min(int(days), 90))
         chunk = 14
         try:
             if days <= chunk:
@@ -567,8 +568,8 @@ class GoogleHealthClient:
             return self.fetch_calories_burned(days=days)
 
         def _azm() -> List[ActiveZoneMinutesDay]:
-            # Proof-first window is 7–14d even when the snapshot asks for 90d.
-            return self.fetch_active_zone_minutes(days=min(max(1, int(days)), 14))
+            # Same requested window as the snapshot (capped at 90 inside fetch).
+            return self.fetch_active_zone_minutes(days=min(max(1, int(days)), 90))
 
         jobs = {
             "weight": _weight,

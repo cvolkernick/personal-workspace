@@ -1,6 +1,6 @@
-"""FitDash #299: Trends weekly AZM (7d trailing sum) overlay.
+"""FitDash #392: Trends AZM (90d + 7d rolling avg + trendline) overlay.
 
-UI only. Reads existing HealthSnapshot.active_zone_minutes (#304/#318).
+UI + fetch window. Reads existing HealthSnapshot.active_zone_minutes (#304/#318).
 Missing → honest —. Never invents from steps / burned kcal.
 Does not gate Generate workout, meal generate, or rest_gate.
 """
@@ -33,8 +33,12 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertIn('id="azm-week-value"', HTML)
         self.assertIn('id="azm-sparkline"', HTML)
         self.assertIn('id="azm-trend-note"', HTML)
-        self.assertIn("Active Zone Minutes · 7d", HTML)
-        self.assertIn("/trends-azm.js?v=azm-week-2", HTML)
+        self.assertIn("Active Zone Minutes · 90d", HTML)
+        self.assertIn("7d rolling avg", HTML)
+        self.assertIn("/trends-azm.js?v=azm-90d-1", HTML)
+        self.assertNotIn("Active Zone Minutes · 7d", HTML)
+        self.assertNotIn("7d trailing sum", HTML)
+        self.assertNotIn("Weekly AZM", HTML)
         sleep_idx = HTML.find('id="sleep-trend-card"')
         azm_idx = HTML.find('id="azm-trend-card"')
         cal_idx = HTML.find('id="calories-macros-charts"')
@@ -45,20 +49,29 @@ class TrendsAzmMarkup(unittest.TestCase):
         self.assertNotIn("<canvas", azm_card)
         self.assertIn('id="azm-sparkline"', azm_card)
 
-    def test_weekly_is_7d_trailing_sum(self):
-        self.assertIn("var SPAN_DAYS = 7;", OVERLAY)
-        self.assertIn("7d trailing sum", OVERLAY)
+    def test_series_is_90d_rolling_avg_and_trendline(self):
+        self.assertIn("var SPAN_DAYS = 90;", OVERLAY)
+        self.assertIn("var ROLL_DAYS = 7;", OVERLAY)
+        self.assertIn("7d rolling avg", OVERLAY)
         self.assertIn("total_minutes", OVERLAY)
         self.assertIn("health.active_zone_minutes", OVERLAY)
         self.assertIn('return "—";', OVERLAY)
-        self.assertIn("weeklySum", OVERLAY)
+        self.assertIn("lastRolling7", OVERLAY)
+        self.assertIn("linearTrend", OVERLAY)
+        self.assertIn("rollingAverage", OVERLAY)
         self.assertIn("sparklineSvg", OVERLAY)
         self.assertIn('data-y-min="0"', OVERLAY)
-        self.assertIn("weekdayLetter", OVERLAY)
+        self.assertIn("monthTickIndexes", OVERLAY)
+        self.assertIn("azm-trend", OVERLAY)
+        self.assertIn("azm-roll", OVERLAY)
+        self.assertNotIn("7d trailing sum", OVERLAY)
+        self.assertNotIn("var SPAN_DAYS = 7;", OVERLAY)
+        self.assertNotIn("weeklySum", OVERLAY)
         self.assertNotIn("(v - min)", OVERLAY)
 
     def test_honest_empty_not_invented(self):
-        self.assertIn("No Active Zone Minutes in the last 7 days.", OVERLAY)
+        self.assertIn("No Active Zone Minutes in the last 90 days.", OVERLAY)
+        self.assertNotIn("No Active Zone Minutes in the last 7 days.", OVERLAY)
         lowered = OVERLAY.lower()
         for needle in (
             "heart_minutes",
@@ -114,7 +127,10 @@ class TrendsAzmSourceLock(unittest.TestCase):
         self.assertIn("def fetch_active_zone_minutes", GH)
         self.assertIn('daily_rollup("active-zone-minutes"', GH)
         self.assertIn("parse_active_zone_minutes_rollup", GH)
+        self.assertIn("min(int(days), 90)", GH)
+        self.assertNotIn("min(int(days), 14)", GH)
         self.assertNotIn("return []  # stub", GH)
+        self.assertNotIn("Proof-first window is 7–14d", GH)
 
     def test_no_secrets(self):
         blob = OVERLAY + HTML
@@ -160,10 +176,10 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertIn("resistance-dashboard/", paths)
 
     def test_cache_bumped(self):
-        self.assertIn("/trends-azm.js?v=azm-week-2", HTML)
-        self.assertIn("styles.css?v=azm-spark-1", HTML)
-        self.assertIn('const CACHE = "fitdash-shell-v72"', SW)
-        self.assertIn("/styles.css?v=azm-spark-1", SW)
+        self.assertIn("/trends-azm.js?v=azm-90d-1", HTML)
+        self.assertIn("styles.css?v=azm-90d-1", HTML)
+        self.assertIn('const CACHE = "fitdash-shell-v73"', SW)
+        self.assertIn("/styles.css?v=azm-90d-1", SW)
         self.assertNotIn("fitdash-shell-v60", SW)
         self.assertNotIn("fitdash-shell-v61", SW)
         self.assertNotIn("fitdash-shell-v62", SW)
@@ -176,7 +192,10 @@ class HobbyAndIgnoreLock(unittest.TestCase):
         self.assertNotIn("fitdash-shell-v69", SW)
         self.assertNotIn("fitdash-shell-v70", SW)
         self.assertNotIn("fitdash-shell-v71", SW)
+        self.assertNotIn("fitdash-shell-v72", SW)
         self.assertNotIn("azm-week-1", HTML)
+        self.assertNotIn("azm-week-2", HTML)
+        self.assertNotIn("azm-spark-1", HTML)
         self.assertNotIn("calorie-meta-bottom-1", HTML)
         self.assertNotIn("calorie-meta-bottom-1", SW)
 
