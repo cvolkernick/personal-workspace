@@ -299,6 +299,7 @@ class FormatTests(unittest.TestCase):
         self.assertIn('id="fleet-map"', html)
         self.assertIn("setInterval(load, 30 * 1000)", html)
         self.assertIn("max-width: 390px", html)
+        self.assertIn("grid-template-columns: repeat(5, minmax(0, 1fr))", html)
         self.assertIn("grid-template-columns: 1fr 1fr", html)
         self.assertIn("min-height: 44px", html)
         self.assertNotIn("SafeWheels", html)
