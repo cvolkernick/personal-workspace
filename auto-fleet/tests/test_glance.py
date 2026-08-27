@@ -304,7 +304,8 @@ class FormatTests(unittest.TestCase):
         self.assertIn("min-height: 44px", html)
         self.assertNotIn("SafeWheels", html)
         self.assertNotIn("Mercury", html)
-        self.assertNotIn("FCC", html)
+        self.assertIn('id="nav-fcc"', html)
+        self.assertNotIn("<iframe", html.lower())
         self.assertNotIn("TREAD", html.replace("not TREAD", ""))
 
     def test_photos_are_chris_listing_stills(self) -> None:
