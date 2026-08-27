@@ -11,6 +11,8 @@ Serves static UI + APIs:
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
   GET  /api/ask/status    — Ask Grok financial advisor auth + model
+  POST /api/ask/login     — start existing `grok login --device-auth` (no secrets)
+  GET  /api/ask/login     — poll grok CLI login (public fields only)
   POST /api/ask           — {question} ask Grok about FCC/treasury domain
   POST /api/config     — merge-save manual fields / policy
   POST /api/refresh    — re-run treasury evaluation (live Coinbase)
@@ -72,6 +74,8 @@ from treasury.financial_advisor import (  # noqa: E402
     AdvisorError,
     ask_financial_advisor,
     auth_status as advisor_auth_status,
+    grok_login_status,
+    start_grok_login,
 )
 from treasury.financial_coach import (  # noqa: E402
     build_coach_plan,
@@ -702,6 +706,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
             return
+        if path in ("/api/ask/login", "/api/advisor/login"):
+            try:
+                self._json(200, grok_login_status())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e), "phase": "fail"})
+            return
         if path in ("/", "/financial-command", "/financial-command/"):
             self.path = "/financial-command/index.html"
         elif path in ("/financial-command/watchlist", "/financial-command/watchlist/"):
@@ -759,6 +769,13 @@ class FCCHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self) -> None:  # noqa: N802
         path = urlparse(self.path).path
+        if path in ("/api/ask/login", "/api/advisor/login"):
+            try:
+                result = start_grok_login()
+                self._json(200, result)
+            except Exception as e:
+                self._json(500, {"ok": False, "phase": "fail", "error": str(e)})
+            return
         if path in ("/api/ask", "/api/advisor"):
             body = self._read_json()
             question = (body.get("question") or body.get("q") or "").strip()
