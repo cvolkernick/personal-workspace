@@ -540,6 +540,48 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(rent["actual"], 0.0)
         self.assertEqual(thais["actual"], 0.0)
         self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
+
+    def test_rent_thais_locked_even_if_sheet_from_drifted(self) -> None:
+        items = [
+            _item("Rent", 2090.0, "X Money"),
+            _item("Thaís", 900.0, "Coinbase One Card"),
+        ]
+        txs = [
+            _tx(payee="Rent", amount=-2090.0, category_id=RENT_ID, category_name="Rent"),
+            _tx(payee="Thaís", amount=-900.0, category_id=THAIS_ID, category_name="Thaís"),
+        ]
+        snaps = _snaps(items, [])
+        snaps["x_money"] = {"transactions": txs, "source": "ynab"}
+        snaps["one_card"] = {
+            "transactions": [
+                _tx(
+                    payee="August Rent",
+                    amount=-2090.0,
+                    category_id=RENT_ID,
+                    category_name="Rent",
+                    tx_id="one-card-aug-rent",
+                )
+            ],
+            "source": "ynab",
+        }
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        for name in ("Rent", "Thaís"):
+            row = _row(strip, name)
+            self.assertEqual(row["flag"], FLAG_OFF_BOOK, name)
+            self.assertEqual(row["actual"], 0.0, name)
+            self.assertEqual(row["from"], COINBASE_USDC_LABEL, name)
+            self.assertEqual(row["from_venue"], COINBASE_USDC_LABEL, name)
+            self.assertNotEqual(row["flag"], "under", name)
+        aug = build_planned_actual_strip(
+            _snaps([_item("August Rent", 2090.0, "RH Checking")], txs),
+            _ac_map(),
+            as_of=AS_OF,
+        )
+        row = _row(aug, "August Rent")
+        self.assertEqual(row["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(row["actual"], 0.0)
+        self.assertEqual(row["from"], COINBASE_USDC_LABEL)
 
     def test_flag_enum_only(self) -> None:
         txs = [

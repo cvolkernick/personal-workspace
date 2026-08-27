@@ -42,6 +42,8 @@ FLAGS = (
 # YNAB-synced pay-from venues. Coinbase USDC / NFCU / Zelle are off-book.
 YNAB_SYNCED_VENUES = frozenset({"x_money", "rh_checking"})
 COINBASE_USDC_LABEL = "Coinbase USDC"
+# Chris venue lock: these items are Coinbase USDC custodial send until a Coinbase book exists.
+_COINBASE_USDC_ITEM_FIRST = frozenset({"rent", "thais"})
 
 # Never render: One Card payment-as-payment, RH Gold remnant.
 _OFF_MAP_ITEM_NEEDLES = (
@@ -188,6 +190,21 @@ def is_off_map_item(item_name: Any) -> bool:
     return any(n in key for n in _OFF_MAP_ITEM_NEEDLES)
 
 
+def _ascii_item_key(val: Any) -> str:
+    """Join key with accents stripped so Thaís → thais."""
+    key = item_match_key(val)
+    folded = unicodedata.normalize("NFKD", key)
+    return "".join(c for c in folded if not unicodedata.combining(c))
+
+
+def is_coinbase_usdc_item(item_name: Any) -> bool:
+    """Rent and Thaís are Coinbase USDC, even if the sheet From drifted."""
+    key = _ascii_item_key(item_name)
+    if not key:
+        return False
+    return key.split()[0] in _COINBASE_USDC_ITEM_FIRST
+
+
 def is_coinbase_usdc_from(from_label: Any) -> bool:
     """Coinbase USDC custodial send — not One Card, not X Money."""
     raw = str(from_label or "").strip()
@@ -215,6 +232,14 @@ def is_off_book_from(from_label: Any) -> bool:
 def from_display(from_label: Any) -> str:
     raw = str(from_label or "").strip()
     if is_coinbase_usdc_from(raw):
+        return COINBASE_USDC_LABEL
+    return raw
+
+
+def locked_from_label(item: Dict[str, Any]) -> str:
+    """Sheet From, or Coinbase USDC when the item is venue-locked."""
+    raw = str(item.get("from") or item.get("pay_from") or "").strip()
+    if is_coinbase_usdc_item(item.get("item") or item.get("name")):
         return COINBASE_USDC_LABEL
     return raw
 
@@ -475,7 +500,7 @@ def _row_payload(
     tx_count: int,
     month: date,
 ) -> Dict[str, Any]:
-    from_label = item.get("from") or item.get("pay_from") or ""
+    from_label = locked_from_label(item)
     payload = {
         "item": item.get("item") or item.get("name"),
         "tab": item.get("tab"),
@@ -522,10 +547,12 @@ def build_planned_actual_strip(
         if cat is None:
             continue
         planned = _f(item.get("monthly"))
-        from_label = item.get("from") or item.get("pay_from")
-        off_book = is_off_book_from(from_label)
+        from_label = locked_from_label(item)
+        coinbase_usdc = is_coinbase_usdc_item(item.get("item")) or is_coinbase_usdc_from(
+            from_label
+        )
+        off_book = coinbase_usdc or is_off_book_from(from_label)
         # Coinbase USDC custodial send: never count One Card / X Money txs as actual.
-        coinbase_usdc = is_coinbase_usdc_from(from_label)
         payment_hits = 0
         matched: List[Dict[str, Any]] = []
         if not off_book and not coinbase_usdc:
@@ -538,9 +565,6 @@ def build_planned_actual_strip(
                     payment_hits += 1
                     continue
                 if not is_spend_tx(tx):
-                    continue
-                # Never treat One Card feed as Coinbase USDC actuals.
-                if tx.get("_feed") == "one_card":
                     continue
                 matched.append(tx)
         payment_shaped = (
