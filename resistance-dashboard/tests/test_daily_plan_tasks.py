@@ -13,6 +13,8 @@ from rt_dashboard.daily_plan_tasks import (
     PROTEIN_REMAINING_SLUG,
     PROTECT_BEDTIME_CACHE_KEY,
     PROTECT_BEDTIME_SLUG,
+    SLEEP_BATTERY_LOW_CACHE_KEY,
+    SLEEP_BATTERY_LOW_SLUG,
     PlannedGroup,
     PlannedItem,
     _delete_order,
@@ -20,13 +22,19 @@ from rt_dashboard.daily_plan_tasks import (
     cache_key,
     collect_fitdash_quest_ids,
     collect_meal_plan_task_ids,
+    collect_protect_bedtime_tasks,
     collect_protein_remaining_tasks,
+    collect_sleep_battery_low_tasks,
     collect_sleep_quest_tasks,
     ensure_daily_tasks,
     is_meal_plan_owned_task,
+    is_protect_bedtime_owned_task,
     is_protein_remaining_owned_task,
+    is_sleep_battery_low_owned_task,
     is_sleep_owned_task,
+    looks_like_protect_bedtime_title,
     looks_like_protein_remaining_title,
+    looks_like_sleep_battery_low_title,
     looks_like_sleep_quest_title,
     meal_quest_notes,
     plan_from_today_board,
@@ -35,6 +43,8 @@ from rt_dashboard.daily_plan_tasks import (
     purge_stale_quest_tasks,
     quest_mark_day,
     quest_notes,
+    sleep_quest_action_slug,
+    stable_action_slug,
 )
 
 
@@ -126,6 +136,9 @@ class TestDailyPlanTasks(unittest.TestCase):
         ]
         self.assertEqual(len(protein_items), 1)
         self.assertEqual(protein_items[0].title, "Cover remaining protein")
+        bedtime = [i for i in by["sleep"].items if i.slug == PROTECT_BEDTIME_SLUG]
+        self.assertEqual(len(bedtime), 1)
+        self.assertEqual(bedtime[0].title, "Protect bedtime")
 
     def test_meal_bucket_clock_lands_on_quest_label(self):
         board = {
@@ -1693,6 +1706,63 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertEqual(bedtime[0].slug, PROTECT_BEDTIME_SLUG)
         self.assertIn("60.3%", bedtime[0].title)
 
+    def test_protect_bedtime_different_ids_plan_to_one(self):
+        board = {
+            "date": "2026-08-26",
+            "actions": [
+                {
+                    "kind": "sleep",
+                    "id": "act-aaa",
+                    "text": (
+                        "Protect bedtime — battery 60.3% after wake 18:28."
+                    ),
+                },
+                {
+                    "kind": "sleep",
+                    "id": "act-bbb",
+                    "text": (
+                        "Protect bedtime — battery 81.7% after wake 19:05."
+                    ),
+                },
+                {
+                    "kind": "sleep",
+                    "id": "protect-bedtime",
+                    "text": "Sleep battery low (22%) — plan bedtime soon.",
+                },
+            ],
+            "workout": {"is_rest_day": True, "exercises": []},
+            "meal": {"meals": [], "items": []},
+            "purchases": [],
+        }
+        groups = plan_from_today_board(board, day="2026-08-26")
+        sleep = next(g for g in groups if g.group == "sleep")
+        bedtime = [
+            i for i in sleep.items if looks_like_protect_bedtime_title(i.title)
+        ]
+        low = [
+            i for i in sleep.items if looks_like_sleep_battery_low_title(i.title)
+        ]
+        self.assertEqual(len(bedtime), 1)
+        self.assertEqual(bedtime[0].slug, PROTECT_BEDTIME_SLUG)
+        self.assertIn("60.3%", bedtime[0].title)
+        self.assertEqual(len(low), 1)
+        self.assertEqual(low[0].slug, SLEEP_BATTERY_LOW_SLUG)
+        self.assertEqual(
+            sleep_quest_action_slug(board["actions"][0]), PROTECT_BEDTIME_SLUG
+        )
+        self.assertEqual(
+            sleep_quest_action_slug(board["actions"][1]), PROTECT_BEDTIME_SLUG
+        )
+        self.assertEqual(
+            sleep_quest_action_slug(board["actions"][2]), SLEEP_BATTERY_LOW_SLUG
+        )
+        self.assertEqual(
+            stable_action_slug(board["actions"][0], 0), PROTECT_BEDTIME_SLUG
+        )
+        self.assertEqual(
+            stable_action_slug(board["actions"][2], 2), SLEEP_BATTERY_LOW_SLUG
+        )
+
     def test_hydrate_sleep_ignores_battery_in_title(self):
         planned = [
             PlannedGroup(
@@ -1748,16 +1818,17 @@ class TestDailyPlanTasks(unittest.TestCase):
         self.assertTrue(looks_like_sleep_quest_title(jot["title"]))
         self.assertFalse(is_sleep_owned_task(jot, day=day))
 
-    def _sleep_board(self, pct, extra_actions=None):
+    def _sleep_board(self, pct, extra_actions=None, action_id=None, wake="18:28"):
+        action = {
+            "kind": "sleep",
+            "text": (
+                f"Protect bedtime — battery {pct}% after wake {wake}."
+            ),
+        }
+        if action_id is not None:
+            action["id"] = action_id
         actions = list(extra_actions or [])
-        actions.append(
-            {
-                "kind": "sleep",
-                "text": (
-                    f"Protect bedtime — battery {pct}% after wake 18:28."
-                ),
-            }
-        )
+        actions.append(action)
         return {
             "date": "2026-08-26",
             "actions": actions,
@@ -1949,6 +2020,251 @@ class TestDailyPlanTasks(unittest.TestCase):
             )
         )
         self.assertIn("jot", store)
+
+    def test_protect_bedtime_kind_marks_collapse_third_refresh_upserts(self):
+        store = {
+            "sleep-h": {
+                "id": "sleep-h",
+                "title": "Sleep & recovery",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-a": {
+                "id": "s-a",
+                "title": "Protect bedtime — battery 60.3% after wake 18:28.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|act-aaa]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-b": {
+                "id": "s-b",
+                "title": "Protect bedtime — battery 65.5% after wake 19:05.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|act-bbb]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "low": {
+                "id": "low",
+                "title": "Sleep battery low (22%) — plan bedtime soon.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|protect-bedtime]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Text the vet",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(
+                    self._sleep_board(81.7, action_id="act-ccc"),
+                    day="2026-08-26",
+                )
+                bedtime = collect_protect_bedtime_tasks(
+                    list(store.values()), day="2026-08-26", incomplete_only=True
+                )
+                self.assertEqual(len(bedtime), 1)
+                kept_id = bedtime[0]["id"]
+                second = ensure_daily_tasks(
+                    self._sleep_board(90.1, action_id="act-ddd", wake="20:10"),
+                    day="2026-08-26",
+                )
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        bedtime = collect_protect_bedtime_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(bedtime), 1)
+        self.assertEqual(bedtime[0]["id"], kept_id)
+        self.assertIn("90.1%", bedtime[0]["title"])
+        self.assertIn("20:10", bedtime[0]["title"])
+        self.assertNotIn("60.3%", bedtime[0]["title"])
+        self.assertNotIn("81.7%", bedtime[0]["title"])
+        low = collect_sleep_battery_low_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(low), 1)
+        self.assertEqual(low[0]["id"], "low")
+        self.assertTrue(looks_like_sleep_battery_low_title(low[0]["title"]))
+        self.assertFalse(is_protect_bedtime_owned_task(low[0], day="2026-08-26"))
+        self.assertIn("jot", store)
+        self.assertEqual(store["jot"]["title"], "Text the vet")
+        parents = [
+            t
+            for t in store.values()
+            if (t.get("title") or "").strip() == "Sleep & recovery"
+        ]
+        self.assertEqual(len(parents), 1)
+        bedtime_created = [
+            t
+            for t in created
+            if looks_like_protect_bedtime_title(t.get("title") or "")
+        ]
+        self.assertEqual(bedtime_created, [])
+
+    def test_sleep_battery_low_not_deleted_as_bedtime_extra(self):
+        store = {
+            "sleep-h": {
+                "id": "sleep-h",
+                "title": "Sleep & recovery",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-a": {
+                "id": "s-a",
+                "title": "Protect bedtime — battery 60.3% after wake 18:28.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|act-aaa]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "s-b": {
+                "id": "s-b",
+                "title": "Protect bedtime — battery 70.9% after wake 18:28.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|act-bbb]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "low": {
+                "id": "low",
+                "title": "Sleep battery low (18%) — plan bedtime soon.",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|protect-bedtime]"
+                ),
+                "parent": "sleep-h",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "lift": {
+                "id": "lift",
+                "title": "Complete today's PUSH session",
+                "notes": "[fitdash-quest:2026-08-26]",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "jot": {
+                "id": "jot",
+                "title": "Call mom",
+                "notes": "",
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                result = ensure_daily_tasks(
+                    self._sleep_board(81.7, action_id="act-ccc"),
+                    day="2026-08-26",
+                )
+        self.assertTrue(result.get("ok"), result)
+        bedtime = collect_protect_bedtime_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(bedtime), 1)
+        self.assertIn("81.7%", bedtime[0]["title"])
+        low = collect_sleep_battery_low_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(low), 1)
+        self.assertEqual(low[0]["id"], "low")
+        self.assertIn("18%", low[0]["title"])
+        self.assertTrue(is_sleep_battery_low_owned_task(low[0], day="2026-08-26"))
+        self.assertIn("lift", store)
+        self.assertIn("jot", store)
+        self.assertEqual(store["jot"]["title"], "Call mom")
+
+    def test_sleep_battery_low_family_stays_one(self):
+        def _low_board(pct, action_id):
+            return {
+                "date": "2026-08-26",
+                "actions": [
+                    {
+                        "kind": "sleep",
+                        "id": action_id,
+                        "text": (
+                            f"Sleep battery low ({pct}%) — plan bedtime soon "
+                            "(empty ~23:10)."
+                        ),
+                    }
+                ],
+                "workout": {"is_rest_day": True, "exercises": []},
+                "meal": {"meals": [], "items": []},
+                "purchases": [],
+            }
+
+        store = {
+            "low-a": {
+                "id": "low-a",
+                "title": "Sleep battery low (22%) — plan bedtime soon (empty ~22:00).",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|act-old]"
+                ),
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+            "low-b": {
+                "id": "low-b",
+                "title": "Sleep battery low (18%) — plan bedtime soon (empty ~21:40).",
+                "notes": (
+                    "[fitdash-quest:2026-08-26]\n"
+                    "[fitdash-kind:sleep|protect-bedtime]"
+                ),
+                "status": "needsAction",
+                "due": "2026-08-26T00:00:00.000Z",
+            },
+        }
+        created: list[dict] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            with self._patch_ensure(store, created, tmp):
+                first = ensure_daily_tasks(_low_board(15, "act-new"), day="2026-08-26")
+                low = collect_sleep_battery_low_tasks(
+                    list(store.values()), day="2026-08-26", incomplete_only=True
+                )
+                self.assertEqual(len(low), 1)
+                kept_id = low[0]["id"]
+                second = ensure_daily_tasks(_low_board(12, "act-newer"), day="2026-08-26")
+        self.assertTrue(first.get("ok"), first)
+        self.assertTrue(second.get("ok"), second)
+        low = collect_sleep_battery_low_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(len(low), 1)
+        self.assertEqual(low[0]["id"], kept_id)
+        self.assertIn("12%", low[0]["title"])
+        bedtime = collect_protect_bedtime_tasks(
+            list(store.values()), day="2026-08-26", incomplete_only=True
+        )
+        self.assertEqual(bedtime, [])
+        self.assertEqual(SLEEP_BATTERY_LOW_CACHE_KEY, "sleep|sleep-battery-low")
 
     def test_lift_weight_change_upserts_same_id(self):
         def _lift_board(weight):

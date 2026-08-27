@@ -60,8 +60,11 @@ PROTEIN_REMAINING_LEGACY_SLUG_RE = re.compile(
 )
 # Stable action slugs so title metrics (battery %, grams, clock) cannot
 # mint a new incomplete leaf. Identity is kind + civil day (#357).
+# Protect bedtime and Sleep battery low are two title families (#363).
 PROTECT_BEDTIME_SLUG = "protect-bedtime"
 PROTECT_BEDTIME_CACHE_KEY = f"sleep|{PROTECT_BEDTIME_SLUG}"
+SLEEP_BATTERY_LOW_SLUG = "sleep-battery-low"
+SLEEP_BATTERY_LOW_CACHE_KEY = f"sleep|{SLEEP_BATTERY_LOW_SLUG}"
 TRAIN_SESSION_SLUG = "train-session"
 TRAIN_SESSION_CACHE_KEY = f"training|{TRAIN_SESSION_SLUG}"
 CALORIE_PACE_SLUG = "calorie-pace"
@@ -69,8 +72,22 @@ CALORIE_PACE_CACHE_KEY = f"nutrition|{CALORIE_PACE_SLUG}"
 SHOP_TOP_SLUG = "shop-top"
 SHOP_TOP_CACHE_KEY = f"shopping|{SHOP_TOP_SLUG}"
 KIND_MARK_RE = re.compile(r"\[fitdash-kind:([a-z0-9.|-]+)\]")
+PROTECT_BEDTIME_TITLE_RE = re.compile(r"^Protect bedtime\b", re.I)
+SLEEP_BATTERY_LOW_TITLE_RE = re.compile(r"^Sleep battery low\b", re.I)
 SLEEP_QUEST_TITLE_RE = re.compile(
     r"^(Protect bedtime|Sleep battery low)\b",
+    re.I,
+)
+PROTECT_BEDTIME_SLUG_RE = re.compile(
+    r"^(protect-bedtime|sleep-bed|bedtime)$",
+    re.I,
+)
+PROTECT_BEDTIME_LEGACY_SLUG_RE = re.compile(
+    r"^action-sleep-\d+$",
+    re.I,
+)
+SLEEP_BATTERY_LOW_SLUG_RE = re.compile(
+    r"^(sleep-battery-low|battery-low)$",
     re.I,
 )
 TRAIN_SESSION_TITLE_RE = re.compile(
@@ -149,6 +166,10 @@ def kind_from_notes(notes: str) -> Optional[str]:
 def item_kind_key(item: PlannedItem) -> str:
     if is_protein_remaining_item(item):
         return PROTEIN_REMAINING_CACHE_KEY
+    if is_protect_bedtime_item(item):
+        return PROTECT_BEDTIME_CACHE_KEY
+    if is_sleep_battery_low_item(item):
+        return SLEEP_BATTERY_LOW_CACHE_KEY
     return cache_key(item.group, item.slug)
 
 
@@ -272,8 +293,90 @@ def protein_remaining_action_slug(act: dict) -> Optional[str]:
     return None
 
 
+def looks_like_protect_bedtime_title(title: str) -> bool:
+    return bool(PROTECT_BEDTIME_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_sleep_battery_low_title(title: str) -> bool:
+    return bool(SLEEP_BATTERY_LOW_TITLE_RE.match((title or "").strip()))
+
+
 def looks_like_sleep_quest_title(title: str) -> bool:
-    return bool(SLEEP_QUEST_TITLE_RE.match((title or "").strip()))
+    """Either sleep title family. Families stay separate for upsert (#363)."""
+    return looks_like_protect_bedtime_title(title) or looks_like_sleep_battery_low_title(
+        title
+    )
+
+
+def is_protect_bedtime_item(item: PlannedItem) -> bool:
+    if looks_like_sleep_battery_low_title(item.title):
+        return False
+    slug = str(item.slug or "")
+    if (
+        slug == PROTECT_BEDTIME_SLUG
+        or PROTECT_BEDTIME_SLUG_RE.match(slug)
+        or PROTECT_BEDTIME_LEGACY_SLUG_RE.match(slug)
+    ):
+        return True
+    return looks_like_protect_bedtime_title(item.title)
+
+
+def is_sleep_battery_low_item(item: PlannedItem) -> bool:
+    if looks_like_protect_bedtime_title(item.title):
+        return False
+    slug = str(item.slug or "")
+    if slug == SLEEP_BATTERY_LOW_SLUG or SLEEP_BATTERY_LOW_SLUG_RE.match(slug):
+        return True
+    return looks_like_sleep_battery_low_title(item.title)
+
+
+def is_protect_bedtime_cache_key(cache_key_s: str) -> bool:
+    ck = str(cache_key_s or "")
+    if ck == PROTECT_BEDTIME_CACHE_KEY:
+        return True
+    if not (ck.startswith("sleep|") or ck.startswith("recovery|")):
+        return False
+    slug = ck.split("|", 1)[-1]
+    if slug == SLEEP_BATTERY_LOW_SLUG or SLEEP_BATTERY_LOW_SLUG_RE.match(slug):
+        return False
+    return bool(
+        slug == PROTECT_BEDTIME_SLUG
+        or PROTECT_BEDTIME_SLUG_RE.match(slug)
+        or PROTECT_BEDTIME_LEGACY_SLUG_RE.match(slug)
+    )
+
+
+def is_sleep_battery_low_cache_key(cache_key_s: str) -> bool:
+    ck = str(cache_key_s or "")
+    if ck == SLEEP_BATTERY_LOW_CACHE_KEY:
+        return True
+    if not (ck.startswith("sleep|") or ck.startswith("recovery|")):
+        return False
+    slug = ck.split("|", 1)[-1]
+    return bool(slug == SLEEP_BATTERY_LOW_SLUG or SLEEP_BATTERY_LOW_SLUG_RE.match(slug))
+
+
+def sleep_quest_action_slug(act: dict) -> Optional[str]:
+    """Stable slug per sleep title family. Action id must not fork a family.
+
+    ``Protect bedtime`` and ``Sleep battery low`` stay two families even when
+    the planner stamps the same or a fresh action id (#363).
+    """
+    text = str((act or {}).get("text") or "")
+    if looks_like_sleep_battery_low_title(text):
+        return SLEEP_BATTERY_LOW_SLUG
+    if looks_like_protect_bedtime_title(text):
+        return PROTECT_BEDTIME_SLUG
+    aid = str((act or {}).get("id") or "").strip().lower()
+    if SLEEP_BATTERY_LOW_SLUG_RE.match(aid):
+        return SLEEP_BATTERY_LOW_SLUG
+    if (
+        aid == PROTECT_BEDTIME_SLUG
+        or PROTECT_BEDTIME_SLUG_RE.match(aid)
+        or PROTECT_BEDTIME_LEGACY_SLUG_RE.match(aid)
+    ):
+        return PROTECT_BEDTIME_SLUG
+    return None
 
 
 def looks_like_train_session_title(title: str) -> bool:
@@ -324,6 +427,9 @@ def stable_action_slug(act: dict, index: int) -> str:
     protein = protein_remaining_action_slug(act)
     if protein:
         return protein
+    sleep = sleep_quest_action_slug(act)
+    if sleep:
+        return sleep
     aid = str((act or {}).get("id") or "").strip()
     if aid:
         return _slug(aid)
@@ -357,17 +463,37 @@ def _has_fitdash_kind_or_quest(task: dict) -> bool:
     return bool(quest_mark_day(notes) or kind_from_notes(notes))
 
 
-def is_sleep_owned_task(task: dict, *, day: str = "") -> bool:
-    """FitDash sleep/bedtime leaf for this civil day. Not meals, lifts, or jots."""
+def _sleep_family_owned_task(task: dict, *, day: str, title_match) -> bool:
     if not isinstance(task, dict):
         return False
-    if not looks_like_sleep_quest_title(task.get("title") or ""):
+    if not title_match(task.get("title") or ""):
         return False
     if looks_like_meal_plan_title(task.get("title") or ""):
         return False
     if not _has_fitdash_kind_or_quest(task):
         return False
     return _task_on_civil_day(task, day)
+
+
+def is_protect_bedtime_owned_task(task: dict, *, day: str = "") -> bool:
+    """FitDash Protect bedtime leaf for this civil day. Not Sleep battery low."""
+    return _sleep_family_owned_task(
+        task, day=day, title_match=looks_like_protect_bedtime_title
+    )
+
+
+def is_sleep_battery_low_owned_task(task: dict, *, day: str = "") -> bool:
+    """FitDash Sleep battery low leaf for this civil day. Not Protect bedtime."""
+    return _sleep_family_owned_task(
+        task, day=day, title_match=looks_like_sleep_battery_low_title
+    )
+
+
+def is_sleep_owned_task(task: dict, *, day: str = "") -> bool:
+    """Either sleep title family. Families stay separate for collapse (#363)."""
+    return is_protect_bedtime_owned_task(task, day=day) or (
+        is_sleep_battery_low_owned_task(task, day=day)
+    )
 
 
 def is_train_session_owned_task(task: dict, *, day: str = "") -> bool:
@@ -423,6 +549,34 @@ def collect_sleep_quest_tasks(
     )
 
 
+def collect_protect_bedtime_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    return collect_kind_tasks(
+        tasks,
+        day=day,
+        match=lambda t: is_protect_bedtime_owned_task(t, day=day),
+        incomplete_only=incomplete_only,
+    )
+
+
+def collect_sleep_battery_low_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    return collect_kind_tasks(
+        tasks,
+        day=day,
+        match=lambda t: is_sleep_battery_low_owned_task(t, day=day),
+        incomplete_only=incomplete_only,
+    )
+
+
 def _shopping_name_from_title(title: str) -> str:
     text = (title or "").strip()
     match = re.match(
@@ -436,24 +590,26 @@ def _shopping_name_from_title(title: str) -> str:
 def task_matches_item(task: dict, item: PlannedItem, day: str) -> bool:
     """True when this Fitness task is the same kind+day as the planned leaf.
 
-    Kind marker wins. Title-shape families ignore volatile metrics. Exact
-    title is last-resort. Jots without a FitDash day hint never match.
+    Title-shape families (protein, Protect bedtime, Sleep battery low) beat
+    kind-mark equality so a fresh action id cannot fork a leaf (#363).
+    Other kinds still match the kind marker first. Exact title is last-resort.
+    Jots without a FitDash day hint never match.
     """
     if not isinstance(task, dict) or not isinstance(item, PlannedItem):
         return False
     if not _task_on_civil_day(task, day):
         return False
+    if is_protein_remaining_item(item):
+        return is_protein_remaining_owned_task(task, day=day)
+    if is_protect_bedtime_item(item):
+        return is_protect_bedtime_owned_task(task, day=day)
+    if is_sleep_battery_low_item(item):
+        return is_sleep_battery_low_owned_task(task, day=day)
     marked_kind = kind_from_notes(task.get("notes") or "")
     want_kind = item_kind_key(item)
     if marked_kind:
         return marked_kind == want_kind
     title = task.get("title") or ""
-    if is_protein_remaining_item(item):
-        return is_protein_remaining_owned_task(task, day=day)
-    if item.group in ("sleep", "recovery") and (
-        item.slug == PROTECT_BEDTIME_SLUG or looks_like_sleep_quest_title(item.title)
-    ):
-        return is_sleep_owned_task(task, day=day)
     if item.slug == TRAIN_SESSION_SLUG or (
         item.group == "training" and looks_like_train_session_title(item.title)
     ):
@@ -573,6 +729,16 @@ def _kind_keeper(
     ]
     pool = marked or incompletes
     return sorted(pool, key=lambda t: str(t.get("id") or ""))[0]
+
+
+def _family_remap_cache_key(item: PlannedItem):
+    if is_protein_remaining_item(item):
+        return is_protein_remaining_cache_key
+    if is_protect_bedtime_item(item):
+        return is_protect_bedtime_cache_key
+    if is_sleep_battery_low_item(item):
+        return is_sleep_battery_low_cache_key
+    return None
 
 
 def collapse_kind_tasks(
@@ -897,6 +1063,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         if slug in (
             PROTEIN_REMAINING_SLUG,
             PROTECT_BEDTIME_SLUG,
+            SLEEP_BATTERY_LOW_SLUG,
             TRAIN_SESSION_SLUG,
             CALORIE_PACE_SLUG,
             SHOP_TOP_SLUG,
@@ -1579,11 +1746,7 @@ def ensure_daily_tasks(
                     prefer_title=prefer,
                     cache_key_s=ck,
                     match=lambda t, item=it: task_matches_item(t, item, day),
-                    remap_cache_key=(
-                        is_protein_remaining_cache_key
-                        if is_protein_remaining_item(it)
-                        else None
-                    ),
+                    remap_cache_key=_family_remap_cache_key(it),
                 )
                 kind_purged = list(kind_collapse.get("purged") or [])
                 if is_protein_remaining_item(it) and (
