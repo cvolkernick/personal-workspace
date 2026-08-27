@@ -54,11 +54,11 @@
 
   function renderMiniHtml(name, pct) {
     const hasPct = pct != null;
-    const width = hasPct ? Math.round(pct) : 0;
+    const fillPct = hasPct ? Math.round(pct) : 0;
     const level = hasPct ? fillLevel(pct) : "";
-    const label = hasPct ? width + "%" : "—";
+    const label = hasPct ? fillPct + "%" : "—";
     const aria = hasPct
-      ? "Bottle charge " + width + " percent"
+      ? "Bottle charge " + fillPct + " percent"
       : "Bottle charge unavailable";
     const fillClass = "sb-fill" + (level ? " " + level : "");
     return (
@@ -72,8 +72,8 @@
       '<span class="sb-fill-wrap hbb-fill-wrap">' +
       '<span class="' +
       fillClass +
-      '" style="width:' +
-      width +
+      '" style="height:' +
+      fillPct +
       '%"></span>' +
       '<span class="sb-label hbb-label"><span class="sb-big">' +
       label +

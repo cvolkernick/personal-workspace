@@ -33,16 +33,17 @@ const charged = hbb.renderMiniHtml("Spark", 68);
 assert(charged.includes('class="sb-shell'), "charged uses sb-shell");
 assert(charged.includes("sb-fill-wrap"), "charged uses sb-fill-wrap");
 assert(charged.includes('class="sb-fill ok"'), "68% uses sleep ok band");
-assert(charged.includes("width:68%"), "fill width matches percent");
+assert(charged.includes("height:68%"), "fill height matches percent");
 assert(charged.includes("68%"), "shows percent label");
 assert(charged.includes("Spark"), "keeps bottle name");
-assert(!charged.includes("width:100%"), "does not fake a full battery");
+assert(!charged.includes("height:100%"), "does not fake a full battery");
+assert(!charged.includes("width:68%"), "standing fill is height, not landscape width");
 
 const empty = hbb.renderMiniHtml("Bottle", null);
 assert(empty.includes("—"), "unavailable shows em dash");
-assert(empty.includes("width:0%"), "unavailable fill is empty");
+assert(empty.includes("height:0%"), "unavailable fill is empty");
 assert(!empty.includes("sb-fill critical"), "unavailable has no fake level tint");
-assert(!empty.includes("width:100%"), "unavailable is not a fake 100%");
+assert(!empty.includes("height:100%"), "unavailable is not a fake 100%");
 
 const el = { innerHTML: "", title: "", removeAttribute: function () {} };
 hbb.paint(
@@ -50,14 +51,14 @@ hbb.paint(
   el
 );
 assert(el.innerHTML.includes('class="sb-fill critical"'), "12% is critical");
-assert(el.innerHTML.includes("width:12%"), "paint fill matches 12");
+assert(el.innerHTML.includes("height:12%"), "paint fill matches 12");
 assert(el.title === "Hidrate batteryLevel", "keeps field tooltip");
 
 const missing = { innerHTML: "", title: "" };
 hbb.paint({ hidrate_bottle: { available: false, percent: null, status: "missing_field" } }, missing);
 assert(missing.innerHTML.includes("—"), "missing_field is honest dash");
 assert(missing.title === "Hidrate Bottle has no charge field", "keeps missing_field tooltip");
-assert(!missing.innerHTML.includes("width:100%"), "missing_field is not 100%");
+assert(!missing.innerHTML.includes("height:100%"), "missing_field is not 100%");
 
 const none = { innerHTML: "", title: "stale", removeAttribute: function (k) { if (k === "title") this.title = ""; } };
 hbb.paint({}, none);
