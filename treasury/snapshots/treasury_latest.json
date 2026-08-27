@@ -1,6 +1,6 @@
 {
   "snapshot": {
-    "as_of": "2026-08-27T02:29:59.514625+00:00",
+    "as_of": "2026-08-27T05:33:27.511831+00:00",
     "coinbase": {
       "source": "live",
       "as_of": "2026-08-26T19:54:14.045433+00:00",
@@ -31,7 +31,7 @@
     },
     "one_card": {
       "source": "ynab",
-      "as_of": "2026-08-26T19:54:14.663534+00:00",
+      "as_of": "2026-08-27T02:50:56.114923+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -71,7 +71,7 @@
           "memo": null,
           "cleared": "cleared",
           "approved": true,
-          "category_name": "\ud83d\uded2 Groceries"
+          "category_name": "\ud83c\udfcb\ufe0f Gym"
         },
         {
           "id": "10740f70-0c74-4b92-b670-0d9d1e6d6136",
@@ -81,8 +81,8 @@
           "amount_display": -10.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "b63889a1-ca46-4a92-b2ad-f07a7e7b6c53",
@@ -92,8 +92,8 @@
           "amount_display": -4.25,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "acd84179-2a1e-43ae-bef3-0ba6f4811adc",
@@ -103,8 +103,8 @@
           "amount_display": -4.14,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "a2443458-9c8c-454b-a420-3b42ade42866",
@@ -114,8 +114,8 @@
           "amount_display": -1.78,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "5e186951-0543-4830-9667-f7686f80009a",
@@ -125,19 +125,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
-        },
-        {
-          "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
-          "date": "2026-07-17",
-          "payee": "7-Eleven",
-          "amount": -0.63,
-          "amount_display": -0.63,
-          "memo": null,
-          "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "7075c21d-ffc5-4486-923c-fdb7c01fe96f",
@@ -147,8 +136,19 @@
           "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
+        },
+        {
+          "id": "f7792e4e-267a-4144-ae36-037ad01336fc",
+          "date": "2026-07-17",
+          "payee": "7-Eleven",
+          "amount": -0.63,
+          "amount_display": -0.63,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "94e18248-40b6-44da-91a1-e3aeaf423556",
@@ -169,8 +169,8 @@
           "amount_display": -19.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\udc3e Pets"
         },
         {
           "id": "ea3a8a44-66a3-4e16-8091-86a3499f471a",
@@ -180,8 +180,8 @@
           "amount_display": -10.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "c7f2d48c-6fe4-4adc-a4c7-32eedb6c90d2",
@@ -191,8 +191,8 @@
           "amount_display": -2.55,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "857c641b-80e0-48af-9828-e830bbca8e66",
@@ -202,8 +202,8 @@
           "amount_display": -2.29,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "4d41712a-2bf8-4f6f-9f8f-737ffa6be30e",
@@ -213,8 +213,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "10303333-f0ed-4acb-8f99-8961a19c1d9f",
@@ -224,8 +224,8 @@
           "amount_display": -84.35,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\udc3e Pets"
         },
         {
           "id": "cfd8b66c-e18d-4f3a-b9b1-2512247ff26e",
@@ -235,8 +235,8 @@
           "amount_display": -9.03,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "7c6a34a3-054f-4e6f-b0dd-d618e4646354",
@@ -246,8 +246,8 @@
           "amount_display": -3.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "fee817f7-1a56-4839-829c-6890addb1406",
@@ -257,8 +257,8 @@
           "amount_display": -1.07,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "de9b1dbc-b5b2-4cb2-9bc0-3284ed6cca86",
@@ -268,8 +268,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "af4b47bf-687a-4aaa-b7d1-b74936d09cbd",
@@ -279,8 +279,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "d126b3d6-b995-46fc-8c41-aa33a0666dae",
@@ -301,8 +301,8 @@
           "amount_display": -159.48,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "6640d8f1-07ca-45f8-94bd-b90a58e6776d",
@@ -312,8 +312,8 @@
           "amount_display": -3.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "d39b202d-d492-4ade-8c68-e8a41b4a21be",
@@ -323,8 +323,8 @@
           "amount_display": -2.55,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "3471bc12-dae3-432d-9946-af5c73612594",
@@ -334,8 +334,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "a4433bf0-bf37-47b9-924a-cd4735df296f",
@@ -345,8 +345,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "7faef6a6-3b4c-48d5-a400-c99a5a6cb099",
@@ -378,8 +378,8 @@
           "amount_display": -15.36,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "8f54acc2-5449-4f60-8ddb-24e4e8752564",
@@ -389,8 +389,8 @@
           "amount_display": -2.68,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "b3a45eca-ea7e-4f7f-87d9-64dc68a79711",
@@ -400,8 +400,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "9043398a-64df-4029-96ba-05e7f93e8fb6",
@@ -411,8 +411,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "32efe06e-16b1-47b3-82e6-8102b5756515",
@@ -422,8 +422,8 @@
           "amount_display": -0.12,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "ed157ff3-b641-43c8-af2c-98757aa7d3c2",
@@ -433,8 +433,8 @@
           "amount_display": -29.99,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\udcb3 Subscriptions"
         },
         {
           "id": "6461d964-c096-41f9-9b43-021405cf01f8",
@@ -488,8 +488,8 @@
           "amount_display": -7.15,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "e8094fe5-835d-4e81-848a-c309df1a1dc6",
@@ -499,8 +499,8 @@
           "amount_display": -10.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "7b0cb245-880d-4266-95c2-8f873e57fe39",
@@ -514,17 +514,6 @@
           "category_name": "Uncategorized"
         },
         {
-          "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
-          "date": "2026-08-15",
-          "payee": "Dimo Corp",
-          "amount": -8.99,
-          "amount_display": -8.99,
-          "memo": null,
-          "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
-        },
-        {
           "id": "8fe317f6-dae4-4bfd-9d4c-8130d5996eb4",
           "date": "2026-08-15",
           "payee": "Dimo Corp",
@@ -532,8 +521,19 @@
           "amount_display": -8.99,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\udcb3 Subscriptions"
+        },
+        {
+          "id": "74dd0256-9a2d-4888-a2ef-02caed9feaa8",
+          "date": "2026-08-15",
+          "payee": "Dimo Corp",
+          "amount": -8.99,
+          "amount_display": -8.99,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "\ud83d\udcb3 Subscriptions"
         },
         {
           "id": "b4b024fa-d12f-43e5-a65f-54aebd90e43e",
@@ -543,8 +543,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "cfd13357-006d-4b31-a488-9c29a81f41f4",
@@ -554,8 +554,8 @@
           "amount_display": -1.78,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "e73f00ee-cf90-4663-a458-bca2f877c0d7",
@@ -565,8 +565,8 @@
           "amount_display": -1.48,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "fdc395be-b85a-4034-a75f-b14a86fab41a",
@@ -576,8 +576,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "f3845ae7-bb8e-4c02-b8b4-dfcbc347f222",
@@ -587,8 +587,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "95c3dfd2-7d1f-47f8-8f18-66851bfb2782",
@@ -598,8 +598,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         }
       ],
       "notes": "Card data via YNAB (Plaid). Available credit not exposed by YNAB; set card_available_credit in config if needed.",
@@ -608,7 +608,7 @@
     },
     "rh_checking": {
       "source": "ynab",
-      "as_of": "2026-08-26T19:54:14.868477+00:00",
+      "as_of": "2026-08-27T02:50:56.362857+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -655,7 +655,7 @@
     },
     "x_money": {
       "source": "ynab",
-      "as_of": "2026-08-26T19:54:15.231947+00:00",
+      "as_of": "2026-08-27T02:50:56.686532+00:00",
       "provider": "ynab",
       "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
       "budget_name": "Chris's Plan",
@@ -664,14 +664,14 @@
       "account_type": "checking",
       "direct_import_linked": true,
       "direct_import_in_error": false,
-      "balance_raw": -643.3,
+      "balance_raw": -658.42,
       "cash": 0.0,
       "available": 0.0,
-      "cleared_balance": -643.3,
+      "cleared_balance": -658.42,
       "uncleared_balance": 0.0,
-      "spend_30d": 4453.08,
+      "spend_30d": 4468.2,
       "inflow_30d": 3799.07,
-      "transaction_count": 249,
+      "transaction_count": 250,
       "transactions": [
         {
           "id": "530e66ad-932d-4ea2-b231-cfe7555b2e6d",
@@ -681,8 +681,8 @@
           "amount_display": -10.97,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "151af4f7-8504-42ea-9598-3348f6439958",
@@ -692,8 +692,8 @@
           "amount_display": -7.77,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "783fcba3-df65-4470-9b1b-c85f11ea85ff",
@@ -714,8 +714,8 @@
           "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "94fa0890-a3da-4b0e-b423-edf24b621cfb",
@@ -758,8 +758,8 @@
           "amount_display": 25.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Rewards"
         },
         {
           "id": "78dbbff9-64c9-47ac-aedc-7ca1db03a42e",
@@ -769,8 +769,8 @@
           "amount_display": 67.72,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Lyft"
         },
         {
           "id": "5647273e-f5ee-4d5f-9768-9e1c1012c7e2",
@@ -791,8 +791,8 @@
           "amount_display": -10.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "b55891cb-3e20-4077-9961-e04b6705ac03",
@@ -802,8 +802,8 @@
           "amount_display": -7.76,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "6271565f-288f-4931-a469-e7c5de38e4e9",
@@ -813,8 +813,8 @@
           "amount_display": -6.88,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "a24a2f0c-4d15-4ace-8f93-90e1fc14f810",
@@ -824,8 +824,8 @@
           "amount_display": -2.87,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "8185c6da-8ade-4c37-b1e1-99a2ee194d02",
@@ -835,8 +835,8 @@
           "amount_display": -2.03,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "ee57a31b-f88b-48f7-9ccb-d0b45675ba04",
@@ -846,8 +846,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "25342ac9-206d-4523-bca9-a3b73525dc77",
@@ -857,8 +857,8 @@
           "amount_display": -1.07,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "9895f94d-56f1-4088-a36b-be9fb5312748",
@@ -868,19 +868,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
-        },
-        {
-          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
-          "date": "2026-07-23",
-          "payee": "7-Eleven",
-          "amount": -0.63,
-          "amount_display": -0.63,
-          "memo": null,
-          "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "93988954-a83f-4afa-9a8b-fd52d3dae5e3",
@@ -890,8 +879,19 @@
           "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
+        },
+        {
+          "id": "187ef0d9-24b8-49e6-9dcb-2263dd20f947",
+          "date": "2026-07-23",
+          "payee": "7-Eleven",
+          "amount": -0.63,
+          "amount_display": -0.63,
+          "memo": null,
+          "cleared": "cleared",
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "9762d884-4ac3-466f-b811-82a204ba4f21",
@@ -901,8 +901,8 @@
           "amount_display": 113.1,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Lyft"
         },
         {
           "id": "0ae2c8cf-acf5-4510-928e-78a38c409935",
@@ -912,8 +912,8 @@
           "amount_display": -19.53,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "994e0c43-6a22-4c6c-8821-24eab638e100",
@@ -923,8 +923,8 @@
           "amount_display": -6.36,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "42725dde-6961-4b2f-87bf-77eba40108c0",
@@ -934,8 +934,8 @@
           "amount_display": -3.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "101c2de8-b371-408c-8719-a63fc29ce6c5",
@@ -945,8 +945,8 @@
           "amount_display": -3.2,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "b1cf3ed9-fefe-4b35-a9ff-f1f402f31aa5",
@@ -956,8 +956,8 @@
           "amount_display": -3.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "894018b5-3ed9-46fb-a42e-c327a60ba75d",
@@ -967,8 +967,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "38a12fa7-082c-4ba8-803e-6682fb3d1630",
@@ -978,8 +978,8 @@
           "amount_display": 37.97,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Lyft"
         },
         {
           "id": "43b8d81d-69a6-4e7c-a667-3df1beca7dd4",
@@ -989,8 +989,8 @@
           "amount_display": -29.52,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\uded2 Groceries"
         },
         {
           "id": "3f0b3bfc-9806-4d99-8c34-b5d54295165f",
@@ -1000,8 +1000,8 @@
           "amount_display": -10.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "318cb199-70e7-41a7-8d64-07852fcb12ea",
@@ -1011,8 +1011,8 @@
           "amount_display": -5.29,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "63f71332-5586-411c-be32-7dcf32c80a4e",
@@ -1022,8 +1022,8 @@
           "amount_display": -1.06,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "5ba89a13-521e-4186-b096-50c08e4abd54",
@@ -1044,8 +1044,8 @@
           "amount_display": 33.91,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Lyft"
         },
         {
           "id": "b632f1db-7c87-474f-b1d9-3b8775bd03d0",
@@ -1055,8 +1055,8 @@
           "amount_display": -10.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "87df89b6-6358-44cc-909b-2f1d5c924f3e",
@@ -1066,8 +1066,8 @@
           "amount_display": -10.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "dba76795-7177-4ef8-bb22-ebf9b8bcbba2",
@@ -1077,8 +1077,8 @@
           "amount_display": -5.86,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "67ddb3b9-516b-467c-ab57-be7e86918b09",
@@ -1088,8 +1088,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "e7632ab7-da11-406c-bb00-9033dc999914",
@@ -1099,8 +1099,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "f1b3101f-15f5-442d-bffd-44cd2ef7f38f",
@@ -1110,8 +1110,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "ce09598b-e19c-4589-920e-f886921c327a",
@@ -1121,8 +1121,8 @@
           "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "5537086d-03d7-401a-a338-9e7ee04e61da",
@@ -1132,8 +1132,8 @@
           "amount_display": -3.0,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "09ba72f1-a9a8-4a41-9322-8ff8324fba04",
@@ -1143,8 +1143,8 @@
           "amount_display": -1.84,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "019e5ba8-5d82-4608-ac5d-99764f3ab97c",
@@ -1154,8 +1154,8 @@
           "amount_display": -1.6,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "a10ade45-e0f5-4259-a992-100809d2d815",
@@ -1165,8 +1165,8 @@
           "amount_display": -1.05,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83c\udf7d\ufe0f Dining out"
         },
         {
           "id": "aceeb512-0555-4fd4-897d-c90e1c50fb80",
@@ -1176,8 +1176,8 @@
           "amount_display": -0.63,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Uncategorized"
+          "approved": true,
+          "category_name": "\ud83d\ude98 Transportation"
         },
         {
           "id": "1fa6adb1-0464-4b02-8cb1-23f1831718d9",
@@ -1187,8 +1187,8 @@
           "amount_display": 5.26,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Rewards"
         },
         {
           "id": "4d6fbce5-8c87-4c4d-98fe-bbaa1a93edf1",
@@ -1209,8 +1209,8 @@
           "amount_display": 235.23,
           "memo": null,
           "cleared": "cleared",
-          "approved": false,
-          "category_name": "Inflow: Ready to Assign"
+          "approved": true,
+          "category_name": "Lyft"
         },
         {
           "id": "602d4a2b-6fe9-4567-acba-56c28531358e",
@@ -3284,7 +3284,7 @@
     },
     "robinhood": {
       "source": "live",
-      "as_of": "2026-08-27T02:29:59.383052+00:00",
+      "as_of": "2026-08-27T05:33:27.373121+00:00",
       "total_value": 0.094046,
       "equity_value": 0.0,
       "cash": 0.09,
@@ -3298,9 +3298,9 @@
       "positions": [],
       "agentic": {
         "source": "live",
-        "as_of": "2026-08-27T02:29:59.383048+00:00",
-        "total_value": 229.31947137,
-        "equity_value": 229.22947137,
+        "as_of": "2026-08-27T05:33:27.373116+00:00",
+        "total_value": 228.72760783,
+        "equity_value": 228.63760783,
         "cash": 0.09,
         "buying_power": 0.09,
         "unleveraged_buying_power": 0.09,
@@ -3608,7 +3608,7 @@
       "rh_checking_spend_30d": 2.43,
       "x_money_cash": 0.0,
       "x_money_account": "Main \u2013 2201",
-      "x_money_spend_30d": 4453.08,
+      "x_money_spend_30d": 4468.2,
       "x_money_apy_est": 0.06,
       "solana_wallet": "CzuRxF4H7qtcCbP37zcLu9DTgcHySmi8NcTsrS6W7bDm",
       "solana_book_usd": 9.09574066066541,
@@ -3627,7 +3627,7 @@
       "rh_agentic_account_last4": "1752",
       "rh_agentic_buying_power": 0.09,
       "rh_agentic_cash": 0.09,
-      "rh_agentic_total_value": 229.31947137,
+      "rh_agentic_total_value": 228.72760783,
       "rh_agentic_mcp_connected": true,
       "rh_positions_count": 0,
       "rh_agentic_positions_count": 10,
@@ -3735,28 +3735,22 @@
         "solana": "live",
         "expenses": "google_sheets",
         "coinbase_as_of": "2026-08-26T19:54:14.045433+00:00",
-        "robinhood_as_of": "2026-08-27T02:29:59.383052+00:00",
-        "one_card_as_of": "2026-08-26T19:54:14.663534+00:00",
-        "rh_checking_as_of": "2026-08-26T19:54:14.868477+00:00",
-        "x_money_as_of": "2026-08-26T19:54:15.231947+00:00",
+        "robinhood_as_of": "2026-08-27T05:33:27.373121+00:00",
+        "one_card_as_of": "2026-08-27T02:50:56.114923+00:00",
+        "rh_checking_as_of": "2026-08-27T02:50:56.362857+00:00",
+        "x_money_as_of": "2026-08-27T02:50:56.686532+00:00",
         "solana_as_of": "2026-08-26T19:54:21.054560+00:00",
         "expenses_as_of": "2026-08-26T19:54:19.239365+00:00"
       },
       "stale": [
-        "coinbase data 6.6h old (>6.0h)",
-        "one_card data 6.6h old (>6.0h)",
-        "rh_checking data 6.6h old (>6.0h)",
-        "x_money data 6.6h old (>6.0h)",
-        "solana data 6.6h old (>6.0h)",
-        "expenses data 6.6h old (>6.0h)"
+        "coinbase data 9.7h old (>6.0h)",
+        "solana data 9.7h old (>6.0h)",
+        "expenses data 9.7h old (>6.0h)"
       ],
       "warnings": [
-        "coinbase data 6.6h old (>6.0h)",
-        "one_card data 6.6h old (>6.0h)",
-        "rh_checking data 6.6h old (>6.0h)",
-        "x_money data 6.6h old (>6.0h)",
-        "solana data 6.6h old (>6.0h)",
-        "expenses data 6.6h old (>6.0h)"
+        "coinbase data 9.7h old (>6.0h)",
+        "solana data 9.7h old (>6.0h)",
+        "expenses data 9.7h old (>6.0h)"
       ],
       "notes": [
         "Morpho LTV, High Yield vault, and One Card are app-only \u2014 not Advanced Trade API.",
@@ -4081,25 +4075,25 @@
     },
     "fund_manager": {
       "ok": true,
-      "as_of": "2026-08-27T02:29:59.519661+00:00",
+      "as_of": "2026-08-27T05:33:27.517017+00:00",
       "agentic_account_number": "674601752",
       "policy_path": "investment/fund_manager.json",
       "analysis": {
         "ok": true,
-        "as_of": "2026-08-27T02:29:59.516682+00:00",
+        "as_of": "2026-08-27T05:33:27.513820+00:00",
         "policy_version": 1,
         "mode": "active",
         "account_last4": "1752",
         "account_number": "674601752",
         "agentic_allowed": true,
-        "nav_usd": 229.3195,
+        "nav_usd": 228.7276,
         "cash_usd": 0.09,
         "buying_power_usd": 0.09,
         "pending_deposits_usd": null,
         "equity_market_value_usd": 199.7289,
         "weights_of_nav": {
-          "btc_digital_credit": 0.3534,
-          "stocks_growth": 0.5176,
+          "btc_digital_credit": 0.3543,
+          "stocks_growth": 0.519,
           "other": 0.0,
           "cash": 0.0004
         },
@@ -5883,25 +5877,25 @@
   },
   "fund_manager": {
     "ok": true,
-    "as_of": "2026-08-27T02:29:59.519661+00:00",
+    "as_of": "2026-08-27T05:33:27.517017+00:00",
     "agentic_account_number": "674601752",
     "policy_path": "investment/fund_manager.json",
     "analysis": {
       "ok": true,
-      "as_of": "2026-08-27T02:29:59.516682+00:00",
+      "as_of": "2026-08-27T05:33:27.513820+00:00",
       "policy_version": 1,
       "mode": "active",
       "account_last4": "1752",
       "account_number": "674601752",
       "agentic_allowed": true,
-      "nav_usd": 229.3195,
+      "nav_usd": 228.7276,
       "cash_usd": 0.09,
       "buying_power_usd": 0.09,
       "pending_deposits_usd": null,
       "equity_market_value_usd": 199.7289,
       "weights_of_nav": {
-        "btc_digital_credit": 0.3534,
-        "stocks_growth": 0.5176,
+        "btc_digital_credit": 0.3543,
+        "stocks_growth": 0.519,
         "other": 0.0,
         "cash": 0.0004
       },
