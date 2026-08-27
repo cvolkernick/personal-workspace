@@ -484,8 +484,8 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         css = (root / "static" / "styles.css").read_text(encoding="utf-8")
         app_js = root / "static" / "app.js"
         self.assertGreater(app_js.stat().st_size, 180_000)
-        self.assertIn("hidrate-bottle.js?v=bottle-charge-6", html)
-        self.assertIn("styles.css?v=bottle-inline-1", html)
+        self.assertIn("hidrate-bottle.js?v=bottle-charge-7", html)
+        self.assertIn("styles.css?v=bottle-sideways-1", html)
         self.assertIn('id="hidrate-bottle-charge"', html)
         self.assertIn("hydration-pacing-header-end", html)
         section = html[
@@ -505,8 +505,8 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         self.assertIn("sb-shell", js)
         self.assertIn("sb-fill-wrap", js)
         self.assertIn("sb-fill", js)
-        self.assertIn('" style="height:' , js)
-        self.assertNotIn('" style="width:' , js)
+        self.assertIn('" style="width:' , js)
+        self.assertNotIn('" style="height:' , js)
         self.assertIn("sb-label", js)
         self.assertIn("critical", js)
         self.assertIn("full", js)
@@ -514,26 +514,29 @@ class TestBottleChargeUiOverlay(unittest.TestCase):
         start = css.find(".hidrate-bottle-charge .sb-shell {")
         self.assertGreaterEqual(start, 0)
         hidrate_block = css[start : css.find(".pace-track", start)]
-        self.assertIn("width: 22px;", hidrate_block)
-        self.assertIn("height: 38px;", hidrate_block)
+        self.assertIn("width: 46px;", hidrate_block)
+        self.assertIn("height: 22px;", hidrate_block)
         wrap_start = hidrate_block.find(".hidrate-bottle-charge .sb-fill-wrap {")
         self.assertGreaterEqual(wrap_start, 0)
         wrap_block = hidrate_block[wrap_start : hidrate_block.find("}", wrap_start) + 1]
         self.assertIn("display: block;", wrap_block)
-        self.assertIn("height: 38px;", wrap_block)
-        self.assertIn("height: 4px;", hidrate_block)
-        self.assertIn("top: -4px;", hidrate_block)
+        self.assertIn("width: 38px;", wrap_block)
+        self.assertIn("height: 14px;", wrap_block)
+        self.assertIn("right: -5px;", hidrate_block)
+        self.assertIn("width: 4px;", hidrate_block)
         self.assertNotIn("width: 50px;", hidrate_block)
         self.assertNotIn("height: 28px;", hidrate_block)
         self.assertNotIn("width: 32px;", hidrate_block)
         self.assertNotIn("height: 56px;", hidrate_block)
+        self.assertNotIn("width: 22px;", hidrate_block)
+        self.assertNotIn("height: 38px;", hidrate_block)
         self.assertNotIn("width: 72px;", hidrate_block)
         self.assertNotIn("width: 64px;", hidrate_block)
         self.assertNotIn(".hidrate-bottle-charge .hbb-shell", hidrate_block)
-        # Standing body: fill-wrap taller than shell width.
+        # Landscape body: wrap wider than tall (sleep-battery orientation).
         self.assertLess(
-            hidrate_block.find("width: 22px;"),
-            hidrate_block.find("height: 38px;"),
+            hidrate_block.find("width: 38px;"),
+            hidrate_block.find("height: 14px;"),
         )
         # Sleep battery shell stays full-width / 44px fill — not the mini sizes.
         sleep_shell = css[css.find(".sb-shell {") : css.find(".hidrate-bottle-charge .sb-shell")]
