@@ -245,6 +245,41 @@ class FleetAssemblyTests(unittest.TestCase):
             self.assertFalse(tesla["finance"]["stale"])
             self.assertEqual(tesla["finance"]["source"], "expenses_sync.tabs.Fleet")
 
+    def test_parallel_dimo_keeps_unit_order(self) -> None:
+        def fake(token_id: int, _env):
+            return {
+                "last_seen": "2026-08-17T12:00:00Z",
+                "odometer": token_id,
+                "location": {"lat": 26.67, "lon": -82.03},
+            }
+
+        dimo_client._FETCH = fake
+        env = {
+            "DIMO_CLIENT_ID": "0xabc",
+            "DIMO_DOMAIN": "https://example.invalid",
+            "DIMO_API_KEY": "secret",
+            "DIMO_TOKEN_M3_2020": "11",
+            "DIMO_TOKEN_M3_2022": "22",
+            "DIMO_TOKEN_COROLLA_2022": "33",
+            "DIMO_TOKEN_COROLLA_2024": "44",
+            "DIMO_TOKEN_R1S_2023": "55",
+        }
+        payload = fleet.build_fleet(
+            roster_path=ROSTER,
+            notes_path=NOTES,
+            expenses_path=FIXTURES / "expenses_no_fleet.json",
+            inbox_path=EMPTY_INBOX,
+            dimo_env=env,
+            now="2026-08-17T16:00:00+00:00",
+        )
+        by_id = {u["id"]: u for u in payload["units"]}
+        self.assertEqual(by_id["m3-2020"]["dimo"]["odometer"], 11)
+        self.assertEqual(by_id["m3-2022"]["dimo"]["odometer"], 22)
+        self.assertEqual(by_id["corolla-2022"]["dimo"]["odometer"], 33)
+        self.assertEqual(by_id["corolla-2024"]["dimo"]["odometer"], 44)
+        self.assertEqual(by_id["r1s-2023"]["dimo"]["odometer"], 55)
+        self.assertEqual(by_id["m3-2020"]["glance"]["location_label"], "26.67, -82.03")
+
 
 if __name__ == "__main__":
     unittest.main()

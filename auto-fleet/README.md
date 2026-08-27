@@ -90,7 +90,7 @@ Google Tasks (invoice-ready strip) uses the same prism files as FitDash-on-Pi:
 
 | Source | MVP behavior |
 |--------|----------------|
-| **DIMO** | Unconfigured until env + vehicle token ids exist. Live path mints a Developer JWT then a **Vehicle JWT** via `dimo-python-sdk`. Never send `DIMO_API_KEY` as a telemetry Bearer. |
+| **DIMO** | Unconfigured until env + vehicle token ids exist. Live path mints a Developer JWT then a **Vehicle JWT** via `dimo-python-sdk`. Never send `DIMO_API_KEY` as a telemetry Bearer. Telemetry is `signalsLatest` (latest GPS / SoC / odo), **not** a live stream. Dashboard polls `/api/fleet` every 30s for location; Turo writer stays every 15 minutes. Fleet map is OSM. |
 | **Turo** | Parses a **local** JSON fixture / maildir / `~/.config/auto-fleet/turo_inbox.json`. Default fixture is empty. Prod writer is the Pi 15m timer (`auto-fleet-turo-writer.timer`) — not a Mac Grok/MCP poll. Historical / `label:Turo` 2024 mail is dropped. The server does not call Gmail. Payout dest is **X Money**. |
 | **Costs / notes** | Reads `tabs.Fleet` (`role: fleet_ops`) from this checkout's `treasury/snapshots/expenses_latest.json`, or — if that snapshot has no Fleet tab — the treasury worktree (`~/personal-workspace-worktrees/treasury/.../expenses_latest.json`). Override with `--expenses` / `AUTO_FLEET_EXPENSES`. Unit cards never use `summary.combined_monthly`. Missing Fleet tab → `stale: true` and roster + `notes.json`. |
 | **Lien-holders** | No scrape. `notes.json` is a dated portal snapshot. Principal / PTP / payoff-quote fields are **not** live. |

@@ -5,6 +5,7 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Auto Fleet</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚗</text></svg>" />
   <style>
@@ -208,6 +209,82 @@
       text-decoration: none;
     }
     a.maps:hover { text-decoration: underline; }
+    .load-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      z-index: 90;
+      pointer-events: none;
+      background: linear-gradient(90deg, transparent, var(--accent), var(--green), transparent);
+      background-size: 45% 100%;
+      animation: loadslide 1.05s linear infinite;
+    }
+    .load-bar[hidden] { display: none; }
+    @keyframes loadslide {
+      from { background-position: -50% 0; }
+      to { background-position: 150% 0; }
+    }
+    .page-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(11, 15, 20, 0.82);
+      backdrop-filter: blur(7px);
+    }
+    .page-loader[hidden] { display: none; }
+    .page-loader-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 1.25rem 1.4rem;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      min-width: 220px;
+      text-align: center;
+    }
+    .page-loader-card .muted { margin: 0; font-size: 0.8rem; }
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    button:disabled {
+      opacity: 0.6;
+      cursor: wait;
+    }
+    .fleet-map { margin: 0 0 1rem; padding: 0; overflow: hidden; }
+    .fleet-map .map-head {
+      padding: 0.75rem 0.95rem 0.45rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+    .fleet-map h2 { margin: 0; font-size: 1.05rem; }
+    #fleet-map-canvas {
+      height: 280px;
+      width: 100%;
+      background: #0a1016;
+    }
+    .leaflet-container { background: #0a1016; font: inherit; }
+    .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+      background: var(--panel);
+      color: var(--text);
+    }
+    .leaflet-popup-content { margin: 0.55rem 0.75rem; }
+    .leaflet-popup-content a { color: var(--accent); }
     .shared { margin-top: 0.9rem; padding: 0.95rem 1rem; }
     .shared ul { margin: 0.3rem 0 0; padding-left: 1.1rem; }
     .turo-inbox {
@@ -446,6 +523,7 @@
       .glance { grid-template-columns: 1fr 1fr; }
       .metrics { grid-template-columns: minmax(5.6rem, auto) minmax(0, 1fr); }
       .hero { grid-template-columns: 96px 1fr; }
+      #fleet-map-canvas { height: 220px; }
     }
     @media (max-width: 560px) {
       .queue-cols { display: none; }
@@ -460,6 +538,14 @@
   </style>
 </head>
 <body>
+  <div id="load-bar" class="load-bar" hidden></div>
+  <div id="page-loader" class="page-loader" role="status" aria-live="polite" aria-busy="true">
+    <div class="page-loader-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <div>Loading fleet…</div>
+      <p class="muted">Pulling DIMO telemetry</p>
+    </div>
+  </div>
   <header>
     <div>
       <h1>Auto Fleet</h1>
@@ -471,6 +557,13 @@
     <p class="meta" id="status">Loading…</p>
     <section class="card host-ops" id="host-ops" hidden></section>
     <div class="glance" id="glance"></div>
+    <section class="card fleet-map" id="fleet-map" hidden>
+      <div class="map-head">
+        <h2>Location</h2>
+        <p class="muted" id="fleet-map-meta"></p>
+      </div>
+      <div id="fleet-map-canvas" role="img" aria-label="Fleet vehicle locations"></div>
+    </section>
     <section class="card next30" id="next30" hidden></section>
     <div class="grid" id="cards"></div>
     <section class="card shared" id="shared" hidden></section>
@@ -586,6 +679,26 @@
       return `https://maps.google.com/?q=${lat},${lon}`;
     }
 
+    function formatCoord(n) {
+      const v = Number(n);
+      if (!Number.isFinite(v)) return null;
+      return String(v.toFixed(5)).replace(/\.?0+$/, "");
+    }
+
+    function coordPair(loc) {
+      if (!loc) return null;
+      const lat = formatCoord(loc.lat ?? loc.latitude);
+      const lon = formatCoord(loc.lon ?? loc.longitude);
+      if (lat == null || lon == null) return null;
+      return `${lat}, ${lon}`;
+    }
+
+    function speedMph(kmh) {
+      const n = Number(kmh);
+      if (!Number.isFinite(n)) return null;
+      return Math.round((n / KM_PER_MILE) * 10) / 10;
+    }
+
     function unitPhoto(id) {
       if (id === "m3-2020") return "/static/fleet/tesla-model-3-2020.jpg";
       if (id === "r1s-2023") return "/static/fleet/rivian-r1s-2023.jpg";
@@ -617,6 +730,11 @@
         due: hasDue(portalOf(u.finance || {})),
         photo: unitPhoto(u.id),
         maps_url: mapsUrl(d.location),
+        location_label: coordPair(d.location),
+        location_relative: relativeAge(d.location_timestamp || (d.location ? d.last_seen : null), nowMs),
+        speed_mph: speedMph(d.speed),
+        heading: d.heading,
+        ignition_on: d.ignition_on,
         show_soc: soc != null,
       };
     }
@@ -645,8 +763,15 @@
           rows.push(`<div class="k">Odo</div><div class="v">${Number(g.odo_mi).toLocaleString("en-US")} mi</div>`);
         }
         rows.push(`<div class="k">Last seen</div><div class="v ${g.freshness === "dead" ? "err" : "muted"}">${esc(g.last_seen_relative || "—")}${g.freshness === "dead" || g.freshness === "stale" ? ` · ${esc(g.freshness)}` : ""}</div>`);
-        if (g.maps_url) {
-          rows.push(`<div class="k">Location</div><div class="v"><a class="maps" href="${esc(g.maps_url)}" target="_blank" rel="noopener">Map</a></div>`);
+        if (g.maps_url || g.location_label) {
+          const bits = [];
+          if (g.location_label) bits.push(esc(g.location_label));
+          if (g.location_relative) bits.push(esc(g.location_relative));
+          if (g.speed_mph != null && g.speed_mph >= 1) bits.push(`${esc(g.speed_mph)} mph`);
+          const mapLink = g.maps_url
+            ? `<a class="maps" href="${esc(g.maps_url)}" target="_blank" rel="noopener">Map</a>`
+            : "";
+          rows.push(`<div class="k">Location</div><div class="v">${bits.join(" · ")}${mapLink ? (bits.length ? " · " : "") + mapLink : ""}</div>`);
         }
         body = `<div class="metrics">${rows.join("")}</div>`;
       }
@@ -1269,8 +1394,115 @@
       body.textContent = status;
     }
 
+    let inflight = null;
+    let firstLoad = true;
+    let fleetMap = null;
+    let fleetMarkers = [];
+
+    function setLoading(on) {
+      const bar = $("load-bar");
+      const overlay = $("page-loader");
+      const btn = $("btn-refresh");
+      if (bar) bar.hidden = !on;
+      if (overlay) overlay.hidden = !(on && firstLoad);
+      if (overlay) overlay.setAttribute("aria-busy", on && firstLoad ? "true" : "false");
+      if (btn) {
+        btn.disabled = on;
+        btn.textContent = on ? "Refreshing…" : "Refresh";
+      }
+      document.body.classList.toggle("is-loading", on);
+    }
+
+    function locOf(u) {
+      const loc = ((u && u.dimo) || {}).location || {};
+      const lat = Number(loc.lat ?? loc.latitude);
+      const lon = Number(loc.lon ?? loc.longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+      return { lat, lon };
+    }
+
+    function renderFleetMap(units, nowMs, pollS) {
+      const box = $("fleet-map");
+      const canvas = $("fleet-map-canvas");
+      const meta = $("fleet-map-meta");
+      if (!box || !canvas) return;
+      const points = [];
+      (units || []).forEach((u) => {
+        const loc = locOf(u);
+        if (!loc) return;
+        points.push({ u, g: glanceOf(u, nowMs, pollS), ...loc });
+      });
+      if (!points.length) {
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      const liveN = points.filter((p) => p.g.freshness === "live").length;
+      if (meta) {
+        meta.textContent =
+          `${points.length} with GPS · ${liveN} live · DIMO signalsLatest (not a stream)`;
+      }
+      if (typeof L === "undefined") {
+        canvas.innerHTML = points.map((p) => {
+          const name = p.g.year_model || p.u.id;
+          const url = p.g.maps_url || `https://maps.google.com/?q=${p.lat},${p.lon}`;
+          const label = p.g.location_label || `${p.lat}, ${p.lon}`;
+          const age = p.g.location_relative || p.g.last_seen_relative || "";
+          return `<div class="row"><a class="maps" href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a> · ${esc(label)}${age ? ` · ${esc(age)}` : ""}</div>`;
+        }).join("");
+        return;
+      }
+      if (!fleetMap) {
+        canvas.innerHTML = "";
+        fleetMap = L.map(canvas, { scrollWheelZoom: false, attributionControl: true });
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: "&copy; OpenStreetMap",
+          maxZoom: 18,
+        }).addTo(fleetMap);
+      }
+      fleetMarkers.forEach((m) => m.remove());
+      fleetMarkers = [];
+      const bounds = [];
+      const colors = { live: "#3dd68c", stale: "#f5c542", dead: "#ff6b6b", unknown: "#8aa0b5" };
+      points.forEach((p) => {
+        const fresh = p.g.freshness || "unknown";
+        const color = colors[fresh] || colors.unknown;
+        const marker = L.circleMarker([p.lat, p.lon], {
+          radius: 8,
+          color,
+          fillColor: color,
+          fillOpacity: 0.9,
+          weight: 2,
+        }).addTo(fleetMap);
+        const speed = p.g.speed_mph != null && p.g.speed_mph >= 1 ? `${p.g.speed_mph} mph` : "";
+        const age = p.g.location_relative || p.g.last_seen_relative || "";
+        const maps = p.g.maps_url
+          ? `<br><a href="${esc(p.g.maps_url)}" target="_blank" rel="noopener">Google Maps</a>`
+          : "";
+        marker.bindPopup(
+          `<strong>${esc(p.g.title || p.g.year_model || p.u.id)}</strong><br>` +
+          `${esc(p.g.location_label || `${p.lat}, ${p.lon}`)}` +
+          (age ? `<br>${esc(age)}` : "") +
+          (speed ? `<br>${esc(speed)}` : "") +
+          maps
+        );
+        fleetMarkers.push(marker);
+        bounds.push([p.lat, p.lon]);
+      });
+      if (bounds.length === 1) fleetMap.setView(bounds[0], 13);
+      else fleetMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 13 });
+      window.setTimeout(() => { if (fleetMap) fleetMap.invalidateSize(); }, 0);
+    }
+
     async function load() {
+      if (inflight) return inflight;
+      inflight = loadInner().finally(() => { inflight = null; });
+      return inflight;
+    }
+
+    async function loadInner() {
       const status = $("status");
+      setLoading(true);
       try {
         const [healthRes, fleetRes, tasksRes] = await Promise.all([
           fetch("/api/health", { cache: "no-store" }),
@@ -1318,8 +1550,13 @@
         $("cards").innerHTML = list.map((u) => renderUnit(u, nowMs, pollS)).join("");
         renderShared(fleet);
         renderTuroFooter(fleet);
+        renderFleetMap(list, nowMs, pollS);
+        firstLoad = false;
       } catch (err) {
         status.innerHTML = `<span class="err">${esc(err.message || err)}</span>`;
+        firstLoad = false;
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -1342,6 +1579,8 @@
     });
     load();
     setInterval(load, 15 * 60 * 1000);
+    setInterval(load, 30 * 1000);
   </script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
 </body>
 </html>
