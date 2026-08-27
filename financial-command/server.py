@@ -10,6 +10,7 @@ Serves static UI + APIs:
   GET  /api/interest-spectrum — APR/APY visual spectrum (no invented rates)
   GET  /api/braiins       — Braiins Pool mining snapshot summary
   GET  /api/coach         — financial coach allocation plan (pay on time)
+  GET  /api/planned-actual — display-only sheet planned vs YNAB actual flags
   GET  /api/ask/status    — Ask Grok financial advisor auth + model
   POST /api/ask/login     — start existing `grok login --device-auth` (no secrets)
   GET  /api/ask/login     — poll grok CLI login (public fields only)
@@ -87,6 +88,7 @@ from treasury.watchlist_dashboard import (  # noqa: E402
     get_deep_dive_markdown,
 )
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
+from treasury.planned_actual import load_planned_actual  # noqa: E402
 
 BRAIINS_SNAPSHOT = ROOT / "treasury" / "snapshots" / "braiins_latest.json"
 SOLANA_SNAPSHOT = ROOT / "treasury" / "snapshots" / "solana_latest.json"
@@ -611,6 +613,7 @@ class FCCHandler(SimpleHTTPRequestHandler):
                         "watchlist",
                         "capital_flows",
                         "interest_spectrum",
+                        "planned_actual",
                     ],
                 },
             )
@@ -645,6 +648,12 @@ class FCCHandler(SimpleHTTPRequestHandler):
                 self._json(200, build_interest_spectrum())
             except Exception as e:
                 self._json(500, {"ok": False, "error": str(e)})
+            return
+        if path == "/api/planned-actual":
+            try:
+                self._json(200, load_planned_actual())
+            except Exception as e:
+                self._json(500, {"ok": False, "error": str(e), "display_only": True})
             return
         if path == "/api/coach":
             try:
