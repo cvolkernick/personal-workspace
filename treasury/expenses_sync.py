@@ -2,13 +2,15 @@
 """Sync Personal Expense Google Sheet into treasury snapshots for FCC.
 
 Sheet: Personal Expense Sheet
-  Personal     — estimated *upcoming* expenses (may be ballpark), with due dates
-                 and funding account (From). Forward-looking, not actual spend.
-  Discretionary — hypothetical destinations for *excess capital* (not expenses).
+  Essential    — estimated *upcoming* essential expenses (legacy title: Personal).
+  Fleet        — auto fleet ops (loans, insurance, DIMO). Snapshot role fleet_ops.
+  Collateral   — collateral / productive ops (Agentic, ASIC Fleet OpEx). Not burn.
+  Discretionary — hypothetical destinations for *excess capital* (not planned rows).
 
 YNAB is the source of *actual* spending (esp. Coinbase One Card). Do not double-count.
 
 Default fetch uses Google Sheets gviz CSV export (works when link-shared).
+Tab titles are the live sheet names — do not invent them.
 
 Usage:
   python3 treasury/expenses_sync.py
@@ -37,7 +39,15 @@ if str(ROOT) not in sys.path:
 from treasury.adapters import SNAPSHOTS_DIR, load_config, save_json  # noqa: E402
 
 DEFAULT_SHEET_ID = "15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ"
-DEFAULT_TABS = ("Personal", "Discretionary")
+ESSENTIAL_TAB = "Essential"
+LEGACY_ESSENTIAL_TAB = "Personal"
+FLEET_TAB = "Fleet"
+COLLATERAL_TAB = "Collateral"
+DISCRETIONARY_TAB = "Discretionary"
+# Planned strip + FCC pay-urgency read these three. Discretionary stays capital-targets.
+DEFAULT_TABS = (ESSENTIAL_TAB, FLEET_TAB, COLLATERAL_TAB, DISCRETIONARY_TAB)
+# Back-compat alias for importers that still say PERSONAL_TAB.
+PERSONAL_TAB = ESSENTIAL_TAB
 
 
 def _now() -> str:
@@ -84,6 +94,22 @@ def fetch_sheet_csv(sheet_id: str, sheet_name: str, *, timeout: float = 30.0) ->
             return resp.read().decode("utf-8")
     except urllib.error.HTTPError as e:
         raise RuntimeError(f"Sheet HTTP {e.code} for tab {sheet_name!r}") from e
+
+
+def try_fetch_sheet_csv(sheet_id: str, sheet_name: str, *, timeout: float = 30.0) -> Optional[str]:
+    """Same as fetch_sheet_csv, but None when the tab is missing. Do not invent it."""
+    try:
+        return fetch_sheet_csv(sheet_id, sheet_name, timeout=timeout)
+    except Exception:
+        return None
+
+
+def fetch_essential_csv(sheet_id: str, *, timeout: float = 30.0) -> Tuple[str, str]:
+    """Current title Essential; legacy Personal still accepted."""
+    text = try_fetch_sheet_csv(sheet_id, ESSENTIAL_TAB, timeout=timeout)
+    if text is not None:
+        return text, ESSENTIAL_TAB
+    return fetch_sheet_csv(sheet_id, LEGACY_ESSENTIAL_TAB, timeout=timeout), LEGACY_ESSENTIAL_TAB
 
 
 def rows_from_csv(text: str) -> List[Dict[str, str]]:
@@ -285,17 +311,47 @@ def _upcoming_sorted(items: List[Dict[str, Any]], n: int = 20) -> List[Dict[str,
     ]
 
 
+def _expense_tab_block(
+    items: List[Dict[str, Any]],
+    totals: Dict[str, float],
+    *,
+    role: str,
+) -> Dict[str, Any]:
+    block: Dict[str, Any] = {
+        "role": role,
+        "item_count": len(items),
+        "totals": {k: round(v, 2) for k, v in totals.items()},
+        "items": items,
+    }
+    if role == "excess_capital_targets":
+        block["top_targets"] = top_items(items, 12)
+        block["top_monthly"] = top_items(items, 12)
+        return block
+    block["by_source_monthly"] = by_source(items)
+    block["top_monthly"] = top_items(items, 12)
+    block["upcoming_by_date"] = _upcoming_sorted(items, 20)
+    return block
+
+
 def build_expenses_snapshot(
     personal_csv: str,
     discretionary_csv: str,
     *,
     sheet_id: str,
     source: str = "google_sheets",
+    fleet_csv: Optional[str] = None,
+    collateral_csv: Optional[str] = None,
 ) -> Dict[str, Any]:
     personal_items, personal_totals = parse_personal_rows(rows_from_csv(personal_csv))
     disc_items, disc_totals = parse_discretionary_rows(rows_from_csv(discretionary_csv))
+    fleet_items, fleet_totals = (
+        parse_personal_rows(rows_from_csv(fleet_csv)) if fleet_csv else ([], {})
+    )
+    collateral_items, collateral_totals = (
+        parse_personal_rows(rows_from_csv(collateral_csv)) if collateral_csv else ([], {})
+    )
 
-    # Personal only = estimated upcoming obligations (NOT actual spend; YNAB owns actuals)
+    # Essential/Personal only = estimated upcoming obligations (NOT actual spend)
     personal_monthly = personal_totals.get("monthly") or 0.0
     # Discretionary = capital allocation targets for excess — NOT expenses / burn
     capital_target_monthly = disc_totals.get("monthly") or 0.0
@@ -311,6 +367,24 @@ def build_expenses_snapshot(
         if "rh" in (i.get("from") or "").lower() or "robinhood" in (i.get("from") or "").lower()
     )
 
+    essential_block = _expense_tab_block(
+        personal_items, personal_totals, role="upcoming_expense_estimates"
+    )
+    tabs: Dict[str, Any] = {
+        # Current sheet title + legacy alias (same burn tab).
+        ESSENTIAL_TAB: essential_block,
+        LEGACY_ESSENTIAL_TAB: essential_block,
+        DISCRETIONARY_TAB: _expense_tab_block(
+            disc_items, disc_totals, role="excess_capital_targets"
+        ),
+    }
+    if fleet_csv is not None:
+        tabs[FLEET_TAB] = _expense_tab_block(fleet_items, fleet_totals, role="fleet_ops")
+    if collateral_csv is not None:
+        tabs[COLLATERAL_TAB] = _expense_tab_block(
+            collateral_items, collateral_totals, role="collateral_investments"
+        )
+
     return {
         "source": source,
         "as_of": _now(),
@@ -319,46 +393,36 @@ def build_expenses_snapshot(
         "semantics": {
             "personal": (
                 "Estimated upcoming expenses (ballpark OK) with due dates and funding account. "
-                "Forward-looking plan — not a record of what already spent."
+                "Forward-looking plan — not a record of what already spent. "
+                "Sheet tab title is Essential (legacy Personal)."
+            ),
+            "fleet": "Auto fleet ops on the Fleet tab. Planned even when payment-shaped.",
+            "collateral": (
+                "Collateral tab (Agentic Fund Allocation, ASIC Fleet OpEx). "
+                "Not Productive Discretionary ASIC."
             ),
             "discretionary": (
                 "Hypothetical destinations for excess capital (assets / goals). "
                 "Not a spending plan and not included in expense burn."
             ),
-            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Personal.",
+            "actual_spend": "YNAB (and brokers) own realized transactions; do not double-count with Essential.",
         },
-        "tabs": {
-            "Personal": {
-                "role": "upcoming_expense_estimates",
-                "item_count": len(personal_items),
-                "totals": {k: round(v, 2) for k, v in personal_totals.items()},
-                "by_source_monthly": by_source(personal_items),
-                "top_monthly": top_items(personal_items, 12),
-                "upcoming_by_date": _upcoming_sorted(personal_items, 20),
-                "items": personal_items,
-            },
-            "Discretionary": {
-                "role": "excess_capital_targets",
-                "item_count": len(disc_items),
-                "totals": {k: round(v, 2) for k, v in disc_totals.items()},
-                "top_targets": top_items(disc_items, 12),
-                # keep top_monthly alias for older UI
-                "top_monthly": top_items(disc_items, 12),
-                "items": disc_items,
-            },
-        },
+        "tabs": tabs,
         "summary": {
-            # Expense estimates (Personal only)
+            # Expense estimates (Essential / Personal only — Fleet/Collateral do not change burn here)
             "upcoming_expense_monthly": round(personal_monthly, 2),
             "personal_monthly": round(personal_monthly, 2),  # alias
+            "essential_monthly": round(personal_monthly, 2),
             "personal_daily": round(personal_totals.get("daily") or 0.0, 2),
             "personal_weekly": round(personal_totals.get("weekly") or 0.0, 2),
             "personal_annually": round(personal_totals.get("annually") or 0.0, 2),
+            "fleet_monthly": round(fleet_totals.get("monthly") or 0.0, 2),
+            "collateral_monthly": round(collateral_totals.get("monthly") or 0.0, 2),
             # Capital targets (Discretionary) — not burn
             "capital_targets_monthly": round(capital_target_monthly, 2),
             "discretionary_monthly": round(capital_target_monthly, 2),  # alias
             "discretionary_daily": round(disc_totals.get("daily") or 0.0, 2),
-            # Burn / funding pressure = Personal only (never + discretionary)
+            # Burn / funding pressure = Essential only (never + discretionary / collateral)
             "combined_monthly": round(personal_monthly, 2),
             "combined_daily": round(personal_totals.get("daily") or 0.0, 2),
             "coinbase_funded_monthly": round(cb_monthly, 2),
@@ -366,7 +430,8 @@ def build_expenses_snapshot(
             "rh_checking_funded_monthly": round(rh_monthly, 2),
         },
         "notes": (
-            "Personal = estimated future bills by pay-from account. "
+            "Essential (legacy Personal) = estimated future bills by pay-from account. "
+            "Fleet and Collateral are stored when present on the sheet. "
             "Discretionary = theoretical excess-capital targets (not expenses). "
             "Actual card/spend history comes from YNAB, not this sheet."
         ),
@@ -381,7 +446,6 @@ def sync_expenses(
     cfg = load_config()
     gcfg = cfg.get("expenses_sheet") or cfg.get("google_sheet") or {}
     sid = sheet_id or gcfg.get("sheet_id") or DEFAULT_SHEET_ID
-    tabs = gcfg.get("tabs") or list(DEFAULT_TABS)
 
     if not prefer_live:
         from treasury.adapters import load_json
@@ -398,11 +462,17 @@ def sync_expenses(
         }
 
     try:
-        personal_csv = fetch_sheet_csv(sid, tabs[0] if tabs else "Personal")
-        disc_name = tabs[1] if len(tabs) > 1 else "Discretionary"
-        discretionary_csv = fetch_sheet_csv(sid, disc_name)
+        personal_csv, _ess_name = fetch_essential_csv(sid)
+        discretionary_csv = fetch_sheet_csv(sid, DISCRETIONARY_TAB)
+        fleet_csv = try_fetch_sheet_csv(sid, FLEET_TAB)
+        collateral_csv = try_fetch_sheet_csv(sid, COLLATERAL_TAB)
         snap = build_expenses_snapshot(
-            personal_csv, discretionary_csv, sheet_id=sid, source="google_sheets"
+            personal_csv,
+            discretionary_csv,
+            sheet_id=sid,
+            source="google_sheets",
+            fleet_csv=fleet_csv,
+            collateral_csv=collateral_csv,
         )
         return snap
     except Exception as e:
@@ -460,7 +530,11 @@ def main(argv: Optional[List[str]] = None) -> int:
                 or s.get("discretionary_monthly"),
                 "coinbase_funded_monthly": s.get("coinbase_funded_monthly"),
                 "rh_checking_funded_monthly": s.get("rh_funded_monthly"),
-                "items_upcoming": (data.get("tabs") or {}).get("Personal", {}).get("item_count"),
+                "items_upcoming": (data.get("tabs") or {})
+                .get("Essential", (data.get("tabs") or {}).get("Personal", {}))
+                .get("item_count"),
+                "items_fleet": (data.get("tabs") or {}).get("Fleet", {}).get("item_count"),
+                "items_collateral": (data.get("tabs") or {}).get("Collateral", {}).get("item_count"),
                 "items_capital_targets": (data.get("tabs") or {})
                 .get("Discretionary", {})
                 .get("item_count"),

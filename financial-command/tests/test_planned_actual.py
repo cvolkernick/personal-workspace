@@ -50,7 +50,7 @@ class TestPlannedActualPage(unittest.TestCase):
         self.assertIn("flag-off-book", html)
         self.assertIn("flag-payment-shaped", html)
         self.assertIn("two-charge, cadence-lump, and payment-shaped", html)
-        self.assertIn("Personal/Essential, Fleet, and Collateral", html)
+        self.assertIn("Essential (legacy Personal), Fleet, and Collateral", html)
         self.assertNotIn("overspend", html.lower())
         # two-charge / cadence-lump must not use the red due style
         css = html.split("flag-two-charge")[1].split("flag-off-book")[0]

@@ -11,12 +11,21 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from treasury.expenses_sync import (  # noqa: E402
+    COLLATERAL_TAB,
+    ESSENTIAL_TAB,
+    FLEET_TAB,
     _upcoming_sorted,
     build_expenses_snapshot,
     parse_money,
     parse_personal_rows,
     parse_sheet_date,
     rows_from_csv,
+)
+from treasury.planned_actual import (  # noqa: E402
+    FLAG_OFF_BOOK,
+    FLAG_PAYMENT_SHAPED,
+    build_planned_actual_strip,
+    names_join,
 )
 from treasury.policy import evaluate_treasury  # noqa: E402
 
@@ -31,6 +40,21 @@ DISC_CSV = """Item,Date,Daily,Weekly,Bi-Weekly,Monthly,Annually,From,To
 ASIC,8/1/2026,$83.33,$583.33,"$1,166.67","$2,500.00","$30,000.00",,
 Tesla TPMS,8/1/2026,$3.83,$26.83,$53.67,$115.00,"$1,380.00",,
 Total,,$84.93,$594.53,"$1,189.07","$2,548.00","$30,576.00",,
+"""
+
+FLEET_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
+8/21/2026,X Money,Santander (June / July / August),$36.08,$252.59,$505.17,"$1,082.52","$12,990.24",
+8/21/2026,X Money,Capital One (June / July / August),$37.39,$261.70,$523.39,"$1,121.55","$13,458.60",
+8/23/2026,X Money,GM Financial (June / July / August),$44.06,$308.39,$616.77,"$1,321.66","$15,859.92",
+8/1/2026,NFCU (Zelle),Rivian R1S,$45.00,$315.00,$630.00,"$1,350.00","$16,200.00",
+7/21/2026,X Money,Fleet Insurance,$21.11,$147.75,$295.49,$633.20,"$7,598.40",
+,,Total,$183.64,"$1,285.43","$2,570.82","$5,508.93","$66,107.16",
+"""
+
+COLLATERAL_CSV = """Date,From,Item,Daily,Weekly,Bi-Weekly,Monthly,Annually,Budget Allocation
+8/1/2026,X Money,Agentic Fund Allocation,$3.61,$25.27,$50.54,$108.33,"$1,299.96",
+8/1/2026,X Money,ASIC Fleet OpEx,$14.57,$101.99,$203.98,$437.20,"$5,246.40",
+,,Total,$18.18,$127.26,$254.52,$545.53,"$6,546.36",
 """
 
 
@@ -86,11 +110,163 @@ class TestSnapshot(unittest.TestCase):
         self.assertGreater(s["coinbase_funded_monthly"], 8000)
         self.assertIn("Coinbase", snap["tabs"]["Personal"]["by_source_monthly"])
         self.assertEqual(snap["tabs"]["Personal"]["role"], "upcoming_expense_estimates")
+        self.assertEqual(snap["tabs"][ESSENTIAL_TAB]["role"], "upcoming_expense_estimates")
+        self.assertIs(snap["tabs"][ESSENTIAL_TAB], snap["tabs"]["Personal"])
         self.assertEqual(snap["tabs"]["Discretionary"]["role"], "excess_capital_targets")
+        self.assertNotIn(FLEET_TAB, snap["tabs"])
+        self.assertNotIn(COLLATERAL_TAB, snap["tabs"])
         # Chronological order: Rent (4/1) before Gym (7/17) before Fleet (7/21)
         by_date = snap["tabs"]["Personal"]["upcoming_by_date"]
         self.assertEqual(by_date[0]["item"], "Rent")
         self.assertEqual(by_date[1]["item"], "Gym")
+
+    def test_build_includes_fleet_and_collateral_from_sheet_titles(self):
+        snap = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            sheet_id="15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
+            source="test",
+            fleet_csv=FLEET_CSV,
+            collateral_csv=COLLATERAL_CSV,
+        )
+        self.assertEqual(snap["tabs"][FLEET_TAB]["role"], "fleet_ops")
+        self.assertEqual(snap["tabs"][COLLATERAL_TAB]["role"], "collateral_investments")
+        fleet_names = [i["item"] for i in snap["tabs"][FLEET_TAB]["items"]]
+        coll_names = [i["item"] for i in snap["tabs"][COLLATERAL_TAB]["items"]]
+        disc_names = [i["item"] for i in snap["tabs"]["Discretionary"]["items"]]
+        self.assertIn("Santander (June / July / August)", fleet_names)
+        self.assertIn("Rivian R1S", fleet_names)
+        self.assertIn("Agentic Fund Allocation", coll_names)
+        self.assertIn("ASIC Fleet OpEx", coll_names)
+        self.assertIn("ASIC", disc_names)
+        self.assertNotIn("ASIC", coll_names)
+        # Burn stays Essential-only; Fleet/Collateral do not change combined_monthly.
+        self.assertAlmostEqual(snap["summary"]["combined_monthly"], 16211.68)
+        self.assertAlmostEqual(snap["summary"]["fleet_monthly"], 5508.93)
+        self.assertAlmostEqual(snap["summary"]["collateral_monthly"], 545.53)
+
+    def test_planned_strip_uses_ingested_tabs_and_does_not_alias_asic(self):
+        snap = build_expenses_snapshot(
+            PERSONAL_CSV,
+            DISC_CSV,
+            sheet_id="15ZU7843pTSLSEI0U-taFZ4Qwk3bTQx6cWh2Ex0d7NJQ",
+            source="test",
+            fleet_csv=FLEET_CSV,
+            collateral_csv=COLLATERAL_CSV,
+        )
+        self.assertFalse(names_join("ASIC", "ASIC Fleet OpEx"))
+        from treasury.ynab_category_map import validate_category_map
+
+        cmap = validate_category_map(
+            {
+                "schema_version": 0,
+                "budget_id": "37502ae1-2484-4e3d-90a1-8985d775e86b",
+                "budget_name": "Chris's Plan",
+                "allow_approve": True,
+                "allow_categorize": True,
+                "forbid": ["move_money", "payment", "transfer"],
+                "categories": [
+                    {
+                        "id": "rent-cat",
+                        "name": "Rent",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "sant",
+                        "name": "Santander",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "cap",
+                        "name": "Capital One",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "gm",
+                        "name": "GM Financial",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "riv",
+                        "name": "Rivian R1S",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "af",
+                        "name": "Agentic Fund Allocation",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "asic-opex",
+                        "name": "ASIC Fleet OpEx",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                    {
+                        "id": "asic-disc",
+                        "name": "ASIC",
+                        "group_id": "bills",
+                        "group_name": "Bills",
+                        "hidden": False,
+                        "enabled": True,
+                    },
+                ],
+                "payee_rules": [],
+            }
+        )
+        leftover = [
+            {
+                "id": "leftover-sant",
+                "date": "2026-08-10",
+                "payee": "Santander",
+                "amount": -1082.52,
+                "amount_display": -1082.52,
+                "category_name": "Uncategorized",
+            }
+        ]
+        strip = build_planned_actual_strip(
+            {
+                "expenses": snap,
+                "x_money": {"transactions": leftover, "source": "ynab"},
+                "one_card": {"transactions": [], "source": "ynab"},
+                "rh_checking": {"transactions": [], "source": "ynab"},
+            },
+            cmap,
+            as_of="2026-08-15",
+        )
+        by_item = {r["item"]: r for r in strip["rows"]}
+        self.assertIn("Santander (June / July / August)", by_item)
+        self.assertIn("Rivian R1S", by_item)
+        self.assertIn("Agentic Fund Allocation", by_item)
+        self.assertIn("ASIC Fleet OpEx", by_item)
+        self.assertNotIn("ASIC", by_item)
+        self.assertEqual(by_item["Santander (June / July / August)"]["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(by_item["Santander (June / July / August)"]["actual"], 0.0)
+        self.assertEqual(by_item["Rivian R1S"]["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(by_item["Rivian R1S"]["from_venue"], "NFCU (Zelle)")
+        self.assertEqual(by_item["ASIC Fleet OpEx"]["tab"], COLLATERAL_TAB)
+        self.assertEqual(by_item["ASIC Fleet OpEx"]["category_id"], "asic-opex")
+        self.assertEqual({r["tab"] for r in strip["rows"]}, {ESSENTIAL_TAB, FLEET_TAB, COLLATERAL_TAB})
 
 
 class TestPolicyExpenses(unittest.TestCase):

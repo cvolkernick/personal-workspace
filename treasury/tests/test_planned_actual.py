@@ -408,7 +408,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertNotIn("Coinbase One Card", names)
         self.assertNotIn("Robinhood Gold", names)
         tabs = {r["tab"] for r in strip["rows"]}
-        self.assertTrue({"Essential", "Fleet", "Collateral"} <= tabs or "Essential" in tabs)
+        self.assertTrue({"Essential", "Fleet", "Collateral"} <= tabs)
         self.assertNotIn("Productive Discretionary", tabs)
         self.assertNotIn("Consumer Discretionary", tabs)
 
