@@ -134,6 +134,24 @@
     .swatch.yield { background: var(--yield); }
     .chip-list { margin: 0; padding-left: 1.15rem; font-size: 0.86rem; }
     .chip-list li { margin: 0.35rem 0; }
+    .nudge {
+      margin: 0 0 0.75rem;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      border: 1px solid #2a4a3a;
+      background: #102018;
+      color: var(--text);
+      font-size: 0.86rem;
+    }
+    .nudge .lab {
+      color: var(--muted);
+      font-size: 0.68rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 700;
+      display: block;
+      margin-bottom: 0.2rem;
+    }
     footer {
       max-width: 1100px; margin: 0 auto; padding: 0 1.25rem 2rem;
       color: var(--muted); font-size: 0.78rem;
@@ -188,9 +206,11 @@
         Chain) &gt; FCC settings fallback &gt; seed 7% + Gold-cancel caveat — do not invent rates.
         JR-strcUSX is a spectrum chip only (live epoch APY from
         app.solstice.finance/strcusx AccountingState, else ~20% docs
-        target). Chip size is not a balance.
+        target).         Chip size is not a balance.
         Wells / 20 Tesla stays off FCC.
+        Display-only FCF nudge after essentials are current — not a trade trigger.
       </p>
+      <div id="coach-nudge" class="nudge hidden" hidden></div>
       <div class="axis-wrap">
         <div class="spectrum" id="spectrum" data-layout="two_lane">
           <svg class="spectrum-svg" id="spectrum-svg" viewBox="0 0 1000 360" role="img" aria-label="Two-lane interest spectrum: asset yield above, debt cost below, 0 to about 30 percent"></svg>
@@ -216,7 +236,7 @@
   </main>
 
   <footer>
-    Interest Spectrum · FCC · cash APR/APY · Bitcoin / Agentic Fund est. CAGR exception · two-lane axis · no coach wiring
+    Interest Spectrum · FCC · cash APR/APY · Bitcoin / Agentic Fund est. CAGR exception · two-lane axis · display-only FCF nudge after essentials current
   </footer>
 
   <script src="nav-orchestra.js"></script>
@@ -343,11 +363,30 @@
       });
     }
 
+    function renderNudge(data) {
+      const el = document.getElementById("coach-nudge");
+      if (!el) return;
+      const line = data && data.coach_nudge && data.coach_nudge.line;
+      const on = !!(data && data.coach_wired && data.policy && data.policy.coach_wired && line);
+      if (!on) {
+        el.hidden = true;
+        el.classList.add("hidden");
+        el.textContent = "";
+        return;
+      }
+      el.hidden = false;
+      el.classList.remove("hidden");
+      el.innerHTML =
+        `<span class="lab">Next free dollar</span>` +
+        `<div>${esc(line)}</div>`;
+    }
+
     function render(data) {
       document.getElementById("subtitle").textContent =
         "APR / APY · FCC" + (data.as_of ? " · " + String(data.as_of).slice(0, 16).replace("T", " ") + " UTC" : "");
 
       drawAxis(data);
+      renderNudge(data);
 
       const unknown = data.unknown || [];
       const uroot = document.getElementById("unknown-row");
