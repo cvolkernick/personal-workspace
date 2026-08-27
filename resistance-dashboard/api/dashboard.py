@@ -21,12 +21,19 @@ def _auth_required() -> dict:
     }
 
 
-def _load_sessions(user_id: str) -> tuple[list, list[str], str]:
-    from rt_dashboard.turso_repo import list_sessions_detailed
+def _load_sessions(user_id: str, *, fallback_house: bool = False) -> tuple[list, list[str], str]:
+    """Turso sessions for ``user_id``, then ``default``.
+
+    Cookie-less agent reads may pass ``fallback_house=True`` so a claimed
+    Google-sub row is still visible after ``claim_legacy_default_workouts``
+    emptied ``default``. Signed-in dashboard keeps ``fallback_house=False``.
+    """
+    from rt_dashboard.turso_repo import list_sessions_detailed, list_workout_user_ids
 
     errors: list[str] = []
     source = "turso"
     sessions = []
+    tried = {str(user_id or "").strip(), "default"}
     try:
         sessions, notes = list_sessions_detailed(user_id)
         errors.extend(notes)
@@ -35,6 +42,16 @@ def _load_sessions(user_id: str) -> tuple[list, list[str], str]:
             errors.extend(notes)
             if sessions:
                 source = "turso-default"
+        if not sessions and fallback_house:
+            for uid in list_workout_user_ids():
+                if uid in tried:
+                    continue
+                sessions, notes = list_sessions_detailed(uid)
+                errors.extend(notes)
+                if sessions:
+                    source = "turso-house"
+                    break
+                tried.add(uid)
     except Exception as exc:  # noqa: BLE001
         errors.append(f"sqlite_pull: {type(exc).__name__}")
     return sessions, errors, source

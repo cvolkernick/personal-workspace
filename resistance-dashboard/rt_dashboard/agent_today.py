@@ -4,6 +4,9 @@ Slices an existing dashboard payload (Pi cache or Vercel Turso/Hidrate load).
 Never invents ml, loads, sessions, sip timestamps, Active Zone Minutes,
 intake, weekly volume, or sleep. Missing → honest empty
 (``today.nutrition`` consumed fields are ``null``; week lists are ``[]``).
+``today.workout.session_type`` is the signed-in Today PPL letter
+(``stamp_today_session`` over all real logs). ``recent_sessions`` is last
+2+ sessions or ~14d; ``week.logged_sessions`` stays this ISO week.
 """
 
 from __future__ import annotations
@@ -15,6 +18,10 @@ from .workout_store import flatten_logged_exercise
 
 # Published books / DEFAULT_TARGETS. Not invented intake.
 _BOOK_TARGETS = {"calories": 2100.0, "protein_g": 210.0}
+
+# Last-session history for programming (not the ISO-week slice).
+_RECENT_HISTORY_DAYS = 14
+_RECENT_MIN_SESSIONS = 2
 
 
 def _as_dict(value: Any) -> Dict[str, Any]:
@@ -94,8 +101,10 @@ def _empty_workout() -> Dict[str, Any]:
     return {
         "session_type": None,
         "is_rest_day": False,
+        "next_session_type": None,
         "plan_exercises": [],
         "logged_exercises": [],
+        "recent_sessions": [],
         "message": None,
         "empty": True,
     }
@@ -138,6 +147,110 @@ def _empty_wake_window() -> Dict[str, Any]:
     }
 
 
+def _ppl_letter(value: Any) -> Optional[str]:
+    letter = str(value or "").strip().lower()
+    return letter if letter in ("push", "pull", "legs") else None
+
+
+def _has_real_exercises(row: Dict[str, Any]) -> bool:
+    from .test_noise import is_test_exercise_name
+
+    for ex in row.get("exercises") or []:
+        name = ""
+        if isinstance(ex, dict):
+            name = str(ex.get("name") or "")
+        else:
+            name = str(getattr(ex, "name", "") or "")
+        if name.strip() and not is_test_exercise_name(name):
+            return True
+    return False
+
+
+def _planning_sessions(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Logged PPL sessions used for Today letter + history. Canaries dropped."""
+    out: List[Dict[str, Any]] = []
+    for session in payload.get("sessions") or []:
+        row = _logged_session_row(session)
+        if not row or not _has_real_exercises(row):
+            continue
+        out.append(row)
+    return out
+
+
+def _goals_for_letter(payload: Dict[str, Any]) -> Dict[str, Any]:
+    store = _as_dict(payload.get("workout_store"))
+    for raw in (store.get("goals"), payload.get("goals")):
+        if isinstance(raw, dict) and isinstance(raw.get("rotation"), list) and raw.get("rotation"):
+            return raw
+    from .workout_store import load_workspace_goals
+
+    goals, _src = load_workspace_goals()
+    return goals if isinstance(goals, dict) else {}
+
+
+def _recent_logged_sessions(rows: Sequence[Dict[str, Any]], day: str) -> List[Dict[str, Any]]:
+    """Last 2+ real sessions, preferring the last ~14d. Honest empty if none."""
+    dated = [r for r in rows if _civil_day(r.get("date"))]
+    dated.sort(key=lambda r: r["date"], reverse=True)
+    if not dated:
+        return []
+    cutoff = None
+    day = _civil_day(day)
+    if day:
+        try:
+            end = datetime.strptime(day, "%Y-%m-%d")
+            cutoff = (end - timedelta(days=_RECENT_HISTORY_DAYS)).strftime("%Y-%m-%d")
+        except ValueError:
+            cutoff = None
+    in_window = [r for r in dated if cutoff and r["date"] >= cutoff]
+    if len(in_window) >= _RECENT_MIN_SESSIONS:
+        chosen = in_window
+    else:
+        chosen = dated[: max(_RECENT_MIN_SESSIONS, len(in_window))]
+    chosen = sorted(chosen, key=lambda r: r["date"])
+    return [
+        {
+            "date": r["date"],
+            "session_type": r.get("session_type"),
+            "volume": r.get("volume"),
+            "exercises": list(r.get("exercises") or []),
+        }
+        for r in chosen
+    ]
+
+
+def _stamp_today_letter(
+    payload: Dict[str, Any],
+    planning: Sequence[Dict[str, Any]],
+    day: str,
+) -> Optional[Dict[str, Any]]:
+    """Same hybrid fill as signed-in Today: next PPL + rest gate over all logs."""
+    if not planning:
+        return None
+    from .workout_store import stamp_today_session
+
+    goals = _goals_for_letter(payload)
+    if not isinstance(goals.get("rotation"), list) or not goals.get("rotation"):
+        return None
+    recovery = payload.get("recovery")
+    stamped = stamp_today_session(
+        {"session_type": None, "is_rest_day": False, "exercises": [], "empty": True},
+        list(planning),
+        goals,
+        recovery if isinstance(recovery, dict) else {},
+        as_of=day or None,
+        fill_rest=True,
+    )
+    next_st = _ppl_letter(stamped.get("next_session_type"))
+    letter = _ppl_letter(stamped.get("session_type")) or next_st
+    return {
+        "session_type": letter,
+        "is_rest_day": bool(stamped.get("is_rest_day")),
+        "next_session_type": next_st,
+        "message": stamped.get("message"),
+    }
+
+
 def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: str) -> Dict[str, Any]:
     slot = _as_dict(payload.get("workout"))
     store = _as_dict(payload.get("workout_store"))
@@ -163,6 +276,13 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     else:
         is_rest = False
 
+    next_st = (
+        _ppl_letter(slot.get("next_session_type"))
+        or _ppl_letter(plan.get("next_session_type"))
+        or _ppl_letter(coach_wo.get("next_session_type"))
+        or _ppl_letter(_as_dict(slot.get("context")).get("next_session_type"))
+    )
+
     plan_src = plan.get("exercises") or slot.get("exercises") or coach_wo.get("exercises") or []
     plan_exercises: List[Dict[str, Any]] = []
     for ex in plan_src:
@@ -175,14 +295,44 @@ def _workout_today(payload: Dict[str, Any], today_board: Dict[str, Any], day: st
     if message is not None:
         message = str(message) if message != "" else None
 
-    has_signal = bool(session_type) or is_rest or bool(plan_exercises) or bool(logged)
+    planning = _planning_sessions(payload)
+    recent = _recent_logged_sessions(planning, day)
+    stamped = _stamp_today_letter(payload, planning, day)
+    today_logged = [
+        r
+        for r in planning
+        if _civil_day(r.get("date")) == day and _ppl_letter(r.get("session_type"))
+    ]
+    if today_logged:
+        # Already training/logged today — letter is that session, not the next slot.
+        session_type = _ppl_letter(today_logged[0].get("session_type"))
+        is_rest = False
+        if stamped:
+            next_st = stamped["next_session_type"] or next_st
+    elif stamped:
+        # Signed-in Today letter (UI skips rest and shows next PPL).
+        session_type = stamped["session_type"]
+        is_rest = stamped["is_rest_day"]
+        next_st = stamped["next_session_type"] or next_st
+        if is_rest and stamped.get("message") and not (message or "").strip():
+            message = str(stamped["message"])
+
+    has_signal = (
+        bool(session_type)
+        or is_rest
+        or bool(plan_exercises)
+        or bool(logged)
+        or bool(recent)
+    )
     if not has_signal:
         return _empty_workout()
     return {
         "session_type": session_type,
         "is_rest_day": is_rest,
+        "next_session_type": next_st,
         "plan_exercises": plan_exercises,
         "logged_exercises": logged,
+        "recent_sessions": recent,
         "message": message,
         "empty": not plan_exercises and not logged and not session_type and not is_rest,
     }
@@ -828,6 +978,8 @@ def assemble_dashboard_slice(
     sleep_battery: Optional[dict] = None,
     health: Optional[Any] = None,
     nutrition_store: Optional[dict] = None,
+    goals: Optional[dict] = None,
+    recovery: Optional[dict] = None,
     meta_error: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Minimal dashboard-shaped dict so export_agent_today has one code path."""
@@ -849,15 +1001,21 @@ def assemble_dashboard_slice(
             health_out = {}
     elif health is None:
         health_out = {}
+    store: Dict[str, Any] = {
+        "plan": workout_plan if isinstance(workout_plan, dict) else {},
+    }
+    if isinstance(goals, dict):
+        store["goals"] = goals
     return {
         "sessions": sess_out,
         "workout": workout if isinstance(workout, dict) else {},
-        "workout_store": {"plan": workout_plan if isinstance(workout_plan, dict) else {}},
+        "workout_store": store,
         "hydration_bars": hydration_bars if isinstance(hydration_bars, dict) else {"pacing": None},
         "hidrate_bottle": hidrate_bottle,
         "sleep_battery": sleep_battery,
         "health": health_out if isinstance(health_out, dict) else {},
         "nutrition_store": nutrition_store if isinstance(nutrition_store, dict) else {},
+        "recovery": recovery if isinstance(recovery, dict) else {},
         "coach": {"today": {"date": date}},
         "meta": {"local_today": date, "error": meta_error},
     }

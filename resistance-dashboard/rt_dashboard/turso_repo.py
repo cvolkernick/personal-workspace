@@ -21,6 +21,13 @@ WHERE user_id = ?
 ORDER BY date DESC, session_type ASC
 """
 
+LIST_USER_IDS_SQL = """
+SELECT user_id, MAX(date) AS last_date
+FROM workout_sessions
+GROUP BY user_id
+ORDER BY last_date DESC
+"""
+
 ENSURE_SQL = """
 CREATE TABLE IF NOT EXISTS workout_sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -70,6 +77,27 @@ def _uid(user_id: str) -> str:
 def list_sessions(user_id: str) -> List[Session]:
     sessions, _notes = list_sessions_detailed(user_id)
     return sessions
+
+
+def list_workout_user_ids() -> List[str]:
+    """Turso user_ids that have workout rows, most recent activity first."""
+    if not turso_enabled():
+        raise RuntimeError("turso env missing")
+    with connect() as conn:
+        rows = conn.execute(LIST_USER_IDS_SQL).fetchall()
+    out: List[str] = []
+    for row in rows:
+        uid = ""
+        if isinstance(row, dict):
+            uid = str(row.get("user_id") or "").strip()
+        if not uid:
+            try:
+                uid = str(row[0] or "").strip()
+            except (KeyError, IndexError, TypeError):
+                uid = ""
+        if uid and uid not in out:
+            out.append(uid)
+    return out
 
 
 def list_sessions_detailed(user_id: str) -> Tuple[List[Session], List[str]]:
