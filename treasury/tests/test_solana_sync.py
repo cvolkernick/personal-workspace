@@ -114,6 +114,9 @@ class TestFetchFallback(unittest.TestCase):
             with mock.patch(
                 "treasury.solana_sync.fetch_solana_live",
                 return_value=(None, "rpc down"),
+            ), mock.patch(
+                "treasury.solstice_jr_sync.fetch_solstice_jr_onchain",
+                return_value=(None, "jr rpc down"),
             ):
                 r = fetch_solana(prefer_live=True, snapshot_path=p)
             self.assertEqual(r["live_error"], "rpc down")

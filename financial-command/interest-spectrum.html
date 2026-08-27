@@ -184,8 +184,9 @@
         USDG HY precedence: FCC settings
         manual &gt; live Morpho GraphQL avgNetApy (Steakhouse USDG / Robinhood
         Chain) &gt; seed 7% + Gold-cancel caveat — do not invent rates.
-        JR-strcUSX is a spectrum chip only (~20% target unless a live Solstice
-        quote is already on the snapshot). Chip size is not a balance.
+        JR-strcUSX is a spectrum chip only (live epoch APY from
+        app.solstice.finance/strcusx AccountingState, else ~20% docs
+        target). Chip size is not a balance.
         Wells / 20 Tesla stays off FCC.
       </p>
       <div class="axis-wrap">
@@ -303,7 +304,7 @@
 
       let html = `
         <text x="70" y="28" fill="#3dd6b0" font-size="12" font-weight="700" letter-spacing="0.06em">ASSET YIELD</text>
-        <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~30%</text>
+        <text x="930" y="28" fill="#8aa0b5" font-size="12" font-weight="700" letter-spacing="0.06em" text-anchor="end">0% → ~${maxPct}%</text>
         <text x="70" y="348" fill="#ff8a6b" font-size="12" font-weight="700" letter-spacing="0.06em">DEBT COST</text>
         <line x1="70" y1="${axisY}" x2="930" y2="${axisY}" stroke="#5a7188" stroke-width="3" stroke-linecap="round"/>
       `;
@@ -350,7 +351,7 @@
       const uroot = document.getElementById("unknown-row");
       const ucard = document.getElementById("unknown-card");
       if (!unknown.length) {
-        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. Bitcoin and Agentic Fund stay est. CAGR (not cash APR/APY). JR-strcUSX uses a ~20% target unless a live Solstice quote is already on the snapshot.</p>`;
+        uroot.innerHTML = `<p class="hint" style="margin:0">Yield chips use locked seeds until books have a live APY. Bitcoin and Agentic Fund stay est. CAGR (not cash APR/APY). JR-strcUSX uses the live epoch APY from app.solstice.finance/strcusx, else a ~20% docs target.</p>`;
         if (ucard) ucard.classList.remove("hidden");
       } else {
         uroot.innerHTML = unknown

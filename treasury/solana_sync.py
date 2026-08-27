@@ -3,10 +3,10 @@
 Never requests a private key. JR-strcUSX is DC-credit parlay — not HY / LTV
 defense and not working USDC.
 
-JR APY (#309): snapshot fields ``jr_strcusx_apy`` / ``solstice_apy`` /
-``strcusx_apy`` are populated only from a verified public/docs JSON
-source. None exists today (partner Bearer API + HTML attestation) — see
-``treasury/solstice_jr_sync.py``. Soft-fail leaves those fields None.
+JR APY: snapshot fields ``jr_strcusx_apy`` / ``solstice_apy`` /
+``strcusx_apy`` come from STRC-USX on-chain ``juniorApy`` (same formula
+as app.solstice.finance/strcusx). See ``treasury/solstice_jr_sync.py``.
+Soft-fail leaves those fields None (spectrum stays ~20% docs_target).
 Never persist the ~20% docs_target. Wallet balances are not an APY.
 """
 
@@ -343,9 +343,14 @@ def fetch_solana(
             live["counts_toward_hy"] = False
             live["counts_toward_ltv_defense"] = False
             live["counts_toward_working_usdc"] = bool(cfg["counts_toward_working_usdc"])
-            # Wallet RPC is not an APY source. Preserve a prior verified quote;
-            # otherwise leave jr_strcusx_apy / solstice_apy None (docs_target).
-            live = attach_solstice_jr_apy(live, prior=prior if isinstance(prior, dict) else None)
+            # Wallet RPC is not an APY source. On-chain juniorApy is attached
+            # separately (same formula as app.solstice.finance/strcusx).
+            live = attach_solstice_jr_apy(
+                live,
+                prior=prior if isinstance(prior, dict) else None,
+                prefer_live=True,
+                rpc_url=cfg.get("rpc_url"),
+            )
             write_solana_snapshot(live, snap)
             return live
     file_data = load_json(snap)
@@ -358,10 +363,17 @@ def fetch_solana(
         out["counts_toward_ltv_defense"] = False
         if err:
             out["live_error"] = err
-        out = attach_solstice_jr_apy(out, prior=out)
+        out = attach_solstice_jr_apy(
+            out, prior=out, prefer_live=prefer_live, rpc_url=cfg.get("rpc_url")
+        )
         return out
     empty = _empty_result(cfg, err=err or "no solana snapshot — run treasury/solana_sync.py")
-    return attach_solstice_jr_apy(empty, prior=prior if isinstance(prior, dict) else None)
+    return attach_solstice_jr_apy(
+        empty,
+        prior=prior if isinstance(prior, dict) else None,
+        prefer_live=prefer_live,
+        rpc_url=cfg.get("rpc_url"),
+    )
 
 
 def main(argv: Optional[List[str]] = None) -> int:
