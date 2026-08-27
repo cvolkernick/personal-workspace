@@ -1085,7 +1085,8 @@
     .pa-flag.flag-not-yet { color: var(--muted); border-color: #3a4a5a; background: #151c24; }
     .pa-flag.flag-two-charge,
     .pa-flag.flag-cadence-lump { color: var(--accent); border-color: #2a4a6a; background: rgba(91, 159, 212, 0.1); }
-    .pa-flag.flag-off-book { color: #c4b07a; border-color: #4a4030; background: rgba(196, 176, 122, 0.08); }
+    .pa-flag.flag-off-book,
+    .pa-flag.flag-payment-shaped { color: #c4b07a; border-color: #4a4030; background: rgba(196, 176, 122, 0.08); }
     @media (max-width: 700px) {
       .pa-row { grid-template-columns: 1fr auto; }
       .pa-row .amt { justify-self: end; }
@@ -2137,7 +2138,7 @@
         <span class="hint" id="planned-actual-asof">display only</span>
       </div>
       <p class="hint" id="planned-actual-note" style="margin:0.15rem 0 0.4rem">
-        Sheet monthly vs this-month in-map spend by payee. two-charge and cadence-lump are billing shape, not lifestyle over.
+        Sheet monthly vs this-month in-map spend by payee. two-charge, cadence-lump, and payment-shaped are billing shape, not lifestyle over.
       </p>
       <div id="planned-actual-strip" class="pa-strip">
         <p class="hint">Loading planned vs actual…</p>
@@ -4877,6 +4878,7 @@
       if (f === "two-charge") return "flag-two-charge";
       if (f === "cadence-lump") return "flag-cadence-lump";
       if (f === "off-book From") return "flag-off-book";
+      if (f === "payment-shaped") return "flag-payment-shaped";
       return "";
     }
     function renderPlannedActual(data) {
@@ -4897,7 +4899,7 @@
         .map((r) => {
           const flag = r.flag || "";
           const fromBit =
-            flag === "off-book From" && r.from
+            (flag === "off-book From" || flag === "payment-shaped") && r.from
               ? `From=${escapeHtml(r.from)}`
               : escapeHtml(r.category_name || "");
           return (

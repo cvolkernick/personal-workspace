@@ -1,7 +1,7 @@
 """Display-only planned (sheet) vs YNAB-actual flag strip for FCC.
 
 SoT:
-  planned — Personal Expense Sheet burn rows (Essential/Personal + Fleet).
+  planned — Personal Expense Sheet Essential (legacy Personal) + Fleet + Collateral.
   actual  — this-month YNAB in-map spend by payee.
   join    — sheet Item → one YNAB category_id (map name / sheet_item / payee).
 
@@ -29,37 +29,34 @@ FLAG_NOT_YET = "not-yet"
 FLAG_TWO_CHARGE = "two-charge"
 FLAG_CADENCE_LUMP = "cadence-lump"
 FLAG_OFF_BOOK = "off-book From"
+FLAG_PAYMENT_SHAPED = "payment-shaped"
 FLAGS = (
     FLAG_ON,
     FLAG_NOT_YET,
     FLAG_TWO_CHARGE,
     FLAG_CADENCE_LUMP,
     FLAG_OFF_BOOK,
+    FLAG_PAYMENT_SHAPED,
 )
 
-# YNAB-synced pay-from venues. Coinbase wallet / NFCU / Zelle are off-book.
+# YNAB-synced pay-from venues. Coinbase USDC / NFCU / Zelle are off-book.
 YNAB_SYNCED_VENUES = frozenset({"x_money", "rh_checking"})
+COINBASE_USDC_LABEL = "Coinbase USDC"
 
-# Sheet tabs that are planned burn. Discretionary / collateral stay out.
-PLANNED_TABS = (
-    ("Essential", "Essential"),
-    ("Personal", "Essential"),
-    ("Fleet", "Fleet"),
-)
-
-# Never render these even if a name join would succeed.
+# Never render: One Card payment-as-payment, RH Gold remnant.
 _OFF_MAP_ITEM_NEEDLES = (
     "coinbase one card",
+    "robinhood gold",
+    "rh gold",
+)
+
+# Fleet loan lines stay planned; actuals are payment-shaped (not leftover backfill).
+_PAYMENT_SHAPED_ITEM_NEEDLES = (
     "santander",
     "capital one",
     "cap one",
     "gm financial",
     "rivian",
-    "agentic fund",
-    "asic fleet opex",
-    "asic opex",
-    "robinhood gold",
-    "rh gold",
 )
 
 _UNLABELED_CAT_NAMES = frozenset(
@@ -161,7 +158,22 @@ def names_join(item_name: Any, category_name: Any) -> bool:
     if a in b or b in a:
         # require the shorter key to be a whole-token hit
         short, long = (a, b) if len(a) <= len(b) else (b, a)
-        return short in long.split() or long.startswith(short + " ") or long.endswith(" " + short)
+        if short in long.split() or long.startswith(short + " ") or long.endswith(" " + short):
+            # Do not alias Discretionary "ASIC" to Collateral "ASIC Fleet OpEx".
+            # Month parentheticals (Santander June / July) still join.
+            if short != long and len(short.split()) == 1 and len(long.split()) > 2:
+                extra = [t for t in long.split() if t != short]
+                months = {
+                    "january", "february", "march", "april", "may", "june", "july",
+                    "august", "september", "october", "november", "december",
+                    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept",
+                    "oct", "nov", "dec",
+                }
+                if extra and all(t in months for t in extra):
+                    return True
+                if short not in {"rent", "ynab"}:
+                    return False
+            return True
     a_toks, b_toks = a.split(), b.split()
     # "August Rent" / "Rent (April / May)" → Rent/Mortgage; "YNAB" → YNAB subscription
     if a_toks and b_toks and a_toks[0] == b_toks[0] and a_toks[0] in {"rent", "ynab"}:
@@ -176,28 +188,91 @@ def is_off_map_item(item_name: Any) -> bool:
     return any(n in key for n in _OFF_MAP_ITEM_NEEDLES)
 
 
-def is_off_book_from(from_label: Any) -> bool:
-    """True when sheet From is a venue YNAB does not sync (e.g. Coinbase)."""
+def is_coinbase_usdc_from(from_label: Any) -> bool:
+    """Coinbase USDC custodial send — not One Card, not X Money."""
     raw = str(from_label or "").strip()
     if not raw:
         return False
+    n = normalize_name(raw)
+    if "one card" in n or "x money" in n:
+        return False
+    return n == "coinbase" or n.startswith("coinbase usdc") or (
+        n.startswith("coinbase") and "card" not in n
+    )
+
+
+def is_off_book_from(from_label: Any) -> bool:
+    """True when sheet From is a venue YNAB does not sync (Coinbase USDC, NFCU…)."""
+    raw = str(from_label or "").strip()
+    if not raw:
+        return False
+    if is_coinbase_usdc_from(raw):
+        return True
     venue = normalize_venue(raw)
     return venue not in YNAB_SYNCED_VENUES
 
 
+def from_display(from_label: Any) -> str:
+    raw = str(from_label or "").strip()
+    if is_coinbase_usdc_from(raw):
+        return COINBASE_USDC_LABEL
+    return raw
+
+
+def is_payment_shaped_item(item_name: Any) -> bool:
+    key = item_match_key(item_name)
+    if not key:
+        return False
+    return any(n in key for n in _PAYMENT_SHAPED_ITEM_NEEDLES)
+
+
+def discover_planned_tabs(tabs: Dict[str, Any]) -> List[tuple[str, Dict[str, Any]]]:
+    """Find Essential/Personal, Fleet, Collateral on the snapshot. Do not invent."""
+    if not isinstance(tabs, dict) or not tabs:
+        return []
+    found: List[tuple[str, Dict[str, Any]]] = []
+    used: Set[str] = set()
+
+    def _take(key: str, tab: Any) -> None:
+        if key in used or not isinstance(tab, dict) or not tab:
+            return
+        used.add(key)
+        found.append((key, tab))
+
+    if "Essential" in tabs:
+        _take("Essential", tabs.get("Essential"))
+    elif "Personal" in tabs:
+        _take("Personal", tabs.get("Personal"))
+    else:
+        for k, tab in tabs.items():
+            kn = normalize_name(k)
+            role = str((tab or {}).get("role") or "")
+            if kn == "essential" or "upcoming_expense" in role:
+                _take(k, tab)
+                break
+    for k, tab in tabs.items():
+        kn = normalize_name(k)
+        role = str((tab or {}).get("role") or "")
+        if kn == "fleet" or role == "fleet_ops":
+            _take(k, tab)
+            break
+    for k, tab in tabs.items():
+        kn = normalize_name(k)
+        role = str((tab or {}).get("role") or "")
+        if "discretionary" in kn or "productive" in kn or "consumer" in kn:
+            continue
+        if "collateral" in kn or "collateral" in role:
+            _take(k, tab)
+            break
+    return found
+
+
 def planned_sheet_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """One row per Essential/Personal + Fleet sheet item. No discretionary."""
+    """One row per mapped-tab Item: Essential/Personal + Fleet + Collateral."""
     tabs = (expenses or {}).get("tabs") or {}
     out: List[Dict[str, Any]] = []
-    seen_tabs: Set[str] = set()
     seen_names: Set[str] = set()
-    for tab_key, label in PLANNED_TABS:
-        if tab_key == "Personal" and "Essential" in seen_tabs:
-            continue
-        tab = tabs.get(tab_key) or {}
-        if not tab:
-            continue
-        seen_tabs.add(tab_key)
+    for tab_key, tab in discover_planned_tabs(tabs):
         items = tab.get("items")
         if not isinstance(items, list) or not items:
             items = tab.get("upcoming_by_date") or []
@@ -213,7 +288,7 @@ def planned_sheet_items(expenses: Dict[str, Any]) -> List[Dict[str, Any]]:
             seen_names.add(key)
             rec = dict(raw)
             rec["item"] = name
-            rec.setdefault("tab", label)
+            rec["tab"] = tab_key
             rec["monthly"] = _f(rec.get("monthly"))
             out.append(rec)
     return out
@@ -363,11 +438,14 @@ def join_item_category(
 def classify_flag(
     *,
     off_book: bool,
+    payment_shaped: bool,
     planned: float,
     txs: Sequence[Dict[str, Any]],
 ) -> str:
     if off_book:
         return FLAG_OFF_BOOK
+    if payment_shaped:
+        return FLAG_PAYMENT_SHAPED
     if not txs:
         return FLAG_NOT_YET
     amounts = [tx_spend_amount(t) for t in txs]
@@ -411,9 +489,13 @@ def _row_payload(
         "month": month.isoformat()[:7],
         "display_only": True,
     }
-    if flag == FLAG_OFF_BOOK:
-        payload["from_venue"] = from_label or "unknown"
+    if flag in (FLAG_OFF_BOOK, FLAG_PAYMENT_SHAPED):
+        payload["from_venue"] = from_display(from_label) or "unknown"
+        payload["from"] = from_display(from_label) or None
         payload["actual"] = 0.0
+    elif is_coinbase_usdc_from(from_label):
+        payload["from"] = COINBASE_USDC_LABEL
+        payload["from_venue"] = COINBASE_USDC_LABEL
     return payload
 
 
@@ -440,20 +522,39 @@ def build_planned_actual_strip(
         if cat is None:
             continue
         planned = _f(item.get("monthly"))
-        off_book = is_off_book_from(item.get("from") or item.get("pay_from"))
+        from_label = item.get("from") or item.get("pay_from")
+        off_book = is_off_book_from(from_label)
+        # Coinbase USDC custodial send: never count One Card / X Money txs as actual.
+        coinbase_usdc = is_coinbase_usdc_from(from_label)
+        payment_hits = 0
         matched: List[Dict[str, Any]] = []
-        if not off_book:
+        if not off_book and not coinbase_usdc:
             for tx in txs:
                 if not tx_in_month(tx, month):
                     continue
+                if not payee_matches_item(tx.get("payee") or tx.get("payee_name"), item.get("item")):
+                    continue
                 if is_skipped_tx(tx, cmap):
+                    payment_hits += 1
                     continue
                 if not is_spend_tx(tx):
                     continue
-                if payee_matches_item(tx.get("payee") or tx.get("payee_name"), item.get("item")):
-                    matched.append(tx)
-        actual = 0.0 if off_book else round(sum(tx_spend_amount(t) for t in matched), 2)
-        flag = classify_flag(off_book=off_book, planned=planned, txs=matched)
+                # Never treat One Card feed as Coinbase USDC actuals.
+                if tx.get("_feed") == "one_card":
+                    continue
+                matched.append(tx)
+        payment_shaped = (
+            is_payment_shaped_item(item.get("item")) or (not matched and payment_hits > 0)
+        ) and not off_book
+        actual = 0.0 if (off_book or payment_shaped or coinbase_usdc) else round(
+            sum(tx_spend_amount(t) for t in matched), 2
+        )
+        flag = classify_flag(
+            off_book=off_book or coinbase_usdc,
+            payment_shaped=payment_shaped,
+            planned=planned,
+            txs=[] if payment_shaped or coinbase_usdc else matched,
+        )
         rows.append(
             _row_payload(
                 item,

@@ -48,7 +48,8 @@ class TestPlannedActualPage(unittest.TestCase):
         self.assertIn("flag-two-charge", html)
         self.assertIn("flag-cadence-lump", html)
         self.assertIn("flag-off-book", html)
-        self.assertIn("two-charge and cadence-lump", html)
+        self.assertIn("flag-payment-shaped", html)
+        self.assertIn("two-charge, cadence-lump, and payment-shaped", html)
         self.assertNotIn("overspend", html.lower())
         # two-charge / cadence-lump must not use the red due style
         css = html.split("flag-two-charge")[1].split("flag-off-book")[0]
@@ -104,7 +105,7 @@ class TestPlannedActualApi(unittest.TestCase):
         for row in data.get("rows") or []:
             self.assertIn(
                 row.get("flag"),
-                ("on", "not-yet", "two-charge", "cadence-lump", "off-book From"),
+                ("on", "not-yet", "two-charge", "cadence-lump", "off-book From", "payment-shaped"),
             )
             self.assertNotIn(row.get("flag"), ("over", "under", "overspend"))
 

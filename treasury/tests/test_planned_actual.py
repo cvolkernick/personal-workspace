@@ -13,14 +13,17 @@ if str(ROOT) not in sys.path:
 from treasury.financial_coach import build_coach_plan  # noqa: E402
 from treasury.interest_spectrum import build_interest_spectrum  # noqa: E402
 from treasury.planned_actual import (  # noqa: E402
+    COINBASE_USDC_LABEL,
     FLAG_CADENCE_LUMP,
     FLAG_NOT_YET,
     FLAG_OFF_BOOK,
     FLAG_ON,
+    FLAG_PAYMENT_SHAPED,
     FLAG_TWO_CHARGE,
     FLAGS,
     build_planned_actual_strip,
     is_skipped_tx,
+    names_join,
 )
 from treasury.ynab_category_map import validate_category_map  # noqa: E402
 
@@ -288,8 +291,10 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertAlmostEqual(thais["planned"], 900.0)
         self.assertEqual(rent["actual"], 0.0)
         self.assertEqual(thais["actual"], 0.0)
-        self.assertEqual(rent["from_venue"], "Coinbase")
-        self.assertEqual(thais["from_venue"], "Coinbase")
+        self.assertEqual(rent["from_venue"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["from_venue"], COINBASE_USDC_LABEL)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
+        self.assertEqual(thais["from"], COINBASE_USDC_LABEL)
         self.assertEqual(rent["category_id"], RENT_ID)
         self.assertEqual(thais["category_id"], THAIS_ID)
         self.assertNotEqual(rent["flag"], "under")
@@ -336,7 +341,7 @@ class TestFlagEnumAndJoin(unittest.TestCase):
         self.assertEqual(water["flag"], FLAG_ON)
         self.assertAlmostEqual(water["actual"], 67.0)
 
-    def test_off_map_rows_never_render(self) -> None:
+    def test_three_tabs_render_and_discretionary_excluded(self) -> None:
         extra = {
             "Collateral": {
                 "role": "collateral_investments",
@@ -349,6 +354,10 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 "role": "productive_capital_outlay",
                 "items": [_item("ASIC", 2500.0, None)],
             },
+            "Consumer Discretionary": {
+                "role": "consumer_wishlist",
+                "items": [_item("Robot Vac", 0.0, None)],
+            },
             "Fleet": {
                 "role": "fleet_ops",
                 "items": [
@@ -360,6 +369,16 @@ class TestFlagEnumAndJoin(unittest.TestCase):
                 ],
             },
         }
+        leftover = _leftover_pile(87) + [
+            _tx(payee="Santander", amount=-1082.52, category_name="Uncategorized"),
+            _tx(
+                payee="Capital One",
+                amount=-1121.55,
+                transfer_account_id="xfer",
+                category_name="Uncategorized",
+            ),
+            _tx(payee="GM Financial", amount=-1321.66, category_name="Uncategorized"),
+        ]
         cmap = _map(
             *_ac_map()["categories"],
             _cat("sant", "Santander"),
@@ -367,27 +386,85 @@ class TestFlagEnumAndJoin(unittest.TestCase):
             _cat("gm", "GM Financial"),
             _cat("riv", "Rivian R1S"),
             _cat("af", "Agentic Fund Allocation"),
-            _cat("asic", "ASIC Fleet OpEx"),
+            _cat("asic-opex", "ASIC Fleet OpEx"),
+            _cat("asic-disc", "ASIC"),
             _cat("gold", "Robinhood Gold"),
             _cat("cbcard", "Coinbase One Card"),
         )
         strip = build_planned_actual_strip(
-            _snaps(_ac_items(), [], extra_tabs=extra), cmap, as_of=AS_OF
+            _snaps(_ac_items(), leftover, extra_tabs=extra), cmap, as_of=AS_OF
         )
         names = {r["item"] for r in strip["rows"]}
-        for banned in (
-            "Coinbase One Card",
-            "Santander (June / July / August)",
-            "Capital One (June / July / August)",
-            "GM Financial (June / July / August)",
-            "Rivian R1S",
-            "Agentic Fund Allocation",
-            "ASIC Fleet OpEx",
-            "ASIC",
-            "Robinhood Gold",
-        ):
-            self.assertNotIn(banned, names)
         self.assertIn("Fleet Insurance", names)
+        self.assertIn("Santander (June / July / August)", names)
+        self.assertIn("Capital One (June / July / August)", names)
+        self.assertIn("GM Financial (June / July / August)", names)
+        self.assertIn("Rivian R1S", names)
+        self.assertIn("Agentic Fund Allocation", names)
+        self.assertIn("ASIC Fleet OpEx", names)
+        self.assertNotIn("ASIC", names)
+        self.assertNotIn("Robot Vac", names)
+        self.assertNotIn("Coinbase One Card", names)
+        self.assertNotIn("Robinhood Gold", names)
+        tabs = {r["tab"] for r in strip["rows"]}
+        self.assertTrue({"Essential", "Fleet", "Collateral"} <= tabs or "Essential" in tabs)
+        self.assertNotIn("Productive Discretionary", tabs)
+        self.assertNotIn("Consumer Discretionary", tabs)
+
+        sant = _row(strip, "Santander (June / July / August)")
+        cap = _row(strip, "Capital One (June / July / August)")
+        gm = _row(strip, "GM Financial (June / July / August)")
+        riv = _row(strip, "Rivian R1S")
+        af = _row(strip, "Agentic Fund Allocation")
+        opex = _row(strip, "ASIC Fleet OpEx")
+        self.assertEqual(sant["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(cap["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(gm["flag"], FLAG_PAYMENT_SHAPED)
+        self.assertEqual(riv["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(riv["from_venue"], "NFCU (Zelle)")
+        self.assertEqual(sant["actual"], 0.0)
+        self.assertEqual(cap["actual"], 0.0)
+        self.assertEqual(gm["actual"], 0.0)
+        self.assertEqual(riv["actual"], 0.0)
+        self.assertAlmostEqual(sant["planned"], 1082.52)
+        self.assertEqual(af["tab"], "Collateral")
+        self.assertEqual(opex["tab"], "Collateral")
+        self.assertEqual(opex["flag"], FLAG_NOT_YET)
+        self.assertNotEqual(opex["category_id"], "asic-disc")
+        self.assertEqual(opex["category_id"], "asic-opex")
+
+    def test_asic_not_aliased_to_fleet_opex(self) -> None:
+        self.assertFalse(names_join("ASIC", "ASIC Fleet OpEx"))
+        self.assertTrue(names_join("ASIC Fleet OpEx", "ASIC Fleet OpEx"))
+
+    def test_rent_thais_ignore_one_card_and_x_money_txs(self) -> None:
+        txs = [
+            _tx(
+                payee="Rent",
+                amount=-2090.0,
+                category_id=RENT_ID,
+                category_name="Rent",
+                tx_id="one-card-rent",
+            ),
+            _tx(
+                payee="Thaís",
+                amount=-900.0,
+                category_id=THAIS_ID,
+                category_name="Thaís",
+                tx_id="xm-thais",
+            ),
+        ]
+        snaps = _snaps(_ac_items(), [])
+        snaps["one_card"] = {"transactions": [txs[0]], "source": "ynab"}
+        snaps["x_money"] = {"transactions": [txs[1]], "source": "ynab"}
+        strip = build_planned_actual_strip(snaps, _ac_map(), as_of=AS_OF)
+        rent = _row(strip, "Rent")
+        thais = _row(strip, "Thaís")
+        self.assertEqual(rent["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(thais["flag"], FLAG_OFF_BOOK)
+        self.assertEqual(rent["actual"], 0.0)
+        self.assertEqual(thais["actual"], 0.0)
+        self.assertEqual(rent["from"], COINBASE_USDC_LABEL)
 
     def test_flag_enum_only(self) -> None:
         txs = [
