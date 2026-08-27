@@ -10,12 +10,16 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from unittest.mock import patch
+
 from treasury.expenses_sync import (  # noqa: E402
     COLLATERAL_TAB,
     ESSENTIAL_TAB,
     FLEET_TAB,
     _upcoming_sorted,
     build_expenses_snapshot,
+    fetch_discretionary_csv,
+    parse_discretionary_rows,
     parse_money,
     parse_personal_rows,
     parse_sheet_date,
@@ -267,6 +271,18 @@ class TestSnapshot(unittest.TestCase):
         self.assertEqual(by_item["ASIC Fleet OpEx"]["tab"], COLLATERAL_TAB)
         self.assertEqual(by_item["ASIC Fleet OpEx"]["category_id"], "asic-opex")
         self.assertEqual({r["tab"] for r in strip["rows"]}, {ESSENTIAL_TAB, FLEET_TAB, COLLATERAL_TAB})
+
+    def test_discretionary_fetch_rejects_essential_alias(self):
+        with patch("treasury.expenses_sync.try_fetch_sheet_csv") as mocked:
+            mocked.side_effect = lambda sid, name, timeout=30.0: {
+                "Discretionary": PERSONAL_CSV,
+                "Productive Discretionary": DISC_CSV,
+            }.get(name)
+            text = fetch_discretionary_csv("sid", PERSONAL_CSV)
+        items, _ = parse_discretionary_rows(rows_from_csv(text))
+        names = [i["item"] for i in items]
+        self.assertIn("ASIC", names)
+        self.assertNotIn("Rent", names)
 
 
 class TestPolicyExpenses(unittest.TestCase):

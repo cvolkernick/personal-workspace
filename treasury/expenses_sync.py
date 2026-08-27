@@ -44,6 +44,8 @@ LEGACY_ESSENTIAL_TAB = "Personal"
 FLEET_TAB = "Fleet"
 COLLATERAL_TAB = "Collateral"
 DISCRETIONARY_TAB = "Discretionary"
+# Live successor title when gviz "Discretionary" aliases sheet 0 (Essential).
+PRODUCTIVE_DISCRETIONARY_TAB = "Productive Discretionary"
 # Planned strip + FCC pay-urgency read these three. Discretionary stays capital-targets.
 DEFAULT_TABS = (ESSENTIAL_TAB, FLEET_TAB, COLLATERAL_TAB, DISCRETIONARY_TAB)
 # Back-compat alias for importers that still say PERSONAL_TAB.
@@ -110,6 +112,33 @@ def fetch_essential_csv(sheet_id: str, *, timeout: float = 30.0) -> Tuple[str, s
     if text is not None:
         return text, ESSENTIAL_TAB
     return fetch_sheet_csv(sheet_id, LEGACY_ESSENTIAL_TAB, timeout=timeout), LEGACY_ESSENTIAL_TAB
+
+
+def sheet_item_names(csv_text: str) -> List[str]:
+    names: List[str] = []
+    for row in rows_from_csv(csv_text or ""):
+        item = (row.get("Item") or "").strip()
+        if item and item.lower() != "total":
+            names.append(item)
+    return names
+
+
+def fetch_discretionary_csv(
+    sheet_id: str,
+    essential_csv: str,
+    *,
+    timeout: float = 30.0,
+) -> str:
+    """Capital-targets tab only. Reject gviz sheet-0 aliases of Essential."""
+    ess_names = sheet_item_names(essential_csv)
+    for title in (DISCRETIONARY_TAB, PRODUCTIVE_DISCRETIONARY_TAB):
+        text = try_fetch_sheet_csv(sheet_id, title, timeout=timeout)
+        if not text:
+            continue
+        names = sheet_item_names(text)
+        if names and names != ess_names:
+            return text
+    return "Item,Date,Daily,Weekly,Bi-Weekly,Monthly,Annually,From,To\n"
 
 
 def rows_from_csv(text: str) -> List[Dict[str, str]]:
@@ -463,7 +492,7 @@ def sync_expenses(
 
     try:
         personal_csv, _ = fetch_essential_csv(sid)
-        discretionary_csv = fetch_sheet_csv(sid, DISCRETIONARY_TAB)
+        discretionary_csv = fetch_discretionary_csv(sid, personal_csv)
         fleet_csv = try_fetch_sheet_csv(sid, FLEET_TAB)
         collateral_csv = try_fetch_sheet_csv(sid, COLLATERAL_TAB)
         snap = build_expenses_snapshot(
