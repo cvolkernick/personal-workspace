@@ -2,6 +2,8 @@
 
 Sync identity:
   * Durable marker in notes: ``[fitdash-quest:YYYY-MM-DD]`` (titles stay human-only).
+  * Kind key ``[fitdash-kind:group|slug]`` so title metrics (battery %, grams)
+    upsert in place instead of appending a new incomplete leaf.
   * Meal-plan leaves also carry ``[fitdash-meal:YYYY-MM-DD]`` plus
     ``[fitdash-foods:<fp>]`` so same-day food-log regen can purge only those.
   * Local cache when the filesystem persists (Pi). Vercel is ephemeral — do not
@@ -56,7 +58,36 @@ PROTEIN_REMAINING_LEGACY_SLUG_RE = re.compile(
     r"^action-nutrition-\d+$",
     re.I,
 )
-
+# Stable action slugs so title metrics (battery %, grams, clock) cannot
+# mint a new incomplete leaf. Identity is kind + civil day (#357).
+PROTECT_BEDTIME_SLUG = "protect-bedtime"
+PROTECT_BEDTIME_CACHE_KEY = f"sleep|{PROTECT_BEDTIME_SLUG}"
+TRAIN_SESSION_SLUG = "train-session"
+TRAIN_SESSION_CACHE_KEY = f"training|{TRAIN_SESSION_SLUG}"
+CALORIE_PACE_SLUG = "calorie-pace"
+CALORIE_PACE_CACHE_KEY = f"nutrition|{CALORIE_PACE_SLUG}"
+SHOP_TOP_SLUG = "shop-top"
+SHOP_TOP_CACHE_KEY = f"shopping|{SHOP_TOP_SLUG}"
+KIND_MARK_RE = re.compile(r"\[fitdash-kind:([a-z0-9.|-]+)\]")
+SLEEP_QUEST_TITLE_RE = re.compile(
+    r"^(Protect bedtime|Sleep battery low)\b",
+    re.I,
+)
+TRAIN_SESSION_TITLE_RE = re.compile(
+    r"^(Complete today's|Easy |Rest / recover today)\b",
+    re.I,
+)
+CALORIE_PACE_TITLE_RE = re.compile(
+    r"^Calorie pace is\b",
+    re.I,
+)
+SHOP_LEAF_TITLE_RE = re.compile(
+    r"^(Restock|Get|Add):",
+    re.I,
+)
+LIFT_TITLE_RE = re.compile(
+    r"^(?P<name>.+?)\s+\((?P<detail>[^)]*)\)\s*$"
+)
 GROUP_META = {
     "training": {"title": "Training", "order": 1, "emoji": "🏋️"},
     "nutrition": {"title": "Nutrition", "order": 2, "emoji": "🍽"},
@@ -105,6 +136,22 @@ def cache_key(group: str, slug: str) -> str:
     return f"{group}|{slug}"
 
 
+def kind_marker(kind_key: str) -> str:
+    key = str(kind_key or "").strip()
+    return f"[fitdash-kind:{key}]" if key else ""
+
+
+def kind_from_notes(notes: str) -> Optional[str]:
+    match = KIND_MARK_RE.search(notes or "")
+    return match.group(1) if match else None
+
+
+def item_kind_key(item: PlannedItem) -> str:
+    if is_protein_remaining_item(item):
+        return PROTEIN_REMAINING_CACHE_KEY
+    return cache_key(item.group, item.slug)
+
+
 def group_header_titles() -> set:
     return {
         str(m.get("title") or "").strip()
@@ -125,15 +172,20 @@ def quest_mark_day(notes: str) -> Optional[str]:
     return day if _is_day_key(day) else None
 
 
-def quest_notes(motivation: str, day: str) -> str:
-    """Human motivation (optional) plus the durable FitDash marker."""
+def quest_notes(motivation: str, day: str, kind_key: str = "") -> str:
+    """Human motivation (optional) plus the durable FitDash markers."""
     mark = quest_marker(day)
-    extra = QUEST_MARK_RE.sub("", motivation or "").strip()
+    extra = QUEST_MARK_RE.sub("", motivation or "")
     extra = MEAL_MARK_RE.sub("", extra)
-    extra = FOODS_FP_RE.sub("", extra).strip()
+    extra = FOODS_FP_RE.sub("", extra)
+    extra = KIND_MARK_RE.sub("", extra).strip()
+    bits = [mark]
+    key = str(kind_key or "").strip()
+    if key:
+        bits.append(kind_marker(key))
     if extra:
-        return f"{extra}\n\n{mark}"
-    return mark
+        return extra + "\n\n" + "\n".join(bits)
+    return "\n".join(bits)
 
 
 def meal_marker(day: str) -> str:
@@ -158,9 +210,11 @@ def foods_fp_from_notes(notes: str) -> Optional[str]:
     return match.group(1) if match else None
 
 
-def meal_quest_notes(motivation: str, day: str, foods_fp: str = "") -> str:
+def meal_quest_notes(
+    motivation: str, day: str, foods_fp: str = "", kind_key: str = ""
+) -> str:
     """Quest marker + meal-plan ownership + food-log fingerprint."""
-    base = quest_notes(motivation, day)
+    base = quest_notes(motivation, day, kind_key=kind_key)
     marks = [meal_marker(day)]
     fp_mark = foods_fp_marker(foods_fp)
     if fp_mark:
@@ -216,6 +270,219 @@ def protein_remaining_action_slug(act: dict) -> Optional[str]:
     if looks_like_protein_remaining_title(str((act or {}).get("text") or "")):
         return PROTEIN_REMAINING_SLUG
     return None
+
+
+def looks_like_sleep_quest_title(title: str) -> bool:
+    return bool(SLEEP_QUEST_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_train_session_title(title: str) -> bool:
+    return bool(TRAIN_SESSION_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_calorie_pace_title(title: str) -> bool:
+    return bool(CALORIE_PACE_TITLE_RE.match((title or "").strip()))
+
+
+def looks_like_shop_leaf_title(title: str) -> bool:
+    return bool(SHOP_LEAF_TITLE_RE.match((title or "").strip()))
+
+
+def meal_food_name_from_title(title: str) -> str:
+    """Planner meal-leaf food name. 'Later meal · 3:30 PM: Chicken · 170g' → Chicken.
+
+    Split on ``: `` (label/food), not the first colon — clocks use ``12:00``.
+    """
+    text = (title or "").strip()
+    if ": " not in text:
+        return ""
+    rest = text.rsplit(": ", 1)[-1].strip()
+    return rest.split(" · ", 1)[0].strip()
+
+
+def lift_name_from_title(title: str) -> str:
+    """Exercise name from a lift leaf. Session / meal / sleep titles return ''."""
+    text = (title or "").strip()
+    if not text:
+        return ""
+    if looks_like_train_session_title(text):
+        return ""
+    if looks_like_sleep_quest_title(text):
+        return ""
+    if looks_like_protein_remaining_title(text):
+        return ""
+    if looks_like_meal_plan_title(text):
+        return ""
+    match = LIFT_TITLE_RE.match(text)
+    if match:
+        return (match.group("name") or "").strip()
+    return ""
+
+
+def stable_action_slug(act: dict, index: int) -> str:
+    """Kind slug that ignores battery %, grams, clock, and action index."""
+    protein = protein_remaining_action_slug(act)
+    if protein:
+        return protein
+    aid = str((act or {}).get("id") or "").strip()
+    if aid:
+        return _slug(aid)
+    kind = str((act or {}).get("kind") or "other").lower()
+    text = str((act or {}).get("text") or "")
+    if kind in ("sleep", "recovery") or looks_like_sleep_quest_title(text):
+        return PROTECT_BEDTIME_SLUG
+    if kind == "training" and looks_like_train_session_title(text):
+        return TRAIN_SESSION_SLUG
+    if looks_like_calorie_pace_title(text):
+        return CALORIE_PACE_SLUG
+    if kind == "shopping":
+        return SHOP_TOP_SLUG
+    return f"action-{kind}-{index}"
+
+
+def _task_on_civil_day(task: dict, day: str) -> bool:
+    """True when notes marker or due date belongs to this civil day."""
+    want = str(day or "")[:10]
+    marked = quest_mark_day((task or {}).get("notes") or "")
+    if marked:
+        return (not want) or marked == want
+    due = _task_due_day(task)
+    if due and _is_day_key(due):
+        return (not want) or due == want
+    return False
+
+
+def _has_fitdash_kind_or_quest(task: dict) -> bool:
+    notes = (task or {}).get("notes") or ""
+    return bool(quest_mark_day(notes) or kind_from_notes(notes))
+
+
+def is_sleep_owned_task(task: dict, *, day: str = "") -> bool:
+    """FitDash sleep/bedtime leaf for this civil day. Not meals, lifts, or jots."""
+    if not isinstance(task, dict):
+        return False
+    if not looks_like_sleep_quest_title(task.get("title") or ""):
+        return False
+    if looks_like_meal_plan_title(task.get("title") or ""):
+        return False
+    if not _has_fitdash_kind_or_quest(task):
+        return False
+    return _task_on_civil_day(task, day)
+
+
+def is_train_session_owned_task(task: dict, *, day: str = "") -> bool:
+    if not isinstance(task, dict):
+        return False
+    if not looks_like_train_session_title(task.get("title") or ""):
+        return False
+    if not _has_fitdash_kind_or_quest(task):
+        return False
+    return _task_on_civil_day(task, day)
+
+
+def is_calorie_pace_owned_task(task: dict, *, day: str = "") -> bool:
+    if not isinstance(task, dict):
+        return False
+    if not looks_like_calorie_pace_title(task.get("title") or ""):
+        return False
+    if not _has_fitdash_kind_or_quest(task):
+        return False
+    return _task_on_civil_day(task, day)
+
+
+def collect_kind_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    match,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    out: List[dict] = []
+    for task in tasks or []:
+        if not isinstance(task, dict):
+            continue
+        if not match(task):
+            continue
+        if incomplete_only and not _is_incomplete(task):
+            continue
+        out.append(task)
+    return out
+
+
+def collect_sleep_quest_tasks(
+    tasks: Sequence[dict],
+    *,
+    day: str,
+    incomplete_only: bool = False,
+) -> List[dict]:
+    return collect_kind_tasks(
+        tasks,
+        day=day,
+        match=lambda t: is_sleep_owned_task(t, day=day),
+        incomplete_only=incomplete_only,
+    )
+
+
+def _shopping_name_from_title(title: str) -> str:
+    text = (title or "").strip()
+    match = re.match(
+        r"^(?:Restock|Get|Add):?\s+(.+?)(?:\s+[—-]\s+.+)?$",
+        text,
+        re.I,
+    )
+    return (match.group(1) or "").strip() if match else ""
+
+
+def task_matches_item(task: dict, item: PlannedItem, day: str) -> bool:
+    """True when this Fitness task is the same kind+day as the planned leaf.
+
+    Kind marker wins. Title-shape families ignore volatile metrics. Exact
+    title is last-resort. Jots without a FitDash day hint never match.
+    """
+    if not isinstance(task, dict) or not isinstance(item, PlannedItem):
+        return False
+    if not _task_on_civil_day(task, day):
+        return False
+    marked_kind = kind_from_notes(task.get("notes") or "")
+    want_kind = item_kind_key(item)
+    if marked_kind:
+        return marked_kind == want_kind
+    title = task.get("title") or ""
+    if is_protein_remaining_item(item):
+        return is_protein_remaining_owned_task(task, day=day)
+    if item.group in ("sleep", "recovery") and (
+        item.slug == PROTECT_BEDTIME_SLUG or looks_like_sleep_quest_title(item.title)
+    ):
+        return is_sleep_owned_task(task, day=day)
+    if item.slug == TRAIN_SESSION_SLUG or (
+        item.group == "training" and looks_like_train_session_title(item.title)
+    ):
+        return is_train_session_owned_task(task, day=day)
+    if item.slug == CALORIE_PACE_SLUG or looks_like_calorie_pace_title(item.title):
+        return is_calorie_pace_owned_task(task, day=day)
+    if is_meal_plan_item(item):
+        if not is_meal_plan_owned_task(task, day=day):
+            return False
+        want = (item.item_name or meal_food_name_from_title(item.title)).strip().lower()
+        got = meal_food_name_from_title(title).strip().lower()
+        if want and got:
+            return want == got
+        return (title or "").strip() == (item.title or "").strip()
+    if item.group == "training" and str(item.slug or "").startswith("ex-"):
+        name = lift_name_from_title(title)
+        return bool(name) and item.slug == f"ex-{_slug(name)}"
+    if item.group == "shopping":
+        want = ""
+        if str(item.slug or "").startswith("buy-"):
+            want = str(item.slug)[4:]
+            want = re.sub(r"-\d+$", "", want)
+        if not want:
+            want = _slug(_shopping_name_from_title(item.title) or item.title)
+        got = _slug(_shopping_name_from_title(title) or title)
+        if want and got:
+            return want == got or got.startswith(want) or want.startswith(got)
+        return (title or "").strip() == (item.title or "").strip()
+    return (title or "").strip() == (item.title or "").strip()
 
 
 def is_protein_remaining_owned_task(task: dict, *, day: str = "") -> bool:
@@ -274,19 +541,22 @@ def protein_remaining_payload(
     }
 
 
-def _protein_remaining_keeper(
+def _kind_keeper(
     tasks: Sequence[dict],
     *,
-    day: str,
+    match,
     cache_ids: Optional[Dict[str, str]] = None,
+    cache_key_s: str = "",
     prefer_title: str = "",
 ) -> Optional[dict]:
-    incompletes = collect_protein_remaining_tasks(
-        tasks, day=day, incomplete_only=True
-    )
+    incompletes = [
+        t
+        for t in (tasks or [])
+        if isinstance(t, dict) and match(t) and _is_incomplete(t)
+    ]
     if not incompletes:
         return None
-    stable_tid = str((cache_ids or {}).get(PROTEIN_REMAINING_CACHE_KEY) or "")
+    stable_tid = str((cache_ids or {}).get(cache_key_s) or "")
     if stable_tid:
         for task in incompletes:
             if str(task.get("id") or "") == stable_tid:
@@ -305,24 +575,27 @@ def _protein_remaining_keeper(
     return sorted(pool, key=lambda t: str(t.get("id") or ""))[0]
 
 
-def collapse_protein_remaining_tasks(
+def collapse_kind_tasks(
     *,
     list_id: str,
     day: str,
+    match,
+    cache_key_s: str,
     cache: Optional[dict] = None,
     save: bool = True,
     listed_tasks: Optional[Sequence[dict]] = None,
     prefer_title: str = "",
+    remap_cache_key=None,
 ) -> Dict[str, Any]:
-    """Keep ≤1 incomplete protein-remaining leaf for this civil day.
+    """Keep ≤1 incomplete Fitness leaf for this kind+civil day.
 
-    Extra incompletes are deleted. Completed / checked copies stay history.
-    Meal slots, lifts, shopping, sleep, and jots are never touched.
+    Extra incompletes are deleted. Completed copies stay history. Tasks
+    that fail ``match`` (other families, jots) are never touched.
     """
     day = str(day or "")[:10]
     empty = protein_remaining_payload()
-    if not list_id or not day or not _is_day_key(day):
-        return {**empty, "ok": False, "error": "missing list_id or day"}
+    if not list_id or not day or not _is_day_key(day) or not cache_key_s:
+        return {**empty, "ok": False, "error": "missing list_id, day, or kind"}
     if cache is None:
         cache = _load_cache()
     day_cache = cache.get(day) if isinstance(cache.get(day), dict) else {}
@@ -343,12 +616,18 @@ def collapse_protein_remaining_tasks(
         except Exception as exc:  # noqa: BLE001
             return {**empty, "ok": True, "error": str(exc)[:160]}
 
-    keeper = _protein_remaining_keeper(
-        tasks, day=day, cache_ids=ids, prefer_title=prefer_title
+    keeper = _kind_keeper(
+        tasks,
+        match=match,
+        cache_ids=ids,
+        cache_key_s=cache_key_s,
+        prefer_title=prefer_title,
     )
-    incompletes = collect_protein_remaining_tasks(
-        tasks, day=day, incomplete_only=True
-    )
+    incompletes = [
+        t
+        for t in tasks
+        if isinstance(t, dict) and match(t) and _is_incomplete(t)
+    ]
     keep_id = str((keeper or {}).get("id") or "")
     extras = [
         t for t in incompletes if keep_id and str(t.get("id") or "") != keep_id
@@ -368,18 +647,21 @@ def collapse_protein_remaining_tasks(
             errors.append(f"{tid}: {exc}")
 
     if keep_id:
-        ids[PROTEIN_REMAINING_CACHE_KEY] = keep_id
+        ids[cache_key_s] = keep_id
     drop = set(purged)
     for ck in list(ids.keys()):
         if str(ids.get(ck) or "") in drop:
             ids.pop(ck, None)
         elif (
-            is_protein_remaining_cache_key(ck)
-            and ck != PROTEIN_REMAINING_CACHE_KEY
+            ck != cache_key_s
             and str(ids.get(ck) or "") == keep_id
+            and (
+                (remap_cache_key and remap_cache_key(ck))
+                or ck.split("|", 1)[-1].startswith("action-")
+            )
         ):
             ids.pop(ck, None)
-            ids[PROTEIN_REMAINING_CACHE_KEY] = keep_id
+            ids[cache_key_s] = keep_id
     if isinstance(day_cache, dict) and (purged or keep_id):
         day_cache = dict(day_cache)
         day_cache["ids"] = ids
@@ -393,6 +675,34 @@ def collapse_protein_remaining_tasks(
         "errors": errors[:20],
         "error": errors[0] if errors else None,
     }
+
+
+def collapse_protein_remaining_tasks(
+    *,
+    list_id: str,
+    day: str,
+    cache: Optional[dict] = None,
+    save: bool = True,
+    listed_tasks: Optional[Sequence[dict]] = None,
+    prefer_title: str = "",
+) -> Dict[str, Any]:
+    """Keep ≤1 incomplete protein-remaining leaf for this civil day.
+
+    Extra incompletes are deleted. Completed / checked copies stay history.
+    Meal slots, lifts, shopping, sleep, and jots are never touched.
+    """
+    day = str(day or "")[:10]
+    return collapse_kind_tasks(
+        list_id=list_id,
+        day=day,
+        cache=cache,
+        save=save,
+        listed_tasks=listed_tasks,
+        prefer_title=prefer_title,
+        cache_key_s=PROTEIN_REMAINING_CACHE_KEY,
+        match=lambda t: is_protein_remaining_owned_task(t, day=day),
+        remap_cache_key=is_protein_remaining_cache_key,
+    )
 
 
 def is_meal_plan_owned_task(task: dict, *, day: str = "") -> bool:
@@ -464,9 +774,9 @@ def meal_regen_payload(
 ) -> Dict[str, Any]:
     """Assay hook: before/after GT ids for one meal-plan purge/recreate.
 
-    ``reason`` is ``food_logs`` when the foods fingerprint changed (or
-    legacy leaves had no fp), and ``refresh_resync`` when Refresh / silent
-    recreate rotated ids without an fp change.
+    ``reason`` is ``food_logs`` when the foods fingerprint or food-identity
+    set changed (or legacy leaves had no fp). Same-food title shifts
+    upsert in place and do not set this payload.
     """
     return {
         "triggered": bool(triggered),
@@ -572,7 +882,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         return groups[key]
 
     # High-level actions (skip pure nutrition "eat through plan" if we expand meals)
-    saw_protein_remaining = False
+    saw_family: set = set()
     for i, act in enumerate((today or {}).get("actions") or []):
         if not isinstance(act, dict):
             continue
@@ -583,14 +893,17 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         # Prefer meal-bucket leaves over generic "eat through planned meals"
         if kind == "nutrition" and "planned meal" in text.lower():
             continue
-        protein_slug = protein_remaining_action_slug(act)
-        if protein_slug:
-            if saw_protein_remaining:
+        slug = stable_action_slug(act, i)
+        if slug in (
+            PROTEIN_REMAINING_SLUG,
+            PROTECT_BEDTIME_SLUG,
+            TRAIN_SESSION_SLUG,
+            CALORIE_PACE_SLUG,
+            SHOP_TOP_SLUG,
+        ):
+            if slug in saw_family:
                 continue
-            saw_protein_remaining = True
-            slug = protein_slug
-        else:
-            slug = str(act.get("id") or f"action-{kind}-{i}")
+            saw_family.add(slug)
         _g(kind).items.append(
             PlannedItem(
                 group=("sleep" if kind == "recovery" else kind),
@@ -700,7 +1013,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
                 )
             )
 
-    for k, p in enumerate((today or {}).get("purchases") or []):
+    for p in (today or {}).get("purchases") or []:
         if not isinstance(p, dict):
             continue
         name = str(p.get("name") or "").strip()
@@ -713,7 +1026,7 @@ def plan_from_today_board(today: dict, *, day: Optional[str] = None) -> List[Pla
         g.items.append(
             PlannedItem(
                 group="shopping",
-                slug=f"buy-{_slug(name)}-{k}",
+                slug=f"buy-{_slug(name)}",
                 title=f"{act}: {name}"[:200],
                 notes_extra=str(p.get("reason") or "")[:400],
             )
@@ -746,7 +1059,11 @@ def _hydrate_ids_from_listed(
     listed: dict,
     day: str,
 ) -> Dict[str, str]:
-    """Reuse existing Fitness tasks when the local cache is empty (Vercel)."""
+    """Reuse existing Fitness tasks when the local cache is empty (Vercel).
+
+    Leaves match by kind+day (title metrics may differ). Group headers
+    still match exact title.
+    """
     tasks = [t for t in (listed.get("tasks") or []) if isinstance(t, dict)]
     unused = list(tasks)
     used_ids = {str(v) for v in (ids or {}).values() if v}
@@ -768,14 +1085,15 @@ def _hydrate_ids_from_listed(
             return t
         return None
 
-    def take_protein_remaining(parent_id: Optional[str] = None) -> Optional[dict]:
-        """Reuse same-day protein remaining even when grams in the title shifted."""
+    def take_for_item(
+        item: PlannedItem, parent_id: Optional[str] = None
+    ) -> Optional[dict]:
         candidates: List[Tuple[int, int, dict]] = []
         for i, t in enumerate(unused):
             tid = str(t.get("id") or "")
             if tid and tid in used_ids:
                 continue
-            if not is_protein_remaining_owned_task(t, day=day):
+            if not task_matches_item(t, item, day):
                 continue
             due = _task_due_day(t)
             if due and due != day:
@@ -794,17 +1112,18 @@ def _hydrate_ids_from_listed(
     out = dict(ids)
     by_id = {str(t.get("id") or ""): t for t in tasks if t.get("id")}
     for ck, tid in list(out.items()):
-        if ck == PROTEIN_REMAINING_CACHE_KEY or not tid:
+        if not tid:
             continue
-        slug = ck.split("|", 1)[-1] if ck.startswith("nutrition|") else ""
         task = by_id.get(str(tid))
-        title_hit = bool(
-            task and looks_like_protein_remaining_title(task.get("title") or "")
-        )
-        if PROTEIN_REMAINING_SLUG_RE.match(slug) or (
-            PROTEIN_REMAINING_LEGACY_SLUG_RE.match(slug) and title_hit
-        ):
-            out.setdefault(PROTEIN_REMAINING_CACHE_KEY, tid)
+        if not task:
+            continue
+        for g in planned:
+            for it in g.items:
+                stable = item_kind_key(it)
+                if ck == stable:
+                    continue
+                if task_matches_item(task, it, day):
+                    out.setdefault(stable, tid)
     for g in planned:
         parent_ck = cache_key(g.group, "group")
         parent_id = out.get(parent_ck)
@@ -815,16 +1134,10 @@ def _hydrate_ids_from_listed(
                 out[parent_ck] = parent_id
                 used_ids.add(parent_id)
         for it in g.items:
-            ck = cache_key(g.group, it.slug)
-            if is_protein_remaining_item(it):
-                ck = PROTEIN_REMAINING_CACHE_KEY
+            ck = item_kind_key(it)
             if out.get(ck):
                 continue
-            found = (
-                take_protein_remaining(parent_id=parent_id)
-                if is_protein_remaining_item(it)
-                else take(it.title, parent_id=parent_id)
-            )
+            found = take_for_item(it, parent_id=parent_id)
             if found and found.get("id"):
                 out[ck] = str(found["id"])
                 used_ids.add(str(found["id"]))
@@ -968,6 +1281,31 @@ def purge_stale_quest_tasks(
     }
 
 
+def meal_food_identities_from_planned(planned: Sequence[PlannedGroup]) -> set:
+    names = set()
+    for group in planned or []:
+        if group.group != "nutrition":
+            continue
+        for item in group.items:
+            if not is_meal_plan_item(item):
+                continue
+            name = (item.item_name or meal_food_name_from_title(item.title)).strip().lower()
+            if name:
+                names.add(name)
+    return names
+
+
+def meal_food_identities_from_tasks(tasks: Sequence[dict], day: str) -> set:
+    names = set()
+    for task in tasks or []:
+        if not isinstance(task, dict) or not is_meal_plan_owned_task(task, day=day):
+            continue
+        name = meal_food_name_from_title(task.get("title") or "").strip().lower()
+        if name:
+            names.add(name)
+    return names
+
+
 def _existing_meal_foods_fp(tasks: Sequence[dict], day: str) -> Optional[str]:
     fps = {
         foods_fp_from_notes(t.get("notes") or "")
@@ -1090,23 +1428,21 @@ def ensure_daily_tasks(
     day: Optional[str] = None,
     create_missing: bool = True,
 ) -> dict:
-    """Ensure / refresh quests. Titles stay human-only; notes carry the marker.
+    """Ensure / refresh quests. Titles stay human-only; notes carry markers.
 
     On each ensure for civil day D: remove incomplete FitDash quests that
     belong to any day other than D, then create/refresh today's groups and
     leaves. Completed prior-day quests are left completed.
 
-    When today's food-log fingerprint no longer matches meal-plan-owned
-    Tasks, or Refresh / remaining-day resync leaves those titles stale
-    (same fingerprint, hydrate would miss and create new ids), meal-owned
-    leaves are purged and recreated. Hand jots and non-meal quests are
-    left alone. Silent if none to purge. ``meal_regen`` always reports
-    the deletes/creates that actually ran.
+    Every FitDash leaf upserts by kind + civil day (issue #357). Title
+    metrics (battery %, wake time, grams, clock, lift load) may change in
+    place. Incomplete extras of the same kind+day collapse to one.
+    Completed copies stay history and are not resurrected.
 
-    Protein-remaining leaves use a stable ``nutrition|protein-remaining``
-    cache key (issue #345). Incomplete duplicates for the civil day are
-    collapsed to one before seed; title grams upsert in place. Completed
-    protein quests stay history.
+    Meal-plan leaves still purge+recreate when the food-log fingerprint
+    or the food-identity set changes (#321). Same foods with a clock /
+    portion / slot-label shift upsert like every other family. Hand jots
+    and non-FitDash Tasks are never touched.
     """
     day = day or str((today_board or {}).get("date") or local_today_iso())
     planned = plan_from_today_board(today_board or {}, day=day)
@@ -1179,26 +1515,16 @@ def ensure_daily_tasks(
                 "food_logs_today"
             ) or []
             log_n = len(meal_logs)
-        planned_meal_titles = {
-            it.title
-            for g in planned
-            if g.group == "nutrition"
-            for it in g.items
-            if is_meal_plan_item(it)
-        }
-        existing_meal_titles = {
-            str(t.get("title") or "")
-            for t in listed_tasks
-            if is_meal_plan_owned_task(t, day=day)
-        }
-        # Recreate when owned meal GT would otherwise rotate under a silent
-        # hydrate-miss create: food-log fp change, legacy leaves (no foods
-        # fp) whose titles no longer match, or Refresh / remaining-day
-        # title shift with the same fp. No owned Tasks → silent create.
-        titles_diverged = planned_meal_titles != existing_meal_titles
+        planned_foods = meal_food_identities_from_planned(planned)
+        existing_foods = meal_food_identities_from_tasks(listed_tasks, day)
+        # Recreate only when the meal *foods* changed (fp or identity set).
+        # Clock / portion / slot-label shifts upsert in place (#357).
+        foods_diverged = bool(planned_foods or existing_foods) and (
+            planned_foods != existing_foods
+        )
         fp_changed = prior_fp is not None and prior_fp != foods_fp
-        legacy_stale = prior_fp is None and log_n > 0 and titles_diverged
-        if owned_meal and (fp_changed or titles_diverged):
+        legacy_stale = prior_fp is None and log_n > 0 and foods_diverged
+        if owned_meal and (fp_changed or foods_diverged):
             meal_purge = purge_meal_plan_tasks(
                 list_id=list_id,
                 day=day,
@@ -1235,31 +1561,48 @@ def ensure_daily_tasks(
                 error=meal_purge.get("error"),
             )
 
-        # Collapse same-day incomplete protein remaining before seed (#345).
-        protein_collapse = collapse_protein_remaining_tasks(
-            list_id=list_id,
-            day=day,
-            cache=cache,
-            save=True,
-            listed_tasks=listed_tasks,
-            prefer_title=protein_title,
-        )
-        protein_purged = list(protein_collapse.get("purged") or [])
-        if protein_collapse.get("kept") or protein_purged:
-            protein_stats = protein_remaining_payload(
-                kept=protein_collapse.get("kept"),
-                purged=protein_purged,
-            )
+        # Collapse same-day incomplete extras per kind before seed (#357).
+        collapsed: set = set()
+        for g in planned:
+            for it in g.items:
+                ck = item_kind_key(it)
+                if ck in collapsed:
+                    continue
+                collapsed.add(ck)
+                prefer = protein_title if is_protein_remaining_item(it) else it.title
+                kind_collapse = collapse_kind_tasks(
+                    list_id=list_id,
+                    day=day,
+                    cache=cache,
+                    save=True,
+                    listed_tasks=listed_tasks,
+                    prefer_title=prefer,
+                    cache_key_s=ck,
+                    match=lambda t, item=it: task_matches_item(t, item, day),
+                    remap_cache_key=(
+                        is_protein_remaining_cache_key
+                        if is_protein_remaining_item(it)
+                        else None
+                    ),
+                )
+                kind_purged = list(kind_collapse.get("purged") or [])
+                if is_protein_remaining_item(it) and (
+                    kind_collapse.get("kept") or kind_purged
+                ):
+                    protein_stats = protein_remaining_payload(
+                        kept=kind_collapse.get("kept"),
+                        purged=kind_purged,
+                    )
+                if kind_purged:
+                    listed_tasks = [
+                        t
+                        for t in listed_tasks
+                        if str(t.get("id") or "") not in set(kind_purged)
+                    ]
+                    listed = {"ok": True, "tasks": listed_tasks}
         day_cache = cache.get(day) if isinstance(cache.get(day), dict) else day_cache
         if isinstance(day_cache, dict) and day_cache.get("ids"):
             ids = dict(day_cache.get("ids") or ids)
-        if protein_purged:
-            listed_tasks = [
-                t
-                for t in listed_tasks
-                if str(t.get("id") or "") not in set(protein_purged)
-            ]
-            listed = {"ok": True, "tasks": listed_tasks}
 
         if listed and listed.get("ok"):
             ids = _hydrate_ids_from_listed(ids, planned, listed, day)
@@ -1275,7 +1618,7 @@ def ensure_daily_tasks(
                 created = gtb.create_task(
                     list_id,
                     g.title,  # no date stamp in the title
-                    notes=quest_notes("", day),
+                    notes=quest_notes("", day, kind_key=parent_ck),
                     due=day,
                 )
                 if created.get("ok") and created.get("task"):
@@ -1289,36 +1632,43 @@ def ensure_daily_tasks(
             items_out: List[dict] = []
             for it in g.items:
                 protein_item = is_protein_remaining_item(it)
-                ck = (
-                    PROTEIN_REMAINING_CACHE_KEY
-                    if protein_item
-                    else cache_key(g.group, it.slug)
-                )
+                ck = item_kind_key(it)
                 tid = ids.get(ck)
                 task = _get_task_safe(list_id, tid) if tid else None
-                if protein_item and not task:
-                    existing_pr = collect_protein_remaining_tasks(
-                        listed_tasks, day=day
-                    )
+                existing_kind = collect_kind_tasks(
+                    listed_tasks,
+                    day=day,
+                    match=lambda t, item=it: task_matches_item(t, item, day),
+                )
+                if not task and existing_kind:
                     incompletes = [
-                        t for t in existing_pr if _is_incomplete(t)
+                        t for t in existing_kind if _is_incomplete(t)
                     ]
-                    pick = incompletes[0] if incompletes else (
-                        existing_pr[0] if existing_pr else None
-                    )
+                    pick = incompletes[0] if incompletes else existing_kind[0]
                     if pick and pick.get("id"):
                         task = pick
                         tid = str(pick["id"])
                         ids[ck] = tid
                 if (
-                    protein_item
-                    and task
+                    task
                     and create_missing
                     and _is_incomplete(task)
                     and (task.get("title") or "").strip() != it.title.strip()
                 ):
+                    notes_now = task.get("notes") or ""
+                    kind_mark = kind_marker(ck)
+                    new_notes = None
+                    if kind_mark and kind_mark not in notes_now:
+                        new_notes = (
+                            (notes_now.rstrip() + "\n" + kind_mark).strip()
+                            if notes_now
+                            else kind_mark
+                        )
                     updated = gtb.update_task(
-                        list_id, str(task.get("id") or tid), title=it.title
+                        list_id,
+                        str(task.get("id") or tid),
+                        title=it.title,
+                        notes=new_notes,
                     )
                     if updated.get("ok") and updated.get("task"):
                         task = updated["task"]
@@ -1328,18 +1678,18 @@ def ensure_daily_tasks(
                             else t
                             for t in listed_tasks
                         ]
-                    protein_stats["upserted"] = True
-                    protein_stats["kept"] = str(task.get("id") or tid)
-                if not task and create_missing and not (
-                    protein_item
-                    and collect_protein_remaining_tasks(listed_tasks, day=day)
-                ):
+                    if protein_item:
+                        protein_stats["upserted"] = True
+                        protein_stats["kept"] = str(task.get("id") or tid)
+                if not task and create_missing and not existing_kind:
                     if is_meal_plan_item(it):
                         notes = meal_quest_notes(
-                            it.notes_extra or "", day, foods_fp
+                            it.notes_extra or "", day, foods_fp, kind_key=ck
                         )
                     else:
-                        notes = quest_notes(it.notes_extra or "", day)
+                        notes = quest_notes(
+                            it.notes_extra or "", day, kind_key=ck
+                        )
                     created = gtb.create_task(
                         list_id,
                         it.title,
